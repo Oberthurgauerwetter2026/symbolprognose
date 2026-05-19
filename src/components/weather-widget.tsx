@@ -248,10 +248,10 @@ function Header({
                       }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-100 flex items-baseline justify-between gap-3"
                     >
-                      <span className="font-medium text-zinc-900">
+                      <span className="font-bold text-zinc-900">
                         {r.name}
                       </span>
-                      <span className="text-xs text-zinc-500">
+                      <span className="text-xs text-zinc-700 font-semibold">
                         {r.admin1 ?? "CH"}
                       </span>
                     </button>
