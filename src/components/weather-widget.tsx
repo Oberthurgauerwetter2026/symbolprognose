@@ -6,7 +6,7 @@ import {
   formatTimeHHMM,
   reverseGeocode,
   searchLocations,
-  secondsToHours,
+  
   weatherLabel,
   weekdayLong,
   weekdayShort,
@@ -298,87 +298,139 @@ function DayStrip({
   extended: boolean;
 }) {
   const d = forecast.daily;
+  const SUN_MAX_H = 15;
   return (
-    <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
-      {days.map((day, i) => {
-        const selected = i === selectedIdx;
-        return (
-          <button
-            key={day.iso}
-            type="button"
-            onClick={() => onSelect(i)}
-            className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 transition-colors ${
-              selected
-                ? "bg-[var(--accent-soft)]"
-                : "bg-zinc-50 hover:bg-zinc-50/80"
-            }`}
-          >
-            {selected && (
-              <div className="absolute top-0 left-0 right-0 h-1 bg-accent" />
-            )}
-            <div className="flex flex-col">
-              <span
-                className={`text-base font-semibold ${
-                  selected ? "text-accent" : "text-zinc-900"
-                }`}
-              >
-                {i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
-              </span>
-              <span className="text-sm text-zinc-500">
-                {weekdayShort(day.date)} {formatDateShort(day.date)}
-              </span>
-            </div>
-            <div
-              className="py-1 select-none text-zinc-900"
-              aria-label={weatherLabel(d.weathercode[i])}
-              title={weatherLabel(d.weathercode[i])}
+    <div className="space-y-2">
+      <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
+        {days.map((day, i) => {
+          const selected = i === selectedIdx;
+          return (
+            <button
+              key={day.iso}
+              type="button"
+              onClick={() => onSelect(i)}
+              className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 transition-colors ${
+                selected
+                  ? "bg-[var(--accent-soft)]"
+                  : "bg-zinc-50 hover:bg-zinc-50/80"
+              }`}
             >
-              <WeatherIcon code={d.weathercode[i]} size={72} />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-semibold tabular-nums text-zinc-900">
-                  {Math.round(d.temperature_2m_max[i])}°
+              {selected && (
+                <div className="absolute top-0 left-0 right-0 h-1 bg-accent" />
+              )}
+              <div className="flex flex-col">
+                <span
+                  className={`text-base font-semibold ${
+                    selected ? "text-accent" : "text-zinc-900"
+                  }`}
+                >
+                  {i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
                 </span>
-                <span className="text-base text-zinc-500 font-medium tabular-nums">
-                  {Math.round(d.temperature_2m_min[i])}°
-                </span>
-              </div>
-              <div className="text-xs text-zinc-500 flex justify-between tabular-nums">
-                <span>{d.precipitation_sum[i].toFixed(1)} mm</span>
-                <span>{d.precipitation_probability_max[i] ?? 0}%</span>
-              </div>
-            </div>
-            <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-zinc-500">
-                <span>Wind</span>
-                <span className="text-zinc-800 font-medium tabular-nums flex items-center gap-1">
-                  <WindArrow deg={d.winddirection_10m_dominant[i]} />
-                  {Math.round(d.windspeed_10m_max[i])}
-                  <span className="text-zinc-400">
-                    /{Math.round(d.windgusts_10m_max[i])}
-                  </span>{" "}
-                  km/h
+                <span className="text-sm text-zinc-500">
+                  {weekdayShort(day.date)} {formatDateShort(day.date)}
                 </span>
               </div>
-              {extended && (
-                <>
-                  <div className="flex items-center justify-between text-xs text-zinc-500">
-                    <span>Sonne</span>
-                    <span className="text-zinc-800 font-medium tabular-nums">
-                      {secondsToHours(d.sunshine_duration[i])} h
-                    </span>
-                  </div>
+              <div
+                className="py-1 select-none text-zinc-900"
+                aria-label={weatherLabel(d.weathercode[i])}
+                title={weatherLabel(d.weathercode[i])}
+              >
+                <WeatherIcon code={d.weathercode[i]} size={72} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-semibold tabular-nums text-zinc-900">
+                    {Math.round(d.temperature_2m_max[i])}°
+                  </span>
+                  <span className="text-base text-zinc-500 font-medium tabular-nums">
+                    {Math.round(d.temperature_2m_min[i])}°
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-500 flex justify-between tabular-nums">
+                  <span>{d.precipitation_sum[i].toFixed(1)} mm</span>
+                  <span>{d.precipitation_probability_max[i] ?? 0}%</span>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-zinc-500">
+                  <span>Wind</span>
+                  <span className="text-zinc-800 font-medium tabular-nums flex items-center gap-1">
+                    <WindArrow deg={d.winddirection_10m_dominant[i]} />
+                    {Math.round(d.windspeed_10m_max[i])}
+                    <span className="text-zinc-400">
+                      /{Math.round(d.windgusts_10m_max[i])}
+                    </span>{" "}
+                    km/h
+                  </span>
+                </div>
+                {extended && (
                   <div className="flex items-center justify-between text-xs text-zinc-500 tabular-nums">
                     <span>↑ {formatTimeHHMM(d.sunrise[i])}</span>
                     <span>↓ {formatTimeHHMM(d.sunset[i])}</span>
                   </div>
-                </>
-              )}
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {extended && (
+        <div className="bg-zinc-50 border border-zinc-200 rounded-md overflow-hidden">
+          <div className="flex items-stretch">
+            {/* Y-axis */}
+            <div className="relative w-12 shrink-0 border-r border-zinc-200 bg-zinc-100/50">
+              <div className="h-[90px] relative text-[10px] text-zinc-500 tabular-nums">
+                {[15, 10, 5, 0].map((v) => (
+                  <div
+                    key={v}
+                    className="absolute left-0 right-1 text-right leading-none"
+                    style={{ top: `${(1 - v / SUN_MAX_H) * 100}%`, transform: v === 0 ? "translateY(-100%)" : v === 15 ? "translateY(0)" : "translateY(-50%)" }}
+                  >
+                    {v}
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+                Sonne<br />h/Tag
+              </div>
             </div>
-          </button>
-        );
-      })}
+            {/* Bars */}
+            <div className="flex-1 flex @[900px]:grid @[900px]:grid-cols-7 overflow-x-auto no-scrollbar">
+              {days.map((day, i) => {
+                const hours = d.sunshine_duration[i] / 3600;
+                const pct = Math.min(hours / SUN_MAX_H, 1) * 100;
+                return (
+                  <div
+                    key={day.iso}
+                    className="relative min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 flex flex-col items-center"
+                  >
+                    <div className="relative w-full h-[90px]">
+                      {/* gridlines */}
+                      {[0, 5, 10, 15].map((v) => (
+                        <div
+                          key={v}
+                          className="absolute left-0 right-0 border-t border-zinc-200/70"
+                          style={{ top: `${(1 - v / SUN_MAX_H) * 100}%` }}
+                        />
+                      ))}
+                      {/* bar */}
+                      <div
+                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 @[640px]:w-4 rounded-t-sm bg-[var(--wx-sun)]"
+                        style={{ height: `${pct}%` }}
+                        title={`${hours.toFixed(1)} h`}
+                      />
+                    </div>
+                    <div className="text-[11px] text-zinc-700 tabular-nums py-1">
+                      {hours.toFixed(1)} h
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -492,101 +544,152 @@ function DetailPanel({
           3-Stunden-Takt · °C / mm / km/h
         </span>
       </div>
-      <div
-        ref={scrollerRef}
-        className="overflow-x-auto no-scrollbar scroll-smooth snap-x"
-      >
-        <div className="flex">
-          {hourlyIndices.map((idx, i) => {
-            const iso = h.time[idx];
-            const t = new Date(iso);
-            const isCurrent = t.getTime() === currentBlockMs;
-            const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
-            const isDayStart =
-              !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
-            const precip = h.precipitation[idx] ?? 0;
-            const precipProb = h.precipitation_probability[idx] ?? 0;
-            // 5 mm in 3h = full bar (heavy rain); cap above
-            const precipPct = Math.min(precip / 5, 1) * 100;
-            const barOpacity = precip > 0 ? 0.35 + (precipProb / 100) * 0.65 : 0;
-            return (
+      <div className="flex items-stretch">
+        {/* Y-axis for precipitation chart */}
+        <div className="w-10 shrink-0 border-r border-zinc-200 bg-zinc-100/50 flex flex-col justify-end">
+          <div className="flex-1" />
+          <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums">
+            {[5, 2.5, 0].map((v) => (
               <div
-                key={iso}
-                ref={(el) => {
-                  if (el) slotRefs.current.set(iso, el);
-                  else slotRefs.current.delete(iso);
+                key={v}
+                className="absolute left-0 right-1 text-right leading-none"
+                style={{
+                  top: `${(1 - v / 5) * 100}%`,
+                  transform:
+                    v === 0
+                      ? "translateY(-100%)"
+                      : v === 5
+                        ? "translateY(0)"
+                        : "translateY(-50%)",
                 }}
-                className={`flex-shrink-0 w-[108px] @[640px]:w-[124px] p-3 @[640px]:p-4 space-y-3 snap-start ${
-                  isCurrent ? "bg-[var(--accent-soft)]" : ""
-                } ${
-                  isDayStart
-                    ? "border-l-2 border-accent/50"
-                    : "border-l border-zinc-200"
-                }`}
               >
-                <div
-                  className={`text-sm font-semibold tabular-nums ${
-                    isCurrent ? "text-accent" : "text-zinc-600"
-                  }`}
-                >
-                  {String(t.getHours()).padStart(2, "0")}:00
-                </div>
-                <div
-                  className="flex items-center justify-center"
-                  title={weatherLabel(h.weathercode[idx])}
-                >
-                  <WeatherIcon
-                    code={h.weathercode[idx]}
-                    isDay={t.getHours() >= 6 && t.getHours() < 20}
-                    size={56}
-                  />
-                </div>
-                <div className="text-xl font-semibold tabular-nums text-zinc-900">
-                  {h.temperature_2m[idx].toFixed(1)}°
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-end gap-2">
+                {v}
+              </div>
+            ))}
+          </div>
+          <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+            mm/3h
+          </div>
+        </div>
+        {/* Scroll area: slots on top, precipitation bars below */}
+        <div
+          ref={scrollerRef}
+          className="flex-1 overflow-x-auto no-scrollbar scroll-smooth snap-x"
+        >
+          <div className="inline-flex flex-col min-w-full">
+            {/* Hour slots */}
+            <div className="flex">
+              {hourlyIndices.map((idx, i) => {
+                const iso = h.time[idx];
+                const t = new Date(iso);
+                const isCurrent = t.getTime() === currentBlockMs;
+                return (
+                  <div
+                    key={iso}
+                    ref={(el) => {
+                      if (el) slotRefs.current.set(iso, el);
+                      else slotRefs.current.delete(iso);
+                    }}
+                    className={`flex-shrink-0 w-[108px] @[640px]:w-[124px] p-3 @[640px]:p-4 space-y-3 snap-start ${
+                      isCurrent ? "bg-[var(--accent-soft)]" : ""
+                    }`}
+                  >
                     <div
-                      className="relative w-2 h-10 bg-zinc-200/70 rounded-sm overflow-hidden shrink-0"
-                      title={`${precip.toFixed(1)} mm`}
+                      className={`text-sm font-semibold tabular-nums ${
+                        isCurrent ? "text-accent" : "text-zinc-600"
+                      }`}
                     >
+                      {String(t.getHours()).padStart(2, "0")}:00
+                    </div>
+                    <div
+                      className="flex items-center justify-center"
+                      title={weatherLabel(h.weathercode[idx])}
+                    >
+                      <WeatherIcon
+                        code={h.weathercode[idx]}
+                        isDay={t.getHours() >= 6 && t.getHours() < 20}
+                        size={56}
+                      />
+                    </div>
+                    <div className="text-xl font-semibold tabular-nums text-zinc-900">
+                      {h.temperature_2m[idx].toFixed(1)}°
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <WindArrow deg={h.winddirection_10m[idx]} />
+                        <span className="font-semibold tabular-nums text-zinc-800">
+                          {Math.round(h.windspeed_10m[idx])}
+                          <span className="font-normal text-zinc-500">
+                            /{Math.round(h.windgusts_10m[idx])}
+                          </span>
+                        </span>
+                        <span className="text-zinc-500">
+                          {windDirectionLabel(h.winddirection_10m[idx])}
+                        </span>
+                      </div>
+                      <div className="text-xs text-zinc-500 flex justify-between">
+                        <span>Schnee</span>
+                        <span className="text-zinc-800 font-medium tabular-nums">
+                          {h.snowfall[idx].toFixed(1)} cm
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Precipitation bar chart */}
+            <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+              {hourlyIndices.map((idx, i) => {
+                const iso = h.time[idx];
+                const t = new Date(iso);
+                const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+                const isDayStart =
+                  !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
+                const precip = h.precipitation[idx] ?? 0;
+                const precipProb = h.precipitation_probability[idx] ?? 0;
+                const precipPct = Math.min(precip / 5, 1) * 100;
+                const barOpacity =
+                  precip > 0 ? 0.35 + (precipProb / 100) * 0.65 : 0;
+                return (
+                  <div
+                    key={iso}
+                    className="flex-shrink-0 w-[108px] @[640px]:w-[124px] flex flex-col"
+                  >
+                    <div className="relative h-[72px] w-full">
+                      {/* Gridlines */}
+                      {[0, 2.5, 5].map((v) => (
+                        <div
+                          key={v}
+                          className="absolute left-0 right-0 border-t border-zinc-200/80"
+                          style={{ top: `${(1 - v / 5) * 100}%` }}
+                        />
+                      ))}
+                      {/* Day separator */}
+                      {isDayStart && i > 0 && (
+                        <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
+                      )}
+                      {/* Bar */}
                       <div
-                        className="absolute bottom-0 left-0 right-0 bg-[var(--wx-rain)] transition-all"
+                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2.5 @[640px]:w-3 rounded-t-sm bg-[var(--wx-rain)]"
                         style={{
                           height: `${precipPct}%`,
                           opacity: barOpacity,
                         }}
+                        title={`${precip.toFixed(1)} mm · ${precipProb}%`}
                       />
                     </div>
-                    <div className="flex-1 text-xs tabular-nums leading-tight">
-                      <div className="font-semibold text-zinc-800">
-                        {precip.toFixed(1)} mm
+                    <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
+                      <div className="font-medium">
+                        {precip > 0 ? precip.toFixed(1) : "–"}
                       </div>
-                      <div className="text-zinc-500">{precipProb}%</div>
+                      <div className="text-zinc-400">{precipProb}%</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <WindArrow deg={h.winddirection_10m[idx]} />
-                    <span className="font-semibold tabular-nums text-zinc-800">
-                      {Math.round(h.windspeed_10m[idx])}
-                      <span className="font-normal text-zinc-500">
-                        /{Math.round(h.windgusts_10m[idx])}
-                      </span>
-                    </span>
-                    <span className="text-zinc-500">
-                      {windDirectionLabel(h.winddirection_10m[idx])}
-                    </span>
-                  </div>
-                  <div className="text-xs text-zinc-500 flex justify-between">
-                    <span>Schnee</span>
-                    <span className="text-zinc-800 font-medium tabular-nums">
-                      {h.snowfall[idx].toFixed(1)} cm
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </section>
