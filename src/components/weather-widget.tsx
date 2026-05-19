@@ -624,8 +624,8 @@ function DetailPanel({
                     } ${isCurrent ? "bg-[var(--accent-soft)]" : ""}`}
                   >
                     <div
-                      className={`text-sm font-semibold tabular-nums ${
-                        isCurrent ? "text-accent" : "text-zinc-600"
+                      className={`text-sm font-bold tabular-nums ${
+                        isCurrent ? "text-accent" : "text-zinc-800"
                       }`}
                     >
                       {String(t.getHours()).padStart(2, "0")}:00
@@ -640,19 +640,19 @@ function DetailPanel({
                         size={56}
                       />
                     </div>
-                    <div className="text-xl font-semibold tabular-nums text-zinc-900">
+                    <div className="text-xl font-bold tabular-nums text-zinc-900">
                       {h.temperature_2m[idx].toFixed(1)}°
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 text-xs">
                         <WindArrow deg={h.winddirection_10m[idx]} />
-                        <span className="font-semibold tabular-nums text-zinc-800">
+                        <span className="font-bold tabular-nums text-zinc-900">
                           {Math.round(wind)}
-                          <span className="font-normal text-zinc-500">
+                          <span className="font-semibold text-zinc-700">
                             /{Math.round(gust)}
                           </span>
                         </span>
-                        <span className="text-zinc-500">
+                        <span className="text-zinc-700 font-medium">
                           {windDirectionLabel(h.winddirection_10m[idx])}
                         </span>
                       </div>
