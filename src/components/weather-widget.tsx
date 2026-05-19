@@ -105,7 +105,7 @@ export function WeatherWidget() {
   }, [forecast.data, now]);
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900 antialiased py-6 px-3 md:py-10 md:px-6">
+    <div className="@container bg-zinc-100 text-zinc-900 antialiased py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
       <div className="max-w-5xl mx-auto space-y-5">
         <Header
           locationName={location.name}
