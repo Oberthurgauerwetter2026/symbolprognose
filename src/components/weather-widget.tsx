@@ -534,7 +534,7 @@ function DetailPanel({
             ))}
           </div>
           <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
-            mm/3h
+            Regen<br />mm/3h
           </div>
           {extended && (
             <>
@@ -558,7 +558,33 @@ function DetailPanel({
                 ))}
               </div>
               <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
-                min/h<br />Sonne
+                Sonne<br />min/h
+              </div>
+            </>
+          )}
+          {snow && (
+            <>
+              <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums border-t border-zinc-200">
+                {[2, 1, 0].map((v) => (
+                  <div
+                    key={v}
+                    className="absolute left-0 right-1 text-right leading-none"
+                    style={{
+                      top: `${(1 - v / 2) * 100}%`,
+                      transform:
+                        v === 0
+                          ? "translateY(-100%)"
+                          : v === 2
+                            ? "translateY(0)"
+                            : "translateY(-50%)",
+                    }}
+                  >
+                    {v}
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+                Schnee<br />cm/3h
               </div>
             </>
           )}
