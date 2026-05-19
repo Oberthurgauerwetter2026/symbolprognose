@@ -1,25 +1,26 @@
-## Fix: CSS-Fehler bleibt
+## Befund
 
-**Ursache:** `@import "tailwindcss"` wird von Tailwind v4 inline expandiert (hunderte `@property`-Regeln, base layer etc.). Unser `@import url("...fonts.googleapis...")` landet danach im finalen Stylesheet → PostCSS lehnt das ab (`@import must precede all other statements`). Egal an welche Stelle wir den Font-Import in `styles.css` setzen — er kommt immer nach Tailwinds Expansion.
+Das Problem ist nicht mehr der Wetterdaten-Request selbst: Der Open-Meteo-Request liefert im Browser `200 OK`. Die Seite bricht danach beim Rendern ab und landet deshalb im globalen Fehlerbildschirm „This page didn't load“.
 
-## Lösung
+Die wahrscheinliche Ursache ist die API-Antwort: Bei `meteoswiss_icon_seamless` kommen für mehrere Wind-Felder `null` zurück, während die UI diese Werte direkt rundet/formatiert und für CSS-Transforms verwendet. Das kann den React-Render der Root-Route abbrechen.
 
-Font-Import komplett aus `src/styles.css` entfernen und stattdessen als `<link>`-Tags in den Document-Head einhängen — über die `head().links`-Konfiguration der Root-Route. Das umgeht den CSS-Import-Order-Konflikt vollständig.
+Zusätzlich zeigen die Dev-Server-Logs noch alte CSS-Import-Fehler. Ich werde nach der Codekorrektur den Dev-Server neu starten, damit keine veraltete Vite-Transformation mehr im Preview hängt.
 
-### `src/styles.css`
-Zeile entfernen:
-```css
-@import url("https://fonts.googleapis.com/...");
-```
+## Plan
 
-### `src/routes/__root.tsx`
-In `head().links` ergänzen:
-```ts
-{ rel: "preconnect", href: "https://fonts.googleapis.com" },
-{ rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-{ rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" },
-```
+1. **Wetterdaten normalisieren**
+   - In `src/lib/weather.ts` die API-Antwort nach dem Fetch bereinigen.
+   - Fehlende/null-Werte für Wind, Böen, Windrichtung, Temperatur, Niederschlag, Schnee und Wettercode auf sichere Fallbacks setzen.
+   - Dadurch muss die UI nicht mehr mit `null` rechnen.
 
-## Geänderte Dateien
-- `src/styles.css` — Font-Import entfernen
-- `src/routes/__root.tsx` — Font-Links im Head
+2. **UI gegen unvollständige Wetterdaten absichern**
+   - In `src/components/weather-widget.tsx` direkte Formatierungen wie `.toFixed(...)`, `Math.round(...)`, `weatherLabel(...)`, `WeatherIcon code=...` und `WindArrow deg=...` mit sicheren Hilfsfunktionen bzw. Fallbacks absichern.
+   - Tages- und Stundenansichten sollen auch bei teilweise fehlenden Modelldaten weiter rendern.
+
+3. **Router-Fehlerausgabe robuster machen**
+   - In `src/router.tsx` einen `defaultErrorComponent` ergänzen, damit künftige Fehler sauber abgefangen werden.
+   - Root-Error bleibt bestehen, aber die App bekommt eine zusätzliche Sicherheitslinie.
+
+4. **Preview neu laden/validieren**
+   - Dev-Server neu starten, damit die alten CSS-Fehler aus dem Vite-Cache verschwinden.
+   - Danach prüfen, ob die Startseite statt des globalen Fehlerbildschirms wieder das Wetter-Widget anzeigt.

@@ -128,7 +128,60 @@ export async function fetchForecast(
   );
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error("Wetterdaten konnten nicht geladen werden");
-  return (await res.json()) as ForecastResponse;
+  const data = (await res.json()) as ForecastResponse;
+  return sanitizeForecast(data);
+}
+
+function num(v: unknown, fallback = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+function sanitizeForecast(data: ForecastResponse): ForecastResponse {
+  const h = data.hourly;
+  const d = data.daily;
+
+  const fixNumArr = (arr: (number | null)[] | undefined, fallback = 0) =>
+    (arr ?? []).map((v) => num(v, fallback));
+
+  const sanitizedHourly: HourlyData = {
+    time: h?.time ?? [],
+    weathercode: fixNumArr(h?.weathercode as (number | null)[]),
+    temperature_2m: fixNumArr(h?.temperature_2m as (number | null)[]),
+    precipitation: fixNumArr(h?.precipitation as (number | null)[]),
+    precipitation_probability: fixNumArr(
+      h?.precipitation_probability as (number | null)[],
+    ),
+    windspeed_10m: fixNumArr(h?.windspeed_10m as (number | null)[]),
+    windgusts_10m: fixNumArr(h?.windgusts_10m as (number | null)[]),
+    winddirection_10m: fixNumArr(h?.winddirection_10m as (number | null)[]),
+    snowfall: fixNumArr(h?.snowfall as (number | null)[]),
+  };
+
+  const sanitizedDaily: DailyData = {
+    time: d?.time ?? [],
+    weathercode: fixNumArr(d?.weathercode as (number | null)[]),
+    temperature_2m_max: fixNumArr(d?.temperature_2m_max as (number | null)[]),
+    temperature_2m_min: fixNumArr(d?.temperature_2m_min as (number | null)[]),
+    precipitation_sum: fixNumArr(d?.precipitation_sum as (number | null)[]),
+    precipitation_probability_max: fixNumArr(
+      d?.precipitation_probability_max as (number | null)[],
+    ),
+    windspeed_10m_max: fixNumArr(d?.windspeed_10m_max as (number | null)[]),
+    windgusts_10m_max: fixNumArr(d?.windgusts_10m_max as (number | null)[]),
+    winddirection_10m_dominant: fixNumArr(
+      d?.winddirection_10m_dominant as (number | null)[],
+    ),
+    sunshine_duration: fixNumArr(d?.sunshine_duration as (number | null)[]),
+    sunrise: (d?.sunrise ?? []).map((v) => v ?? ""),
+    sunset: (d?.sunset ?? []).map((v) => v ?? ""),
+    snowfall_sum: fixNumArr(d?.snowfall_sum as (number | null)[]),
+  };
+
+  return {
+    ...data,
+    hourly: sanitizedHourly,
+    daily: sanitizedDaily,
+  };
 }
 
 // WMO weather code → emoji (day variant)
@@ -201,7 +254,9 @@ export function formatDateShort(date: Date): string {
   return `${date.getDate()}. ${MONTHS[date.getMonth()]}`;
 }
 export function formatTimeHHMM(iso: string): string {
+  if (!iso) return "–";
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "–";
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 export function secondsToHours(sec: number): string {
