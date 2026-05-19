@@ -135,6 +135,8 @@ export function WeatherWidget() {
           }}
           extended={extended}
           onToggleExtended={setExtended}
+          snow={snow}
+          onToggleSnow={setSnow}
         />
 
         {forecast.isLoading && <SkeletonWidget />}
