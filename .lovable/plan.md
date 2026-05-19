@@ -1,22 +1,25 @@
-## Fix: Seite lädt nicht mehr
+## Fix: CSS-Fehler bleibt
 
-**Ursache:** Vite/PostCSS Fehler in `src/styles.css`:
-`@import must precede all other statements (besides @charset or empty @layer)`.
-
-Die Google-Fonts-Zeile `@import url("https://fonts.googleapis.com/...")` steht in der Datei nach `@import "tailwindcss"` und `@source` — letzteres wird von Tailwind v4 zu Regelgruppen expandiert, sodass der nachfolgende `@import url(...)` ungültig wird. SSR rendert die Fehlerseite „This page didn't load".
+**Ursache:** `@import "tailwindcss"` wird von Tailwind v4 inline expandiert (hunderte `@property`-Regeln, base layer etc.). Unser `@import url("...fonts.googleapis...")` landet danach im finalen Stylesheet → PostCSS lehnt das ab (`@import must precede all other statements`). Egal an welche Stelle wir den Font-Import in `styles.css` setzen — er kommt immer nach Tailwinds Expansion.
 
 ## Lösung
 
-In `src/styles.css` die Reihenfolge ändern: Google-Fonts-`@import url(...)` als allererste Zeile setzen, vor `@import "tailwindcss"`. Keine inhaltliche Änderung sonst.
+Font-Import komplett aus `src/styles.css` entfernen und stattdessen als `<link>`-Tags in den Document-Head einhängen — über die `head().links`-Konfiguration der Root-Route. Das umgeht den CSS-Import-Order-Konflikt vollständig.
 
+### `src/styles.css`
+Zeile entfernen:
 ```css
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
-@import "tailwindcss" source(none);
-@source "../src";
-@import "tw-animate-css";
-@custom-variant dark (&:is(.dark *));
-…
+@import url("https://fonts.googleapis.com/...");
+```
+
+### `src/routes/__root.tsx`
+In `head().links` ergänzen:
+```ts
+{ rel: "preconnect", href: "https://fonts.googleapis.com" },
+{ rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+{ rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" },
 ```
 
 ## Geänderte Dateien
-- `src/styles.css` — nur Zeilenreihenfolge im Kopf.
+- `src/styles.css` — Font-Import entfernen
+- `src/routes/__root.tsx` — Font-Links im Head
