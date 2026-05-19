@@ -355,7 +355,7 @@ function DayStrip({
               aria-label={weatherLabel(d.weathercode[i])}
               title={weatherLabel(d.weathercode[i])}
             >
-              <WeatherIcon code={d.weathercode[i]} size={52} />
+              <WeatherIcon code={d.weathercode[i]} size={72} />
             </div>
             <div className="space-y-1">
               <div className="flex items-baseline justify-between">
