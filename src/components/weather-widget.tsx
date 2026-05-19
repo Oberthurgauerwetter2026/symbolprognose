@@ -738,7 +738,7 @@ function Footer({
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
       <div className="text-xs text-zinc-500">
-        Grafik &amp; Daten ©{" "}
+        Grafik ©{" "}
         <a
           href="https://oberthurgauerwetter.ch"
           target="_blank"
