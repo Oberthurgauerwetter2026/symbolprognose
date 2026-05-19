@@ -698,11 +698,11 @@ function DetailPanel({
                         title={`${precip.toFixed(1)} mm · ${precipProb}%`}
                       />
                     </div>
-                    <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
-                      <div className="font-medium">
+                    <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
+                      <div className="font-bold">
                         {precip > 0 ? precip.toFixed(1) : "–"}
                       </div>
-                      <div className="text-zinc-400">{precipProb}%</div>
+                      <div className="text-zinc-600 font-medium">{precipProb}%</div>
                     </div>
                   </div>
                 );
@@ -745,11 +745,11 @@ function DetailPanel({
                           title={`${minPerHour} min/h Sonne`}
                         />
                       </div>
-                      <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
-                        <div className="font-medium">
+                      <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
+                        <div className="font-bold">
                           {minPerHour > 0 ? `${minPerHour}` : "–"}
                         </div>
-                        <div className="text-zinc-400">min</div>
+                        <div className="text-zinc-600 font-medium">min</div>
                       </div>
                     </div>
                   );
@@ -791,11 +791,11 @@ function DetailPanel({
                           title={`${cm.toFixed(1)} cm Neuschnee`}
                         />
                       </div>
-                      <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
-                        <div className="font-medium">
+                      <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
+                        <div className="font-bold">
                           {cm > 0 ? cm.toFixed(1) : "–"}
                         </div>
-                        <div className="text-zinc-400">cm</div>
+                        <div className="text-zinc-600 font-medium">cm</div>
                       </div>
                     </div>
                   );
