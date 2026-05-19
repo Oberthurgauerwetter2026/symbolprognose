@@ -168,6 +168,7 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     windgusts_10m: fixNumArr(h?.windgusts_10m as (number | null)[]),
     winddirection_10m: fixNumArr(h?.winddirection_10m as (number | null)[]),
     snowfall: fixNumArr(h?.snowfall as (number | null)[]),
+    sunshine_duration: fixNumArr(h?.sunshine_duration as (number | null)[]),
   };
 
   const sanitizedDaily: DailyData = {
