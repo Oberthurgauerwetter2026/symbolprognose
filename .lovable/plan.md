@@ -1,56 +1,59 @@
-## Schriftstärke im gesamten Widget deutlich verstärken (+2 Stufen)
+## Dark-Mode mit #2561a1 als Akzent
 
-Ausschliesslich in `src/components/weather-widget.tsx`. Keine Änderungen an Daten, Layout, Farben (ausser Textfarben werden dunkler für mehr Kontrast).
+Neutraler dunkler Hintergrund (zinc-900/950), `#2561a1` ersetzt im Dark-Mode den Akzent (aktive Tage, Buttons, Highlights, Regenbalken-Stil). Aktivierung über Toggle im Header, Default folgt `prefers-color-scheme`, Wahl persistiert in `localStorage`.
 
-### Globale Regel
+### 1. Theme-Tokens (`src/styles.css`)
 
-- `font-medium` → `font-semibold`
-- `font-semibold` → `font-bold`
-- Reine `text-zinc-500`-Labels → `text-zinc-700 font-medium`
-- Reine `text-zinc-400` (Sublabels Werte) → `text-zinc-600`
-- `text-zinc-600` für kleine Werte → `text-zinc-800 font-semibold`
-- Body-Default des Widget-Wrappers bekommt `font-medium` als Basis (`text-zinc-900 antialiased font-medium`).
+Bestehende Tokens (`--background`, `--foreground`, `--accent`, `--accent-soft`, `--accent-strong`) bleiben für Light unverändert. Neuer `.dark`-Block überschreibt:
 
-### Betroffene Stellen konkret
+```css
+.dark {
+  --background: oklch(0.18 0.01 250);          /* ~zinc-900 */
+  --foreground: oklch(0.96 0.005 250);
+  --accent: #2561a1;
+  --accent-soft: color-mix(in oklab, #2561a1 22%, transparent);
+  --accent-strong: #1d4f86;
+  --wx-rain: #4a90d9;                          /* heller im Dark */
+}
+```
 
-**Header**
-- Suchfeld: `placeholder` bleibt, Input-Text `font-medium`.
-- Ortungs-Button: `font-medium` → `font-semibold`.
-- Switch-Labels „Sonnenschein" / „Schnee": `font-medium` → `font-semibold`, Farbe `text-zinc-700` → `text-zinc-900`.
+Plus semantische Surface-Tokens, weil der Code aktuell hart `bg-zinc-50/100/200` und `text-zinc-500/700/900` nutzt. Zwei Wege:
 
-**DayStrip (5-Tage-Karten)**
-- Tagesname (Heute / Morgen / Wochentag): `font-semibold` → `font-bold`.
-- Datums-Zeile darunter: `text-zinc-500` → `text-zinc-700 font-medium`.
-- Max-Temperatur: `font-semibold` → `font-bold`.
-- Min-Temperatur: `font-medium` → `font-semibold`, Farbe `text-zinc-500` → `text-zinc-700`.
-- mm / % Zeile: `text-zinc-500` → `text-zinc-700 font-medium`, tabular bleibt.
-- Wind-Block: Labels `text-zinc-500` → `text-zinc-700 font-medium`; Wert `font-medium` → `font-semibold`; Gust-Trenner `text-zinc-400` → `text-zinc-600`.
-- Sonnenauf-/untergang (extended): `text-zinc-500` → `text-zinc-700 font-medium`.
+- **Neue Tokens** `--surface`, `--surface-muted`, `--surface-strong`, `--border-subtle`, `--text-muted`, `--text-strong` definieren (light + dark).
+- Im Widget werden die ~30 hartcodierten `bg-zinc-*` / `text-zinc-*` / `border-zinc-*`-Klassen durch `bg-[var(--surface)]`, `text-[var(--text-strong)]` etc. ersetzt.
 
-**Detail-Panel Header**
-- Tagesname: `font-semibold` → `font-bold`.
-- Sub-Headline „3h · Temperatur °C · Wind / Böenspitzen km/h": `text-zinc-500` → `text-zinc-700 font-medium`.
+### 2. Theme-State (`src/components/weather-widget.tsx`)
 
-**Y-Achsen-Labels** (Regen / Sonne / Schnee)
-- Skalenzahlen: `text-zinc-500` → `text-zinc-700 font-semibold`.
-- Achsentitel („Regen mm/3h" usw.): `text-zinc-500` → `text-zinc-800 font-semibold`.
+- Neuer `theme: "light" | "dark"`-State im `WeatherWidget`.
+- Init-Reihenfolge: `localStorage["weather:theme"]` → `?theme=` URL-Param → `prefers-color-scheme` → `"light"`.
+- `useEffect` setzt `document.documentElement.classList.toggle("dark", theme === "dark")` und schreibt in `localStorage`.
+- Listener für `matchMedia("(prefers-color-scheme: dark)")`, solange Nutzer noch nicht manuell gewählt hat (Flag `userOverride`).
 
-**Stundenslots**
-- Stundenanzeige (z.B. 09:00): `font-semibold` → `font-bold`, Farbe `text-zinc-600` → `text-zinc-800`.
-- Temperatur: `font-semibold` → `font-bold`.
-- Wind-Wert: `font-semibold` → `font-bold`; Gust `text-zinc-500` → `text-zinc-700 font-medium`; Richtungs-Label `text-zinc-500` → `text-zinc-700 font-medium`.
+### 3. Toggle im Header
 
-**Chart-Werte unter den Balken** (Regen / Sonne / Schnee)
-- Hauptwert: `font-medium` → `font-bold`, Farbe `text-zinc-600` → `text-zinc-900`.
-- Sublabel (% bzw. „min" / „cm"): `text-zinc-400` → `text-zinc-600 font-medium`.
+Dritter Switch / Icon-Button neben „Sonnenschein" und „Schnee":
+- Icon ☀/☾ + Label „Dark", `aria-pressed`.
+- Gleicher Visual-Stil wie die anderen Switches.
 
-**Legendenzeile am Fuss des Panels**
-- `text-zinc-500` → `text-zinc-700 font-semibold`; Schriftgrösse `text-[10px]` → `text-[11px]`.
+### 4. Tailwind v4 dark variant
 
-**Footer**
-- Quellen- und Copyright-Zeile: `text-zinc-500` → `text-zinc-700 font-medium`.
+In `src/styles.css` einmalig: `@custom-variant dark (&:where(.dark, .dark *));`
+(falls noch nicht vorhanden) – damit `dark:`-Utilities möglich wären; primär arbeiten wir aber über CSS-Variablen, dann brauchen die Komponenten **keinen** zusätzlichen `dark:`-Prefix.
+
+### 5. Iframe-Embed (Admin-Snippet)
+
+Im `EmbedSection` (`src/routes/admin.tsx`) wird ein optionaler Hinweis ergänzt: Theme wird automatisch übernommen (System) bzw. kann mit `?theme=dark` / `?theme=light` erzwungen werden. Snippet bekommt einen Kommentar dazu, kein neuer Pflicht-Parameter.
+
+### Technische Details
+
+- `--wx-snow-bar` (#7dd3fc) bleibt – kontrastiert auch auf dunklem BG gut.
+- `--wx-sun` (#f59e0b) bleibt, wirkt im Dark-Mode sogar prägnanter.
+- `bg-[var(--accent-soft)]` bleibt 1:1 nutzbar (wird automatisch dunkler im Dark-Mode dank `color-mix`).
+- FOUC-Schutz: kleiner Inline-Script-Snippet in `src/routes/__root.tsx` (vor Hydration) liest `localStorage["weather:theme"]` und setzt `.dark` auf `<html>` synchron.
+- Kontrast geprüft: `#2561a1` auf `zinc-900` ≈ 5.3:1 (AA für UI-Elemente und grossen Text).
 
 ### Nicht im Plan
 
-- Keine Änderungen an Schriftgrössen (ausser Legendenzeile +1px), Abständen, Farben oder Layout.
-- Keine neue Font-Familie.
+- Keine drei Modi (nur Light/Dark, kein „Sepia"/Custom).
+- Keine Änderung der bestehenden Light-Farben.
+- Keine separate Dark-Variante der Wetter-Icons (sind ohnehin farbig/SVG, funktionieren auf beiden Hintergründen).

@@ -59,8 +59,37 @@ export function WeatherWidget() {
   });
   const [extended, setExtended] = useState(false);
   const [snow, setSnow] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document !== "undefined" && document.documentElement.classList.contains("dark"))
+      return "dark";
+    return "light";
+  });
+  const [themeOverride, setThemeOverride] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const now = useNow();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.documentElement;
+    root.classList.toggle("dark", theme === "dark");
+    if (themeOverride) {
+      try {
+        localStorage.setItem("weather:theme", theme);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [theme, themeOverride]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (e: MediaQueryListEvent) => {
+      if (!themeOverride) setTheme(e.matches ? "dark" : "light");
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [themeOverride]);
 
   useEffect(() => {
     try {
@@ -137,6 +166,11 @@ export function WeatherWidget() {
           onToggleExtended={setExtended}
           snow={snow}
           onToggleSnow={setSnow}
+          theme={theme}
+          onToggleTheme={() => {
+            setThemeOverride(true);
+            setTheme((t) => (t === "dark" ? "light" : "dark"));
+          }}
         />
 
         {forecast.isLoading && <SkeletonWidget />}
@@ -190,6 +224,8 @@ function Header({
   onToggleExtended,
   snow,
   onToggleSnow,
+  theme,
+  onToggleTheme,
 }: {
   locationName: string;
   onSelectLocation: (loc: GeoLocation) => void;
@@ -198,6 +234,8 @@ function Header({
   onToggleExtended: (v: boolean) => void;
   snow: boolean;
   onToggleSnow: (v: boolean) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -295,6 +333,15 @@ function Header({
             Schnee
           </span>
         </label>
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          aria-pressed={theme === "dark"}
+          title={theme === "dark" ? "Hell-Modus" : "Dark-Modus"}
+          className="h-9 w-9 flex items-center justify-center rounded-md border border-zinc-300 bg-zinc-50 text-zinc-900 hover:bg-zinc-100 transition-colors text-base"
+        >
+          <span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
+        </button>
       </div>
     </header>
   );
