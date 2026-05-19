@@ -272,11 +272,6 @@ function EmbedSection() {
           Ortung). Die Einbettung lädt jeweils die aktuell unter{" "}
           <code className="font-mono">{origin}/</code> verfügbare Version.
         </p>
-        <p className="text-xs text-zinc-500">
-          Theme: folgt automatisch dem System der Besucher. Erzwingen mit{" "}
-          <code className="font-mono">?theme=dark</code> oder{" "}
-          <code className="font-mono">?theme=light</code> in der iframe-URL.
-        </p>
       </div>
     </section>
   );

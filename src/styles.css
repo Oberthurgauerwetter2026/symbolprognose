@@ -2,7 +2,7 @@
 @source "../src";
 @import "tw-animate-css";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -97,43 +97,6 @@
   --wx-bolt: #facc15;
   --wx-bolt-edge: #b45309;
   --wx-fog: #4b5563;
-}
-
-.dark {
-  /* Invert the zinc scale so existing bg-zinc-*/text-zinc-* utilities adapt. */
-  --zinc-50: #18181b;
-  --zinc-100: #1f1f23;
-  --zinc-200: #2a2a2f;
-  --zinc-300: #3f3f46;
-  --zinc-400: #71717a;
-  --zinc-500: #a1a1aa;
-  --zinc-600: #c4c4c8;
-  --zinc-700: #d4d4d8;
-  --zinc-800: #e4e4e7;
-  --zinc-900: #fafafa;
-
-  --background: var(--zinc-100);
-  --foreground: var(--zinc-900);
-  --card: var(--zinc-50);
-  --card-foreground: var(--zinc-900);
-  --popover: var(--zinc-50);
-  --popover-foreground: var(--zinc-900);
-  --primary: var(--zinc-900);
-  --primary-foreground: var(--zinc-50);
-  --secondary: var(--zinc-200);
-  --secondary-foreground: var(--zinc-900);
-  --muted: var(--zinc-200);
-  --muted-foreground: var(--zinc-500);
-  --border: var(--zinc-200);
-  --input: var(--zinc-200);
-
-  --accent: #2561a1;
-  --accent-soft: color-mix(in oklab, #2561a1 28%, transparent);
-  --accent-strong: #3a7cc4;
-  --accent-foreground: #ffffff;
-  --ring: #2561a1;
-
-  --wx-rain: #4a90d9;
 }
 
 @layer base {
