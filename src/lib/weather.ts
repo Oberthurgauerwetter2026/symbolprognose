@@ -350,24 +350,51 @@ export async function fetchForecast(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
-  // MeteoSchweiz Hauptquelle; ECMWF IFS Ensemble-Mittel füllt Tag 6/7; best_match deckt Restfelder ab.
-  const [primary, ensembleRaw, bestMatch] = await Promise.all([
-    fetchModel(latitude, longitude, "meteoswiss_icon_seamless"),
-    fetchEnsembleMean(latitude, longitude).catch(() => null),
+  // MeteoSchweiz ICON-CH1-EPS (Tag 1-2) + ICON-CH2-EPS (Tag 1-5) Ensemble-Mittel,
+  // ECMWF IFS Ensemble-Mittel für Tag 6-7, best_match als Restfallback (Probability, Sunrise/Sunset).
+  const [ch1Raw, ch2Raw, ifsRaw, bestMatch] = await Promise.all([
+    fetchEnsembleMean(latitude, longitude, "icon_ch1_eps").catch(() => null),
+    fetchEnsembleMean(latitude, longitude, "icon_ch2_eps").catch(() => null),
+    fetchEnsembleMean(latitude, longitude, "ecmwf_ifs025").catch(() => null),
     fetchModel(latitude, longitude, "best_match").catch(() => null),
   ]);
 
-  // Snapshot der originalen MeteoSchweiz-Daily-Werte, um zu entscheiden, wo neu aggregiert werden muss.
-  const primaryDailyMaxBefore = [...(primary.daily?.temperature_2m_max ?? [])];
+  // Primärquelle ist ICON-CH1-EPS; falls nicht verfügbar, nimm CH2 → IFS → best_match.
+  const primary =
+    (ch1Raw && wrapEnsembleAsForecast(ch1Raw)) ??
+    (ch2Raw && wrapEnsembleAsForecast(ch2Raw)) ??
+    (ifsRaw && wrapEnsembleAsForecast(ifsRaw)) ??
+    bestMatch;
+  if (!primary) throw new Error("Keine Wettermodelle erreichbar");
 
   let merged = primary;
-  if (ensembleRaw) merged = fillGaps(merged, wrapEnsembleAsForecast(ensembleRaw));
-  if (bestMatch) merged = fillGaps(merged, bestMatch);
+  if (primary !== (ch2Raw && wrapEnsembleAsForecast(ch2Raw)) && ch2Raw) {
+    merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
+  }
+  if (ifsRaw) merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
+  if (bestMatch && bestMatch !== primary) merged = fillGaps(merged, bestMatch);
 
-  // Tag 6/7 (oder jeder Tag, an dem MeteoSchweiz keine Daily-Max-Temp lieferte) neu aus gemergten Hourly aggregieren.
-  for (let i = 0; i < merged.daily.time.length; i++) {
-    if (!isMissing(primaryDailyMaxBefore[i])) continue;
-    const agg = aggregateDailyFromHourly(merged.hourly, merged.daily.time[i]);
+  // Daily-Werte aus den gemergten Hourly-Arrays neu aggregieren (Ensembles liefern keine Daily-Felder).
+  // Sunrise/Sunset/Probability bleiben aus best_match (via fillGaps schon übernommen).
+  const daysFromHourly = new Set<string>();
+  for (const t of merged.hourly.time) daysFromHourly.add((t ?? "").slice(0, 10));
+  const dailyTimes = merged.daily.time.length
+    ? merged.daily.time
+    : Array.from(daysFromHourly).slice(0, TOTAL_DAYS);
+
+  if (!merged.daily.time.length) {
+    merged.daily.time = dailyTimes;
+  }
+
+  const ensureLen = (key: keyof DailyData) => {
+    const arr = merged.daily[key] as (number | string)[];
+    while (arr.length < dailyTimes.length) arr.push(0 as never);
+  };
+  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum"] as (keyof DailyData)[])
+    .forEach(ensureLen);
+
+  for (let i = 0; i < dailyTimes.length; i++) {
+    const agg = aggregateDailyFromHourly(merged.hourly, dailyTimes[i]);
     const apply = (key: keyof DailyData) => {
       const v = agg[key as string];
       if (v != null && Number.isFinite(v)) {
