@@ -1,57 +1,44 @@
-## Neue Route `/admin`
+## Änderungen am Wetter-Widget
 
-Eigene Route `src/routes/admin.tsx` mit einfachem Passwort-Gate (Passwort hartkodiert in der Datei, z. B. `wetter2026`). Eingabe wird in `sessionStorage` gemerkt, sodass kein erneutes Login pro Tab-Reload nötig ist. Kein echter Schutz — nur Sichtbarkeitsbarriere.
+Alle Änderungen ausschliesslich in `src/components/weather-widget.tsx`. Keine Anpassungen an Datenquellen oder API (`snowfall` ist bereits im Hourly-Datensatz vorhanden).
 
-### Layout
+### 1. Schnee aus den 3h-Slots entfernen
 
-```
-/admin
-├── Login-Karte (wenn nicht entsperrt)
-└── Dashboard (wenn entsperrt)
-    ├── Sektion „Datenquellen / Modelle"
-    └── Sektion „Einbinden auf externer Webseite"
-```
+In jedem Stunden-Slot (oben in der Detailprognose) wird die Zeile „Schnee … cm" entfernt. Wind/Böen bleibt als einzige Zusatzzeile unter der Temperatur.
 
-### Sektion 1 — Datenquellen / Modelle
+### 2. Neuer Toggle „Schnee" im Header
 
-Statische Karten je Modell mit:
+Neben dem bestehenden „Sonnenschein"-Switch kommt ein zweiter Switch „Schnee".
+- Neuer State `snow` in `WeatherWidget` (analog zu `extended`).
+- Wird als Prop an `DayStrip` und `DetailPanel` weitergereicht.
 
-| Feld | Wert |
-|---|---|
-| Modell | ICON-CH1-EPS |
-| Anbieter | MeteoSchweiz via Open-Meteo Ensemble-API |
-| Auflösung | 1 km, 11 Members |
-| Reichweite | ~33 h |
-| Verwendung | Tag 1–2, Ensemble-Mittel |
-| Endpoint | `https://ensemble-api.open-meteo.com/v1/ensemble?models=icon_ch1_eps` |
+### 3. Schnee-Balkendiagramm unterhalb (analog Sonnenschein)
 
-Gleiche Tabelle für **ICON-CH2-EPS** (2 km, 21 Members, ~120 h, Tag 1–5), **ECMWF IFS Ensemble** (0.25°, 51 Members, bis 15 Tage, Tag 6–7) und **Open-Meteo best_match** (Restfelder: Niederschlagswahrscheinlichkeit, Sonnenauf-/-untergang).
+Im `DetailPanel`, nur wenn `snow === true`:
+- Eigene Y-Achsen-Spalte links (Skala 0 / 1 / 2 cm, Label `cm/3h`).
+- Bar-Chart-Reihe unter dem Sonnenschein-Chart (bzw. unter Niederschlag, falls Sonne aus).
+- Summe von `snowfall` über 3 Stunden, Farbe `--wx-snow` (neuer Token in `src/styles.css`, helles Blau-Weiss; falls noch nicht vorhanden, einmalig hinzufügen).
+- Beschriftung unter dem Balken: Wert in cm + Sublabel `cm`.
 
-Zusätzlich: Merge-Reihenfolge (`CH1 → CH2 → IFS → best_match`) und Hinweis, dass Daily-Werte clientseitig aus stündlichen Arrays aggregiert werden.
+### 4. Legenden unter den Grafiken
 
-### Sektion 2 — Einbinden auf externer Webseite
+Direkt unter jedem Bar-Chart eine kleine Legendenzeile in `text-[10px] text-zinc-500`:
+- Niederschlagschart: „Regenmenge in mm · Regenwahrscheinlichkeit in %"
+- Sonnenscheinchart: „Sonnenscheindauer in min/h"
+- Schneechart: „Neuschnee in cm"
 
-Ein iframe-Snippet (Standard) mit Copy-Button — funktioniert für WordPress, Wix, statische HTML-Seiten:
+Im Kopfbereich der Stunden-Slots zusätzlich der Hinweis „Wind / Böenspitzen in km/h" – ersetzt die bestehende rechte Sub-Headline `3-Stunden-Takt · °C / mm / km/h` durch eine klarere Variante:
+`3h · Temperatur °C · Wind/Böen km/h`.
 
-```html
-<iframe
-  src="{origin}/"
-  style="width:100%;min-height:680px;border:0;display:block"
-  loading="lazy"
-  title="5-Tage Wetterprognose"
-></iframe>
-```
+### Technische Details
 
-`{origin}` wird zur Laufzeit aus `window.location.origin` eingesetzt. Kurze Einbinde-Anleitung darunter (3 Schritte: Code kopieren → HTML-Block einfügen → speichern).
+- Schnee-Toggle: gleicher `Switch`-Aufbau wie Sonnenschein, Label „Schnee".
+- Header-Layout: beide Switches in einer Flex-Reihe (gap-4), auf schmalen Containern untereinander.
+- Y-Achsen-Spalte links wächst dynamisch: bestehender Aufbau (Niederschlag immer, Sonne nur bei `extended`) wird um einen optionalen Schnee-Abschnitt erweitert.
+- Skala Schnee: 0 / 1 / 2 cm (passend für stündliche Werte in der Schweiz; Werte > 2cm/3h werden visuell gekappt, Zahlenlabel zeigt aber den echten Wert).
+- Keine Änderungen an `fetchForecast`, `routeTree.gen.ts` oder Admin/Embed.
 
-Die bestehende Route `/embed-info` bleibt unverändert (für direkte Verlinkung), wird aber inhaltlich vom Admin-Bereich abgedeckt.
+### Nicht im Plan enthalten
 
-### Header
-
-Kein sichtbarer Link auf `/admin` in der Hauptnavigation. Zugriff nur via direkter URL.
-
-### Keine Änderungen an
-
-- Wettermodell-Logik (`src/lib/weather.ts`)
-- Bestehende UI / Theme
-- Routing-Shell (`__root.tsx`, `index.tsx`)
+- Persistenz des Schnee-Toggles (kann später ergänzt werden, falls gewünscht).
+- Änderungen am DayStrip (5-Tage-Übersicht bleibt wie sie ist).

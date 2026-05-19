@@ -58,6 +58,7 @@ export function WeatherWidget() {
     return DEFAULT_LOCATION;
   });
   const [extended, setExtended] = useState(false);
+  const [snow, setSnow] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const now = useNow();
 
@@ -134,6 +135,8 @@ export function WeatherWidget() {
           }}
           extended={extended}
           onToggleExtended={setExtended}
+          snow={snow}
+          onToggleSnow={setSnow}
         />
 
         {forecast.isLoading && <SkeletonWidget />}
@@ -162,6 +165,7 @@ export function WeatherWidget() {
               onVisibleDayChange={setSelectedDayIdx}
               now={now}
               extended={extended}
+              snow={snow}
             />
 
             <Footer
@@ -184,12 +188,16 @@ function Header({
   onGeolocate,
   extended,
   onToggleExtended,
+  snow,
+  onToggleSnow,
 }: {
   locationName: string;
   onSelectLocation: (loc: GeoLocation) => void;
   onGeolocate: () => void;
   extended: boolean;
   onToggleExtended: (v: boolean) => void;
+  snow: boolean;
+  onToggleSnow: (v: boolean) => void;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -266,16 +274,28 @@ function Header({
         </div>
       </div>
 
-      <label className="flex items-center gap-3 self-start @[640px]:self-auto cursor-pointer">
-        <Switch
-          checked={extended}
-          onCheckedChange={onToggleExtended}
-          aria-label="Sonnenschein"
-        />
-        <span className="text-sm font-medium text-zinc-700 select-none">
-          Sonnenschein
-        </span>
-      </label>
+      <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <Switch
+            checked={extended}
+            onCheckedChange={onToggleExtended}
+            aria-label="Sonnenschein"
+          />
+          <span className="text-sm font-medium text-zinc-700 select-none">
+            Sonnenschein
+          </span>
+        </label>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <Switch
+            checked={snow}
+            onCheckedChange={onToggleSnow}
+            aria-label="Schnee"
+          />
+          <span className="text-sm font-medium text-zinc-700 select-none">
+            Schnee
+          </span>
+        </label>
+      </div>
     </header>
   );
 }
@@ -386,6 +406,7 @@ function DetailPanel({
   onVisibleDayChange,
   now,
   extended,
+  snow,
 }: {
   forecast: import("@/lib/weather").ForecastResponse;
   hourlyIndices: number[];
@@ -394,6 +415,7 @@ function DetailPanel({
   onVisibleDayChange: (i: number) => void;
   now: Date;
   extended: boolean;
+  snow: boolean;
 }) {
   const h = forecast.hourly;
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -484,7 +506,7 @@ function DetailPanel({
               : weekdayLong(selectedDay.date)}
         </span>
         <span className="text-xs text-zinc-500 hidden sm:inline">
-          3-Stunden-Takt · °C / mm / km/h
+          3h · Temperatur °C · Wind / Böenspitzen km/h
         </span>
       </div>
       <div className="flex items-stretch">
@@ -512,7 +534,7 @@ function DetailPanel({
             ))}
           </div>
           <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
-            mm/3h
+            Regen<br />mm/3h
           </div>
           {extended && (
             <>
@@ -536,7 +558,33 @@ function DetailPanel({
                 ))}
               </div>
               <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
-                min/h<br />Sonne
+                Sonne<br />min/h
+              </div>
+            </>
+          )}
+          {snow && (
+            <>
+              <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums border-t border-zinc-200">
+                {[2, 1, 0].map((v) => (
+                  <div
+                    key={v}
+                    className="absolute left-0 right-1 text-right leading-none"
+                    style={{
+                      top: `${(1 - v / 2) * 100}%`,
+                      transform:
+                        v === 0
+                          ? "translateY(-100%)"
+                          : v === 2
+                            ? "translateY(0)"
+                            : "translateY(-50%)",
+                    }}
+                  >
+                    {v}
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+                Schnee<br />cm/3h
               </div>
             </>
           )}
@@ -606,12 +654,6 @@ function DetailPanel({
                         </span>
                         <span className="text-zinc-500">
                           {windDirectionLabel(h.winddirection_10m[idx])}
-                        </span>
-                      </div>
-                      <div className="text-xs text-zinc-500 flex justify-between">
-                        <span>Schnee</span>
-                        <span className="text-zinc-800 font-medium tabular-nums">
-                          {h.snowfall[idx].toFixed(1)} cm
                         </span>
                       </div>
                     </div>
@@ -714,8 +756,64 @@ function DetailPanel({
                 })}
               </div>
             )}
+            {/* Snowfall bar chart (snow only) */}
+            {snow && (
+              <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+                {hourlyIndices.map((idx, i) => {
+                  const iso = h.time[idx];
+                  const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+                  const isDayStart =
+                    !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
+                  const cm =
+                    (h.snowfall[idx] ?? 0) +
+                    (h.snowfall[idx + 1] ?? 0) +
+                    (h.snowfall[idx + 2] ?? 0);
+                  const pct = Math.min(cm / 2, 1) * 100;
+                  return (
+                    <div
+                      key={iso}
+                      className="flex-shrink-0 w-[108px] @[640px]:w-[124px] flex flex-col"
+                    >
+                      <div className="relative h-[72px] w-full">
+                        {[0, 1, 2].map((v) => (
+                          <div
+                            key={v}
+                            className="absolute left-0 right-0 border-t border-zinc-200/80"
+                            style={{ top: `${(1 - v / 2) * 100}%` }}
+                          />
+                        ))}
+                        {isDayStart && i > 0 && (
+                          <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
+                        )}
+                        <div
+                          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2.5 @[640px]:w-3 rounded-t-sm bg-[var(--wx-snow-bar)] border border-sky-300"
+                          style={{ height: `${pct}%` }}
+                          title={`${cm.toFixed(1)} cm Neuschnee`}
+                        />
+                      </div>
+                      <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
+                        <div className="font-medium">
+                          {cm > 0 ? cm.toFixed(1) : "–"}
+                        </div>
+                        <div className="text-zinc-400">cm</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
+      </div>
+      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-100/50 text-[10px] text-zinc-500 flex flex-wrap gap-x-4 gap-y-1">
+        <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
+        <span>Wind / Böenspitzen in km/h</span>
+        {extended && (
+          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] mr-1.5 align-middle" />Sonnenscheindauer in min/h</span>
+        )}
+        {snow && (
+          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-snow-bar)] border border-sky-300 mr-1.5 align-middle" />Neuschnee in cm</span>
+        )}
       </div>
     </section>
   );
