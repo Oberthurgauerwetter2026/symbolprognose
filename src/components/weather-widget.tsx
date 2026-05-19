@@ -264,7 +264,7 @@ function Header({
             type="button"
             onClick={onGeolocate}
             title="Aktueller Standort"
-            className="h-10 px-3 flex items-center gap-1.5 bg-accent text-accent-foreground text-sm font-medium rounded-md transition-colors hover:bg-[var(--accent-strong)]"
+            className="h-10 px-3 flex items-center gap-1.5 bg-accent text-accent-foreground text-sm font-semibold rounded-md transition-colors hover:bg-[var(--accent-strong)]"
           >
             <span className="shrink-0 opacity-90" aria-hidden>
               ⌖
