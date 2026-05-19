@@ -716,13 +716,11 @@ function DetailPanel({
                   const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
                   const isDayStart =
                     !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
-                  // Sum sunshine over the 3-hour block (in seconds).
-                  const sec =
-                    (h.sunshine_duration[idx] ?? 0) +
-                    (h.sunshine_duration[idx + 1] ?? 0) +
-                    (h.sunshine_duration[idx + 2] ?? 0);
-                  const minPerHour = Math.round(sec / 3 / 60); // 0..60
-                  const pct = Math.min(minPerHour / 60, 1) * 100;
+                  const startHour = Number(iso.slice(11, 13));
+                  // Per-hour sunshine minutes (0..60) for each of the 3 hours.
+                  const perHour = [0, 1, 2].map((k) =>
+                    Math.round((h.sunshine_duration[idx + k] ?? 0) / 60)
+                  );
                   return (
                     <div
                       key={iso}
@@ -739,15 +737,29 @@ function DetailPanel({
                         {isDayStart && i > 0 && (
                           <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
                         )}
-                        <div
-                          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2.5 @[640px]:w-3 rounded-t-sm bg-[var(--wx-sun)]"
-                          style={{ height: `${pct}%` }}
-                          title={`${minPerHour} min/h Sonne`}
-                        />
+                        <div className="absolute inset-0 flex items-end justify-around px-1">
+                          {perHour.map((m, k) => {
+                            const pct = Math.min(m / 60, 1) * 100;
+                            const hh = (startHour + k) % 24;
+                            const hh2 = (hh + 1) % 24;
+                            return (
+                              <div
+                                key={k}
+                                className="w-2 @[640px]:w-2.5 rounded-t-sm bg-[var(--wx-sun)]"
+                                style={{ height: `${pct}%` }}
+                                title={`${String(hh).padStart(2, "0")}–${String(hh2).padStart(2, "0")} Uhr · ${m} min Sonne`}
+                              />
+                            );
+                          })}
+                        </div>
                       </div>
                       <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
-                        <div className="font-bold">
-                          {minPerHour > 0 ? `${minPerHour}` : "–"}
+                        <div className="font-bold flex justify-around px-1">
+                          {perHour.map((m, k) => (
+                            <span key={k} className="w-1/3">
+                              {m > 0 ? m : "–"}
+                            </span>
+                          ))}
                         </div>
                         <div className="text-zinc-600 font-medium">min</div>
                       </div>
