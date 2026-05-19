@@ -600,7 +600,7 @@ function Footer({
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
       <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">
-        MeteoSchweiz ICON-CH2 • Aktualisiert{" "}
+        MeteoSchweiz ICON-CH1-EPS / ICON-CH2-EPS • Aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
