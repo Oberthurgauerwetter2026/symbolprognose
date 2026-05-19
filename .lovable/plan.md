@@ -1,21 +1,20 @@
 ## Ziel
 
-Aktuell zeigt das Sonnenschein-Säulendiagramm pro 3-Stunden-Slot **einen** Balken mit dem Durchschnitt (z.B. „40 min" = Mittel aus 9–10, 10–11, 11–12 Uhr). Du willst stattdessen sehen, wie viele Minuten die Sonne **innerhalb jeder einzelnen Stunde** scheint (z.B. konkret 9–10 Uhr).
+Regen-Diagramm analog zum Sonnenschein umstellen: **3 Säulen pro 3-Stunden-Slot**, jede zeigt die Regenmenge (mm) der jeweiligen Einzelstunde (z.B. 9–10, 10–11, 11–12 Uhr). Gilt durchgehend für alle Tage.
 
-## Vorgeschlagene Umsetzung
+## Umsetzung in `src/components/weather-widget.tsx` (Regen-Block ~664–710)
 
-Innerhalb jedes bestehenden 3-Stunden-Slots werden **3 schmale Säulen nebeneinander** gerendert — eine pro echter Stunde. Layoutbreite und Ausrichtung zu Regen/Schnee bleiben damit identisch („fliessend" über den ganzen Tag).
+- Für jeden Slot `[k=0,1,2]` lesen:
+  - `mm = h.precipitation[idx + k] ?? 0`
+  - `prob = h.precipitation_probability[idx + k] ?? 0`
+- Y-Achse bleibt 0 / 2.5 / 5 mm (mm/h-Skala, da Werte bereits stündlich).
+- 3 schmale Säulen nebeneinander (`w-2 @[640px]:w-2.5`), gleiche Farbe `var(--wx-rain)`, Opacity wie bisher abhängig von Wahrscheinlichkeit der jeweiligen Stunde.
+- Tooltip pro Säule: „09–10 Uhr · 1.4 mm · 80%".
+- Beschriftung unter dem Slot:
+  - Zeile 1 (mm): drei Werte nebeneinander, z.B. `1.4 · 0.2 · –` (fett)
+  - Zeile 2 (%): drei Wahrscheinlichkeiten nebeneinander, z.B. `80 · 40 · 10` (zinc-600)
+  - Einheit „mm / %" entfällt aus Platzgründen — steht in Legende.
 
-- Jede Säule nutzt `h.sunshine_duration[idx + k]` (k = 0,1,2), umgerechnet in Minuten (0–60).
-- Y-Achse bleibt 0/30/60 min.
-- Beschriftung unter dem Slot: kompakt drei Zahlen nebeneinander (z.B. `55 · 48 · 30`) statt einer einzelnen — oder optional nur die Stunden mit > 0 min. Default-Vorschlag: **drei Zahlen, klein, tabular**.
-- Tooltip pro Säule: „09–10 Uhr · 55 min Sonne".
-- Farbe/Opacity wie bisher (`var(--wx-sun)`).
+## Nicht betroffen
 
-## Betroffene Datei
-
-- `src/components/weather-widget.tsx` (Sunshine-Block, Zeilen ~712–758). Keine Änderungen an `weather.ts`, Datenquelle oder anderen Charts.
-
-## Offen
-
-Soll die Stundenbeschriftung unter dem Slot **drei einzelne Minutenwerte** zeigen (z.B. `55·48·30`), oder reicht **der Slot-Mittelwert** als Zahl und die 3 Säulen visualisieren nur die Verteilung? Default ohne Antwort: drei Werte.
+- Datenquelle, andere Charts (Schnee, Temperatur, Wind), DayStrip-Tageskarten, Legende.

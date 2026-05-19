@@ -668,11 +668,11 @@ function DetailPanel({
                 const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
                 const isDayStart =
                   !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
-                const precip = h.precipitation[idx] ?? 0;
-                const precipProb = h.precipitation_probability[idx] ?? 0;
-                const precipPct = Math.min(precip / 5, 1) * 100;
-                const barOpacity =
-                  precip > 0 ? 0.35 + (precipProb / 100) * 0.65 : 0;
+                const startHour = Number(iso.slice(11, 13));
+                const perHour = [0, 1, 2].map((k) => ({
+                  mm: h.precipitation[idx + k] ?? 0,
+                  prob: h.precipitation_probability[idx + k] ?? 0,
+                }));
                 return (
                   <div
                     key={iso}
@@ -689,20 +689,38 @@ function DetailPanel({
                       {isDayStart && i > 0 && (
                         <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
                       )}
-                      <div
-                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2.5 @[640px]:w-3 rounded-t-sm bg-[var(--wx-rain)]"
-                        style={{
-                          height: `${precipPct}%`,
-                          opacity: barOpacity,
-                        }}
-                        title={`${precip.toFixed(1)} mm · ${precipProb}%`}
-                      />
+                      <div className="absolute inset-0 flex items-end justify-around px-1">
+                        {perHour.map(({ mm, prob }, k) => {
+                          const pct = Math.min(mm / 5, 1) * 100;
+                          const opacity = mm > 0 ? 0.35 + (prob / 100) * 0.65 : 0;
+                          const hh = (startHour + k) % 24;
+                          const hh2 = (hh + 1) % 24;
+                          return (
+                            <div
+                              key={k}
+                              className="w-2 @[640px]:w-2.5 rounded-t-sm bg-[var(--wx-rain)]"
+                              style={{ height: `${pct}%`, opacity }}
+                              title={`${String(hh).padStart(2, "0")}–${String(hh2).padStart(2, "0")} Uhr · ${mm.toFixed(1)} mm · ${prob}%`}
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
                     <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
-                      <div className="font-bold">
-                        {precip > 0 ? precip.toFixed(1) : "–"}
+                      <div className="font-bold flex justify-around px-1">
+                        {perHour.map(({ mm }, k) => (
+                          <span key={k} className="w-1/3">
+                            {mm > 0 ? mm.toFixed(1) : "–"}
+                          </span>
+                        ))}
                       </div>
-                      <div className="text-zinc-600 font-medium">{precipProb}%</div>
+                      <div className="text-zinc-600 font-medium flex justify-around px-1">
+                        {perHour.map(({ prob }, k) => (
+                          <span key={k} className="w-1/3">
+                            {prob}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 );
