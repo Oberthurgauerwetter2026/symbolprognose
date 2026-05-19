@@ -296,67 +296,17 @@ function DayStrip({
   extended: boolean;
 }) {
   const d = forecast.daily;
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const cardRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
-  const pausedUntil = useRef<number>(0);
-
-  // Auto-roll: every 6s, scroll forward one card; wrap to start at end.
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller || days.length <= 5) return;
-    const id = window.setInterval(() => {
-      if (Date.now() < pausedUntil.current) return;
-      const firstCard = cardRefs.current.get(0);
-      if (!firstCard) return;
-      const cardW = firstCard.getBoundingClientRect().width + 1; // +1 gap
-      const max = scroller.scrollWidth - scroller.clientWidth;
-      const next = scroller.scrollLeft + cardW;
-      if (next > max - 4) {
-        scroller.scrollTo({ left: 0, behavior: "smooth" });
-      } else {
-        scroller.scrollTo({ left: next, behavior: "smooth" });
-      }
-    }, 6000);
-    return () => window.clearInterval(id);
-  }, [days.length]);
-
-  // Pause auto-roll for 15s on user interaction.
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    if (!scroller) return;
-    const pause = () => {
-      pausedUntil.current = Date.now() + 15_000;
-    };
-    scroller.addEventListener("wheel", pause, { passive: true });
-    scroller.addEventListener("touchstart", pause, { passive: true });
-    scroller.addEventListener("pointerdown", pause, { passive: true });
-    return () => {
-      scroller.removeEventListener("wheel", pause);
-      scroller.removeEventListener("touchstart", pause);
-      scroller.removeEventListener("pointerdown", pause);
-    };
-  }, []);
 
   return (
     <div className="space-y-2">
-      <div
-        ref={scrollerRef}
-        className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
-      >
+      <div className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
         {days.map((day, i) => {
           const selected = i === selectedIdx;
           return (
             <button
               key={day.iso}
-              ref={(el) => {
-                if (el) cardRefs.current.set(i, el);
-                else cardRefs.current.delete(i);
-              }}
               type="button"
-              onClick={() => {
-                pausedUntil.current = Date.now() + 15_000;
-                onSelect(i);
-              }}
+              onClick={() => onSelect(i)}
               className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start shrink-0 basis-[55%] @[420px]:basis-[40%] @[640px]:basis-[28%] @[900px]:basis-[calc(20%-1px)] transition-colors ${
                 selected
                   ? "bg-[var(--accent-soft)]"
@@ -788,7 +738,7 @@ function Footer({
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
       <div className="text-xs text-zinc-500">
-        Grafik &amp; Daten ©{" "}
+        Grafik ©{" "}
         <a
           href="https://oberthurgauerwetter.ch"
           target="_blank"
