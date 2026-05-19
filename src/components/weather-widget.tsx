@@ -8,12 +8,12 @@ import {
   searchLocations,
   secondsToHours,
   weatherLabel,
-  weatherSymbol,
   weekdayLong,
   weekdayShort,
   windDirectionLabel,
   type GeoLocation,
 } from "@/lib/weather";
+import { WeatherIcon } from "@/components/weather-icons";
 
 const DEFAULT_LOCATION = {
   name: "Amriswil",
