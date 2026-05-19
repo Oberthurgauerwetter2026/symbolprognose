@@ -299,10 +299,9 @@ function DayStrip({
 }) {
   const d = forecast.daily;
   return (
-    <div className="flex md:grid md:grid-cols-5 gap-px bg-zinc-200 border border-zinc-200 rounded-sm overflow-x-auto snap-x snap-mandatory no-scrollbar">
+    <div className="flex md:grid md:grid-cols-5 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
       {days.map((day, i) => {
         const selected = i === selectedIdx;
-        const dim = !selected;
         return (
           <button
             key={day.iso}
@@ -310,16 +309,16 @@ function DayStrip({
             onClick={() => onSelect(i)}
             className={`relative text-left p-4 space-y-3 snap-start min-w-[60%] sm:min-w-[40%] md:min-w-0 transition-colors ${
               selected
-                ? "bg-zinc-50 ring-1 ring-inset ring-accent/30"
-                : "bg-zinc-50/80 hover:bg-zinc-50"
-            } ${dim ? "opacity-90" : ""}`}
+                ? "bg-[var(--accent-soft)]"
+                : "bg-zinc-50 hover:bg-zinc-50/80"
+            }`}
           >
             {selected && (
               <div className="absolute top-0 left-0 right-0 h-1 bg-accent" />
             )}
             <div className="flex flex-col">
               <span
-                className={`text-[11px] font-semibold uppercase tracking-wider ${
+                className={`text-base font-semibold ${
                   selected ? "text-accent" : "text-zinc-900"
                 }`}
               >
@@ -330,7 +329,7 @@ function DayStrip({
               </span>
             </div>
             <div
-              className={`py-1 select-none ${selected ? "text-zinc-900" : "text-zinc-700"}`}
+              className="py-1 select-none text-zinc-900"
               aria-label={weatherLabel(d.weathercode[i])}
               title={weatherLabel(d.weathercode[i])}
             >
@@ -338,22 +337,22 @@ function DayStrip({
             </div>
             <div className="space-y-1">
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-semibold tabular-nums">
+                <span className="text-2xl font-semibold tabular-nums text-zinc-900">
                   {Math.round(d.temperature_2m_max[i])}°
                 </span>
-                <span className="text-sm text-zinc-400 font-medium tabular-nums">
+                <span className="text-base text-zinc-500 font-medium tabular-nums">
                   {Math.round(d.temperature_2m_min[i])}°
                 </span>
               </div>
-              <div className="text-[11px] uppercase tracking-tight text-zinc-500 flex justify-between tabular-nums">
+              <div className="text-xs text-zinc-500 flex justify-between tabular-nums">
                 <span>{d.precipitation_sum[i].toFixed(1)} mm</span>
                 <span>{d.precipitation_probability_max[i] ?? 0}%</span>
               </div>
             </div>
-            <div className="pt-3 border-t border-zinc-100 space-y-2">
-              <div className="flex items-center justify-between text-[10px] uppercase font-medium text-zinc-400">
+            <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-zinc-500">
                 <span>Wind</span>
-                <span className="text-zinc-900 tabular-nums flex items-center gap-1">
+                <span className="text-zinc-800 font-medium tabular-nums flex items-center gap-1">
                   <WindArrow deg={d.winddirection_10m_dominant[i]} />
                   {Math.round(d.windspeed_10m_max[i])}
                   <span className="text-zinc-400">
@@ -364,13 +363,13 @@ function DayStrip({
               </div>
               {extended && (
                 <>
-                  <div className="flex items-center justify-between text-[10px] uppercase font-medium text-zinc-400">
+                  <div className="flex items-center justify-between text-xs text-zinc-500">
                     <span>Sonne</span>
-                    <span className="text-zinc-900 tabular-nums">
+                    <span className="text-zinc-800 font-medium tabular-nums">
                       {secondsToHours(d.sunshine_duration[i])} h
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] uppercase font-medium text-zinc-400 tabular-nums">
+                  <div className="flex items-center justify-between text-xs text-zinc-500 tabular-nums">
                     <span>↑ {formatTimeHHMM(d.sunrise[i])}</span>
                     <span>↓ {formatTimeHHMM(d.sunset[i])}</span>
                   </div>
