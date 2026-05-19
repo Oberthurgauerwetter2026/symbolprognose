@@ -406,6 +406,7 @@ function DetailPanel({
   onVisibleDayChange,
   now,
   extended,
+  snow,
 }: {
   forecast: import("@/lib/weather").ForecastResponse;
   hourlyIndices: number[];
@@ -414,6 +415,7 @@ function DetailPanel({
   onVisibleDayChange: (i: number) => void;
   now: Date;
   extended: boolean;
+  snow: boolean;
 }) {
   const h = forecast.hourly;
   const scrollerRef = useRef<HTMLDivElement>(null);
