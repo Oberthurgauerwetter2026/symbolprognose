@@ -410,86 +410,167 @@ function DayStrip({
 function DetailPanel({
   forecast,
   hourlyIndices,
-  selectedDay,
-  isToday,
+  days,
+  selectedDayIdx,
+  onVisibleDayChange,
   now,
 }: {
   forecast: import("@/lib/weather").ForecastResponse;
   hourlyIndices: number[];
-  selectedDay: { iso: string; date: Date } | undefined;
-  isToday: boolean;
+  days: { iso: string; date: Date; idx: number }[];
+  selectedDayIdx: number;
+  onVisibleDayChange: (i: number) => void;
   now: Date;
 }) {
-  if (!selectedDay) return null;
   const h = forecast.hourly;
-  const currentHourBlock = Math.floor(now.getHours() / 3) * 3;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const slotRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const userScrolling = useRef(false);
+
+  const selectedDay = days[selectedDayIdx];
+
+  // Scroll to first slot of the selected day when user picks a day in the strip.
+  useEffect(() => {
+    if (!selectedDay) return;
+    const firstIso = hourlyIndices
+      .map((idx) => h.time[idx])
+      .find((iso) => iso.slice(0, 10) === selectedDay.iso);
+    if (!firstIso) return;
+    const el = slotRefs.current.get(firstIso);
+    const scroller = scrollerRef.current;
+    if (!el || !scroller) return;
+    userScrolling.current = false;
+    scroller.scrollTo({
+      left: el.offsetLeft - scroller.offsetLeft,
+      behavior: "smooth",
+    });
+  }, [selectedDayIdx, selectedDay, hourlyIndices, h.time]);
+
+  // Track which day is currently visible on scroll and reflect it in the day strip.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const onScroll = () => {
+      userScrolling.current = true;
+      const left = scroller.scrollLeft + 16;
+      let visibleIso: string | null = null;
+      for (const idx of hourlyIndices) {
+        const iso = h.time[idx];
+        const el = slotRefs.current.get(iso);
+        if (!el) continue;
+        if (el.offsetLeft - scroller.offsetLeft <= left) {
+          visibleIso = iso;
+        } else {
+          break;
+        }
+      }
+      if (!visibleIso) return;
+      const dateStr = visibleIso.slice(0, 10);
+      const dayIdx = days.findIndex((d) => d.iso === dateStr);
+      if (dayIdx >= 0 && dayIdx !== selectedDayIdx) {
+        onVisibleDayChange(dayIdx);
+      }
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => scroller.removeEventListener("scroll", onScroll);
+  }, [hourlyIndices, h.time, days, selectedDayIdx, onVisibleDayChange]);
+
+  if (!selectedDay) return null;
+  const currentBlockMs = (() => {
+    const d = new Date(now);
+    d.setMinutes(0, 0, 0);
+    d.setHours(Math.floor(d.getHours() / 3) * 3);
+    return d.getTime();
+  })();
 
   return (
     <section className="bg-zinc-50 rounded-sm border border-zinc-200 overflow-hidden">
       <div className="p-3 bg-zinc-100 border-b border-zinc-200 flex items-center justify-between gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">
+        <span className="text-sm font-semibold uppercase tracking-widest text-zinc-700">
           Detailansicht •{" "}
-          {isToday ? "Heute" : weekdayLong(selectedDay.date)}{" "}
+          {selectedDayIdx === 0 ? "Heute" : weekdayLong(selectedDay.date)}{" "}
           {formatDateShort(selectedDay.date)}
         </span>
-        <span className="text-[10px] text-zinc-400 font-medium uppercase hidden sm:inline">
+        <span className="text-xs text-zinc-500 font-medium uppercase hidden sm:inline">
           3-Stunden-Takt • °C / mm / km/h
         </span>
       </div>
-      <div className="overflow-x-auto no-scrollbar">
-        <div className="min-w-[820px] divide-x divide-zinc-200 flex">
-          {hourlyIndices.map((idx) => {
-            const t = new Date(h.time[idx]);
-            const isCurrent = isToday && t.getHours() === currentHourBlock;
+      <div
+        ref={scrollerRef}
+        className="overflow-x-auto no-scrollbar scroll-smooth snap-x"
+      >
+        <div className="flex">
+          {hourlyIndices.map((idx, i) => {
+            const iso = h.time[idx];
+            const t = new Date(iso);
+            const isCurrent = t.getTime() === currentBlockMs;
+            const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+            const isDayStart =
+              !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
             return (
               <div
-                key={h.time[idx]}
-                className={`flex-1 p-4 space-y-3 ${
+                key={iso}
+                ref={(el) => {
+                  if (el) slotRefs.current.set(iso, el);
+                  else slotRefs.current.delete(iso);
+                }}
+                className={`flex-shrink-0 w-[124px] p-4 space-y-3 snap-start ${
                   isCurrent ? "bg-accent/5" : ""
+                } ${
+                  isDayStart
+                    ? "border-l-2 border-accent/40"
+                    : "border-l border-zinc-200"
                 }`}
               >
+                {isDayStart && (
+                  <div className="text-xs font-bold uppercase tracking-wider text-accent">
+                    {weekdayShort(t)} {formatDateShort(t)}
+                  </div>
+                )}
                 <div
-                  className={`text-[11px] font-semibold tabular-nums ${
-                    isCurrent ? "text-accent" : "text-zinc-400"
+                  className={`text-sm font-semibold tabular-nums ${
+                    isCurrent ? "text-accent" : "text-zinc-600"
                   }`}
                 >
                   {String(t.getHours()).padStart(2, "0")}:00
                 </div>
                 <div
-                  className={isCurrent ? "text-zinc-900" : "text-zinc-700"}
+                  className="flex items-center justify-center"
                   title={weatherLabel(h.weathercode[idx])}
                 >
                   <WeatherIcon
                     code={h.weathercode[idx]}
                     isDay={t.getHours() >= 6 && t.getHours() < 20}
-                    size={32}
+                    size={56}
                   />
                 </div>
-                <div className="text-lg font-medium tabular-nums">
+                <div className="text-xl font-semibold tabular-nums text-zinc-900">
                   {h.temperature_2m[idx].toFixed(1)}°
                 </div>
                 <div className="space-y-2">
-                  <div className="text-[10px] text-zinc-500 font-medium tabular-nums flex justify-between">
-                    <span>{h.precipitation[idx].toFixed(1)} mm</span>
-                    <span className="text-zinc-400">
+                  <div className="text-xs font-medium tabular-nums flex justify-between">
+                    <span className="text-zinc-700">
+                      {h.precipitation[idx].toFixed(1)} mm
+                    </span>
+                    <span className="text-zinc-500">
                       {h.precipitation_probability[idx] ?? 0}%
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px]">
+                  <div className="flex items-center gap-1.5 text-xs">
                     <WindArrow deg={h.winddirection_10m[idx]} />
-                    <span className="font-semibold tabular-nums">
+                    <span className="font-semibold tabular-nums text-zinc-800">
                       {Math.round(h.windspeed_10m[idx])}
-                      <span className="font-normal text-zinc-400">
+                      <span className="font-normal text-zinc-500">
                         /{Math.round(h.windgusts_10m[idx])}
                       </span>
                     </span>
-                    <span className="text-zinc-400 uppercase">
+                    <span className="text-zinc-500 uppercase">
                       {windDirectionLabel(h.winddirection_10m[idx])}
                     </span>
                   </div>
-                  <div className="text-[10px] text-zinc-400 uppercase tracking-wider flex justify-between">
-                    <span>Neuschnee</span>
-                    <span className="text-zinc-900 tabular-nums">
+                  <div className="text-xs text-zinc-500 uppercase tracking-wider flex justify-between">
+                    <span>Schnee</span>
+                    <span className="text-zinc-800 tabular-nums">
                       {h.snowfall[idx].toFixed(1)} cm
                     </span>
                   </div>
