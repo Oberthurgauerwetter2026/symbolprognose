@@ -166,6 +166,11 @@ export function WeatherWidget() {
           onToggleExtended={setExtended}
           snow={snow}
           onToggleSnow={setSnow}
+          theme={theme}
+          onToggleTheme={() => {
+            setThemeOverride(true);
+            setTheme((t) => (t === "dark" ? "light" : "dark"));
+          }}
         />
 
         {forecast.isLoading && <SkeletonWidget />}
