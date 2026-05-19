@@ -108,11 +108,9 @@ const HOURLY_VARS = [
   "windgusts_10m",
   "winddirection_10m",
   "snowfall",
+  "sunshine_duration",
 ] as const;
 
-// Index where we switch from MeteoSchweiz ICON to ECMWF IFS (0-based day index).
-// 0..ECMWF_FROM_DAY-1 use ICON, ECMWF_FROM_DAY..end use ECMWF.
-const ECMWF_FROM_DAY = 4;
 const TOTAL_DAYS = 7;
 
 async function fetchModel(
@@ -140,23 +138,9 @@ export async function fetchForecast(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
-  const [iconRes, ecmwfRes] = await Promise.allSettled([
-    fetchModel(latitude, longitude, "meteoswiss_icon_seamless"),
-    fetchModel(latitude, longitude, "ecmwf_ifs025"),
-  ]);
-
-  // Fallbacks if one model fails.
-  if (iconRes.status !== "fulfilled" && ecmwfRes.status !== "fulfilled") {
-    throw new Error("Wetterdaten konnten nicht geladen werden");
-  }
-  if (iconRes.status !== "fulfilled") {
-    return sanitizeForecast((ecmwfRes as PromiseFulfilledResult<ForecastResponse>).value);
-  }
-  if (ecmwfRes.status !== "fulfilled") {
-    return sanitizeForecast(iconRes.value);
-  }
-
-  return sanitizeForecast(mergeForecasts(iconRes.value, ecmwfRes.value));
+  // Nur MeteoSchweiz ICON-Seamless verwenden (keine ECMWF-Mischung).
+  const data = await fetchModel(latitude, longitude, "meteoswiss_icon_seamless");
+  return sanitizeForecast(data);
 }
 
 function mergeForecasts(
