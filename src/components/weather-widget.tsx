@@ -333,6 +333,15 @@ function Header({
             Schnee
           </span>
         </label>
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          aria-pressed={theme === "dark"}
+          title={theme === "dark" ? "Hell-Modus" : "Dark-Modus"}
+          className="h-9 w-9 flex items-center justify-center rounded-md border border-zinc-300 bg-zinc-50 text-zinc-900 hover:bg-zinc-100 transition-colors text-base"
+        >
+          <span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
+        </button>
       </div>
     </header>
   );
