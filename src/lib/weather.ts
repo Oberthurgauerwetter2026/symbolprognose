@@ -37,6 +37,7 @@ export interface HourlyData {
   windgusts_10m: number[];
   winddirection_10m: number[];
   snowfall: number[];
+  sunshine_duration: number[];
 }
 
 export interface ForecastResponse {
