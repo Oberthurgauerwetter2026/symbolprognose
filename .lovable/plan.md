@@ -1,56 +1,21 @@
-## Schriftstärke im gesamten Widget deutlich verstärken (+2 Stufen)
+## Ziel
 
-Ausschliesslich in `src/components/weather-widget.tsx`. Keine Änderungen an Daten, Layout, Farben (ausser Textfarben werden dunkler für mehr Kontrast).
+Aktuell zeigt das Sonnenschein-Säulendiagramm pro 3-Stunden-Slot **einen** Balken mit dem Durchschnitt (z.B. „40 min" = Mittel aus 9–10, 10–11, 11–12 Uhr). Du willst stattdessen sehen, wie viele Minuten die Sonne **innerhalb jeder einzelnen Stunde** scheint (z.B. konkret 9–10 Uhr).
 
-### Globale Regel
+## Vorgeschlagene Umsetzung
 
-- `font-medium` → `font-semibold`
-- `font-semibold` → `font-bold`
-- Reine `text-zinc-500`-Labels → `text-zinc-700 font-medium`
-- Reine `text-zinc-400` (Sublabels Werte) → `text-zinc-600`
-- `text-zinc-600` für kleine Werte → `text-zinc-800 font-semibold`
-- Body-Default des Widget-Wrappers bekommt `font-medium` als Basis (`text-zinc-900 antialiased font-medium`).
+Innerhalb jedes bestehenden 3-Stunden-Slots werden **3 schmale Säulen nebeneinander** gerendert — eine pro echter Stunde. Layoutbreite und Ausrichtung zu Regen/Schnee bleiben damit identisch („fliessend" über den ganzen Tag).
 
-### Betroffene Stellen konkret
+- Jede Säule nutzt `h.sunshine_duration[idx + k]` (k = 0,1,2), umgerechnet in Minuten (0–60).
+- Y-Achse bleibt 0/30/60 min.
+- Beschriftung unter dem Slot: kompakt drei Zahlen nebeneinander (z.B. `55 · 48 · 30`) statt einer einzelnen — oder optional nur die Stunden mit > 0 min. Default-Vorschlag: **drei Zahlen, klein, tabular**.
+- Tooltip pro Säule: „09–10 Uhr · 55 min Sonne".
+- Farbe/Opacity wie bisher (`var(--wx-sun)`).
 
-**Header**
-- Suchfeld: `placeholder` bleibt, Input-Text `font-medium`.
-- Ortungs-Button: `font-medium` → `font-semibold`.
-- Switch-Labels „Sonnenschein" / „Schnee": `font-medium` → `font-semibold`, Farbe `text-zinc-700` → `text-zinc-900`.
+## Betroffene Datei
 
-**DayStrip (5-Tage-Karten)**
-- Tagesname (Heute / Morgen / Wochentag): `font-semibold` → `font-bold`.
-- Datums-Zeile darunter: `text-zinc-500` → `text-zinc-700 font-medium`.
-- Max-Temperatur: `font-semibold` → `font-bold`.
-- Min-Temperatur: `font-medium` → `font-semibold`, Farbe `text-zinc-500` → `text-zinc-700`.
-- mm / % Zeile: `text-zinc-500` → `text-zinc-700 font-medium`, tabular bleibt.
-- Wind-Block: Labels `text-zinc-500` → `text-zinc-700 font-medium`; Wert `font-medium` → `font-semibold`; Gust-Trenner `text-zinc-400` → `text-zinc-600`.
-- Sonnenauf-/untergang (extended): `text-zinc-500` → `text-zinc-700 font-medium`.
+- `src/components/weather-widget.tsx` (Sunshine-Block, Zeilen ~712–758). Keine Änderungen an `weather.ts`, Datenquelle oder anderen Charts.
 
-**Detail-Panel Header**
-- Tagesname: `font-semibold` → `font-bold`.
-- Sub-Headline „3h · Temperatur °C · Wind / Böenspitzen km/h": `text-zinc-500` → `text-zinc-700 font-medium`.
+## Offen
 
-**Y-Achsen-Labels** (Regen / Sonne / Schnee)
-- Skalenzahlen: `text-zinc-500` → `text-zinc-700 font-semibold`.
-- Achsentitel („Regen mm/3h" usw.): `text-zinc-500` → `text-zinc-800 font-semibold`.
-
-**Stundenslots**
-- Stundenanzeige (z.B. 09:00): `font-semibold` → `font-bold`, Farbe `text-zinc-600` → `text-zinc-800`.
-- Temperatur: `font-semibold` → `font-bold`.
-- Wind-Wert: `font-semibold` → `font-bold`; Gust `text-zinc-500` → `text-zinc-700 font-medium`; Richtungs-Label `text-zinc-500` → `text-zinc-700 font-medium`.
-
-**Chart-Werte unter den Balken** (Regen / Sonne / Schnee)
-- Hauptwert: `font-medium` → `font-bold`, Farbe `text-zinc-600` → `text-zinc-900`.
-- Sublabel (% bzw. „min" / „cm"): `text-zinc-400` → `text-zinc-600 font-medium`.
-
-**Legendenzeile am Fuss des Panels**
-- `text-zinc-500` → `text-zinc-700 font-semibold`; Schriftgrösse `text-[10px]` → `text-[11px]`.
-
-**Footer**
-- Quellen- und Copyright-Zeile: `text-zinc-500` → `text-zinc-700 font-medium`.
-
-### Nicht im Plan
-
-- Keine Änderungen an Schriftgrössen (ausser Legendenzeile +1px), Abständen, Farben oder Layout.
-- Keine neue Font-Familie.
+Soll die Stundenbeschriftung unter dem Slot **drei einzelne Minutenwerte** zeigen (z.B. `55·48·30`), oder reicht **der Slot-Mittelwert** als Zahl und die 3 Säulen visualisieren nur die Verteilung? Default ohne Antwort: drei Werte.
