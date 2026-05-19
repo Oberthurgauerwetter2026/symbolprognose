@@ -756,8 +756,64 @@ function DetailPanel({
                 })}
               </div>
             )}
+            {/* Snowfall bar chart (snow only) */}
+            {snow && (
+              <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+                {hourlyIndices.map((idx, i) => {
+                  const iso = h.time[idx];
+                  const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+                  const isDayStart =
+                    !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
+                  const cm =
+                    (h.snowfall[idx] ?? 0) +
+                    (h.snowfall[idx + 1] ?? 0) +
+                    (h.snowfall[idx + 2] ?? 0);
+                  const pct = Math.min(cm / 2, 1) * 100;
+                  return (
+                    <div
+                      key={iso}
+                      className="flex-shrink-0 w-[108px] @[640px]:w-[124px] flex flex-col"
+                    >
+                      <div className="relative h-[72px] w-full">
+                        {[0, 1, 2].map((v) => (
+                          <div
+                            key={v}
+                            className="absolute left-0 right-0 border-t border-zinc-200/80"
+                            style={{ top: `${(1 - v / 2) * 100}%` }}
+                          />
+                        ))}
+                        {isDayStart && i > 0 && (
+                          <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
+                        )}
+                        <div
+                          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2.5 @[640px]:w-3 rounded-t-sm bg-[var(--wx-snow-bar)] border border-sky-300"
+                          style={{ height: `${pct}%` }}
+                          title={`${cm.toFixed(1)} cm Neuschnee`}
+                        />
+                      </div>
+                      <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
+                        <div className="font-medium">
+                          {cm > 0 ? cm.toFixed(1) : "–"}
+                        </div>
+                        <div className="text-zinc-400">cm</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
+      </div>
+      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-100/50 text-[10px] text-zinc-500 flex flex-wrap gap-x-4 gap-y-1">
+        <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
+        <span>Wind / Böenspitzen in km/h</span>
+        {extended && (
+          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] mr-1.5 align-middle" />Sonnenscheindauer in min/h</span>
+        )}
+        {snow && (
+          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-snow-bar)] border border-sky-300 mr-1.5 align-middle" />Neuschnee in cm</span>
+        )}
       </div>
     </section>
   );
