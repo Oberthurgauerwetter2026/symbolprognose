@@ -82,20 +82,20 @@
   --ring: #2561a1;
 
   /* Weather icon palette (SRF Meteo inspired) */
-  --wx-sun: #f5b800;
-  --wx-sun-core: #ffd84d;
-  --wx-moon: #fff1c2;
-  --wx-moon-shade: #e8d895;
-  --wx-cloud: #d6d9de;
-  --wx-cloud-shade: #a8adb5;
-  --wx-cloud-dark: #6b7280;
-  --wx-cloud-dark-shade: #4b5563;
-  --wx-rain: #3b8fd1;
+  --wx-sun: #f59e0b;
+  --wx-sun-core: #fbbf24;
+  --wx-moon: #fef3c7;
+  --wx-moon-shade: #b45309;
+  --wx-cloud: #cbd0d8;
+  --wx-cloud-shade: #6b7280;
+  --wx-cloud-dark: #4b5563;
+  --wx-cloud-dark-shade: #1f2937;
+  --wx-rain: #1d6fb8;
   --wx-snow: #ffffff;
-  --wx-snow-edge: #b8c5d3;
+  --wx-snow-edge: #6b7a8c;
   --wx-bolt: #facc15;
-  --wx-bolt-edge: #f59e0b;
-  --wx-fog: #9ca3af;
+  --wx-bolt-edge: #b45309;
+  --wx-fog: #4b5563;
 }
 
 @layer base {

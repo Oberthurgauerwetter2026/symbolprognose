@@ -112,7 +112,7 @@ const HOURLY_VARS = [
 // Index where we switch from MeteoSchweiz ICON to ECMWF IFS (0-based day index).
 // 0..ECMWF_FROM_DAY-1 use ICON, ECMWF_FROM_DAY..end use ECMWF.
 const ECMWF_FROM_DAY = 4;
-const TOTAL_DAYS = 6;
+const TOTAL_DAYS = 7;
 
 async function fetchModel(
   latitude: number,

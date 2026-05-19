@@ -77,7 +77,7 @@ export function WeatherWidget() {
 
   const days = useMemo(() => {
     if (!forecast.data) return [];
-    return forecast.data.daily.time.slice(0, 5).map((iso, i) => ({
+    return forecast.data.daily.time.slice(0, 7).map((iso, i) => ({
       iso,
       date: new Date(iso + "T12:00:00"),
       idx: i,
@@ -105,7 +105,7 @@ export function WeatherWidget() {
   }, [forecast.data, now]);
 
   return (
-    <div className="min-h-screen bg-zinc-100 text-zinc-900 antialiased py-6 px-3 md:py-10 md:px-6">
+    <div className="@container bg-zinc-100 text-zinc-900 antialiased py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
       <div className="max-w-5xl mx-auto space-y-5">
         <Header
           locationName={location.name}
@@ -211,9 +211,9 @@ function Header({
   }, []);
 
   return (
-    <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6 pb-5 border-b border-zinc-200">
-      <div className="space-y-3 w-full md:max-w-[56ch]">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">
+    <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-5 border-b border-zinc-200">
+      <div className="space-y-3 w-full @[640px]:max-w-[56ch]">
+        <h1 className="text-xl @[640px]:text-2xl @[900px]:text-3xl font-semibold tracking-tight text-zinc-900">
           Lokalprognose <span className="text-accent">{locationName}</span>
         </h1>
         <div className="flex items-center gap-2" ref={containerRef}>
@@ -268,7 +268,7 @@ function Header({
         </div>
       </div>
 
-      <label className="flex items-center gap-3 self-start md:self-auto cursor-pointer">
+      <label className="flex items-center gap-3 self-start @[640px]:self-auto cursor-pointer">
         <Switch
           checked={extended}
           onCheckedChange={onToggleExtended}
@@ -299,7 +299,7 @@ function DayStrip({
 }) {
   const d = forecast.daily;
   return (
-    <div className="flex md:grid md:grid-cols-5 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
+    <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
       {days.map((day, i) => {
         const selected = i === selectedIdx;
         return (
@@ -307,7 +307,7 @@ function DayStrip({
             key={day.iso}
             type="button"
             onClick={() => onSelect(i)}
-            className={`relative text-left p-4 space-y-3 snap-start min-w-[60%] sm:min-w-[40%] md:min-w-0 transition-colors ${
+            className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 transition-colors ${
               selected
                 ? "bg-[var(--accent-soft)]"
                 : "bg-zinc-50 hover:bg-zinc-50/80"
@@ -516,7 +516,7 @@ function DetailPanel({
                   if (el) slotRefs.current.set(iso, el);
                   else slotRefs.current.delete(iso);
                 }}
-                className={`flex-shrink-0 w-[128px] p-4 space-y-3 snap-start ${
+                className={`flex-shrink-0 w-[108px] @[640px]:w-[124px] p-3 @[640px]:p-4 space-y-3 snap-start ${
                   isCurrent ? "bg-[var(--accent-soft)]" : ""
                 } ${
                   isDayStart
@@ -656,12 +656,15 @@ function WindArrow({ deg }: { deg: number }) {
 function SkeletonWidget() {
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-zinc-200 border border-zinc-200 rounded-sm overflow-hidden">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="bg-zinc-50 p-4 h-48 animate-pulse" />
+      <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-hidden">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div
+            key={i}
+            className="bg-zinc-50 p-4 h-48 animate-pulse min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0"
+          />
         ))}
       </div>
-      <div className="h-56 bg-zinc-50 border border-zinc-200 rounded-sm animate-pulse" />
+      <div className="h-56 bg-zinc-50 border border-zinc-200 rounded-md animate-pulse" />
     </div>
   );
 }

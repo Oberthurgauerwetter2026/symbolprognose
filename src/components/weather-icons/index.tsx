@@ -54,9 +54,9 @@ function Sun({
   r?: number;
   rays?: boolean;
 }) {
-  const rayLen = r * 0.55;
-  const rayGap = r * 0.45;
-  const rayW = r * 0.32;
+  const rayLen = r * 0.7;
+  const rayGap = r * 0.4;
+  const rayW = r * 0.35;
   // 8 rays at 0°,45°,90°,...
   const rs = [0, 45, 90, 135, 180, 225, 270, 315];
   return (
@@ -92,13 +92,29 @@ function Moon({ cx = 32, cy = 32, r = 12 }: { cx?: number; cy?: number; r?: numb
         </mask>
       </defs>
       <circle cx={cx} cy={cy} r={r} fill={C.moon} mask={`url(#${id})`} />
-      <circle cx={cx} cy={cy} r={r} fill={C.moonShade} mask={`url(#${id})`} opacity="0.25" />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={r}
+        fill={C.moonShade}
+        mask={`url(#${id})`}
+        opacity="0.5"
+      />
+      <circle
+        cx={cx}
+        cy={cy}
+        r={r}
+        fill="none"
+        stroke={C.moonShade}
+        strokeWidth="1.2"
+        mask={`url(#${id})`}
+      />
     </g>
   );
 }
 
 // A puffy cumulus cloud. Pass scale (1 = full size) and offset for translation.
-// Returns body + darker underside shadow.
+// Returns body + darker underside shadow + thin outline for contrast.
 function Cloud({
   x = 32,
   y = 38,
@@ -119,7 +135,7 @@ function Cloud({
     "M -19 4 C -19 9 -17 11 -14 11 L 16 11 C 19 11 22 9 22 5 C 19 9 14 10 9 9 C 4 11 -3 11 -7 9 C -12 11 -17 10 -19 4 Z";
   return (
     <g transform={`translate(${x} ${y}) scale(${scale})`}>
-      <path d={path} fill={body} />
+      <path d={path} fill={body} stroke={shade} strokeWidth="1" strokeLinejoin="round" />
       <path d={shadePath} fill={shade} />
     </g>
   );
