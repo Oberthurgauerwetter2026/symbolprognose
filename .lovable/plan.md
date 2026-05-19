@@ -1,26 +1,26 @@
-## Befund
+# Problem
 
-Das Problem ist nicht mehr der Wetterdaten-Request selbst: Der Open-Meteo-Request liefert im Browser `200 OK`. Die Seite bricht danach beim Rendern ab und landet deshalb im globalen Fehlerbildschirm „This page didn't load“.
+Beim Klick auf einen Tag in der 5-Tage-Übersicht passiert (sichtbar) nichts: Der programmgesteuerte Smooth-Scroll im Detail-Panel löst sofort `scroll`-Events aus, der Handler ruft `onVisibleDayChange(...)` für jeden Zwischen-Tag auf, und der ausgewählte Index springt zurück auf den aktuell sichtbaren (meist heute). Das Klick-Update wird dadurch überschrieben.
 
-Die wahrscheinliche Ursache ist die API-Antwort: Bei `meteoswiss_icon_seamless` kommen für mehrere Wind-Felder `null` zurück, während die UI diese Werte direkt rundet/formatiert und für CSS-Transforms verwendet. Das kann den React-Render der Root-Route abbrechen.
+Im Code (`src/components/weather-widget.tsx`, Zeilen 432–476):
+- `useEffect` auf `selectedDayIdx` setzt `userScrolling.current = false` und startet smooth scroll.
+- Der `onScroll`-Handler setzt aber bei *jedem* Event sofort `userScrolling.current = true` und meldet den sichtbaren Tag — die Flag wird also nie effektiv genutzt.
 
-Zusätzlich zeigen die Dev-Server-Logs noch alte CSS-Import-Fehler. Ich werde nach der Codekorrektur den Dev-Server neu starten, damit keine veraltete Vite-Transformation mehr im Preview hängt.
+# Fix (nur Detail-Panel-Scroll-Logik)
 
-## Plan
+In `src/components/weather-widget.tsx`:
 
-1. **Wetterdaten normalisieren**
-   - In `src/lib/weather.ts` die API-Antwort nach dem Fetch bereinigen.
-   - Fehlende/null-Werte für Wind, Böen, Windrichtung, Temperatur, Niederschlag, Schnee und Wettercode auf sichere Fallbacks setzen.
-   - Dadurch muss die UI nicht mehr mit `null` rechnen.
+1. **Programmatisches Scrollen markieren.** Beim Tag-Klick (Effect auf `selectedDayIdx`) `userScrolling.current = false` setzen und einen Timer starten (~600 ms), nach dem wieder auf `true` gewechselt wird. Während dieser Zeit ignoriert `onScroll` jegliche `onVisibleDayChange`-Aufrufe.
 
-2. **UI gegen unvollständige Wetterdaten absichern**
-   - In `src/components/weather-widget.tsx` direkte Formatierungen wie `.toFixed(...)`, `Math.round(...)`, `weatherLabel(...)`, `WeatherIcon code=...` und `WindArrow deg=...` mit sicheren Hilfsfunktionen bzw. Fallbacks absichern.
-   - Tages- und Stundenansichten sollen auch bei teilweise fehlenden Modelldaten weiter rendern.
+2. **`onScroll` korrigieren.** Nicht mehr bei jedem Event blind `userScrolling.current = true` setzen. Stattdessen: wenn `userScrolling.current === false`, früh aussteigen (programmatischer Scroll). Nur bei echtem User-Scroll (z. B. Wheel/Touch) den sichtbaren Tag melden.
 
-3. **Router-Fehlerausgabe robuster machen**
-   - In `src/router.tsx` einen `defaultErrorComponent` ergänzen, damit künftige Fehler sauber abgefangen werden.
-   - Root-Error bleibt bestehen, aber die App bekommt eine zusätzliche Sicherheitslinie.
+3. **User-Scroll erkennen.** `wheel`-, `touchstart`- und `pointerdown`-Listener auf dem Scroller setzen `userScrolling.current = true`, damit der bestehende Auto-Update-beim-Scrollen-Mechanismus weiterhin funktioniert.
 
-4. **Preview neu laden/validieren**
-   - Dev-Server neu starten, damit die alten CSS-Fehler aus dem Vite-Cache verschwinden.
-   - Danach prüfen, ob die Startseite statt des globalen Fehlerbildschirms wieder das Wetter-Widget anzeigt.
+4. Aufräumen der Timer/Listener in `useEffect`-Cleanup.
+
+# Was nicht geändert wird
+
+- DayStrip, Styling, Wetter-Daten, Layout, Reihenfolge der Tage.
+- Verhalten beim manuellen Scrollen (synchronisiert weiter den DayStrip).
+
+Nach dem Fix: Klick auf einen Tag → Detail-Panel scrollt zu diesem Tag, Auswahl bleibt korrekt. Manuelles Scrollen aktualisiert weiterhin den selektierten Tag.

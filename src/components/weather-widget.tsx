@@ -439,19 +439,28 @@ function DetailPanel({
     const el = slotRefs.current.get(firstIso);
     const scroller = scrollerRef.current;
     if (!el || !scroller) return;
+    // Mark as programmatic scroll so onScroll doesn't override the selection.
     userScrolling.current = false;
     scroller.scrollTo({
       left: el.offsetLeft - scroller.offsetLeft,
       behavior: "smooth",
     });
+    const t = window.setTimeout(() => {
+      userScrolling.current = true;
+    }, 700);
+    return () => window.clearTimeout(t);
   }, [selectedDayIdx, selectedDay, hourlyIndices, h.time]);
 
   // Track which day is currently visible on scroll and reflect it in the day strip.
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return;
-    const onScroll = () => {
+    const markUser = () => {
       userScrolling.current = true;
+    };
+    const onScroll = () => {
+      // Ignore scroll events from programmatic smooth-scrolling (tab click).
+      if (!userScrolling.current) return;
       const left = scroller.scrollLeft + 16;
       let visibleIso: string | null = null;
       for (const idx of hourlyIndices) {
@@ -472,7 +481,15 @@ function DetailPanel({
       }
     };
     scroller.addEventListener("scroll", onScroll, { passive: true });
-    return () => scroller.removeEventListener("scroll", onScroll);
+    scroller.addEventListener("wheel", markUser, { passive: true });
+    scroller.addEventListener("touchstart", markUser, { passive: true });
+    scroller.addEventListener("pointerdown", markUser, { passive: true });
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      scroller.removeEventListener("wheel", markUser);
+      scroller.removeEventListener("touchstart", markUser);
+      scroller.removeEventListener("pointerdown", markUser);
+    };
   }, [hourlyIndices, h.time, days, selectedDayIdx, onVisibleDayChange]);
 
   if (!selectedDay) return null;
