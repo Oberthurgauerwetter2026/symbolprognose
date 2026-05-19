@@ -274,16 +274,28 @@ function Header({
         </div>
       </div>
 
-      <label className="flex items-center gap-3 self-start @[640px]:self-auto cursor-pointer">
-        <Switch
-          checked={extended}
-          onCheckedChange={onToggleExtended}
-          aria-label="Sonnenschein"
-        />
-        <span className="text-sm font-medium text-zinc-700 select-none">
-          Sonnenschein
-        </span>
-      </label>
+      <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <Switch
+            checked={extended}
+            onCheckedChange={onToggleExtended}
+            aria-label="Sonnenschein"
+          />
+          <span className="text-sm font-medium text-zinc-700 select-none">
+            Sonnenschein
+          </span>
+        </label>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <Switch
+            checked={snow}
+            onCheckedChange={onToggleSnow}
+            aria-label="Schnee"
+          />
+          <span className="text-sm font-medium text-zinc-700 select-none">
+            Schnee
+          </span>
+        </label>
+      </div>
     </header>
   );
 }
