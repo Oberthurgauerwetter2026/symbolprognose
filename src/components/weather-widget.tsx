@@ -514,7 +514,7 @@ function DetailPanel({
         <div className="w-10 shrink-0 border-r border-zinc-200 bg-zinc-100/50 flex flex-col justify-end">
           <div className="flex-1" />
           {/* Precipitation axis */}
-          <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums">
+          <div className="relative h-[72px] text-[10px] text-zinc-700 font-semibold tabular-nums">
             {[5, 2.5, 0].map((v) => (
               <div
                 key={v}
@@ -533,12 +533,12 @@ function DetailPanel({
               </div>
             ))}
           </div>
-          <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+          <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
             Regen<br />mm/3h
           </div>
           {extended && (
             <>
-              <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums border-t border-zinc-200">
+              <div className="relative h-[72px] text-[10px] text-zinc-700 font-semibold tabular-nums border-t border-zinc-200">
                 {[60, 30, 0].map((v) => (
                   <div
                     key={v}
@@ -557,14 +557,14 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
                 Sonne<br />min/h
               </div>
             </>
           )}
           {snow && (
             <>
-              <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums border-t border-zinc-200">
+              <div className="relative h-[72px] text-[10px] text-zinc-700 font-semibold tabular-nums border-t border-zinc-200">
                 {[2, 1, 0].map((v) => (
                   <div
                     key={v}
@@ -583,7 +583,7 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
                 Schnee<br />cm/3h
               </div>
             </>
