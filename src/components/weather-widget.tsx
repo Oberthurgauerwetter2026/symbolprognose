@@ -524,11 +524,6 @@ function DetailPanel({
                     : "border-l border-zinc-200"
                 }`}
               >
-                {isDayStart && (
-                  <div className="text-xs font-semibold text-accent">
-                    {weekdayShort(t)} {formatDateShort(t)}
-                  </div>
-                )}
                 <div
                   className={`text-sm font-semibold tabular-nums ${
                     isCurrent ? "text-accent" : "text-zinc-600"
