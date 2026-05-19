@@ -77,7 +77,7 @@ export function WeatherWidget() {
 
   const days = useMemo(() => {
     if (!forecast.data) return [];
-    return forecast.data.daily.time.slice(0, 5).map((iso, i) => ({
+    return forecast.data.daily.time.slice(0, 7).map((iso, i) => ({
       iso,
       date: new Date(iso + "T12:00:00"),
       idx: i,
