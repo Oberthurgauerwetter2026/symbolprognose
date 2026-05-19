@@ -482,7 +482,11 @@ function DetailPanel({
     <section className="bg-zinc-50 rounded-md border border-zinc-200 overflow-hidden">
       <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3">
         <span className="text-base font-semibold text-zinc-800">
-          Detailansicht
+          {selectedDayIdx === 0
+            ? "Heute"
+            : selectedDayIdx === 1
+              ? "Morgen"
+              : weekdayLong(selectedDay.date)}
         </span>
         <span className="text-xs text-zinc-500 hidden sm:inline">
           3-Stunden-Takt · °C / mm / km/h
