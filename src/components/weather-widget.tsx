@@ -281,7 +281,7 @@ function Header({
             onCheckedChange={onToggleExtended}
             aria-label="Sonnenschein"
           />
-          <span className="text-sm font-medium text-zinc-700 select-none">
+          <span className="text-sm font-semibold text-zinc-900 select-none">
             Sonnenschein
           </span>
         </label>
@@ -291,7 +291,7 @@ function Header({
             onCheckedChange={onToggleSnow}
             aria-label="Schnee"
           />
-          <span className="text-sm font-medium text-zinc-700 select-none">
+          <span className="text-sm font-semibold text-zinc-900 select-none">
             Schnee
           </span>
         </label>
