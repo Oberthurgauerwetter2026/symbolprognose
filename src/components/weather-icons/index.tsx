@@ -54,9 +54,9 @@ function Sun({
   r?: number;
   rays?: boolean;
 }) {
-  const rayLen = r * 0.55;
-  const rayGap = r * 0.45;
-  const rayW = r * 0.32;
+  const rayLen = r * 0.7;
+  const rayGap = r * 0.4;
+  const rayW = r * 0.35;
   // 8 rays at 0°,45°,90°,...
   const rs = [0, 45, 90, 135, 180, 225, 270, 315];
   return (
