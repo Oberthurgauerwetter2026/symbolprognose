@@ -59,8 +59,37 @@ export function WeatherWidget() {
   });
   const [extended, setExtended] = useState(false);
   const [snow, setSnow] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document !== "undefined" && document.documentElement.classList.contains("dark"))
+      return "dark";
+    return "light";
+  });
+  const [themeOverride, setThemeOverride] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const now = useNow();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const root = document.documentElement;
+    root.classList.toggle("dark", theme === "dark");
+    if (themeOverride) {
+      try {
+        localStorage.setItem("weather:theme", theme);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [theme, themeOverride]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (e: MediaQueryListEvent) => {
+      if (!themeOverride) setTheme(e.matches ? "dark" : "light");
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [themeOverride]);
 
   useEffect(() => {
     try {
