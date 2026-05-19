@@ -71,13 +71,15 @@
   --secondary-foreground: var(--zinc-900);
   --muted: var(--zinc-200);
   --muted-foreground: var(--zinc-500);
-  --accent: #e62117;
+  --accent: #2561a1;
+  --accent-soft: #e8f0f9;
+  --accent-strong: #1c4d82;
   --accent-foreground: var(--zinc-50);
   --destructive: #e62117;
   --destructive-foreground: var(--zinc-50);
   --border: var(--zinc-200);
   --input: var(--zinc-200);
-  --ring: #e62117;
+  --ring: #2561a1;
 
   /* Weather icon palette (SRF Meteo inspired) */
   --wx-sun: #f5b800;
