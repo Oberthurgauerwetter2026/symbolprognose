@@ -224,6 +224,8 @@ function Header({
   onToggleExtended,
   snow,
   onToggleSnow,
+  theme,
+  onToggleTheme,
 }: {
   locationName: string;
   onSelectLocation: (loc: GeoLocation) => void;
@@ -232,6 +234,8 @@ function Header({
   onToggleExtended: (v: boolean) => void;
   snow: boolean;
   onToggleSnow: (v: boolean) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
