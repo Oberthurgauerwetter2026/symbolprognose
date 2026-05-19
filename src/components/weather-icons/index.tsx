@@ -5,17 +5,34 @@ import type { SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
-function Svg({ size = 48, children, ...rest }: IconProps & { children: React.ReactNode }) {
+const C = {
+  sun: "var(--wx-sun)",
+  sunCore: "var(--wx-sun-core)",
+  moon: "var(--wx-moon)",
+  moonShade: "var(--wx-moon-shade)",
+  cloud: "var(--wx-cloud)",
+  cloudShade: "var(--wx-cloud-shade)",
+  cloudDark: "var(--wx-cloud-dark)",
+  cloudDarkShade: "var(--wx-cloud-dark-shade)",
+  rain: "var(--wx-rain)",
+  snow: "var(--wx-snow)",
+  snowEdge: "var(--wx-snow-edge)",
+  bolt: "var(--wx-bolt)",
+  boltEdge: "var(--wx-bolt-edge)",
+  fog: "var(--wx-fog)",
+};
+
+function Svg({
+  size = 48,
+  children,
+  ...rest
+}: IconProps & { children: React.ReactNode }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 64 64"
       fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
       aria-hidden
       {...rest}
     >
@@ -24,36 +41,155 @@ function Svg({ size = 48, children, ...rest }: IconProps & { children: React.Rea
   );
 }
 
-/* ---------- Primitives ---------- */
+/* ---------- Reusable shapes ---------- */
 
-const SUN_RAYS = (
-  <g>
-    <line x1="32" y1="6" x2="32" y2="12" />
-    <line x1="32" y1="52" x2="32" y2="58" />
-    <line x1="6" y1="32" x2="12" y2="32" />
-    <line x1="52" y1="32" x2="58" y2="32" />
-    <line x1="13.5" y1="13.5" x2="17.8" y2="17.8" />
-    <line x1="46.2" y1="46.2" x2="50.5" y2="50.5" />
-    <line x1="13.5" y1="50.5" x2="17.8" y2="46.2" />
-    <line x1="46.2" y1="17.8" x2="50.5" y2="13.5" />
-  </g>
-);
+function Sun({
+  cx = 32,
+  cy = 32,
+  r = 11,
+  rays = true,
+}: {
+  cx?: number;
+  cy?: number;
+  r?: number;
+  rays?: boolean;
+}) {
+  const rayLen = r * 0.55;
+  const rayGap = r * 0.45;
+  const rayW = r * 0.32;
+  // 8 rays at 0°,45°,90°,...
+  const rs = [0, 45, 90, 135, 180, 225, 270, 315];
+  return (
+    <g>
+      {rays &&
+        rs.map((deg) => (
+          <rect
+            key={deg}
+            x={cx - rayW / 2}
+            y={cy - r - rayGap - rayLen}
+            width={rayW}
+            height={rayLen}
+            rx={rayW / 2}
+            fill={C.sun}
+            transform={`rotate(${deg} ${cx} ${cy})`}
+          />
+        ))}
+      <circle cx={cx} cy={cy} r={r} fill={C.sun} />
+      <circle cx={cx} cy={cy} r={r * 0.7} fill={C.sunCore} />
+    </g>
+  );
+}
 
-const CLOUD = (
-  <path d="M18 44 C12 44 9 39 12 34 C13 28 19 26 23 28 C25 22 33 21 37 26 C42 24 49 27 49 33 C53 33 55 37 53 41 C52 43 49 44 47 44 Z" />
-);
+function Moon({ cx = 32, cy = 32, r = 12 }: { cx?: number; cy?: number; r?: number }) {
+  // Crescent via two overlapping circles using mask
+  const id = `moon-mask-${cx}-${cy}-${r}`;
+  return (
+    <g>
+      <defs>
+        <mask id={id}>
+          <rect width="64" height="64" fill="white" />
+          <circle cx={cx + r * 0.55} cy={cy - r * 0.25} r={r * 0.95} fill="black" />
+        </mask>
+      </defs>
+      <circle cx={cx} cy={cy} r={r} fill={C.moon} mask={`url(#${id})`} />
+      <circle cx={cx} cy={cy} r={r} fill={C.moonShade} mask={`url(#${id})`} opacity="0.25" />
+    </g>
+  );
+}
 
-const SMALL_CLOUD = (
-  <path d="M30 36 C26 36 24 33 26 30 C27 26 32 25 35 27 C37 24 42 25 43 28 C46 28 47 31 45 33 C44 35 42 36 40 36 Z" />
-);
+// A puffy cumulus cloud. Pass scale (1 = full size) and offset for translation.
+// Returns body + darker underside shadow.
+function Cloud({
+  x = 32,
+  y = 38,
+  scale = 1,
+  dark = false,
+}: {
+  x?: number;
+  y?: number;
+  scale?: number;
+  dark?: boolean;
+}) {
+  const body = dark ? C.cloudDark : C.cloud;
+  const shade = dark ? C.cloudDarkShade : C.cloudShade;
+  // Base cloud path centered at (0,0), width ~40, height ~20
+  const path =
+    "M -18 6 C -25 6 -27 -2 -22 -6 C -22 -12 -14 -14 -10 -10 C -7 -16 3 -16 6 -10 C 12 -13 20 -8 19 -2 C 24 -2 25 5 21 7 C 19 9 17 10 14 10 L -16 10 C -18 10 -19 9 -19 7 Z";
+  const shadePath =
+    "M -19 4 C -19 9 -17 11 -14 11 L 16 11 C 19 11 22 9 22 5 C 19 9 14 10 9 9 C 4 11 -3 11 -7 9 C -12 11 -17 10 -19 4 Z";
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      <path d={path} fill={body} />
+      <path d={shadePath} fill={shade} />
+    </g>
+  );
+}
+
+function Drop({ x, y, size = 1 }: { x: number; y: number; size?: number }) {
+  // Tear-drop pointing down, ~5×7 at size=1
+  return (
+    <path
+      transform={`translate(${x} ${y}) scale(${size})`}
+      d="M 0 -3.5 C 2.4 -0.5 2.4 3 0 3.5 C -2.4 3 -2.4 -0.5 0 -3.5 Z"
+      fill={C.rain}
+    />
+  );
+}
+
+function Flake({ x, y, size = 1 }: { x: number; y: number; size?: number }) {
+  // 6-arm star
+  const arms = [0, 60, 120];
+  return (
+    <g transform={`translate(${x} ${y}) scale(${size})`}>
+      {arms.map((deg) => (
+        <line
+          key={deg}
+          x1="-3.5"
+          y1="0"
+          x2="3.5"
+          y2="0"
+          stroke={C.snow}
+          strokeWidth="2"
+          strokeLinecap="round"
+          transform={`rotate(${deg})`}
+        />
+      ))}
+      {arms.map((deg) => (
+        <line
+          key={`e-${deg}`}
+          x1="-3.5"
+          y1="0"
+          x2="3.5"
+          y2="0"
+          stroke={C.snowEdge}
+          strokeWidth="0.8"
+          strokeLinecap="round"
+          transform={`rotate(${deg})`}
+        />
+      ))}
+      <circle cx="0" cy="0" r="1" fill={C.snow} />
+    </g>
+  );
+}
+
+function Bolt() {
+  return (
+    <path
+      d="M 33 41 L 24 55 L 30 55 L 26 63 L 38 49 L 32 49 L 36 41 Z"
+      fill={C.bolt}
+      stroke={C.boltEdge}
+      strokeWidth="0.8"
+      strokeLinejoin="round"
+    />
+  );
+}
 
 /* ---------- Icons ---------- */
 
 export function IconClear({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <circle cx="32" cy="32" r="11" />
-      {SUN_RAYS}
+      <Sun cx={32} cy={32} r={12} />
     </Svg>
   );
 }
@@ -61,52 +197,33 @@ export function IconClear({ size, ...rest }: IconProps) {
 export function IconClearNight({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <path d="M42 38 A14 14 0 1 1 26 22 A11 11 0 0 0 42 38 Z" />
+      <Moon cx={32} cy={32} r={14} />
     </Svg>
   );
 }
 
-export function IconMostlyClear({ size, isDay = true, ...rest }: IconProps & { isDay?: boolean }) {
+export function IconMostlyClear({
+  size,
+  isDay = true,
+  ...rest
+}: IconProps & { isDay?: boolean }) {
   return (
     <Svg size={size} {...rest}>
-      {isDay ? (
-        <>
-          <circle cx="24" cy="24" r="8" />
-          <g transform="translate(-2 -4)">
-            <line x1="24" y1="6" x2="24" y2="10" />
-            <line x1="8" y1="24" x2="12" y2="24" />
-            <line x1="11" y1="11" x2="13.8" y2="13.8" />
-            <line x1="34" y1="11" x2="36.8" y2="13.8" transform="scale(-1 1) translate(-48 0)" />
-          </g>
-          {SMALL_CLOUD}
-        </>
-      ) : (
-        <>
-          <path d="M30 22 A10 10 0 1 1 19 11 A8 8 0 0 0 30 22 Z" />
-          {SMALL_CLOUD}
-        </>
-      )}
+      {isDay ? <Sun cx={24} cy={22} r={9} /> : <Moon cx={24} cy={22} r={10} />}
+      <Cloud x={38} y={42} scale={0.7} />
     </Svg>
   );
 }
 
-export function IconPartlyCloudy({ size, isDay = true, ...rest }: IconProps & { isDay?: boolean }) {
+export function IconPartlyCloudy({
+  size,
+  isDay = true,
+  ...rest
+}: IconProps & { isDay?: boolean }) {
   return (
     <Svg size={size} {...rest}>
-      {isDay ? (
-        <>
-          <circle cx="22" cy="22" r="9" />
-          <g>
-            <line x1="22" y1="6" x2="22" y2="10" />
-            <line x1="6" y1="22" x2="10" y2="22" />
-            <line x1="9.5" y1="9.5" x2="12.5" y2="12.5" />
-            <line x1="34.5" y1="9.5" x2="31.5" y2="12.5" />
-          </g>
-        </>
-      ) : (
-        <path d="M30 24 A11 11 0 1 1 18 12 A9 9 0 0 0 30 24 Z" />
-      )}
-      <path d="M22 48 C16 48 13 43 16 38 C17 33 23 31 27 33 C29 28 36 27 40 31 C44 30 50 33 50 38 C53 38 55 41 53 45 C52 47 50 48 48 48 Z" />
+      {isDay ? <Sun cx={20} cy={20} r={9} /> : <Moon cx={20} cy={20} r={10} />}
+      <Cloud x={36} y={40} scale={1} />
     </Svg>
   );
 }
@@ -114,7 +231,7 @@ export function IconPartlyCloudy({ size, isDay = true, ...rest }: IconProps & { 
 export function IconCloudy({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      {CLOUD}
+      <Cloud x={32} y={34} scale={1.15} />
     </Svg>
   );
 }
@@ -122,10 +239,10 @@ export function IconCloudy({ size, ...rest }: IconProps) {
 export function IconFog({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <path d="M18 36 C12 36 9 31 12 26 C13 20 19 18 23 20 C25 14 33 13 37 18 C42 16 49 19 49 25 C53 25 55 29 53 33 C52 35 49 36 47 36 Z" />
-      <line x1="10" y1="46" x2="54" y2="46" />
-      <line x1="14" y1="52" x2="50" y2="52" />
-      <line x1="20" y1="58" x2="44" y2="58" />
+      <Cloud x={32} y={28} scale={1} />
+      <line x1="10" y1="46" x2="54" y2="46" stroke={C.fog} strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="14" y1="52" x2="50" y2="52" stroke={C.fog} strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="20" y1="58" x2="44" y2="58" stroke={C.fog} strokeWidth="2.5" strokeLinecap="round" />
     </Svg>
   );
 }
@@ -133,10 +250,10 @@ export function IconFog({ size, ...rest }: IconProps) {
 export function IconDrizzle({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      {CLOUD}
-      <line x1="22" y1="50" x2="20" y2="56" />
-      <line x1="32" y1="50" x2="30" y2="56" />
-      <line x1="42" y1="50" x2="40" y2="56" />
+      <Cloud x={32} y={28} scale={1} />
+      <Drop x={22} y={50} size={0.85} />
+      <Drop x={32} y={52} size={0.85} />
+      <Drop x={42} y={50} size={0.85} />
     </Svg>
   );
 }
@@ -144,10 +261,11 @@ export function IconDrizzle({ size, ...rest }: IconProps) {
 export function IconRain({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      {CLOUD}
-      <line x1="22" y1="49" x2="18" y2="59" strokeWidth={2} />
-      <line x1="32" y1="49" x2="28" y2="59" strokeWidth={2} />
-      <line x1="42" y1="49" x2="38" y2="59" strokeWidth={2} />
+      <Cloud x={32} y={28} scale={1} />
+      <Drop x={20} y={50} size={1.15} />
+      <Drop x={28} y={54} size={1.15} />
+      <Drop x={36} y={50} size={1.15} />
+      <Drop x={44} y={54} size={1.15} />
     </Svg>
   );
 }
@@ -155,27 +273,10 @@ export function IconRain({ size, ...rest }: IconProps) {
 export function IconSnow({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      {CLOUD}
-      <g strokeWidth={1.2}>
-        <g transform="translate(20 53)">
-          <line x1="-3" y1="0" x2="3" y2="0" />
-          <line x1="0" y1="-3" x2="0" y2="3" />
-          <line x1="-2" y1="-2" x2="2" y2="2" />
-          <line x1="-2" y1="2" x2="2" y2="-2" />
-        </g>
-        <g transform="translate(32 56)">
-          <line x1="-3" y1="0" x2="3" y2="0" />
-          <line x1="0" y1="-3" x2="0" y2="3" />
-          <line x1="-2" y1="-2" x2="2" y2="2" />
-          <line x1="-2" y1="2" x2="2" y2="-2" />
-        </g>
-        <g transform="translate(44 53)">
-          <line x1="-3" y1="0" x2="3" y2="0" />
-          <line x1="0" y1="-3" x2="0" y2="3" />
-          <line x1="-2" y1="-2" x2="2" y2="2" />
-          <line x1="-2" y1="2" x2="2" y2="-2" />
-        </g>
-      </g>
+      <Cloud x={32} y={28} scale={1} />
+      <Flake x={20} y={50} size={1} />
+      <Flake x={32} y={55} size={1.1} />
+      <Flake x={44} y={50} size={1} />
     </Svg>
   );
 }
@@ -183,16 +284,10 @@ export function IconSnow({ size, ...rest }: IconProps) {
 export function IconThunderstorm({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      {CLOUD}
-      <line x1="22" y1="49" x2="19" y2="57" />
-      <line x1="42" y1="49" x2="39" y2="57" />
-      <path
-        d="M34 47 L28 57 L32 57 L29 63 L38 53 L34 53 L37 47 Z"
-        className="text-accent"
-        stroke="currentColor"
-        fill="currentColor"
-        strokeWidth={1}
-      />
+      <Cloud x={32} y={28} scale={1.05} dark />
+      <Drop x={20} y={52} size={1} />
+      <Drop x={46} y={52} size={1} />
+      <Bolt />
     </Svg>
   );
 }
