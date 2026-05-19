@@ -18,8 +18,8 @@ import { Switch } from "@/components/ui/switch";
 
 const DEFAULT_LOCATION = {
   name: "Amriswil",
-  latitude: 47.5504,
-  longitude: 9.3021,
+  latitude: 47.5469,
+  longitude: 9.298,
 };
 
 interface StoredLocation {
