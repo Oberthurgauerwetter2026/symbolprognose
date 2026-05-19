@@ -57,7 +57,7 @@ export function WeatherWidget() {
     }
     return DEFAULT_LOCATION;
   });
-  const [extended, setExtended] = useState(true);
+  const [extended, setExtended] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const now = useNow();
 
