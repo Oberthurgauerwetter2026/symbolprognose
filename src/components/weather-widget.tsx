@@ -6,7 +6,7 @@ import {
   formatTimeHHMM,
   reverseGeocode,
   searchLocations,
-  secondsToHours,
+  
   weatherLabel,
   weekdayLong,
   weekdayShort,
