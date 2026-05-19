@@ -549,8 +549,11 @@ function DetailPanel({
           <div className="inline-flex flex-col min-w-full">
             {/* Hour slots */}
             <div className="flex">
-              {hourlyIndices.map((idx) => {
+              {hourlyIndices.map((idx, i) => {
                 const iso = h.time[idx];
+                const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+                const isDayStart =
+                  !!prevIso && prevIso.slice(0, 10) !== iso.slice(0, 10);
                 const t = new Date(iso);
                 const isCurrent = t.getTime() === currentBlockMs;
                 const wind = h.windspeed_10m[idx];
@@ -569,8 +572,8 @@ function DetailPanel({
                       else slotRefs.current.delete(iso);
                     }}
                     className={`flex-shrink-0 w-[108px] @[640px]:w-[124px] p-3 @[640px]:p-4 space-y-3 snap-start ${
-                      isCurrent ? "bg-[var(--accent-soft)]" : ""
-                    }`}
+                      isDayStart ? "border-l border-zinc-300" : ""
+                    } ${isCurrent ? "bg-[var(--accent-soft)]" : ""}`}
                   >
                     <div
                       className={`text-sm font-semibold tabular-nums ${
