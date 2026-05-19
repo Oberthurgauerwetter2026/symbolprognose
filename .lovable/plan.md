@@ -1,21 +1,22 @@
-## Fix: Wetterdaten laden nicht
+## Fix: Seite lädt nicht mehr
 
-**Ursache:** Open-Meteo lehnt `icon_ch1,icon_ch2` mit HTTP 400 ab (`Cannot initialize MultiDomains from invalid String value icon_ch1`). Die offiziellen Identifier für die MeteoSchweiz-Modelle bei Open-Meteo sind `meteoswiss_icon_ch1` und `meteoswiss_icon_ch2`. Zusätzlich: wenn beide Modelle gleichzeitig angegeben werden, werden alle Hourly/Daily-Felder pro Modell suffixiert (`temperature_2m_meteoswiss_icon_ch1`), was unseren Parser bricht.
+**Ursache:** Vite/PostCSS Fehler in `src/styles.css`:
+`@import must precede all other statements (besides @charset or empty @layer)`.
+
+Die Google-Fonts-Zeile `@import url("https://fonts.googleapis.com/...")` steht in der Datei nach `@import "tailwindcss"` und `@source` — letzteres wird von Tailwind v4 zu Regelgruppen expandiert, sodass der nachfolgende `@import url(...)` ungültig wird. SSR rendert die Fehlerseite „This page didn't load".
 
 ## Lösung
 
-In `src/lib/weather.ts`:
+In `src/styles.css` die Reihenfolge ändern: Google-Fonts-`@import url(...)` als allererste Zeile setzen, vor `@import "tailwindcss"`. Keine inhaltliche Änderung sonst.
 
-```ts
-url.searchParams.set("models", "meteoswiss_icon_seamless");
+```css
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
+…
 ```
 
-`meteoswiss_icon_seamless` ist der offizielle nahtlose Blend von Open-Meteo aus **ICON-CH1-EPS** (Kurzfrist, ~1 km) und **ICON-CH2-EPS** (Mittelfrist, ~2 km). Liefert saubere Feldnamen ohne Suffix → keine weiteren Code-Änderungen nötig. Funktioniert für die geforderten 6 Tage.
-
-In `src/components/weather-widget.tsx` Footer-Label bleibt bei „ICON-CH1-EPS / ICON-CH2-EPS" (sachlich korrekt, da seamless beide kombiniert).
-
 ## Geänderte Dateien
-
-- `src/lib/weather.ts` — ein Parameter
-
-Sonst nichts. Sehr kleiner, gezielter Fix.
+- `src/styles.css` — nur Zeilenreihenfolge im Kopf.
