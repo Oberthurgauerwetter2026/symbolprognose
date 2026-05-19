@@ -1,37 +1,51 @@
-# Ziel
+## Ziel
 
-Wetterprognose näher an MeteoSchweiz bringen, indem wir für die hinteren Tage auf das ECMWF-IFS-Modell wechseln (so wie es MeteoSchweiz auch tut).
+Layout an SRF Meteo angelehnt modernisieren: ruhige Typografie ohne durchgehende Grossbuchstaben, klare Akzentfarbe **#2561a1** (statt aktuellem Rot), echter Switch-Schalter für "Erweiterte Anzeige", Niederschlagsbalken in der Detailansicht, und Aufräumen der Detail-Header.
 
-# Modell-Blending (zeitlich gestaffelt)
+## Änderungen
 
-| Zeitraum | Modell | Begründung |
-|---|---|---|
-| Tag 0 – 3 (heute + 3 Folgetage) | `meteoswiss_icon_seamless` (ICON-CH1 → ICON-CH2) | hochauflösendes Schweizer Modell, stark in der Kurzfrist |
-| Tag 4 – 5 | `ecmwf_ifs025` | global, beste mittlere Frist, MeteoSchweiz nutzt ab da auch IFS |
+### 1. Farbsystem (`src/styles.css`)
+- `--accent` und `--ring` auf `#2561a1` umstellen
+- Neue Tokens: `--accent-soft` (helle Blau-Tönung für Hintergründe), `--accent-strong` (dunkler für Hover)
+- Niederschlagsbalken-Farbe: `--wx-rain` bleibt, wird für Balken verwendet
 
-Kein gleitendes Mischen der Wertewerte — sondern harter Wechsel auf Tagesgrenze. Grund: `weathercode` ist kategorisch (1, 61, 95 …), Mitteln ergibt Unsinn. Bei numerischen Werten (Temp, Wind) wäre Mitteln möglich, aber inkonsistent zum Symbol; daher einheitlich pro Tag *ein* Modell.
+### 2. Typografie & Lesbarkeit (`weather-widget.tsx`)
+- Alle `uppercase`-Klassen entfernen bei: Header-Titel, Tag-Labels ("Heute/Morgen/Wochentag"), Detailansicht-Überschrift, Footer, Switch-Label
+- `tracking-widest`/`tracking-wider` reduzieren auf normales `tracking-tight`/keines
+- Schriftgrössen leicht hochziehen: Tag-Label `text-base font-semibold`, Detail-Header `text-base`
+- Wochentag-Anzeige in normaler Schreibweise ("Heute", "Samstag, 23. Mai")
 
-# Umsetzung in `src/lib/weather.ts`
+### 3. Erweiterte Anzeige als echter Switch
+- Ersetze die zwei Ein/Aus-Buttons durch shadcn `<Switch>` (bereits vorhanden in `ui/switch.tsx`)
+- Label rechts neben Switch: "Erweiterte Anzeige" in normaler Schrift
+- Visuell dezenter, kein Box-Container mehr nötig
 
-1. **`fetchForecast`** ruft Open-Meteo **zweimal parallel** auf (`Promise.all`):
-   - Call A: `models=meteoswiss_icon_seamless`, `forecast_days=4`
-   - Call B: `models=ecmwf_ifs025`, `forecast_days=6` (wir brauchen nur Tag 4 + 5, aber API erlaubt kein "start_day")
-   - Beide mit denselben `daily` und `hourly` Variablen, gleicher `timezone=auto`.
-2. **`mergeForecasts(iconRes, ecmwfRes)`** baut die finale `ForecastResponse`:
-   - **Daily**: Index 0–3 aus ICON, Index 4–5 aus ECMWF (per `date` matchen, nicht per Position, damit Zeitzonen-Edge-Cases sicher sind).
-   - **Hourly**: Slots gruppieren nach `iso.slice(0,10)`; pro Datum komplett ICON ODER ECMWF, abhängig davon, welches Modell für diesen Tag aktiv ist.
-   - `current_weather` und Meta (`latitude`, `longitude`, `timezone`, `utc_offset_seconds`) aus ICON übernehmen.
-3. **`sanitizeForecast`** bleibt unverändert und läuft auf dem zusammengesetzten Objekt.
-4. Falls **ein Call fehlschlägt**, fallback auf den erfolgreichen (mit gekürztem Horizont) statt komplettem Fehler.
+### 4. Niederschlagsbalken in Detailansicht
+- Pro 3h-Slot: kleine vertikale Balkengrafik direkt unter/neben der mm-Zahl
+- Höhe proportional zu `precipitation[idx]`, skaliert auf max. Wert des sichtbaren Tages (oder fester Skala 0–10 mm = 100%)
+- Farbe `var(--wx-rain)`, Hintergrundtrack hellgrau
+- Opacity gekoppelt an `precipitation_probability` (z.B. 30–100% Opacity)
+- Bei 0 mm: leerer Track sichtbar
 
-# UI-Änderung
+### 5. Detailansicht-Header aufräumen
+- Header-Zeile: nur "Detailansicht" + Info-Suffix rechts ("3-Stunden-Takt")
+- Wochentag/Datum aus dem Header entfernen (steht ja im DayStrip oberhalb)
+- Innerhalb der Slots: Tagestrenner-Label (Wochentag+Datum beim ersten Slot eines neuen Tages) **bleibt**, da es beim Scrollen Orientierung gibt — aber in normaler Schreibweise
 
-- Im DetailPanel-Header oder als kleiner Hinweis im Footer: dezentes `Modell: MeteoSchweiz ICON (Tag 1–4) · ECMWF IFS (Tag 5–6)`, damit die Quelle transparent ist. Optional — sag Bescheid, ob du das willst, sonst lasse ich die UI komplett unverändert.
+### 6. DayStrip-Politur
+- Aktiver Tag: Akzentbalken oben in #2561a1, dezenterer Hintergrund-Tint (`--accent-soft`)
+- Min/Max-Temperatur klarer hierarchisiert (Max gross/dunkel, Min mittelgrau)
+- Labels in Mixed-Case
 
-# Was *nicht* gemacht wird
+## Technische Details
 
-- Kein MOS / Post-Processing wie MeteoSchweiz (das ist proprietär).
-- Kein Ensemble-Handling (`*_eps`) — Open-Meteo liefert deterministische Felder, das reicht für Symbole.
-- Symbol-Mapping (`WeatherIcon` → WMO-Code) bleibt wie es ist.
+- Farben ausschliesslich über CSS-Variablen in `src/styles.css`, keine Hex-Werte in Komponenten
+- Switch-Import: `import { Switch } from "@/components/ui/switch"` + Label daneben
+- Balken: einfaches `<div>` mit `height: ${pct}%` in einem Track-Container (`h-10 w-1.5`), kein Chart-Lib nötig
+- Skala für Balken: `Math.min(precipitation / 5, 1) * 100` (5 mm = volle Höhe, darüber Cap) — alternativ pro Tag normalisiert, entscheide ich im Build für die einfachere Variante
+- Keine Änderung an `weather.ts` oder Datenflüssen
 
-Erwartetes Ergebnis: Tag 4–5 weichen nicht mehr so stark von der MeteoSchweiz-Wochenübersicht ab.
+## Nicht enthalten
+
+- Keine Änderung an Icons, Modellblend-Logik, Geosuche, Routing
+- Keine Mobile-spezifischen Layout-Umbauten über die bestehenden Breakpoints hinaus
