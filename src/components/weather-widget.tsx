@@ -268,7 +268,7 @@ function Header({
         </div>
       </div>
 
-      <label className="flex items-center gap-3 self-start md:self-auto cursor-pointer">
+      <label className="flex items-center gap-3 self-start @[640px]:self-auto cursor-pointer">
         <Switch
           checked={extended}
           onCheckedChange={onToggleExtended}
