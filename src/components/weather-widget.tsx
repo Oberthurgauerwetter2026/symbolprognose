@@ -506,7 +506,7 @@ function DetailPanel({
               : weekdayLong(selectedDay.date)}
         </span>
         <span className="text-xs text-zinc-500 hidden sm:inline">
-          3-Stunden-Takt · °C / mm / km/h
+          3h · Temperatur °C · Wind / Böenspitzen km/h
         </span>
       </div>
       <div className="flex items-stretch">
