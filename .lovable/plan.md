@@ -1,79 +1,52 @@
-## Was gebaut wird
+## Ziel
+Emoji-Wettersymbole durch einheitliche, gerätegeunabhängige **SVG-Icons im Instrumental-Swiss-Stil** ersetzen — präzise, technisch, monochrom mit rotem Akzent. Konsistenter Look auf allen Geräten (iOS/Android/Windows/Linux).
 
-Ein eigenständiges, in WordPress per `<iframe>` einbettbares 5-Tage-Wetter-Widget im gewählten "Instrumental Swiss"-Design. Datenquelle: Open-Meteo (Modell ICON-CH2 von MeteoSchweiz). Ortssuche für die Schweiz mit Geolocation-Button auf dem Smartphone.
+## Designprinzipien
+- **Stil**: dünne Linien (1.5 px Stroke), geometrisch, klar — passend zu MeteoSchweiz/SRF Meteo-Ästhetik
+- **Farbe**: `currentColor` für Strich → erbt Textfarbe (zinc-900 light / zinc-50 dark)
+- **Akzent**: Blitz, Warnungen und intensive Niederschläge optional in `--accent` (#e62117)
+- **Grösse**: skaliert via `width`/`height` Props (z. B. 48 px in Tagesübersicht, 24 px in Stundenansicht)
+- **Sonne/Mond**: gefüllter Kreis mit Strahlen / Mondsichel — Tag/Nacht-Variante via `isDay`
 
-## Funktionsumfang
+## Icon-Set (WMO-Codes → Komponente)
+| Komponente | WMO-Codes |
+|---|---|
+| `IconClear` (Sonne/Mond) | 0 |
+| `IconMostlyClear` (Sonne+kleine Wolke) | 1 |
+| `IconPartlyCloudy` (Sonne+Wolke) | 2 |
+| `IconCloudy` (Wolke) | 3 |
+| `IconFog` (Wolke+Linien) | 45, 48 |
+| `IconDrizzle` (Wolke+kleine Tropfen) | 51–57 |
+| `IconRain` (Wolke+Tropfen) | 61–67, 80–82 |
+| `IconSnow` (Wolke+Schneeflocken) | 71–77, 85, 86 |
+| `IconThunderstorm` (Wolke+Blitz rot) | 95–99 |
 
-**Header**
-- Ortsname + Suchfeld mit Autocomplete (CH-Gemeinden via Open-Meteo Geocoding, `countryCode=CH`)
-- "Ortung"-Button → `navigator.geolocation` + Reverse-Geocoding
-- Toggle "Erweiterte Anzeige" (Ein/Aus) für Sonnenscheindauer + Sonnenaufgang/-untergang
+## Umsetzung
 
-**5-Tage-Streifen**
-- 5 Tageskarten, horizontal scrollbar auf Mobile (Scroll-Snap), Grid auf Desktop
-- Pro Karte: Wochentag + Datum, Wettersymbol (WMO-Code → Icon), Tmax/Tmin, Niederschlag in mm + Wahrscheinlichkeit %, Wind Mittel/Böen + Richtungspfeil
-- Wenn Toggle "Ein": zusätzlich Sonnenstunden, Sonnenaufgang/-untergang
-- Aktiver Tag mit rotem Akzentbalken oben + Ring; Klick wechselt Auswahl
-- "Heute" automatisch vorausgewählt
+### 1. Neuer Ordner `src/components/weather-icons/`
+- `index.tsx` — exportiert `<WeatherIcon code={n} isDay={true} size={48} />`
+- Jede Variante als kleine React-Komponente mit `<svg viewBox="0 0 64 64">…</svg>`
+- Stroke via `stroke="currentColor"` `stroke-width="1.5"` `fill="none"` `stroke-linecap="round"` `stroke-linejoin="round"`
+- Akzent (Blitz): `className="text-accent"` auf dem entsprechenden `<path>`
 
-**Detail-Panel (3-Stunden-Takt)**
-- Erscheint unterhalb beim ausgewählten Tag (animiert)
-- Heute: startet beim aktuellen 3-Stunden-Slot, rückt automatisch nach (Re-Render alle 60 s)
-- Folgetage: startet immer 00:00
-- Pro Slot: Zeit, Wettersymbol, Temperatur, Niederschlag mm + %, Wind Mittel/Böen + Richtungspfeil, Neuschnee in cm
-- Horizontal scrollbar, aktueller Slot rot hinterlegt
+### 2. `src/lib/weather.ts`
+- `weatherSymbol()` (Emoji-Funktion) bleibt als Fallback bestehen, wird aber in der UI nicht mehr verwendet
+- Neue Hilfsfunktion `weatherIconKey(code)` die einen Komponenten-Key zurückgibt — alternativ direkt in `<WeatherIcon>` mappen
 
-**Footer**
-- Quelle "MeteoSchweiz ICON-CH2 (via Open-Meteo)", letzter Update-Zeitpunkt, Sonnenauf-/-untergang als Mini-Anzeige
+### 3. `src/components/weather-widget.tsx`
+- Ersetze alle Stellen, wo `weatherSymbol(...)` als Text gerendert wird, durch `<WeatherIcon code={...} isDay={...} size={...} />`
+- Tagesübersicht: `size={56}`
+- Stundenansicht: `size={28}`
+- Aktueller Tag/Stunde: optionaler Hover-/Active-Akzent
 
-**Persistenz**
-- Letzter Ort in `localStorage`, Standard = Amriswil (47.5504, 9.3021)
+### 4. Tag/Nacht-Logik
+- Tagesübersicht: immer Tag-Variante (Symbol für ganzen Tag)
+- Stundenansicht: `isDay` aus `sunrise`/`sunset` der jeweiligen Stunde ableiten — `time >= sunrise && time < sunset`
 
-**Einbindung in WordPress**
-- Route `/` rendert das pure Widget (keine zusätzliche Chrome) → eignet sich direkt für `<iframe>`
-- Route `/embed-info` zeigt das fertige iframe-Snippet zum Kopieren
+## Nicht im Scope
+- Animationen der Icons (statisch, performant fürs Embed)
+- Wind-/Niederschlags-Diagramme
+- Änderungen an Datenfetching, Layout oder Farben
 
-## Technische Umsetzung
-
-```text
-src/
-├── styles.css                       # Zinc-Palette + Akzentrot #e62117 als Tokens, Inter-Font
-├── routes/
-│   ├── __root.tsx                   # Meta: title "5-Tage Wetterprognose"
-│   ├── index.tsx                    # Rendert <WeatherWidget />
-│   └── embed-info.tsx               # Iframe-Snippet + Copy-Button
-├── lib/
-│   └── weather.ts                   # Open-Meteo Geocoding + Forecast Fetcher, WMO-Symbol-Mapping, Helpers
-└── components/
-    ├── weather-widget.tsx           # Hauptkomponente, Composition wie Prototype
-    ├── location-search.tsx          # Combobox mit Autocomplete (debounce 300 ms)
-    ├── day-card.tsx                 # Eine Tageskarte
-    └── hourly-detail.tsx            # 3h-Streifen
-```
-
-### Datenquelle
-- Geocoding: `https://geocoding-api.open-meteo.com/v1/search?countryCode=CH&language=de&count=8&name=…`
-- Reverse-Geocoding: `https://geocoding-api.open-meteo.com/v1/reverse?latitude=…&longitude=…&language=de`
-- Forecast: `https://api.open-meteo.com/v1/forecast?...&models=icon_seamless&timezone=auto&forecast_days=6`
-  - `daily`: weathercode, temperature_2m_max/min, precipitation_sum, precipitation_probability_max, windspeed_10m_max, windgusts_10m_max, winddirection_10m_dominant, sunshine_duration, sunrise, sunset, snowfall_sum
-  - `hourly`: weathercode, temperature_2m, precipitation, precipitation_probability, windspeed_10m, windgusts_10m, winddirection_10m, snowfall
-- ICON-CH2 ist in `icon_seamless` integriert; alternativ `models=icon_ch2` falls verfügbar
-- Alle Calls passieren im Browser (CORS aktiviert), kein Backend nötig
-
-### State & Caching
-- TanStack Query: `useQuery` für Forecast (staleTime 15 min), `useQuery` für Suche (debounce 300 ms)
-- Aktuelle Uhrzeit via `setInterval(60_000)` für automatisches Nachrücken im 3h-Streifen
-
-### Design-Tokens (verbatim aus Prototype)
-- Zinc-Palette 50–900, Akzent `#e62117`, Inter-Font, kleine Radii (rounded-sm), klare Grids mit `divide-x/divide-y`, durchgehend `tracking-wider uppercase` für Labels
-
-## Responsiveness
-- < 768 px: 5 Tageskarten in horizontalem Scroll-Snap-Container
-- ≥ 768 px: 5-Spalten-Grid
-- Detail-Panel immer horizontal scrollbar (8 Spalten = 24 h)
-- Header bricht auf Mobile vertikal um
-
-## Was nicht enthalten ist
-- Kein Backend, keine API-Keys, keine Datenbank
-- Keine Custom-Wetter-Icons (WMO-Code-Emoji-Mapping reicht für v1; SVG-Set kann später nachgereicht werden)
-- Keine Mehrsprachigkeit (nur DE)
+## Visueller Effekt
+Nach Umsetzung wirkt die Übersicht ruhiger und „instrumenten-artiger" — wie ein technisches Cockpit statt bunter Emoji-Mix. Identischer Look auf Mac, Windows, Android und iOS.

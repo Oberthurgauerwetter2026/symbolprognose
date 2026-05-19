@@ -8,12 +8,12 @@ import {
   searchLocations,
   secondsToHours,
   weatherLabel,
-  weatherSymbol,
   weekdayLong,
   weekdayShort,
   windDirectionLabel,
   type GeoLocation,
 } from "@/lib/weather";
+import { WeatherIcon } from "@/components/weather-icons";
 
 const DEFAULT_LOCATION = {
   name: "Amriswil",
@@ -355,11 +355,11 @@ function DayStrip({
               </span>
             </div>
             <div
-              className="text-4xl py-1 select-none leading-none"
+              className={`py-1 select-none ${selected ? "text-zinc-900" : "text-zinc-700"}`}
               aria-label={weatherLabel(d.weathercode[i])}
               title={weatherLabel(d.weathercode[i])}
             >
-              {weatherSymbol(d.weathercode[i])}
+              <WeatherIcon code={d.weathercode[i]} size={52} />
             </div>
             <div className="space-y-1">
               <div className="flex items-baseline justify-between">
@@ -460,13 +460,14 @@ function DetailPanel({
                   {String(t.getHours()).padStart(2, "0")}:00
                 </div>
                 <div
-                  className="text-2xl leading-none"
+                  className={isCurrent ? "text-zinc-900" : "text-zinc-700"}
                   title={weatherLabel(h.weathercode[idx])}
                 >
-                  {weatherSymbol(
-                    h.weathercode[idx],
-                    t.getHours() >= 6 && t.getHours() < 20,
-                  )}
+                  <WeatherIcon
+                    code={h.weathercode[idx]}
+                    isDay={t.getHours() >= 6 && t.getHours() < 20}
+                    size={32}
+                  />
                 </div>
                 <div className="text-lg font-medium tabular-nums">
                   {h.temperature_2m[idx].toFixed(1)}°
