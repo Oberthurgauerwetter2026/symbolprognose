@@ -165,6 +165,7 @@ export function WeatherWidget() {
               onVisibleDayChange={setSelectedDayIdx}
               now={now}
               extended={extended}
+              snow={snow}
             />
 
             <Footer
