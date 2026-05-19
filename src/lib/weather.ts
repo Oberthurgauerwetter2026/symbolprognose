@@ -116,7 +116,7 @@ const TOTAL_DAYS = 7;
 async function fetchModel(
   latitude: number,
   longitude: number,
-  model: "meteoswiss_icon_seamless" | "ecmwf_ifs025",
+  model: string,
 ): Promise<ForecastResponse> {
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude", String(latitude));
@@ -134,13 +134,83 @@ async function fetchModel(
   return (await res.json()) as ForecastResponse;
 }
 
+function isMissing(v: unknown): boolean {
+  return v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v));
+}
+
+/** Lückenfüller: nur fehlende Einträge in primary werden aus fallback ersetzt. */
+function fillGaps(
+  primary: ForecastResponse,
+  fallback: ForecastResponse,
+): ForecastResponse {
+  const mergeArr = <T>(p: T[] | undefined, f: T[] | undefined): T[] => {
+    const pa = p ?? [];
+    const fa = f ?? [];
+    const len = Math.max(pa.length, fa.length);
+    const out: T[] = new Array(len);
+    for (let i = 0; i < len; i++) {
+      out[i] = isMissing(pa[i]) ? fa[i] : pa[i];
+    }
+    return out;
+  };
+
+  const h = primary.hourly;
+  const fh = fallback.hourly;
+  const d = primary.daily;
+  const fd = fallback.daily;
+
+  const mergedHourly: HourlyData = {
+    time: h.time?.length ? h.time : (fh?.time ?? []),
+    weathercode: mergeArr(h?.weathercode, fh?.weathercode),
+    temperature_2m: mergeArr(h?.temperature_2m, fh?.temperature_2m),
+    precipitation: mergeArr(h?.precipitation, fh?.precipitation),
+    precipitation_probability: mergeArr(
+      h?.precipitation_probability,
+      fh?.precipitation_probability,
+    ),
+    windspeed_10m: mergeArr(h?.windspeed_10m, fh?.windspeed_10m),
+    windgusts_10m: mergeArr(h?.windgusts_10m, fh?.windgusts_10m),
+    winddirection_10m: mergeArr(h?.winddirection_10m, fh?.winddirection_10m),
+    snowfall: mergeArr(h?.snowfall, fh?.snowfall),
+    sunshine_duration: mergeArr(h?.sunshine_duration, fh?.sunshine_duration),
+  };
+
+  const mergedDaily: DailyData = {
+    time: d.time?.length ? d.time : (fd?.time ?? []),
+    weathercode: mergeArr(d?.weathercode, fd?.weathercode),
+    temperature_2m_max: mergeArr(d?.temperature_2m_max, fd?.temperature_2m_max),
+    temperature_2m_min: mergeArr(d?.temperature_2m_min, fd?.temperature_2m_min),
+    precipitation_sum: mergeArr(d?.precipitation_sum, fd?.precipitation_sum),
+    precipitation_probability_max: mergeArr(
+      d?.precipitation_probability_max,
+      fd?.precipitation_probability_max,
+    ),
+    windspeed_10m_max: mergeArr(d?.windspeed_10m_max, fd?.windspeed_10m_max),
+    windgusts_10m_max: mergeArr(d?.windgusts_10m_max, fd?.windgusts_10m_max),
+    winddirection_10m_dominant: mergeArr(
+      d?.winddirection_10m_dominant,
+      fd?.winddirection_10m_dominant,
+    ),
+    sunshine_duration: mergeArr(d?.sunshine_duration, fd?.sunshine_duration),
+    sunrise: mergeArr(d?.sunrise, fd?.sunrise),
+    sunset: mergeArr(d?.sunset, fd?.sunset),
+    snowfall_sum: mergeArr(d?.snowfall_sum, fd?.snowfall_sum),
+  };
+
+  return { ...primary, hourly: mergedHourly, daily: mergedDaily };
+}
+
 export async function fetchForecast(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
-  // Nur MeteoSchweiz ICON-Seamless verwenden (keine ECMWF-Mischung).
-  const data = await fetchModel(latitude, longitude, "meteoswiss_icon_seamless");
-  return sanitizeForecast(data);
+  // MeteoSchweiz ist Hauptquelle; best_match füllt nur Lücken (Tag 6/7, fehlende Wind-Stunden).
+  const [primary, fallback] = await Promise.all([
+    fetchModel(latitude, longitude, "meteoswiss_icon_seamless"),
+    fetchModel(latitude, longitude, "best_match").catch(() => null),
+  ]);
+  const merged = fallback ? fillGaps(primary, fallback) : primary;
+  return sanitizeForecast(merged);
 }
 
 
