@@ -771,39 +771,33 @@ function DetailPanel({
 /* ---------------- Footer ---------------- */
 
 function Footer({
-  forecast,
-  selectedDayIdx,
-  extended,
+  forecast: _forecast,
+  selectedDayIdx: _selectedDayIdx,
+  extended: _extended,
 }: {
   forecast: import("@/lib/weather").ForecastResponse;
   selectedDayIdx: number;
   extended: boolean;
 }) {
-  const d = forecast.daily;
   const updated = new Date();
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
       <div className="text-xs text-zinc-500">
-        MeteoSchweiz ICON-CH1 / ICON-CH2 · ECMWF IFS · aktualisiert{" "}
+        MeteoSchweiz ICON-CH1 / ICON-CH2 · aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
-      {extended && (
-        <div className="flex gap-5 tabular-nums">
-          <div className="flex items-center gap-1.5">
-            <span className="text-base text-zinc-400">↑</span>
-            <span className="text-sm text-zinc-600 font-medium">
-              {formatTimeHHMM(d.sunrise[selectedDayIdx])}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-base text-zinc-400">↓</span>
-            <span className="text-sm text-zinc-600 font-medium">
-              {formatTimeHHMM(d.sunset[selectedDayIdx])}
-            </span>
-          </div>
-        </div>
-      )}
+      <div className="text-xs text-zinc-500">
+        Grafik &amp; Daten ©{" "}
+        <a
+          href="https://oberthurgauerwetter.ch"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent hover:underline"
+        >
+          oberthurgauerwetter.ch
+        </a>
+      </div>
     </footer>
   );
 }
