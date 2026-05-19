@@ -805,7 +805,7 @@ function DetailPanel({
           </div>
         </div>
       </div>
-      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-100/50 text-[10px] text-zinc-500 flex flex-wrap gap-x-4 gap-y-1">
+      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-100/50 text-[11px] text-zinc-700 font-semibold flex flex-wrap gap-x-4 gap-y-1">
         <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
         <span>Wind / Böenspitzen in km/h</span>
         {extended && (
