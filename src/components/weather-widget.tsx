@@ -355,11 +355,11 @@ function DayStrip({
               </span>
             </div>
             <div
-              className="text-4xl py-1 select-none leading-none"
+              className={`py-1 select-none ${selected ? "text-zinc-900" : "text-zinc-700"}`}
               aria-label={weatherLabel(d.weathercode[i])}
               title={weatherLabel(d.weathercode[i])}
             >
-              {weatherSymbol(d.weathercode[i])}
+              <WeatherIcon code={d.weathercode[i]} size={52} />
             </div>
             <div className="space-y-1">
               <div className="flex items-baseline justify-between">
