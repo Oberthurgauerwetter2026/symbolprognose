@@ -338,13 +338,13 @@ function DayStrip({
               )}
               <div className="flex flex-col">
                 <span
-                  className={`text-base font-semibold ${
+                  className={`text-base font-bold ${
                     selected ? "text-accent" : "text-zinc-900"
                   }`}
                 >
                   {i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
                 </span>
-                <span className="text-sm text-zinc-500">
+                <span className="text-sm text-zinc-700 font-medium">
                   {weekdayShort(day.date)} {formatDateShort(day.date)}
                 </span>
               </div>
@@ -357,32 +357,32 @@ function DayStrip({
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-semibold tabular-nums text-zinc-900">
+                  <span className="text-2xl font-bold tabular-nums text-zinc-900">
                     {Math.round(d.temperature_2m_max[i])}°
                   </span>
-                  <span className="text-base text-zinc-500 font-medium tabular-nums">
+                  <span className="text-base text-zinc-700 font-semibold tabular-nums">
                     {Math.round(d.temperature_2m_min[i])}°
                   </span>
                 </div>
-                <div className="text-xs text-zinc-500 flex justify-between tabular-nums">
+                <div className="text-xs text-zinc-700 font-medium flex justify-between tabular-nums">
                   <span>{d.precipitation_sum[i].toFixed(1)} mm</span>
                   <span>{d.precipitation_probability_max[i] ?? 0}%</span>
                 </div>
               </div>
               <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-zinc-500">
+                <div className="flex items-center justify-between text-xs text-zinc-700 font-medium">
                   <span>Wind</span>
-                  <span className="text-zinc-800 font-medium tabular-nums flex items-center gap-1">
+                  <span className="text-zinc-900 font-bold tabular-nums flex items-center gap-1">
                     <WindArrow deg={d.winddirection_10m_dominant[i]} />
                     {Math.round(d.windspeed_10m_max[i])}
-                    <span className="text-zinc-400">
+                    <span className="text-zinc-600 font-semibold">
                       /{Math.round(d.windgusts_10m_max[i])}
                     </span>{" "}
                     km/h
                   </span>
                 </div>
                 {extended && (
-                  <div className="flex items-center justify-between text-xs text-zinc-500 tabular-nums">
+                  <div className="flex items-center justify-between text-xs text-zinc-700 font-medium tabular-nums">
                     <span>↑ {formatTimeHHMM(d.sunrise[i])}</span>
                     <span>↓ {formatTimeHHMM(d.sunset[i])}</span>
                   </div>
