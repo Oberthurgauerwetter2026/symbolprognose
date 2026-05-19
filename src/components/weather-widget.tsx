@@ -213,8 +213,8 @@ function Header({
   return (
     <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6 pb-5 border-b border-zinc-200">
       <div className="space-y-3 w-full md:max-w-[56ch]">
-        <h1 className="text-xl md:text-2xl font-semibold tracking-tight uppercase text-zinc-900">
-          Lokalprognose {locationName}
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">
+          Lokalprognose <span className="text-accent">{locationName}</span>
         </h1>
         <div className="flex items-center gap-2" ref={containerRef}>
           <div className="relative flex-1 max-w-sm">
@@ -227,10 +227,10 @@ function Header({
               }}
               onFocus={() => setOpen(true)}
               placeholder="Gemeinde suchen…"
-              className="w-full h-9 bg-zinc-50 border border-zinc-200 rounded-sm px-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/40"
+              className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
             />
             {open && search.data && search.data.length > 0 && (
-              <ul className="absolute z-10 left-0 right-0 top-10 bg-zinc-50 border border-zinc-200 rounded-sm shadow-lg max-h-72 overflow-y-auto">
+              <ul className="absolute z-10 left-0 right-0 top-11 bg-zinc-50 border border-zinc-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
                 {search.data.map((r) => (
                   <li key={r.id}>
                     <button
@@ -245,7 +245,7 @@ function Header({
                       <span className="font-medium text-zinc-900">
                         {r.name}
                       </span>
-                      <span className="text-[11px] text-zinc-500 uppercase tracking-wider">
+                      <span className="text-xs text-zinc-500">
                         {r.admin1 ?? "CH"}
                       </span>
                     </button>
@@ -258,9 +258,9 @@ function Header({
             type="button"
             onClick={onGeolocate}
             title="Aktueller Standort"
-            className="h-9 px-3 flex items-center gap-1.5 bg-zinc-900 text-zinc-50 text-sm font-medium rounded-sm transition-colors hover:bg-zinc-800"
+            className="h-10 px-3 flex items-center gap-1.5 bg-accent text-accent-foreground text-sm font-medium rounded-md transition-colors hover:bg-[var(--accent-strong)]"
           >
-            <span className="shrink-0 opacity-80" aria-hidden>
+            <span className="shrink-0 opacity-90" aria-hidden>
               ⌖
             </span>
             <span className="hidden sm:inline">Ortung</span>
@@ -268,38 +268,16 @@ function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 bg-zinc-200/50 p-1 rounded-sm border border-zinc-200 self-start md:self-auto">
-        <span className="text-[11px] font-medium uppercase tracking-wider pl-2 text-zinc-500 hidden sm:inline">
+      <label className="flex items-center gap-3 self-start md:self-auto cursor-pointer">
+        <Switch
+          checked={extended}
+          onCheckedChange={onToggleExtended}
+          aria-label="Erweiterte Anzeige"
+        />
+        <span className="text-sm font-medium text-zinc-700 select-none">
           Erweiterte Anzeige
         </span>
-        <span className="text-[11px] font-medium uppercase tracking-wider pl-2 text-zinc-500 sm:hidden">
-          Erweitert
-        </span>
-        <div className="flex">
-          <button
-            type="button"
-            onClick={() => onToggleExtended(true)}
-            className={`h-6 px-3 text-[10px] font-semibold uppercase tracking-widest rounded-[1px] transition-colors ${
-              extended
-                ? "bg-accent text-zinc-50 shadow-sm shadow-accent/20"
-                : "text-zinc-500 hover:text-zinc-700"
-            }`}
-          >
-            Ein
-          </button>
-          <button
-            type="button"
-            onClick={() => onToggleExtended(false)}
-            className={`h-6 px-3 text-[10px] font-semibold uppercase tracking-widest rounded-[1px] transition-colors ${
-              !extended
-                ? "bg-accent text-zinc-50 shadow-sm shadow-accent/20"
-                : "text-zinc-500 hover:text-zinc-700"
-            }`}
-          >
-            Aus
-          </button>
-        </div>
-      </div>
+      </label>
     </header>
   );
 }
