@@ -211,9 +211,9 @@ function Header({
   }, []);
 
   return (
-    <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6 pb-5 border-b border-zinc-200">
-      <div className="space-y-3 w-full md:max-w-[56ch]">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-zinc-900">
+    <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-5 border-b border-zinc-200">
+      <div className="space-y-3 w-full @[640px]:max-w-[56ch]">
+        <h1 className="text-xl @[640px]:text-2xl @[900px]:text-3xl font-semibold tracking-tight text-zinc-900">
           Lokalprognose <span className="text-accent">{locationName}</span>
         </h1>
         <div className="flex items-center gap-2" ref={containerRef}>
