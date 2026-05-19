@@ -1,37 +1,35 @@
-## Änderungen
+## Änderungen in `src/components/weather-widget.tsx`
 
-### 1. `src/lib/weather.ts` — Modell-Strategie vereinfachen
+### 1. Header aufräumen
+- Titel **„Lokalprognose Amriswil"** entfernen (Standort ist fix Amriswil, redundant).
+- Falls eine Unterzeile/Subtitle existiert: nur Datum/Aktualisierung lassen.
 
-- `fetchForecast` ruft nur noch `meteoswiss_icon_seamless` ab (keine ECMWF-Anfrage, kein `mergeForecasts`-Aufruf). Funktion `mergeForecasts` + Konstante `ECMWF_FROM_DAY` entfernen.
-- Damit verschwindet auch der ECMWF-Pfad, bei dem `windgusts_10m` teils fehlt → Böen kommen wieder konsistent aus ICON. (Erfüllt sowohl Pessimismus-Korrektur als auch Böen-Fix in einem Schritt.)
-- `TOTAL_DAYS` bleibt `7` als API-Obergrenze.
-- Zusätzlich neue stündliche Variable `sunshine_duration` in `HOURLY_VARS` aufnehmen und Typ `HourlyData` um `sunshine_duration: number[]` erweitern; in `sanitizeForecast` mitfixen. Wert kommt von Open-Meteo in Sekunden pro Stunde (0–3600).
+### 2. „Erweiterte Anzeige" → „Sonnenschein"
+- Toggle-Label im Detail-Panel umbenennen: `Erweiterte Anzeige` → `Sonnenschein`.
+- Interne Variable `extended` bleibt bestehen (nur Label-Änderung), damit keine Logik bricht.
 
-### 2. `src/components/weather-widget.tsx` — Tagesanzahl bis Samstag, dann Auto-Roll
+### 3. Footer
+- **Sonnenauf-/Sonnenuntergang unten rechts entfernen** (`Footer`-Bereich des Detail-Panels).
+- An gleicher Stelle (oder zentriert unten) eine **Legende** einsetzen:
+  ```
+  Grafik & Daten © oberthurgauerwetter.ch
+  ```
+  Dezent, `text-xs text-muted-foreground`, ggf. mit Link auf `https://oberthurgauerwetter.ch`.
 
-- Neue Hilfsfunktion `computeVisibleDayCount(today: Date)`:
-  - Tage bis einschliesslich kommendem Samstag = `(6 - today.getDay() + 7) % 7 + 1`, also Mo=6, Di=5, …, Sa=1, **So=7** (Auto-Roll: am Sonntag werden direkt 7 Tage gezeigt → Mo–So der neuen Woche).
-- `days`-Memo nutzt `slice(0, visibleCount)` statt `slice(0, 7)`. Gilt analog für `DayStrip` (Karten **und** Sonnen-Bar-Spalten) und `SkeletonWidget` (count statt fix 7).
-- Grid-Layout: `@[900px]:grid-cols-7` bleibt — der Flex-Container füllt automatisch nur die verfügbaren Tage; bei `visibleCount < 7` zeigen wir trotzdem alle vorhandenen Spalten gleich breit, indem wir `grid-cols-{n}` dynamisch per `style={{ gridTemplateColumns: 'repeat(${visibleCount}, minmax(0,1fr))' }}` setzen.
+### 4. Tagesübersicht: 7-Tage-Prognose, 5 sichtbar, Auto-Roll für 2
 
-### 3. `src/components/weather-widget.tsx` — Sonnenschein-Säulen pro 3h-Slot
+Bisherige `computeVisibleDayCount`-Logik (bis Samstag) **ersetzen**:
 
-- Im erweiterten Modus die bisherige Tages-Sonnen-Leiste unter `DayStrip` **entfernen**.
-- Stattdessen im `DetailPanel` (nur wenn `extended === true`) **eine zweite Bar-Reihe** analog zur Niederschlagsreihe einfügen, **unterhalb** der Precipitation-Bars:
-  - Summiere `sunshine_duration` der 3 Stunden im Slot → Sonnenminuten (0–180), umgerechnet `min/h = sum / 3 / 60`.
-  - Höhe = `min(minPerHour / 60, 1) * 100%`, Farbe `var(--wx-sun)`, abgerundete Oberkante.
-  - Eigene Y-Achse links: 0 / 30 / 60 mit Label `min/h Sonne` (zweite Y-Achsen-Spalte unter der `mm/3h`-Spalte, gleiche Breite `w-10`).
-  - Gridlines bei 0 / 30 / 60.
-  - Wert-Label unter der Säule: `{minPerHour} min`.
-- `extended === true` muss die Detail-Höhe entsprechend wachsen lassen; bei `extended === false` wird die Sonnen-Reihe nicht gerendert.
-- `Footer` zeigt Sonnenauf-/-untergang des selektierten Tages weiterhin.
-
-### 4. Detail-Panel: Böen-Anzeige robust
-
-- Falls trotz ICON-Only-Modus `windgusts_10m[idx] === 0` bei `windspeed_10m[idx] > 0` (defensiv für Cache-/Edge-Cases), in der Anzeige `gust = max(gust, Math.round(windspeed * 1.4))` als Anzeige-Fallback verwenden — nur Darstellung, Daten unverändert. Klein gehalten, damit keine echten Null-Wind-Stunden falsche Böen kriegen.
+- `days`-Memo nutzt wieder volle **7 Tage**.
+- `DayStrip` zeigt nur **5 Tage gleichzeitig** mit Auto-Roll-Verhalten:
+  - Auf Desktop (≥ 900px): Grid mit 5 sichtbaren Spalten, horizontal scrollbarer Container (`overflow-x-auto snap-x snap-mandatory`), jede Karte `snap-start` und `min-w-[20%]` (5 Spalten Breite).
+  - Auto-Roll: `useEffect` mit `setInterval` (z.B. 6 s), das sanft um eine Spaltenbreite weiterscrollt; bei Erreichen von Tag 7 zurück auf Tag 1.
+  - User-Interaktion (manuelles Scrollen, Hover oder Klick auf eine Tageskarte) pausiert das Interval; nach 15 s Inaktivität wieder aktiv.
+- `SkeletonWidget`: 5 Platzhalter-Karten (statt 7).
+- Sonnen-Bar-Reihe im Detail-Panel ist davon nicht betroffen — sie hängt am ausgewählten Tag, nicht an der Strip-Breite.
 
 ## Nicht enthalten
 
-- Kein UI-Redesign, keine Farbänderungen, keine neue Library.
-- Kein zusätzliches Modell — bewusst nur MeteoSchweiz ICON (Wunsch des Users).
-- Sprachsteuerung, Themes, Tests bleiben unverändert.
+- Keine Änderungen an `src/lib/weather.ts` (weiterhin 7 Tage MeteoSchweiz ICON, `sunshine_duration` bleibt).
+- Keine Farb-, Theme- oder Layout-Änderungen ausserhalb der genannten Stellen.
+- Keine neuen Libraries (Auto-Roll via nativem `scrollTo({ behavior: 'smooth' })`).
