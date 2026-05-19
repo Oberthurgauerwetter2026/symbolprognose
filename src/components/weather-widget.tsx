@@ -155,9 +155,10 @@ export function WeatherWidget() {
 
             <DetailPanel
               forecast={forecast.data}
-              hourlyIndices={hourlyForDay}
-              selectedDay={days[selectedDayIdx]}
-              isToday={selectedDayIdx === 0}
+              hourlyIndices={allHourly}
+              days={days}
+              selectedDayIdx={selectedDayIdx}
+              onVisibleDayChange={setSelectedDayIdx}
               now={now}
             />
 
