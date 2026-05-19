@@ -83,30 +83,25 @@ export function WeatherWidget() {
     }));
   }, [forecast.data]);
 
-  // Hourly slices per day (3h interval starting at 00:00 or current slot for today)
-  const hourlyForDay = useMemo(() => {
+  // Continuous hourly list across all days, 3h cadence, starting at current 3h block.
+  const allHourly = useMemo(() => {
     if (!forecast.data) return [];
     const h = forecast.data.hourly;
-    const selectedIso = days[selectedDayIdx]?.iso;
-    if (!selectedIso) return [];
-    const isToday = selectedDayIdx === 0;
-
-    // Find indices of all hours matching the selected date, every 3h
-    const matching: number[] = [];
+    const curBlockMs = (() => {
+      const d = new Date(now);
+      d.setMinutes(0, 0, 0);
+      d.setHours(Math.floor(d.getHours() / 3) * 3);
+      return d.getTime();
+    })();
+    const out: number[] = [];
     for (let i = 0; i < h.time.length; i++) {
       const t = new Date(h.time[i]);
-      const date = h.time[i].slice(0, 10);
-      if (date !== selectedIso) continue;
       if (t.getHours() % 3 !== 0) continue;
-      matching.push(i);
+      if (t.getTime() < curBlockMs) continue;
+      out.push(i);
     }
-    if (isToday) {
-      // Start at current 3h slot (round down)
-      const cur = Math.floor(now.getHours() / 3) * 3;
-      return matching.filter((i) => new Date(h.time[i]).getHours() >= cur);
-    }
-    return matching;
-  }, [forecast.data, days, selectedDayIdx, now]);
+    return out;
+  }, [forecast.data, now]);
 
   return (
     <div className="min-h-screen bg-zinc-100 text-zinc-900 antialiased py-6 px-3 md:py-10 md:px-6">
