@@ -188,12 +188,16 @@ function Header({
   onGeolocate,
   extended,
   onToggleExtended,
+  snow,
+  onToggleSnow,
 }: {
   locationName: string;
   onSelectLocation: (loc: GeoLocation) => void;
   onGeolocate: () => void;
   extended: boolean;
   onToggleExtended: (v: boolean) => void;
+  snow: boolean;
+  onToggleSnow: (v: boolean) => void;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
