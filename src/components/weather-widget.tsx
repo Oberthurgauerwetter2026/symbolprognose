@@ -299,7 +299,7 @@ function DayStrip({
 }) {
   const d = forecast.daily;
   return (
-    <div className="flex md:grid md:grid-cols-5 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
+    <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
       {days.map((day, i) => {
         const selected = i === selectedIdx;
         return (
@@ -307,7 +307,7 @@ function DayStrip({
             key={day.iso}
             type="button"
             onClick={() => onSelect(i)}
-            className={`relative text-left p-4 space-y-3 snap-start min-w-[60%] sm:min-w-[40%] md:min-w-0 transition-colors ${
+            className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 transition-colors ${
               selected
                 ? "bg-[var(--accent-soft)]"
                 : "bg-zinc-50 hover:bg-zinc-50/80"
