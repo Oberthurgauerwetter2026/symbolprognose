@@ -656,12 +656,15 @@ function WindArrow({ deg }: { deg: number }) {
 function SkeletonWidget() {
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-zinc-200 border border-zinc-200 rounded-sm overflow-hidden">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="bg-zinc-50 p-4 h-48 animate-pulse" />
+      <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-hidden">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div
+            key={i}
+            className="bg-zinc-50 p-4 h-48 animate-pulse min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0"
+          />
         ))}
       </div>
-      <div className="h-56 bg-zinc-50 border border-zinc-200 rounded-sm animate-pulse" />
+      <div className="h-56 bg-zinc-50 border border-zinc-200 rounded-md animate-pulse" />
     </div>
   );
 }
