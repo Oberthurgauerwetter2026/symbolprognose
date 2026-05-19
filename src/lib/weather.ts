@@ -90,7 +90,7 @@ export async function fetchForecast(
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude", String(latitude));
   url.searchParams.set("longitude", String(longitude));
-  url.searchParams.set("models", "icon_ch1,icon_ch2");
+  url.searchParams.set("models", "meteoswiss_icon_seamless");
   url.searchParams.set("timezone", "auto");
   url.searchParams.set("forecast_days", "6");
   url.searchParams.set("wind_speed_unit", "kmh");
