@@ -37,6 +37,7 @@ export interface HourlyData {
   windgusts_10m: number[];
   winddirection_10m: number[];
   snowfall: number[];
+  sunshine_duration: number[];
 }
 
 export interface ForecastResponse {
@@ -107,11 +108,9 @@ const HOURLY_VARS = [
   "windgusts_10m",
   "winddirection_10m",
   "snowfall",
+  "sunshine_duration",
 ] as const;
 
-// Index where we switch from MeteoSchweiz ICON to ECMWF IFS (0-based day index).
-// 0..ECMWF_FROM_DAY-1 use ICON, ECMWF_FROM_DAY..end use ECMWF.
-const ECMWF_FROM_DAY = 4;
 const TOTAL_DAYS = 7;
 
 async function fetchModel(
@@ -139,109 +138,11 @@ export async function fetchForecast(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
-  const [iconRes, ecmwfRes] = await Promise.allSettled([
-    fetchModel(latitude, longitude, "meteoswiss_icon_seamless"),
-    fetchModel(latitude, longitude, "ecmwf_ifs025"),
-  ]);
-
-  // Fallbacks if one model fails.
-  if (iconRes.status !== "fulfilled" && ecmwfRes.status !== "fulfilled") {
-    throw new Error("Wetterdaten konnten nicht geladen werden");
-  }
-  if (iconRes.status !== "fulfilled") {
-    return sanitizeForecast((ecmwfRes as PromiseFulfilledResult<ForecastResponse>).value);
-  }
-  if (ecmwfRes.status !== "fulfilled") {
-    return sanitizeForecast(iconRes.value);
-  }
-
-  return sanitizeForecast(mergeForecasts(iconRes.value, ecmwfRes.value));
+  // Nur MeteoSchweiz ICON-Seamless verwenden (keine ECMWF-Mischung).
+  const data = await fetchModel(latitude, longitude, "meteoswiss_icon_seamless");
+  return sanitizeForecast(data);
 }
 
-function mergeForecasts(
-  icon: ForecastResponse,
-  ecmwf: ForecastResponse,
-): ForecastResponse {
-  // Determine which dates belong to ECMWF (by date string, from ICON's daily).
-  const iconDates = icon.daily?.time ?? [];
-  const ecmwfDateSet = new Set(iconDates.slice(ECMWF_FROM_DAY));
-
-  // --- Daily merge ---
-  const mergedDaily: DailyData = { ...icon.daily };
-  const ecmwfDayIdxByDate = new Map<string, number>();
-  (ecmwf.daily?.time ?? []).forEach((d, i) => ecmwfDayIdxByDate.set(d, i));
-
-  const dailyKeys: (keyof DailyData)[] = [
-    "weathercode",
-    "temperature_2m_max",
-    "temperature_2m_min",
-    "precipitation_sum",
-    "precipitation_probability_max",
-    "windspeed_10m_max",
-    "windgusts_10m_max",
-    "winddirection_10m_dominant",
-    "sunshine_duration",
-    "sunrise",
-    "sunset",
-    "snowfall_sum",
-  ];
-
-  for (const key of dailyKeys) {
-    const src = icon.daily[key] as (number | string | null)[] | undefined;
-    if (!src) continue;
-    const copy = [...src] as (number | string | null)[];
-    iconDates.forEach((date, i) => {
-      if (!ecmwfDateSet.has(date)) return;
-      const ei = ecmwfDayIdxByDate.get(date);
-      if (ei === undefined) return;
-      const ecmwfArr = ecmwf.daily[key] as (number | string | null)[] | undefined;
-      if (!ecmwfArr) return;
-      copy[i] = ecmwfArr[ei] ?? copy[i];
-    });
-    // @ts-expect-error dynamic key assignment back into typed array
-    mergedDaily[key] = copy;
-  }
-
-  // --- Hourly merge ---
-  const mergedHourly: HourlyData = { ...icon.hourly };
-  const ecmwfHourIdxByIso = new Map<string, number>();
-  (ecmwf.hourly?.time ?? []).forEach((t, i) => ecmwfHourIdxByIso.set(t, i));
-
-  const hourlyKeys: (keyof HourlyData)[] = [
-    "weathercode",
-    "temperature_2m",
-    "precipitation",
-    "precipitation_probability",
-    "windspeed_10m",
-    "windgusts_10m",
-    "winddirection_10m",
-    "snowfall",
-  ];
-
-  const iconTimes = icon.hourly?.time ?? [];
-  for (const key of hourlyKeys) {
-    const src = icon.hourly[key] as (number | string | null)[] | undefined;
-    if (!src) continue;
-    const copy = [...src] as (number | string | null)[];
-    iconTimes.forEach((iso, i) => {
-      const date = iso.slice(0, 10);
-      if (!ecmwfDateSet.has(date)) return;
-      const ei = ecmwfHourIdxByIso.get(iso);
-      if (ei === undefined) return;
-      const ecmwfArr = ecmwf.hourly[key] as (number | string | null)[] | undefined;
-      if (!ecmwfArr) return;
-      copy[i] = ecmwfArr[ei] ?? copy[i];
-    });
-    // @ts-expect-error dynamic key assignment back into typed array
-    mergedHourly[key] = copy;
-  }
-
-  return {
-    ...icon,
-    daily: mergedDaily,
-    hourly: mergedHourly,
-  };
-}
 
 
 function num(v: unknown, fallback = 0): number {
@@ -267,6 +168,7 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     windgusts_10m: fixNumArr(h?.windgusts_10m as (number | null)[]),
     winddirection_10m: fixNumArr(h?.winddirection_10m as (number | null)[]),
     snowfall: fixNumArr(h?.snowfall as (number | null)[]),
+    sunshine_duration: fixNumArr(h?.sunshine_duration as (number | null)[]),
   };
 
   const sanitizedDaily: DailyData = {

@@ -75,14 +75,20 @@ export function WeatherWidget() {
     staleTime: 15 * 60 * 1000,
   });
 
+  const visibleDayCount = useMemo(() => {
+    // Tage bis und mit kommendem Samstag. Sonntag → rollt auf 7 (Mo–So neue Woche).
+    const dow = now.getDay(); // 0=So..6=Sa
+    return dow === 0 ? 7 : 6 - dow + 1; // Mo=6, Di=5, ..., Sa=1
+  }, [now]);
+
   const days = useMemo(() => {
     if (!forecast.data) return [];
-    return forecast.data.daily.time.slice(0, 7).map((iso, i) => ({
+    return forecast.data.daily.time.slice(0, visibleDayCount).map((iso, i) => ({
       iso,
       date: new Date(iso + "T12:00:00"),
       idx: i,
     }));
-  }, [forecast.data]);
+  }, [forecast.data, visibleDayCount]);
 
   // Continuous hourly list across all days, 3h cadence, starting at current 3h block.
   const allHourly = useMemo(() => {
@@ -161,6 +167,7 @@ export function WeatherWidget() {
               selectedDayIdx={selectedDayIdx}
               onVisibleDayChange={setSelectedDayIdx}
               now={now}
+              extended={extended}
             />
 
             <Footer
@@ -298,10 +305,13 @@ function DayStrip({
   extended: boolean;
 }) {
   const d = forecast.daily;
-  const SUN_MAX_H = 15;
+  const cols = days.length || 1;
   return (
     <div className="space-y-2">
-      <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
+      <div
+        className="flex @[900px]:grid gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
         {days.map((day, i) => {
           const selected = i === selectedIdx;
           return (
@@ -374,63 +384,6 @@ function DayStrip({
           );
         })}
       </div>
-
-      {extended && (
-        <div className="bg-zinc-50 border border-zinc-200 rounded-md overflow-hidden">
-          <div className="flex items-stretch">
-            {/* Y-axis */}
-            <div className="relative w-12 shrink-0 border-r border-zinc-200 bg-zinc-100/50">
-              <div className="h-[90px] relative text-[10px] text-zinc-500 tabular-nums">
-                {[15, 10, 5, 0].map((v) => (
-                  <div
-                    key={v}
-                    className="absolute left-0 right-1 text-right leading-none"
-                    style={{ top: `${(1 - v / SUN_MAX_H) * 100}%`, transform: v === 0 ? "translateY(-100%)" : v === 15 ? "translateY(0)" : "translateY(-50%)" }}
-                  >
-                    {v}
-                  </div>
-                ))}
-              </div>
-              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
-                Sonne<br />h/Tag
-              </div>
-            </div>
-            {/* Bars */}
-            <div className="flex-1 flex @[900px]:grid @[900px]:grid-cols-7 overflow-x-auto no-scrollbar">
-              {days.map((day, i) => {
-                const hours = d.sunshine_duration[i] / 3600;
-                const pct = Math.min(hours / SUN_MAX_H, 1) * 100;
-                return (
-                  <div
-                    key={day.iso}
-                    className="relative min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 flex flex-col items-center"
-                  >
-                    <div className="relative w-full h-[90px]">
-                      {/* gridlines */}
-                      {[0, 5, 10, 15].map((v) => (
-                        <div
-                          key={v}
-                          className="absolute left-0 right-0 border-t border-zinc-200/70"
-                          style={{ top: `${(1 - v / SUN_MAX_H) * 100}%` }}
-                        />
-                      ))}
-                      {/* bar */}
-                      <div
-                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 @[640px]:w-4 rounded-t-sm bg-[var(--wx-sun)]"
-                        style={{ height: `${pct}%` }}
-                        title={`${hours.toFixed(1)} h`}
-                      />
-                    </div>
-                    <div className="text-[11px] text-zinc-700 tabular-nums py-1">
-                      {hours.toFixed(1)} h
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -444,6 +397,7 @@ function DetailPanel({
   selectedDayIdx,
   onVisibleDayChange,
   now,
+  extended,
 }: {
   forecast: import("@/lib/weather").ForecastResponse;
   hourlyIndices: number[];
@@ -451,6 +405,7 @@ function DetailPanel({
   selectedDayIdx: number;
   onVisibleDayChange: (i: number) => void;
   now: Date;
+  extended: boolean;
 }) {
   const h = forecast.hourly;
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -545,9 +500,10 @@ function DetailPanel({
         </span>
       </div>
       <div className="flex items-stretch">
-        {/* Y-axis for precipitation chart */}
+        {/* Y-axes for charts */}
         <div className="w-10 shrink-0 border-r border-zinc-200 bg-zinc-100/50 flex flex-col justify-end">
           <div className="flex-1" />
+          {/* Precipitation axis */}
           <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums">
             {[5, 2.5, 0].map((v) => (
               <div
@@ -570,6 +526,32 @@ function DetailPanel({
           <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
             mm/3h
           </div>
+          {extended && (
+            <>
+              <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums border-t border-zinc-200">
+                {[60, 30, 0].map((v) => (
+                  <div
+                    key={v}
+                    className="absolute left-0 right-1 text-right leading-none"
+                    style={{
+                      top: `${(1 - v / 60) * 100}%`,
+                      transform:
+                        v === 0
+                          ? "translateY(-100%)"
+                          : v === 60
+                            ? "translateY(0)"
+                            : "translateY(-50%)",
+                    }}
+                  >
+                    {v}
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+                min/h<br />Sonne
+              </div>
+            </>
+          )}
         </div>
         {/* Scroll area: slots on top, precipitation bars below */}
         <div
@@ -579,10 +561,18 @@ function DetailPanel({
           <div className="inline-flex flex-col min-w-full">
             {/* Hour slots */}
             <div className="flex">
-              {hourlyIndices.map((idx, i) => {
+              {hourlyIndices.map((idx) => {
                 const iso = h.time[idx];
                 const t = new Date(iso);
                 const isCurrent = t.getTime() === currentBlockMs;
+                const wind = h.windspeed_10m[idx];
+                const rawGust = h.windgusts_10m[idx];
+                const gust =
+                  rawGust > 0
+                    ? rawGust
+                    : wind > 0
+                      ? Math.round(wind * 1.4)
+                      : 0;
                 return (
                   <div
                     key={iso}
@@ -618,9 +608,9 @@ function DetailPanel({
                       <div className="flex items-center gap-1.5 text-xs">
                         <WindArrow deg={h.winddirection_10m[idx]} />
                         <span className="font-semibold tabular-nums text-zinc-800">
-                          {Math.round(h.windspeed_10m[idx])}
+                          {Math.round(wind)}
                           <span className="font-normal text-zinc-500">
-                            /{Math.round(h.windgusts_10m[idx])}
+                            /{Math.round(gust)}
                           </span>
                         </span>
                         <span className="text-zinc-500">
@@ -642,7 +632,6 @@ function DetailPanel({
             <div className="flex border-t border-zinc-200 bg-zinc-50/60">
               {hourlyIndices.map((idx, i) => {
                 const iso = h.time[idx];
-                const t = new Date(iso);
                 const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
                 const isDayStart =
                   !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
@@ -657,7 +646,6 @@ function DetailPanel({
                     className="flex-shrink-0 w-[108px] @[640px]:w-[124px] flex flex-col"
                   >
                     <div className="relative h-[72px] w-full">
-                      {/* Gridlines */}
                       {[0, 2.5, 5].map((v) => (
                         <div
                           key={v}
@@ -665,11 +653,9 @@ function DetailPanel({
                           style={{ top: `${(1 - v / 5) * 100}%` }}
                         />
                       ))}
-                      {/* Day separator */}
                       {isDayStart && i > 0 && (
                         <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
                       )}
-                      {/* Bar */}
                       <div
                         className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2.5 @[640px]:w-3 rounded-t-sm bg-[var(--wx-rain)]"
                         style={{
@@ -689,6 +675,54 @@ function DetailPanel({
                 );
               })}
             </div>
+            {/* Sunshine bar chart (extended only) */}
+            {extended && (
+              <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+                {hourlyIndices.map((idx, i) => {
+                  const iso = h.time[idx];
+                  const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+                  const isDayStart =
+                    !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
+                  // Sum sunshine over the 3-hour block (in seconds).
+                  const sec =
+                    (h.sunshine_duration[idx] ?? 0) +
+                    (h.sunshine_duration[idx + 1] ?? 0) +
+                    (h.sunshine_duration[idx + 2] ?? 0);
+                  const minPerHour = Math.round(sec / 3 / 60); // 0..60
+                  const pct = Math.min(minPerHour / 60, 1) * 100;
+                  return (
+                    <div
+                      key={iso}
+                      className="flex-shrink-0 w-[108px] @[640px]:w-[124px] flex flex-col"
+                    >
+                      <div className="relative h-[72px] w-full">
+                        {[0, 30, 60].map((v) => (
+                          <div
+                            key={v}
+                            className="absolute left-0 right-0 border-t border-zinc-200/80"
+                            style={{ top: `${(1 - v / 60) * 100}%` }}
+                          />
+                        ))}
+                        {isDayStart && i > 0 && (
+                          <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
+                        )}
+                        <div
+                          className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2.5 @[640px]:w-3 rounded-t-sm bg-[var(--wx-sun)]"
+                          style={{ height: `${pct}%` }}
+                          title={`${minPerHour} min/h Sonne`}
+                        />
+                      </div>
+                      <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
+                        <div className="font-medium">
+                          {minPerHour > 0 ? `${minPerHour}` : "–"}
+                        </div>
+                        <div className="text-zinc-400">min</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
