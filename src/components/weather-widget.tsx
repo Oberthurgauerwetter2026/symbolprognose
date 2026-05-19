@@ -233,7 +233,7 @@ function Header({
               }}
               onFocus={() => setOpen(true)}
               placeholder={`Gemeinde suchen… (aktuell: ${locationName})`}
-              className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
+              className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
             />
             {open && search.data && search.data.length > 0 && (
               <ul className="absolute z-10 left-0 right-0 top-11 bg-zinc-50 border border-zinc-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
