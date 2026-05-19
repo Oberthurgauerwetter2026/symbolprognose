@@ -1,44 +1,56 @@
-## Änderungen am Wetter-Widget
+## Schriftstärke im gesamten Widget deutlich verstärken (+2 Stufen)
 
-Alle Änderungen ausschliesslich in `src/components/weather-widget.tsx`. Keine Anpassungen an Datenquellen oder API (`snowfall` ist bereits im Hourly-Datensatz vorhanden).
+Ausschliesslich in `src/components/weather-widget.tsx`. Keine Änderungen an Daten, Layout, Farben (ausser Textfarben werden dunkler für mehr Kontrast).
 
-### 1. Schnee aus den 3h-Slots entfernen
+### Globale Regel
 
-In jedem Stunden-Slot (oben in der Detailprognose) wird die Zeile „Schnee … cm" entfernt. Wind/Böen bleibt als einzige Zusatzzeile unter der Temperatur.
+- `font-medium` → `font-semibold`
+- `font-semibold` → `font-bold`
+- Reine `text-zinc-500`-Labels → `text-zinc-700 font-medium`
+- Reine `text-zinc-400` (Sublabels Werte) → `text-zinc-600`
+- `text-zinc-600` für kleine Werte → `text-zinc-800 font-semibold`
+- Body-Default des Widget-Wrappers bekommt `font-medium` als Basis (`text-zinc-900 antialiased font-medium`).
 
-### 2. Neuer Toggle „Schnee" im Header
+### Betroffene Stellen konkret
 
-Neben dem bestehenden „Sonnenschein"-Switch kommt ein zweiter Switch „Schnee".
-- Neuer State `snow` in `WeatherWidget` (analog zu `extended`).
-- Wird als Prop an `DayStrip` und `DetailPanel` weitergereicht.
+**Header**
+- Suchfeld: `placeholder` bleibt, Input-Text `font-medium`.
+- Ortungs-Button: `font-medium` → `font-semibold`.
+- Switch-Labels „Sonnenschein" / „Schnee": `font-medium` → `font-semibold`, Farbe `text-zinc-700` → `text-zinc-900`.
 
-### 3. Schnee-Balkendiagramm unterhalb (analog Sonnenschein)
+**DayStrip (5-Tage-Karten)**
+- Tagesname (Heute / Morgen / Wochentag): `font-semibold` → `font-bold`.
+- Datums-Zeile darunter: `text-zinc-500` → `text-zinc-700 font-medium`.
+- Max-Temperatur: `font-semibold` → `font-bold`.
+- Min-Temperatur: `font-medium` → `font-semibold`, Farbe `text-zinc-500` → `text-zinc-700`.
+- mm / % Zeile: `text-zinc-500` → `text-zinc-700 font-medium`, tabular bleibt.
+- Wind-Block: Labels `text-zinc-500` → `text-zinc-700 font-medium`; Wert `font-medium` → `font-semibold`; Gust-Trenner `text-zinc-400` → `text-zinc-600`.
+- Sonnenauf-/untergang (extended): `text-zinc-500` → `text-zinc-700 font-medium`.
 
-Im `DetailPanel`, nur wenn `snow === true`:
-- Eigene Y-Achsen-Spalte links (Skala 0 / 1 / 2 cm, Label `cm/3h`).
-- Bar-Chart-Reihe unter dem Sonnenschein-Chart (bzw. unter Niederschlag, falls Sonne aus).
-- Summe von `snowfall` über 3 Stunden, Farbe `--wx-snow` (neuer Token in `src/styles.css`, helles Blau-Weiss; falls noch nicht vorhanden, einmalig hinzufügen).
-- Beschriftung unter dem Balken: Wert in cm + Sublabel `cm`.
+**Detail-Panel Header**
+- Tagesname: `font-semibold` → `font-bold`.
+- Sub-Headline „3h · Temperatur °C · Wind / Böenspitzen km/h": `text-zinc-500` → `text-zinc-700 font-medium`.
 
-### 4. Legenden unter den Grafiken
+**Y-Achsen-Labels** (Regen / Sonne / Schnee)
+- Skalenzahlen: `text-zinc-500` → `text-zinc-700 font-semibold`.
+- Achsentitel („Regen mm/3h" usw.): `text-zinc-500` → `text-zinc-800 font-semibold`.
 
-Direkt unter jedem Bar-Chart eine kleine Legendenzeile in `text-[10px] text-zinc-500`:
-- Niederschlagschart: „Regenmenge in mm · Regenwahrscheinlichkeit in %"
-- Sonnenscheinchart: „Sonnenscheindauer in min/h"
-- Schneechart: „Neuschnee in cm"
+**Stundenslots**
+- Stundenanzeige (z.B. 09:00): `font-semibold` → `font-bold`, Farbe `text-zinc-600` → `text-zinc-800`.
+- Temperatur: `font-semibold` → `font-bold`.
+- Wind-Wert: `font-semibold` → `font-bold`; Gust `text-zinc-500` → `text-zinc-700 font-medium`; Richtungs-Label `text-zinc-500` → `text-zinc-700 font-medium`.
 
-Im Kopfbereich der Stunden-Slots zusätzlich der Hinweis „Wind / Böenspitzen in km/h" – ersetzt die bestehende rechte Sub-Headline `3-Stunden-Takt · °C / mm / km/h` durch eine klarere Variante:
-`3h · Temperatur °C · Wind/Böen km/h`.
+**Chart-Werte unter den Balken** (Regen / Sonne / Schnee)
+- Hauptwert: `font-medium` → `font-bold`, Farbe `text-zinc-600` → `text-zinc-900`.
+- Sublabel (% bzw. „min" / „cm"): `text-zinc-400` → `text-zinc-600 font-medium`.
 
-### Technische Details
+**Legendenzeile am Fuss des Panels**
+- `text-zinc-500` → `text-zinc-700 font-semibold`; Schriftgrösse `text-[10px]` → `text-[11px]`.
 
-- Schnee-Toggle: gleicher `Switch`-Aufbau wie Sonnenschein, Label „Schnee".
-- Header-Layout: beide Switches in einer Flex-Reihe (gap-4), auf schmalen Containern untereinander.
-- Y-Achsen-Spalte links wächst dynamisch: bestehender Aufbau (Niederschlag immer, Sonne nur bei `extended`) wird um einen optionalen Schnee-Abschnitt erweitert.
-- Skala Schnee: 0 / 1 / 2 cm (passend für stündliche Werte in der Schweiz; Werte > 2cm/3h werden visuell gekappt, Zahlenlabel zeigt aber den echten Wert).
-- Keine Änderungen an `fetchForecast`, `routeTree.gen.ts` oder Admin/Embed.
+**Footer**
+- Quellen- und Copyright-Zeile: `text-zinc-500` → `text-zinc-700 font-medium`.
 
-### Nicht im Plan enthalten
+### Nicht im Plan
 
-- Persistenz des Schnee-Toggles (kann später ergänzt werden, falls gewünscht).
-- Änderungen am DayStrip (5-Tage-Übersicht bleibt wie sie ist).
+- Keine Änderungen an Schriftgrössen (ausser Legendenzeile +1px), Abständen, Farben oder Layout.
+- Keine neue Font-Familie.
