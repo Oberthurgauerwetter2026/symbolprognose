@@ -83,54 +83,166 @@ export async function reverseGeocode(
   return `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
 }
 
-export async function fetchForecast(
+const DAILY_VARS = [
+  "weathercode",
+  "temperature_2m_max",
+  "temperature_2m_min",
+  "precipitation_sum",
+  "precipitation_probability_max",
+  "windspeed_10m_max",
+  "windgusts_10m_max",
+  "winddirection_10m_dominant",
+  "sunshine_duration",
+  "sunrise",
+  "sunset",
+  "snowfall_sum",
+] as const;
+
+const HOURLY_VARS = [
+  "weathercode",
+  "temperature_2m",
+  "precipitation",
+  "precipitation_probability",
+  "windspeed_10m",
+  "windgusts_10m",
+  "winddirection_10m",
+  "snowfall",
+] as const;
+
+// Index where we switch from MeteoSchweiz ICON to ECMWF IFS (0-based day index).
+// 0..ECMWF_FROM_DAY-1 use ICON, ECMWF_FROM_DAY..end use ECMWF.
+const ECMWF_FROM_DAY = 4;
+const TOTAL_DAYS = 6;
+
+async function fetchModel(
   latitude: number,
   longitude: number,
+  model: "meteoswiss_icon_seamless" | "ecmwf_ifs025",
 ): Promise<ForecastResponse> {
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude", String(latitude));
   url.searchParams.set("longitude", String(longitude));
-  url.searchParams.set("models", "meteoswiss_icon_seamless");
+  url.searchParams.set("models", model);
   url.searchParams.set("timezone", "auto");
-  url.searchParams.set("forecast_days", "6");
+  url.searchParams.set("forecast_days", String(TOTAL_DAYS));
   url.searchParams.set("wind_speed_unit", "kmh");
   url.searchParams.set("precipitation_unit", "mm");
   url.searchParams.set("temperature_unit", "celsius");
-  url.searchParams.set(
-    "daily",
-    [
-      "weathercode",
-      "temperature_2m_max",
-      "temperature_2m_min",
-      "precipitation_sum",
-      "precipitation_probability_max",
-      "windspeed_10m_max",
-      "windgusts_10m_max",
-      "winddirection_10m_dominant",
-      "sunshine_duration",
-      "sunrise",
-      "sunset",
-      "snowfall_sum",
-    ].join(","),
-  );
-  url.searchParams.set(
-    "hourly",
-    [
-      "weathercode",
-      "temperature_2m",
-      "precipitation",
-      "precipitation_probability",
-      "windspeed_10m",
-      "windgusts_10m",
-      "winddirection_10m",
-      "snowfall",
-    ].join(","),
-  );
+  url.searchParams.set("daily", DAILY_VARS.join(","));
+  url.searchParams.set("hourly", HOURLY_VARS.join(","));
   const res = await fetch(url.toString());
-  if (!res.ok) throw new Error("Wetterdaten konnten nicht geladen werden");
-  const data = (await res.json()) as ForecastResponse;
-  return sanitizeForecast(data);
+  if (!res.ok) throw new Error(`Modell ${model} nicht erreichbar`);
+  return (await res.json()) as ForecastResponse;
 }
+
+export async function fetchForecast(
+  latitude: number,
+  longitude: number,
+): Promise<ForecastResponse> {
+  const [iconRes, ecmwfRes] = await Promise.allSettled([
+    fetchModel(latitude, longitude, "meteoswiss_icon_seamless"),
+    fetchModel(latitude, longitude, "ecmwf_ifs025"),
+  ]);
+
+  // Fallbacks if one model fails.
+  if (iconRes.status !== "fulfilled" && ecmwfRes.status !== "fulfilled") {
+    throw new Error("Wetterdaten konnten nicht geladen werden");
+  }
+  if (iconRes.status !== "fulfilled") {
+    return sanitizeForecast((ecmwfRes as PromiseFulfilledResult<ForecastResponse>).value);
+  }
+  if (ecmwfRes.status !== "fulfilled") {
+    return sanitizeForecast(iconRes.value);
+  }
+
+  return sanitizeForecast(mergeForecasts(iconRes.value, ecmwfRes.value));
+}
+
+function mergeForecasts(
+  icon: ForecastResponse,
+  ecmwf: ForecastResponse,
+): ForecastResponse {
+  // Determine which dates belong to ECMWF (by date string, from ICON's daily).
+  const iconDates = icon.daily?.time ?? [];
+  const ecmwfDateSet = new Set(iconDates.slice(ECMWF_FROM_DAY));
+
+  // --- Daily merge ---
+  const mergedDaily: DailyData = { ...icon.daily };
+  const ecmwfDayIdxByDate = new Map<string, number>();
+  (ecmwf.daily?.time ?? []).forEach((d, i) => ecmwfDayIdxByDate.set(d, i));
+
+  const dailyKeys: (keyof DailyData)[] = [
+    "weathercode",
+    "temperature_2m_max",
+    "temperature_2m_min",
+    "precipitation_sum",
+    "precipitation_probability_max",
+    "windspeed_10m_max",
+    "windgusts_10m_max",
+    "winddirection_10m_dominant",
+    "sunshine_duration",
+    "sunrise",
+    "sunset",
+    "snowfall_sum",
+  ];
+
+  for (const key of dailyKeys) {
+    const src = icon.daily[key] as (number | string | null)[] | undefined;
+    if (!src) continue;
+    const copy = [...src] as (number | string | null)[];
+    iconDates.forEach((date, i) => {
+      if (!ecmwfDateSet.has(date)) return;
+      const ei = ecmwfDayIdxByDate.get(date);
+      if (ei === undefined) return;
+      const ecmwfArr = ecmwf.daily[key] as (number | string | null)[] | undefined;
+      if (!ecmwfArr) return;
+      copy[i] = ecmwfArr[ei] ?? copy[i];
+    });
+    // @ts-expect-error dynamic key assignment back into typed array
+    mergedDaily[key] = copy;
+  }
+
+  // --- Hourly merge ---
+  const mergedHourly: HourlyData = { ...icon.hourly };
+  const ecmwfHourIdxByIso = new Map<string, number>();
+  (ecmwf.hourly?.time ?? []).forEach((t, i) => ecmwfHourIdxByIso.set(t, i));
+
+  const hourlyKeys: (keyof HourlyData)[] = [
+    "weathercode",
+    "temperature_2m",
+    "precipitation",
+    "precipitation_probability",
+    "windspeed_10m",
+    "windgusts_10m",
+    "winddirection_10m",
+    "snowfall",
+  ];
+
+  const iconTimes = icon.hourly?.time ?? [];
+  for (const key of hourlyKeys) {
+    const src = icon.hourly[key] as (number | string | null)[] | undefined;
+    if (!src) continue;
+    const copy = [...src] as (number | string | null)[];
+    iconTimes.forEach((iso, i) => {
+      const date = iso.slice(0, 10);
+      if (!ecmwfDateSet.has(date)) return;
+      const ei = ecmwfHourIdxByIso.get(iso);
+      if (ei === undefined) return;
+      const ecmwfArr = ecmwf.hourly[key] as (number | string | null)[] | undefined;
+      if (!ecmwfArr) return;
+      copy[i] = ecmwfArr[ei] ?? copy[i];
+    });
+    // @ts-expect-error dynamic key assignment back into typed array
+    mergedHourly[key] = copy;
+  }
+
+  return {
+    ...icon,
+    daily: mergedDaily,
+    hourly: mergedHourly,
+  };
+}
+
 
 function num(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
