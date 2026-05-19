@@ -733,7 +733,7 @@ function Footer({
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
       <div className="text-xs text-zinc-500">
-        MeteoSchweiz ICON-CH1 / ICON-CH2 · aktualisiert{" "}
+        MeteoSchweiz ICON-CH1 / ICON-CH2 · Lücken: Open-Meteo best_match · aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
