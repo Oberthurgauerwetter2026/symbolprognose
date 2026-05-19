@@ -200,16 +200,182 @@ function fillGaps(
   return { ...primary, hourly: mergedHourly, daily: mergedDaily };
 }
 
+const ENSEMBLE_HOURLY_VARS = [
+  "weathercode",
+  "temperature_2m",
+  "precipitation",
+  "windspeed_10m",
+  "windgusts_10m",
+  "winddirection_10m",
+  "snowfall",
+  "sunshine_duration",
+] as const;
+
+type EnsembleHourly = Partial<HourlyData> & { time: string[] };
+
+async function fetchEnsembleMean(
+  latitude: number,
+  longitude: number,
+): Promise<EnsembleHourly> {
+  const url = new URL("https://ensemble-api.open-meteo.com/v1/ensemble");
+  url.searchParams.set("latitude", String(latitude));
+  url.searchParams.set("longitude", String(longitude));
+  url.searchParams.set("models", "ecmwf_ifs025");
+  url.searchParams.set("timezone", "auto");
+  url.searchParams.set("forecast_days", String(TOTAL_DAYS));
+  url.searchParams.set("wind_speed_unit", "kmh");
+  url.searchParams.set("precipitation_unit", "mm");
+  url.searchParams.set("temperature_unit", "celsius");
+  url.searchParams.set("hourly", ENSEMBLE_HOURLY_VARS.join(","));
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error("Ensemble nicht erreichbar");
+  const data = (await res.json()) as { hourly?: Record<string, unknown> };
+  const h = data.hourly ?? {};
+  const time = (h.time as string[] | undefined) ?? [];
+  const out: EnsembleHourly = { time };
+  for (const v of ENSEMBLE_HOURLY_VARS) {
+    const series: number[][] = [];
+    for (const key of Object.keys(h)) {
+      if (key === v || key.startsWith(`${v}_member`)) {
+        const arr = h[key];
+        if (Array.isArray(arr)) series.push(arr as number[]);
+      }
+    }
+    if (series.length === 0) continue;
+    const mean: number[] = new Array(time.length);
+    for (let i = 0; i < time.length; i++) {
+      let sum = 0;
+      let count = 0;
+      for (const s of series) {
+        const x = s[i];
+        if (typeof x === "number" && Number.isFinite(x)) {
+          sum += x;
+          count++;
+        }
+      }
+      mean[i] = count > 0 ? (v === "weathercode" ? Math.round(sum / count) : sum / count) : (NaN as number);
+    }
+    (out as Record<string, unknown>)[v] = mean;
+  }
+  return out;
+}
+
+function wrapEnsembleAsForecast(ens: EnsembleHourly): ForecastResponse {
+  const empty: HourlyData = {
+    time: ens.time,
+    weathercode: (ens.weathercode ?? []) as number[],
+    temperature_2m: (ens.temperature_2m ?? []) as number[],
+    precipitation: (ens.precipitation ?? []) as number[],
+    precipitation_probability: [],
+    windspeed_10m: (ens.windspeed_10m ?? []) as number[],
+    windgusts_10m: (ens.windgusts_10m ?? []) as number[],
+    winddirection_10m: (ens.winddirection_10m ?? []) as number[],
+    snowfall: (ens.snowfall ?? []) as number[],
+    sunshine_duration: (ens.sunshine_duration ?? []) as number[],
+  };
+  const emptyDaily: DailyData = {
+    time: [],
+    weathercode: [],
+    temperature_2m_max: [],
+    temperature_2m_min: [],
+    precipitation_sum: [],
+    precipitation_probability_max: [],
+    windspeed_10m_max: [],
+    windgusts_10m_max: [],
+    winddirection_10m_dominant: [],
+    sunshine_duration: [],
+    sunrise: [],
+    sunset: [],
+    snowfall_sum: [],
+  };
+  return { latitude: 0, longitude: 0, timezone: "", hourly: empty, daily: emptyDaily };
+}
+
+function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
+  const day = dayIso.slice(0, 10);
+  const idxs: number[] = [];
+  for (let i = 0; i < h.time.length; i++) {
+    if ((h.time[i] ?? "").slice(0, 10) === day) idxs.push(i);
+  }
+  if (idxs.length === 0) return {} as Record<string, number | null>;
+  const finite = (arr: number[] | undefined): number[] =>
+    idxs
+      .map((i) => arr?.[i])
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  const max = (a: number[]) => (a.length ? Math.max(...a) : null);
+  const min = (a: number[]) => (a.length ? Math.min(...a) : null);
+  const sum = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) : null);
+  const median = (a: number[]) => {
+    if (!a.length) return null;
+    const s = [...a].sort((x, y) => x - y);
+    return s[Math.floor(s.length / 2)];
+  };
+  const dirs = finite(h.winddirection_10m);
+  const speeds = finite(h.windspeed_10m);
+  let dominantDir: number | null = null;
+  if (dirs.length) {
+    let x = 0;
+    let y = 0;
+    for (let k = 0; k < dirs.length; k++) {
+      const w = speeds[k] ?? 1;
+      const rad = (dirs[k] * Math.PI) / 180;
+      x += Math.cos(rad) * w;
+      y += Math.sin(rad) * w;
+    }
+    dominantDir = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  }
+  return {
+    weathercode: median(finite(h.weathercode)),
+    temperature_2m_max: max(finite(h.temperature_2m)),
+    temperature_2m_min: min(finite(h.temperature_2m)),
+    precipitation_sum: sum(finite(h.precipitation)),
+    windspeed_10m_max: max(finite(h.windspeed_10m)),
+    windgusts_10m_max: max(finite(h.windgusts_10m)),
+    winddirection_10m_dominant: dominantDir,
+    sunshine_duration: sum(finite(h.sunshine_duration)),
+    snowfall_sum: sum(finite(h.snowfall)),
+  } as Record<string, number | null>;
+}
+
 export async function fetchForecast(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
-  // MeteoSchweiz ist Hauptquelle; best_match füllt nur Lücken (Tag 6/7, fehlende Wind-Stunden).
-  const [primary, fallback] = await Promise.all([
+  // MeteoSchweiz Hauptquelle; ECMWF IFS Ensemble-Mittel füllt Tag 6/7; best_match deckt Restfelder ab.
+  const [primary, ensembleRaw, bestMatch] = await Promise.all([
     fetchModel(latitude, longitude, "meteoswiss_icon_seamless"),
+    fetchEnsembleMean(latitude, longitude).catch(() => null),
     fetchModel(latitude, longitude, "best_match").catch(() => null),
   ]);
-  const merged = fallback ? fillGaps(primary, fallback) : primary;
+
+  // Snapshot der originalen MeteoSchweiz-Daily-Werte, um zu entscheiden, wo neu aggregiert werden muss.
+  const primaryDailyMaxBefore = [...(primary.daily?.temperature_2m_max ?? [])];
+
+  let merged = primary;
+  if (ensembleRaw) merged = fillGaps(merged, wrapEnsembleAsForecast(ensembleRaw));
+  if (bestMatch) merged = fillGaps(merged, bestMatch);
+
+  // Tag 6/7 (oder jeder Tag, an dem MeteoSchweiz keine Daily-Max-Temp lieferte) neu aus gemergten Hourly aggregieren.
+  for (let i = 0; i < merged.daily.time.length; i++) {
+    if (!isMissing(primaryDailyMaxBefore[i])) continue;
+    const agg = aggregateDailyFromHourly(merged.hourly, merged.daily.time[i]);
+    const apply = (key: keyof DailyData) => {
+      const v = agg[key as string];
+      if (v != null && Number.isFinite(v)) {
+        (merged.daily[key] as (number | string)[])[i] = v as number;
+      }
+    };
+    apply("weathercode");
+    apply("temperature_2m_max");
+    apply("temperature_2m_min");
+    apply("precipitation_sum");
+    apply("windspeed_10m_max");
+    apply("windgusts_10m_max");
+    apply("winddirection_10m_dominant");
+    apply("sunshine_duration");
+    apply("snowfall_sum");
+  }
+
   return sanitizeForecast(merged);
 }
 
