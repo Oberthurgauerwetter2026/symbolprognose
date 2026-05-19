@@ -460,13 +460,14 @@ function DetailPanel({
                   {String(t.getHours()).padStart(2, "0")}:00
                 </div>
                 <div
-                  className="text-2xl leading-none"
+                  className={isCurrent ? "text-zinc-900" : "text-zinc-700"}
                   title={weatherLabel(h.weathercode[idx])}
                 >
-                  {weatherSymbol(
-                    h.weathercode[idx],
-                    t.getHours() >= 6 && t.getHours() < 20,
-                  )}
+                  <WeatherIcon
+                    code={h.weathercode[idx]}
+                    isDay={t.getHours() >= 6 && t.getHours() < 20}
+                    size={32}
+                  />
                 </div>
                 <div className="text-lg font-medium tabular-nums">
                   {h.temperature_2m[idx].toFixed(1)}°
