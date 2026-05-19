@@ -280,7 +280,7 @@ function Header({
   );
 }
 
-/* ---------------- 5-Day Strip ---------------- */
+/* ---------------- 5-Day Strip (7-day forecast, 5 visible, auto-roll) ---------------- */
 
 function DayStrip({
   forecast,
@@ -296,21 +296,68 @@ function DayStrip({
   extended: boolean;
 }) {
   const d = forecast.daily;
-  const cols = days.length || 1;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const pausedUntil = useRef<number>(0);
+
+  // Auto-roll: every 6s, scroll forward one card; wrap to start at end.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || days.length <= 5) return;
+    const id = window.setInterval(() => {
+      if (Date.now() < pausedUntil.current) return;
+      const firstCard = cardRefs.current.get(0);
+      if (!firstCard) return;
+      const cardW = firstCard.getBoundingClientRect().width + 1; // +1 gap
+      const max = scroller.scrollWidth - scroller.clientWidth;
+      const next = scroller.scrollLeft + cardW;
+      if (next > max - 4) {
+        scroller.scrollTo({ left: 0, behavior: "smooth" });
+      } else {
+        scroller.scrollTo({ left: next, behavior: "smooth" });
+      }
+    }, 6000);
+    return () => window.clearInterval(id);
+  }, [days.length]);
+
+  // Pause auto-roll for 15s on user interaction.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const pause = () => {
+      pausedUntil.current = Date.now() + 15_000;
+    };
+    scroller.addEventListener("wheel", pause, { passive: true });
+    scroller.addEventListener("touchstart", pause, { passive: true });
+    scroller.addEventListener("pointerdown", pause, { passive: true });
+    return () => {
+      scroller.removeEventListener("wheel", pause);
+      scroller.removeEventListener("touchstart", pause);
+      scroller.removeEventListener("pointerdown", pause);
+    };
+  }, []);
+
   return (
     <div className="space-y-2">
       <div
-        className="flex @[900px]:grid gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        ref={scrollerRef}
+        className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
       >
         {days.map((day, i) => {
           const selected = i === selectedIdx;
           return (
             <button
               key={day.iso}
+              ref={(el) => {
+                if (el) cardRefs.current.set(i, el);
+                else cardRefs.current.delete(i);
+              }}
               type="button"
-              onClick={() => onSelect(i)}
-              className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 transition-colors ${
+              onClick={() => {
+                pausedUntil.current = Date.now() + 15_000;
+                onSelect(i);
+              }}
+              className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start shrink-0 basis-[55%] @[420px]:basis-[40%] @[640px]:basis-[28%] @[900px]:basis-[calc(20%-1px)] transition-colors ${
                 selected
                   ? "bg-[var(--accent-soft)]"
                   : "bg-zinc-50 hover:bg-zinc-50/80"
