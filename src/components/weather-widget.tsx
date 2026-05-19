@@ -516,7 +516,7 @@ function DetailPanel({
                   if (el) slotRefs.current.set(iso, el);
                   else slotRefs.current.delete(iso);
                 }}
-                className={`flex-shrink-0 w-[128px] p-4 space-y-3 snap-start ${
+                className={`flex-shrink-0 w-[108px] @[640px]:w-[124px] p-3 @[640px]:p-4 space-y-3 snap-start ${
                   isCurrent ? "bg-[var(--accent-soft)]" : ""
                 } ${
                   isDayStart
