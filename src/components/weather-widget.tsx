@@ -298,87 +298,139 @@ function DayStrip({
   extended: boolean;
 }) {
   const d = forecast.daily;
+  const SUN_MAX_H = 15;
   return (
-    <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
-      {days.map((day, i) => {
-        const selected = i === selectedIdx;
-        return (
-          <button
-            key={day.iso}
-            type="button"
-            onClick={() => onSelect(i)}
-            className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 transition-colors ${
-              selected
-                ? "bg-[var(--accent-soft)]"
-                : "bg-zinc-50 hover:bg-zinc-50/80"
-            }`}
-          >
-            {selected && (
-              <div className="absolute top-0 left-0 right-0 h-1 bg-accent" />
-            )}
-            <div className="flex flex-col">
-              <span
-                className={`text-base font-semibold ${
-                  selected ? "text-accent" : "text-zinc-900"
-                }`}
-              >
-                {i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
-              </span>
-              <span className="text-sm text-zinc-500">
-                {weekdayShort(day.date)} {formatDateShort(day.date)}
-              </span>
-            </div>
-            <div
-              className="py-1 select-none text-zinc-900"
-              aria-label={weatherLabel(d.weathercode[i])}
-              title={weatherLabel(d.weathercode[i])}
+    <div className="space-y-2">
+      <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
+        {days.map((day, i) => {
+          const selected = i === selectedIdx;
+          return (
+            <button
+              key={day.iso}
+              type="button"
+              onClick={() => onSelect(i)}
+              className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 transition-colors ${
+                selected
+                  ? "bg-[var(--accent-soft)]"
+                  : "bg-zinc-50 hover:bg-zinc-50/80"
+              }`}
             >
-              <WeatherIcon code={d.weathercode[i]} size={72} />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-semibold tabular-nums text-zinc-900">
-                  {Math.round(d.temperature_2m_max[i])}°
+              {selected && (
+                <div className="absolute top-0 left-0 right-0 h-1 bg-accent" />
+              )}
+              <div className="flex flex-col">
+                <span
+                  className={`text-base font-semibold ${
+                    selected ? "text-accent" : "text-zinc-900"
+                  }`}
+                >
+                  {i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
                 </span>
-                <span className="text-base text-zinc-500 font-medium tabular-nums">
-                  {Math.round(d.temperature_2m_min[i])}°
-                </span>
-              </div>
-              <div className="text-xs text-zinc-500 flex justify-between tabular-nums">
-                <span>{d.precipitation_sum[i].toFixed(1)} mm</span>
-                <span>{d.precipitation_probability_max[i] ?? 0}%</span>
-              </div>
-            </div>
-            <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-zinc-500">
-                <span>Wind</span>
-                <span className="text-zinc-800 font-medium tabular-nums flex items-center gap-1">
-                  <WindArrow deg={d.winddirection_10m_dominant[i]} />
-                  {Math.round(d.windspeed_10m_max[i])}
-                  <span className="text-zinc-400">
-                    /{Math.round(d.windgusts_10m_max[i])}
-                  </span>{" "}
-                  km/h
+                <span className="text-sm text-zinc-500">
+                  {weekdayShort(day.date)} {formatDateShort(day.date)}
                 </span>
               </div>
-              {extended && (
-                <>
-                  <div className="flex items-center justify-between text-xs text-zinc-500">
-                    <span>Sonne</span>
-                    <span className="text-zinc-800 font-medium tabular-nums">
-                      {secondsToHours(d.sunshine_duration[i])} h
-                    </span>
-                  </div>
+              <div
+                className="py-1 select-none text-zinc-900"
+                aria-label={weatherLabel(d.weathercode[i])}
+                title={weatherLabel(d.weathercode[i])}
+              >
+                <WeatherIcon code={d.weathercode[i]} size={72} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-semibold tabular-nums text-zinc-900">
+                    {Math.round(d.temperature_2m_max[i])}°
+                  </span>
+                  <span className="text-base text-zinc-500 font-medium tabular-nums">
+                    {Math.round(d.temperature_2m_min[i])}°
+                  </span>
+                </div>
+                <div className="text-xs text-zinc-500 flex justify-between tabular-nums">
+                  <span>{d.precipitation_sum[i].toFixed(1)} mm</span>
+                  <span>{d.precipitation_probability_max[i] ?? 0}%</span>
+                </div>
+              </div>
+              <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-zinc-500">
+                  <span>Wind</span>
+                  <span className="text-zinc-800 font-medium tabular-nums flex items-center gap-1">
+                    <WindArrow deg={d.winddirection_10m_dominant[i]} />
+                    {Math.round(d.windspeed_10m_max[i])}
+                    <span className="text-zinc-400">
+                      /{Math.round(d.windgusts_10m_max[i])}
+                    </span>{" "}
+                    km/h
+                  </span>
+                </div>
+                {extended && (
                   <div className="flex items-center justify-between text-xs text-zinc-500 tabular-nums">
                     <span>↑ {formatTimeHHMM(d.sunrise[i])}</span>
                     <span>↓ {formatTimeHHMM(d.sunset[i])}</span>
                   </div>
-                </>
-              )}
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {extended && (
+        <div className="bg-zinc-50 border border-zinc-200 rounded-md overflow-hidden">
+          <div className="flex items-stretch">
+            {/* Y-axis */}
+            <div className="relative w-12 shrink-0 border-r border-zinc-200 bg-zinc-100/50">
+              <div className="h-[90px] relative text-[10px] text-zinc-500 tabular-nums">
+                {[15, 10, 5, 0].map((v) => (
+                  <div
+                    key={v}
+                    className="absolute left-0 right-1 text-right leading-none"
+                    style={{ top: `${(1 - v / SUN_MAX_H) * 100}%`, transform: v === 0 ? "translateY(-100%)" : v === 15 ? "translateY(0)" : "translateY(-50%)" }}
+                  >
+                    {v}
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+                Sonne<br />h/Tag
+              </div>
             </div>
-          </button>
-        );
-      })}
+            {/* Bars */}
+            <div className="flex-1 flex @[900px]:grid @[900px]:grid-cols-7 overflow-x-auto no-scrollbar">
+              {days.map((day, i) => {
+                const hours = d.sunshine_duration[i] / 3600;
+                const pct = Math.min(hours / SUN_MAX_H, 1) * 100;
+                return (
+                  <div
+                    key={day.iso}
+                    className="relative min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 flex flex-col items-center"
+                  >
+                    <div className="relative w-full h-[90px]">
+                      {/* gridlines */}
+                      {[0, 5, 10, 15].map((v) => (
+                        <div
+                          key={v}
+                          className="absolute left-0 right-0 border-t border-zinc-200/70"
+                          style={{ top: `${(1 - v / SUN_MAX_H) * 100}%` }}
+                        />
+                      ))}
+                      {/* bar */}
+                      <div
+                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 @[640px]:w-4 rounded-t-sm bg-[var(--wx-sun)]"
+                        style={{ height: `${pct}%` }}
+                        title={`${hours.toFixed(1)} h`}
+                      />
+                    </div>
+                    <div className="text-[11px] text-zinc-700 tabular-nums py-1">
+                      {hours.toFixed(1)} h
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
