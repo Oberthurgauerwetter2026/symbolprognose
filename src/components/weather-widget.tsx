@@ -106,7 +106,7 @@ export function WeatherWidget() {
   }, [forecast.data, now]);
 
   return (
-    <div className="@container bg-zinc-100 text-zinc-900 antialiased py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
+    <div className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
       <div className="max-w-5xl mx-auto space-y-5">
         <Header
           locationName={location.name}
@@ -233,7 +233,7 @@ function Header({
               }}
               onFocus={() => setOpen(true)}
               placeholder={`Gemeinde suchen… (aktuell: ${locationName})`}
-              className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
+              className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
             />
             {open && search.data && search.data.length > 0 && (
               <ul className="absolute z-10 left-0 right-0 top-11 bg-zinc-50 border border-zinc-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
@@ -248,10 +248,10 @@ function Header({
                       }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-100 flex items-baseline justify-between gap-3"
                     >
-                      <span className="font-medium text-zinc-900">
+                      <span className="font-bold text-zinc-900">
                         {r.name}
                       </span>
-                      <span className="text-xs text-zinc-500">
+                      <span className="text-xs text-zinc-700 font-semibold">
                         {r.admin1 ?? "CH"}
                       </span>
                     </button>
@@ -264,7 +264,7 @@ function Header({
             type="button"
             onClick={onGeolocate}
             title="Aktueller Standort"
-            className="h-10 px-3 flex items-center gap-1.5 bg-accent text-accent-foreground text-sm font-medium rounded-md transition-colors hover:bg-[var(--accent-strong)]"
+            className="h-10 px-3 flex items-center gap-1.5 bg-accent text-accent-foreground text-sm font-semibold rounded-md transition-colors hover:bg-[var(--accent-strong)]"
           >
             <span className="shrink-0 opacity-90" aria-hidden>
               ⌖
@@ -281,7 +281,7 @@ function Header({
             onCheckedChange={onToggleExtended}
             aria-label="Sonnenschein"
           />
-          <span className="text-sm font-medium text-zinc-700 select-none">
+          <span className="text-sm font-semibold text-zinc-900 select-none">
             Sonnenschein
           </span>
         </label>
@@ -291,7 +291,7 @@ function Header({
             onCheckedChange={onToggleSnow}
             aria-label="Schnee"
           />
-          <span className="text-sm font-medium text-zinc-700 select-none">
+          <span className="text-sm font-semibold text-zinc-900 select-none">
             Schnee
           </span>
         </label>
@@ -338,13 +338,13 @@ function DayStrip({
               )}
               <div className="flex flex-col">
                 <span
-                  className={`text-base font-semibold ${
+                  className={`text-base font-bold ${
                     selected ? "text-accent" : "text-zinc-900"
                   }`}
                 >
                   {i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
                 </span>
-                <span className="text-sm text-zinc-500">
+                <span className="text-sm text-zinc-700 font-medium">
                   {weekdayShort(day.date)} {formatDateShort(day.date)}
                 </span>
               </div>
@@ -357,32 +357,32 @@ function DayStrip({
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-semibold tabular-nums text-zinc-900">
+                  <span className="text-2xl font-bold tabular-nums text-zinc-900">
                     {Math.round(d.temperature_2m_max[i])}°
                   </span>
-                  <span className="text-base text-zinc-500 font-medium tabular-nums">
+                  <span className="text-base text-zinc-700 font-semibold tabular-nums">
                     {Math.round(d.temperature_2m_min[i])}°
                   </span>
                 </div>
-                <div className="text-xs text-zinc-500 flex justify-between tabular-nums">
+                <div className="text-xs text-zinc-700 font-medium flex justify-between tabular-nums">
                   <span>{d.precipitation_sum[i].toFixed(1)} mm</span>
                   <span>{d.precipitation_probability_max[i] ?? 0}%</span>
                 </div>
               </div>
               <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-zinc-500">
+                <div className="flex items-center justify-between text-xs text-zinc-700 font-medium">
                   <span>Wind</span>
-                  <span className="text-zinc-800 font-medium tabular-nums flex items-center gap-1">
+                  <span className="text-zinc-900 font-bold tabular-nums flex items-center gap-1">
                     <WindArrow deg={d.winddirection_10m_dominant[i]} />
                     {Math.round(d.windspeed_10m_max[i])}
-                    <span className="text-zinc-400">
+                    <span className="text-zinc-600 font-semibold">
                       /{Math.round(d.windgusts_10m_max[i])}
                     </span>{" "}
                     km/h
                   </span>
                 </div>
                 {extended && (
-                  <div className="flex items-center justify-between text-xs text-zinc-500 tabular-nums">
+                  <div className="flex items-center justify-between text-xs text-zinc-700 font-medium tabular-nums">
                     <span>↑ {formatTimeHHMM(d.sunrise[i])}</span>
                     <span>↓ {formatTimeHHMM(d.sunset[i])}</span>
                   </div>
@@ -498,14 +498,14 @@ function DetailPanel({
   return (
     <section className="bg-zinc-50 rounded-md border border-zinc-200 overflow-hidden">
       <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3">
-        <span className="text-base font-semibold text-zinc-800">
+        <span className="text-base font-bold text-zinc-900">
           {selectedDayIdx === 0
             ? "Heute"
             : selectedDayIdx === 1
               ? "Morgen"
               : weekdayLong(selectedDay.date)}
         </span>
-        <span className="text-xs text-zinc-500 hidden sm:inline">
+        <span className="text-xs text-zinc-700 font-medium hidden sm:inline">
           3h · Temperatur °C · Wind / Böenspitzen km/h
         </span>
       </div>
@@ -514,7 +514,7 @@ function DetailPanel({
         <div className="w-10 shrink-0 border-r border-zinc-200 bg-zinc-100/50 flex flex-col justify-end">
           <div className="flex-1" />
           {/* Precipitation axis */}
-          <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums">
+          <div className="relative h-[72px] text-[10px] text-zinc-700 font-semibold tabular-nums">
             {[5, 2.5, 0].map((v) => (
               <div
                 key={v}
@@ -533,12 +533,12 @@ function DetailPanel({
               </div>
             ))}
           </div>
-          <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+          <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
             Regen<br />mm/3h
           </div>
           {extended && (
             <>
-              <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums border-t border-zinc-200">
+              <div className="relative h-[72px] text-[10px] text-zinc-700 font-semibold tabular-nums border-t border-zinc-200">
                 {[60, 30, 0].map((v) => (
                   <div
                     key={v}
@@ -557,14 +557,14 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
                 Sonne<br />min/h
               </div>
             </>
           )}
           {snow && (
             <>
-              <div className="relative h-[72px] text-[10px] text-zinc-500 tabular-nums border-t border-zinc-200">
+              <div className="relative h-[72px] text-[10px] text-zinc-700 font-semibold tabular-nums border-t border-zinc-200">
                 {[2, 1, 0].map((v) => (
                   <div
                     key={v}
@@ -583,7 +583,7 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-500 text-right pr-1 pb-1 leading-tight">
+              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
                 Schnee<br />cm/3h
               </div>
             </>
@@ -624,8 +624,8 @@ function DetailPanel({
                     } ${isCurrent ? "bg-[var(--accent-soft)]" : ""}`}
                   >
                     <div
-                      className={`text-sm font-semibold tabular-nums ${
-                        isCurrent ? "text-accent" : "text-zinc-600"
+                      className={`text-sm font-bold tabular-nums ${
+                        isCurrent ? "text-accent" : "text-zinc-800"
                       }`}
                     >
                       {String(t.getHours()).padStart(2, "0")}:00
@@ -640,19 +640,19 @@ function DetailPanel({
                         size={56}
                       />
                     </div>
-                    <div className="text-xl font-semibold tabular-nums text-zinc-900">
+                    <div className="text-xl font-bold tabular-nums text-zinc-900">
                       {h.temperature_2m[idx].toFixed(1)}°
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 text-xs">
                         <WindArrow deg={h.winddirection_10m[idx]} />
-                        <span className="font-semibold tabular-nums text-zinc-800">
+                        <span className="font-bold tabular-nums text-zinc-900">
                           {Math.round(wind)}
-                          <span className="font-normal text-zinc-500">
+                          <span className="font-semibold text-zinc-700">
                             /{Math.round(gust)}
                           </span>
                         </span>
-                        <span className="text-zinc-500">
+                        <span className="text-zinc-700 font-medium">
                           {windDirectionLabel(h.winddirection_10m[idx])}
                         </span>
                       </div>
@@ -698,11 +698,11 @@ function DetailPanel({
                         title={`${precip.toFixed(1)} mm · ${precipProb}%`}
                       />
                     </div>
-                    <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
-                      <div className="font-medium">
+                    <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
+                      <div className="font-bold">
                         {precip > 0 ? precip.toFixed(1) : "–"}
                       </div>
-                      <div className="text-zinc-400">{precipProb}%</div>
+                      <div className="text-zinc-600 font-medium">{precipProb}%</div>
                     </div>
                   </div>
                 );
@@ -745,11 +745,11 @@ function DetailPanel({
                           title={`${minPerHour} min/h Sonne`}
                         />
                       </div>
-                      <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
-                        <div className="font-medium">
+                      <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
+                        <div className="font-bold">
                           {minPerHour > 0 ? `${minPerHour}` : "–"}
                         </div>
-                        <div className="text-zinc-400">min</div>
+                        <div className="text-zinc-600 font-medium">min</div>
                       </div>
                     </div>
                   );
@@ -791,11 +791,11 @@ function DetailPanel({
                           title={`${cm.toFixed(1)} cm Neuschnee`}
                         />
                       </div>
-                      <div className="text-[10px] text-center text-zinc-600 tabular-nums py-1 leading-tight">
-                        <div className="font-medium">
+                      <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
+                        <div className="font-bold">
                           {cm > 0 ? cm.toFixed(1) : "–"}
                         </div>
-                        <div className="text-zinc-400">cm</div>
+                        <div className="text-zinc-600 font-medium">cm</div>
                       </div>
                     </div>
                   );
@@ -805,7 +805,7 @@ function DetailPanel({
           </div>
         </div>
       </div>
-      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-100/50 text-[10px] text-zinc-500 flex flex-wrap gap-x-4 gap-y-1">
+      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-100/50 text-[11px] text-zinc-700 font-semibold flex flex-wrap gap-x-4 gap-y-1">
         <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
         <span>Wind / Böenspitzen in km/h</span>
         {extended && (
@@ -833,12 +833,12 @@ function Footer({
   const updated = new Date();
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
-      <div className="text-xs text-zinc-500">
+      <div className="text-xs text-zinc-700 font-medium">
         MeteoSchweiz ICON-CH1-EPS/ICON-CH2-EPS · Tag 6–7: ECMWF IFS Ensemble · Rest: Open-Meteo best_match · aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
-      <div className="text-xs text-zinc-500">
+      <div className="text-xs text-zinc-700 font-medium">
         Grafik ©{" "}
         <a
           href="https://oberthurgauerwetter.ch"
