@@ -1,42 +1,37 @@
-## Änderungen in `src/lib/weather.ts`
+## Ziel
 
-### Ziel
-Tag 6 und 7 nicht mehr aus `best_match` ergänzen, sondern aus **ECMWF IFS Ensemble-Mittel** (`https://ensemble-api.open-meteo.com/v1/ensemble`, model `ecmwf_ifs025`). `best_match` bleibt als letzter Rückfall für Felder, die das Ensemble nicht liefert (insb. `precipitation_probability`, `sunrise`/`sunset`).
+Tag 1–5 künftig aus den MeteoSchweiz-Ensemblemodellen **ICON-CH1-EPS** (Tag 1–2, ~33 h Reichweite) und **ICON-CH2-EPS** (Tag 1–5, ~120 h Reichweite) als Ensemble-Mittel beziehen, statt aus dem deterministischen `meteoswiss_icon_seamless`. Tag 6–7 bleibt **ECMWF IFS Ensemble-Mittel**, `best_match` bleibt Restfallback.
 
-### Neue Funktionen
+## Datenquellen (Open-Meteo Ensemble-API)
 
-1. **`fetchEnsembleMean(lat, lng)`**
-   - Endpoint `https://ensemble-api.open-meteo.com/v1/ensemble`, `models=ecmwf_ifs025`, `forecast_days=7`, `timezone=auto`, gleiche `hourly`-Variablen (ohne `precipitation_probability`, das ist im Ensemble-Schema nicht vorhanden).
-   - Response liefert pro Variable 50 Series `{var}_member01..member50`. Wir berechnen den Mittelwert pro Zeitindex (Wettercode-Mittel via Median, gerundet).
-   - Rückgabe: `Partial<HourlyData>` mit gemittelten Arrays.
+Alle drei Ensembles über `https://ensemble-api.open-meteo.com/v1/ensemble`:
 
-2. **`aggregateDailyFromHourly(hourly, dayIso)`**
-   - Erzeugt für einen einzelnen Tag die Daily-Aggregate aus dem (gemergten) Hourly-Array: `temperature_2m_max/min`, `precipitation_sum`, `windspeed_10m_max`, `windgusts_10m_max`, `winddirection_10m_dominant` (Mittel-Vektor), `sunshine_duration`-Summe, `snowfall_sum`, `weathercode` (Median des Tages).
+| Quelle | `models=` | Members | Reichweite | Priorität |
+|---|---|---|---|---|
+| ICON-CH1-EPS | `icon_ch1_eps` | 11 | ~33 h | Tag 1–2 (höchste) |
+| ICON-CH2-EPS | `icon_ch2_eps` | 21 | ~120 h | Tag 1–5 |
+| ECMWF IFS | `ecmwf_ifs025` | 51 | bis 15 Tage | Tag 6–7 |
+| `best_match` (Forecast-API) | – | – | – | Restfelder (Probability, Sunrise/Sunset) |
 
-### Geänderte `fetchForecast`
+## Implementierung (`src/lib/weather.ts`)
 
-Parallel:
-- `meteoswiss_icon_seamless` (primary, Tag 1–5/6)
-- `ecmwf_ifs025` Ensemble-Mittel (für Lücken, primär Tag 6/7)
-- `best_match` (Restfeld-Fallback: `precipitation_probability`, `sunrise`, `sunset`, alles was Ensemble nicht hat)
+1. `fetchEnsembleMean` generisch machen: zweites Argument `model: "icon_ch1_eps" | "icon_ch2_eps" | "ecmwf_ifs025"`. `forecast_days` modellabhängig (CH1: 2, CH2: 5, IFS: 7).
+2. `fetchForecast` ruft parallel:
+   - `fetchEnsembleMean(lat, lng, "icon_ch1_eps")`
+   - `fetchEnsembleMean(lat, lng, "icon_ch2_eps")`
+   - `fetchEnsembleMean(lat, lng, "ecmwf_ifs025")`
+   - `fetchModel(lat, lng, "best_match")` (für Probability + Sunrise/Sunset + Notfall).
+3. Primärquelle ist ICON-CH1-EPS (als `ForecastResponse` via `wrapEnsembleAsForecast`), `fillGaps` in fester Reihenfolge: **CH1 → CH2 → IFS → best_match**.
+4. Daily-Werte für jeden Tag neu via `aggregateDailyFromHourly` aus den gemergten Hourly-Arrays berechnen (das alte „nur wenn MeteoSchweiz `temperature_2m_max` fehlt"-Special-Case entfällt, weil es jetzt keine deterministische Daily-Quelle mehr gibt). `precipitation_probability_max` und `sunrise`/`sunset` aus `best_match` übernehmen.
+5. `meteoswiss_icon_seamless` wird nicht mehr abgefragt.
 
-Merge-Reihenfolge pro Hourly-Index:
-1. MeteoSchweiz-Wert, wenn vorhanden
-2. sonst Ensemble-Mittel
-3. sonst `best_match`
+## Footer (`src/components/weather-widget.tsx`)
 
-Daily:
-- Tage 1–5: aus MeteoSchweiz; fehlende Einzelfelder aus `best_match`.
-- Tag 6–7: neu berechnen via `aggregateDailyFromHourly` über die gemergten Hourly-Arrays. `precipitation_probability_max`, `sunrise`, `sunset` aus `best_match` übernehmen.
+Text aktualisieren auf:
+`MeteoSchweiz ICON-CH1-EPS/ICON-CH2-EPS · Tag 6–7: ECMWF IFS Ensemble · Rest: Open-Meteo best_match · aktualisiert HH:MM`
 
-### Anschliessend
-`sanitizeForecast` läuft wie bisher als Sicherheitsnetz.
+## Was unverändert bleibt
 
-### Footer-Text in `src/components/weather-widget.tsx`
-- Quellenzeile aktualisieren auf:
-  `MeteoSchweiz ICON-CH1/CH2 · Tag 6–7: ECMWF IFS Ensemble · Rest: Open-Meteo best_match · aktualisiert HH:MM`
-
-## Nicht enthalten
-- Keine UI-Änderungen an Layout/Strip/Detail.
-- Keine eigenen Wahrscheinlichkeits-Berechnungen aus den 50 Ensemble-Membern (zu komplex; `best_match`-Prob ist gut genug).
-- Kein Caching/Persistenz neu.
+- UI, Theme, `TOTAL_DAYS = 7`
+- Eigenes „Wahrscheinlichkeits"-Rendering nicht aus Ensemble-Spread berechnet (weiter `precipitation_probability_max` aus `best_match`)
+- Kein Caching, kein zusätzlicher Spinner
