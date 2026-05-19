@@ -75,20 +75,14 @@ export function WeatherWidget() {
     staleTime: 15 * 60 * 1000,
   });
 
-  const visibleDayCount = useMemo(() => {
-    // Tage bis und mit kommendem Samstag. Sonntag → rollt auf 7 (Mo–So neue Woche).
-    const dow = now.getDay(); // 0=So..6=Sa
-    return dow === 0 ? 7 : 6 - dow + 1; // Mo=6, Di=5, ..., Sa=1
-  }, [now]);
-
   const days = useMemo(() => {
     if (!forecast.data) return [];
-    return forecast.data.daily.time.slice(0, visibleDayCount).map((iso, i) => ({
+    return forecast.data.daily.time.slice(0, 7).map((iso, i) => ({
       iso,
       date: new Date(iso + "T12:00:00"),
       idx: i,
     }));
-  }, [forecast.data, visibleDayCount]);
+  }, [forecast.data]);
 
   // Continuous hourly list across all days, 3h cadence, starting at current 3h block.
   const allHourly = useMemo(() => {
@@ -220,9 +214,6 @@ function Header({
   return (
     <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-5 border-b border-zinc-200">
       <div className="space-y-3 w-full @[640px]:max-w-[56ch]">
-        <h1 className="text-xl @[640px]:text-2xl @[900px]:text-3xl font-semibold tracking-tight text-zinc-900">
-          Lokalprognose <span className="text-accent">{locationName}</span>
-        </h1>
         <div className="flex items-center gap-2" ref={containerRef}>
           <div className="relative flex-1 max-w-sm">
             <input
@@ -233,7 +224,7 @@ function Header({
                 setOpen(true);
               }}
               onFocus={() => setOpen(true)}
-              placeholder="Gemeinde suchen…"
+              placeholder={`Gemeinde suchen… (aktuell: ${locationName})`}
               className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
             />
             {open && search.data && search.data.length > 0 && (
@@ -279,17 +270,17 @@ function Header({
         <Switch
           checked={extended}
           onCheckedChange={onToggleExtended}
-          aria-label="Erweiterte Anzeige"
+          aria-label="Sonnenschein"
         />
         <span className="text-sm font-medium text-zinc-700 select-none">
-          Erweiterte Anzeige
+          Sonnenschein
         </span>
       </label>
     </header>
   );
 }
 
-/* ---------------- 5-Day Strip ---------------- */
+/* ---------------- 5-Day Strip (7-day forecast, 5 visible, auto-roll) ---------------- */
 
 function DayStrip({
   forecast,
@@ -305,21 +296,68 @@ function DayStrip({
   extended: boolean;
 }) {
   const d = forecast.daily;
-  const cols = days.length || 1;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const pausedUntil = useRef<number>(0);
+
+  // Auto-roll: every 6s, scroll forward one card; wrap to start at end.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || days.length <= 5) return;
+    const id = window.setInterval(() => {
+      if (Date.now() < pausedUntil.current) return;
+      const firstCard = cardRefs.current.get(0);
+      if (!firstCard) return;
+      const cardW = firstCard.getBoundingClientRect().width + 1; // +1 gap
+      const max = scroller.scrollWidth - scroller.clientWidth;
+      const next = scroller.scrollLeft + cardW;
+      if (next > max - 4) {
+        scroller.scrollTo({ left: 0, behavior: "smooth" });
+      } else {
+        scroller.scrollTo({ left: next, behavior: "smooth" });
+      }
+    }, 6000);
+    return () => window.clearInterval(id);
+  }, [days.length]);
+
+  // Pause auto-roll for 15s on user interaction.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const pause = () => {
+      pausedUntil.current = Date.now() + 15_000;
+    };
+    scroller.addEventListener("wheel", pause, { passive: true });
+    scroller.addEventListener("touchstart", pause, { passive: true });
+    scroller.addEventListener("pointerdown", pause, { passive: true });
+    return () => {
+      scroller.removeEventListener("wheel", pause);
+      scroller.removeEventListener("touchstart", pause);
+      scroller.removeEventListener("pointerdown", pause);
+    };
+  }, []);
+
   return (
     <div className="space-y-2">
       <div
-        className="flex @[900px]:grid gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        ref={scrollerRef}
+        className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
       >
         {days.map((day, i) => {
           const selected = i === selectedIdx;
           return (
             <button
               key={day.iso}
+              ref={(el) => {
+                if (el) cardRefs.current.set(i, el);
+                else cardRefs.current.delete(i);
+              }}
               type="button"
-              onClick={() => onSelect(i)}
-              className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0 transition-colors ${
+              onClick={() => {
+                pausedUntil.current = Date.now() + 15_000;
+                onSelect(i);
+              }}
+              className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start shrink-0 basis-[55%] @[420px]:basis-[40%] @[640px]:basis-[28%] @[900px]:basis-[calc(20%-1px)] transition-colors ${
                 selected
                   ? "bg-[var(--accent-soft)]"
                   : "bg-zinc-50 hover:bg-zinc-50/80"
@@ -733,39 +771,33 @@ function DetailPanel({
 /* ---------------- Footer ---------------- */
 
 function Footer({
-  forecast,
-  selectedDayIdx,
-  extended,
+  forecast: _forecast,
+  selectedDayIdx: _selectedDayIdx,
+  extended: _extended,
 }: {
   forecast: import("@/lib/weather").ForecastResponse;
   selectedDayIdx: number;
   extended: boolean;
 }) {
-  const d = forecast.daily;
   const updated = new Date();
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
       <div className="text-xs text-zinc-500">
-        MeteoSchweiz ICON-CH1 / ICON-CH2 · ECMWF IFS · aktualisiert{" "}
+        MeteoSchweiz ICON-CH1 / ICON-CH2 · aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
-      {extended && (
-        <div className="flex gap-5 tabular-nums">
-          <div className="flex items-center gap-1.5">
-            <span className="text-base text-zinc-400">↑</span>
-            <span className="text-sm text-zinc-600 font-medium">
-              {formatTimeHHMM(d.sunrise[selectedDayIdx])}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-base text-zinc-400">↓</span>
-            <span className="text-sm text-zinc-600 font-medium">
-              {formatTimeHHMM(d.sunset[selectedDayIdx])}
-            </span>
-          </div>
-        </div>
-      )}
+      <div className="text-xs text-zinc-500">
+        Grafik &amp; Daten ©{" "}
+        <a
+          href="https://oberthurgauerwetter.ch"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent hover:underline"
+        >
+          oberthurgauerwetter.ch
+        </a>
+      </div>
     </footer>
   );
 }
@@ -793,8 +825,8 @@ function WindArrow({ deg }: { deg: number }) {
 function SkeletonWidget() {
   return (
     <div className="space-y-5">
-      <div className="flex @[900px]:grid @[900px]:grid-cols-7 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-hidden">
-        {Array.from({ length: 7 }).map((_, i) => (
+      <div className="flex @[900px]:grid @[900px]:grid-cols-5 gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-hidden">
+        {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
             className="bg-zinc-50 p-4 h-48 animate-pulse min-w-[55%] @[420px]:min-w-[40%] @[640px]:min-w-[28%] @[900px]:min-w-0"
