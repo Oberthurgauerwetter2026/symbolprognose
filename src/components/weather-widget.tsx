@@ -656,12 +656,6 @@ function DetailPanel({
                           {windDirectionLabel(h.winddirection_10m[idx])}
                         </span>
                       </div>
-                      <div className="text-xs text-zinc-500 flex justify-between">
-                        <span>Schnee</span>
-                        <span className="text-zinc-800 font-medium tabular-nums">
-                          {h.snowfall[idx].toFixed(1)} cm
-                        </span>
-                      </div>
                     </div>
                   </div>
                 );
