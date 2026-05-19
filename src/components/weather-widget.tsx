@@ -479,15 +479,13 @@ function DetailPanel({
   })();
 
   return (
-    <section className="bg-zinc-50 rounded-sm border border-zinc-200 overflow-hidden">
-      <div className="p-3 bg-zinc-100 border-b border-zinc-200 flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold uppercase tracking-widest text-zinc-700">
-          Detailansicht •{" "}
-          {selectedDayIdx === 0 ? "Heute" : weekdayLong(selectedDay.date)}{" "}
-          {formatDateShort(selectedDay.date)}
+    <section className="bg-zinc-50 rounded-md border border-zinc-200 overflow-hidden">
+      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3">
+        <span className="text-base font-semibold text-zinc-800">
+          Detailansicht
         </span>
-        <span className="text-xs text-zinc-500 font-medium uppercase hidden sm:inline">
-          3-Stunden-Takt • °C / mm / km/h
+        <span className="text-xs text-zinc-500 hidden sm:inline">
+          3-Stunden-Takt · °C / mm / km/h
         </span>
       </div>
       <div
@@ -502,6 +500,11 @@ function DetailPanel({
             const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
             const isDayStart =
               !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
+            const precip = h.precipitation[idx] ?? 0;
+            const precipProb = h.precipitation_probability[idx] ?? 0;
+            // 5 mm in 3h = full bar (heavy rain); cap above
+            const precipPct = Math.min(precip / 5, 1) * 100;
+            const barOpacity = precip > 0 ? 0.35 + (precipProb / 100) * 0.65 : 0;
             return (
               <div
                 key={iso}
@@ -509,16 +512,16 @@ function DetailPanel({
                   if (el) slotRefs.current.set(iso, el);
                   else slotRefs.current.delete(iso);
                 }}
-                className={`flex-shrink-0 w-[124px] p-4 space-y-3 snap-start ${
-                  isCurrent ? "bg-accent/5" : ""
+                className={`flex-shrink-0 w-[128px] p-4 space-y-3 snap-start ${
+                  isCurrent ? "bg-[var(--accent-soft)]" : ""
                 } ${
                   isDayStart
-                    ? "border-l-2 border-accent/40"
+                    ? "border-l-2 border-accent/50"
                     : "border-l border-zinc-200"
                 }`}
               >
                 {isDayStart && (
-                  <div className="text-xs font-bold uppercase tracking-wider text-accent">
+                  <div className="text-xs font-semibold text-accent">
                     {weekdayShort(t)} {formatDateShort(t)}
                   </div>
                 )}
@@ -543,13 +546,25 @@ function DetailPanel({
                   {h.temperature_2m[idx].toFixed(1)}°
                 </div>
                 <div className="space-y-2">
-                  <div className="text-xs font-medium tabular-nums flex justify-between">
-                    <span className="text-zinc-700">
-                      {h.precipitation[idx].toFixed(1)} mm
-                    </span>
-                    <span className="text-zinc-500">
-                      {h.precipitation_probability[idx] ?? 0}%
-                    </span>
+                  <div className="flex items-end gap-2">
+                    <div
+                      className="relative w-2 h-10 bg-zinc-200/70 rounded-sm overflow-hidden shrink-0"
+                      title={`${precip.toFixed(1)} mm`}
+                    >
+                      <div
+                        className="absolute bottom-0 left-0 right-0 bg-[var(--wx-rain)] transition-all"
+                        style={{
+                          height: `${precipPct}%`,
+                          opacity: barOpacity,
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 text-xs tabular-nums leading-tight">
+                      <div className="font-semibold text-zinc-800">
+                        {precip.toFixed(1)} mm
+                      </div>
+                      <div className="text-zinc-500">{precipProb}%</div>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
                     <WindArrow deg={h.winddirection_10m[idx]} />
@@ -559,13 +574,13 @@ function DetailPanel({
                         /{Math.round(h.windgusts_10m[idx])}
                       </span>
                     </span>
-                    <span className="text-zinc-500 uppercase">
+                    <span className="text-zinc-500">
                       {windDirectionLabel(h.winddirection_10m[idx])}
                     </span>
                   </div>
-                  <div className="text-xs text-zinc-500 uppercase tracking-wider flex justify-between">
+                  <div className="text-xs text-zinc-500 flex justify-between">
                     <span>Schnee</span>
-                    <span className="text-zinc-800 tabular-nums">
+                    <span className="text-zinc-800 font-medium tabular-nums">
                       {h.snowfall[idx].toFixed(1)} cm
                     </span>
                   </div>
