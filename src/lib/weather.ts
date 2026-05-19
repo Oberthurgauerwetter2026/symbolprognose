@@ -213,22 +213,31 @@ const ENSEMBLE_HOURLY_VARS = [
 
 type EnsembleHourly = Partial<HourlyData> & { time: string[] };
 
+type EnsembleModel = "icon_ch1_eps" | "icon_ch2_eps" | "ecmwf_ifs025";
+
+const ENSEMBLE_DAYS: Record<EnsembleModel, number> = {
+  icon_ch1_eps: 2,
+  icon_ch2_eps: 5,
+  ecmwf_ifs025: 7,
+};
+
 async function fetchEnsembleMean(
   latitude: number,
   longitude: number,
+  model: EnsembleModel,
 ): Promise<EnsembleHourly> {
   const url = new URL("https://ensemble-api.open-meteo.com/v1/ensemble");
   url.searchParams.set("latitude", String(latitude));
   url.searchParams.set("longitude", String(longitude));
-  url.searchParams.set("models", "ecmwf_ifs025");
+  url.searchParams.set("models", model);
   url.searchParams.set("timezone", "auto");
-  url.searchParams.set("forecast_days", String(TOTAL_DAYS));
+  url.searchParams.set("forecast_days", String(ENSEMBLE_DAYS[model]));
   url.searchParams.set("wind_speed_unit", "kmh");
   url.searchParams.set("precipitation_unit", "mm");
   url.searchParams.set("temperature_unit", "celsius");
   url.searchParams.set("hourly", ENSEMBLE_HOURLY_VARS.join(","));
   const res = await fetch(url.toString());
-  if (!res.ok) throw new Error("Ensemble nicht erreichbar");
+  if (!res.ok) throw new Error(`Ensemble ${model} nicht erreichbar`);
   const data = (await res.json()) as { hourly?: Record<string, unknown> };
   const h = data.hourly ?? {};
   const time = (h.time as string[] | undefined) ?? [];
