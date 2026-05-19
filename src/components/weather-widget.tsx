@@ -75,14 +75,20 @@ export function WeatherWidget() {
     staleTime: 15 * 60 * 1000,
   });
 
+  const visibleDayCount = useMemo(() => {
+    // Tage bis und mit kommendem Samstag. Sonntag → rollt auf 7 (Mo–So neue Woche).
+    const dow = now.getDay(); // 0=So..6=Sa
+    return dow === 0 ? 7 : 6 - dow + 1; // Mo=6, Di=5, ..., Sa=1
+  }, [now]);
+
   const days = useMemo(() => {
     if (!forecast.data) return [];
-    return forecast.data.daily.time.slice(0, 7).map((iso, i) => ({
+    return forecast.data.daily.time.slice(0, visibleDayCount).map((iso, i) => ({
       iso,
       date: new Date(iso + "T12:00:00"),
       idx: i,
     }));
-  }, [forecast.data]);
+  }, [forecast.data, visibleDayCount]);
 
   // Continuous hourly list across all days, 3h cadence, starting at current 3h block.
   const allHourly = useMemo(() => {
