@@ -79,7 +79,7 @@
   --destructive-foreground: var(--zinc-50);
   --border: var(--zinc-200);
   --input: var(--zinc-200);
-  --ring: #e62117;
+  --ring: #2561a1;
 
   /* Weather icon palette (SRF Meteo inspired) */
   --wx-sun: #f5b800;
