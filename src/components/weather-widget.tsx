@@ -214,9 +214,6 @@ function Header({
   return (
     <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-5 border-b border-zinc-200">
       <div className="space-y-3 w-full @[640px]:max-w-[56ch]">
-        <h1 className="text-xl @[640px]:text-2xl @[900px]:text-3xl font-semibold tracking-tight text-zinc-900">
-          Lokalprognose <span className="text-accent">{locationName}</span>
-        </h1>
         <div className="flex items-center gap-2" ref={containerRef}>
           <div className="relative flex-1 max-w-sm">
             <input
@@ -227,7 +224,7 @@ function Header({
                 setOpen(true);
               }}
               onFocus={() => setOpen(true)}
-              placeholder="Gemeinde suchen…"
+              placeholder={`Gemeinde suchen… (aktuell: ${locationName})`}
               className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
             />
             {open && search.data && search.data.length > 0 && (
@@ -273,10 +270,10 @@ function Header({
         <Switch
           checked={extended}
           onCheckedChange={onToggleExtended}
-          aria-label="Erweiterte Anzeige"
+          aria-label="Sonnenschein"
         />
         <span className="text-sm font-medium text-zinc-700 select-none">
-          Erweiterte Anzeige
+          Sonnenschein
         </span>
       </label>
     </header>
