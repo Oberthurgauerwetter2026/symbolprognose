@@ -609,22 +609,22 @@ function Footer({
   const updated = new Date();
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
-      <div className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">
-        MeteoSchweiz ICON-CH1-EPS / ICON-CH2-EPS • Aktualisiert{" "}
+      <div className="text-xs text-zinc-500">
+        MeteoSchweiz ICON-CH1 / ICON-CH2 · ECMWF IFS · aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
       {extended && (
         <div className="flex gap-5 tabular-nums">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-base text-zinc-400">↑</span>
-            <span className="text-[11px] text-zinc-500 font-medium uppercase tracking-tight">
+            <span className="text-sm text-zinc-600 font-medium">
               {formatTimeHHMM(d.sunrise[selectedDayIdx])}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="text-base text-zinc-400">↓</span>
-            <span className="text-[11px] text-zinc-500 font-medium uppercase tracking-tight">
+            <span className="text-sm text-zinc-600 font-medium">
               {formatTimeHHMM(d.sunset[selectedDayIdx])}
             </span>
           </div>
