@@ -37,8 +37,10 @@ function EmbedInfo() {
         </h1>
         <p className="text-sm text-zinc-600 leading-relaxed">
           Füge im WordPress-Editor einen <strong>Custom-HTML-Block</strong> ein
-          und kopiere folgendes Snippet hinein. Das Widget ist responsiv und
-          passt sich an die Breite deines Beitrags an.
+          und kopiere das komplette Snippet (inkl. <code>&lt;script&gt;</code>-Block)
+          hinein. Die Breite passt sich automatisch dem Beitrags-Container an,
+          die Höhe wird per <code>postMessage</code> dynamisch an den Inhalt
+          angepasst — auch auf Smartphones.
         </p>
 
         <div className="relative">
