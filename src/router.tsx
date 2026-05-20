@@ -43,7 +43,14 @@ function DefaultErrorComponent({
 }
 
 export const getRouter = () => {
-  const queryClient = new QueryClient();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        // gcTime must be >= persister maxAge so hydrated cache survives
+        gcTime: 1000 * 60 * 60 * 24, // 24h
+      },
+    },
+  });
 
   const router = createRouter({
     routeTree,

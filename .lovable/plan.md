@@ -1,63 +1,46 @@
-## Ziel
+## Warum es beim Neuladen lange dauert
 
-In den ersten 12 Stunden ab dem aktuellen Zeitpunkt das Detail-Panel im **1-Stunden-Takt** zeigen, danach wie bisher im 3-Stunden-Takt. Optisch sauberer Übergang.
+Beim Reload startet `fetchForecast` vier parallele Calls und wartet via `Promise.all` auf **alle**:
 
----
+1. ICON-CH1 Ensemble (10 Member, 48 h)
+2. ICON-CH2 Ensemble (20 Member, 120 h)
+3. **ECMWF IFS Ensemble (50 Member × 8 Variablen × 168 h)** ← der dicke Brocken, oft 1–3 s
+4. best_match (klein)
 
-## Änderungen
+Erst wenn der langsamste fertig ist, rendert das Widget. React-Query cached zwar 15 min, aber nur im RAM — nach Reload ist alles weg.
 
-Alle in `src/components/weather-widget.tsx`, keine Datenebene betroffen (ICON-CH1 liefert bereits stündliche Daten).
+## Plan (2 Eingriffe, beide rein Frontend)
 
-### 1. `allHourly` — Auswahl-Logik anpassen
+### 1. Persistenter Cache → Reload zeigt sofort die letzten Daten
 
-Aktuell (ca. Zeile 107–125): jeder Index nur, wenn `hours % 3 === 0` und `t >= curBlockMs`.
+`@tanstack/react-query-persist-client` + `createSyncStoragePersister` (localStorage) im `QueryClientProvider` in `src/routes/__root.tsx` (bzw. wo der `QueryClient` lebt).
 
-Neu:
-- `curHourMs` = aktuelle volle Stunde (statt 3-h-Block).
-- `cutoffMs` = `curHourMs + 12 * 3600_000` (Ende des stündlichen Fensters).
-- Für jeden Stunden-Index `i`:
-  - wenn `t < curHourMs` → skip
-  - wenn `t < cutoffMs` → immer aufnehmen (stündlich)
-  - sonst → nur wenn `t.getHours() % 3 === 0` (3-h-Takt)
+- `maxAge`: 1 h (alte Daten sind besser als leerer Screen)
+- `staleTime` bleibt 15 min → nach Reload wird im Hintergrund revalidiert, der Nutzer sieht aber **sofort** die letzte Prognose statt Skeleton
+- Key bleibt `["forecast", lat, lon]`, Persistierung passiert automatisch
 
-Das ergibt eine kontinuierliche Liste: 12× 1 h + danach 3-h-Slots bis Ende.
+Wirkung: gefühlt instantanes Reload für wiederkehrende Standorte.
 
-### 2. Aktueller-Block-Highlight
+### 2. Gestaffelter Fetch in `src/lib/weather.ts`
 
-In `DetailPanel` (Zeile 510–515) wird `currentBlockMs` aktuell auf 3-h gerundet. Anpassen:
-- Im 1-h-Fenster: aktuelle volle Stunde markieren.
-- Im 3-h-Bereich: aktuellen 3-h-Block markieren (alte Logik).
+Statt `Promise.all` auf alle 4 zu warten:
 
-Praktisch: pro Slot prüfen, ob `slotMs === currentHourMs` ODER (Slot im 3-h-Bereich UND `slotMs === current3hBlockMs`).
+- `ch1` + `best_match` parallel **awaiten** → daraus sofort einen ersten `ForecastResponse` bauen und zurückgeben (deckt Tag 1–2 vollständig + Daily/Sunrise ab).
+- `ch2` und `ifs` werden zwar gestartet, aber nicht awaited für den ersten Render.
 
-Einfacher: bei jedem Slot `isCurrent = slotMs <= now < slotMs + slotDurationMs`, wobei `slotDurationMs = 3600_000` für 1-h-Slots, `3 * 3600_000` für 3-h-Slots. Dafür müssen wir wissen, ob ein Slot im 1-h- oder 3-h-Bereich liegt — entweder via Index-Position (`< 12`) oder via separater Flag-Liste.
+Da `fetchForecast` aktuell **eine** Promise zurückgibt, gibt es zwei saubere Varianten — bitte eine wählen:
 
-### 3. Visueller Trenner zwischen 1-h- und 3-h-Bereich
+**Variante A (minimal-invasiv, empfohlen):** Beim allerersten Aufruf nur `ch1 + best_match` awaiten und zurückgeben. Ein zweiter `useQuery`-Key (`["forecast-extended", lat, lon]`) lädt im Hintergrund `ch2 + ifs` nach und überschreibt anschließend per `queryClient.setQueryData` den Hauptkey mit der gemergten Vollversion. Das Widget zeigt Tag 1–2 sofort, Tag 3–7 erscheinen wenige hundert ms später.
 
-`allHourly` ändern auf `{ idx: number; cadence: "1h" | "3h" }[]` (oder zwei parallele Arrays). Im Slot-Rendering:
-- Erster Slot mit `cadence === "3h"` bekommt links eine zusätzliche Trennlinie (`border-l-2 border-zinc-300`) und ein kleines Label oben: `„ab +12 h · 3-h-Takt"` (absolut positioniert, klein, zinc-500).
-- Slot-Breite im 1-h-Bereich kann minimal schmaler sein als im 3-h-Bereich (z. B. `min-w-[68px]` vs. `min-w-[80px]`), damit die feinere Auflösung kompakt bleibt.
+**Variante B (einfacher Code, weniger Gewinn):** Nur die ECMWF-Variablenliste schlanker machen (nicht alle 8 Felder × 50 Member nötig — Wind/Snowfall/Sunshine reichen für Tag 6–7; weathercode + temperature zusätzlich). Reduziert die ECMWF-Payload um ~50 %, kein Architektur-Umbau.
 
-### 4. Niederschlagsbalken / Aggregation
-
-Niederschlag pro 3-h-Slot ist heute eine Summe über 3 Stunden (vermutlich). Für 1-h-Slots: nur die eine Stunde anzeigen. Skala bleibt gleich, Balken werden im 1-h-Bereich entsprechend niedriger — das ist physikalisch korrekt und gewollt.
-
-Falls eine gemeinsame Max-Skala über alle sichtbaren Slots verwendet wird: das passt automatisch weiter.
-
-### 5. Day-Sync (Scroll-Listener)
-
-Funktioniert unverändert weiter — die Logik basiert auf `iso.slice(0,10)` jedes sichtbaren Slots, unabhängig vom Takt.
-
----
+Beide Varianten sind kombinierbar mit Punkt 1.
 
 ## Was unverändert bleibt
 
-- `src/lib/weather.ts`: keine Änderung. ICON-CH1 liefert bereits stündliche Daten, die in `hourly.time` enthalten sind.
-- DayStrip, Header, Footer, Embed-Logik: unverändert.
-- Datenmenge: minimal mehr DOM (≈ 8 zusätzliche Slots), kein Performance-Problem.
+- Datenquellen, Modell-Priorität (CH1 → CH2 → IFS → best_match), Aggregation, Lückenfüller
+- UI-Komponenten, Embed-Logik, 1 h/3 h-Kadenz im Detail-Panel
 
----
+## Frage an dich
 
-## Offene Mini-Entscheidung
-
-Trenner-Label-Text — Vorschlag: **„ab +12 h · 3-h-Takt"**. Falls du etwas anderes willst (z. B. nur eine Trennlinie ohne Label), sag Bescheid; sonst nehme ich diesen Text.
+Welche Variante für den gestaffelten Fetch — **A** (architektonisch sauberer, max. Speed) oder **B** (kleiner Patch, ~50 % Payload-Reduktion)? Punkt 1 (persistenter Cache) baue ich in jedem Fall ein.

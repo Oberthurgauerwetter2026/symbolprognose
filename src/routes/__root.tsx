@@ -1,4 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import {
   Outlet,
   Link,
@@ -121,9 +123,30 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // localStorage persistence is client-only; fall back to in-memory on SSR.
+  if (typeof window === "undefined") {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <Outlet />
+      </QueryClientProvider>
+    );
+  }
+
+  const persister = createSyncStoragePersister({
+    storage: window.localStorage,
+    key: "wx-rq-cache-v1",
+  });
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: 1000 * 60 * 60, // 1h — show last forecast instantly on reload
+        buster: "v1",
+      }}
+    >
       <Outlet />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
