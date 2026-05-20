@@ -513,12 +513,11 @@ function DetailPanel({
   }, [hourlyIndices, h.time, days, selectedDayIdx, onVisibleDayChange]);
 
   if (!selectedDay) return null;
-  const currentBlockMs = (() => {
-    const d = new Date(now);
-    d.setMinutes(0, 0, 0);
-    d.setHours(Math.floor(d.getHours() / 3) * 3);
-    return d.getTime();
-  })();
+  const nowMs = now.getTime();
+  const slotWidthClass = (cadence: "1h" | "3h") =>
+    cadence === "1h"
+      ? "w-[62px] @[640px]:w-[72px]"
+      : "w-[108px] @[640px]:w-[124px]";
 
   return (
     <section className="bg-zinc-50 rounded-md border border-zinc-200 overflow-hidden">
