@@ -14,11 +14,20 @@ function EmbedInfo() {
     typeof window !== "undefined" ? window.location.origin : "https://…";
 
   const snippet = `<iframe
+  id="wx-widget"
   src="${url}/"
-  style="width:100%;min-height:680px;border:0;display:block"
+  style="width:100%;min-height:760px;border:0;display:block"
   loading="lazy"
   title="5-Tage Wetterprognose"
-></iframe>`;
+></iframe>
+<script>
+  window.addEventListener("message", function (e) {
+    if (e.data && e.data.type === "lovable-weather:height") {
+      var f = document.getElementById("wx-widget");
+      if (f) f.style.height = e.data.height + "px";
+    }
+  });
+</script>`;
 
   return (
     <div className="min-h-screen py-10 px-4">
@@ -28,8 +37,10 @@ function EmbedInfo() {
         </h1>
         <p className="text-sm text-zinc-600 leading-relaxed">
           Füge im WordPress-Editor einen <strong>Custom-HTML-Block</strong> ein
-          und kopiere folgendes Snippet hinein. Das Widget ist responsiv und
-          passt sich an die Breite deines Beitrags an.
+          und kopiere das komplette Snippet (inkl. <code>&lt;script&gt;</code>-Block)
+          hinein. Die Breite passt sich automatisch dem Beitrags-Container an,
+          die Höhe wird per <code>postMessage</code> dynamisch an den Inhalt
+          angepasst — auch auf Smartphones.
         </p>
 
         <div className="relative">

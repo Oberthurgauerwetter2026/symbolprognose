@@ -70,6 +70,25 @@ export function WeatherWidget() {
     }
   }, [location]);
 
+  // Post height to parent (for iframe embed auto-resize)
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.parent === window) return; // not embedded
+    const el = rootRef.current;
+    if (!el) return;
+    const post = () => {
+      window.parent.postMessage(
+        { type: "lovable-weather:height", height: el.scrollHeight },
+        "*",
+      );
+    };
+    post();
+    const ro = new ResizeObserver(post);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const forecast = useQuery({
     queryKey: ["forecast", location.latitude, location.longitude],
     queryFn: () => fetchForecast(location.latitude, location.longitude),
@@ -106,7 +125,7 @@ export function WeatherWidget() {
   }, [forecast.data, now]);
 
   return (
-    <div className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
+    <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
       <div className="max-w-5xl mx-auto space-y-5">
         <Header
           locationName={location.name}
@@ -327,7 +346,7 @@ function DayStrip({
               key={day.iso}
               type="button"
               onClick={() => onSelect(i)}
-              className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start shrink-0 basis-[55%] @[420px]:basis-[40%] @[640px]:basis-[28%] @[900px]:basis-[calc(20%-1px)] transition-colors ${
+              className={`relative text-left p-3 @[640px]:p-4 @[1000px]:p-3 space-y-3 snap-start shrink-0 basis-[70%] @[420px]:basis-[45%] @[640px]:basis-[calc(100%/4-1px)] @[820px]:basis-[calc(100%/5-1px)] @[1000px]:basis-[calc(100%/7-1px)] transition-colors ${
                 selected
                   ? "bg-[var(--accent-soft)]"
                   : "bg-zinc-50 hover:bg-zinc-50/80"
@@ -357,7 +376,7 @@ function DayStrip({
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-bold tabular-nums text-zinc-900">
+                  <span className="text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900">
                     {Math.round(d.temperature_2m_max[i])}°
                   </span>
                   <span className="text-base text-zinc-700 font-semibold tabular-nums">
