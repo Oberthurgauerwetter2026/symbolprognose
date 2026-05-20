@@ -833,6 +833,12 @@ function DetailPanel({
                   const perHour = Array.from({ length: nHrs }, (_, k) =>
                     Math.round((h.sunshine_duration[idx + k] ?? 0) / 60)
                   );
+                  const sun = sunMap.get(iso.slice(0, 10));
+                  const slotEnd = startHour + nHrs;
+                  const inSlot = (v: number | undefined) =>
+                    v !== undefined && v >= startHour && v < slotEnd;
+                  const riseInSlot = inSlot(sun?.rise);
+                  const setInSlot = inSlot(sun?.set);
                   return (
                     <div
                       key={iso}
@@ -864,6 +870,28 @@ function DetailPanel({
                             );
                           })}
                         </div>
+                        {riseInSlot && sun?.rise !== undefined && (
+                          <div
+                            className="absolute top-0 bottom-0 w-px bg-amber-500/80 pointer-events-none"
+                            style={{ left: `${((sun.rise - startHour) / nHrs) * 100}%` }}
+                            title={`Sonnenaufgang ${sun.riseStr}`}
+                          >
+                            <div className="absolute -top-0.5 left-1 text-[9px] font-semibold text-amber-700 whitespace-nowrap leading-none">
+                              ↑{sun.riseStr}
+                            </div>
+                          </div>
+                        )}
+                        {setInSlot && sun?.set !== undefined && (
+                          <div
+                            className="absolute top-0 bottom-0 w-px bg-amber-600/80 pointer-events-none"
+                            style={{ left: `${((sun.set - startHour) / nHrs) * 100}%` }}
+                            title={`Sonnenuntergang ${sun.setStr}`}
+                          >
+                            <div className="absolute -top-0.5 right-1 text-[9px] font-semibold text-amber-700 whitespace-nowrap leading-none">
+                              ↓{sun.setStr}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
                         <div className="font-bold flex justify-around px-1">
