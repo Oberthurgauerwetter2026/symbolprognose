@@ -76,7 +76,7 @@ function EmbedInfo() {
         </div>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight">
+          <h2 className="text-lg font-semibold tracking-tight font-[family-name:var(--font-display)]">
             Standard-Variante (mit Gemeindesuche)
           </h2>
           <p className="text-sm text-zinc-600 leading-relaxed">
@@ -87,7 +87,7 @@ function EmbedInfo() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight">
+          <h2 className="text-lg font-semibold tracking-tight font-[family-name:var(--font-display)]">
             Minimal-Variante (ohne Gemeindesuche)
           </h2>
           <p className="text-sm text-zinc-600 leading-relaxed">
