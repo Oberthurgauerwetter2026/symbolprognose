@@ -483,8 +483,8 @@ function DetailPanel({
       if (!userScrolling.current) return;
       const left = scroller.scrollLeft + 16;
       let visibleIso: string | null = null;
-      for (const idx of hourlyIndices) {
-        const iso = h.time[idx];
+      for (const s of hourlyIndices) {
+        const iso = h.time[s.idx];
         const el = slotRefs.current.get(iso);
         if (!el) continue;
         if (el.offsetLeft - scroller.offsetLeft <= left) {
