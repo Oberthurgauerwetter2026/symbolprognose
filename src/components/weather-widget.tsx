@@ -964,7 +964,7 @@ function DetailPanel({
         <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
         <span>Wind / Böenspitzen in km/h</span>
         {extended && (
-          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] mr-1.5 align-middle" />Sonnenscheindauer in min/h</span>
+          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] mr-1.5 align-middle" />Sonnenscheindauer in min/h · <span className="text-amber-700 font-semibold">↑</span> Sonnenaufgang · <span className="text-amber-700 font-semibold">↓</span> Sonnenuntergang</span>
         )}
         {snow && (
           <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-snow-bar)] border border-sky-300 mr-1.5 align-middle" />Neuschnee in cm</span>
