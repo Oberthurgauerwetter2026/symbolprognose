@@ -836,20 +836,23 @@ function DetailPanel({
             {/* Snowfall bar chart (snow only) */}
             {snow && (
               <div className="flex border-t border-zinc-200 bg-zinc-50/60">
-                {hourlyIndices.map((idx, i) => {
+                {hourlyIndices.map((s, i) => {
+                  const { idx, cadence } = s;
                   const iso = h.time[idx];
-                  const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+                  const prev = i > 0 ? hourlyIndices[i - 1] : null;
+                  const prevIso = prev ? h.time[prev.idx] : null;
                   const isDayStart =
                     !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
-                  const cm =
-                    (h.snowfall[idx] ?? 0) +
-                    (h.snowfall[idx + 1] ?? 0) +
-                    (h.snowfall[idx + 2] ?? 0);
+                  const isCadenceBreak =
+                    !!prev && prev.cadence === "1h" && cadence === "3h";
+                  const nHrs = cadence === "1h" ? 1 : 3;
+                  let cm = 0;
+                  for (let k = 0; k < nHrs; k++) cm += h.snowfall[idx + k] ?? 0;
                   const pct = Math.min(cm / 2, 1) * 100;
                   return (
                     <div
                       key={iso}
-                      className="flex-shrink-0 w-[108px] @[640px]:w-[124px] flex flex-col"
+                      className={`flex-shrink-0 ${slotWidthClass(cadence)} flex flex-col`}
                     >
                       <div className="relative h-[72px] w-full">
                         {[0, 1, 2].map((v) => (
@@ -859,8 +862,8 @@ function DetailPanel({
                             style={{ top: `${(1 - v / 2) * 100}%` }}
                           />
                         ))}
-                        {isDayStart && i > 0 && (
-                          <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
+                        {(isCadenceBreak || (isDayStart && i > 0)) && (
+                          <div className={`absolute top-0 bottom-0 left-0 ${isCadenceBreak ? "w-0.5 bg-zinc-400" : "w-px bg-zinc-300"}`} />
                         )}
                         <div
                           className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2.5 @[640px]:w-3 rounded-t-sm bg-[var(--wx-snow-bar)] border border-sky-300"
