@@ -505,9 +505,6 @@ function DetailPanel({
               ? "Morgen"
               : weekdayLong(selectedDay.date)}
         </span>
-        <span className="text-xs text-zinc-700 font-medium hidden sm:inline">
-          3h · Temperatur °C · Wind / Böenspitzen km/h
-        </span>
       </div>
       <div className="flex items-stretch">
         {/* Y-axes for charts */}
