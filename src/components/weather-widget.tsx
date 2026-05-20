@@ -357,7 +357,7 @@ function DayStrip({
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-bold tabular-nums text-zinc-900">
+                  <span className="text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900">
                     {Math.round(d.temperature_2m_max[i])}°
                   </span>
                   <span className="text-base text-zinc-700 font-semibold tabular-nums">
