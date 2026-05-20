@@ -1,79 +1,63 @@
 ## Ziel
 
-1. Tages-Übersicht zeigt auf dem Desktop alle 7 Tage gleichzeitig (statt 5 mit horizontalem Scroll).
-2. Iframe-Einbettung passt Höhe dynamisch an Inhalt + Viewport an — sowohl auf Desktop als auch auf Smartphones in WordPress.
+In den ersten 12 Stunden ab dem aktuellen Zeitpunkt das Detail-Panel im **1-Stunden-Takt** zeigen, danach wie bisher im 3-Stunden-Takt. Optisch sauberer Übergang.
 
 ---
 
-## 1. DayStrip — alle 7 Tage anzeigen
+## Änderungen
 
-Datei: `src/components/weather-widget.tsx` (DayStrip, ca. Zeile 320–395)
+Alle in `src/components/weather-widget.tsx`, keine Datenebene betroffen (ICON-CH1 liefert bereits stündliche Daten).
 
-Aktuelle `basis`-Klassen zeigen 5 Tage ab 900px. Anpassen auf:
+### 1. `allHourly` — Auswahl-Logik anpassen
 
-- `basis-[70%]` (sehr schmal)
-- `@[420px]:basis-[45%]`
-- `@[640px]:basis-[calc(100%/4-1px)]` (4 Tage)
-- `@[820px]:basis-[calc(100%/5-1px)]` (5 Tage)
-- `@[1000px]:basis-[calc(100%/7-1px)]` (alle 7 Tage gleichzeitig)
+Aktuell (ca. Zeile 107–125): jeder Index nur, wenn `hours % 3 === 0` und `t >= curBlockMs`.
 
-Der Container bleibt scrollbar, damit kleinere Breiten weiterhin funktionieren. `days.slice(0, 7)` bleibt — alle vorhandenen Tage werden gerendert.
+Neu:
+- `curHourMs` = aktuelle volle Stunde (statt 3-h-Block).
+- `cutoffMs` = `curHourMs + 12 * 3600_000` (Ende des stündlichen Fensters).
+- Für jeden Stunden-Index `i`:
+  - wenn `t < curHourMs` → skip
+  - wenn `t < cutoffMs` → immer aufnehmen (stündlich)
+  - sonst → nur wenn `t.getHours() % 3 === 0` (3-h-Takt)
 
-Schriftgrössen in den Tageskacheln leicht skalierbar machen, damit 7 Spalten ab 1000px sauber passen:
-- Temperatur `text-2xl` → `text-xl @[1100px]:text-2xl`
-- Innen-Padding `p-3 @[640px]:p-4` → `p-3 @[640px]:p-4 @[1000px]:p-3` (kompakter wenn 7 nebeneinander)
+Das ergibt eine kontinuierliche Liste: 12× 1 h + danach 3-h-Slots bis Ende.
 
----
+### 2. Aktueller-Block-Highlight
 
-## 2. Responsives Embed-Snippet
+In `DetailPanel` (Zeile 510–515) wird `currentBlockMs` aktuell auf 3-h gerundet. Anpassen:
+- Im 1-h-Fenster: aktuelle volle Stunde markieren.
+- Im 3-h-Bereich: aktuellen 3-h-Block markieren (alte Logik).
 
-### a) Widget sendet seine Höhe an Parent
+Praktisch: pro Slot prüfen, ob `slotMs === currentHourMs` ODER (Slot im 3-h-Bereich UND `slotMs === current3hBlockMs`).
 
-In `WeatherWidget` (oder einem kleinen Effect daneben) `ResizeObserver` auf das Root-Div setzen und bei Änderung
-```ts
-window.parent.postMessage(
-  { type: "lovable-weather:height", height: el.scrollHeight },
-  "*"
-);
-```
-posten. Funktioniert nur, wenn die Seite eingebettet ist — schadet aber nicht im Stand-alone-Modus.
+Einfacher: bei jedem Slot `isCurrent = slotMs <= now < slotMs + slotDurationMs`, wobei `slotDurationMs = 3600_000` für 1-h-Slots, `3 * 3600_000` für 3-h-Slots. Dafür müssen wir wissen, ob ein Slot im 1-h- oder 3-h-Bereich liegt — entweder via Index-Position (`< 12`) oder via separater Flag-Liste.
 
-### b) Neues Snippet in `src/routes/embed-info.tsx`
+### 3. Visueller Trenner zwischen 1-h- und 3-h-Bereich
 
-Iframe ohne festes `min-height`, dafür `width:100%`, plus kleines Inline-Script, das die Höhe via `postMessage` empfängt:
+`allHourly` ändern auf `{ idx: number; cadence: "1h" | "3h" }[]` (oder zwei parallele Arrays). Im Slot-Rendering:
+- Erster Slot mit `cadence === "3h"` bekommt links eine zusätzliche Trennlinie (`border-l-2 border-zinc-300`) und ein kleines Label oben: `„ab +12 h · 3-h-Takt"` (absolut positioniert, klein, zinc-500).
+- Slot-Breite im 1-h-Bereich kann minimal schmaler sein als im 3-h-Bereich (z. B. `min-w-[68px]` vs. `min-w-[80px]`), damit die feinere Auflösung kompakt bleibt.
 
-```html
-<iframe
-  id="wx-widget"
-  src="https://…/"
-  style="width:100%;border:0;display:block"
-  loading="lazy"
-  title="Wetterprognose"
-></iframe>
-<script>
-  window.addEventListener("message", function (e) {
-    if (e.data && e.data.type === "lovable-weather:height") {
-      var f = document.getElementById("wx-widget");
-      if (f) f.style.height = e.data.height + "px";
-    }
-  });
-</script>
-```
+### 4. Niederschlagsbalken / Aggregation
 
-Ergebnis:
-- Desktop in WordPress: Breite folgt dem Beitrags-Container, Höhe folgt dem tatsächlichen Inhalt (z. B. weniger hoch, wenn nur 7 Tage in einer Zeile passen).
-- Smartphone: Widget bricht intern via `@container`-Queries auf ≤640px-Layout um; Iframe-Höhe wächst entsprechend mit, kein Scrollbar im Iframe.
+Niederschlag pro 3-h-Slot ist heute eine Summe über 3 Stunden (vermutlich). Für 1-h-Slots: nur die eine Stunde anzeigen. Skala bleibt gleich, Balken werden im 1-h-Bereich entsprechend niedriger — das ist physikalisch korrekt und gewollt.
 
-Fallback: Falls JS im WP-Beitrag blockiert ist, `min-height:760px` als CSS-Default im Iframe-Style behalten.
+Falls eine gemeinsame Max-Skala über alle sichtbaren Slots verwendet wird: das passt automatisch weiter.
 
-### c) Hinweis im Embed-Info-Text
+### 5. Day-Sync (Scroll-Listener)
 
-Kurzen Satz ergänzen, dass das Snippet inklusive `<script>`-Block kopiert werden muss (Custom-HTML-Block in WordPress erlaubt das).
+Funktioniert unverändert weiter — die Logik basiert auf `iso.slice(0,10)` jedes sichtbaren Slots, unabhängig vom Takt.
 
 ---
 
-## Technische Details
+## Was unverändert bleibt
 
-- `ResizeObserver` ist im Cleanup-Effect zu disconnecten.
-- `postMessage`-Target `"*"` ist akzeptabel, da nur eine Höhe (kein sensibles Payload) gesendet wird.
-- Keine Änderungen an `weather.ts` oder am Datenmodell nötig — alle 7 Tage werden bereits geladen.
+- `src/lib/weather.ts`: keine Änderung. ICON-CH1 liefert bereits stündliche Daten, die in `hourly.time` enthalten sind.
+- DayStrip, Header, Footer, Embed-Logik: unverändert.
+- Datenmenge: minimal mehr DOM (≈ 8 zusätzliche Slots), kein Performance-Problem.
+
+---
+
+## Offene Mini-Entscheidung
+
+Trenner-Label-Text — Vorschlag: **„ab +12 h · 3-h-Takt"**. Falls du etwas anderes willst (z. B. nur eine Trennlinie ohne Label), sag Bescheid; sonst nehme ich diesen Text.
