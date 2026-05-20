@@ -154,13 +154,20 @@ function fillGaps(
     return out;
   };
 
+  const mergeTime = (p: string[] | undefined, f: string[] | undefined): string[] => {
+    const pa = p ?? [];
+    const fa = f ?? [];
+    if (fa.length <= pa.length) return pa;
+    return [...pa, ...fa.slice(pa.length)];
+  };
+
   const h = primary.hourly;
   const fh = fallback.hourly;
   const d = primary.daily;
   const fd = fallback.daily;
 
   const mergedHourly: HourlyData = {
-    time: h.time?.length ? h.time : (fh?.time ?? []),
+    time: mergeTime(h?.time, fh?.time),
     weathercode: mergeArr(h?.weathercode, fh?.weathercode),
     temperature_2m: mergeArr(h?.temperature_2m, fh?.temperature_2m),
     precipitation: mergeArr(h?.precipitation, fh?.precipitation),
@@ -176,7 +183,7 @@ function fillGaps(
   };
 
   const mergedDaily: DailyData = {
-    time: d.time?.length ? d.time : (fd?.time ?? []),
+    time: mergeTime(d?.time, fd?.time),
     weathercode: mergeArr(d?.weathercode, fd?.weathercode),
     temperature_2m_max: mergeArr(d?.temperature_2m_max, fd?.temperature_2m_max),
     temperature_2m_min: mergeArr(d?.temperature_2m_min, fd?.temperature_2m_min),

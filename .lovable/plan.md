@@ -1,41 +1,31 @@
-## Ziel
+## Problem
 
-Prognose-Zusammensetzung in `src/lib/weather.ts`:
+Nach der Umstellung auf die Modellkette CH1 (0–24h) → CH2 → IFS zeigt das Detail nur noch ~24 Stunden statt der vollen ~168 h. Vorher war CH2 die Primärquelle mit 120 h time-Array.
 
-- **Stunden 0–23 (heute, ab Lokalzeit-Startpunkt der CH1-Reihe)**: ICON-CH1-EPS
-- **Stunde 24 bis Ende CH2-Reichweite (≈ Tag 5)**: ICON-CH2-EPS
-- **Danach bis Tag 7**: ECMWF IFS 0.25° Ensemble
-- best_match weiterhin nur als Restfallback für Felder, die Ensembles nicht liefern (Probability, Sunrise/Sunset).
+## Ursache
 
-## Zusätzliches Problem
+In `fillGaps` (src/lib/weather.ts, Zeile 162-163 und 178-179) wird `time` so gemerged:
 
-Die aktuell verwendeten Modell-IDs `icon_ch1_eps` / `icon_ch2_eps` werden von der Open-Meteo Ensemble-API **abgewiesen** (HTTP 400 – siehe Netzwerk-Log). Korrekt laut Doku/API-Test sind:
+```ts
+time: h.time?.length ? h.time : (fh?.time ?? []),
+```
 
-- `meteoswiss_icon_ch1`
-- `meteoswiss_icon_ch2`
+Heißt: sobald die Primärquelle ein nicht-leeres `time` hat, wird das Fallback-`time` ignoriert. CH1 (primary, 24 Einträge) verhindert also, dass CH2/IFS ihre längeren Zeitachsen beisteuern. Die Daten-Arrays (`temperature_2m`, …) werden via `mergeArr` zwar auf die volle Länge erweitert, aber `time` bleibt 24 lang → die UI iteriert nur über 24 Stunden.
 
-Ohne diese Korrektur liefert CH1/CH2 dauerhaft `null` und es greift nur IFS/best_match — die gewünschte Schichtung ist gar nicht aktiv.
+Gleiches Problem bei `daily.time`.
 
-## Änderungen (nur `src/lib/weather.ts`)
+## Fix
 
-1. **Modellnamen korrigieren** in `EnsembleModel`, `ENSEMBLE_DAYS` und beiden `fetchEnsembleMean`-Aufrufen:
-   - `icon_ch1_eps` → `meteoswiss_icon_ch1`
-   - `icon_ch2_eps` → `meteoswiss_icon_ch2`
-   - `ecmwf_ifs025` bleibt
+In `fillGaps`:
 
-2. **CH1 auf 0–24 h begrenzen**: Neue Helferfunktion `sliceEnsembleHourly(ens, maxHours)` schneidet `time` und alle Variablen-Arrays auf die ersten N Stunden. Vor dem `wrapEnsembleAsForecast(ch1Raw)` mit `maxHours = 24` anwenden.
+1. `mergedHourly.time` aus der **längeren** Zeitachse bauen: nimm primary's `time`, hänge alle Fallback-Zeitpunkte ab Index `primary.length` an. Da Open-Meteo Hourly-Daten stündlich ab Stunde 0 des heutigen Tages aligned sind, reicht ein einfaches `[...pa, ...fa.slice(pa.length)]`.
 
-3. **Merge-Reihenfolge präzisieren** (in `fetchForecast`):
-   - `primary = CH1[0..24h]` (sonst CH2 → IFS → best_match wie bisher)
-   - `fillGaps` mit CH2 (füllt ab Stunde 24)
-   - `fillGaps` mit IFS (füllt ab Ende CH2)
-   - `fillGaps` mit best_match (Probability/Sunrise/Sunset/Reste)
-   - Den fehlerhaften Vergleich `primary !== (ch2Raw && wrapEnsembleAsForecast(ch2Raw))` (erzeugt jedes Mal ein neues Objekt → Vergleich nie true) durch ein Flag `primarySource` ersetzen, damit CH2 nicht doppelt eingemischt wird, wenn CH1 fehlte und CH2 schon primary ist.
+2. Gleiche Logik für `mergedDaily.time`.
 
-4. Kommentar/Erklärung im Code anpassen (Tag 1 = 0–24h aus CH1, dann CH2, dann IFS).
+3. `mergeArr` bleibt unverändert (funktioniert bereits korrekt, da `len = max`).
 
-## Tech-Details
+Keine weiteren Änderungen nötig — die nachfolgende Daily-Aggregation in `fetchForecast` verarbeitet dann die volle Hourly-Reihe.
 
-- `sliceEnsembleHourly` iteriert über die Keys von `ens` und ruft `.slice(0, maxHours)` auf jedem Array auf; `time` ebenso.
-- Daily-Re-Aggregation am Ende von `fetchForecast` bleibt unverändert — sie arbeitet auf dem gemergten Stunden-Array und ergibt automatisch korrekte Tageswerte aus der neuen Schichtung.
-- Keine UI-Änderungen.
+## Geänderte Datei
+
+- `src/lib/weather.ts` (nur `fillGaps`, ~4 Zeilen)
