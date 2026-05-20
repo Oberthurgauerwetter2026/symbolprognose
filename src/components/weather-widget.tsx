@@ -327,7 +327,7 @@ function DayStrip({
               key={day.iso}
               type="button"
               onClick={() => onSelect(i)}
-              className={`relative text-left p-3 @[640px]:p-4 space-y-3 snap-start shrink-0 basis-[55%] @[420px]:basis-[40%] @[640px]:basis-[28%] @[900px]:basis-[calc(20%-1px)] transition-colors ${
+              className={`relative text-left p-3 @[640px]:p-4 @[1000px]:p-3 space-y-3 snap-start shrink-0 basis-[70%] @[420px]:basis-[45%] @[640px]:basis-[calc(100%/4-1px)] @[820px]:basis-[calc(100%/5-1px)] @[1000px]:basis-[calc(100%/7-1px)] transition-colors ${
                 selected
                   ? "bg-[var(--accent-soft)]"
                   : "bg-zinc-50 hover:bg-zinc-50/80"
