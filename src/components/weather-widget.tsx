@@ -459,6 +459,27 @@ function DetailPanel({
   snow: boolean;
 }) {
   const h = forecast.hourly;
+  const dDaily = forecast.daily;
+  const sunMap = useMemo(() => {
+    const m = new Map<string, { rise?: number; set?: number; riseStr?: string; setStr?: string }>();
+    const toDec = (iso: string): number | undefined => {
+      if (!iso) return undefined;
+      const dt = new Date(iso);
+      if (Number.isNaN(dt.getTime())) return undefined;
+      return dt.getHours() + dt.getMinutes() / 60;
+    };
+    dDaily.time.forEach((day, i) => {
+      const rise = toDec(dDaily.sunrise[i]);
+      const set = toDec(dDaily.sunset[i]);
+      m.set(day, {
+        rise,
+        set,
+        riseStr: formatTimeHHMM(dDaily.sunrise[i]),
+        setStr: formatTimeHHMM(dDaily.sunset[i]),
+      });
+    });
+    return m;
+  }, [dDaily]);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const slotRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const userScrolling = useRef(false);
