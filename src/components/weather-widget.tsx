@@ -453,7 +453,7 @@ function DetailPanel({
   useEffect(() => {
     if (!selectedDay) return;
     const firstIso = hourlyIndices
-      .map((idx) => h.time[idx])
+      .map((s) => h.time[s.idx])
       .find((iso) => iso.slice(0, 10) === selectedDay.iso);
     if (!firstIso) return;
     const el = slotRefs.current.get(firstIso);
