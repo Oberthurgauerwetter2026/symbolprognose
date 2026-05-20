@@ -434,7 +434,7 @@ function DetailPanel({
   snow,
 }: {
   forecast: import("@/lib/weather").ForecastResponse;
-  hourlyIndices: number[];
+  hourlyIndices: { idx: number; cadence: "1h" | "3h" }[];
   days: { iso: string; date: Date; idx: number }[];
   selectedDayIdx: number;
   onVisibleDayChange: (i: number) => void;
