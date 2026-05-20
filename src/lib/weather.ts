@@ -213,13 +213,25 @@ const ENSEMBLE_HOURLY_VARS = [
 
 type EnsembleHourly = Partial<HourlyData> & { time: string[] };
 
-type EnsembleModel = "icon_ch1_eps" | "icon_ch2_eps" | "ecmwf_ifs025";
+type EnsembleModel = "meteoswiss_icon_ch1" | "meteoswiss_icon_ch2" | "ecmwf_ifs025";
 
 const ENSEMBLE_DAYS: Record<EnsembleModel, number> = {
-  icon_ch1_eps: 2,
-  icon_ch2_eps: 5,
+  meteoswiss_icon_ch1: 2,
+  meteoswiss_icon_ch2: 5,
   ecmwf_ifs025: 7,
 };
+
+function sliceEnsembleHourly(ens: EnsembleHourly, maxHours: number): EnsembleHourly {
+  const out: EnsembleHourly = { time: ens.time.slice(0, maxHours) };
+  for (const key of Object.keys(ens)) {
+    if (key === "time") continue;
+    const arr = (ens as Record<string, unknown>)[key];
+    if (Array.isArray(arr)) {
+      (out as Record<string, unknown>)[key] = (arr as number[]).slice(0, maxHours);
+    }
+  }
+  return out;
+}
 
 async function fetchEnsembleMean(
   latitude: number,
