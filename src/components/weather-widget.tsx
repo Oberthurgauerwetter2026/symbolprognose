@@ -141,6 +141,8 @@ export function WeatherWidget() {
       <div className="max-w-5xl mx-auto space-y-5">
         <Header
           locationName={location.name}
+          isDefaultLocation={location.name === DEFAULT_LOCATION.name}
+          hideSearch={embedMinimal}
           onSelectLocation={(loc) => {
             setLocation({
               name: loc.name,
