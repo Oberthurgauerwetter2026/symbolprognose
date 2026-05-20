@@ -57,6 +57,12 @@ export function WeatherWidget() {
     }
     return DEFAULT_LOCATION;
   });
+  const [embedMinimal, setEmbedMinimal] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("embed") === "minimal") setEmbedMinimal(true);
+  }, []);
   const [extended, setExtended] = useState(false);
   const [snow, setSnow] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
