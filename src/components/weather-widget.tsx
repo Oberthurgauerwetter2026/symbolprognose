@@ -57,6 +57,12 @@ export function WeatherWidget() {
     }
     return DEFAULT_LOCATION;
   });
+  const [embedMinimal, setEmbedMinimal] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("embed") === "minimal") setEmbedMinimal(true);
+  }, []);
   const [extended, setExtended] = useState(false);
   const [snow, setSnow] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
@@ -135,6 +141,8 @@ export function WeatherWidget() {
       <div className="max-w-5xl mx-auto space-y-5">
         <Header
           locationName={location.name}
+          isDefaultLocation={location.name === DEFAULT_LOCATION.name}
+          hideSearch={embedMinimal}
           onSelectLocation={(loc) => {
             setLocation({
               name: loc.name,
@@ -209,6 +217,8 @@ export function WeatherWidget() {
 
 function Header({
   locationName,
+  isDefaultLocation,
+  hideSearch,
   onSelectLocation,
   onGeolocate,
   extended,
@@ -217,6 +227,8 @@ function Header({
   onToggleSnow,
 }: {
   locationName: string;
+  isDefaultLocation: boolean;
+  hideSearch: boolean;
   onSelectLocation: (loc: GeoLocation) => void;
   onGeolocate: () => void;
   extended: boolean;
@@ -232,7 +244,7 @@ function Header({
   const search = useQuery({
     queryKey: ["geo", debounced],
     queryFn: () => searchLocations(debounced),
-    enabled: debounced.trim().length >= 2,
+    enabled: !hideSearch && debounced.trim().length >= 2,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -246,45 +258,47 @@ function Header({
 
   return (
     <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-5 border-b border-zinc-200">
-      <div className="space-y-3 w-full @[640px]:max-w-[56ch]">
+      <div className="space-y-2 w-full @[640px]:max-w-[56ch]">
         <div className="flex items-center gap-2" ref={containerRef}>
-          <div className="relative flex-1 max-w-sm">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setOpen(true);
-              }}
-              onFocus={() => setOpen(true)}
-              placeholder={`Gemeinde suchen… (aktuell: ${locationName})`}
-              className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
-            />
-            {open && search.data && search.data.length > 0 && (
-              <ul className="absolute z-10 left-0 right-0 top-11 bg-zinc-50 border border-zinc-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
-                {search.data.map((r) => (
-                  <li key={r.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSelectLocation(r);
-                        setQuery("");
-                        setOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-100 flex items-baseline justify-between gap-3"
-                    >
-                      <span className="font-bold text-zinc-900">
-                        {r.name}
-                      </span>
-                      <span className="text-xs text-zinc-700 font-semibold">
-                        {r.admin1 ?? "CH"}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {!hideSearch && (
+            <div className="relative flex-1 max-w-sm">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setOpen(true);
+                }}
+                onFocus={() => setOpen(true)}
+                placeholder="Gemeinde suchen…"
+                className="w-full h-10 bg-zinc-50 border border-zinc-200 rounded-md px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50"
+              />
+              {open && search.data && search.data.length > 0 && (
+                <ul className="absolute z-10 left-0 right-0 top-11 bg-zinc-50 border border-zinc-200 rounded-md shadow-lg max-h-72 overflow-y-auto">
+                  {search.data.map((r) => (
+                    <li key={r.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectLocation(r);
+                          setQuery("");
+                          setOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-100 flex items-baseline justify-between gap-3"
+                      >
+                        <span className="font-bold text-zinc-900">
+                          {r.name}
+                        </span>
+                        <span className="text-xs text-zinc-700 font-semibold">
+                          {r.admin1 ?? "CH"}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <button
             type="button"
             onClick={onGeolocate}
@@ -297,6 +311,14 @@ function Header({
             <span className="hidden sm:inline">Ortung</span>
           </button>
         </div>
+        {(!isDefaultLocation || hideSearch) && (
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
+            <span className="text-accent" aria-hidden>
+              ⌖
+            </span>
+            <span>{locationName}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
@@ -521,7 +543,7 @@ function DetailPanel({
 
   return (
     <section className="bg-zinc-50 rounded-md border border-zinc-200 overflow-hidden">
-      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3">
+      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3 flex-wrap">
         <span className="text-base font-bold text-zinc-900">
           {selectedDayIdx === 0
             ? "Heute"
@@ -529,6 +551,16 @@ function DetailPanel({
               ? "Morgen"
               : weekdayLong(selectedDay.date)}
         </span>
+        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-px h-3 bg-zinc-300" aria-hidden />
+            1-h-Takt
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-[2px] h-3 bg-zinc-400" aria-hidden />
+            3-h-Takt (ab +12 h)
+          </span>
+        </div>
       </div>
       <div className="flex items-stretch">
         {/* Y-axes for charts */}
