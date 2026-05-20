@@ -104,25 +104,31 @@ export function WeatherWidget() {
     }));
   }, [forecast.data]);
 
-  // Continuous hourly list across all days, 3h cadence, starting at current 3h block.
-  const allHourly = useMemo(() => {
+  // Continuous slot list: 1h cadence for next 12h, then 3h cadence onward.
+  const allHourly = useMemo<{ idx: number; cadence: "1h" | "3h" }[]>(() => {
     if (!forecast.data) return [];
     const h = forecast.data.hourly;
-    const curBlockMs = (() => {
+    const curHourMs = (() => {
       const d = new Date(now);
       d.setMinutes(0, 0, 0);
-      d.setHours(Math.floor(d.getHours() / 3) * 3);
       return d.getTime();
     })();
-    const out: number[] = [];
+    const cutoffMs = curHourMs + 12 * 3600_000;
+    const out: { idx: number; cadence: "1h" | "3h" }[] = [];
     for (let i = 0; i < h.time.length; i++) {
-      const t = new Date(h.time[i]);
-      if (t.getHours() % 3 !== 0) continue;
-      if (t.getTime() < curBlockMs) continue;
-      out.push(i);
+      const tMs = new Date(h.time[i]).getTime();
+      if (tMs < curHourMs) continue;
+      if (tMs < cutoffMs) {
+        out.push({ idx: i, cadence: "1h" });
+      } else {
+        const hr = new Date(h.time[i]).getHours();
+        if (hr % 3 !== 0) continue;
+        out.push({ idx: i, cadence: "3h" });
+      }
     }
     return out;
   }, [forecast.data, now]);
+
 
   return (
     <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
