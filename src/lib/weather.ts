@@ -213,13 +213,25 @@ const ENSEMBLE_HOURLY_VARS = [
 
 type EnsembleHourly = Partial<HourlyData> & { time: string[] };
 
-type EnsembleModel = "icon_ch1_eps" | "icon_ch2_eps" | "ecmwf_ifs025";
+type EnsembleModel = "meteoswiss_icon_ch1" | "meteoswiss_icon_ch2" | "ecmwf_ifs025";
 
 const ENSEMBLE_DAYS: Record<EnsembleModel, number> = {
-  icon_ch1_eps: 2,
-  icon_ch2_eps: 5,
+  meteoswiss_icon_ch1: 2,
+  meteoswiss_icon_ch2: 5,
   ecmwf_ifs025: 7,
 };
+
+function sliceEnsembleHourly(ens: EnsembleHourly, maxHours: number): EnsembleHourly {
+  const out: EnsembleHourly = { time: ens.time.slice(0, maxHours) };
+  for (const key of Object.keys(ens)) {
+    if (key === "time") continue;
+    const arr = (ens as Record<string, unknown>)[key];
+    if (Array.isArray(arr)) {
+      (out as Record<string, unknown>)[key] = (arr as number[]).slice(0, maxHours);
+    }
+  }
+  return out;
+}
 
 async function fetchEnsembleMean(
   latitude: number,
@@ -350,29 +362,32 @@ export async function fetchForecast(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
-  // MeteoSchweiz ICON-CH1-EPS (Tag 1-2) + ICON-CH2-EPS (Tag 1-5) Ensemble-Mittel,
-  // ECMWF IFS Ensemble-Mittel für Tag 6-7, best_match als Restfallback (Probability, Sunrise/Sunset).
-  const [ch1Raw, ch2Raw, ifsRaw, bestMatch] = await Promise.all([
-    fetchEnsembleMean(latitude, longitude, "icon_ch1_eps").catch(() => null),
-    fetchEnsembleMean(latitude, longitude, "icon_ch2_eps").catch(() => null),
+  // ICON-CH1-EPS für Stunden 0–24, danach ICON-CH2-EPS (bis Tag 5),
+  // danach ECMWF IFS Ensemble (bis Tag 7). best_match nur als Restfallback
+  // für Felder, die Ensembles nicht liefern (Probability, Sunrise/Sunset).
+  const [ch1RawFull, ch2Raw, ifsRaw, bestMatch] = await Promise.all([
+    fetchEnsembleMean(latitude, longitude, "meteoswiss_icon_ch1").catch(() => null),
+    fetchEnsembleMean(latitude, longitude, "meteoswiss_icon_ch2").catch(() => null),
     fetchEnsembleMean(latitude, longitude, "ecmwf_ifs025").catch(() => null),
     fetchModel(latitude, longitude, "best_match").catch(() => null),
   ]);
 
-  // Primärquelle ist ICON-CH1-EPS; falls nicht verfügbar, nimm CH2 → IFS → best_match.
-  const primary =
-    (ch1Raw && wrapEnsembleAsForecast(ch1Raw)) ??
-    (ch2Raw && wrapEnsembleAsForecast(ch2Raw)) ??
-    (ifsRaw && wrapEnsembleAsForecast(ifsRaw)) ??
-    bestMatch;
+  const ch1Raw = ch1RawFull ? sliceEnsembleHourly(ch1RawFull, 24) : null;
+
+  // Primärquelle ist CH1 (0-24h); falls nicht verfügbar, nimm CH2 → IFS → best_match.
+  type PrimarySource = "ch1" | "ch2" | "ifs" | "best_match";
+  let primary: ForecastResponse | null = null;
+  let primarySource: PrimarySource | null = null;
+  if (ch1Raw) { primary = wrapEnsembleAsForecast(ch1Raw); primarySource = "ch1"; }
+  else if (ch2Raw) { primary = wrapEnsembleAsForecast(ch2Raw); primarySource = "ch2"; }
+  else if (ifsRaw) { primary = wrapEnsembleAsForecast(ifsRaw); primarySource = "ifs"; }
+  else if (bestMatch) { primary = bestMatch; primarySource = "best_match"; }
   if (!primary) throw new Error("Keine Wettermodelle erreichbar");
 
   let merged = primary;
-  if (primary !== (ch2Raw && wrapEnsembleAsForecast(ch2Raw)) && ch2Raw) {
-    merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
-  }
-  if (ifsRaw) merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
-  if (bestMatch && bestMatch !== primary) merged = fillGaps(merged, bestMatch);
+  if (ch2Raw && primarySource !== "ch2") merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
+  if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
+  if (bestMatch && primarySource !== "best_match") merged = fillGaps(merged, bestMatch);
 
   // Daily-Werte aus den gemergten Hourly-Arrays neu aggregieren (Ensembles liefern keine Daily-Felder).
   // Sunrise/Sunset/Probability bleiben aus best_match (via fillGaps schon übernommen).
