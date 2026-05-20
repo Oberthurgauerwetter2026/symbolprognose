@@ -63,7 +63,7 @@ function EmbedInfo() {
     <div className="min-h-screen py-10 px-4">
       <div className="max-w-3xl mx-auto space-y-10">
         <div className="space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight uppercase">
+          <h1 className="text-2xl font-semibold tracking-tight uppercase font-[family-name:var(--font-display)]">
             In WordPress einbinden
           </h1>
           <p className="text-sm text-zinc-600 leading-relaxed">
@@ -76,7 +76,7 @@ function EmbedInfo() {
         </div>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight">
+          <h2 className="text-lg font-semibold tracking-tight font-[family-name:var(--font-display)]">
             Standard-Variante (mit Gemeindesuche)
           </h2>
           <p className="text-sm text-zinc-600 leading-relaxed">
@@ -87,7 +87,7 @@ function EmbedInfo() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight">
+          <h2 className="text-lg font-semibold tracking-tight font-[family-name:var(--font-display)]">
             Minimal-Variante (ohne Gemeindesuche)
           </h2>
           <p className="text-sm text-zinc-600 leading-relaxed">
