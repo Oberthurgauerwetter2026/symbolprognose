@@ -70,6 +70,25 @@ export function WeatherWidget() {
     }
   }, [location]);
 
+  // Post height to parent (for iframe embed auto-resize)
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.parent === window) return; // not embedded
+    const el = rootRef.current;
+    if (!el) return;
+    const post = () => {
+      window.parent.postMessage(
+        { type: "lovable-weather:height", height: el.scrollHeight },
+        "*",
+      );
+    };
+    post();
+    const ro = new ResizeObserver(post);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const forecast = useQuery({
     queryKey: ["forecast", location.latitude, location.longitude],
     queryFn: () => fetchForecast(location.latitude, location.longitude),
