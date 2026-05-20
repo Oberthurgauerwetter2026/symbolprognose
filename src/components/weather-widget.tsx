@@ -428,12 +428,6 @@ function DayStrip({
                     km/h
                   </span>
                 </div>
-                {extended && (
-                  <div className="flex items-center justify-between text-xs text-zinc-700 font-medium tabular-nums">
-                    <span>↑ {formatTimeHHMM(d.sunrise[i])}</span>
-                    <span>↓ {formatTimeHHMM(d.sunset[i])}</span>
-                  </div>
-                )}
               </div>
             </button>
           );
@@ -465,6 +459,27 @@ function DetailPanel({
   snow: boolean;
 }) {
   const h = forecast.hourly;
+  const dDaily = forecast.daily;
+  const sunMap = useMemo(() => {
+    const m = new Map<string, { rise?: number; set?: number; riseStr?: string; setStr?: string }>();
+    const toDec = (iso: string): number | undefined => {
+      if (!iso) return undefined;
+      const dt = new Date(iso);
+      if (Number.isNaN(dt.getTime())) return undefined;
+      return dt.getHours() + dt.getMinutes() / 60;
+    };
+    dDaily.time.forEach((day, i) => {
+      const rise = toDec(dDaily.sunrise[i]);
+      const set = toDec(dDaily.sunset[i]);
+      m.set(day, {
+        rise,
+        set,
+        riseStr: formatTimeHHMM(dDaily.sunrise[i]),
+        setStr: formatTimeHHMM(dDaily.sunset[i]),
+      });
+    });
+    return m;
+  }, [dDaily]);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const slotRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const userScrolling = useRef(false);
@@ -818,6 +833,12 @@ function DetailPanel({
                   const perHour = Array.from({ length: nHrs }, (_, k) =>
                     Math.round((h.sunshine_duration[idx + k] ?? 0) / 60)
                   );
+                  const sun = sunMap.get(iso.slice(0, 10));
+                  const slotEnd = startHour + nHrs;
+                  const inSlot = (v: number | undefined) =>
+                    v !== undefined && v >= startHour && v < slotEnd;
+                  const riseInSlot = inSlot(sun?.rise);
+                  const setInSlot = inSlot(sun?.set);
                   return (
                     <div
                       key={iso}
@@ -849,6 +870,28 @@ function DetailPanel({
                             );
                           })}
                         </div>
+                        {riseInSlot && sun?.rise !== undefined && (
+                          <div
+                            className="absolute top-0 bottom-0 w-px bg-amber-500/80 pointer-events-none"
+                            style={{ left: `${((sun.rise - startHour) / nHrs) * 100}%` }}
+                            title={`Sonnenaufgang ${sun.riseStr}`}
+                          >
+                            <div className="absolute -top-0.5 left-1 text-[9px] font-semibold text-amber-700 whitespace-nowrap leading-none">
+                              ↑{sun.riseStr}
+                            </div>
+                          </div>
+                        )}
+                        {setInSlot && sun?.set !== undefined && (
+                          <div
+                            className="absolute top-0 bottom-0 w-px bg-amber-600/80 pointer-events-none"
+                            style={{ left: `${((sun.set - startHour) / nHrs) * 100}%` }}
+                            title={`Sonnenuntergang ${sun.setStr}`}
+                          >
+                            <div className="absolute -top-0.5 right-1 text-[9px] font-semibold text-amber-700 whitespace-nowrap leading-none">
+                              ↓{sun.setStr}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
                         <div className="font-bold flex justify-around px-1">
@@ -921,7 +964,7 @@ function DetailPanel({
         <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
         <span>Wind / Böenspitzen in km/h</span>
         {extended && (
-          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] mr-1.5 align-middle" />Sonnenscheindauer in min/h</span>
+          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] mr-1.5 align-middle" />Sonnenscheindauer in min/h · <span className="text-amber-700 font-semibold">↑</span> Sonnenaufgang · <span className="text-amber-700 font-semibold">↓</span> Sonnenuntergang</span>
         )}
         {snow && (
           <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-snow-bar)] border border-sky-300 mr-1.5 align-middle" />Neuschnee in cm</span>
