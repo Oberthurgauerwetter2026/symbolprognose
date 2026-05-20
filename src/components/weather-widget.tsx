@@ -543,7 +543,7 @@ function DetailPanel({
 
   return (
     <section className="bg-zinc-50 rounded-md border border-zinc-200 overflow-hidden">
-      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3">
+      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3 flex-wrap">
         <span className="text-base font-bold text-zinc-900">
           {selectedDayIdx === 0
             ? "Heute"
@@ -551,6 +551,16 @@ function DetailPanel({
               ? "Morgen"
               : weekdayLong(selectedDay.date)}
         </span>
+        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-px h-3 bg-zinc-300" aria-hidden />
+            1-h-Takt
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-[2px] h-3 bg-zinc-400" aria-hidden />
+            3-h-Takt (ab +12 h)
+          </span>
+        </div>
       </div>
       <div className="flex items-stretch">
         {/* Y-axes for charts */}
