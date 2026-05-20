@@ -701,20 +701,25 @@ function DetailPanel({
             </div>
             {/* Precipitation bar chart */}
             <div className="flex border-t border-zinc-200 bg-zinc-50/60">
-              {hourlyIndices.map((idx, i) => {
+              {hourlyIndices.map((s, i) => {
+                const { idx, cadence } = s;
                 const iso = h.time[idx];
-                const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+                const prev = i > 0 ? hourlyIndices[i - 1] : null;
+                const prevIso = prev ? h.time[prev.idx] : null;
                 const isDayStart =
                   !prevIso || prevIso.slice(0, 10) !== iso.slice(0, 10);
+                const isCadenceBreak =
+                  !!prev && prev.cadence === "1h" && cadence === "3h";
                 const startHour = Number(iso.slice(11, 13));
-                const perHour = [0, 1, 2].map((k) => ({
+                const nHrs = cadence === "1h" ? 1 : 3;
+                const perHour = Array.from({ length: nHrs }, (_, k) => ({
                   mm: h.precipitation[idx + k] ?? 0,
                   prob: h.precipitation_probability[idx + k] ?? 0,
                 }));
                 return (
                   <div
                     key={iso}
-                    className="flex-shrink-0 w-[108px] @[640px]:w-[124px] flex flex-col"
+                    className={`flex-shrink-0 ${slotWidthClass(cadence)} flex flex-col`}
                   >
                     <div className="relative h-[72px] w-full">
                       {[0, 2.5, 5].map((v) => (
@@ -724,8 +729,8 @@ function DetailPanel({
                           style={{ top: `${(1 - v / 5) * 100}%` }}
                         />
                       ))}
-                      {isDayStart && i > 0 && (
-                        <div className="absolute top-0 bottom-0 left-0 w-px bg-zinc-300" />
+                      {(isCadenceBreak || (isDayStart && i > 0)) && (
+                        <div className={`absolute top-0 bottom-0 left-0 ${isCadenceBreak ? "w-0.5 bg-zinc-400" : "w-px bg-zinc-300"}`} />
                       )}
                       <div className="absolute inset-0 flex items-end justify-around px-1">
                         {perHour.map(({ mm, prob }, k) => {
@@ -736,7 +741,7 @@ function DetailPanel({
                           return (
                             <div
                               key={k}
-                              className="w-2 @[640px]:w-2.5 rounded-t-sm bg-[var(--wx-rain)]"
+                              className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)]`}
                               style={{ height: `${pct}%`, opacity }}
                               title={`${String(hh).padStart(2, "0")}–${String(hh2).padStart(2, "0")} Uhr · ${mm.toFixed(1)} mm · ${prob}%`}
                             />
@@ -747,14 +752,14 @@ function DetailPanel({
                     <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
                       <div className="font-bold flex justify-around px-1">
                         {perHour.map(({ mm }, k) => (
-                          <span key={k} className="w-1/3">
+                          <span key={k} className={cadence === "1h" ? "w-full" : "w-1/3"}>
                             {mm > 0 ? mm.toFixed(1) : "–"}
                           </span>
                         ))}
                       </div>
                       <div className="text-zinc-600 font-medium flex justify-around px-1">
                         {perHour.map(({ prob }, k) => (
-                          <span key={k} className="w-1/3">
+                          <span key={k} className={cadence === "1h" ? "w-full" : "w-1/3"}>
                             {prob}
                           </span>
                         ))}
