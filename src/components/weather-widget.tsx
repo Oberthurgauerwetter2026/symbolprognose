@@ -428,12 +428,6 @@ function DayStrip({
                     km/h
                   </span>
                 </div>
-                {extended && (
-                  <div className="flex items-center justify-between text-xs text-zinc-700 font-medium tabular-nums">
-                    <span>↑ {formatTimeHHMM(d.sunrise[i])}</span>
-                    <span>↓ {formatTimeHHMM(d.sunset[i])}</span>
-                  </div>
-                )}
               </div>
             </button>
           );
