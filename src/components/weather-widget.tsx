@@ -618,13 +618,19 @@ function DetailPanel({
           <div className="inline-flex flex-col min-w-full">
             {/* Hour slots */}
             <div className="flex">
-              {hourlyIndices.map((idx, i) => {
+              {hourlyIndices.map((s, i) => {
+                const { idx, cadence } = s;
                 const iso = h.time[idx];
-                const prevIso = i > 0 ? h.time[hourlyIndices[i - 1]] : null;
+                const prev = i > 0 ? hourlyIndices[i - 1] : null;
+                const prevIso = prev ? h.time[prev.idx] : null;
                 const isDayStart =
                   !!prevIso && prevIso.slice(0, 10) !== iso.slice(0, 10);
+                const isCadenceBreak =
+                  !!prev && prev.cadence === "1h" && cadence === "3h";
                 const t = new Date(iso);
-                const isCurrent = t.getTime() === currentBlockMs;
+                const slotMs = t.getTime();
+                const slotDur = cadence === "1h" ? 3600_000 : 3 * 3600_000;
+                const isCurrent = nowMs >= slotMs && nowMs < slotMs + slotDur;
                 const wind = h.windspeed_10m[idx];
                 const rawGust = h.windgusts_10m[idx];
                 const gust =
@@ -640,10 +646,19 @@ function DetailPanel({
                       if (el) slotRefs.current.set(iso, el);
                       else slotRefs.current.delete(iso);
                     }}
-                    className={`flex-shrink-0 w-[108px] @[640px]:w-[124px] p-3 @[640px]:p-4 space-y-3 snap-start ${
-                      isDayStart ? "border-l border-zinc-300" : ""
+                    className={`relative flex-shrink-0 ${slotWidthClass(cadence)} p-3 @[640px]:p-4 space-y-3 snap-start ${
+                      isCadenceBreak
+                        ? "border-l-2 border-zinc-400"
+                        : isDayStart
+                          ? "border-l border-zinc-300"
+                          : ""
                     } ${isCurrent ? "bg-[var(--accent-soft)]" : ""}`}
                   >
+                    {isCadenceBreak && (
+                      <div className="absolute -top-px left-0 right-0 -translate-y-full px-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
+                        ab +12 h · 3-h-Takt
+                      </div>
+                    )}
                     <div
                       className={`text-sm font-bold tabular-nums ${
                         isCurrent ? "text-accent" : "text-zinc-800"
@@ -658,10 +673,10 @@ function DetailPanel({
                       <WeatherIcon
                         code={h.weathercode[idx]}
                         isDay={t.getHours() >= 6 && t.getHours() < 20}
-                        size={56}
+                        size={cadence === "1h" ? 40 : 56}
                       />
                     </div>
-                    <div className="text-xl font-bold tabular-nums text-zinc-900">
+                    <div className={`${cadence === "1h" ? "text-base" : "text-xl"} font-bold tabular-nums text-zinc-900`}>
                       {h.temperature_2m[idx].toFixed(1)}°
                     </div>
                     <div className="space-y-2">
@@ -673,9 +688,11 @@ function DetailPanel({
                             /{Math.round(gust)}
                           </span>
                         </span>
-                        <span className="text-zinc-700 font-medium">
-                          {windDirectionLabel(h.winddirection_10m[idx])}
-                        </span>
+                        {cadence === "3h" && (
+                          <span className="text-zinc-700 font-medium">
+                            {windDirectionLabel(h.winddirection_10m[idx])}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
