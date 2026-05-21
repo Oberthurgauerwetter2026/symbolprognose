@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { RegionMap } from "@/components/region-map";
 
 export const Route = createFileRoute("/karte")({
+  ssr: false,
   component: KartePage,
   head: () => ({
     meta: [
