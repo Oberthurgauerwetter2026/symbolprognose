@@ -78,6 +78,8 @@ function dateSub(d: Date) {
   return `${d.getDate()}.${d.getMonth() + 1}.`;
 }
 
+const MARKER_PILL_CLASS = "region-map-pill";
+
 function MarkerPill({
   name,
   tMin,
