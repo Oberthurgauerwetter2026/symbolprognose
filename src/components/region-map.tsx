@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
   MapContainer,
   GeoJSON,
@@ -14,22 +15,9 @@ import type { Feature, FeatureCollection, Polygon } from "geojson";
 
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
-import {
-  fetchForecast,
-  formatTimeHHMM,
-  weatherLabel,
-  weekdayShort,
-  windDirectionLabel,
-  type ForecastResponse,
-} from "@/lib/weather";
+import { fetchForecast } from "@/lib/weather";
 import { WeatherIcon } from "@/components/weather-icons";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 type Spot = { id: string; name: string; lat: number; lon: number };
@@ -90,11 +78,13 @@ function MarkerPill({
   name,
   tMin,
   tMax,
+  tHour,
   code,
 }: {
   name: string;
   tMin: number;
   tMax: number;
+  tHour: number | null;
   code: number;
 }) {
   return (
@@ -127,8 +117,30 @@ function MarkerPill({
         <WeatherIcon code={code} size={38} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.01em" }}>
-          {name}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.01em" }}>
+            {name}
+          </span>
+          {tHour !== null && (
+            <span
+              style={{
+                background: "rgba(255,255,255,0.18)",
+                color: "#fff",
+                padding: "2px 7px",
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              {Math.round(tHour)}°
+            </span>
+          )}
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span
@@ -164,11 +176,11 @@ function MarkerPill({
 function SpotMarker({
   spot,
   dayIndex,
-  onClick,
+  hourStep,
 }: {
   spot: Spot;
   dayIndex: number;
-  onClick: (s: Spot) => void;
+  hourStep: number;
 }) {
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
@@ -200,204 +212,65 @@ function SpotMarker({
         iconAnchor: [60, 14],
       });
     }
-    const code = data.daily.weathercode[dayIndex] ?? 0;
+    const dailyCode = data.daily.weathercode[dayIndex] ?? 0;
     const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
+    const hourIdx = dayIndex * 24 + hourStep * 3;
+    const tHour = data.hourly.temperature_2m[hourIdx] ?? null;
+    const hourCode = data.hourly.weathercode[hourIdx] ?? dailyCode;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={code} />,
+      <MarkerPill
+        name={spot.name}
+        tMin={tMin}
+        tMax={tMax}
+        tHour={tHour}
+        code={hourCode}
+      />,
     );
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [200, 72],
-      iconAnchor: [100, 36],
+      iconSize: [220, 72],
+      iconAnchor: [110, 36],
     });
-  }, [data, dayIndex, spot]);
+  }, [data, dayIndex, hourStep, spot]);
 
-  return (
-    <Marker
-      position={[spot.lat, spot.lon]}
-      icon={icon}
-      eventHandlers={{ click: () => onClick(spot) }}
-    />
-  );
+  return <Marker position={[spot.lat, spot.lon]} icon={icon} />;
 }
 
-function SpotDetailSheet({
-  spot,
-  onOpenChange,
-}: {
-  spot: Spot | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const open = spot !== null;
-  const { data } = useQuery({
-    queryKey: ["map-weather", spot?.id ?? "none"],
-    queryFn: () => fetchForecast(spot!.lat, spot!.lon),
-    enabled: open,
-    staleTime: 1000 * 60 * 30,
-  });
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full overflow-y-auto sm:max-w-md"
-      >
-        <SheetHeader>
-          <SheetTitle className="text-2xl" style={{ color: BRAND }}>
-            {spot?.name}
-          </SheetTitle>
-          <SheetDescription>
-            6-Tagesprognose und 3-Stunden-Verlauf
-          </SheetDescription>
-        </SheetHeader>
-
-        {!data ? (
-          <div className="mt-8 text-sm text-muted-foreground">
-            Lade Prognose …
-          </div>
-        ) : (
-          <DetailContent data={data} />
-        )}
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-function DetailContent({ data }: { data: ForecastResponse }) {
-  const [activeDay, setActiveDay] = useState(0);
-
-  const days = data.daily.time.slice(0, 6);
-  const activeDayIso = days[activeDay];
-
-  const hourlyForDay = useMemo(() => {
-    if (!activeDayIso) return [];
-    const out: Array<{ time: string; t: number; code: number; pp: number }> =
-      [];
-    for (let i = 0; i < data.hourly.time.length; i++) {
-      const t = data.hourly.time[i];
-      if (!t.startsWith(activeDayIso)) continue;
-      const hour = parseInt(t.slice(11, 13), 10);
-      if (hour % 3 !== 0) continue;
-      out.push({
-        time: t,
-        t: data.hourly.temperature_2m[i] ?? 0,
-        code: data.hourly.weathercode[i] ?? 0,
-        pp: data.hourly.precipitation_probability[i] ?? 0,
-      });
-    }
-    return out;
-  }, [data, activeDayIso]);
-
-  return (
-    <div className="mt-6 space-y-6">
-      <div>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          6 Tage
-        </h3>
-        <ul className="divide-y divide-border rounded-xl border border-border">
-          {days.map((iso, idx) => {
-            const d = new Date(iso);
-            const label =
-              idx === 0
-                ? "Heute"
-                : idx === 1
-                  ? "Morgen"
-                  : weekdayShort(d);
-            const active = idx === activeDay;
-            return (
-              <li key={iso}>
-                <button
-                  type="button"
-                  onClick={() => setActiveDay(idx)}
-                  className={cn(
-                    "flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors",
-                    active ? "bg-muted" : "hover:bg-muted/50",
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <WeatherIcon code={data.daily.weathercode[idx] ?? 0} size={28} />
-                    <div>
-                      <div className="text-sm font-semibold">{label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {dateSub(d)} ·{" "}
-                        {Math.round(
-                          data.daily.precipitation_probability_max[idx] ?? 0,
-                        )}
-                        % Regen
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <span className="text-muted-foreground">
-                      {Math.round(data.daily.temperature_2m_min[idx] ?? 0)}°
-                    </span>
-                    <span style={{ color: BRAND }}>
-                      {Math.round(data.daily.temperature_2m_max[idx] ?? 0)}°
-                    </span>
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      <div>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          3-Stunden-Verlauf
-        </h3>
-        <div className="rounded-xl border border-border">
-          <div className="grid grid-cols-[64px_1fr_60px_56px] gap-2 border-b border-border bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
-            <span>Zeit</span>
-            <span>Wetter</span>
-            <span className="text-right">Temp</span>
-            <span className="text-right">Regen</span>
-          </div>
-          <ul className="divide-y divide-border">
-            {hourlyForDay.map((h) => (
-              <li
-                key={h.time}
-                className="grid grid-cols-[64px_1fr_60px_56px] items-center gap-2 px-3 py-2 text-sm"
-              >
-                <span className="font-medium tabular-nums">
-                  {formatTimeHHMM(h.time)}
-                </span>
-                <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <WeatherIcon code={h.code} size={22} />
-                  <span className="truncate">{weatherLabel(h.code)}</span>
-                </span>
-                <span className="text-right font-semibold tabular-nums">
-                  {Math.round(h.t)}°
-                </span>
-                <span className="text-right text-xs text-muted-foreground tabular-nums">
-                  {Math.round(h.pp)}%
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border p-3 text-xs text-muted-foreground">
-        Wind {Math.round(data.daily.windspeed_10m_max[activeDay] ?? 0)} km/h aus{" "}
-        {windDirectionLabel(
-          data.daily.winddirection_10m_dominant[activeDay] ?? 0,
-        )}
-        , Böen bis{" "}
-        {Math.round(data.daily.windgusts_10m_max[activeDay] ?? 0)} km/h.
-      </div>
-    </div>
-  );
-}
+const LAKE_LABEL_ICON = L.divIcon({
+  html: renderToStaticMarkup(
+    <span
+      style={{
+        fontFamily: '"Figtree", system-ui, sans-serif',
+        fontStyle: "italic",
+        fontWeight: 600,
+        fontSize: 18,
+        color: "#1e5a7a",
+        letterSpacing: "0.12em",
+        textShadow: "0 1px 2px rgba(255,255,255,0.9)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      Bodensee
+    </span>,
+  ),
+  className: "region-map-lake-label",
+  iconSize: [140, 24],
+  iconAnchor: [70, 12],
+});
 
 export function RegionMap() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  const navigate = useNavigate();
+
   const [dayIndex, setDayIndex] = useState(0);
-  const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [hourStep, setHourStep] = useState(() => {
+    const h = new Date().getHours();
+    return Math.min(7, Math.max(0, Math.round(h / 3)));
+  });
 
   const days = useMemo(() => {
     const base = new Date();
@@ -415,10 +288,10 @@ export function RegionMap() {
     const sw = b.getSouthWest();
     const ne = b.getNorthEast();
     const extended = L.latLngBounds(
-      [sw.lat - 0.04, sw.lng - 0.05],
-      [ne.lat + 0.05, ne.lng + 0.05],
+      [sw.lat - 0.015, sw.lng - 0.02],
+      [ne.lat + 0.02, ne.lng + 0.02],
     );
-    return { bounds: extended, maxBounds: extended.pad(0.3) };
+    return { bounds: extended, maxBounds: extended.pad(0.15) };
   }, []);
 
   if (!mounted) {
@@ -428,6 +301,9 @@ export function RegionMap() {
       </div>
     );
   }
+
+  const hourLabel = `${String(hourStep * 3).padStart(2, "0")}:00`;
+  const activeDayLabel = formatDayLabel(days[dayIndex], dayIndex);
 
   return (
     <div className="space-y-4">
@@ -467,10 +343,10 @@ export function RegionMap() {
       <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
         <MapContainer
           bounds={bounds}
-          boundsOptions={{ padding: [40, 40] }}
+          boundsOptions={{ padding: [24, 24] }}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
-          minZoom={10}
+          minZoom={11}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
@@ -491,7 +367,7 @@ export function RegionMap() {
             })}
             interactive={false}
           />
-          {/* Region innen: dezenter Grün-Hauch, Relief bleibt markant */}
+          {/* Region innen: klickbar → Symbolprognose */}
           <GeoJSON
             data={REGION}
             style={() => ({
@@ -501,7 +377,21 @@ export function RegionMap() {
               fillColor: "#b8d9a3",
               fillOpacity: 0.28,
             })}
-            interactive={false}
+            eventHandlers={{
+              click: () => navigate({ to: "/" }),
+              mouseover: (e) => {
+                const layer = e.propagatedFrom ?? e.target;
+                if (layer && typeof layer.setStyle === "function") {
+                  layer.setStyle({ fillOpacity: 0.45 });
+                }
+              },
+              mouseout: (e) => {
+                const layer = e.propagatedFrom ?? e.target;
+                if (layer && typeof layer.setStyle === "function") {
+                  layer.setStyle({ fillOpacity: 0.28 });
+                }
+              },
+            }}
           />
           <GeoJSON
             data={LAKE}
@@ -513,24 +403,54 @@ export function RegionMap() {
             })}
             interactive={false}
           />
+          <Marker
+            position={[47.625, 9.32]}
+            icon={LAKE_LABEL_ICON}
+            interactive={false}
+          />
           {SPOTS.map((s) => (
             <SpotMarker
               key={s.id}
               spot={s}
               dayIndex={dayIndex}
-              onClick={setSelectedSpot}
+              hourStep={hourStep}
             />
           ))}
           <ZoomControl position="topright" />
         </MapContainer>
       </div>
 
-      <SpotDetailSheet
-        spot={selectedSpot}
-        onOpenChange={(o) => {
-          if (!o) setSelectedSpot(null);
-        }}
-      />
+      {/* 3-Stunden-Zeitschieber */}
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold text-foreground">
+              {activeDayLabel.top}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {activeDayLabel.sub}
+            </span>
+          </div>
+          <span
+            className="rounded-md px-2 py-0.5 text-sm font-bold text-white"
+            style={{ background: BRAND }}
+          >
+            {hourLabel}
+          </span>
+        </div>
+        <Slider
+          min={0}
+          max={7}
+          step={1}
+          value={[hourStep]}
+          onValueChange={(v) => setHourStep(v[0] ?? 0)}
+        />
+        <div className="mt-2 grid grid-cols-8 text-center text-[11px] font-medium text-muted-foreground">
+          {Array.from({ length: 8 }, (_, i) => (
+            <span key={i}>{String(i * 3).padStart(2, "0")}</span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
