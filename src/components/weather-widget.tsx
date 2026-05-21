@@ -46,7 +46,7 @@ function useNow(intervalMs = 60_000): Date {
   return now;
 }
 
-export function WeatherWidget() {
+export function WeatherWidget({ initialDayIdx }: { initialDayIdx?: number } = {}) {
   const [location, setLocation] = useState<StoredLocation>(() => {
     if (typeof window === "undefined") return DEFAULT_LOCATION;
     try {
