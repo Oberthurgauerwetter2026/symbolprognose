@@ -415,10 +415,10 @@ export function RegionMap() {
     const sw = b.getSouthWest();
     const ne = b.getNorthEast();
     const extended = L.latLngBounds(
-      [sw.lat - 0.005, sw.lng - 0.005],
-      [ne.lat + 0.015, ne.lng + 0.005],
+      [sw.lat - 0.04, sw.lng - 0.05],
+      [ne.lat + 0.05, ne.lng + 0.05],
     );
-    return { bounds: extended, maxBounds: extended.pad(0.15) };
+    return { bounds: extended, maxBounds: extended.pad(0.3) };
   }, []);
 
   if (!mounted) {
