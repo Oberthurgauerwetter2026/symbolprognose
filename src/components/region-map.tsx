@@ -478,7 +478,7 @@ export function RegionMap() {
 
 
         {/* Stundenlegende: 00, 03, 06, … 21, 00 */}
-        <div className="mt-3 px-1">
+        <div className={cn("mt-3 px-1", viewMode === "daily" && "opacity-40")}>
           <div className="relative h-2">
             {HOUR_TICKS.map((h) => (
               <span
