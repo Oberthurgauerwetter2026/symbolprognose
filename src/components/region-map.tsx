@@ -238,7 +238,13 @@ function currentBaseHour(): number {
   return Math.floor(h / 3) * 3;
 }
 
-const MAX_STEPS = 40; // 5 Tage × 8 (3-h-Schritte)
+const MAX_STEPS = 56; // 7 Tage × 8 (3-h-Schritte)
+const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+
+function longWeekday(d: Date): string {
+  const wd = new Intl.DateTimeFormat("de-CH", { weekday: "long" }).format(d);
+  return wd.charAt(0).toUpperCase() + wd.slice(1);
+}
 
 export function RegionMap() {
   const [mounted, setMounted] = useState(false);
@@ -258,7 +264,7 @@ export function RegionMap() {
   const days = useMemo(() => {
     const base = new Date();
     base.setHours(0, 0, 0, 0);
-    return Array.from({ length: 6 }, (_, i) => {
+    return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(base);
       d.setDate(d.getDate() + i);
       return d;
