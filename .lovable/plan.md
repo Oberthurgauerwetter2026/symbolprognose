@@ -1,24 +1,33 @@
-## Klick auf Wochentag → Tagesübersicht öffnen
+## Ziel
 
-Aktuell ändert ein Klick auf einen Wochentag-Button in `src/components/region-map.tsx` nur den `stepOffset` des Sliders. Neu soll der Klick die **Tagesübersicht** (`/`, `WeatherWidget`) öffnen und dort direkt den gewählten Tag selektieren.
+In der Wetterkarte (`/karte`) soll ein Klick auf einen Wochentag in der Tagesleiste die Karte unmittelbar auf die **Tagesübersicht dieses Tages** umschalten — unabhängig davon, wo der Zeit-Slider vorher stand. Es findet **keine Navigation auf `/`** mehr statt; der Nutzer bleibt in der Karte.
 
-### 1. `src/routes/index.tsx`
-- `validateSearch` ergänzen: `{ day?: number }` (0–6, sonst `undefined`).
-- Per `Route.useSearch()` `day` lesen und an `<WeatherWidget initialDayIdx={day} />` weitergeben.
+## Änderung
 
-### 2. `src/components/weather-widget.tsx`
-- Neue Prop `initialDayIdx?: number`.
-- `useState(0)` → `useState(initialDayIdx ?? 0)` für `selectedDayIdx`.
-- Bei Änderung von `initialDayIdx` (z. B. erneuter Aufruf mit anderem Param) per `useEffect` synchronisieren, sofern Wert im gültigen Bereich.
+**Datei:** `src/components/region-map.tsx`
 
-### 3. `src/components/region-map.tsx`
-- Wochentag-Button: `onClick` setzt **nicht mehr** `stepOffset`, sondern navigiert:
-  `router.navigate({ to: "/", search: { day: i } })`.
-- Fallback wie `goHome` (Hard-Navigation bei Fehler).
-- `reachable`-Check entfällt — alle 7 Tage sind in der Tagesübersicht erreichbar; `disabled`/`opacity-40` Styling entfällt.
-- Slider/`stepOffset` bleiben für Marker-Aktualisierung auf der Karte unverändert.
+### Verhalten der Wochentag-Buttons
+
+- Statt `router.navigate({ to: "/", search: { day: i } })` setzt der Klick `stepOffset` so, dass `absoluteHour` auf den ersten verfügbaren 3-h-Slot des Zieltages fällt:
+  - Tag 0 (heute) → `stepOffset = 0` (aktueller Slot)
+  - Tag i > 0 → `stepOffset = Math.ceil((i * 24 - baseHour) / 3)`, geclamped auf `[0, MAX_STEPS - 1]`
+- Damit zeigt die Karte sofort den Tagesanfang des gewählten Tages; der bisherige Slider-Stand wird verworfen.
+- `router` wird nicht mehr für diese Aktion gebraucht — Import bleibt nur, falls anderswo verwendet (sonst entfernen).
 
 ### Unverändert
-- Marker-Klick navigiert weiterhin nach `/` (ohne `day`).
-- Karten-Layer, Slider, Stundenlegende, Tag/Nacht-Logik.
 
+- 7-Tage-Leiste, Slider, Stundenlegende, Tag-/Nacht-Logik, Marker-Klick (öffnet weiterhin Symbolprognose), Relief und Masken.
+- Die `?day=`-Suchparameter-Unterstützung in `src/routes/index.tsx` und `WeatherWidget` (`initialDayIdx`) bleibt bestehen, wird hier aber nicht mehr ausgelöst.
+
+## Technische Details
+
+```ts
+onClick={() => {
+  const target = i === 0
+    ? 0
+    : Math.min(MAX_STEPS - 1, Math.max(0, Math.ceil((i * 24 - baseHour) / 3)));
+  setStepOffset(target);
+}}
+```
+
+Alle 7 Tage bleiben anklickbar (kein `disabled`).
