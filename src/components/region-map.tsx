@@ -156,11 +156,11 @@ function MarkerPill({
 function SpotMarker({
   spot,
   dayIndex,
-  hourStep,
+  absoluteHour,
 }: {
   spot: Spot;
   dayIndex: number;
-  hourStep: number;
+  absoluteHour: number;
 }) {
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
@@ -192,8 +192,10 @@ function SpotMarker({
         iconAnchor: [60, 14],
       });
     }
-    const hourIndex = dayIndex * 24 + hourStep * 3;
-    const hourlyCode = data.hourly.weathercode[hourIndex] ?? data.daily.weathercode[dayIndex] ?? 0;
+    const hourlyCode =
+      data.hourly.weathercode[absoluteHour] ??
+      data.daily.weathercode[dayIndex] ??
+      0;
     const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
     const html = renderToStaticMarkup(
@@ -205,7 +207,7 @@ function SpotMarker({
       iconSize: [200, 64],
       iconAnchor: [100, 32],
     });
-  }, [data, dayIndex, hourStep, spot]);
+  }, [data, dayIndex, absoluteHour, spot]);
 
   return <Marker position={[spot.lat, spot.lon]} icon={icon} interactive={false} />;
 }
