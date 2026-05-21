@@ -162,13 +162,15 @@ function MarkerPill({
 
 function SpotMarker({
   spot,
-  dayIndex,
+  mode,
+  dayIdx,
   absoluteHour,
   isDay,
   onClick,
 }: {
   spot: Spot;
-  dayIndex: number;
+  mode: "hourly" | "daily";
+  dayIdx: number;
   absoluteHour: number;
   isDay: boolean;
   onClick: () => void;
@@ -204,14 +206,17 @@ function SpotMarker({
         iconAnchor: [60, 14],
       });
     }
-    const hourlyCode =
-      data.hourly.weathercode[absoluteHour] ??
-      data.daily.weathercode[dayIndex] ??
-      0;
-    const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
-    const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
+    const code =
+      mode === "daily"
+        ? data.daily.weathercode[dayIdx] ?? 0
+        : data.hourly.weathercode[absoluteHour] ??
+          data.daily.weathercode[dayIdx] ??
+          0;
+    const tMin = data.daily.temperature_2m_min[dayIdx] ?? 0;
+    const tMax = data.daily.temperature_2m_max[dayIdx] ?? 0;
+    const effectiveIsDay = mode === "daily" ? true : isDay;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={hourlyCode} isDay={isDay} />,
+      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={code} isDay={effectiveIsDay} />,
     );
     return L.divIcon({
       html,
@@ -219,7 +224,7 @@ function SpotMarker({
       iconSize: [200, 64],
       iconAnchor: [100, 32],
     });
-  }, [data, dayIndex, absoluteHour, isDay, spot]);
+  }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
   return (
     <Marker
@@ -229,6 +234,7 @@ function SpotMarker({
     />
   );
 }
+
 
 // (Bodensee-Label entfernt)
 
@@ -255,11 +261,15 @@ export function RegionMap() {
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
   const [baseHour] = useState(() => currentBaseHour());
   const [stepOffset, setStepOffset] = useState(0);
+  const [viewMode, setViewMode] = useState<"hourly" | "daily">("hourly");
+  const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
   const absoluteHour = baseHour + stepOffset * 3;
-  const dayIndex = Math.floor(absoluteHour / 24);
+  const hourlyDayIndex = Math.floor(absoluteHour / 24);
+  const dayIndex = viewMode === "daily" ? selectedDayIdx : hourlyDayIndex;
   const hourOfDay = absoluteHour % 24;
   const isDay = hourOfDay >= 6 && hourOfDay < 20;
+
 
   const days = useMemo(() => {
     const base = new Date();
@@ -367,7 +377,8 @@ export function RegionMap() {
             <SpotMarker
               key={s.id}
               spot={s}
-              dayIndex={dayIndex}
+              mode={viewMode}
+              dayIdx={dayIndex}
               absoluteHour={absoluteHour}
               isDay={isDay}
               onClick={goHome}
@@ -387,14 +398,8 @@ export function RegionMap() {
               key={i}
               type="button"
               onClick={() => {
-                const target =
-                  i === 0
-                    ? 0
-                    : Math.min(
-                        MAX_STEPS - 1,
-                        Math.max(0, Math.ceil((i * 24 - baseHour) / 3)),
-                      );
-                setStepOffset(target);
+                setSelectedDayIdx(i);
+                setViewMode("daily");
               }}
               className={cn(
                 "flex flex-1 flex-col items-center justify-center rounded-full px-3 py-2 text-sm font-medium transition-colors",
@@ -427,29 +432,53 @@ export function RegionMap() {
               {longWeekday(days[Math.min(dayIndex, days.length - 1)])}
             </span>
             <span className="text-xs text-muted-foreground">
-              {activeDayLabel.sub}
+              {viewMode === "daily" ? "Tagesübersicht" : activeDayLabel.sub}
             </span>
           </div>
-          <span
-            className="rounded-lg px-3 py-1 text-base font-bold text-white shadow-sm"
-            style={{ background: BRAND }}
-          >
-            {hourLabel}
-          </span>
+          {viewMode === "daily" ? (
+            <button
+              type="button"
+              onClick={() => {
+                const target = Math.min(
+                  MAX_STEPS - 1,
+                  Math.max(0, Math.ceil((selectedDayIdx * 24 - baseHour) / 3)),
+                );
+                setStepOffset(target);
+                setViewMode("hourly");
+              }}
+              className="rounded-lg border border-input bg-background px-3 py-1 text-xs font-semibold hover:bg-accent"
+            >
+              Stündliche Ansicht
+            </button>
+          ) : (
+            <span
+              className="rounded-lg px-3 py-1 text-base font-bold text-white shadow-sm"
+              style={{ background: BRAND }}
+            >
+              {hourLabel}
+            </span>
+          )}
         </div>
 
-        <div className="region-slider px-1">
+        <div
+          className={cn(
+            "region-slider px-1",
+            viewMode === "daily" && "pointer-events-none opacity-40",
+          )}
+        >
           <Slider
             min={0}
             max={MAX_STEPS}
             step={1}
             value={[stepOffset]}
             onValueChange={(v) => setStepOffset(v[0] ?? 0)}
+            disabled={viewMode === "daily"}
           />
         </div>
 
+
         {/* Stundenlegende: 00, 03, 06, … 21, 00 */}
-        <div className="mt-3 px-1">
+        <div className={cn("mt-3 px-1", viewMode === "daily" && "opacity-40")}>
           <div className="relative h-2">
             {HOUR_TICKS.map((h) => (
               <span
