@@ -216,27 +216,7 @@ function SpotMarker({
   return <Marker position={[spot.lat, spot.lon]} icon={icon} interactive={false} />;
 }
 
-const LAKE_LABEL_ICON = L.divIcon({
-  html: renderToStaticMarkup(
-    <span
-      style={{
-        fontFamily: '"Figtree", system-ui, sans-serif',
-        fontStyle: "italic",
-        fontWeight: 600,
-        fontSize: 18,
-        color: "#1e5a7a",
-        letterSpacing: "0.12em",
-        textShadow: "0 1px 2px rgba(255,255,255,0.9)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      Bodensee
-    </span>,
-  ),
-  className: "region-map-lake-label",
-  iconSize: [140, 24],
-  iconAnchor: [70, 12],
-});
+// (Bodensee-Label entfernt)
 
 function currentBaseHour(): number {
   // aktueller 3-h-Slot: 0,3,6,...,21
