@@ -372,27 +372,37 @@ export function RegionMap() {
             interactive={false}
           />
           {SPOTS.map((s) => (
-            <SpotMarker key={s.id} spot={s} dayIndex={dayIndex} hourStep={hourStep} />
+            <SpotMarker
+              key={s.id}
+              spot={s}
+              dayIndex={dayIndex}
+              absoluteHour={absoluteHour}
+            />
           ))}
           <ZoomControl position="topright" />
         </MapContainer>
       </div>
 
-      {/* Tages-Umschalter (Pill-Group) */}
+      {/* Tages-Anzeige (highlight nach Slider-Position) */}
       <div className="inline-flex w-full gap-1 rounded-full bg-muted p-1">
         {days.map((d, i) => {
           const { top, sub } = formatDayLabel(d, i);
           const active = i === dayIndex;
+          // Sprung zu 00:00 dieses Tages (heute: aktuelle Zeit)
+          const jumpOffset = i === 0 ? 0 : Math.ceil((i * 24 - baseHour) / 3);
+          const reachable = jumpOffset >= 0 && jumpOffset <= MAX_STEPS;
           return (
             <button
               key={i}
               type="button"
-              onClick={() => setDayIndex(i)}
+              disabled={!reachable}
+              onClick={() => reachable && setStepOffset(jumpOffset)}
               className={cn(
                 "flex flex-1 flex-col items-center justify-center rounded-full px-3 py-2 text-sm font-medium transition-colors",
                 active
                   ? "text-white shadow"
                   : "text-foreground hover:bg-foreground/5",
+                !reachable && "opacity-40",
               )}
               style={active ? { background: BRAND } : undefined}
             >
@@ -410,7 +420,7 @@ export function RegionMap() {
         })}
       </div>
 
-      {/* 3-Stunden-Zeitschieber */}
+      {/* Durchgehender 3-Stunden-Zeitstrahl ab jetzt */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-baseline gap-2">
@@ -429,18 +439,15 @@ export function RegionMap() {
           </span>
         </div>
         <Slider
-          min={minHourStep}
-          max={7}
+          min={0}
+          max={MAX_STEPS}
           step={1}
-          value={[hourStep]}
-          onValueChange={(v) => setHourStep(v[0] ?? minHourStep)}
+          value={[stepOffset]}
+          onValueChange={(v) => setStepOffset(v[0] ?? 0)}
         />
-        <div className="mt-2 grid grid-cols-8 text-center text-[11px] font-medium text-muted-foreground">
-          {Array.from({ length: 8 }, (_, i) => (
-            <span key={i} className={cn(i < minHourStep && "opacity-30")}>
-              {String(i * 3).padStart(2, "0")}
-            </span>
-          ))}
+        <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
+          <span>jetzt</span>
+          <span>+{Math.round((MAX_STEPS * 3) / 24)} Tage</span>
         </div>
       </div>
     </div>
