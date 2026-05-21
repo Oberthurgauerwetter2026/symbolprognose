@@ -282,7 +282,7 @@ export function RegionMap() {
     });
   }, []);
 
-  const { bounds, maxBounds } = useMemo(() => {
+  const { center, maxBounds } = useMemo(() => {
     const layer = L.geoJSON(REGION);
     const b = layer.getBounds();
     const sw = b.getSouthWest();
@@ -291,8 +291,13 @@ export function RegionMap() {
       [sw.lat - 0.001, sw.lng - 0.001],
       [ne.lat + 0.001, ne.lng + 0.001],
     );
-    return { bounds: extended, maxBounds: extended.pad(0.3) };
+    const c = b.getCenter();
+    return {
+      center: [c.lat, c.lng] as [number, number],
+      maxBounds: extended.pad(0.3),
+    };
   }, []);
+
 
   if (!mounted) {
     return (
