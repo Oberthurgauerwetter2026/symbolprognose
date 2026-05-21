@@ -229,17 +229,27 @@ const LAKE_LABEL_ICON = L.divIcon({
   iconAnchor: [70, 12],
 });
 
+function currentHourStep(): number {
+  const h = new Date().getHours();
+  return Math.min(7, Math.max(0, Math.ceil(h / 3)));
+}
+
 export function RegionMap() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const [dayIndex, setDayIndex] = useState(0);
-  const [hourStep, setHourStep] = useState(() => {
-    const h = new Date().getHours();
-    return Math.min(7, Math.max(0, Math.round(h / 3)));
-  });
+  const [hourStep, setHourStep] = useState(() => currentHourStep());
+
+  const minHourStep = dayIndex === 0 ? currentHourStep() : 0;
+
+  useEffect(() => {
+    if (dayIndex === 0 && hourStep < minHourStep) {
+      setHourStep(minHourStep);
+    }
+  }, [dayIndex, hourStep, minHourStep]);
 
   const days = useMemo(() => {
     const base = new Date();
@@ -274,8 +284,91 @@ export function RegionMap() {
   const hourLabel = `${String(hourStep * 3).padStart(2, "0")}:00`;
   const activeDayLabel = formatDayLabel(days[dayIndex], dayIndex);
 
+  const goHome = () => {
+    router.navigate({ to: "/" }).catch(() => {
+      if (typeof window !== "undefined") window.location.assign("/");
+    });
+  };
+
   return (
     <div className="space-y-4">
+      {/* Karte */}
+      <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
+        <MapContainer
+          bounds={bounds}
+          boundsOptions={{ padding: [24, 24] }}
+          maxBounds={maxBounds}
+          maxBoundsViscosity={1.0}
+          minZoom={11}
+          maxZoom={15}
+          scrollWheelZoom
+          zoomControl={false}
+          attributionControl={false}
+          style={{ height: "100%", width: "100%", background: "#e8edef" }}
+        >
+          <TileLayer
+            url="https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
+            maxZoom={16}
+          />
+          {/* Aussen-Maske: dunkleres Grau (See + Region ausgestanzt) */}
+          <GeoJSON
+            data={OUTSIDE_MASK}
+            style={() => ({
+              stroke: false,
+              fillColor: "#8a96a0",
+              fillOpacity: 0.7,
+            })}
+            interactive={false}
+          />
+          {/* See unter der Region zeichnen */}
+          <GeoJSON
+            data={LAKE}
+            style={() => ({
+              color: "#6bb6d6",
+              weight: 0.6,
+              fillColor: "#7ec8e3",
+              fillOpacity: 0.9,
+            })}
+            interactive={false}
+          />
+          {/* Region innen: klickbar → Symbolprognose */}
+          <GeoJSON
+            data={REGION}
+            style={() => ({
+              color: BRAND,
+              weight: 2,
+              opacity: 0.9,
+              fillColor: "#b8d9a3",
+              fillOpacity: 0.28,
+            })}
+            eventHandlers={{
+              click: () => goHome(),
+              mouseover: (e) => {
+                const layer = e.propagatedFrom ?? e.target;
+                if (layer && typeof layer.setStyle === "function") {
+                  layer.setStyle({ fillOpacity: 0.45 });
+                }
+              },
+              mouseout: (e) => {
+                const layer = e.propagatedFrom ?? e.target;
+                if (layer && typeof layer.setStyle === "function") {
+                  layer.setStyle({ fillOpacity: 0.28 });
+                }
+              },
+            }}
+          />
+          <Marker
+            position={[47.625, 9.32]}
+            icon={LAKE_LABEL_ICON}
+            interactive={false}
+          />
+          {SPOTS.map((s) => (
+            <SpotMarker key={s.id} spot={s} dayIndex={dayIndex} />
+          ))}
+          <ZoomControl position="topright" />
+        </MapContainer>
+      </div>
+
       {/* Tages-Umschalter (Pill-Group) */}
       <div className="inline-flex w-full gap-1 rounded-full bg-muted p-1">
         {days.map((d, i) => {
@@ -308,87 +401,6 @@ export function RegionMap() {
         })}
       </div>
 
-      {/* Karte */}
-      <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
-        <MapContainer
-          bounds={bounds}
-          boundsOptions={{ padding: [24, 24] }}
-          maxBounds={maxBounds}
-          maxBoundsViscosity={1.0}
-          minZoom={11}
-          maxZoom={15}
-          scrollWheelZoom
-          zoomControl={false}
-          attributionControl={false}
-          style={{ height: "100%", width: "100%", background: "#e8edef" }}
-        >
-          <TileLayer
-            url="https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
-            maxZoom={16}
-          />
-          {/* Aussen-Maske: dunkleres Grau */}
-          <GeoJSON
-            data={OUTSIDE_MASK}
-            style={() => ({
-              stroke: false,
-              fillColor: "#8a96a0",
-              fillOpacity: 0.7,
-            })}
-            interactive={false}
-          />
-          {/* Region innen: klickbar → Symbolprognose */}
-          <GeoJSON
-            data={REGION}
-            style={() => ({
-              color: BRAND,
-              weight: 2,
-              opacity: 0.9,
-              fillColor: "#b8d9a3",
-              fillOpacity: 0.28,
-            })}
-            eventHandlers={{
-              click: () => navigate({ to: "/" }),
-              mouseover: (e) => {
-                const layer = e.propagatedFrom ?? e.target;
-                if (layer && typeof layer.setStyle === "function") {
-                  layer.setStyle({ fillOpacity: 0.45 });
-                }
-              },
-              mouseout: (e) => {
-                const layer = e.propagatedFrom ?? e.target;
-                if (layer && typeof layer.setStyle === "function") {
-                  layer.setStyle({ fillOpacity: 0.28 });
-                }
-              },
-            }}
-          />
-          <GeoJSON
-            data={LAKE}
-            style={() => ({
-              color: "#6bb6d6",
-              weight: 0.6,
-              fillColor: "#7ec8e3",
-              fillOpacity: 0.9,
-            })}
-            interactive={false}
-          />
-          <Marker
-            position={[47.625, 9.32]}
-            icon={LAKE_LABEL_ICON}
-            interactive={false}
-          />
-          {SPOTS.map((s) => (
-            <SpotMarker
-              key={s.id}
-              spot={s}
-              dayIndex={dayIndex}
-              hourStep={hourStep}
-            />
-          ))}
-          <ZoomControl position="topright" />
-        </MapContainer>
-      </div>
-
       {/* 3-Stunden-Zeitschieber */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
@@ -408,15 +420,17 @@ export function RegionMap() {
           </span>
         </div>
         <Slider
-          min={0}
+          min={minHourStep}
           max={7}
           step={1}
           value={[hourStep]}
-          onValueChange={(v) => setHourStep(v[0] ?? 0)}
+          onValueChange={(v) => setHourStep(v[0] ?? minHourStep)}
         />
         <div className="mt-2 grid grid-cols-8 text-center text-[11px] font-medium text-muted-foreground">
           {Array.from({ length: 8 }, (_, i) => (
-            <span key={i}>{String(i * 3).padStart(2, "0")}</span>
+            <span key={i} className={cn(i < minHourStep && "opacity-30")}>
+              {String(i * 3).padStart(2, "0")}
+            </span>
           ))}
         </div>
       </div>
