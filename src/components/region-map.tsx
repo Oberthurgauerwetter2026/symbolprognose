@@ -99,8 +99,8 @@ function MarkerPill({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        padding: "8px 14px 8px 8px",
+        gap: 12,
+        padding: "10px 16px 10px 10px",
         borderRadius: 999,
         background: BRAND,
         boxShadow: "0 6px 20px rgba(0,0,0,0.32)",
@@ -113,8 +113,8 @@ function MarkerPill({
     >
       <div
         style={{
-          width: 46,
-          height: 46,
+          width: 52,
+          height: 52,
           borderRadius: 999,
           background: "#fff",
           display: "flex",
@@ -123,10 +123,10 @@ function MarkerPill({
           flexShrink: 0,
         }}
       >
-        <WeatherIcon code={code} isDay={isDay} size={34} />
+        <WeatherIcon code={code} isDay={isDay} size={40} />
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.01em" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.015em" }}>
           {name}
         </span>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -134,9 +134,9 @@ function MarkerPill({
             style={{
               background: "#cfe1f2",
               color: BRAND,
-              padding: "2px 8px",
+              padding: "3px 10px",
               borderRadius: 6,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: 700,
             }}
           >
@@ -146,9 +146,9 @@ function MarkerPill({
             style={{
               background: "#0d3563",
               color: "#fff",
-              padding: "2px 8px",
+              padding: "3px 10px",
               borderRadius: 6,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: 700,
             }}
           >
@@ -158,6 +158,7 @@ function MarkerPill({
       </div>
     </div>
   );
+
 }
 
 function SpotMarker({
