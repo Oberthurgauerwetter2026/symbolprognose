@@ -377,25 +377,28 @@ export function RegionMap() {
         </MapContainer>
       </div>
 
-      {/* Tages-Anzeige (highlight nach Slider-Position) */}
+      {/* Tages-Anzeige: Klick öffnet Tagesübersicht (/) mit ?day=i */}
       <div className="inline-flex w-full gap-1 rounded-full bg-muted p-1">
         {days.map((d, i) => {
           const { top, sub } = formatDayLabel(d, i);
           const active = i === dayIndex;
-          const jumpOffset = i === 0 ? 0 : Math.ceil((i * 24 - baseHour) / 3);
-          const reachable = jumpOffset >= 0 && jumpOffset <= MAX_STEPS;
           return (
             <button
               key={i}
               type="button"
-              disabled={!reachable}
-              onClick={() => reachable && setStepOffset(jumpOffset)}
+              onClick={() => {
+                router
+                  .navigate({ to: "/", search: { day: i } })
+                  .catch(() => {
+                    if (typeof window !== "undefined")
+                      window.location.assign(`/?day=${i}`);
+                  });
+              }}
               className={cn(
                 "flex flex-1 flex-col items-center justify-center rounded-full px-3 py-2 text-sm font-medium transition-colors",
                 active
                   ? "text-white shadow"
                   : "text-foreground hover:bg-foreground/5",
-                !reachable && "opacity-40",
               )}
               style={active ? { background: BRAND } : undefined}
             >
@@ -412,6 +415,7 @@ export function RegionMap() {
           );
         })}
       </div>
+
 
       {/* Moderner 3-Stunden-Zeitstrahl mit Stundenlegende */}
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">

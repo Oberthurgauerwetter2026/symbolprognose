@@ -46,7 +46,7 @@ function useNow(intervalMs = 60_000): Date {
   return now;
 }
 
-export function WeatherWidget() {
+export function WeatherWidget({ initialDayIdx }: { initialDayIdx?: number } = {}) {
   const [location, setLocation] = useState<StoredLocation>(() => {
     if (typeof window === "undefined") return DEFAULT_LOCATION;
     try {
@@ -65,7 +65,12 @@ export function WeatherWidget() {
   }, []);
   const [extended, setExtended] = useState(false);
   const [snow, setSnow] = useState(false);
-  const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+  const [selectedDayIdx, setSelectedDayIdx] = useState(initialDayIdx ?? 0);
+  useEffect(() => {
+    if (initialDayIdx != null && initialDayIdx >= 0 && initialDayIdx < 7) {
+      setSelectedDayIdx(initialDayIdx);
+    }
+  }, [initialDayIdx]);
   const now = useNow();
 
   useEffect(() => {
