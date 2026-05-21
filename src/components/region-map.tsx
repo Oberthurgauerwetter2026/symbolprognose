@@ -95,6 +95,7 @@ function MarkerPill({
 }) {
   return (
     <div
+      className={MARKER_PILL_CLASS}
       style={{
         display: "flex",
         alignItems: "center",
@@ -106,6 +107,8 @@ function MarkerPill({
         fontFamily: '"Figtree", system-ui, sans-serif',
         color: "#fff",
         lineHeight: 1.05,
+        cursor: "pointer",
+        transition: "transform 120ms ease",
       }}
     >
       <div
