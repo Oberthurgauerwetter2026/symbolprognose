@@ -467,10 +467,10 @@ export function RegionMap() {
       <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
         <MapContainer
           bounds={bounds}
-          boundsOptions={{ padding: [24, 24] }}
+          boundsOptions={{ padding: [40, 40] }}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
-          minZoom={13}
+          minZoom={10}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
