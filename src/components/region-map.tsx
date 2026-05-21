@@ -365,7 +365,7 @@ export function RegionMap() {
             interactive={false}
           />
           {SPOTS.map((s) => (
-            <SpotMarker key={s.id} spot={s} dayIndex={dayIndex} />
+            <SpotMarker key={s.id} spot={s} dayIndex={dayIndex} hourStep={hourStep} />
           ))}
           <ZoomControl position="topright" />
         </MapContainer>
