@@ -324,8 +324,8 @@ export function RegionMap() {
       {/* Karte */}
       <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
         <MapContainer
-          bounds={bounds}
-          boundsOptions={{ padding: [8, 8] }}
+          center={center}
+          zoom={12}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
           minZoom={9}
