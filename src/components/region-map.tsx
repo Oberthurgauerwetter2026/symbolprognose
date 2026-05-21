@@ -324,19 +324,19 @@ export function RegionMap() {
             maxZoom={18}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
-          {/* Relief-Schummerung (swissALTI3D) */}
+          {/* Relief-Schummerung (swissALTI3D) — stärker */}
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissalti3d-reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
-            opacity={0.35}
+            opacity={0.65}
           />
-          {/* Aussen-Maske: dunkleres Grau (See + Region ausgestanzt) */}
+          {/* Aussen-Maske: Grau (See + Region ausgestanzt) */}
           <GeoJSON
             data={OUTSIDE_MASK}
             style={() => ({
               stroke: false,
               fillColor: "#5a6670",
-              fillOpacity: 0.78,
+              fillOpacity: 0.6,
             })}
             interactive={false}
           />
@@ -351,7 +351,7 @@ export function RegionMap() {
             })}
             interactive={false}
           />
-          {/* Region innen: klickbar → Symbolprognose */}
+          {/* Region innen: rein visuell, kein Klick (Klick geschieht über Marker) */}
           <GeoJSON
             data={REGION}
             style={() => ({
@@ -361,21 +361,7 @@ export function RegionMap() {
               fillColor: "#7ebd5a",
               fillOpacity: 0.55,
             })}
-            eventHandlers={{
-              click: () => goHome(),
-              mouseover: (e) => {
-                const layer = e.propagatedFrom ?? e.target;
-                if (layer && typeof layer.setStyle === "function") {
-                  layer.setStyle({ fillOpacity: 0.55 });
-                }
-              },
-              mouseout: (e) => {
-                const layer = e.propagatedFrom ?? e.target;
-                if (layer && typeof layer.setStyle === "function") {
-                  layer.setStyle({ fillOpacity: 0.55 });
-                }
-              },
-            }}
+            interactive={false}
           />
           {SPOTS.map((s) => (
             <SpotMarker
@@ -384,6 +370,7 @@ export function RegionMap() {
               dayIndex={dayIndex}
               absoluteHour={absoluteHour}
               isDay={isDay}
+              onClick={goHome}
             />
           ))}
           <ZoomControl position="topright" />
@@ -395,7 +382,6 @@ export function RegionMap() {
         {days.map((d, i) => {
           const { top, sub } = formatDayLabel(d, i);
           const active = i === dayIndex;
-          // Sprung zu 00:00 dieses Tages (heute: aktuelle Zeit)
           const jumpOffset = i === 0 ? 0 : Math.ceil((i * 24 - baseHour) / 3);
           const reachable = jumpOffset >= 0 && jumpOffset <= MAX_STEPS;
           return (
@@ -427,32 +413,70 @@ export function RegionMap() {
         })}
       </div>
 
-      {/* Durchgehender 3-Stunden-Zeitstrahl ab jetzt */}
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-foreground">
-              {activeDayLabel.top}
+      {/* Moderner 3-Stunden-Zeitstrahl mit Stundenlegende */}
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div className="mb-4 flex items-end justify-between">
+          <div className="flex flex-col">
+            <span className="font-[family-name:var(--font-display)] text-lg font-semibold leading-tight text-foreground">
+              {longWeekday(days[Math.min(dayIndex, days.length - 1)])}
             </span>
             <span className="text-xs text-muted-foreground">
               {activeDayLabel.sub}
             </span>
           </div>
           <span
-            className="rounded-md px-2 py-0.5 text-sm font-bold text-white"
+            className="rounded-lg px-3 py-1 text-base font-bold text-white shadow-sm"
             style={{ background: BRAND }}
           >
             {hourLabel}
           </span>
         </div>
-        <Slider
-          min={0}
-          max={MAX_STEPS}
-          step={1}
-          value={[stepOffset]}
-          onValueChange={(v) => setStepOffset(v[0] ?? 0)}
-        />
-        <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
+
+        <div className="region-slider px-1">
+          <Slider
+            min={0}
+            max={MAX_STEPS}
+            step={1}
+            value={[stepOffset]}
+            onValueChange={(v) => setStepOffset(v[0] ?? 0)}
+          />
+        </div>
+
+        {/* Stundenlegende: 00, 03, 06, … 21, 00 */}
+        <div className="mt-3 px-1">
+          <div className="relative h-2">
+            {HOUR_TICKS.map((h) => (
+              <span
+                key={`tick-${h}`}
+                className="absolute top-0 h-2 w-px bg-border"
+                style={{ left: `${(h / 24) * 100}%` }}
+              />
+            ))}
+          </div>
+          <div className="relative mt-1 h-4">
+            {HOUR_TICKS.map((h) => {
+              const display = h === 24 ? 0 : h;
+              const active = h !== 24 && h === Math.floor(hourOfDay / 3) * 3;
+              return (
+                <span
+                  key={`label-${h}`}
+                  className={cn(
+                    "absolute top-0 -translate-x-1/2 text-[11px] tabular-nums",
+                    active ? "font-bold" : "font-medium text-muted-foreground",
+                  )}
+                  style={{
+                    left: `${(h / 24) * 100}%`,
+                    color: active ? BRAND : undefined,
+                  }}
+                >
+                  {String(display).padStart(2, "0")}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-3 flex justify-between text-[11px] font-medium text-muted-foreground">
           <span>jetzt</span>
           <span>+{Math.round((MAX_STEPS * 3) / 24)} Tage</span>
         </div>
