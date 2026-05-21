@@ -398,14 +398,8 @@ export function RegionMap() {
               key={i}
               type="button"
               onClick={() => {
-                const target =
-                  i === 0
-                    ? 0
-                    : Math.min(
-                        MAX_STEPS - 1,
-                        Math.max(0, Math.ceil((i * 24 - baseHour) / 3)),
-                      );
-                setStepOffset(target);
+                setSelectedDayIdx(i);
+                setViewMode("daily");
               }}
               className={cn(
                 "flex flex-1 flex-col items-center justify-center rounded-full px-3 py-2 text-sm font-medium transition-colors",
