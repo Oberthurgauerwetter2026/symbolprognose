@@ -322,6 +322,14 @@ function Header({
       </div>
 
       <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
+        <a
+          href="/karte"
+          className="h-10 px-3 inline-flex items-center gap-1.5 bg-zinc-100 border border-zinc-200 text-zinc-900 text-sm font-semibold rounded-md transition-colors hover:bg-zinc-200"
+          title="Wetterkarte der Region"
+        >
+          <span aria-hidden>🗺</span>
+          <span>Karte</span>
+        </a>
         <label className="flex items-center gap-3 cursor-pointer">
           <Switch
             checked={extended}
