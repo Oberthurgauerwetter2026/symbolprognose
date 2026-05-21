@@ -289,11 +289,11 @@ export function RegionMap() {
       <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
         <MapContainer
           bounds={bounds}
-          boundsOptions={{ padding: [24, 24] }}
+          boundsOptions={{ padding: [8, 8] }}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
-          minZoom={11}
-          maxZoom={15}
+          minZoom={9}
+          maxZoom={17}
           scrollWheelZoom
           zoomControl={false}
           attributionControl={true}
@@ -304,13 +304,19 @@ export function RegionMap() {
             maxZoom={18}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
+          {/* Relief-Schummerung (swissALTI3D) */}
+          <TileLayer
+            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissalti3d-reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
+            maxZoom={18}
+            opacity={0.35}
+          />
           {/* Aussen-Maske: dunkleres Grau (See + Region ausgestanzt) */}
           <GeoJSON
             data={OUTSIDE_MASK}
             style={() => ({
               stroke: false,
-              fillColor: "#8a96a0",
-              fillOpacity: 0.7,
+              fillColor: "#5a6670",
+              fillOpacity: 0.78,
             })}
             interactive={false}
           />
@@ -332,29 +338,24 @@ export function RegionMap() {
               color: BRAND,
               weight: 2,
               opacity: 0.9,
-              fillColor: "#9fcf85",
-              fillOpacity: 0.45,
+              fillColor: "#7ebd5a",
+              fillOpacity: 0.55,
             })}
             eventHandlers={{
               click: () => goHome(),
               mouseover: (e) => {
                 const layer = e.propagatedFrom ?? e.target;
                 if (layer && typeof layer.setStyle === "function") {
-                  layer.setStyle({ fillOpacity: 0.45 });
+                  layer.setStyle({ fillOpacity: 0.55 });
                 }
               },
               mouseout: (e) => {
                 const layer = e.propagatedFrom ?? e.target;
                 if (layer && typeof layer.setStyle === "function") {
-                  layer.setStyle({ fillOpacity: 0.45 });
+                  layer.setStyle({ fillOpacity: 0.55 });
                 }
               },
             }}
-          />
-          <Marker
-            position={[47.625, 9.32]}
-            icon={LAKE_LABEL_ICON}
-            interactive={false}
           />
           {SPOTS.map((s) => (
             <SpotMarker
@@ -362,6 +363,7 @@ export function RegionMap() {
               spot={s}
               dayIndex={dayIndex}
               absoluteHour={absoluteHour}
+              isDay={isDay}
             />
           ))}
           <ZoomControl position="topright" />
