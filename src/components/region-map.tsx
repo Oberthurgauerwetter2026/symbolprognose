@@ -239,6 +239,7 @@ export function RegionMap() {
   const absoluteHour = baseHour + stepOffset * 3;
   const dayIndex = Math.floor(absoluteHour / 24);
   const hourOfDay = absoluteHour % 24;
+  const isDay = hourOfDay >= 6 && hourOfDay < 20;
 
   const days = useMemo(() => {
     const base = new Date();
@@ -256,10 +257,10 @@ export function RegionMap() {
     const sw = b.getSouthWest();
     const ne = b.getNorthEast();
     const extended = L.latLngBounds(
-      [sw.lat - 0.005, sw.lng - 0.005],
-      [ne.lat + 0.005, ne.lng + 0.005],
+      [sw.lat - 0.001, sw.lng - 0.001],
+      [ne.lat + 0.001, ne.lng + 0.001],
     );
-    return { bounds: extended, maxBounds: extended.pad(0.15) };
+    return { bounds: extended, maxBounds: extended.pad(0.3) };
   }, []);
 
   if (!mounted) {
