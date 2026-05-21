@@ -462,8 +462,8 @@ export function RegionMap() {
 
 
       {/* Moderner 3-Stunden-Zeitstrahl mit Stundenlegende */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <div className="mb-4 flex items-end justify-between">
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+        <div className="mb-2 flex items-end justify-between">
           <div className="flex flex-col">
             <span className="font-[family-name:var(--font-display)] text-lg font-semibold leading-tight text-foreground">
               {longWeekday(days[Math.min(dayIndex, days.length - 1)])}
@@ -505,17 +505,17 @@ export function RegionMap() {
 
 
         {/* Stundenlegende: 00, 03, 06, … 21, 00 */}
-        <div className={cn("mt-3 px-1", viewMode === "daily" && "opacity-40")}>
-          <div className="relative h-2">
+        <div className={cn("mt-2 px-1", viewMode === "daily" && "opacity-40")}>
+          <div className="relative h-1.5">
             {HOUR_TICKS.map((h) => (
               <span
                 key={`tick-${h}`}
-                className="absolute top-0 h-2 w-px bg-border"
+                className="absolute top-0 h-1.5 w-px bg-border"
                 style={{ left: `${(h / 24) * 100}%` }}
               />
             ))}
           </div>
-          <div className="relative mt-1 h-4">
+          <div className="relative mt-0.5 h-3">
             {HOUR_TICKS.map((h) => {
               const display = h === 24 ? 0 : h;
               const active = h !== 24 && h === Math.floor(hourOfDay / 3) * 3;
@@ -523,7 +523,7 @@ export function RegionMap() {
                 <span
                   key={`label-${h}`}
                   className={cn(
-                    "absolute top-0 -translate-x-1/2 text-[11px] tabular-nums",
+                    "absolute top-0 -translate-x-1/2 text-[10px] tabular-nums",
                     active ? "font-bold" : "font-medium text-muted-foreground",
                   )}
                   style={{
@@ -538,7 +538,7 @@ export function RegionMap() {
           </div>
         </div>
 
-        <div className="mt-3 flex justify-between text-[11px] font-medium text-muted-foreground">
+        <div className="mt-1.5 flex justify-between text-[11px] font-medium text-muted-foreground">
           <span>jetzt</span>
           <span>+{Math.round((MAX_STEPS * 3) / 24)} Tage</span>
         </div>
