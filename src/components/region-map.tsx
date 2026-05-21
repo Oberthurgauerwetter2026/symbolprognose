@@ -415,10 +415,10 @@ export function RegionMap() {
     const sw = b.getSouthWest();
     const ne = b.getNorthEast();
     const extended = L.latLngBounds(
-      [sw.lat - 0.005, sw.lng - 0.005],
-      [ne.lat + 0.015, ne.lng + 0.005],
+      [sw.lat - 0.04, sw.lng - 0.05],
+      [ne.lat + 0.05, ne.lng + 0.05],
     );
-    return { bounds: extended, maxBounds: extended.pad(0.15) };
+    return { bounds: extended, maxBounds: extended.pad(0.3) };
   }, []);
 
   if (!mounted) {
@@ -467,10 +467,10 @@ export function RegionMap() {
       <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
         <MapContainer
           bounds={bounds}
-          boundsOptions={{ padding: [24, 24] }}
+          boundsOptions={{ padding: [40, 40] }}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
-          minZoom={13}
+          minZoom={10}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
