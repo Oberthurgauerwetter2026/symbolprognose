@@ -234,10 +234,13 @@ const LAKE_LABEL_ICON = L.divIcon({
   iconAnchor: [70, 12],
 });
 
-function currentHourStep(): number {
+function currentBaseHour(): number {
+  // aktueller 3-h-Slot: 0,3,6,...,21
   const h = new Date().getHours();
-  return Math.min(7, Math.max(0, Math.ceil(h / 3)));
+  return Math.floor(h / 3) * 3;
 }
+
+const MAX_STEPS = 40; // 5 Tage × 8 (3-h-Schritte)
 
 export function RegionMap() {
   const [mounted, setMounted] = useState(false);
@@ -245,14 +248,13 @@ export function RegionMap() {
 
   const router = useRouter();
 
-  const [dayIndex, setDayIndex] = useState(0);
-  const [hourStep, setHourStep] = useState(() => currentHourStep());
+  // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
+  const [baseHour] = useState(() => currentBaseHour());
+  const [stepOffset, setStepOffset] = useState(0);
 
-  const minHourStep = dayIndex === 0 ? currentHourStep() : 0;
-
-  useEffect(() => {
-    setHourStep(dayIndex === 0 ? currentHourStep() : 0);
-  }, [dayIndex]);
+  const absoluteHour = baseHour + stepOffset * 3;
+  const dayIndex = Math.floor(absoluteHour / 24);
+  const hourOfDay = absoluteHour % 24;
 
   const days = useMemo(() => {
     const base = new Date();
@@ -270,8 +272,8 @@ export function RegionMap() {
     const sw = b.getSouthWest();
     const ne = b.getNorthEast();
     const extended = L.latLngBounds(
-      [sw.lat - 0.015, sw.lng - 0.02],
-      [ne.lat + 0.02, ne.lng + 0.02],
+      [sw.lat - 0.005, sw.lng - 0.005],
+      [ne.lat + 0.005, ne.lng + 0.005],
     );
     return { bounds: extended, maxBounds: extended.pad(0.15) };
   }, []);
@@ -284,8 +286,11 @@ export function RegionMap() {
     );
   }
 
-  const hourLabel = `${String(hourStep * 3).padStart(2, "0")}:00`;
-  const activeDayLabel = formatDayLabel(days[dayIndex], dayIndex);
+  const hourLabel = `${String(hourOfDay).padStart(2, "0")}:00`;
+  const activeDayLabel = formatDayLabel(
+    days[Math.min(dayIndex, days.length - 1)],
+    dayIndex,
+  );
 
   const goHome = () => {
     router.navigate({ to: "/" }).catch(() => {
