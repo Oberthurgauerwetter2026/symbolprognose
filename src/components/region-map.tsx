@@ -377,7 +377,8 @@ export function RegionMap() {
             <SpotMarker
               key={s.id}
               spot={s}
-              dayIndex={dayIndex}
+              mode={viewMode}
+              dayIdx={dayIndex}
               absoluteHour={absoluteHour}
               isDay={isDay}
               onClick={goHome}
