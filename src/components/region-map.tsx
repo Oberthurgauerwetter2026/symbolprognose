@@ -156,9 +156,11 @@ function MarkerPill({
 function SpotMarker({
   spot,
   dayIndex,
+  hourStep,
 }: {
   spot: Spot;
   dayIndex: number;
+  hourStep: number;
 }) {
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
