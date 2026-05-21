@@ -523,7 +523,7 @@ export function RegionMap() {
                 <span
                   key={`label-${h}`}
                   className={cn(
-                    "absolute top-0 -translate-x-1/2 text-[11px] tabular-nums",
+                    "absolute top-0 -translate-x-1/2 text-[10px] tabular-nums",
                     active ? "font-bold" : "font-medium text-muted-foreground",
                   )}
                   style={{
