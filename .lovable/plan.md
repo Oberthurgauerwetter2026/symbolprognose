@@ -1,59 +1,54 @@
 ## Ziel
-Karte schöner fokussieren, Marker vereinfachen (nur Min/Max) und in Markenfarbe `#2561a1`, neuen Ort Uttwil ergänzen, und beim Klick auf einen Marker eine detaillierte Prognose für den Ort öffnen.
+
+Karte auf einen Standardzoom zwischen den beiden Screenshots bringen, Bodensee klar als „Bodensee" beschriften, einen 3‑Stunden‑Zeitschieber mit Wochentag unter der Karte ergänzen, das Detail‑Sheet entfernen und Klicks auf die Region in die Symbolprognose (Index‑Route `/`) weiterleiten.
 
 ## Änderungen in `src/components/region-map.tsx`
 
-### 1. Zoom & Fokus
-- `minZoom: 12 → 13`, `maxZoom: 14 → 15`.
-- `boundsOptions.padding: [12,12] → [24,24]` damit alle Spots inkl. Bodensee-Rand sauber im Bild liegen.
-- `bounds` zusätzlich um `+0.005` in Süd/West/Ost leicht erweitern, damit Horn/Münsterlingen nicht am Rand kleben.
+### 1. Standard‑Zoom (zwischen Screenshot 1 und 2)
+- `bounds` weniger stark erweitern: `sw.lat - 0.015`, `sw.lng - 0.02`, `ne.lat + 0.02`, `ne.lng + 0.02` (statt 0.04/0.05).
+- `boundsOptions.padding: [40,40] → [24,24]`.
+- `minZoom: 10 → 11`, `maxZoom: 15` bleibt.
+- `maxBounds: extended.pad(0.3) → extended.pad(0.15)`.
+Damit ist die gesamte Region inkl. Bodensee‑Rand sichtbar, aber näher dran als Screenshot 1.
 
-### 2. Aussenmaske dunkler, Relief in Region markanter
-- `OUTSIDE_MASK`: `fillColor: "#8a96a0"`, `fillOpacity: 0.7` (deutlich gedämpfter Aussenbereich).
-- `REGION`-Innenfläche: `fillColor: "#a8cf95" → "#b8d9a3"`, `fillOpacity: 0.55 → 0.28` → Relief-Hillshade kommt viel stärker durch.
-- Zusätzlicher zweiter `TileLayer` über dem Hillshade nur innerhalb der Region-Clip-Wirkung nicht möglich → stattdessen Region-Layer-Opacity senken (siehe oben) + Hillshade `opacity: 1.0`.
-- Region-Outline: `weight: 1.5 → 2`, `opacity: 0.7 → 0.9`, `color: "#2561a1"` (passend zur Markenfarbe).
+### 2. Bodensee‑Label
+- Neue Konstante `LAKE_LABEL_POS = L.latLng(47.625, 9.32)` (Mitte des sichtbaren Bodensee‑Streifens am oberen Kartenrand).
+- Zusätzlicher `Marker` mit `divIcon` ohne Hintergrund, nur Text:
+  ```
+  <span style="font-family:'Figtree';font-style:italic;font-weight:600;
+               font-size:18px;color:#1e5a7a;letter-spacing:0.08em;
+               text-shadow:0 1px 2px rgba(255,255,255,0.9)">Bodensee</span>
+  ```
+- `interactive: false`, `iconSize: [140, 24]`, `iconAnchor: [70, 12]`.
 
-### 3. Neuer Ort
-- `SPOTS` ergänzen: `{ id: "uttwil", name: "Uttwil", lat: 47.5944, lon: 9.3408 }`.
+### 3. 3‑Stunden‑Zeitschieber unter der Karte
+- Neuer State `hourStep: number` (0 = 00:00, 1 = 03:00, … 7 = 21:00), Default 8h heuristisch (aktuelle Stunde / 3 gerundet) für `dayIndex===0`, sonst `4` (12:00).
+- Wochentag wird oben links angezeigt: `formatDayLabel(days[dayIndex], dayIndex).top + " " + dateSub(...)`, rechts die gewählte Uhrzeit (`${hourStep*3}:00`).
+- Slider via shadcn `Slider` (`min=0`, `max=7`, `step=1`).
+- Darunter eine Skala mit 8 Tick‑Labels (`00`, `03`, `06`, `09`, `12`, `15`, `18`, `21`) als `grid-cols-8`.
+- `MarkerPill` zeigt zusätzlich zur Tages‑Min/Max auch die Temperatur und das Wettersymbol für den gewählten 3h‑Slot:
+  - Index in `hourly`: `dayIndex * 24 + hourStep * 3`.
+  - Anzeige: Symbol + `tHour°` als zusätzliches kleines Badge oben rechts in der Pill, Min/Max bleiben darunter.
+  Variante (einfacher): nur das Symbol + die Stunden‑Temperatur wechseln, Min/Max bleiben Tages‑Min/Max.
 
-### 4. Marker (Pill) — Farbe, Inhalt, Grösse
-- Hintergrund-Pill: `#1f4a7a → #2561a1`.
-- **Nur** Min/Max-Badges anzeigen — aktuelle Stunden-Temperatur entfernen.
-- Min-Badge: `bg #cfe1f2`, `color #2561a1`. Max-Badge: `bg #0d3563`, `color #fff`.
-- Icon-Kreis 44 → 52 px, Icon 32 → 38 px.
-- Stadtname: 14 → 15 px.
-- Badges: 11 → 13 px, Padding `2px 7px → 3px 9px`.
-- `iconSize: [180,64] → [200,72]`, `iconAnchor: [100,36]`.
+### 4. Detail‑Sheet entfernen
+- `SpotDetailSheet`, `DetailContent` und alle `Sheet`‑Imports raus.
+- `selectedSpot`‑State raus.
+- `SpotMarker.onClick` raus (Marker bleiben rein dekorativ klickbar, ohne Sheet).
 
-### 5. Tages-Umschalter
-- Statt 6 gleichberechtigter Buttons: segmentierter Umschalter (Pill-Group):
-  - Container `bg-muted rounded-full p-1 flex gap-1`.
-  - Pro Tag ein Pill-Button `rounded-full px-4 py-2`, aktiv `bg-[#2561a1] text-white shadow`, sonst `text-foreground hover:bg-muted-foreground/10`.
-  - Label kompakt: `Heute` / `Morgen` / `Sa 24.5.`.
+### 5. Region‑Klick → `/` (Symbolprognose)
+- `useNavigate` aus `@tanstack/react-router` importieren.
+- `<GeoJSON data={REGION}>`: `interactive={true}`, `eventHandlers={{ click: () => navigate({ to: "/" }) }}`.
+- Style‑Hover‑Effekt: `onEachFeature` setzt `mouseover`/`mouseout` mit `setStyle({ fillOpacity: 0.45 })` ↔ `0.28` und `cursor: pointer` via CSS‑Klasse `region-clickable` auf dem Pfad.
+- Kleiner CSS‑Snippet in derselben Datei via `<style>` oder neue Klasse in `src/styles.css` (`.leaflet-interactive.region-clickable { cursor: pointer; }`). Da Leaflet `path` schon `cursor:pointer` setzt, reicht meist `interactive=true`.
 
-### 6. Stunden-Slider entfernt
-- Da nur noch Tages-Min/Max im Marker steht, wird der 3-Stunden-Slider entfernt (er hatte nur Bedeutung für die Stunden-Temperatur).
-- `hourStep`-State, `HOUR_STEPS`, `Slider`-Import und der ganze Slider-Block raus.
-- `SpotMarker` nimmt nur noch `dayIndex` und liest `daily.weathercode[dayIndex]`, `daily.temperature_2m_min/max[dayIndex]`.
+### 6. Sonstiges
+- `Sheet*`‑Imports, `weatherLabel`, `formatTimeHHMM`, `windDirectionLabel`, `weekdayShort`, `cn` (nur falls ungenutzt) bereinigen.
+- `WeatherIcon`, `useQuery` bleiben.
 
-### 7. Klick auf Marker → Detail-Sheet
-- Neuer State `selectedSpot: Spot | null` in `RegionMap`.
-- `SpotMarker` erhält `onClick` und nutzt `eventHandlers={{ click: () => onClick(spot) }}`.
-- Neue Komponente `SpotDetailSheet` (im selben File) mit shadcn `Sheet` (`side="right"`, `className="w-full sm:max-w-md overflow-y-auto"`):
-  - Header: Ort + Datum (aktiver Tag).
-  - 6-Tagesliste: pro Tag Datum, Wettersymbol (`weathercode`), Min/Max, Niederschlagswahrscheinlichkeit, Wind — gleiche Struktur wie der ursprünglich geplante Detail-Block im `WeatherWidget`, aber kompakt im Sheet.
-  - Stunden-Liste für den aktiven Tag (alle 3 h): Zeit, Symbol, Temperatur, Niederschlag mm.
-- Datenquelle: gleiche `fetchForecast(spot.lat, spot.lon)` via `useQuery` mit `queryKey: ["map-weather", spot.id]` (kein Doppel-Fetch).
+## Nicht geändert
+- `src/lib/weather.ts`, GeoJSON, Routen, Markenfarbe `#2561a1`, Tages‑Umschalter (Pill‑Group oberhalb der Karte).
 
-### 8. Bodensee & Restliches
-- `LAKE`-Style unverändert.
-- `MapContainer`-Hintergrund unverändert (`#e8edef`).
-
-## Technische Details
-- shadcn `Sheet` ist im Projekt vorhanden (`src/components/ui/sheet.tsx`).
-- Keine Änderungen an `weather.ts`, GeoJSON-Daten, Routing.
-- Datei betroffen: nur `src/components/region-map.tsx`.
-
-## Offen
-Wenn dir das Aussen-Grau (`#8a96a0`, 0.7) zu dunkel/zu hell ist, justiere ich Farbe oder Opacity (0.55–0.8) nach.
+## Offene Punkte
+- Soll im 3h‑Slot die Stunden‑Temperatur **zusätzlich** zu Min/Max in der Pill stehen (kompakter Stundenbadge oben rechts) oder die Tages‑Min/Max **ersetzen**? Default im Plan: zusätzlich.
+- Bodensee‑Label‑Position 47.625 / 9.32 ist ein Schätzwert nach den Screenshots — bei Bedarf nachjustieren.
