@@ -120,3 +120,29 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Region map: modern slider (dickerer Track + großer Thumb) */
+.region-slider [data-slot="slider-track"],
+.region-slider [role="slider"] ~ * span:first-child,
+.region-slider .relative > span:first-child {
+  /* fallback: scoped via descendant */
+}
+.region-slider :where([class*="bg-primary/20"]) {
+  height: 8px;
+  background-color: color-mix(in oklab, var(--accent) 18%, transparent);
+}
+.region-slider :where([class*="bg-primary"]:not([class*="/20"])) {
+  background-color: var(--accent);
+}
+.region-slider :where([class*="h-4"][class*="w-4"][class*="rounded-full"]) {
+  height: 20px;
+  width: 20px;
+  border: 2px solid var(--accent);
+  box-shadow: 0 4px 12px rgba(37, 97, 161, 0.35);
+  background: #fff;
+}
+
+/* Region map: marker hover lift */
+.region-map-pill:hover {
+  transform: translateY(-1px);
+}
