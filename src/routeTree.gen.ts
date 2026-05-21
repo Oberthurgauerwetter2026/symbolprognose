@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as KarteRouteImport } from './routes/karte'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
+const KarteRoute = KarteRouteImport.update({
+  id: '/karte',
+  path: '/karte',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmbedInfoRoute = EmbedInfoRouteImport.update({
   id: '/embed-info',
   path: '/embed-info',
@@ -33,34 +39,45 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/embed-info': typeof EmbedInfoRoute
+  '/karte': typeof KarteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/embed-info': typeof EmbedInfoRoute
+  '/karte': typeof KarteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/embed-info': typeof EmbedInfoRoute
+  '/karte': typeof KarteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/embed-info'
+  fullPaths: '/' | '/admin' | '/embed-info' | '/karte'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/embed-info'
-  id: '__root__' | '/' | '/admin' | '/embed-info'
+  to: '/' | '/admin' | '/embed-info' | '/karte'
+  id: '__root__' | '/' | '/admin' | '/embed-info' | '/karte'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   EmbedInfoRoute: typeof EmbedInfoRoute
+  KarteRoute: typeof KarteRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/karte': {
+      id: '/karte'
+      path: '/karte'
+      fullPath: '/karte'
+      preLoaderRoute: typeof KarteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/embed-info': {
       id: '/embed-info'
       path: '/embed-info'
@@ -89,17 +106,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   EmbedInfoRoute: EmbedInfoRoute,
+  KarteRoute: KarteRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
