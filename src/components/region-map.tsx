@@ -462,8 +462,8 @@ export function RegionMap() {
 
 
       {/* Moderner 3-Stunden-Zeitstrahl mit Stundenlegende */}
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <div className="mb-4 flex items-end justify-between">
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+        <div className="mb-2 flex items-end justify-between">
           <div className="flex flex-col">
             <span className="font-[family-name:var(--font-display)] text-lg font-semibold leading-tight text-foreground">
               {longWeekday(days[Math.min(dayIndex, days.length - 1)])}
