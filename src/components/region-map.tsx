@@ -325,7 +325,7 @@ export function RegionMap() {
       <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
         <MapContainer
           center={center}
-          zoom={12}
+          zoom={11}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
           minZoom={9}
