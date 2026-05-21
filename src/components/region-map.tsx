@@ -156,9 +156,11 @@ function MarkerPill({
 function SpotMarker({
   spot,
   dayIndex,
+  hourStep,
 }: {
   spot: Spot;
   dayIndex: number;
+  hourStep: number;
 }) {
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
@@ -190,11 +192,12 @@ function SpotMarker({
         iconAnchor: [60, 14],
       });
     }
-    const dailyCode = data.daily.weathercode[dayIndex] ?? 0;
+    const hourIndex = dayIndex * 24 + hourStep * 3;
+    const hourlyCode = data.hourly.weathercode[hourIndex] ?? data.daily.weathercode[dayIndex] ?? 0;
     const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={dailyCode} />,
+      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={hourlyCode} />,
     );
     return L.divIcon({
       html,
@@ -202,7 +205,7 @@ function SpotMarker({
       iconSize: [200, 64],
       iconAnchor: [100, 32],
     });
-  }, [data, dayIndex, spot]);
+  }, [data, dayIndex, hourStep, spot]);
 
   return <Marker position={[spot.lat, spot.lon]} icon={icon} interactive={false} />;
 }
@@ -305,7 +308,7 @@ export function RegionMap() {
           style={{ height: "100%", width: "100%", background: "#e8edef" }}
         >
           <TileLayer
-            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg"
+            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
@@ -337,8 +340,8 @@ export function RegionMap() {
               color: BRAND,
               weight: 2,
               opacity: 0.9,
-              fillColor: "#b8d9a3",
-              fillOpacity: 0.28,
+              fillColor: "#9fcf85",
+              fillOpacity: 0.45,
             })}
             eventHandlers={{
               click: () => goHome(),
@@ -351,7 +354,7 @@ export function RegionMap() {
               mouseout: (e) => {
                 const layer = e.propagatedFrom ?? e.target;
                 if (layer && typeof layer.setStyle === "function") {
-                  layer.setStyle({ fillOpacity: 0.28 });
+                  layer.setStyle({ fillOpacity: 0.45 });
                 }
               },
             }}
@@ -362,7 +365,7 @@ export function RegionMap() {
             interactive={false}
           />
           {SPOTS.map((s) => (
-            <SpotMarker key={s.id} spot={s} dayIndex={dayIndex} />
+            <SpotMarker key={s.id} spot={s} dayIndex={dayIndex} hourStep={hourStep} />
           ))}
           <ZoomControl position="topright" />
         </MapContainer>
