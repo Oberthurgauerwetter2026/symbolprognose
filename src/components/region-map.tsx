@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapContainer, TileLayer, GeoJSON, Marker } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, Marker, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { FeatureCollection } from "geojson";
+import type { Feature, FeatureCollection, Polygon } from "geojson";
 
 import regionData from "@/data/region.json";
 import { fetchForecast } from "@/lib/weather";
@@ -20,6 +20,38 @@ const SPOTS: Spot[] = [
 ];
 
 const REGION = regionData as unknown as FeatureCollection;
+
+// Build a "mask" polygon: world rectangle with all region polygons cut out as holes.
+const MASK: Feature<Polygon> = (() => {
+  const world: number[][] = [
+    [-180, -85],
+    [180, -85],
+    [180, 85],
+    [-180, 85],
+    [-180, -85],
+  ];
+  const holes: number[][][] = [];
+  for (const f of REGION.features) {
+    if (f.geometry.type === "Polygon") {
+      // Outer ring only — inner rings of source polygons can be ignored for the mask.
+      const outer = f.geometry.coordinates[0];
+      if (outer && outer.length >= 4) holes.push(outer as number[][]);
+    } else if (f.geometry.type === "MultiPolygon") {
+      for (const poly of f.geometry.coordinates) {
+        const outer = poly[0];
+        if (outer && outer.length >= 4) holes.push(outer as number[][]);
+      }
+    }
+  }
+  return {
+    type: "Feature",
+    properties: {},
+    geometry: {
+      type: "Polygon",
+      coordinates: [world, ...holes],
+    },
+  };
+})();
 
 function currentHourIso(): string {
   const d = new Date();
@@ -40,11 +72,10 @@ function useCurrentHour(): string {
 }
 
 function findHourIndex(times: string[], hourIso: string): number {
-  const target = hourIso.slice(0, 13); // YYYY-MM-DDTHH
+  const target = hourIso.slice(0, 13);
   for (let i = 0; i < times.length; i++) {
     if ((times[i] ?? "").slice(0, 13) === target) return i;
   }
-  // Fallback: closest in time
   const t = new Date(hourIso).getTime();
   let best = 0;
   let bestDiff = Infinity;
@@ -77,37 +108,75 @@ function MarkerCard({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        padding: "6px 10px",
-        borderRadius: 10,
-        background: "rgba(255,255,255,0.96)",
-        border: "1px solid rgba(12, 35, 64, 0.18)",
-        boxShadow: "0 4px 12px rgba(12, 35, 64, 0.18)",
-        minWidth: 88,
+        padding: "6px 10px 7px",
+        borderRadius: 14,
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        border: "1px solid rgba(255,255,255,0.6)",
+        boxShadow: "0 8px 24px rgba(12, 35, 64, 0.18)",
+        minWidth: 96,
         fontFamily: '"Figtree", system-ui, sans-serif',
         color: "#0c2340",
         lineHeight: 1.1,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        <WeatherIcon code={code} size={28} />
-        <span style={{ fontFamily: '"Outfit", system-ui, sans-serif', fontWeight: 700, fontSize: 18 }}>
+      <div
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          background: "#0c2340",
+          color: "#fff",
+          padding: "2px 8px",
+          borderRadius: 999,
+          marginBottom: 4,
+        }}
+      >
+        {name}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 999,
+            background: "#5cbdb9",
+            boxShadow: "0 0 0 2px rgba(92,189,185,0.25)",
+          }}
+        />
+        <WeatherIcon code={code} size={26} />
+        <span
+          style={{
+            fontFamily: '"Outfit", system-ui, sans-serif',
+            fontWeight: 700,
+            fontSize: 18,
+          }}
+        >
           {Math.round(temp)}°
         </span>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, marginTop: 2 }}>
-        <span
-          style={{
-            display: "inline-block",
-            transform: `rotate(${windDir}deg)`,
-            fontSize: 12,
-            lineHeight: 1,
-          }}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: 11,
+          marginTop: 3,
+          opacity: 0.85,
+        }}
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          style={{ transform: `rotate(${windDir}deg)` }}
         >
-          ↓
-        </span>
+          <path d="M5 0 L8 9 L5 7 L2 9 Z" fill="#0c2340" />
+        </svg>
         <span>{Math.round(wind)} km/h</span>
       </div>
-      <div style={{ fontSize: 11, fontWeight: 600, marginTop: 2, opacity: 0.8 }}>{name}</div>
     </div>
   );
 }
@@ -126,9 +195,10 @@ function SpotMarker({ spot, hourIso }: { spot: Spot; hourIso: string }) {
         <div
           style={{
             padding: "6px 10px",
-            borderRadius: 10,
-            background: "rgba(255,255,255,0.9)",
-            border: "1px solid rgba(12,35,64,0.18)",
+            borderRadius: 12,
+            background: "rgba(255,255,255,0.85)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid rgba(255,255,255,0.6)",
             fontFamily: '"Figtree", system-ui, sans-serif',
             fontSize: 12,
             color: "#0c2340",
@@ -140,8 +210,8 @@ function SpotMarker({ spot, hourIso }: { spot: Spot; hourIso: string }) {
       return L.divIcon({
         html,
         className: "region-map-marker",
-        iconSize: [80, 28],
-        iconAnchor: [40, 14],
+        iconSize: [90, 28],
+        iconAnchor: [45, 14],
       });
     }
     const i = findHourIndex(data.hourly.time, hourIso);
@@ -157,8 +227,8 @@ function SpotMarker({ spot, hourIso }: { spot: Spot; hourIso: string }) {
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [100, 70],
-      iconAnchor: [50, 35],
+      iconSize: [110, 82],
+      iconAnchor: [55, 41],
     });
   }, [data, hourIso, spot]);
 
@@ -170,39 +240,67 @@ export function RegionMap() {
   useEffect(() => setMounted(true), []);
   const hourIso = useCurrentHour();
 
+  const { bounds, maxBounds } = useMemo(() => {
+    const layer = L.geoJSON(REGION);
+    const b = layer.getBounds();
+    return { bounds: b, maxBounds: b.pad(0.2) };
+  }, []);
+
   if (!mounted) {
     return (
-      <div className="flex h-[500px] w-full items-center justify-center rounded-lg border bg-muted/30 text-sm text-muted-foreground">
+      <div className="flex h-[500px] w-full items-center justify-center rounded-2xl bg-muted/30 text-sm text-muted-foreground shadow-lg">
         Karte wird geladen …
       </div>
     );
   }
 
   return (
-    <div className="relative h-[600px] w-full overflow-hidden rounded-lg border">
+    <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
       <MapContainer
-        center={[47.555, 9.32]}
-        zoom={11}
+        bounds={bounds}
+        boundsOptions={{ padding: [24, 24] }}
+        maxBounds={maxBounds}
+        maxBoundsViscosity={1.0}
+        minZoom={11}
+        maxZoom={16}
         scrollWheelZoom
-        style={{ height: "100%", width: "100%" }}
+        zoomControl={false}
+        style={{ height: "100%", width: "100%", background: "#eef2f6" }}
       >
         <TileLayer
-          attribution='Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, FAO, NOAA, USGS'
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
-          maxZoom={19}
+          attribution='Tiles &copy; Esri'
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={16}
+        />
+        <TileLayer
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={16}
+        />
+        <GeoJSON
+          data={MASK}
+          style={() => ({
+            color: "transparent",
+            weight: 0,
+            fillColor: "#0c2340",
+            fillOpacity: 0.35,
+            fillRule: "evenodd",
+          })}
+          interactive={false}
         />
         <GeoJSON
           data={REGION}
           style={() => ({
             color: "#0c2340",
-            weight: 1.2,
-            fillColor: "#5cbdb9",
-            fillOpacity: 0.12,
+            weight: 2.5,
+            fill: false,
+            opacity: 0.9,
           })}
+          interactive={false}
         />
         {SPOTS.map((s) => (
           <SpotMarker key={s.id} spot={s} hourIso={hourIso} />
         ))}
+        <ZoomControl position="topright" />
       </MapContainer>
     </div>
   );
