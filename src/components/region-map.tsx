@@ -505,17 +505,17 @@ export function RegionMap() {
 
 
         {/* Stundenlegende: 00, 03, 06, … 21, 00 */}
-        <div className={cn("mt-3 px-1", viewMode === "daily" && "opacity-40")}>
-          <div className="relative h-2">
+        <div className={cn("mt-2 px-1", viewMode === "daily" && "opacity-40")}>
+          <div className="relative h-1.5">
             {HOUR_TICKS.map((h) => (
               <span
                 key={`tick-${h}`}
-                className="absolute top-0 h-2 w-px bg-border"
+                className="absolute top-0 h-1.5 w-px bg-border"
                 style={{ left: `${(h / 24) * 100}%` }}
               />
             ))}
           </div>
-          <div className="relative mt-1 h-4">
+          <div className="relative mt-0.5 h-3">
             {HOUR_TICKS.map((h) => {
               const display = h === 24 ? 0 : h;
               const active = h !== 24 && h === Math.floor(hourOfDay / 3) * 3;
