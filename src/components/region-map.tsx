@@ -261,11 +261,15 @@ export function RegionMap() {
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
   const [baseHour] = useState(() => currentBaseHour());
   const [stepOffset, setStepOffset] = useState(0);
+  const [viewMode, setViewMode] = useState<"hourly" | "daily">("hourly");
+  const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
   const absoluteHour = baseHour + stepOffset * 3;
-  const dayIndex = Math.floor(absoluteHour / 24);
+  const hourlyDayIndex = Math.floor(absoluteHour / 24);
+  const dayIndex = viewMode === "daily" ? selectedDayIdx : hourlyDayIndex;
   const hourOfDay = absoluteHour % 24;
   const isDay = hourOfDay >= 6 && hourOfDay < 20;
+
 
   const days = useMemo(() => {
     const base = new Date();
