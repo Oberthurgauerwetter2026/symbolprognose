@@ -340,8 +340,8 @@ export function RegionMap() {
               color: BRAND,
               weight: 2,
               opacity: 0.9,
-              fillColor: "#b8d9a3",
-              fillOpacity: 0.28,
+              fillColor: "#9fcf85",
+              fillOpacity: 0.45,
             })}
             eventHandlers={{
               click: () => goHome(),
