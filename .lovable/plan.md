@@ -1,36 +1,55 @@
 ## Ziel
 
-Karte stärker auf die Region fokussieren und visuell moderner gestalten. Nur `src/components/region-map.tsx` wird angepasst — Wetter-Logik und Marker-Daten bleiben.
+Die Karte visuell an die hochgeladene Vorlage angleichen: dunkler Hintergrund ausserhalb der Region, hellblauer Bodensee, sattes Grün für das Land, und Wetter-Marker als blaue, abgerundete Pill-Labels mit Symbol und Min-/Max-Temperatur (Tageswerte).
+
+Nur `src/components/region-map.tsx` und `src/lib/weather.ts` werden angepasst. GeoJSON, Routen und 4 Spots bleiben.
 
 ## Änderungen
 
-**1. Fokus auf Region (Bezirk Arbon + Münsterlingen)**
+**1. Basemap → flacher, farbiger Look (wie Vorlage)**
 
-- Karte automatisch an die GeoJSON-Bounds anpassen via `bounds` Prop bzw. `map.fitBounds(layer.getBounds(), { padding: [20,20] })`.
-- `minZoom` auf die berechneten Bounds setzen und `maxBounds` mit leichtem Padding → User kann nicht aus der Region rauspannen.
-- Statt `World Topo Map` die deutlich dezentere **Esri "World Gray Canvas"** als Basemap (lässt Region und Wetter-Marker dominieren, wirkt moderner). Labels-Overlay (`World_Boundaries_and_Places`) zusätzlich, damit Ortsnamen lesbar bleiben.
+- Esri-Tiles entfernen. Statt Bitmap-Tiles eine reine Vektor-/CSS-Darstellung:
+  - `MapContainer` Hintergrund: `#1f2a36` (dunkles Schiefer-Blau → ausserhalb der Region).
+  - Land-Layer: zusätzliches GeoJSON-Polygon des **Kantons Thurgau** (oder ersatzweise die Vereinigung der vier Gemeindeflächen, erweitert um eine grosszügige Bounding-Hülle) in `fill: #8fbf7f` (sattes Hellgrün), `stroke: none`.
+  - See-Layer: GeoJSON-Polygon **Bodensee** (Untersee + Obersee-Westteil) in `fill: #7ec8e3` (helles Wasserblau), darüber gezeichnet.
+- Mask-Polygon entfernen (nicht mehr nötig, da kein Tile-Hintergrund mehr).
+- Neue Datendateien:
+  - `src/data/land.json` — vereinfachtes Polygon der Landfläche im Kartenausschnitt (Quelle: bestehendes `region.json` + Erweiterung, oder Natural-Earth-Auszug; ich generiere ein vereinfachtes GeoJSON von Hand aus den Region-Bounds + manueller Seeufer-Linie).
+  - `src/data/lake.json` — vereinfachtes Polygon Bodensee im Ausschnitt.
 
-**2. Modernere Region-Darstellung**
+**2. Region-Outline**
 
-- Aussenmaske: ein zweites GeoJSON-Layer (Welt-Rechteck mit Region als Loch) füllt alles ausserhalb der Region halbtransparent mit dunklem Navy → Region wird optisch "ausgestanzt" und hervorgehoben.
-- Region-Outline: kräftigere Linie (`weight: 2.5`, `color: #0c2340`), kein Fill (Basemap bleibt sichtbar), dezenter `dashArray` weglassen.
-- Container: `rounded-2xl`, weicher Shadow (`shadow-lg`), kein Border — wirkt moderner.
+- Bezirksgrenze als dünne, helle Linie (`#ffffff`, `weight: 1.5`, `opacity: 0.4`) — dezent wie in der Vorlage.
 
-**3. Modernere Marker-Karten**
+**3. Marker als blaue Pill-Labels (zentrales Element)**
 
-- Glas-Look: `background: rgba(255,255,255,0.85)`, `backdrop-filter: blur(8px)`, `border-radius: 14`, subtilerer Shadow (`0 8px 24px rgba(12,35,64,0.12)`).
-- Kleiner farbiger Akzent-Dot links der Temperatur (Primary `#5cbdb9`).
-- Ortsname als kleine Pille oberhalb (uppercase, letter-spacing) statt darunter — wirkt redaktioneller.
-- Wind-Pfeil als echtes SVG (Pfeil-Glyph statt `↓`-Zeichen), gleiche Rotation.
+- Form: horizontal, abgerundet (`border-radius: 14px`), zweispaltig:
+  - Links: Wetter-Icon (gelbe Sonne / Wolke, vorhandene `WeatherIcon`-Komponente), grösser dargestellt mit weissem Kreis-Hintergrund.
+  - Rechts: oben Ortsname (weiss, fett, ~13px), darunter zwei Temperatur-Badges nebeneinander (Min hellblau `#bcd8ec`, Max sattblau `#1e4a82`, weisser Text, ~11px) — exakt wie in der Vorlage.
+- Hintergrund-Pill: `#1f4a7a` (kräftiges Royal-Blau), Schatten `0 4px 12px rgba(0,0,0,0.25)`.
+- Wind-Anzeige entfernen (Vorlage zeigt nur Min/Max). Optional: Hover-Tooltip für Wind später.
+
+**4. Wetterdaten: Min/Max statt aktueller Stundenwert**
+
+- `fetchForecast` in `src/lib/weather.ts` zusätzlich um `daily: { time, temperature_2m_min, temperature_2m_max, weathercode }` erweitern (Open-Meteo-Parameter `daily=temperature_2m_max,temperature_2m_min,weathercode`).
+- `SpotMarker` liest Index `0` (heute) aus `daily`, zeigt Min/Max + Tages-Weathercode.
+- Stunden-Refresh bleibt (für Wechsel um Mitternacht reicht der bestehende 60s-Interval-Hook; Query-Key bekommt zusätzlich das Datum).
+
+**5. Container**
+
+- `rounded-2xl`, `shadow-lg`, `bg-[#1f2a36]` (dunkler Hintergrund bleibt auch sichtbar während Tile-Loading entfernt ist).
+- Höhe bleibt `600px`.
 
 ## Technische Details
 
-- `MapContainer` bekommt `bounds` aus `L.geoJSON(REGION).getBounds()` (in `useMemo`), `boundsOptions={{ padding: [24,24] }}`, `maxBounds` = `bounds.pad(0.15)`, `maxBoundsViscosity: 1.0`, `minZoom` = aus `fitBounds`-Ergebnis (vereinfacht: `minZoom={10}`), `zoomControl={false}` + `<ZoomControl position="topright" />` für moderneres Layout.
-- Aussenmaske: `turf`-frei lösen — Polygon mit Welt-Ring als äusserer Ring und Region-Koordinaten als inneren Ring (Loch). Da die Region eine `FeatureCollection` mit mehreren Polygonen ist, einfacher: alle Region-Features als Holes in ein Welt-Polygon einfügen. Code direkt in `useMemo` aus `REGION.features` ableiten.
-- Tile-URLs:
-  - Base: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`
-  - Labels: `https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}` (zweiter `<TileLayer>` darüber, `pane="overlayPane"` nicht nötig — Default-Stapel reicht).
+- Polygone für Land/See: ich generiere sie aus OpenStreetMap-Overpass-Daten (Relation Kanton Thurgau, Relation Bodensee), vereinfacht auf ~200 Punkte mit `mapshaper` oder von Hand erstellt — falls Overpass nicht erreichbar, alternativ Natural-Earth-Auszug (`ne_10m_lakes`, Kantonsgrenze aus swissBOUNDARIES3D vereinfacht). Da das im Build-Step nicht laufen kann, **lade ich die GeoJSONs einmalig via `curl` aus dem Overpass-API herunter und speichere sie statisch** unter `src/data/`.
+- Leaflet rendert SVG-Polygone scharf; kein Tile-Layer mehr.
+- `WeatherIcon` muss eine helle Variante auf farbigem Pill-Hintergrund vertragen — vorhandene Icons sind farbig, also auf weissem Inner-Kreis platzieren.
 
 ## Nicht verändert
 
-- 4 Spots, Wetter-Fetch, Stunden-Refresh, GeoJSON-Datei.
+- 4 Spots, GeoJSON der Region, Routen, Stunden-Refresh-Mechanik.
+
+## Offene Frage
+
+Soll ich die Wind-Anzeige ganz entfernen (wie Vorlage) oder als kleinen Zusatz unter dem Pill behalten?
