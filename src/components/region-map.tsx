@@ -162,13 +162,15 @@ function MarkerPill({
 
 function SpotMarker({
   spot,
-  dayIndex,
+  mode,
+  dayIdx,
   absoluteHour,
   isDay,
   onClick,
 }: {
   spot: Spot;
-  dayIndex: number;
+  mode: "hourly" | "daily";
+  dayIdx: number;
   absoluteHour: number;
   isDay: boolean;
   onClick: () => void;
@@ -204,14 +206,17 @@ function SpotMarker({
         iconAnchor: [60, 14],
       });
     }
-    const hourlyCode =
-      data.hourly.weathercode[absoluteHour] ??
-      data.daily.weathercode[dayIndex] ??
-      0;
-    const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
-    const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
+    const code =
+      mode === "daily"
+        ? data.daily.weathercode[dayIdx] ?? 0
+        : data.hourly.weathercode[absoluteHour] ??
+          data.daily.weathercode[dayIdx] ??
+          0;
+    const tMin = data.daily.temperature_2m_min[dayIdx] ?? 0;
+    const tMax = data.daily.temperature_2m_max[dayIdx] ?? 0;
+    const effectiveIsDay = mode === "daily" ? true : isDay;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={hourlyCode} isDay={isDay} />,
+      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={code} isDay={effectiveIsDay} />,
     );
     return L.divIcon({
       html,
@@ -219,7 +224,7 @@ function SpotMarker({
       iconSize: [200, 64],
       iconAnchor: [100, 32],
     });
-  }, [data, dayIndex, absoluteHour, isDay, spot]);
+  }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
   return (
     <Marker
@@ -229,6 +234,7 @@ function SpotMarker({
     />
   );
 }
+
 
 // (Bodensee-Label entfernt)
 
