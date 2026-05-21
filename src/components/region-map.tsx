@@ -432,7 +432,7 @@ export function RegionMap() {
               {longWeekday(days[Math.min(dayIndex, days.length - 1)])}
             </span>
             <span className="text-xs text-muted-foreground">
-              {activeDayLabel.sub}
+              {viewMode === "daily" ? "Tagesübersicht" : activeDayLabel.sub}
             </span>
           </div>
           {viewMode === "daily" ? (
