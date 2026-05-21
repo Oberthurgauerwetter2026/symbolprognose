@@ -83,11 +83,13 @@ function MarkerPill({
   tMin,
   tMax,
   code,
+  isDay,
 }: {
   name: string;
   tMin: number;
   tMax: number;
   code: number;
+  isDay: boolean;
 }) {
   return (
     <div
@@ -116,7 +118,7 @@ function MarkerPill({
           flexShrink: 0,
         }}
       >
-        <WeatherIcon code={code} size={34} />
+        <WeatherIcon code={code} isDay={isDay} size={34} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.01em" }}>
@@ -157,10 +159,12 @@ function SpotMarker({
   spot,
   dayIndex,
   absoluteHour,
+  isDay,
 }: {
   spot: Spot;
   dayIndex: number;
   absoluteHour: number;
+  isDay: boolean;
 }) {
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
@@ -199,7 +203,7 @@ function SpotMarker({
     const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={hourlyCode} />,
+      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={hourlyCode} isDay={isDay} />,
     );
     return L.divIcon({
       html,
@@ -207,7 +211,7 @@ function SpotMarker({
       iconSize: [200, 64],
       iconAnchor: [100, 32],
     });
-  }, [data, dayIndex, absoluteHour, spot]);
+  }, [data, dayIndex, absoluteHour, isDay, spot]);
 
   return <Marker position={[spot.lat, spot.lon]} icon={icon} interactive={false} />;
 }
