@@ -246,10 +246,8 @@ export function RegionMap() {
   const minHourStep = dayIndex === 0 ? currentHourStep() : 0;
 
   useEffect(() => {
-    if (dayIndex === 0 && hourStep < minHourStep) {
-      setHourStep(minHourStep);
-    }
-  }, [dayIndex, hourStep, minHourStep]);
+    setHourStep(dayIndex === 0 ? currentHourStep() : 0);
+  }, [dayIndex]);
 
   const days = useMemo(() => {
     const base = new Date();
