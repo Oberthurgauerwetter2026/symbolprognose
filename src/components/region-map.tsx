@@ -354,7 +354,7 @@ export function RegionMap() {
               mouseout: (e) => {
                 const layer = e.propagatedFrom ?? e.target;
                 if (layer && typeof layer.setStyle === "function") {
-                  layer.setStyle({ fillOpacity: 0.28 });
+                  layer.setStyle({ fillOpacity: 0.45 });
                 }
               },
             }}
