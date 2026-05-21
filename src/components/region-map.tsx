@@ -473,20 +473,9 @@ export function RegionMap() {
             </span>
           </div>
           {viewMode === "daily" ? (
-            <button
-              type="button"
-              onClick={() => {
-                const target = Math.min(
-                  MAX_STEPS - 1,
-                  Math.max(0, Math.ceil((selectedDayIdx * 24 - baseHour) / 3)),
-                );
-                setStepOffset(target);
-                setViewMode("hourly");
-              }}
-              className="rounded-lg border border-input bg-background px-3 py-1 text-xs font-semibold hover:bg-accent"
-            >
-              Stündliche Ansicht
-            </button>
+            <span className="rounded-lg border border-border bg-muted px-3 py-1 text-sm font-semibold text-muted-foreground">
+              Tagesübersicht
+            </span>
           ) : (
             <span
               className="rounded-lg px-3 py-1 text-base font-bold text-white shadow-sm"
@@ -496,6 +485,7 @@ export function RegionMap() {
             </span>
           )}
         </div>
+
 
         <div
           className={cn(
