@@ -99,8 +99,8 @@ function MarkerPill({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        padding: "8px 14px 8px 8px",
+        gap: 12,
+        padding: "10px 16px 10px 10px",
         borderRadius: 999,
         background: BRAND,
         boxShadow: "0 6px 20px rgba(0,0,0,0.32)",
@@ -113,8 +113,8 @@ function MarkerPill({
     >
       <div
         style={{
-          width: 46,
-          height: 46,
+          width: 52,
+          height: 52,
           borderRadius: 999,
           background: "#fff",
           display: "flex",
@@ -123,10 +123,10 @@ function MarkerPill({
           flexShrink: 0,
         }}
       >
-        <WeatherIcon code={code} isDay={isDay} size={34} />
+        <WeatherIcon code={code} isDay={isDay} size={40} />
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.01em" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.015em" }}>
           {name}
         </span>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -134,9 +134,9 @@ function MarkerPill({
             style={{
               background: "#cfe1f2",
               color: BRAND,
-              padding: "2px 8px",
+              padding: "3px 10px",
               borderRadius: 6,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: 700,
             }}
           >
@@ -146,9 +146,9 @@ function MarkerPill({
             style={{
               background: "#0d3563",
               color: "#fff",
-              padding: "2px 8px",
+              padding: "3px 10px",
               borderRadius: 6,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: 700,
             }}
           >
@@ -158,6 +158,7 @@ function MarkerPill({
       </div>
     </div>
   );
+
 }
 
 function SpotMarker({
@@ -221,8 +222,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [200, 64],
-      iconAnchor: [100, 32],
+      iconSize: [240, 80],
+      iconAnchor: [120, 40],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
@@ -281,7 +282,7 @@ export function RegionMap() {
     });
   }, []);
 
-  const { bounds, maxBounds } = useMemo(() => {
+  const { center, maxBounds } = useMemo(() => {
     const layer = L.geoJSON(REGION);
     const b = layer.getBounds();
     const sw = b.getSouthWest();
@@ -290,8 +291,13 @@ export function RegionMap() {
       [sw.lat - 0.001, sw.lng - 0.001],
       [ne.lat + 0.001, ne.lng + 0.001],
     );
-    return { bounds: extended, maxBounds: extended.pad(0.3) };
+    const c = b.getCenter();
+    return {
+      center: [c.lat, c.lng] as [number, number],
+      maxBounds: extended.pad(0.3),
+    };
   }, []);
+
 
   if (!mounted) {
     return (
@@ -318,8 +324,8 @@ export function RegionMap() {
       {/* Karte */}
       <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
         <MapContainer
-          bounds={bounds}
-          boundsOptions={{ padding: [8, 8] }}
+          center={center}
+          zoom={12}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
           minZoom={9}
@@ -388,11 +394,41 @@ export function RegionMap() {
         </MapContainer>
       </div>
 
-      {/* Tages-Anzeige: Klick öffnet Tagesübersicht (/) mit ?day=i */}
+      {/* Stündlich-Toggle + Wochentage */}
       <div className="inline-flex w-full gap-1 rounded-full bg-muted p-1">
+        <button
+          type="button"
+          onClick={() => {
+            if (viewMode === "daily") {
+              const target = Math.min(
+                MAX_STEPS - 1,
+                Math.max(0, Math.ceil((selectedDayIdx * 24 - baseHour) / 3)),
+              );
+              setStepOffset(target);
+            } else {
+              setStepOffset(0);
+            }
+            setViewMode("hourly");
+          }}
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+            viewMode === "hourly"
+              ? "text-white shadow"
+              : "text-foreground hover:bg-foreground/5",
+          )}
+          style={viewMode === "hourly" ? { background: BRAND } : undefined}
+          aria-label="Stündliche Ansicht"
+          title="Stündliche Ansicht"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <polyline points="12 7 12 12 15 14" />
+          </svg>
+          <span className="leading-tight">Stündlich</span>
+        </button>
         {days.map((d, i) => {
           const { top, sub } = formatDayLabel(d, i);
-          const active = i === dayIndex;
+          const active = viewMode === "daily" && i === selectedDayIdx;
           return (
             <button
               key={i}
@@ -424,6 +460,7 @@ export function RegionMap() {
       </div>
 
 
+
       {/* Moderner 3-Stunden-Zeitstrahl mit Stundenlegende */}
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <div className="mb-4 flex items-end justify-between">
@@ -436,20 +473,9 @@ export function RegionMap() {
             </span>
           </div>
           {viewMode === "daily" ? (
-            <button
-              type="button"
-              onClick={() => {
-                const target = Math.min(
-                  MAX_STEPS - 1,
-                  Math.max(0, Math.ceil((selectedDayIdx * 24 - baseHour) / 3)),
-                );
-                setStepOffset(target);
-                setViewMode("hourly");
-              }}
-              className="rounded-lg border border-input bg-background px-3 py-1 text-xs font-semibold hover:bg-accent"
-            >
-              Stündliche Ansicht
-            </button>
+            <span className="rounded-lg border border-border bg-muted px-3 py-1 text-sm font-semibold text-muted-foreground">
+              Tagesübersicht
+            </span>
           ) : (
             <span
               className="rounded-lg px-3 py-1 text-base font-bold text-white shadow-sm"
@@ -459,6 +485,7 @@ export function RegionMap() {
             </span>
           )}
         </div>
+
 
         <div
           className={cn(
