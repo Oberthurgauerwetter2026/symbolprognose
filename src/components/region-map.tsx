@@ -192,11 +192,12 @@ function SpotMarker({
         iconAnchor: [60, 14],
       });
     }
-    const dailyCode = data.daily.weathercode[dayIndex] ?? 0;
+    const hourIndex = dayIndex * 24 + hourStep * 3;
+    const hourlyCode = data.hourly.weathercode[hourIndex] ?? data.daily.weathercode[dayIndex] ?? 0;
     const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={dailyCode} />,
+      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={hourlyCode} />,
     );
     return L.divIcon({
       html,
@@ -204,7 +205,7 @@ function SpotMarker({
       iconSize: [200, 64],
       iconAnchor: [100, 32],
     });
-  }, [data, dayIndex, spot]);
+  }, [data, dayIndex, hourStep, spot]);
 
   return <Marker position={[spot.lat, spot.lon]} icon={icon} interactive={false} />;
 }
