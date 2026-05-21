@@ -435,23 +435,47 @@ export function RegionMap() {
               {activeDayLabel.sub}
             </span>
           </div>
-          <span
-            className="rounded-lg px-3 py-1 text-base font-bold text-white shadow-sm"
-            style={{ background: BRAND }}
-          >
-            {hourLabel}
-          </span>
+          {viewMode === "daily" ? (
+            <button
+              type="button"
+              onClick={() => {
+                const target = Math.min(
+                  MAX_STEPS - 1,
+                  Math.max(0, Math.ceil((selectedDayIdx * 24 - baseHour) / 3)),
+                );
+                setStepOffset(target);
+                setViewMode("hourly");
+              }}
+              className="rounded-lg border border-input bg-background px-3 py-1 text-xs font-semibold hover:bg-accent"
+            >
+              Stündliche Ansicht
+            </button>
+          ) : (
+            <span
+              className="rounded-lg px-3 py-1 text-base font-bold text-white shadow-sm"
+              style={{ background: BRAND }}
+            >
+              {hourLabel}
+            </span>
+          )}
         </div>
 
-        <div className="region-slider px-1">
+        <div
+          className={cn(
+            "region-slider px-1",
+            viewMode === "daily" && "pointer-events-none opacity-40",
+          )}
+        >
           <Slider
             min={0}
             max={MAX_STEPS}
             step={1}
             value={[stepOffset]}
             onValueChange={(v) => setStepOffset(v[0] ?? 0)}
+            disabled={viewMode === "daily"}
           />
         </div>
+
 
         {/* Stundenlegende: 00, 03, 06, … 21, 00 */}
         <div className="mt-3 px-1">
