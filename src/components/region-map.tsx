@@ -156,11 +156,11 @@ function MarkerPill({
 function SpotMarker({
   spot,
   dayIndex,
-  hourStep,
+  absoluteHour,
 }: {
   spot: Spot;
   dayIndex: number;
-  hourStep: number;
+  absoluteHour: number;
 }) {
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
@@ -192,8 +192,10 @@ function SpotMarker({
         iconAnchor: [60, 14],
       });
     }
-    const hourIndex = dayIndex * 24 + hourStep * 3;
-    const hourlyCode = data.hourly.weathercode[hourIndex] ?? data.daily.weathercode[dayIndex] ?? 0;
+    const hourlyCode =
+      data.hourly.weathercode[absoluteHour] ??
+      data.daily.weathercode[dayIndex] ??
+      0;
     const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
     const html = renderToStaticMarkup(
@@ -205,7 +207,7 @@ function SpotMarker({
       iconSize: [200, 64],
       iconAnchor: [100, 32],
     });
-  }, [data, dayIndex, hourStep, spot]);
+  }, [data, dayIndex, absoluteHour, spot]);
 
   return <Marker position={[spot.lat, spot.lon]} icon={icon} interactive={false} />;
 }
@@ -232,10 +234,13 @@ const LAKE_LABEL_ICON = L.divIcon({
   iconAnchor: [70, 12],
 });
 
-function currentHourStep(): number {
+function currentBaseHour(): number {
+  // aktueller 3-h-Slot: 0,3,6,...,21
   const h = new Date().getHours();
-  return Math.min(7, Math.max(0, Math.ceil(h / 3)));
+  return Math.floor(h / 3) * 3;
 }
+
+const MAX_STEPS = 40; // 5 Tage × 8 (3-h-Schritte)
 
 export function RegionMap() {
   const [mounted, setMounted] = useState(false);
@@ -243,14 +248,13 @@ export function RegionMap() {
 
   const router = useRouter();
 
-  const [dayIndex, setDayIndex] = useState(0);
-  const [hourStep, setHourStep] = useState(() => currentHourStep());
+  // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
+  const [baseHour] = useState(() => currentBaseHour());
+  const [stepOffset, setStepOffset] = useState(0);
 
-  const minHourStep = dayIndex === 0 ? currentHourStep() : 0;
-
-  useEffect(() => {
-    setHourStep(dayIndex === 0 ? currentHourStep() : 0);
-  }, [dayIndex]);
+  const absoluteHour = baseHour + stepOffset * 3;
+  const dayIndex = Math.floor(absoluteHour / 24);
+  const hourOfDay = absoluteHour % 24;
 
   const days = useMemo(() => {
     const base = new Date();
@@ -268,8 +272,8 @@ export function RegionMap() {
     const sw = b.getSouthWest();
     const ne = b.getNorthEast();
     const extended = L.latLngBounds(
-      [sw.lat - 0.015, sw.lng - 0.02],
-      [ne.lat + 0.02, ne.lng + 0.02],
+      [sw.lat - 0.005, sw.lng - 0.005],
+      [ne.lat + 0.005, ne.lng + 0.005],
     );
     return { bounds: extended, maxBounds: extended.pad(0.15) };
   }, []);
@@ -282,8 +286,11 @@ export function RegionMap() {
     );
   }
 
-  const hourLabel = `${String(hourStep * 3).padStart(2, "0")}:00`;
-  const activeDayLabel = formatDayLabel(days[dayIndex], dayIndex);
+  const hourLabel = `${String(hourOfDay).padStart(2, "0")}:00`;
+  const activeDayLabel = formatDayLabel(
+    days[Math.min(dayIndex, days.length - 1)],
+    dayIndex,
+  );
 
   const goHome = () => {
     router.navigate({ to: "/" }).catch(() => {
@@ -365,27 +372,37 @@ export function RegionMap() {
             interactive={false}
           />
           {SPOTS.map((s) => (
-            <SpotMarker key={s.id} spot={s} dayIndex={dayIndex} hourStep={hourStep} />
+            <SpotMarker
+              key={s.id}
+              spot={s}
+              dayIndex={dayIndex}
+              absoluteHour={absoluteHour}
+            />
           ))}
           <ZoomControl position="topright" />
         </MapContainer>
       </div>
 
-      {/* Tages-Umschalter (Pill-Group) */}
+      {/* Tages-Anzeige (highlight nach Slider-Position) */}
       <div className="inline-flex w-full gap-1 rounded-full bg-muted p-1">
         {days.map((d, i) => {
           const { top, sub } = formatDayLabel(d, i);
           const active = i === dayIndex;
+          // Sprung zu 00:00 dieses Tages (heute: aktuelle Zeit)
+          const jumpOffset = i === 0 ? 0 : Math.ceil((i * 24 - baseHour) / 3);
+          const reachable = jumpOffset >= 0 && jumpOffset <= MAX_STEPS;
           return (
             <button
               key={i}
               type="button"
-              onClick={() => setDayIndex(i)}
+              disabled={!reachable}
+              onClick={() => reachable && setStepOffset(jumpOffset)}
               className={cn(
                 "flex flex-1 flex-col items-center justify-center rounded-full px-3 py-2 text-sm font-medium transition-colors",
                 active
                   ? "text-white shadow"
                   : "text-foreground hover:bg-foreground/5",
+                !reachable && "opacity-40",
               )}
               style={active ? { background: BRAND } : undefined}
             >
@@ -403,7 +420,7 @@ export function RegionMap() {
         })}
       </div>
 
-      {/* 3-Stunden-Zeitschieber */}
+      {/* Durchgehender 3-Stunden-Zeitstrahl ab jetzt */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-baseline gap-2">
@@ -422,18 +439,15 @@ export function RegionMap() {
           </span>
         </div>
         <Slider
-          min={minHourStep}
-          max={7}
+          min={0}
+          max={MAX_STEPS}
           step={1}
-          value={[hourStep]}
-          onValueChange={(v) => setHourStep(v[0] ?? minHourStep)}
+          value={[stepOffset]}
+          onValueChange={(v) => setStepOffset(v[0] ?? 0)}
         />
-        <div className="mt-2 grid grid-cols-8 text-center text-[11px] font-medium text-muted-foreground">
-          {Array.from({ length: 8 }, (_, i) => (
-            <span key={i} className={cn(i < minHourStep && "opacity-30")}>
-              {String(i * 3).padStart(2, "0")}
-            </span>
-          ))}
+        <div className="mt-2 flex justify-between text-[11px] font-medium text-muted-foreground">
+          <span>jetzt</span>
+          <span>+{Math.round((MAX_STEPS * 3) / 24)} Tage</span>
         </div>
       </div>
     </div>
