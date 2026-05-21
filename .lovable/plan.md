@@ -1,54 +1,46 @@
-## Ziel
+## Probleme
 
-Karte auf einen Standardzoom zwischen den beiden Screenshots bringen, Bodensee klar als „Bodensee" beschriften, einen 3‑Stunden‑Zeitschieber mit Wochentag unter der Karte ergänzen, das Detail‑Sheet entfernen und Klicks auf die Region in die Symbolprognose (Index‑Route `/`) weiterleiten.
+1. **Bodensee wird nicht angezeigt.** `src/data/lake.json` enthält nicht den Bodensee, sondern ein Polygon in Griechenland (lat ~38.9, lon ~22.1). Deshalb erscheint der See‑Bereich nur als dunkelgraue Aussenmaske statt als blaue Wasserfläche.
+2. **Schieberegler beginnt bei 00:00.** Für `dayIndex===0` sollte er erst ab dem aktuellen 3‑h‑Slot starten (frühere Slots gesperrt / nicht erreichbar).
+3. **Marker zeigen zusätzlich Stunden‑Temperatur.** Gewünscht sind nur Min/Max.
+4. **Reihenfolge unter der Karte falsch.** Aktuell: Tagesleiste oben, Karte, Schieberegler. Gewünscht: Karte, dann Tagesleiste, darunter Schieberegler.
+5. **Region‑Klick → `/` funktioniert nicht.** `useNavigate()` ohne `from` plus Leaflet‑Event‑Bubbling: Click wird ggf. von der Aussenmaske (jetzt `interactive:false`, ok) oder von Marker‑DivIcons abgefangen. Sicherer Fix: harten Navigationspfad via `window.location.assign("/")` oder `router.navigate({ to: "/" })` mit `getRouter`.
 
-## Änderungen in `src/components/region-map.tsx`
+## Änderungen
 
-### 1. Standard‑Zoom (zwischen Screenshot 1 und 2)
-- `bounds` weniger stark erweitern: `sw.lat - 0.015`, `sw.lng - 0.02`, `ne.lat + 0.02`, `ne.lng + 0.02` (statt 0.04/0.05).
-- `boundsOptions.padding: [40,40] → [24,24]`.
-- `minZoom: 10 → 11`, `maxZoom: 15` bleibt.
-- `maxBounds: extended.pad(0.3) → extended.pad(0.15)`.
-Damit ist die gesamte Region inkl. Bodensee‑Rand sichtbar, aber näher dran als Screenshot 1.
+### 1. Bodensee‑Polygon ersetzen (`src/data/lake.json`)
+- Datei komplett ersetzen durch ein FeatureCollection mit einem groben Bodensee‑Polygon (Obersee + Untersee), das den auf der Karte sichtbaren Bereich abdeckt. Koordinaten‑Box etwa: lat 47.50–47.78, lon 9.05–9.55.
+- Quelle: vereinfachtes Polygon entlang der Uferlinie (Punktliste im Plan‑Implementierungsschritt, ~30 Stützpunkte, ausreichend für die Zoomstufe 11–13).
 
-### 2. Bodensee‑Label
-- Neue Konstante `LAKE_LABEL_POS = L.latLng(47.625, 9.32)` (Mitte des sichtbaren Bodensee‑Streifens am oberen Kartenrand).
-- Zusätzlicher `Marker` mit `divIcon` ohne Hintergrund, nur Text:
-  ```
-  <span style="font-family:'Figtree';font-style:italic;font-weight:600;
-               font-size:18px;color:#1e5a7a;letter-spacing:0.08em;
-               text-shadow:0 1px 2px rgba(255,255,255,0.9)">Bodensee</span>
-  ```
-- `interactive: false`, `iconSize: [140, 24]`, `iconAnchor: [70, 12]`.
+### 2. Aussenmaske: See ausschneiden (`region-map.tsx`)
+- `OUTSIDE_MASK` so erweitern, dass nicht nur die REGION‑Features als Löcher gestanzt werden, sondern auch das Lake‑Polygon. So bleibt der See an den Stellen ausserhalb der Region nicht „grau überdeckt".
+- Konkret: in der IIFE zusätzlich über `LAKE.features` iterieren und deren Ringe ebenfalls in `holes` aufnehmen.
 
-### 3. 3‑Stunden‑Zeitschieber unter der Karte
-- Neuer State `hourStep: number` (0 = 00:00, 1 = 03:00, … 7 = 21:00), Default 8h heuristisch (aktuelle Stunde / 3 gerundet) für `dayIndex===0`, sonst `4` (12:00).
-- Wochentag wird oben links angezeigt: `formatDayLabel(days[dayIndex], dayIndex).top + " " + dateSub(...)`, rechts die gewählte Uhrzeit (`${hourStep*3}:00`).
-- Slider via shadcn `Slider` (`min=0`, `max=7`, `step=1`).
-- Darunter eine Skala mit 8 Tick‑Labels (`00`, `03`, `06`, `09`, `12`, `15`, `18`, `21`) als `grid-cols-8`.
-- `MarkerPill` zeigt zusätzlich zur Tages‑Min/Max auch die Temperatur und das Wettersymbol für den gewählten 3h‑Slot:
-  - Index in `hourly`: `dayIndex * 24 + hourStep * 3`.
-  - Anzeige: Symbol + `tHour°` als zusätzliches kleines Badge oben rechts in der Pill, Min/Max bleiben darunter.
-  Variante (einfacher): nur das Symbol + die Stunden‑Temperatur wechseln, Min/Max bleiben Tages‑Min/Max.
+### 3. Schieberegler ab aktueller Zeit (`region-map.tsx`)
+- Neuer Helper `currentHourStep()` → `Math.ceil(new Date().getHours() / 3)` (0–7, geclamped).
+- `minHourStep` per `useMemo` aus `dayIndex`: `dayIndex === 0 ? currentHourStep() : 0`.
+- `Slider min={minHourStep}`; `useEffect`, der bei Wechsel auf `dayIndex===0` `hourStep` auf `max(hourStep, minHourStep)` hebt; bei Wechsel weg von Tag 0 nichts forcieren.
+- Tick‑Skala unterhalb: nur Slots ab `minHourStep` voll, frühere Slots ausgegraut (`opacity-30`).
 
-### 4. Detail‑Sheet entfernen
-- `SpotDetailSheet`, `DetailContent` und alle `Sheet`‑Imports raus.
-- `selectedSpot`‑State raus.
-- `SpotMarker.onClick` raus (Marker bleiben rein dekorativ klickbar, ohne Sheet).
+### 4. Marker: nur Min/Max
+- `MarkerPill`: `tHour`‑Badge und `tHour`‑Prop entfernen.
+- `SpotMarker`: Tages‑`weathercode` statt Stunden‑Code verwenden; `hourStep` als Prop entfällt (und damit auch das Re‑Rendern der Icons bei jedem Slider‑Tick — DivIcon bleibt stabil).
+- `MarkerPill.iconSize` ggf. auf `[200, 64]` reduzieren.
 
-### 5. Region‑Klick → `/` (Symbolprognose)
-- `useNavigate` aus `@tanstack/react-router` importieren.
-- `<GeoJSON data={REGION}>`: `interactive={true}`, `eventHandlers={{ click: () => navigate({ to: "/" }) }}`.
-- Style‑Hover‑Effekt: `onEachFeature` setzt `mouseover`/`mouseout` mit `setStyle({ fillOpacity: 0.45 })` ↔ `0.28` und `cursor: pointer` via CSS‑Klasse `region-clickable` auf dem Pfad.
-- Kleiner CSS‑Snippet in derselben Datei via `<style>` oder neue Klasse in `src/styles.css` (`.leaflet-interactive.region-clickable { cursor: pointer; }`). Da Leaflet `path` schon `cursor:pointer` setzt, reicht meist `interactive=true`.
+### 5. Layout‑Reihenfolge unter der Karte
+- Render‑Reihenfolge in `RegionMap` ändern:
+  1. Karte (`<div className="relative h-[600px] …">`).
+  2. Tages‑Umschalter (Pill‑Group, aktuell oberhalb der Karte) verschiebt sich nach unten.
+  3. Darunter der Schieberegler‑Block.
 
-### 6. Sonstiges
-- `Sheet*`‑Imports, `weatherLabel`, `formatTimeHHMM`, `windDirectionLabel`, `weekdayShort`, `cn` (nur falls ungenutzt) bereinigen.
-- `WeatherIcon`, `useQuery` bleiben.
+### 6. Region‑Klick zuverlässig
+- Statt `navigate({ to: "/" })` → `router.navigate({ to: "/" })` via `useRouter()` aus `@tanstack/react-router`. Fallback bleibt `window.location.assign("/")`, falls der Klick im SSR‑/Bootstrap‑Pfad noch nicht greift.
+- Zusätzlich `interactive={false}` an allen Markern (Spots), damit sie Klicks nicht abfangen — Marker bleiben rein dekorativ. (Detail‑Sheet ist bereits entfernt.)
+- `eventHandlers.click` auch an `LAKE`‑Polygon (interactive=false bleibt) NICHT. See bleibt nicht klickbar.
 
 ## Nicht geändert
-- `src/lib/weather.ts`, GeoJSON, Routen, Markenfarbe `#2561a1`, Tages‑Umschalter (Pill‑Group oberhalb der Karte).
+- `src/lib/weather.ts`, `src/data/region.json`, Routen, Brand‑Farbe `#2561a1`, „Bodensee"‑Label, Zoom‑/Bounds‑Werte.
 
 ## Offene Punkte
-- Soll im 3h‑Slot die Stunden‑Temperatur **zusätzlich** zu Min/Max in der Pill stehen (kompakter Stundenbadge oben rechts) oder die Tages‑Min/Max **ersetzen**? Default im Plan: zusätzlich.
-- Bodensee‑Label‑Position 47.625 / 9.32 ist ein Schätzwert nach den Screenshots — bei Bedarf nachjustieren.
+- Soll der gesperrte Bereich des Sliders sichtbar bleiben (linker Bereich ausgegraut) oder soll der Track erst ab `minHourStep` beginnen? Default: sichtbar, ausgegraut.
+- Bodensee‑Polygon wird vereinfacht — ausreichend für den aktuellen Zoom, aber kein exaktes Uferprofil.

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import {
   MapContainer,
   GeoJSON,
@@ -37,17 +37,21 @@ const LAKE = lakeData as unknown as FeatureCollection;
 
 const OUTSIDE_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
-  for (const f of REGION.features) {
-    const g = f.geometry;
-    if (!g) continue;
-    if (g.type === "Polygon") {
-      if (g.coordinates[0]) holes.push(g.coordinates[0]);
-    } else if (g.type === "MultiPolygon") {
-      for (const poly of g.coordinates) {
-        if (poly[0]) holes.push(poly[0]);
+  const collect = (fc: FeatureCollection) => {
+    for (const f of fc.features) {
+      const g = f.geometry;
+      if (!g) continue;
+      if (g.type === "Polygon") {
+        if (g.coordinates[0]) holes.push(g.coordinates[0]);
+      } else if (g.type === "MultiPolygon") {
+        for (const poly of g.coordinates) {
+          if (poly[0]) holes.push(poly[0]);
+        }
       }
     }
-  }
+  };
+  collect(REGION);
+  collect(LAKE);
   const world: number[][] = [
     [-180, -85],
     [180, -85],
@@ -78,13 +82,11 @@ function MarkerPill({
   name,
   tMin,
   tMax,
-  tHour,
   code,
 }: {
   name: string;
   tMin: number;
   tMax: number;
-  tHour: number | null;
   code: number;
 }) {
   return (
@@ -92,8 +94,8 @@ function MarkerPill({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        padding: "9px 16px 9px 9px",
+        gap: 10,
+        padding: "8px 14px 8px 8px",
         borderRadius: 999,
         background: BRAND,
         boxShadow: "0 6px 20px rgba(0,0,0,0.32)",
@@ -104,8 +106,8 @@ function MarkerPill({
     >
       <div
         style={{
-          width: 52,
-          height: 52,
+          width: 46,
+          height: 46,
           borderRadius: 999,
           background: "#fff",
           display: "flex",
@@ -114,42 +116,20 @@ function MarkerPill({
           flexShrink: 0,
         }}
       >
-        <WeatherIcon code={code} size={38} />
+        <WeatherIcon code={code} size={34} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.01em" }}>
-            {name}
-          </span>
-          {tHour !== null && (
-            <span
-              style={{
-                background: "rgba(255,255,255,0.18)",
-                color: "#fff",
-                padding: "2px 7px",
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              {Math.round(tHour)}°
-            </span>
-          )}
-        </div>
+        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.01em" }}>
+          {name}
+        </span>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <span
             style={{
               background: "#cfe1f2",
               color: BRAND,
-              padding: "3px 9px",
+              padding: "2px 8px",
               borderRadius: 6,
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 700,
             }}
           >
@@ -159,9 +139,9 @@ function MarkerPill({
             style={{
               background: "#0d3563",
               color: "#fff",
-              padding: "3px 9px",
+              padding: "2px 8px",
               borderRadius: 6,
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 700,
             }}
           >
@@ -176,11 +156,9 @@ function MarkerPill({
 function SpotMarker({
   spot,
   dayIndex,
-  hourStep,
 }: {
   spot: Spot;
   dayIndex: number;
-  hourStep: number;
 }) {
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
@@ -215,27 +193,18 @@ function SpotMarker({
     const dailyCode = data.daily.weathercode[dayIndex] ?? 0;
     const tMin = data.daily.temperature_2m_min[dayIndex] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIndex] ?? 0;
-    const hourIdx = dayIndex * 24 + hourStep * 3;
-    const tHour = data.hourly.temperature_2m[hourIdx] ?? null;
-    const hourCode = data.hourly.weathercode[hourIdx] ?? dailyCode;
     const html = renderToStaticMarkup(
-      <MarkerPill
-        name={spot.name}
-        tMin={tMin}
-        tMax={tMax}
-        tHour={tHour}
-        code={hourCode}
-      />,
+      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={dailyCode} />,
     );
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [220, 72],
-      iconAnchor: [110, 36],
+      iconSize: [200, 64],
+      iconAnchor: [100, 32],
     });
-  }, [data, dayIndex, hourStep, spot]);
+  }, [data, dayIndex, spot]);
 
-  return <Marker position={[spot.lat, spot.lon]} icon={icon} />;
+  return <Marker position={[spot.lat, spot.lon]} icon={icon} interactive={false} />;
 }
 
 const LAKE_LABEL_ICON = L.divIcon({
