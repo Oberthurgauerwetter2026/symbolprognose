@@ -246,10 +246,8 @@ export function RegionMap() {
   const minHourStep = dayIndex === 0 ? currentHourStep() : 0;
 
   useEffect(() => {
-    if (dayIndex === 0 && hourStep < minHourStep) {
-      setHourStep(minHourStep);
-    }
-  }, [dayIndex, hourStep, minHourStep]);
+    setHourStep(dayIndex === 0 ? currentHourStep() : 0);
+  }, [dayIndex]);
 
   const days = useMemo(() => {
     const base = new Date();
@@ -303,12 +301,13 @@ export function RegionMap() {
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
-          attributionControl={false}
+          attributionControl={true}
           style={{ height: "100%", width: "100%", background: "#e8edef" }}
         >
           <TileLayer
-            url="https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
-            maxZoom={16}
+            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg"
+            maxZoom={18}
+            attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
           {/* Aussen-Maske: dunkleres Grau (See + Region ausgestanzt) */}
           <GeoJSON
