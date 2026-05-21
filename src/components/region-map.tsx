@@ -165,11 +165,13 @@ function SpotMarker({
   dayIndex,
   absoluteHour,
   isDay,
+  onClick,
 }: {
   spot: Spot;
   dayIndex: number;
   absoluteHour: number;
   isDay: boolean;
+  onClick: () => void;
 }) {
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
@@ -191,6 +193,7 @@ function SpotMarker({
               fontFamily: '"Figtree", system-ui, sans-serif',
               fontSize: 13,
               fontWeight: 700,
+              cursor: "pointer",
             }}
           >
             {spot.name}
@@ -218,7 +221,13 @@ function SpotMarker({
     });
   }, [data, dayIndex, absoluteHour, isDay, spot]);
 
-  return <Marker position={[spot.lat, spot.lon]} icon={icon} interactive={false} />;
+  return (
+    <Marker
+      position={[spot.lat, spot.lon]}
+      icon={icon}
+      eventHandlers={{ click: onClick }}
+    />
+  );
 }
 
 // (Bodensee-Label entfernt)
