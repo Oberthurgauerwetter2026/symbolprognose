@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { FeatureCollection } from "geojson";
 
-import regionData from "@/data/region.geojson";
+import regionData from "@/data/region.json";
 import { fetchForecast } from "@/lib/weather";
 import { WeatherIcon } from "@/components/weather-icons";
 
