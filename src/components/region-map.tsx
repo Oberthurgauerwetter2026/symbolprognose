@@ -394,11 +394,41 @@ export function RegionMap() {
         </MapContainer>
       </div>
 
-      {/* Tages-Anzeige: Klick öffnet Tagesübersicht (/) mit ?day=i */}
+      {/* Stündlich-Toggle + Wochentage */}
       <div className="inline-flex w-full gap-1 rounded-full bg-muted p-1">
+        <button
+          type="button"
+          onClick={() => {
+            if (viewMode === "daily") {
+              const target = Math.min(
+                MAX_STEPS - 1,
+                Math.max(0, Math.ceil((selectedDayIdx * 24 - baseHour) / 3)),
+              );
+              setStepOffset(target);
+            } else {
+              setStepOffset(0);
+            }
+            setViewMode("hourly");
+          }}
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+            viewMode === "hourly"
+              ? "text-white shadow"
+              : "text-foreground hover:bg-foreground/5",
+          )}
+          style={viewMode === "hourly" ? { background: BRAND } : undefined}
+          aria-label="Stündliche Ansicht"
+          title="Stündliche Ansicht"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <polyline points="12 7 12 12 15 14" />
+          </svg>
+          <span className="leading-tight">Stündlich</span>
+        </button>
         {days.map((d, i) => {
           const { top, sub } = formatDayLabel(d, i);
-          const active = i === dayIndex;
+          const active = viewMode === "daily" && i === selectedDayIdx;
           return (
             <button
               key={i}
@@ -428,6 +458,7 @@ export function RegionMap() {
           );
         })}
       </div>
+
 
 
       {/* Moderner 3-Stunden-Zeitstrahl mit Stundenlegende */}
