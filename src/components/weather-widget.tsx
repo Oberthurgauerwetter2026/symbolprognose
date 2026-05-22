@@ -220,6 +220,29 @@ export function WeatherWidget({ initialDayIdx }: { initialDayIdx?: number } = {}
   );
 }
 
+/* ---------------- DataStamp ---------------- */
+
+function DataStamp({ updatedAt }: { updatedAt: number }) {
+  if (!updatedAt) return null;
+  const fmt = new Intl.DateTimeFormat("de-CH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(updatedAt));
+  const tip =
+    "Wettermodelle (ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX) werden ca. alle 6 Stunden " +
+    "(00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 15–30 Min. zwischengespeichert.";
+  return (
+    <p className="text-[11px] text-zinc-500 text-center pt-1" title={tip}>
+      Datenstand: {fmt} · Quellen: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
+    </p>
+  );
+}
+
+
+
 /* ---------------- Header ---------------- */
 
 function Header({
