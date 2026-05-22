@@ -112,7 +112,7 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
-      <WeatherIcon code={code} isDay={isDay} size={26} />
+      <WeatherIcon code={code} isDay={isDay} size={34} />
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
           style={{
