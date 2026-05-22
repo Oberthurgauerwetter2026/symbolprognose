@@ -390,13 +390,13 @@ export function RegionMap() {
             })}
             interactive={false}
           />
-          {/* Kanton Thurgau: heller als die Aussen-Maske */}
+          {/* Kanton Thurgau: 40 % heller als die Aussen-Maske */}
           <GeoJSON
             data={THURGAU}
             style={() => ({
               stroke: false,
-              fillColor: "#9aa5ae",
-              fillOpacity: 0.55,
+              fillColor: "#9ca3a9",
+              fillOpacity: 0.6,
             })}
             interactive={false}
           />
