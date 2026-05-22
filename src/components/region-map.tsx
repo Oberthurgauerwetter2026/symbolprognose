@@ -264,13 +264,13 @@ export function RegionMap() {
   const [viewMode, setViewMode] = useState<"hourly" | "daily">("hourly");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
-  // Nachrücken: jede Minute prüfen, ob ein neuer 3-h-Slot begonnen hat.
+  // Nachrücken: jede Minute prüfen, ob eine neue Stunde begonnen hat.
   useEffect(() => {
     const tick = () => {
       const next = currentBaseHour();
       if (next !== baseHour) {
-        const absolute = baseHour + stepOffset * 3;
-        const newOffset = Math.round((absolute - next) / 3);
+        const absolute = baseHour + stepOffset;
+        const newOffset = absolute - next;
         setBaseHour(next);
         setStepOffset(newOffset >= 0 && newOffset <= MAX_STEPS ? newOffset : 0);
       }
@@ -279,7 +279,7 @@ export function RegionMap() {
     return () => window.clearInterval(id);
   }, [baseHour, stepOffset]);
 
-  const absoluteHour = baseHour + stepOffset * 3;
+  const absoluteHour = baseHour + stepOffset;
   const hourlyDayIndex = Math.floor(absoluteHour / 24);
   const dayIndex = viewMode === "daily" ? selectedDayIdx : hourlyDayIndex;
   const hourOfDay = absoluteHour % 24;
