@@ -15,6 +15,7 @@ import type { Feature, FeatureCollection, Polygon } from "geojson";
 
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
+import thurgauData from "@/data/thurgau.json";
 import { fetchForecast } from "@/lib/weather";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
