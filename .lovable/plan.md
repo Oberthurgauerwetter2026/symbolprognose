@@ -1,35 +1,27 @@
-## Ziel
+## Fix: Timeline auf 7 Tage erweitern, bevor MOSMIX überschreibt
 
-Herausfinden, warum MOSMIX-Werte ab Tag 6 in der UI nicht durchschlagen. Reine Diagnose — kein UI-, kein Logik-Refactor. Nach Auswertung der Logs folgt ein zweiter, gezielter Fix.
+Root cause: `fetchForecast` merged IFS (7-Tage-Ensemble) erst **nach** MOSMIX. Beim MOSMIX-Schritt hat die Timeline aber erst 120 h (CH1 24 h → CH2 fillGaps 120 h). MOSMIX hat keine Slots für Tag 6/7 → matched=0/0.
 
-## Änderungen (nur Logging)
+## Änderung in `src/lib/weather.ts` → `fetchForecast`
 
-### 1. `src/lib/mosmix.functions.ts` — `fetchMosmix` Handler
-Am Anfang und Ende des Handlers strukturiert loggen:
-- `[MOSMIX] start lat=… lon=… → station=06621/06678 distanceKm=…`
-- HTTP-Status der KMZ-Antwort
-- Anzahl geparster Zeitschritte, Anzahl finiter TTT-Werte
-- `[MOSMIX] done id=… steps=… firstTime=… lastTime=…`
-- Im Catch: `[MOSMIX] FAIL …` (statt nur `console.error`)
+Neue Reihenfolge:
 
-### 2. `src/lib/weather.ts` — `fetchForecast`
-Vor dem MOSMIX-Merge protokollieren:
-- `[FORECAST] offsetSec=…  primarySource=…  hourlyLen=…`
-- Wenn `mosmixRaw` `null`: `[FORECAST] mosmix=null` (mit Grund-Hinweis: Distanz vs. HTTP vs. Catch)
-- Wenn `mosmixRaw` vorhanden: erste/letzte MOSMIX-Zeit + erste/letzte lokale Timeline-Zeit
-- In `alignMosmixToTimeline`: Rückgabe-Statistik `matched / (n - minLocalHourIndex)` zurück an Caller, Caller loggt z. B. `[FORECAST] mosmix matched=37/48`
-- Nach `overwriteFromIndex`: Sample-Werte für Tag 6, 12:00 lokal (Index ≈ 5*24+12) für Temperatur vor/nach Overwrite
+```text
+1. primary = CH1 (24 h)
+2. fillGaps mit CH2          → Timeline 0–120 h aus ICON
+3. fillGaps mit IFS          → Timeline 0–168 h, Tag 6/7 vorerst aus ECMWF
+4. overwriteFromIndex MOSMIX ab Index 120   ← überschreibt Tag 6/7 mit DWD
+5. fillGaps mit best_match   → füllt Restfelder (probability, sunrise/sunset)
+```
 
-### 3. Wie du es testest
-- Region-Karte einmal frisch laden (Hard-Reload, da `useQuery`-Cache).
-- Ich lese danach die Server-Logs (`server-function-logs`, alle Deployments) mit `search="MOSMIX"` bzw. `"FORECAST"` aus.
-- Aus den Zahlen leite ich die exakte Ursache ab:
-  - `mosmix=null` mit Distanz > 80 → Whitelist-Bug
-  - HTTP 404/403 → DWD-URL/Stations-ID
-  - `matched=0` → Offset-/Zeitachsen-Bug (Verdacht: `offsetSec=0`, weil Ensemble-API kein `utc_offset_seconds` liefert)
-  - `matched > 0` aber Werte unverändert → Bug in `overwriteFromIndex` oder MOSMIX-Felder alle `NaN`
+Konkret: die Zeile `if (ifsRaw && primarySource !== "ifs") merged = fillGaps(...)` wird **vor** den MOSMIX-Block gezogen. Sonst nichts.
 
-## Nicht enthalten
-- Kein UI-Indikator/Badge.
-- Keine Änderung an Stations-Whitelist oder Merge-Reihenfolge — das passiert erst im Fix-Schritt nach Diagnose.
-- Logs werden nach dem Fix wieder reduziert.
+## Diagnostik-Logs
+
+Bleiben drin für eine Test-Runde. Nach erfolgreicher Verifikation (`matched > 100`, sample-Temperatur ändert sich) entferne ich sie wieder.
+
+## Verifikation
+
+Nach Edit:
+1. Browser neu laden (oder Browser-Tool nutzt direkt frischen Bundle-Hash).
+2. Erwartete Logs: `hourlyLen=168`, `matched=~48/48` (Tag 6+7 = 48 h), sample-Temp `before` ≠ `after`.
