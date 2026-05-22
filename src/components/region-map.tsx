@@ -35,6 +35,7 @@ const SPOTS: Spot[] = [
 
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
+const THURGAU = thurgauData as unknown as FeatureCollection;
 
 const OUTSIDE_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
