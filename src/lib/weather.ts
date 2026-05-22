@@ -257,10 +257,10 @@ async function fetchEnsembleMean(
   url.searchParams.set("hourly", ENSEMBLE_HOURLY_VARS.join(","));
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`Ensemble ${model} nicht erreichbar`);
-  const data = (await res.json()) as { hourly?: Record<string, unknown> };
+  const data = (await res.json()) as { hourly?: Record<string, unknown>; utc_offset_seconds?: number };
   const h = data.hourly ?? {};
   const time = (h.time as string[] | undefined) ?? [];
-  const out: EnsembleHourly = { time };
+  const out: EnsembleHourly = { time, utc_offset_seconds: data.utc_offset_seconds };
   for (const v of ENSEMBLE_HOURLY_VARS) {
     const series: number[][] = [];
     for (const key of Object.keys(h)) {
