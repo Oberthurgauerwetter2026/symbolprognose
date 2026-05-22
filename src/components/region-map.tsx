@@ -231,9 +231,10 @@ function SpotMarker({
           0;
     const tMin = data.daily.temperature_2m_min[dayIdx] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIdx] ?? 0;
+    const tNow = data.hourly.temperature_2m[absoluteHour] ?? tMax;
     const effectiveIsDay = mode === "daily" ? true : isDay;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={code} isDay={effectiveIsDay} />,
+      <MarkerPill name={spot.name} mode={mode} tMin={tMin} tMax={tMax} tNow={tNow} code={code} isDay={effectiveIsDay} />,
     );
     return L.divIcon({
       html,
