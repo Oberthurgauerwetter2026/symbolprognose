@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
+import { SPOTS } from "@/data/spots";
+import { nearestMosmixStation } from "@/data/mosmix-stations";
+
 
 const ADMIN_PASSWORD = "wetter2026";
 const STORAGE_KEY = "wx_admin_unlocked";
@@ -93,7 +96,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </header>
 
         <ModelsSection />
+        <MosmixStationsSection />
         <EmbedSection />
+
       </div>
     </div>
   );
@@ -136,10 +141,21 @@ const MODELS: ModelInfo[] = [
     resolution: "0.25°",
     members: "51",
     range: "bis 15 Tage",
-    usage: "Tag 6–7, Ensemble-Mittel",
+    usage: "Tag 6–7, Fallback nach MOSMIX",
     endpoint:
       "https://ensemble-api.open-meteo.com/v1/ensemble?models=ecmwf_ifs025",
   },
+  {
+    name: "DWD-MOSMIX-L",
+    provider: "Deutscher Wetterdienst (opendata.dwd.de) via Server Function",
+    resolution: "stationsbasiert (Punktprognose, MOS)",
+    members: "— (statistisch)",
+    range: "~10 Tage, 3-stündlich",
+    usage: "ab Tag 6, vor IFS gemerged (Tag 6–7)",
+    endpoint:
+      "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/{ID}/kml/MOSMIX_L_LATEST_{ID}.kmz",
+  },
+
   {
     name: "Open-Meteo best_match",
     provider: "Open-Meteo Forecast-API (Modell-Mix)",
@@ -187,7 +203,7 @@ function ModelsSection() {
           Merge-Reihenfolge
         </h3>
         <p>
-          <code className="font-mono">CH1 → CH2 → IFS → best_match</code>.
+          <code className="font-mono">CH1 → CH2 → MOSMIX (ab Tag 6) → IFS → best_match</code>.
           Fehlt in der höher priorisierten Quelle ein Wert, übernimmt die
           nächste den Platz. Daily-Aggregate (Max/Min-Temp, Niederschlagssumme,
           Wind, Sonne, Schnee) werden clientseitig aus den gemergten stündlichen
@@ -195,10 +211,62 @@ function ModelsSection() {
           liefert. Sonnenauf-/-untergang und maximale Niederschlagswahrscheinlichkeit
           kommen aus <code className="font-mono">best_match</code>.
         </p>
+
       </div>
     </section>
   );
 }
+
+function MosmixStationsSection() {
+  const rows = SPOTS.map((s) => {
+    const { station, distanceKm } = nearestMosmixStation(s.lat, s.lon);
+    return { spot: s, station, distanceKm };
+  });
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        MOSMIX-Stationszuordnung (Kartenpunkte)
+      </h2>
+
+      <div className="bg-white border border-zinc-200 rounded-md p-5 space-y-4">
+        <p className="text-sm text-zinc-700 leading-relaxed">
+          Ab Tag 6 wird pro Ort die geografisch nächste DWD-MOSMIX-L-Station
+          verwendet. Die Auswahl basiert auf Luftlinien-Distanz (Haversine).
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wider text-zinc-500 border-b border-zinc-200">
+                <th className="py-2 pr-4">Ort</th>
+                <th className="py-2 pr-4">MOSMIX-Station</th>
+                <th className="py-2 pr-4">ID</th>
+                <th className="py-2 pr-4 text-right">Distanz</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ spot, station, distanceKm }) => (
+                <tr key={spot.id} className="border-b border-zinc-100">
+                  <td className="py-2 pr-4 font-medium text-zinc-900">{spot.name}</td>
+                  <td className="py-2 pr-4 text-zinc-700">{station.name}</td>
+                  <td className="py-2 pr-4 font-mono text-xs text-zinc-500">{station.id}</td>
+                  <td className="py-2 pr-4 text-right text-zinc-700">
+                    {distanceKm.toFixed(1)} km
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-zinc-500">
+          Stationskatalog: 25 CH-Stationen + 5 grenznahe Nachbarstationen
+          (Friedrichshafen, Konstanz, Innsbruck, Milano-Malpensa, Lyon-Bron).
+        </p>
+      </div>
+    </section>
+  );
+}
+
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
