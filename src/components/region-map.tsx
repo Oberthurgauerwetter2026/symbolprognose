@@ -99,7 +99,7 @@ function MarkerPill({
         display: "inline-flex",
         alignItems: "center",
         gap: 8,
-        padding: "6px 14px 6px 8px",
+        padding: "8px 16px 8px 10px",
         borderRadius: 999,
         background: BRAND,
         border: "1px solid rgba(255,255,255,0.25)",
@@ -112,11 +112,11 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
-      <WeatherIcon code={code} isDay={isDay} size={34} />
+      <WeatherIcon code={code} isDay={isDay} size={40} />
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
           style={{
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 600,
             color: "rgba(255,255,255,0.85)",
             letterSpacing: "0.04em",
@@ -129,16 +129,16 @@ function MarkerPill({
         <div style={{ display: "flex", gap: 4, alignItems: "baseline" }}>
           {mode === "daily" ? (
             <>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
                 {Math.round(tMin)}°
               </span>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>/</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>/</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
                 {Math.round(tMax)}°
               </span>
             </>
           ) : (
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
               {Math.round(tNow)}°
             </span>
           )}
@@ -184,7 +184,7 @@ function SpotMarker({
               boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
               color: "rgba(255,255,255,0.85)",
               fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 600,
               textTransform: "uppercase",
               letterSpacing: "0.04em",
@@ -196,8 +196,8 @@ function SpotMarker({
           </div>,
         ),
         className: "region-map-marker",
-        iconSize: [140, 28],
-        iconAnchor: [70, 14],
+        iconSize: [160, 32],
+        iconAnchor: [80, 16],
       });
     }
     const code =
@@ -216,8 +216,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [150, 44],
-      iconAnchor: [75, 22],
+      iconSize: [170, 52],
+      iconAnchor: [85, 26],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
