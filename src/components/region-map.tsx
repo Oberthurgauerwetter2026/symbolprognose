@@ -77,14 +77,18 @@ const MARKER_PILL_CLASS = "region-map-pill";
 
 function MarkerPill({
   name,
+  mode,
   tMin,
   tMax,
+  tNow,
   code,
   isDay,
 }: {
   name: string;
+  mode: "hourly" | "daily";
   tMin: number;
   tMax: number;
+  tNow: number;
   code: number;
   isDay: boolean;
 }) {
@@ -125,36 +129,53 @@ function MarkerPill({
           {name}
         </span>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          <span
-            style={{
-              background: "#cfe1f2",
-              color: BRAND,
-              padding: "3px 8px",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 700,
-            }}
-          >
-            {Math.round(tMin)}°
-          </span>
-          <span
-            style={{
-              background: "#0d3563",
-              color: "#fff",
-              padding: "3px 8px",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 700,
-            }}
-          >
-            {Math.round(tMax)}°
-          </span>
+          {mode === "daily" ? (
+            <>
+              <span
+                style={{
+                  background: "#cfe1f2",
+                  color: BRAND,
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                {Math.round(tMin)}°
+              </span>
+              <span
+                style={{
+                  background: "#0d3563",
+                  color: "#fff",
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                {Math.round(tMax)}°
+              </span>
+            </>
+          ) : (
+            <span
+              style={{
+                background: "#0d3563",
+                color: "#fff",
+                padding: "3px 10px",
+                borderRadius: 6,
+                fontSize: 14,
+                fontWeight: 700,
+              }}
+            >
+              {Math.round(tNow)}°
+            </span>
+          )}
         </div>
       </div>
     </div>
   );
-
 }
+
 
 function SpotMarker({
   spot,
@@ -210,9 +231,10 @@ function SpotMarker({
           0;
     const tMin = data.daily.temperature_2m_min[dayIdx] ?? 0;
     const tMax = data.daily.temperature_2m_max[dayIdx] ?? 0;
+    const tNow = data.hourly.temperature_2m[absoluteHour] ?? tMax;
     const effectiveIsDay = mode === "daily" ? true : isDay;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} tMin={tMin} tMax={tMax} code={code} isDay={effectiveIsDay} />,
+      <MarkerPill name={spot.name} mode={mode} tMin={tMin} tMax={tMax} tNow={tNow} code={code} isDay={effectiveIsDay} />,
     );
     return L.divIcon({
       html,
