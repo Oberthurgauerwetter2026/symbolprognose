@@ -13,6 +13,17 @@ import { Route as KarteRouteImport } from './routes/karte'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as KartenWindRouteImport } from './routes/karten.wind'
+import { Route as KartenRegionRouteImport } from './routes/karten.region'
+import { Route as KartenRadarRouteImport } from './routes/karten.radar'
+import { Route as KartenPollenRouteImport } from './routes/karten.pollen'
+import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
+import { Route as EmbedWindRouteImport } from './routes/embed.wind'
+import { Route as EmbedRegionRouteImport } from './routes/embed.region'
+import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
+import { Route as EmbedPollenRouteImport } from './routes/embed.pollen'
+import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
+import { Route as EmbedAllRouteImport } from './routes/embed.all'
 
 const KarteRoute = KarteRouteImport.update({
   id: '/karte',
@@ -34,18 +45,95 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KartenWindRoute = KartenWindRouteImport.update({
+  id: '/karten/wind',
+  path: '/karten/wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenRegionRoute = KartenRegionRouteImport.update({
+  id: '/karten/region',
+  path: '/karten/region',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenRadarRoute = KartenRadarRouteImport.update({
+  id: '/karten/radar',
+  path: '/karten/radar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenPollenRoute = KartenPollenRouteImport.update({
+  id: '/karten/pollen',
+  path: '/karten/pollen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenLokalRoute = KartenLokalRouteImport.update({
+  id: '/karten/lokal',
+  path: '/karten/lokal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedWindRoute = EmbedWindRouteImport.update({
+  id: '/embed/wind',
+  path: '/embed/wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedRegionRoute = EmbedRegionRouteImport.update({
+  id: '/embed/region',
+  path: '/embed/region',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedRadarRoute = EmbedRadarRouteImport.update({
+  id: '/embed/radar',
+  path: '/embed/radar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedPollenRoute = EmbedPollenRouteImport.update({
+  id: '/embed/pollen',
+  path: '/embed/pollen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedLokalRoute = EmbedLokalRouteImport.update({
+  id: '/embed/lokal',
+  path: '/embed/lokal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedAllRoute = EmbedAllRouteImport.update({
+  id: '/embed/all',
+  path: '/embed/all',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
+  '/embed/all': typeof EmbedAllRoute
+  '/embed/lokal': typeof EmbedLokalRoute
+  '/embed/pollen': typeof EmbedPollenRoute
+  '/embed/radar': typeof EmbedRadarRoute
+  '/embed/region': typeof EmbedRegionRoute
+  '/embed/wind': typeof EmbedWindRoute
+  '/karten/lokal': typeof KartenLokalRoute
+  '/karten/pollen': typeof KartenPollenRoute
+  '/karten/radar': typeof KartenRadarRoute
+  '/karten/region': typeof KartenRegionRoute
+  '/karten/wind': typeof KartenWindRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
+  '/embed/all': typeof EmbedAllRoute
+  '/embed/lokal': typeof EmbedLokalRoute
+  '/embed/pollen': typeof EmbedPollenRoute
+  '/embed/radar': typeof EmbedRadarRoute
+  '/embed/region': typeof EmbedRegionRoute
+  '/embed/wind': typeof EmbedWindRoute
+  '/karten/lokal': typeof KartenLokalRoute
+  '/karten/pollen': typeof KartenPollenRoute
+  '/karten/radar': typeof KartenRadarRoute
+  '/karten/region': typeof KartenRegionRoute
+  '/karten/wind': typeof KartenWindRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +141,70 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
+  '/embed/all': typeof EmbedAllRoute
+  '/embed/lokal': typeof EmbedLokalRoute
+  '/embed/pollen': typeof EmbedPollenRoute
+  '/embed/radar': typeof EmbedRadarRoute
+  '/embed/region': typeof EmbedRegionRoute
+  '/embed/wind': typeof EmbedWindRoute
+  '/karten/lokal': typeof KartenLokalRoute
+  '/karten/pollen': typeof KartenPollenRoute
+  '/karten/radar': typeof KartenRadarRoute
+  '/karten/region': typeof KartenRegionRoute
+  '/karten/wind': typeof KartenWindRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/embed-info' | '/karte'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/embed-info'
+    | '/karte'
+    | '/embed/all'
+    | '/embed/lokal'
+    | '/embed/pollen'
+    | '/embed/radar'
+    | '/embed/region'
+    | '/embed/wind'
+    | '/karten/lokal'
+    | '/karten/pollen'
+    | '/karten/radar'
+    | '/karten/region'
+    | '/karten/wind'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/embed-info' | '/karte'
-  id: '__root__' | '/' | '/admin' | '/embed-info' | '/karte'
+  to:
+    | '/'
+    | '/admin'
+    | '/embed-info'
+    | '/karte'
+    | '/embed/all'
+    | '/embed/lokal'
+    | '/embed/pollen'
+    | '/embed/radar'
+    | '/embed/region'
+    | '/embed/wind'
+    | '/karten/lokal'
+    | '/karten/pollen'
+    | '/karten/radar'
+    | '/karten/region'
+    | '/karten/wind'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/embed-info'
+    | '/karte'
+    | '/embed/all'
+    | '/embed/lokal'
+    | '/embed/pollen'
+    | '/embed/radar'
+    | '/embed/region'
+    | '/embed/wind'
+    | '/karten/lokal'
+    | '/karten/pollen'
+    | '/karten/radar'
+    | '/karten/region'
+    | '/karten/wind'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +212,17 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   EmbedInfoRoute: typeof EmbedInfoRoute
   KarteRoute: typeof KarteRoute
+  EmbedAllRoute: typeof EmbedAllRoute
+  EmbedLokalRoute: typeof EmbedLokalRoute
+  EmbedPollenRoute: typeof EmbedPollenRoute
+  EmbedRadarRoute: typeof EmbedRadarRoute
+  EmbedRegionRoute: typeof EmbedRegionRoute
+  EmbedWindRoute: typeof EmbedWindRoute
+  KartenLokalRoute: typeof KartenLokalRoute
+  KartenPollenRoute: typeof KartenPollenRoute
+  KartenRadarRoute: typeof KartenRadarRoute
+  KartenRegionRoute: typeof KartenRegionRoute
+  KartenWindRoute: typeof KartenWindRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +255,83 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/karten/wind': {
+      id: '/karten/wind'
+      path: '/karten/wind'
+      fullPath: '/karten/wind'
+      preLoaderRoute: typeof KartenWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/region': {
+      id: '/karten/region'
+      path: '/karten/region'
+      fullPath: '/karten/region'
+      preLoaderRoute: typeof KartenRegionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/radar': {
+      id: '/karten/radar'
+      path: '/karten/radar'
+      fullPath: '/karten/radar'
+      preLoaderRoute: typeof KartenRadarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/pollen': {
+      id: '/karten/pollen'
+      path: '/karten/pollen'
+      fullPath: '/karten/pollen'
+      preLoaderRoute: typeof KartenPollenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/lokal': {
+      id: '/karten/lokal'
+      path: '/karten/lokal'
+      fullPath: '/karten/lokal'
+      preLoaderRoute: typeof KartenLokalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/wind': {
+      id: '/embed/wind'
+      path: '/embed/wind'
+      fullPath: '/embed/wind'
+      preLoaderRoute: typeof EmbedWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/region': {
+      id: '/embed/region'
+      path: '/embed/region'
+      fullPath: '/embed/region'
+      preLoaderRoute: typeof EmbedRegionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/radar': {
+      id: '/embed/radar'
+      path: '/embed/radar'
+      fullPath: '/embed/radar'
+      preLoaderRoute: typeof EmbedRadarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/pollen': {
+      id: '/embed/pollen'
+      path: '/embed/pollen'
+      fullPath: '/embed/pollen'
+      preLoaderRoute: typeof EmbedPollenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/lokal': {
+      id: '/embed/lokal'
+      path: '/embed/lokal'
+      fullPath: '/embed/lokal'
+      preLoaderRoute: typeof EmbedLokalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/all': {
+      id: '/embed/all'
+      path: '/embed/all'
+      fullPath: '/embed/all'
+      preLoaderRoute: typeof EmbedAllRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +340,17 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   EmbedInfoRoute: EmbedInfoRoute,
   KarteRoute: KarteRoute,
+  EmbedAllRoute: EmbedAllRoute,
+  EmbedLokalRoute: EmbedLokalRoute,
+  EmbedPollenRoute: EmbedPollenRoute,
+  EmbedRadarRoute: EmbedRadarRoute,
+  EmbedRegionRoute: EmbedRegionRoute,
+  EmbedWindRoute: EmbedWindRoute,
+  KartenLokalRoute: KartenLokalRoute,
+  KartenPollenRoute: KartenPollenRoute,
+  KartenRadarRoute: KartenRadarRoute,
+  KartenRegionRoute: KartenRegionRoute,
+  KartenWindRoute: KartenWindRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

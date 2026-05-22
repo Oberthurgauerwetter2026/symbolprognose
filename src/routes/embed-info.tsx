@@ -1,40 +1,38 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { MAPS } from "@/lib/maps-config";
 
 export const Route = createFileRoute("/embed-info")({
   component: EmbedInfo,
   head: () => ({
-    meta: [{ title: "Einbinden in WordPress" }],
+    meta: [{ title: "Embed-Snippets · WordPress" }],
   }),
 });
 
-function buildSnippet(url: string, minimal: boolean) {
-  const src = minimal ? `${url}/?embed=minimal` : `${url}/`;
+function buildSnippet(url: string, path: string, idSuffix: string, minHeight = 760) {
   return `<iframe
-  id="wx-widget${minimal ? "-min" : ""}"
-  src="${src}"
-  style="width:100%;min-height:760px;border:0;display:block"
+  id="wx-${idSuffix}"
+  src="${url}${path}"
+  style="width:100%;min-height:${minHeight}px;border:0;display:block"
   loading="lazy"
-  title="5-Tage Wetterprognose"
+  title="Wetter-Karte"
 ></iframe>
 <script>
   window.addEventListener("message", function (e) {
     if (e.data && e.data.type === "lovable-weather:height") {
-      var f = document.getElementById("wx-widget${minimal ? "-min" : ""}");
+      var f = document.getElementById("wx-${idSuffix}");
       if (f) f.style.height = e.data.height + "px";
     }
   });
 </script>`;
 }
 
-function SnippetBlock({ snippet, id }: { snippet: string; id: string }) {
+function SnippetBlock({ snippet }: { snippet: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="relative">
-      <pre
-        id={id}
-        className="bg-zinc-900 text-zinc-100 text-xs p-4 rounded-sm overflow-x-auto font-mono"
-      >
+      <pre className="overflow-x-auto rounded-md bg-zinc-900 p-4 font-mono text-xs text-zinc-100">
         {snippet}
       </pre>
       <button
@@ -44,7 +42,7 @@ function SnippetBlock({ snippet, id }: { snippet: string; id: string }) {
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         }}
-        className="absolute top-2 right-2 h-7 px-3 bg-accent text-accent-foreground text-[10px] font-semibold uppercase tracking-widest rounded-sm"
+        className="absolute right-2 top-2 h-7 rounded-sm bg-accent px-3 text-[10px] font-semibold uppercase tracking-widest text-accent-foreground"
       >
         {copied ? "Kopiert" : "Kopieren"}
       </button>
@@ -56,59 +54,72 @@ function EmbedInfo() {
   const url =
     typeof window !== "undefined" ? window.location.origin : "https://…";
 
-  const fullSnippet = buildSnippet(url, false);
-  const minimalSnippet = buildSnippet(url, true);
-
   return (
-    <div className="min-h-screen py-10 px-4">
-      <div className="max-w-3xl mx-auto space-y-10">
-        <div className="space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight uppercase font-[family-name:var(--font-display)]">
-            In WordPress einbinden
-          </h1>
-          <p className="text-sm text-zinc-600 leading-relaxed">
-            Füge im WordPress-Editor einen <strong>Custom-HTML-Block</strong>{" "}
-            ein und kopiere das komplette Snippet (inkl.{" "}
-            <code>&lt;script&gt;</code>-Block) hinein. Die Breite passt sich
-            automatisch dem Beitrags-Container an, die Höhe wird per{" "}
-            <code>postMessage</code> dynamisch angepasst — auch auf Smartphones.
-          </p>
-        </div>
+    <DashboardLayout
+      title="Embed-Snippets"
+      subtitle="iframe-Code für WordPress, pro Karte oder Komplett-Widget"
+    >
+      <div className="mx-auto w-full max-w-3xl space-y-10 px-4 py-8">
+        <p className="text-sm text-muted-foreground">
+          Füge im WordPress-Editor einen <strong>Custom-HTML-Block</strong> ein und kopiere das Snippet (inkl. <code>&lt;script&gt;</code>) hinein. Die Breite passt sich dem Container an, die Höhe wird per <code>postMessage</code> automatisch nachgeführt.
+        </p>
 
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight font-[family-name:var(--font-display)]">
-            Standard-Variante (mit Gemeindesuche)
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+            Komplett-Widget (alle Karten mit Tabs)
           </h2>
-          <p className="text-sm text-zinc-600 leading-relaxed">
-            Besucher können den Ort selbst wählen oder per "Ortung" den eigenen
-            Standort verwenden.
+          <p className="text-sm text-muted-foreground">
+            Region, Lokalprognose, Wind, Radar und Pollen in einer einzigen Einbettung. Besucher wechseln im iframe selbst.
           </p>
-          <SnippetBlock snippet={fullSnippet} id="snippet-full" />
+          <SnippetBlock snippet={buildSnippet(url, "/embed/all", "all")} />
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight font-[family-name:var(--font-display)]">
-            Minimal-Variante (ohne Gemeindesuche)
-          </h2>
-          <p className="text-sm text-zinc-600 leading-relaxed">
-            Zeigt nur die Prognose und den "Ortung"-Knopf — kein Suchfeld.
-            Ideal für Seiten, die einen festen Ort anzeigen oder die Auswahl
-            allein der Geolokalisierung überlassen wollen.
-          </p>
-          <SnippetBlock snippet={minimalSnippet} id="snippet-min" />
+        <section className="space-y-6">
+          <div>
+            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+              Einzelne Karten
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Jede Karte kann separat eingebunden werden.
+            </p>
+          </div>
+
+          {MAPS.map((m) => {
+            const Icon = m.icon;
+            return (
+              <div key={m.id} className="space-y-2 rounded-2xl border border-border bg-card p-4">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+                    style={{ background: "#2561a1" }}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">{m.label}</h3>
+                    <p className="text-xs text-muted-foreground">{m.description}</p>
+                  </div>
+                  {m.status === "coming-soon" && (
+                    <span className="ml-auto rounded bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      bald verfügbar
+                    </span>
+                  )}
+                </div>
+                <SnippetBlock snippet={buildSnippet(url, m.embedPath, m.id)} />
+              </div>
+            );
+          })}
         </section>
 
-        <div className="text-[11px] text-zinc-500 space-y-1">
+        <div className="space-y-1 text-[11px] text-muted-foreground">
           <p>
-            <strong>Tipp:</strong> Auf Smartphones erscheint im Widget ein
-            "Ortung"-Knopf, der den aktuellen Standort verwendet.
+            <strong>Tipp:</strong> Auf Smartphones bietet die Lokalprognose einen „Ortung"-Knopf für den eigenen Standort.
           </p>
           <p>
-            Datenquelle: MeteoSchweiz ICON-CH1/CH2 &amp; ECMWF IFS via
-            Open-Meteo (kostenlos für nicht-kommerzielle Nutzung).
+            Datenquellen: MeteoSchweiz ICON-CH1/CH2 & ECMWF IFS via Open-Meteo (kostenlos für nicht-kommerzielle Nutzung).
           </p>
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 }
