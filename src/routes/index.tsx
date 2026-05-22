@@ -20,13 +20,14 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
   // Legacy: /?embed=... → alte Lokalprognose-Embeds umleiten
-  if (typeof window !== "undefined") {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.has("embed")) {
-      const target = `/embed/lokal${window.location.search}`;
-      window.location.replace(target);
+      window.location.replace(`/embed/lokal${window.location.search}`);
     }
-  }
+  }, []);
+
 
   return (
     <DashboardLayout
