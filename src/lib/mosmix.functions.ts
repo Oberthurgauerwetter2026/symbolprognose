@@ -172,18 +172,12 @@ export const fetchMosmix = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<MosmixHourly | null> => {
     try {
       const { station, distanceKm } = nearestStation(data.latitude, data.longitude);
-      console.log(`[MOSMIX] start lat=${data.latitude} lon=${data.longitude} → station=${station.id}/${station.name} distanceKm=${distanceKm.toFixed(1)}`);
-      // Skip if too far (no representative MOSMIX point)
-      if (distanceKm > 80) {
-        console.warn(`[MOSMIX] skip: distance ${distanceKm.toFixed(1)} > 80km`);
-        return null;
-      }
+      if (distanceKm > 80) return null;
 
       const url = `https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/${station.id}/kml/MOSMIX_L_LATEST_${station.id}.kmz`;
       const res = await fetch(url);
-      console.log(`[MOSMIX] HTTP ${res.status} for ${station.id}`);
       if (!res.ok) {
-        console.warn(`[MOSMIX] FAIL ${station.id} HTTP ${res.status}`);
+        console.warn(`[MOSMIX] HTTP ${res.status} for ${station.id}`);
         return null;
       }
       const buf = await res.arrayBuffer();
