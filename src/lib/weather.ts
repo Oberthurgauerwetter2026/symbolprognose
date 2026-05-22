@@ -423,6 +423,7 @@ function alignMosmixToTimeline(
     out.snowfall[i] = mosmix.snowfall[j];
     out.sunshine_duration[i] = mosmix.sunshine_duration[j];
   }
+  console.log(`[FORECAST] alignMosmix matched=${matched}/${n - minLocalHourIndex} mosmixSteps=${mosmix.time.length} mosmixFirst=${mosmix.time[0]} mosmixLast=${mosmix.time[mosmix.time.length - 1]} localFirst=${localTimes[minLocalHourIndex]} localLast=${localTimes[n - 1]} offsetSec=${offsetSeconds}`);
   if (matched === 0) return null;
 
   const emptyDaily: DailyData = {
@@ -522,10 +523,20 @@ export async function fetchForecast(
   let merged = primary;
   if (ch2Raw && primarySource !== "ch2") merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
 
+  console.log(`[FORECAST] offsetSec=${offsetSec} primarySource=${primarySource} hourlyLen=${merged.hourly.time.length} mosmixRaw=${mosmixRaw ? `${mosmixRaw.station.id}/${mosmixRaw.station.name}` : "null"}`);
+
   // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt CH2/IFS/best_match.
   if (mosmixRaw) {
+    const sampleIdx = Math.min(5 * 24 + 12, merged.hourly.time.length - 1);
+    const tBefore = merged.hourly.temperature_2m[sampleIdx];
     const mosmixForecast = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 5 * 24);
-    if (mosmixForecast) merged = overwriteFromIndex(merged, mosmixForecast, 5 * 24);
+    if (mosmixForecast) {
+      merged = overwriteFromIndex(merged, mosmixForecast, 5 * 24);
+      const tAfter = merged.hourly.temperature_2m[sampleIdx];
+      console.log(`[FORECAST] mosmix overwrite applied. sample idx=${sampleIdx} (${merged.hourly.time[sampleIdx]}) temp before=${tBefore} after=${tAfter}`);
+    } else {
+      console.warn(`[FORECAST] mosmix alignment returned null — no overwrite`);
+    }
   }
 
   if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
