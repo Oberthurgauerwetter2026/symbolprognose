@@ -173,7 +173,7 @@ export const fetchMosmix = createServerFn({ method: "GET" })
     try {
       const { station, distanceKm } = nearestStation(data.latitude, data.longitude);
       // Skip if too far (no representative MOSMIX point)
-      if (distanceKm > 60) return null;
+      if (distanceKm > 80) return null;
 
       const url = `https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/${station.id}/kml/MOSMIX_L_LATEST_${station.id}.kmz`;
       const res = await fetch(url);
