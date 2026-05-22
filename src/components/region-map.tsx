@@ -15,6 +15,7 @@ import type { Feature, FeatureCollection, Polygon } from "geojson";
 
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
+import thurgauData from "@/data/thurgau.json";
 import { fetchForecast } from "@/lib/weather";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
@@ -34,6 +35,7 @@ const SPOTS: Spot[] = [
 
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
+const THURGAU = thurgauData as unknown as FeatureCollection;
 
 const OUTSIDE_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
@@ -261,7 +263,7 @@ export function RegionMap() {
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
   const [baseHour, setBaseHour] = useState(() => currentBaseHour());
   const [stepOffset, setStepOffset] = useState(0);
-  const [viewMode, setViewMode] = useState<"hourly" | "daily">("hourly");
+  const [viewMode, setViewMode] = useState<"hourly" | "daily">("daily");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
   // Nachrücken: jede Minute prüfen, ob eine neue Stunde begonnen hat.
@@ -385,6 +387,16 @@ export function RegionMap() {
               stroke: false,
               fillColor: "#5a6670",
               fillOpacity: 0.6,
+            })}
+            interactive={false}
+          />
+          {/* Kanton Thurgau: heller als die Aussen-Maske */}
+          <GeoJSON
+            data={THURGAU}
+            style={() => ({
+              stroke: false,
+              fillColor: "#9aa5ae",
+              fillOpacity: 0.55,
             })}
             interactive={false}
           />
