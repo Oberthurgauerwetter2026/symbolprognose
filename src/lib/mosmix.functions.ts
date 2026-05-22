@@ -172,18 +172,24 @@ export const fetchMosmix = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<MosmixHourly | null> => {
     try {
       const { station, distanceKm } = nearestStation(data.latitude, data.longitude);
+      console.log(`[MOSMIX] start lat=${data.latitude} lon=${data.longitude} → station=${station.id}/${station.name} distanceKm=${distanceKm.toFixed(1)}`);
       // Skip if too far (no representative MOSMIX point)
-      if (distanceKm > 80) return null;
+      if (distanceKm > 80) {
+        console.warn(`[MOSMIX] skip: distance ${distanceKm.toFixed(1)} > 80km`);
+        return null;
+      }
 
       const url = `https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/${station.id}/kml/MOSMIX_L_LATEST_${station.id}.kmz`;
       const res = await fetch(url);
+      console.log(`[MOSMIX] HTTP ${res.status} for ${station.id}`);
       if (!res.ok) {
-        console.warn(`MOSMIX ${station.id} HTTP ${res.status}`);
+        console.warn(`[MOSMIX] FAIL ${station.id} HTTP ${res.status}`);
         return null;
       }
       const buf = await res.arrayBuffer();
       const kml = await unzipKmz(buf);
       const { times, values } = extractForecasts(kml);
+      console.log(`[MOSMIX] parsed steps=${times.length} firstTime=${times[0]} lastTime=${times[times.length - 1]} TTT_count=${(values.get("TTT") ?? []).filter(Number.isFinite).length}`);
 
       const TTT = values.get("TTT") ?? []; // Temp K
       const FF = values.get("FF") ?? []; // Wind m/s
