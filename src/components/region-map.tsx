@@ -189,12 +189,12 @@ function SpotMarker({
         html: renderToStaticMarkup(
           <div
             style={{
-              padding: "6px 12px",
+              padding: "4px 9px",
               borderRadius: 999,
               background: BRAND,
               color: "#fff",
               fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 700,
               cursor: "pointer",
             }}
@@ -203,8 +203,8 @@ function SpotMarker({
           </div>,
         ),
         className: "region-map-marker",
-        iconSize: [120, 28],
-        iconAnchor: [60, 14],
+        iconSize: [120, 24],
+        iconAnchor: [60, 12],
       });
     }
     const code =
@@ -222,8 +222,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [240, 80],
-      iconAnchor: [120, 40],
+      iconSize: [190, 60],
+      iconAnchor: [95, 30],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
