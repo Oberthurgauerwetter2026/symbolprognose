@@ -1,27 +1,28 @@
-## Fix: Timeline auf 7 Tage erweitern, bevor MOSMIX überschreibt
+## Problem
 
-Root cause: `fetchForecast` merged IFS (7-Tage-Ensemble) erst **nach** MOSMIX. Beim MOSMIX-Schritt hat die Timeline aber erst 120 h (CH1 24 h → CH2 fillGaps 120 h). MOSMIX hat keine Slots für Tag 6/7 → matched=0/0.
+Auf `/karten/region` zeigt Tag 6/7 nach Reload weiterhin die alten Werte ohne MOSMIX-Einfluss, obwohl die MOSMIX-Integration serverseitig korrekt arbeitet (verifiziert in Sandbox-Logs: `HTTP 200`, 247 Steps, Stationen 06621/06678).
 
-## Änderung in `src/lib/weather.ts` → `fetchForecast`
+**Root Cause:** `src/routes/__root.tsx` umhüllt die App mit `PersistQueryClientProvider`, der den TanStack-Query-Cache 1 h im `localStorage` unter `wx-rq-cache-v1` (buster `"v1"`) ablegt. Der `useQuery({ queryKey: ["map-weather", spot.id], staleTime: 30 min })` in `src/components/region-map.tsx` greift nach einem Reload auf diesen persistierten Eintrag zu und ruft `fetchForecast` gar nicht erst neu auf — der MOSMIX-Code wird übersprungen.
 
-Neue Reihenfolge:
+## Fix
 
-```text
-1. primary = CH1 (24 h)
-2. fillGaps mit CH2          → Timeline 0–120 h aus ICON
-3. fillGaps mit IFS          → Timeline 0–168 h, Tag 6/7 vorerst aus ECMWF
-4. overwriteFromIndex MOSMIX ab Index 120   ← überschreibt Tag 6/7 mit DWD
-5. fillGaps mit best_match   → füllt Restfelder (probability, sunrise/sunset)
+**Buster hochzählen** in `src/routes/__root.tsx`:
+
+```diff
+- buster: "v1",
++ buster: "v2-mosmix",
 ```
 
-Konkret: die Zeile `if (ifsRaw && primarySource !== "ifs") merged = fillGaps(...)` wird **vor** den MOSMIX-Block gezogen. Sonst nichts.
+Das macht den bisher persistierten Cache schlagartig ungültig. Beim nächsten Reload wird `fetchForecast` neu ausgeführt, MOSMIX wird abgeholt und Tag 6/7 zeigt die neuen Werte. Ab dann läuft alles wie gewohnt (1 h Persistenz, 30 min staleTime).
 
-## Diagnostik-Logs
-
-Bleiben drin für eine Test-Runde. Nach erfolgreicher Verifikation (`matched > 100`, sample-Temperatur ändert sich) entferne ich sie wieder.
+Kein anderer Code muss geändert werden — `weather.ts` und `mosmix.functions.ts` sind bereits korrekt.
 
 ## Verifikation
 
-Nach Edit:
-1. Browser neu laden (oder Browser-Tool nutzt direkt frischen Bundle-Hash).
-2. Erwartete Logs: `hourlyLen=168`, `matched=~48/48` (Tag 6+7 = 48 h), sample-Temp `before` ≠ `after`.
+1. Reload auf `/karten/region` — Console sollte keine alten persistierten Daten zeigen.
+2. Sandbox-Server-Logs zeigen frische `[MOSMIX] HTTP 200`-Einträge (passiert bereits jetzt schon).
+3. Slider auf Tag 6 oder 7: Temperatur/Symbol weichen jetzt von den vorher gezeigten Werten ab (im letzten Test z. B. Güttingen Tag 6 12:00 von 25,4 → 23,9 °C).
+
+## Hinweis für später
+
+Wenn künftig Änderungen an `fetchForecast` / `weather.ts` / `mosmix.functions.ts` vorgenommen werden, muss der `buster`-String erneut erhöht werden (`"v3-…"`, `"v4-…"` etc.), sonst tritt das gleiche Problem wieder auf. Alternativ könnten wir den Buster automatisch aus einem Build-Hash ableiten — das wäre eine separate Aufgabe.
