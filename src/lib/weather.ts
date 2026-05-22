@@ -523,6 +523,9 @@ export async function fetchForecast(
   let merged = primary;
   if (ch2Raw && primarySource !== "ch2") merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
 
+  // IFS zuerst mergen, damit die Timeline 168h umfasst — sonst hat MOSMIX keine Slots ab Index 120.
+  if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
+
   console.log(`[FORECAST] offsetSec=${offsetSec} primarySource=${primarySource} hourlyLen=${merged.hourly.time.length} mosmixRaw=${mosmixRaw ? `${mosmixRaw.station.id}/${mosmixRaw.station.name}` : "null"}`);
 
   // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt CH2/IFS/best_match.
@@ -539,7 +542,6 @@ export async function fetchForecast(
     }
   }
 
-  if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
   if (bestMatch && primarySource !== "best_match") merged = fillGaps(merged, bestMatch);
 
   // Daily-Werte aus den gemergten Hourly-Arrays neu aggregieren (Ensembles liefern keine Daily-Felder).
