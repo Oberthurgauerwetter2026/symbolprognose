@@ -218,7 +218,7 @@ const ENSEMBLE_HOURLY_VARS = [
   "sunshine_duration",
 ] as const;
 
-type EnsembleHourly = Partial<HourlyData> & { time: string[] };
+type EnsembleHourly = Partial<HourlyData> & { time: string[]; utc_offset_seconds?: number };
 
 type EnsembleModel = "meteoswiss_icon_ch1" | "meteoswiss_icon_ch2" | "ecmwf_ifs025";
 
