@@ -1,32 +1,26 @@
-# Zeitschieberegler im Stil des Screenshots
+# Karte: Kanton Thurgau + Default „Heute"
 
-Den Slider-Bereich in `src/components/region-map.tsx` (Zeilen ~470–550) so umbauen, dass er der Vorlage entspricht:
+## 1. Kanton Thurgau als helleres Grau
 
-## Visuelle Struktur
+- Neue Datei `src/data/thurgau.json` mit `FeatureCollection` der Kantonsgrenze (Quelle: swisstopo `ch.swisstopo.swissboundaries3d-kanton-flaeche.fill`, vereinfacht über `api3.geo.admin.ch`).
+- In `region-map.tsx` zwischen `OUTSIDE_MASK` und `LAKE` ein neuer `<GeoJSON data={THURGAU} />`-Layer:
+  - `fillColor: #9aa5ae`, `fillOpacity: 0.55` (deutlich heller als die Aussen-Maske `#5a6670 / 0.6`)
+  - kein Stroke, `interactive={false}`
+- Reihenfolge bleibt: Aussen-Maske (dunkelgrau) → Thurgau (hellgrau) → See → Region (grün) → Marker.
+- Effekt: das Umfeld ausserhalb CH/TG bleibt dunkel, der Kanton hebt sich heller ab, die Region Oberthurgau bleibt grün hervorgehoben.
 
-- **Über dem Thumb**: schwebendes Tooltip-Label „Prognose: {Wochentag}, {HH:MM}" mit Brand-Hintergrund, weisser Schrift, abgerundet, kleines Dreieck nach unten. Position folgt dem Thumb (`left: ${(stepOffset/MAX_STEPS)*100}%`, `translateX(-50%)`).
-- **Slider-Track**: dünn, mit vertikaler Marker-Linie am aktuellen Wert (durchgehend von oben bis unter die Labels), wie im Screenshot.
-- **Tick-Reihe**: pro Stunde ein langer Tick + Beschriftung `HH:00` (24 Labels statt aktuell 9). Optional zusätzliche kurze Sub-Ticks zwischen den Stunden für Optik.
-- **Unter dem Slider links**: Datum-Label „{Wochentag}, {TT.MM.JJJJ}" der aktuell ausgewählten Stunde (klein, muted).
-- Footer „jetzt / +24 Std" entfällt (durch Tooltip + Datum ersetzt).
+## 2. Default-Ansicht „heutiger Tag"
 
-## Verhalten
+In `RegionMap()`:
+- `useState<"hourly" | "daily">("hourly")` → `useState<"hourly" | "daily">("daily")`
+- `useState(0)` für `selectedDayIdx` bleibt (= heute)
 
-- Schritte bleiben **1 Stunde** (`MAX_STEPS = 24`, `step = 1`).
-- Tooltip-Zeit zeigt `HH:00` der gewählten Stunde (kein Halbstunden-Step; die `05:30` im Screenshot kommt aus deinem Mockup — ich nehme volle Stunden, passend zum aktuellen Datenraster).
-- Tooltip-Wochentag + Datum berechnen sich aus `now + stepOffset Stunden` (rollt korrekt über Mitternacht in den nächsten Tag).
-- Im Tagesmodus (`viewMode === "daily"`): Tooltip ausblenden, Slider weiter dimmed/disabled wie bisher.
+Verhalten:
+- Beim Öffnen der `/karte`-Seite ist „Heute" aktiv markiert, Marker zeigen die Tageswerte (Symbol & Min/Max).
+- Klick auf das „Stündlich"-Pill schaltet wie bisher in den Stundenmodus, Slider startet bei der aktuellen Stunde.
+- Klick auf einen anderen Wochentag wechselt wie gewohnt in die Tagesansicht dieses Tages.
 
-## Responsiv
+## Out of Scope
 
-- Auf Mobile (`<sm`): nur jede 3. Stundenbeschriftung sichtbar (`hidden sm:inline` auf den Zwischenlabels), Ticks bleiben pro Stunde. So bleibt es lesbar.
-
-## Aus Scope
-
-- Keine Änderungen an Pills, Karte, Daten-Fetching, Tagesansicht-Toggle, Nachrück-Logik.
-
-## Technische Details
-
-- Neue Helper: `tickHours = Array.from({length: 25}, (_, i) => i)` für 0…24.
-- Neuer State braucht's nicht — Tooltip-Position aus `stepOffset / MAX_STEPS`.
-- Datum: `new Date(); d.setHours(baseHour + stepOffset, 0, 0, 0)` → mit `Intl.DateTimeFormat("de-CH", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })` formatieren.
+- Pill-Design, Slider-Layout, Datenabruf, Marker-Inhalt bleiben unverändert.
+- Keine neuen Abhängigkeiten.
