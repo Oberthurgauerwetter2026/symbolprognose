@@ -1,49 +1,35 @@
 ## Ziel
 
-Ab Tag 6 wird DWD-MOSMIX zur **priorisierten Hauptquelle** (nicht mehr nur Lückenfüller). Es werden ausschließlich die Stationen **Güttingen (06621)** und **Bischofszell (06678)** verwendet — die nächstgelegene der beiden je nach Spot.
+Herausfinden, warum MOSMIX-Werte ab Tag 6 in der UI nicht durchschlagen. Reine Diagnose — kein UI-, kein Logik-Refactor. Nach Auswertung der Logs folgt ein zweiter, gezielter Fix.
 
-## Änderungen
+## Änderungen (nur Logging)
 
-### 1. `src/lib/mosmix.functions.ts`
-- Eigene Stations-Whitelist `ALLOWED = ["06621", "06678"]` direkt im Modul.
-- Statt `nearestMosmixStation(...)` → eigene Auswahl: die geographisch nähere der beiden erlaubten Stationen zum gegebenen Spot.
-- Distanz-Cutoff (60 km) entfällt bzw. wird auf z. B. 80 km gelockert, damit beide Stationen für alle vier Spots garantiert greifen (Horn, Amriswil, Sitterdorf, Münsterlingen liegen alle < 25 km von einer der beiden).
+### 1. `src/lib/mosmix.functions.ts` — `fetchMosmix` Handler
+Am Anfang und Ende des Handlers strukturiert loggen:
+- `[MOSMIX] start lat=… lon=… → station=06621/06678 distanceKm=…`
+- HTTP-Status der KMZ-Antwort
+- Anzahl geparster Zeitschritte, Anzahl finiter TTT-Werte
+- `[MOSMIX] done id=… steps=… firstTime=… lastTime=…`
+- Im Catch: `[MOSMIX] FAIL …` (statt nur `console.error`)
 
-### 2. `src/lib/weather.ts` — `fetchForecast()`
-Neue Merge-Reihenfolge in der Zeitachse:
+### 2. `src/lib/weather.ts` — `fetchForecast`
+Vor dem MOSMIX-Merge protokollieren:
+- `[FORECAST] offsetSec=…  primarySource=…  hourlyLen=…`
+- Wenn `mosmixRaw` `null`: `[FORECAST] mosmix=null` (mit Grund-Hinweis: Distanz vs. HTTP vs. Catch)
+- Wenn `mosmixRaw` vorhanden: erste/letzte MOSMIX-Zeit + erste/letzte lokale Timeline-Zeit
+- In `alignMosmixToTimeline`: Rückgabe-Statistik `matched / (n - minLocalHourIndex)` zurück an Caller, Caller loggt z. B. `[FORECAST] mosmix matched=37/48`
+- Nach `overwriteFromIndex`: Sample-Werte für Tag 6, 12:00 lokal (Index ≈ 5*24+12) für Temperatur vor/nach Overwrite
 
-```text
-Stunde 0–24h   : ICON-CH1-EPS  (Primär)
-Stunde 24–120h : ICON-CH2-EPS  (Lückenfüller)
-Stunde 120h+   : MOSMIX        (Primär ab Tag 6, ÜBERSCHREIBT IFS/best_match)
-Restlücken     : IFS, best_match
-```
-
-Konkret:
-- Neue Hilfsfunktion `overwriteFromIndex(primary, source, fromIndex)`: kopiert ab `fromIndex` **alle** vorhandenen (finiten) Werte aus `source` in `primary` — auch wenn `primary` dort schon Werte hat. Lücken in `source` bleiben unverändert.
-- Aufrufreihenfolge in `fetchForecast`:
-  1. `primary` = CH1 (oder Fallback-Kette wie bisher)
-  2. `fillGaps` mit CH2
-  3. **`overwriteFromIndex` mit MOSMIX ab Index `5*24`** (statt heutigem `fillGaps`)
-  4. `fillGaps` mit IFS (füllt nur, was MOSMIX nicht hatte)
-  5. `fillGaps` mit `best_match` (Restfelder wie `precipitation_probability`, `sunrise`/`sunset`)
-- Daily-Aggregation aus dem neuen Hourly-Mix bleibt unverändert (passiert ohnehin schon nach allen Merges).
-
-### 3. Keine UI-Änderungen
-Region-Map, Lokalprognose, Marker-Pills bleiben unberührt — sie konsumieren weiterhin `ForecastResponse`.
-
-## Auswirkung pro Spot
-
-| Spot | Nächste erlaubte Station | Distanz ca. |
-|---|---|---|
-| Horn | Güttingen | ~6 km |
-| Münsterlingen | Güttingen | ~5 km |
-| Amriswil | Bischofszell oder Güttingen | ~9 km / ~10 km |
-| Sitterdorf | Bischofszell | ~6 km |
-
-Tag 6–7 stammt damit für alle Spots aus einer DWD-Station < 10 km.
+### 3. Wie du es testest
+- Region-Karte einmal frisch laden (Hard-Reload, da `useQuery`-Cache).
+- Ich lese danach die Server-Logs (`server-function-logs`, alle Deployments) mit `search="MOSMIX"` bzw. `"FORECAST"` aus.
+- Aus den Zahlen leite ich die exakte Ursache ab:
+  - `mosmix=null` mit Distanz > 80 → Whitelist-Bug
+  - HTTP 404/403 → DWD-URL/Stations-ID
+  - `matched=0` → Offset-/Zeitachsen-Bug (Verdacht: `offsetSec=0`, weil Ensemble-API kein `utc_offset_seconds` liefert)
+  - `matched > 0` aber Werte unverändert → Bug in `overwriteFromIndex` oder MOSMIX-Felder alle `NaN`
 
 ## Nicht enthalten
-- Keine Änderung an Open-Meteo-Modellauswahl für Tag 0–5.
-- Keine Änderung an Tag-Aggregation, Symbol-Mapping, oder Cache.
-- Kein neuer Daten-Quellen-Indikator in der UI (kann separat ergänzt werden, wenn gewünscht).
+- Kein UI-Indikator/Badge.
+- Keine Änderung an Stations-Whitelist oder Merge-Reihenfolge — das passiert erst im Fix-Schritt nach Diagnose.
+- Logs werden nach dem Fix wieder reduziert.
