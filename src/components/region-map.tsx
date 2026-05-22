@@ -260,10 +260,25 @@ export function RegionMap() {
   const router = useRouter();
 
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
-  const [baseHour] = useState(() => currentBaseHour());
+  const [baseHour, setBaseHour] = useState(() => currentBaseHour());
   const [stepOffset, setStepOffset] = useState(0);
   const [viewMode, setViewMode] = useState<"hourly" | "daily">("hourly");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+
+  // Nachrücken: jede Minute prüfen, ob ein neuer 3-h-Slot begonnen hat.
+  useEffect(() => {
+    const tick = () => {
+      const next = currentBaseHour();
+      if (next !== baseHour) {
+        const absolute = baseHour + stepOffset * 3;
+        const newOffset = Math.round((absolute - next) / 3);
+        setBaseHour(next);
+        setStepOffset(newOffset >= 0 && newOffset <= MAX_STEPS ? newOffset : 0);
+      }
+    };
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, [baseHour, stepOffset]);
 
   const absoluteHour = baseHour + stepOffset * 3;
   const hourlyDayIndex = Math.floor(absoluteHour / 24);
