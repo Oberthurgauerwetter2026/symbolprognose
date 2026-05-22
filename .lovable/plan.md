@@ -1,28 +1,26 @@
-## Problem
+## Marker-Stil: Glassmorphism minimal
 
-Auf `/karten/region` zeigt Tag 6/7 nach Reload weiterhin die alten Werte ohne MOSMIX-Einfluss, obwohl die MOSMIX-Integration serverseitig korrekt arbeitet (verifiziert in Sandbox-Logs: `HTTP 200`, 247 Steps, Stationen 06621/06678).
+### Ziel
+Die Wetter-Marker-Pills auf der Regionkarte von fester blau/weißer "Block-Optik" auf einen dezenteren, halbtransparenten Glassmorphism-Stil umstellen.
 
-**Root Cause:** `src/routes/__root.tsx` umhüllt die App mit `PersistQueryClientProvider`, der den TanStack-Query-Cache 1 h im `localStorage` unter `wx-rq-cache-v1` (buster `"v1"`) ablegt. Der `useQuery({ queryKey: ["map-weather", spot.id], staleTime: 30 min })` in `src/components/region-map.tsx` greift nach einem Reload auf diesen persistierten Eintrag zu und ruft `fetchForecast` gar nicht erst neu auf — der MOSMIX-Code wird übersprungen.
+### Änderungen
+1. **MarkerPill-Komponente** (`src/components/region-map.tsx`, Zeile ~78–177):
+   - Hintergrund: `rgba(255,255,255,0.72)` + `backdrop-filter: blur(8px)` statt fester Brand-Blau `#2561a1`
+   - Border: `1px solid rgba(255,255,255,0.55)` statt kein Rand
+   - Schatten: `0 1px 3px rgba(0,0,0,0.06)` (subtil) statt `0 6px 20px rgba(0,0,0,0.32)` (schwer)
+   - Textfarbe: `#1e293b` (dunkel) statt `#fff` (weiß)
+   - Icon: kein weißer Kreis-Hintergrund mehr, Icon direkt farbig in natürlicher Größe (22px)
+   - Ortsname: `9px`, `uppercase`, `#94a3b8` (sehr dezent)
+   - Temperatur: kompakt, `11–12px`, `font-weight: 600`, Min-Wert in Brand-Blau, Max-Wert in Dunkel
+   - Trennzeichen bei Tagesansicht: schmaler `/` statt zwei farbigen Badges
+   - Padding und Gap reduziert für kompaktere Pill
 
-## Fix
+2. **Loading-State-Marker** (Zeile ~202–224):
+   - Gleicher Glassmorphism-Stil statt blauem Pill
 
-**Buster hochzählen** in `src/routes/__root.tsx`:
+3. **CSS-Regeln in `src/styles.css`**:
+   - Prüfen, ob `.region-map-pill:hover` angepasst werden muss (z. B. leichter Schatten + leichte Hebung)
 
-```diff
-- buster: "v1",
-+ buster: "v2-mosmix",
-```
-
-Das macht den bisher persistierten Cache schlagartig ungültig. Beim nächsten Reload wird `fetchForecast` neu ausgeführt, MOSMIX wird abgeholt und Tag 6/7 zeigt die neuen Werte. Ab dann läuft alles wie gewohnt (1 h Persistenz, 30 min staleTime).
-
-Kein anderer Code muss geändert werden — `weather.ts` und `mosmix.functions.ts` sind bereits korrekt.
-
-## Verifikation
-
-1. Reload auf `/karten/region` — Console sollte keine alten persistierten Daten zeigen.
-2. Sandbox-Server-Logs zeigen frische `[MOSMIX] HTTP 200`-Einträge (passiert bereits jetzt schon).
-3. Slider auf Tag 6 oder 7: Temperatur/Symbol weichen jetzt von den vorher gezeigten Werten ab (im letzten Test z. B. Güttingen Tag 6 12:00 von 25,4 → 23,9 °C).
-
-## Hinweis für später
-
-Wenn künftig Änderungen an `fetchForecast` / `weather.ts` / `mosmix.functions.ts` vorgenommen werden, muss der `buster`-String erneut erhöht werden (`"v3-…"`, `"v4-…"` etc.), sonst tritt das gleiche Problem wieder auf. Alternativ könnten wir den Buster automatisch aus einem Build-Hash ableiten — das wäre eine separate Aufgabe.
+### Design-Referenz
+- Gewählte Richtung: "Glassmorphism minimal" aus dem Design-Directions-Tool
+- Semantische Tokens aus `src/styles.css` verwenden wo möglich
