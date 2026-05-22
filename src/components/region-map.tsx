@@ -177,16 +177,14 @@ function SpotMarker({
         html: renderToStaticMarkup(
           <div
             style={{
-              padding: "4px 10px",
+              padding: "6px 14px",
               borderRadius: 999,
-              background: "rgba(255,255,255,0.72)",
-              backdropFilter: "blur(8px)",
-              WebkitBackdropFilter: "blur(8px)",
-              border: "1px solid rgba(255,255,255,0.55)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-              color: "#64748b",
+              background: BRAND,
+              border: "1px solid rgba(255,255,255,0.25)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+              color: "rgba(255,255,255,0.85)",
               fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: 600,
               textTransform: "uppercase",
               letterSpacing: "0.04em",
@@ -198,8 +196,8 @@ function SpotMarker({
           </div>,
         ),
         className: "region-map-marker",
-        iconSize: [120, 24],
-        iconAnchor: [60, 12],
+        iconSize: [140, 28],
+        iconAnchor: [70, 14],
       });
     }
     const code =
