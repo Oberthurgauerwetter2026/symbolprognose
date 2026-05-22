@@ -263,7 +263,7 @@ export function RegionMap() {
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
   const [baseHour, setBaseHour] = useState(() => currentBaseHour());
   const [stepOffset, setStepOffset] = useState(0);
-  const [viewMode, setViewMode] = useState<"hourly" | "daily">("hourly");
+  const [viewMode, setViewMode] = useState<"hourly" | "daily">("daily");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
   // Nachrücken: jede Minute prüfen, ob eine neue Stunde begonnen hat.
