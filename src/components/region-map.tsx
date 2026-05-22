@@ -98,29 +98,27 @@ function MarkerPill({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
-        padding: "4px 10px 4px 6px",
+        gap: 8,
+        padding: "6px 14px 6px 8px",
         borderRadius: 999,
-        background: "rgba(255,255,255,0.72)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
-        border: "1px solid rgba(255,255,255,0.55)",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+        background: BRAND,
+        border: "1px solid rgba(255,255,255,0.25)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.10)",
         fontFamily: '"Figtree", system-ui, sans-serif',
-        color: "#1e293b",
-        lineHeight: 1.1,
+        color: "#fff",
+        lineHeight: 1.15,
         cursor: "pointer",
         transition: "transform 120ms ease, box-shadow 150ms ease",
         whiteSpace: "nowrap",
       }}
     >
-      <WeatherIcon code={code} isDay={isDay} size={22} />
-      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      <WeatherIcon code={code} isDay={isDay} size={26} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
           style={{
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: 600,
-            color: "#64748b",
+            color: "rgba(255,255,255,0.85)",
             letterSpacing: "0.04em",
             lineHeight: 1,
             textTransform: "uppercase",
@@ -131,16 +129,16 @@ function MarkerPill({
         <div style={{ display: "flex", gap: 4, alignItems: "baseline" }}>
           {mode === "daily" ? (
             <>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#2561a1" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
                 {Math.round(tMin)}°
               </span>
-              <span style={{ fontSize: 9, color: "#cbd5e1" }}>/</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>/</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
                 {Math.round(tMax)}°
               </span>
             </>
           ) : (
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
               {Math.round(tNow)}°
             </span>
           )}
@@ -179,16 +177,14 @@ function SpotMarker({
         html: renderToStaticMarkup(
           <div
             style={{
-              padding: "4px 10px",
+              padding: "6px 14px",
               borderRadius: 999,
-              background: "rgba(255,255,255,0.72)",
-              backdropFilter: "blur(8px)",
-              WebkitBackdropFilter: "blur(8px)",
-              border: "1px solid rgba(255,255,255,0.55)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-              color: "#64748b",
+              background: BRAND,
+              border: "1px solid rgba(255,255,255,0.25)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+              color: "rgba(255,255,255,0.85)",
               fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: 600,
               textTransform: "uppercase",
               letterSpacing: "0.04em",
@@ -200,8 +196,8 @@ function SpotMarker({
           </div>,
         ),
         className: "region-map-marker",
-        iconSize: [120, 24],
-        iconAnchor: [60, 12],
+        iconSize: [140, 28],
+        iconAnchor: [70, 14],
       });
     }
     const code =
@@ -220,8 +216,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [120, 36],
-      iconAnchor: [60, 18],
+      iconSize: [150, 44],
+      iconAnchor: [75, 22],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
