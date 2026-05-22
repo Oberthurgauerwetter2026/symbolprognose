@@ -1,26 +1,20 @@
-# Karte: Kanton Thurgau + Default „Heute"
+## Ziel
+Die Wetter-Icons (Sonne, Wolke, etc.) sind an einigen Stellen zu klein, um auf einen Blick erkennbar zu sein. Sie sollen etwas grösser dargestellt werden.
 
-## 1. Kanton Thurgau als helleres Grau
+## Identifizierte Stellen
 
-- Neue Datei `src/data/thurgau.json` mit `FeatureCollection` der Kantonsgrenze (Quelle: swisstopo `ch.swisstopo.swissboundaries3d-kanton-flaeche.fill`, vereinfacht über `api3.geo.admin.ch`).
-- In `region-map.tsx` zwischen `OUTSIDE_MASK` und `LAKE` ein neuer `<GeoJSON data={THURGAU} />`-Layer:
-  - `fillColor: #9aa5ae`, `fillOpacity: 0.55` (deutlich heller als die Aussen-Maske `#5a6670 / 0.6`)
-  - kein Stroke, `interactive={false}`
-- Reihenfolge bleibt: Aussen-Maske (dunkelgrau) → Thurgau (hellgrau) → See → Region (grün) → Marker.
-- Effekt: das Umfeld ausserhalb CH/TG bleibt dunkel, der Kanton hebt sich heller ab, die Region Oberthurgau bleibt grün hervorgehoben.
+1. **Karten-Marker (`src/components/region-map.tsx`)**
+   - Aktuell: `WeatherIcon size={30}` in einem 40×40 px weissen Kreis
+   - Plan: Icon auf 36 px vergrössern. Den umgebenden Kreis auf 46×46 px anpassen, damit das Icon nicht am Rand stösst.
 
-## 2. Default-Ansicht „heutiger Tag"
+2. **Tagesübersichts-Streifen (`src/components/weather-widget.tsx` DayStrip)**
+   - Aktuell: `WeatherIcon size={72}`
+   - Plan: Auf 80 px vergrössern.
 
-In `RegionMap()`:
-- `useState<"hourly" | "daily">("hourly")` → `useState<"hourly" | "daily">("daily")`
-- `useState(0)` für `selectedDayIdx` bleibt (= heute)
+3. **Stündliche Detail-Ansicht (`src/components/weather-widget.tsx` DetailPanel)**
+   - Aktuell: `WeatherIcon size={cadence === "1h" ? 40 : 56}`
+   - Plan: Auf 48 px (1h) bzw. 64 px (3h) vergrössern.
 
-Verhalten:
-- Beim Öffnen der `/karte`-Seite ist „Heute" aktiv markiert, Marker zeigen die Tageswerte (Symbol & Min/Max).
-- Klick auf das „Stündlich"-Pill schaltet wie bisher in den Stundenmodus, Slider startet bei der aktuellen Stunde.
-- Klick auf einen anderen Wochentag wechselt wie gewohnt in die Tagesansicht dieses Tages.
-
-## Out of Scope
-
-- Pill-Design, Slider-Layout, Datenabruf, Marker-Inhalt bleiben unverändert.
-- Keine neuen Abhängigkeiten.
+## Umsetzung
+- Pure CSS/Prop-Änderungen, keine neuen Abhängigkeiten.
+- Keine Logik-Änderungen, nur visuelle Anpassung.

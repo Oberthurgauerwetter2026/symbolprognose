@@ -115,8 +115,8 @@ function MarkerPill({
     >
       <div
         style={{
-          width: 40,
-          height: 40,
+          width: 46,
+          height: 46,
           borderRadius: 999,
           background: "#fff",
           display: "flex",
@@ -125,7 +125,7 @@ function MarkerPill({
           flexShrink: 0,
         }}
       >
-        <WeatherIcon code={code} isDay={isDay} size={30} />
+        <WeatherIcon code={code} isDay={isDay} size={36} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.015em" }}>

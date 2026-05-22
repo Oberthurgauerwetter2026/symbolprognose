@@ -413,7 +413,7 @@ function DayStrip({
                 aria-label={weatherLabel(d.weathercode[i])}
                 title={weatherLabel(d.weathercode[i])}
               >
-                <WeatherIcon code={d.weathercode[i]} size={72} />
+                <WeatherIcon code={d.weathercode[i]} size={80} />
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
@@ -733,7 +733,7 @@ function DetailPanel({
                       <WeatherIcon
                         code={h.weathercode[idx]}
                         isDay={t.getHours() >= 6 && t.getHours() < 20}
-                        size={cadence === "1h" ? 40 : 56}
+                        size={cadence === "1h" ? 48 : 64}
                       />
                     </div>
                     <div className={`${cadence === "1h" ? "text-base" : "text-xl"} font-bold tabular-nums text-zinc-900`}>
