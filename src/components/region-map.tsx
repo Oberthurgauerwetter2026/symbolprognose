@@ -99,8 +99,8 @@ function MarkerPill({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        padding: "10px 16px 10px 10px",
+        gap: 8,
+        padding: "6px 12px 6px 6px",
         borderRadius: 999,
         background: BRAND,
         boxShadow: "0 6px 20px rgba(0,0,0,0.32)",
@@ -113,8 +113,8 @@ function MarkerPill({
     >
       <div
         style={{
-          width: 52,
-          height: 52,
+          width: 40,
+          height: 40,
           borderRadius: 999,
           background: "#fff",
           display: "flex",
@@ -123,20 +123,20 @@ function MarkerPill({
           flexShrink: 0,
         }}
       >
-        <WeatherIcon code={code} isDay={isDay} size={40} />
+        <WeatherIcon code={code} isDay={isDay} size={30} />
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.015em" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.015em" }}>
           {name}
         </span>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <span
             style={{
               background: "#cfe1f2",
               color: BRAND,
-              padding: "3px 10px",
+              padding: "2px 7px",
               borderRadius: 6,
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: 700,
             }}
           >
@@ -146,9 +146,9 @@ function MarkerPill({
             style={{
               background: "#0d3563",
               color: "#fff",
-              padding: "3px 10px",
+              padding: "2px 7px",
               borderRadius: 6,
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: 700,
             }}
           >
@@ -189,12 +189,12 @@ function SpotMarker({
         html: renderToStaticMarkup(
           <div
             style={{
-              padding: "6px 12px",
+              padding: "4px 9px",
               borderRadius: 999,
               background: BRAND,
               color: "#fff",
               fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 700,
               cursor: "pointer",
             }}
@@ -203,8 +203,8 @@ function SpotMarker({
           </div>,
         ),
         className: "region-map-marker",
-        iconSize: [120, 28],
-        iconAnchor: [60, 14],
+        iconSize: [120, 24],
+        iconAnchor: [60, 12],
       });
     }
     const code =
@@ -222,8 +222,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [240, 80],
-      iconAnchor: [120, 40],
+      iconSize: [190, 60],
+      iconAnchor: [95, 30],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
@@ -245,7 +245,7 @@ function currentBaseHour(): number {
   return Math.floor(h / 3) * 3;
 }
 
-const MAX_STEPS = 56; // 7 Tage × 8 (3-h-Schritte)
+const MAX_STEPS = 8; // 24 h × 3-h-Schritte (rollierendes 24-h-Fenster)
 const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
 function longWeekday(d: Date): string {
@@ -260,10 +260,25 @@ export function RegionMap() {
   const router = useRouter();
 
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
-  const [baseHour] = useState(() => currentBaseHour());
+  const [baseHour, setBaseHour] = useState(() => currentBaseHour());
   const [stepOffset, setStepOffset] = useState(0);
   const [viewMode, setViewMode] = useState<"hourly" | "daily">("hourly");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+
+  // Nachrücken: jede Minute prüfen, ob ein neuer 3-h-Slot begonnen hat.
+  useEffect(() => {
+    const tick = () => {
+      const next = currentBaseHour();
+      if (next !== baseHour) {
+        const absolute = baseHour + stepOffset * 3;
+        const newOffset = Math.round((absolute - next) / 3);
+        setBaseHour(next);
+        setStepOffset(newOffset >= 0 && newOffset <= MAX_STEPS ? newOffset : 0);
+      }
+    };
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, [baseHour, stepOffset]);
 
   const absoluteHour = baseHour + stepOffset * 3;
   const hourlyDayIndex = Math.floor(absoluteHour / 24);
@@ -322,7 +337,7 @@ export function RegionMap() {
   return (
     <div className="space-y-4">
       {/* Karte */}
-      <div className="relative h-[600px] w-full overflow-hidden rounded-2xl shadow-lg">
+      <div className="relative h-[420px] w-full overflow-hidden rounded-2xl shadow-lg sm:h-[600px]">
         <MapContainer
           center={center}
           zoom={11}
@@ -395,23 +410,15 @@ export function RegionMap() {
       </div>
 
       {/* Stündlich-Toggle + Wochentage */}
-      <div className="inline-flex w-full gap-1 rounded-full bg-muted p-1">
+      <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-full bg-muted p-1">
         <button
           type="button"
           onClick={() => {
-            if (viewMode === "daily") {
-              const target = Math.min(
-                MAX_STEPS - 1,
-                Math.max(0, Math.ceil((selectedDayIdx * 24 - baseHour) / 3)),
-              );
-              setStepOffset(target);
-            } else {
-              setStepOffset(0);
-            }
+            setStepOffset(0);
             setViewMode("hourly");
           }}
           className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+            "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
             viewMode === "hourly"
               ? "text-white shadow"
               : "text-foreground hover:bg-foreground/5",
@@ -424,7 +431,7 @@ export function RegionMap() {
             <circle cx="12" cy="12" r="9" />
             <polyline points="12 7 12 12 15 14" />
           </svg>
-          <span className="leading-tight">Stündlich</span>
+          <span className="hidden leading-tight sm:inline">Stündlich</span>
         </button>
         {days.map((d, i) => {
           const { top, sub } = formatDayLabel(d, i);
@@ -438,7 +445,7 @@ export function RegionMap() {
                 setViewMode("daily");
               }}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center rounded-full px-3 py-2 text-sm font-medium transition-colors",
+                "flex shrink-0 flex-1 flex-col items-center justify-center rounded-full px-2 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
                 active
                   ? "text-white shadow"
                   : "text-foreground hover:bg-foreground/5",
@@ -448,7 +455,7 @@ export function RegionMap() {
               <span className="font-semibold leading-tight">{top}</span>
               <span
                 className={cn(
-                  "text-xs leading-tight",
+                  "text-[10px] leading-tight sm:text-xs",
                   active ? "text-white/80" : "text-muted-foreground",
                 )}
               >
@@ -540,7 +547,7 @@ export function RegionMap() {
 
         <div className="mt-1.5 flex justify-between text-[11px] font-medium text-muted-foreground">
           <span>jetzt</span>
-          <span>+{Math.round((MAX_STEPS * 3) / 24)} Tage</span>
+          <span>+24 Std</span>
         </div>
       </div>
     </div>
