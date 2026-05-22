@@ -327,6 +327,24 @@ export function RegionMap() {
     dayIndex,
   );
 
+  // Datum/Zeit am aktuellen Slider-Punkt
+  const sliderDate = (() => {
+    const d = new Date();
+    d.setMinutes(0, 0, 0);
+    d.setHours(baseHour + stepOffset);
+    return d;
+  })();
+  const sliderWeekday = new Intl.DateTimeFormat("de-CH", { weekday: "long" }).format(sliderDate);
+  const sliderWeekdayCap = sliderWeekday.charAt(0).toUpperCase() + sliderWeekday.slice(1);
+  const sliderDateStr = new Intl.DateTimeFormat("de-CH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(sliderDate);
+  const sliderTimeStr = `${String(sliderDate.getHours()).padStart(2, "0")}:00`;
+  const thumbPct = MAX_STEPS > 0 ? (stepOffset / MAX_STEPS) * 100 : 0;
+  const HOUR_LABELS = Array.from({ length: 25 }, (_, i) => i);
+
   const goHome = () => {
     router.navigate({ to: "/" }).catch(() => {
       if (typeof window !== "undefined") window.location.assign("/");
