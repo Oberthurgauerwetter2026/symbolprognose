@@ -555,7 +555,7 @@ export function RegionMap() {
 
         <div className="mt-1.5 flex justify-between text-[11px] font-medium text-muted-foreground">
           <span>jetzt</span>
-          <span>+{Math.round((MAX_STEPS * 3) / 24)} Tage</span>
+          <span>+24 Std</span>
         </div>
       </div>
     </div>
