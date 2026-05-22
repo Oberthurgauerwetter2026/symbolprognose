@@ -6,12 +6,40 @@ import { createServerFn } from "@tanstack/react-start";
 import { unzipSync, strFromU8 } from "fflate";
 import { XMLParser } from "fast-xml-parser";
 
-import { MOSMIX_STATIONS, nearestMosmixStation } from "@/data/mosmix-stations";
+import { MOSMIX_STATIONS } from "@/data/mosmix-stations";
 
 // Re-export for downstream callers
 export { MOSMIX_STATIONS };
-const nearestStation = nearestMosmixStation;
-void MOSMIX_STATIONS;
+
+// Whitelist: nur diese beiden Stationen werden für die Region Oberthurgau verwendet.
+const ALLOWED_STATION_IDS = ["06621", "06678"] as const; // Güttingen, Bischofszell
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function nearestStation(lat: number, lon: number) {
+  const allowed = MOSMIX_STATIONS.filter((s) =>
+    (ALLOWED_STATION_IDS as readonly string[]).includes(s.id),
+  );
+  let best = allowed[0];
+  let bestDist = haversineKm(lat, lon, best.lat, best.lon);
+  for (let i = 1; i < allowed.length; i++) {
+    const d = haversineKm(lat, lon, allowed[i].lat, allowed[i].lon);
+    if (d < bestDist) {
+      best = allowed[i];
+      bestDist = d;
+    }
+  }
+  return { station: best, distanceKm: bestDist };
+}
 
 
 // SYNOP ww (00..99) → WMO weather code (approx., good enough for symbol mapping).
