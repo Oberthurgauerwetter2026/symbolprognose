@@ -524,7 +524,7 @@ export function RegionMap() {
           <div className="relative mt-0.5 h-3">
             {HOUR_TICKS.map((h) => {
               const display = h === 24 ? 0 : h;
-              const active = h !== 24 && h === Math.floor(hourOfDay / 3) * 3;
+              const active = h !== 24 && h === hourOfDay;
               return (
                 <span
                   key={`label-${h}`}
