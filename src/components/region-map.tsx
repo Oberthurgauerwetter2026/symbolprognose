@@ -245,7 +245,7 @@ function currentBaseHour(): number {
   return Math.floor(h / 3) * 3;
 }
 
-const MAX_STEPS = 56; // 7 Tage × 8 (3-h-Schritte)
+const MAX_STEPS = 8; // 24 h × 3-h-Schritte (rollierendes 24-h-Fenster)
 const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
 function longWeekday(d: Date): string {
