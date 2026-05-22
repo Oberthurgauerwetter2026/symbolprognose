@@ -475,10 +475,10 @@ export async function fetchForecast(
   let merged = primary;
   if (ch2Raw && primarySource !== "ch2") merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
 
-  // MOSMIX vor IFS einfügen — aber nur für Tag 6+ (Index >= 5*24 = 120h).
+  // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt CH2/IFS/best_match.
   if (mosmixRaw) {
     const mosmixForecast = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 5 * 24);
-    if (mosmixForecast) merged = fillGaps(merged, mosmixForecast);
+    if (mosmixForecast) merged = overwriteFromIndex(merged, mosmixForecast, 5 * 24);
   }
 
   if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
