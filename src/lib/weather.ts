@@ -423,6 +423,7 @@ function alignMosmixToTimeline(
     out.snowfall[i] = mosmix.snowfall[j];
     out.sunshine_duration[i] = mosmix.sunshine_duration[j];
   }
+  console.log(`[FORECAST] alignMosmix matched=${matched}/${n - minLocalHourIndex} mosmixSteps=${mosmix.time.length} mosmixFirst=${mosmix.time[0]} mosmixLast=${mosmix.time[mosmix.time.length - 1]} localFirst=${localTimes[minLocalHourIndex]} localLast=${localTimes[n - 1]} offsetSec=${offsetSeconds}`);
   if (matched === 0) return null;
 
   const emptyDaily: DailyData = {
