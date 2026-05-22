@@ -99,7 +99,7 @@ function MarkerPill({
         display: "inline-flex",
         alignItems: "center",
         gap: 8,
-        padding: "6px 14px 6px 8px",
+        padding: "8px 16px 8px 10px",
         borderRadius: 999,
         background: BRAND,
         border: "1px solid rgba(255,255,255,0.25)",
@@ -112,11 +112,11 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
-      <WeatherIcon code={code} isDay={isDay} size={34} />
+      <WeatherIcon code={code} isDay={isDay} size={40} />
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
           style={{
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 600,
             color: "rgba(255,255,255,0.85)",
             letterSpacing: "0.04em",
@@ -129,16 +129,16 @@ function MarkerPill({
         <div style={{ display: "flex", gap: 4, alignItems: "baseline" }}>
           {mode === "daily" ? (
             <>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
                 {Math.round(tMin)}°
               </span>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>/</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>/</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
                 {Math.round(tMax)}°
               </span>
             </>
           ) : (
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
               {Math.round(tNow)}°
             </span>
           )}
