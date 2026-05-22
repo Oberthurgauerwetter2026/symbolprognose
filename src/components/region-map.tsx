@@ -128,7 +128,7 @@ function MarkerPill({
         <WeatherIcon code={code} isDay={isDay} size={36} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.015em" }}>
+        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "0.015em" }}>
           {name}
         </span>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -136,9 +136,9 @@ function MarkerPill({
             style={{
               background: "#cfe1f2",
               color: BRAND,
-              padding: "2px 7px",
+              padding: "3px 8px",
               borderRadius: 6,
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 700,
             }}
           >
@@ -148,9 +148,9 @@ function MarkerPill({
             style={{
               background: "#0d3563",
               color: "#fff",
-              padding: "2px 7px",
+              padding: "3px 8px",
               borderRadius: 6,
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 700,
             }}
           >
