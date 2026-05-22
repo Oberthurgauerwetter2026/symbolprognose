@@ -184,7 +184,7 @@ function SpotMarker({
               boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
               color: "rgba(255,255,255,0.85)",
               fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 600,
               textTransform: "uppercase",
               letterSpacing: "0.04em",
@@ -196,8 +196,8 @@ function SpotMarker({
           </div>,
         ),
         className: "region-map-marker",
-        iconSize: [140, 28],
-        iconAnchor: [70, 14],
+        iconSize: [160, 32],
+        iconAnchor: [80, 16],
       });
     }
     const code =
@@ -216,8 +216,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [150, 44],
-      iconAnchor: [75, 22],
+      iconSize: [170, 52],
+      iconAnchor: [85, 26],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
