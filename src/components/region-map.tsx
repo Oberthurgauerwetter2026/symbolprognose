@@ -96,77 +96,51 @@ function MarkerPill({
     <div
       className={MARKER_PILL_CLASS}
       style={{
-        display: "flex",
+        display: "inline-flex",
         alignItems: "center",
-        gap: 8,
-        padding: "6px 12px 6px 6px",
+        gap: 6,
+        padding: "4px 10px 4px 6px",
         borderRadius: 999,
-        background: BRAND,
-        boxShadow: "0 6px 20px rgba(0,0,0,0.32)",
+        background: "rgba(255,255,255,0.72)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        border: "1px solid rgba(255,255,255,0.55)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
         fontFamily: '"Figtree", system-ui, sans-serif',
-        color: "#fff",
-        lineHeight: 1.05,
+        color: "#1e293b",
+        lineHeight: 1.1,
         cursor: "pointer",
-        transition: "transform 120ms ease",
+        transition: "transform 120ms ease, box-shadow 150ms ease",
+        whiteSpace: "nowrap",
       }}
     >
-      <div
-        style={{
-          width: 46,
-          height: 46,
-          borderRadius: 999,
-          background: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <WeatherIcon code={code} isDay={isDay} size={36} />
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "0.015em" }}>
+      <WeatherIcon code={code} isDay={isDay} size={22} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 600,
+            color: "#64748b",
+            letterSpacing: "0.04em",
+            lineHeight: 1,
+            textTransform: "uppercase",
+          }}
+        >
           {name}
         </span>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "baseline" }}>
           {mode === "daily" ? (
             <>
-              <span
-                style={{
-                  background: "#cfe1f2",
-                  color: BRAND,
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#2561a1" }}>
                 {Math.round(tMin)}°
               </span>
-              <span
-                style={{
-                  background: "#0d3563",
-                  color: "#fff",
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
+              <span style={{ fontSize: 9, color: "#cbd5e1" }}>/</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
                 {Math.round(tMax)}°
               </span>
             </>
           ) : (
-            <span
-              style={{
-                background: "#0d3563",
-                color: "#fff",
-                padding: "3px 10px",
-                borderRadius: 6,
-                fontSize: 14,
-                fontWeight: 700,
-              }}
-            >
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
               {Math.round(tNow)}°
             </span>
           )}
@@ -205,14 +179,21 @@ function SpotMarker({
         html: renderToStaticMarkup(
           <div
             style={{
-              padding: "4px 9px",
+              padding: "4px 10px",
               borderRadius: 999,
-              background: BRAND,
-              color: "#fff",
+              background: "rgba(255,255,255,0.72)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.55)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+              color: "#64748b",
               fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 12,
-              fontWeight: 700,
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
               cursor: "pointer",
+              whiteSpace: "nowrap",
             }}
           >
             {spot.name}
@@ -239,8 +220,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [190, 60],
-      iconAnchor: [95, 30],
+      iconSize: [120, 36],
+      iconAnchor: [60, 18],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
