@@ -238,7 +238,7 @@ export const fetchMosmix = createServerFn({ method: "GET" })
         sunshine_duration,
       };
     } catch (err) {
-      console.error("MOSMIX fetch/parse error:", err);
+      console.error("[MOSMIX] FAIL fetch/parse:", err);
       return null;
     }
   });
