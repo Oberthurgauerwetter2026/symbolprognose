@@ -371,13 +371,18 @@ export async function fetchForecast(
   longitude: number,
 ): Promise<ForecastResponse> {
   // ICON-CH1-EPS für Stunden 0–24, danach ICON-CH2-EPS (bis Tag 5),
-  // danach ECMWF IFS Ensemble (bis Tag 7). best_match nur als Restfallback
-  // für Felder, die Ensembles nicht liefern (Probability, Sunrise/Sunset).
-  const [ch1RawFull, ch2Raw, ifsRaw, bestMatch] = await Promise.all([
+  // ab Tag 6 zusätzlich DWD-MOSMIX (vor ECMWF IFS Ensemble bis Tag 7).
+  // best_match nur als Restfallback für Felder, die Ensembles nicht liefern
+  // (Probability, Sunrise/Sunset).
+  const [ch1RawFull, ch2Raw, ifsRaw, bestMatch, mosmixRaw] = await Promise.all([
     fetchEnsembleMean(latitude, longitude, "meteoswiss_icon_ch1").catch(() => null),
     fetchEnsembleMean(latitude, longitude, "meteoswiss_icon_ch2").catch(() => null),
     fetchEnsembleMean(latitude, longitude, "ecmwf_ifs025").catch(() => null),
     fetchModel(latitude, longitude, "best_match").catch(() => null),
+    fetchMosmix({ data: { latitude, longitude } }).catch((e) => {
+      console.warn("MOSMIX nicht verfügbar:", e);
+      return null;
+    }),
   ]);
 
   const ch1Raw = ch1RawFull ? sliceEnsembleHourly(ch1RawFull, 24) : null;
@@ -392,8 +397,23 @@ export async function fetchForecast(
   else if (bestMatch) { primary = bestMatch; primarySource = "best_match"; }
   if (!primary) throw new Error("Keine Wettermodelle erreichbar");
 
+  // utc_offset_seconds aus einer Quelle ableiten (für MOSMIX-Alignment).
+  const offsetSec =
+    ch1RawFull?.utc_offset_seconds ??
+    ch2Raw?.utc_offset_seconds ??
+    ifsRaw?.utc_offset_seconds ??
+    (bestMatch as unknown as { utc_offset_seconds?: number } | null)?.utc_offset_seconds ??
+    0;
+
   let merged = primary;
   if (ch2Raw && primarySource !== "ch2") merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
+
+  // MOSMIX vor IFS einfügen — aber nur für Tag 6+ (Index >= 5*24 = 120h).
+  if (mosmixRaw) {
+    const mosmixForecast = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 5 * 24);
+    if (mosmixForecast) merged = fillGaps(merged, mosmixForecast);
+  }
+
   if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
   if (bestMatch && primarySource !== "best_match") merged = fillGaps(merged, bestMatch);
 
