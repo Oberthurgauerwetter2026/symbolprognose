@@ -217,6 +217,57 @@ function ModelsSection() {
   );
 }
 
+function MosmixStationsSection() {
+  const rows = SPOTS.map((s) => {
+    const { station, distanceKm } = nearestMosmixStation(s.lat, s.lon);
+    return { spot: s, station, distanceKm };
+  });
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        MOSMIX-Stationszuordnung (Kartenpunkte)
+      </h2>
+
+      <div className="bg-white border border-zinc-200 rounded-md p-5 space-y-4">
+        <p className="text-sm text-zinc-700 leading-relaxed">
+          Ab Tag 6 wird pro Ort die geografisch nächste DWD-MOSMIX-L-Station
+          verwendet. Die Auswahl basiert auf Luftlinien-Distanz (Haversine).
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wider text-zinc-500 border-b border-zinc-200">
+                <th className="py-2 pr-4">Ort</th>
+                <th className="py-2 pr-4">MOSMIX-Station</th>
+                <th className="py-2 pr-4">ID</th>
+                <th className="py-2 pr-4 text-right">Distanz</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ spot, station, distanceKm }) => (
+                <tr key={spot.id} className="border-b border-zinc-100">
+                  <td className="py-2 pr-4 font-medium text-zinc-900">{spot.name}</td>
+                  <td className="py-2 pr-4 text-zinc-700">{station.name}</td>
+                  <td className="py-2 pr-4 font-mono text-xs text-zinc-500">{station.id}</td>
+                  <td className="py-2 pr-4 text-right text-zinc-700">
+                    {distanceKm.toFixed(1)} km
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-zinc-500">
+          Stationskatalog: 25 CH-Stationen + 5 grenznahe Nachbarstationen
+          (Friedrichshafen, Konstanz, Innsbruck, Milano-Malpensa, Lyon-Bron).
+        </p>
+      </div>
+    </section>
+  );
+}
+
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4 border-b border-zinc-100 pb-1">
