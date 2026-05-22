@@ -528,7 +528,7 @@ export function RegionMap() {
 
         <div
           className={cn(
-            "region-slider relative px-1 pt-5",
+            "region-slider relative px-1 pt-10",
             viewMode === "daily" && "pointer-events-none opacity-40",
           )}
         >
