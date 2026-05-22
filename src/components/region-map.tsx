@@ -519,7 +519,7 @@ export function RegionMap() {
 
         <div
           className={cn(
-            "region-slider relative px-1 pt-10",
+            "region-slider relative px-1 pt-5",
             viewMode === "daily" && "pointer-events-none opacity-40",
           )}
         >
@@ -552,8 +552,8 @@ export function RegionMap() {
               className="pointer-events-none absolute z-0"
               style={{
                 left: `calc(${thumbPct}% + 4px)`,
-                top: "2.25rem",
-                bottom: "-1.75rem",
+                top: "1.25rem",
+                bottom: "-1.25rem",
                 width: 1,
                 background: BRAND,
                 opacity: 0.5,
@@ -572,15 +572,15 @@ export function RegionMap() {
         </div>
 
         {/* Stundenlegende: jede Stunde */}
-        <div className={cn("mt-2 px-1", viewMode === "daily" && "opacity-40")}>
-          <div className="relative h-2">
+        <div className={cn("mt-1 px-1", viewMode === "daily" && "opacity-40")}>
+          <div className="relative h-1.5">
             {HOUR_LABELS.map((h) => (
               <span
                 key={`tick-${h}`}
                 className="absolute top-0 w-px bg-border"
                 style={{
                   left: `${(h / MAX_STEPS) * 100}%`,
-                  height: h % 3 === 0 ? "0.5rem" : "0.25rem",
+                  height: h % 3 === 0 ? "0.4rem" : "0.2rem",
                 }}
               />
             ))}
