@@ -208,6 +208,53 @@ function fillGaps(
   return { ...primary, hourly: mergedHourly, daily: mergedDaily };
 }
 
+/**
+ * Überschreibt ab `fromIndex` alle finiten Werte in `primary.hourly` mit denen
+ * aus `source.hourly`. Lücken (NaN) in `source` lassen `primary` unverändert.
+ * Daily bleibt unberührt (wird später aus dem neuen Hourly aggregiert).
+ */
+function overwriteFromIndex(
+  primary: ForecastResponse,
+  source: ForecastResponse,
+  fromIndex: number,
+): ForecastResponse {
+  const keys: (keyof HourlyData)[] = [
+    "weathercode",
+    "temperature_2m",
+    "precipitation",
+    "precipitation_probability",
+    "windspeed_10m",
+    "windgusts_10m",
+    "winddirection_10m",
+    "snowfall",
+    "sunshine_duration",
+  ];
+  const ph = primary.hourly;
+  const sh = source.hourly;
+  const n = Math.min(ph.time.length, sh.time.length);
+  const outHourly: HourlyData = {
+    ...ph,
+    weathercode: [...ph.weathercode],
+    temperature_2m: [...ph.temperature_2m],
+    precipitation: [...ph.precipitation],
+    precipitation_probability: [...ph.precipitation_probability],
+    windspeed_10m: [...ph.windspeed_10m],
+    windgusts_10m: [...ph.windgusts_10m],
+    winddirection_10m: [...ph.winddirection_10m],
+    snowfall: [...ph.snowfall],
+    sunshine_duration: [...ph.sunshine_duration],
+  };
+  for (let i = fromIndex; i < n; i++) {
+    for (const k of keys) {
+      const v = (sh[k] as number[])[i];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        (outHourly[k] as number[])[i] = v;
+      }
+    }
+  }
+  return { ...primary, hourly: outHourly };
+}
+
 const ENSEMBLE_HOURLY_VARS = [
   "weathercode",
   "temperature_2m",
