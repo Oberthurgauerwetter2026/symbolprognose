@@ -281,6 +281,15 @@ export function RegionMap() {
   const isDay = hourOfDay >= 6 && hourOfDay < 20;
 
 
+  // Datenstand vom ersten Spot (Cache wird mit den Markern geteilt).
+  const firstSpot = SPOTS[0];
+  const { dataUpdatedAt } = useQuery({
+    queryKey: ["map-weather", firstSpot.id],
+    queryFn: () => fetchForecast(firstSpot.lat, firstSpot.lon),
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60,
+  });
+
   const days = useMemo(() => {
     const base = new Date();
     base.setHours(0, 0, 0, 0);
@@ -616,6 +625,23 @@ export function RegionMap() {
         </div>
 
       </div>
+
+      {dataUpdatedAt > 0 && (
+        <p
+          className="text-center text-[11px] text-muted-foreground"
+          title="Wettermodelle (ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX) werden ca. alle 6 Stunden (00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 30 Min. zwischengespeichert."
+        >
+          Datenstand:{" "}
+          {new Intl.DateTimeFormat("de-CH", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }).format(new Date(dataUpdatedAt))}{" "}
+          · Quellen: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
+        </p>
+      )}
     </div>
   );
 }
