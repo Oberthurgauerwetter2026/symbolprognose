@@ -1,5 +1,6 @@
 // Open-Meteo client-side fetchers (ICON-CH2 / MeteoSchweiz model).
-// CORS-enabled, no API key required.
+// CORS-enabled, no API key required. DWD-MOSMIX wird via Server Function dazugemerged.
+import { fetchMosmix, type MosmixHourly } from "./mosmix.functions";
 
 export interface GeoLocation {
   id: number;
@@ -218,7 +219,7 @@ const ENSEMBLE_HOURLY_VARS = [
   "sunshine_duration",
 ] as const;
 
-type EnsembleHourly = Partial<HourlyData> & { time: string[] };
+type EnsembleHourly = Partial<HourlyData> & { time: string[]; utc_offset_seconds?: number };
 
 type EnsembleModel = "meteoswiss_icon_ch1" | "meteoswiss_icon_ch2" | "ecmwf_ifs025";
 
@@ -257,10 +258,10 @@ async function fetchEnsembleMean(
   url.searchParams.set("hourly", ENSEMBLE_HOURLY_VARS.join(","));
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`Ensemble ${model} nicht erreichbar`);
-  const data = (await res.json()) as { hourly?: Record<string, unknown> };
+  const data = (await res.json()) as { hourly?: Record<string, unknown>; utc_offset_seconds?: number };
   const h = data.hourly ?? {};
   const time = (h.time as string[] | undefined) ?? [];
-  const out: EnsembleHourly = { time };
+  const out: EnsembleHourly = { time, utc_offset_seconds: data.utc_offset_seconds };
   for (const v of ENSEMBLE_HOURLY_VARS) {
     const series: number[][] = [];
     for (const key of Object.keys(h)) {
@@ -319,6 +320,73 @@ function wrapEnsembleAsForecast(ens: EnsembleHourly): ForecastResponse {
   return { latitude: 0, longitude: 0, timezone: "", hourly: empty, daily: emptyDaily };
 }
 
+/**
+ * Richtet MOSMIX-Stundenwerte (UTC) auf die OM-lokale Zeitachse aus.
+ * Werte vor `minLocalHourIndex` (Tag-6-Beginn) werden mit NaN maskiert,
+ * damit fillGaps sie nicht in den ICON-Bereich injiziert.
+ */
+function alignMosmixToTimeline(
+  mosmix: MosmixHourly,
+  localTimes: string[],
+  offsetSeconds: number,
+  minLocalHourIndex: number,
+): ForecastResponse | null {
+  // MOSMIX-UTC-ms → Index
+  const mosIdxByUtcMs = new Map<number, number>();
+  for (let i = 0; i < mosmix.time.length; i++) {
+    const ms = Date.parse(mosmix.time[i]);
+    if (Number.isFinite(ms)) mosIdxByUtcMs.set(Math.floor(ms / 3600000) * 3600000, i);
+  }
+
+  const n = localTimes.length;
+  const mk = () => new Array<number>(n).fill(NaN);
+  const out = {
+    time: localTimes,
+    weathercode: mk(),
+    temperature_2m: mk(),
+    precipitation: mk(),
+    precipitation_probability: mk(),
+    windspeed_10m: mk(),
+    windgusts_10m: mk(),
+    winddirection_10m: mk(),
+    snowfall: mk(),
+    sunshine_duration: mk(),
+  } as HourlyData;
+
+  let matched = 0;
+  for (let i = 0; i < n; i++) {
+    if (i < minLocalHourIndex) continue;
+    const t = localTimes[i];
+    if (!t) continue;
+    // OM-lokal als-ob-UTC parsen, dann offset abziehen → echter UTC-ms.
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(t);
+    if (!m) continue;
+    const asUtc = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    const utcMs = asUtc - offsetSeconds * 1000;
+    const key = Math.floor(utcMs / 3600000) * 3600000;
+    const j = mosIdxByUtcMs.get(key);
+    if (j == null) continue;
+    matched++;
+    out.weathercode[i] = mosmix.weathercode[j];
+    out.temperature_2m[i] = mosmix.temperature_2m[j];
+    out.precipitation[i] = mosmix.precipitation[j];
+    out.windspeed_10m[i] = mosmix.windspeed_10m[j];
+    out.windgusts_10m[i] = mosmix.windgusts_10m[j];
+    out.winddirection_10m[i] = mosmix.winddirection_10m[j];
+    out.snowfall[i] = mosmix.snowfall[j];
+    out.sunshine_duration[i] = mosmix.sunshine_duration[j];
+  }
+  if (matched === 0) return null;
+
+  const emptyDaily: DailyData = {
+    time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [],
+    precipitation_sum: [], precipitation_probability_max: [], windspeed_10m_max: [],
+    windgusts_10m_max: [], winddirection_10m_dominant: [], sunshine_duration: [],
+    sunrise: [], sunset: [], snowfall_sum: [],
+  };
+  return { latitude: 0, longitude: 0, timezone: "", hourly: out, daily: emptyDaily };
+}
+
 function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   const day = dayIso.slice(0, 10);
   const idxs: number[] = [];
@@ -370,13 +438,18 @@ export async function fetchForecast(
   longitude: number,
 ): Promise<ForecastResponse> {
   // ICON-CH1-EPS für Stunden 0–24, danach ICON-CH2-EPS (bis Tag 5),
-  // danach ECMWF IFS Ensemble (bis Tag 7). best_match nur als Restfallback
-  // für Felder, die Ensembles nicht liefern (Probability, Sunrise/Sunset).
-  const [ch1RawFull, ch2Raw, ifsRaw, bestMatch] = await Promise.all([
+  // ab Tag 6 zusätzlich DWD-MOSMIX (vor ECMWF IFS Ensemble bis Tag 7).
+  // best_match nur als Restfallback für Felder, die Ensembles nicht liefern
+  // (Probability, Sunrise/Sunset).
+  const [ch1RawFull, ch2Raw, ifsRaw, bestMatch, mosmixRaw] = await Promise.all([
     fetchEnsembleMean(latitude, longitude, "meteoswiss_icon_ch1").catch(() => null),
     fetchEnsembleMean(latitude, longitude, "meteoswiss_icon_ch2").catch(() => null),
     fetchEnsembleMean(latitude, longitude, "ecmwf_ifs025").catch(() => null),
     fetchModel(latitude, longitude, "best_match").catch(() => null),
+    fetchMosmix({ data: { latitude, longitude } }).catch((e) => {
+      console.warn("MOSMIX nicht verfügbar:", e);
+      return null;
+    }),
   ]);
 
   const ch1Raw = ch1RawFull ? sliceEnsembleHourly(ch1RawFull, 24) : null;
@@ -391,8 +464,23 @@ export async function fetchForecast(
   else if (bestMatch) { primary = bestMatch; primarySource = "best_match"; }
   if (!primary) throw new Error("Keine Wettermodelle erreichbar");
 
+  // utc_offset_seconds aus einer Quelle ableiten (für MOSMIX-Alignment).
+  const offsetSec =
+    ch1RawFull?.utc_offset_seconds ??
+    ch2Raw?.utc_offset_seconds ??
+    ifsRaw?.utc_offset_seconds ??
+    (bestMatch as unknown as { utc_offset_seconds?: number } | null)?.utc_offset_seconds ??
+    0;
+
   let merged = primary;
   if (ch2Raw && primarySource !== "ch2") merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
+
+  // MOSMIX vor IFS einfügen — aber nur für Tag 6+ (Index >= 5*24 = 120h).
+  if (mosmixRaw) {
+    const mosmixForecast = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 5 * 24);
+    if (mosmixForecast) merged = fillGaps(merged, mosmixForecast);
+  }
+
   if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
   if (bestMatch && primarySource !== "best_match") merged = fillGaps(merged, bestMatch);
 
