@@ -211,6 +211,8 @@ export function WeatherWidget({ initialDayIdx }: { initialDayIdx?: number } = {}
               selectedDayIdx={selectedDayIdx}
               extended={extended}
             />
+
+            <DataStamp updatedAt={forecast.dataUpdatedAt} />
           </>
         )}
       </div>
