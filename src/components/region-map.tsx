@@ -327,6 +327,24 @@ export function RegionMap() {
     dayIndex,
   );
 
+  // Datum/Zeit am aktuellen Slider-Punkt
+  const sliderDate = (() => {
+    const d = new Date();
+    d.setMinutes(0, 0, 0);
+    d.setHours(baseHour + stepOffset);
+    return d;
+  })();
+  const sliderWeekday = new Intl.DateTimeFormat("de-CH", { weekday: "long" }).format(sliderDate);
+  const sliderWeekdayCap = sliderWeekday.charAt(0).toUpperCase() + sliderWeekday.slice(1);
+  const sliderDateStr = new Intl.DateTimeFormat("de-CH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(sliderDate);
+  const sliderTimeStr = `${String(sliderDate.getHours()).padStart(2, "0")}:00`;
+  const thumbPct = MAX_STEPS > 0 ? (stepOffset / MAX_STEPS) * 100 : 0;
+  const HOUR_LABELS = Array.from({ length: 25 }, (_, i) => i);
+
   const goHome = () => {
     router.navigate({ to: "/" }).catch(() => {
       if (typeof window !== "undefined") window.location.assign("/");
@@ -495,10 +513,48 @@ export function RegionMap() {
 
         <div
           className={cn(
-            "region-slider px-1",
+            "region-slider relative px-1 pt-10",
             viewMode === "daily" && "pointer-events-none opacity-40",
           )}
         >
+          {/* Tooltip über dem Thumb */}
+          {viewMode === "hourly" && (
+            <div
+              className="pointer-events-none absolute top-0 z-10"
+              style={{ left: `calc(${thumbPct}% + 4px)`, transform: "translateX(-50%)" }}
+            >
+              <div
+                className="whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
+                style={{ background: BRAND }}
+              >
+                Prognose: {sliderWeekdayCap}, {sliderTimeStr}
+              </div>
+              <div
+                className="mx-auto h-0 w-0"
+                style={{
+                  borderLeft: "5px solid transparent",
+                  borderRight: "5px solid transparent",
+                  borderTop: `5px solid ${BRAND}`,
+                }}
+              />
+            </div>
+          )}
+
+          {/* Vertikale Marker-Linie am Thumb */}
+          {viewMode === "hourly" && (
+            <div
+              className="pointer-events-none absolute z-0"
+              style={{
+                left: `calc(${thumbPct}% + 4px)`,
+                top: "2.25rem",
+                bottom: "-1.75rem",
+                width: 1,
+                background: BRAND,
+                opacity: 0.5,
+              }}
+            />
+          )}
+
           <Slider
             min={0}
             max={MAX_STEPS}
@@ -509,45 +565,50 @@ export function RegionMap() {
           />
         </div>
 
-
-        {/* Stundenlegende: 00, 03, 06, … 21, 00 */}
+        {/* Stundenlegende: jede Stunde */}
         <div className={cn("mt-2 px-1", viewMode === "daily" && "opacity-40")}>
-          <div className="relative h-1.5">
-            {HOUR_TICKS.map((h) => (
+          <div className="relative h-2">
+            {HOUR_LABELS.map((h) => (
               <span
                 key={`tick-${h}`}
-                className="absolute top-0 h-1.5 w-px bg-border"
-                style={{ left: `${(h / 24) * 100}%` }}
+                className="absolute top-0 w-px bg-border"
+                style={{
+                  left: `${(h / MAX_STEPS) * 100}%`,
+                  height: h % 3 === 0 ? "0.5rem" : "0.25rem",
+                }}
               />
             ))}
           </div>
           <div className="relative mt-0.5 h-3">
-            {HOUR_TICKS.map((h) => {
-              const display = h === 24 ? 0 : h;
-              const active = h !== 24 && h === hourOfDay;
+            {HOUR_LABELS.map((h) => {
+              const realHour = (baseHour + h) % 24;
+              const display = `${String(realHour).padStart(2, "0")}:00`;
+              const active = h === stepOffset;
+              const showOnMobile = h % 3 === 0;
               return (
                 <span
                   key={`label-${h}`}
                   className={cn(
                     "absolute top-0 -translate-x-1/2 text-[10px] tabular-nums",
                     active ? "font-bold" : "font-medium text-muted-foreground",
+                    !showOnMobile && "hidden sm:inline",
                   )}
                   style={{
-                    left: `${(h / 24) * 100}%`,
+                    left: `${(h / MAX_STEPS) * 100}%`,
                     color: active ? BRAND : undefined,
                   }}
                 >
-                  {String(display).padStart(2, "0")}
+                  {display}
                 </span>
               );
             })}
           </div>
         </div>
 
-        <div className="mt-1.5 flex justify-between text-[11px] font-medium text-muted-foreground">
-          <span>jetzt</span>
-          <span>+24 Std</span>
+        <div className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+          {sliderWeekdayCap}, {sliderDateStr}
         </div>
+
       </div>
     </div>
   );
