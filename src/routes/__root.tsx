@@ -143,7 +143,7 @@ function RootComponent() {
       persistOptions={{
         persister,
         maxAge: 1000 * 60 * 60, // 1h — show last forecast instantly on reload
-        buster: "v1",
+        buster: "v2-mosmix",
       }}
     >
       <Outlet />
