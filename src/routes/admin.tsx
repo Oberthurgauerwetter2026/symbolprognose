@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
+import { SPOTS } from "@/data/spots";
+import { nearestMosmixStation } from "@/data/mosmix-stations";
+
 
 const ADMIN_PASSWORD = "wetter2026";
 const STORAGE_KEY = "wx_admin_unlocked";
@@ -93,7 +96,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </header>
 
         <ModelsSection />
+        <MosmixStationsSection />
         <EmbedSection />
+
       </div>
     </div>
   );
@@ -136,10 +141,21 @@ const MODELS: ModelInfo[] = [
     resolution: "0.25°",
     members: "51",
     range: "bis 15 Tage",
-    usage: "Tag 6–7, Ensemble-Mittel",
+    usage: "Tag 6–7, Fallback nach MOSMIX",
     endpoint:
       "https://ensemble-api.open-meteo.com/v1/ensemble?models=ecmwf_ifs025",
   },
+  {
+    name: "DWD-MOSMIX-L",
+    provider: "Deutscher Wetterdienst (opendata.dwd.de) via Server Function",
+    resolution: "stationsbasiert (Punktprognose, MOS)",
+    members: "— (statistisch)",
+    range: "~10 Tage, 3-stündlich",
+    usage: "ab Tag 6, vor IFS gemerged (Tag 6–7)",
+    endpoint:
+      "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/{ID}/kml/MOSMIX_L_LATEST_{ID}.kmz",
+  },
+
   {
     name: "Open-Meteo best_match",
     provider: "Open-Meteo Forecast-API (Modell-Mix)",
@@ -187,7 +203,7 @@ function ModelsSection() {
           Merge-Reihenfolge
         </h3>
         <p>
-          <code className="font-mono">CH1 → CH2 → IFS → best_match</code>.
+          <code className="font-mono">CH1 → CH2 → MOSMIX (ab Tag 6) → IFS → best_match</code>.
           Fehlt in der höher priorisierten Quelle ein Wert, übernimmt die
           nächste den Platz. Daily-Aggregate (Max/Min-Temp, Niederschlagssumme,
           Wind, Sonne, Schnee) werden clientseitig aus den gemergten stündlichen
@@ -195,6 +211,7 @@ function ModelsSection() {
           liefert. Sonnenauf-/-untergang und maximale Niederschlagswahrscheinlichkeit
           kommen aus <code className="font-mono">best_match</code>.
         </p>
+
       </div>
     </section>
   );
