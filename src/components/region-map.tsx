@@ -410,23 +410,15 @@ export function RegionMap() {
       </div>
 
       {/* Stündlich-Toggle + Wochentage */}
-      <div className="inline-flex w-full gap-1 rounded-full bg-muted p-1">
+      <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-full bg-muted p-1">
         <button
           type="button"
           onClick={() => {
-            if (viewMode === "daily") {
-              const target = Math.min(
-                MAX_STEPS - 1,
-                Math.max(0, Math.ceil((selectedDayIdx * 24 - baseHour) / 3)),
-              );
-              setStepOffset(target);
-            } else {
-              setStepOffset(0);
-            }
+            setStepOffset(0);
             setViewMode("hourly");
           }}
           className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+            "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
             viewMode === "hourly"
               ? "text-white shadow"
               : "text-foreground hover:bg-foreground/5",
@@ -439,7 +431,7 @@ export function RegionMap() {
             <circle cx="12" cy="12" r="9" />
             <polyline points="12 7 12 12 15 14" />
           </svg>
-          <span className="leading-tight">Stündlich</span>
+          <span className="hidden leading-tight sm:inline">Stündlich</span>
         </button>
         {days.map((d, i) => {
           const { top, sub } = formatDayLabel(d, i);
@@ -453,7 +445,7 @@ export function RegionMap() {
                 setViewMode("daily");
               }}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center rounded-full px-3 py-2 text-sm font-medium transition-colors",
+                "flex shrink-0 flex-1 flex-col items-center justify-center rounded-full px-2 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
                 active
                   ? "text-white shadow"
                   : "text-foreground hover:bg-foreground/5",
@@ -463,7 +455,7 @@ export function RegionMap() {
               <span className="font-semibold leading-tight">{top}</span>
               <span
                 className={cn(
-                  "text-xs leading-tight",
+                  "text-[10px] leading-tight sm:text-xs",
                   active ? "text-white/80" : "text-muted-foreground",
                 )}
               >
