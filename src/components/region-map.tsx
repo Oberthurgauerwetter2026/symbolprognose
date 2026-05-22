@@ -179,14 +179,21 @@ function SpotMarker({
         html: renderToStaticMarkup(
           <div
             style={{
-              padding: "4px 9px",
+              padding: "4px 10px",
               borderRadius: 999,
-              background: BRAND,
-              color: "#fff",
+              background: "rgba(255,255,255,0.72)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.55)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+              color: "#64748b",
               fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 12,
-              fontWeight: 700,
+              fontSize: 10,
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
               cursor: "pointer",
+              whiteSpace: "nowrap",
             }}
           >
             {spot.name}
