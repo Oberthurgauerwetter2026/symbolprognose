@@ -281,6 +281,15 @@ export function RegionMap() {
   const isDay = hourOfDay >= 6 && hourOfDay < 20;
 
 
+  // Datenstand vom ersten Spot (Cache wird mit den Markern geteilt).
+  const firstSpot = SPOTS[0];
+  const { dataUpdatedAt } = useQuery({
+    queryKey: ["map-weather", firstSpot.id],
+    queryFn: () => fetchForecast(firstSpot.lat, firstSpot.lon),
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60,
+  });
+
   const days = useMemo(() => {
     const base = new Date();
     base.setHours(0, 0, 0, 0);
