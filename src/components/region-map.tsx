@@ -216,8 +216,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [120, 36],
-      iconAnchor: [60, 18],
+      iconSize: [150, 44],
+      iconAnchor: [75, 22],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
