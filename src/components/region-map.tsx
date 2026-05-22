@@ -378,7 +378,7 @@ export function RegionMap() {
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissalti3d-reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
-            opacity={0.65}
+            opacity={0.8}
           />
           {/* Aussen-Maske: Grau (See + Region ausgestanzt) */}
           <GeoJSON
@@ -420,7 +420,7 @@ export function RegionMap() {
               weight: 2,
               opacity: 0.9,
               fillColor: "#7ebd5a",
-              fillOpacity: 0.55,
+              fillOpacity: 0.28,
             })}
             interactive={false}
           />

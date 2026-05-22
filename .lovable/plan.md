@@ -1,20 +1,21 @@
 ## Ziel
-Die Wetter-Icons (Sonne, Wolke, etc.) sind an einigen Stellen zu klein, um auf einen Blick erkennbar zu sein. Sie sollen etwas grösser dargestellt werden.
+Im grünen Region-Bereich (Oberthurgau) soll die Reliefschattierung deutlicher sichtbar werden. Aktuell überlagert die grüne Füllung (fillOpacity 0.55) das Relief und macht es flach.
 
-## Identifizierte Stellen
+## Ursache
+Render-Reihenfolge in `src/components/region-map.tsx`:
+1. Basiskarte
+2. Relief (opacity 0.65)
+3. Aussen-Maske grau
+4. Thurgau grau
+5. See blau
+6. **Region grün (fillOpacity 0.55)** ← deckt Relief ab
 
-1. **Karten-Marker (`src/components/region-map.tsx`)**
-   - Aktuell: `WeatherIcon size={30}` in einem 40×40 px weissen Kreis
-   - Plan: Icon auf 36 px vergrössern. Den umgebenden Kreis auf 46×46 px anpassen, damit das Icon nicht am Rand stösst.
+## Lösung
+Eine zweite Relief-Kachelschicht **über** der Region rendern, mit Clip auf den Region-Bereich nicht möglich in Leaflet ohne Custom-Layer. Einfachste wirksame Massnahme:
 
-2. **Tagesübersichts-Streifen (`src/components/weather-widget.tsx` DayStrip)**
-   - Aktuell: `WeatherIcon size={72}`
-   - Plan: Auf 80 px vergrössern.
-
-3. **Stündliche Detail-Ansicht (`src/components/weather-widget.tsx` DetailPanel)**
-   - Aktuell: `WeatherIcon size={cadence === "1h" ? 40 : 56}`
-   - Plan: Auf 48 px (1h) bzw. 64 px (3h) vergrössern.
+- **Region-Füllung transparenter machen**: `fillOpacity` von `0.55` → `0.28`, damit das darunterliegende Relief durchscheint.
+- **Region-Outline beibehalten** (Farbe `#2561a1`, weight 2), damit der Bereich klar abgegrenzt bleibt.
+- **Relief-Opacity leicht erhöhen** von `0.65` → `0.8`, damit Höhenstrukturen markanter werden (wirkt sich auch ausserhalb aus, aber dort liegt die graue Maske drüber und dämpft den Effekt).
 
 ## Umsetzung
-- Pure CSS/Prop-Änderungen, keine neuen Abhängigkeiten.
-- Keine Logik-Änderungen, nur visuelle Anpassung.
+Nur visuelle Prop-Änderungen in `src/components/region-map.tsx` (Zeilen 378–426). Keine Logik-Änderung.
