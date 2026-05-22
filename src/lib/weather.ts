@@ -320,6 +320,73 @@ function wrapEnsembleAsForecast(ens: EnsembleHourly): ForecastResponse {
   return { latitude: 0, longitude: 0, timezone: "", hourly: empty, daily: emptyDaily };
 }
 
+/**
+ * Richtet MOSMIX-Stundenwerte (UTC) auf die OM-lokale Zeitachse aus.
+ * Werte vor `minLocalHourIndex` (Tag-6-Beginn) werden mit NaN maskiert,
+ * damit fillGaps sie nicht in den ICON-Bereich injiziert.
+ */
+function alignMosmixToTimeline(
+  mosmix: MosmixHourly,
+  localTimes: string[],
+  offsetSeconds: number,
+  minLocalHourIndex: number,
+): ForecastResponse | null {
+  // MOSMIX-UTC-ms → Index
+  const mosIdxByUtcMs = new Map<number, number>();
+  for (let i = 0; i < mosmix.time.length; i++) {
+    const ms = Date.parse(mosmix.time[i]);
+    if (Number.isFinite(ms)) mosIdxByUtcMs.set(Math.floor(ms / 3600000) * 3600000, i);
+  }
+
+  const n = localTimes.length;
+  const mk = () => new Array<number>(n).fill(NaN);
+  const out = {
+    time: localTimes,
+    weathercode: mk(),
+    temperature_2m: mk(),
+    precipitation: mk(),
+    precipitation_probability: mk(),
+    windspeed_10m: mk(),
+    windgusts_10m: mk(),
+    winddirection_10m: mk(),
+    snowfall: mk(),
+    sunshine_duration: mk(),
+  } as HourlyData;
+
+  let matched = 0;
+  for (let i = 0; i < n; i++) {
+    if (i < minLocalHourIndex) continue;
+    const t = localTimes[i];
+    if (!t) continue;
+    // OM-lokal als-ob-UTC parsen, dann offset abziehen → echter UTC-ms.
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(t);
+    if (!m) continue;
+    const asUtc = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    const utcMs = asUtc - offsetSeconds * 1000;
+    const key = Math.floor(utcMs / 3600000) * 3600000;
+    const j = mosIdxByUtcMs.get(key);
+    if (j == null) continue;
+    matched++;
+    out.weathercode[i] = mosmix.weathercode[j];
+    out.temperature_2m[i] = mosmix.temperature_2m[j];
+    out.precipitation[i] = mosmix.precipitation[j];
+    out.windspeed_10m[i] = mosmix.windspeed_10m[j];
+    out.windgusts_10m[i] = mosmix.windgusts_10m[j];
+    out.winddirection_10m[i] = mosmix.winddirection_10m[j];
+    out.snowfall[i] = mosmix.snowfall[j];
+    out.sunshine_duration[i] = mosmix.sunshine_duration[j];
+  }
+  if (matched === 0) return null;
+
+  const emptyDaily: DailyData = {
+    time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [],
+    precipitation_sum: [], precipitation_probability_max: [], windspeed_10m_max: [],
+    windgusts_10m_max: [], winddirection_10m_dominant: [], sunshine_duration: [],
+    sunrise: [], sunset: [], snowfall_sum: [],
+  };
+  return { latitude: 0, longitude: 0, timezone: "", hourly: out, daily: emptyDaily };
+}
+
 function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   const day = dayIso.slice(0, 10);
   const idxs: number[] = [];
