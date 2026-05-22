@@ -240,12 +240,11 @@ function SpotMarker({
 // (Bodensee-Label entfernt)
 
 function currentBaseHour(): number {
-  // aktueller 3-h-Slot: 0,3,6,...,21
-  const h = new Date().getHours();
-  return Math.floor(h / 3) * 3;
+  // aktuelle volle Stunde (zuletzt abgelaufene Stunde)
+  return new Date().getHours();
 }
 
-const MAX_STEPS = 8; // 24 h × 3-h-Schritte (rollierendes 24-h-Fenster)
+const MAX_STEPS = 24; // 24 × 1-h-Schritte (rollierendes 24-h-Fenster)
 const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
 function longWeekday(d: Date): string {
