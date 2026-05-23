@@ -7,7 +7,15 @@ import {
   Marker,
   TileLayer,
   ZoomControl,
+  useMapEvents,
 } from "react-leaflet";
+
+function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
+  const map = useMapEvents({
+    zoomend: () => onZoom(map.getZoom()),
+  });
+  return null;
+}
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { renderToStaticMarkup } from "react-dom/server";
