@@ -64,17 +64,6 @@ export function WeatherWidget({
     }
     return DEFAULT_LOCATION;
   });
-  useEffect(() => {
-    if (!initialLocation) return;
-    setLocation((prev) =>
-      prev.name === initialLocation.name &&
-      prev.latitude === initialLocation.latitude &&
-      prev.longitude === initialLocation.longitude
-        ? prev
-        : initialLocation,
-    );
-    setSelectedDayIdx(0);
-  }, [initialLocation?.name, initialLocation?.latitude, initialLocation?.longitude]);
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -89,6 +78,17 @@ export function WeatherWidget({
       setSelectedDayIdx(initialDayIdx);
     }
   }, [initialDayIdx]);
+  useEffect(() => {
+    if (!initialLocation) return;
+    setLocation((prev) =>
+      prev.name === initialLocation.name &&
+      prev.latitude === initialLocation.latitude &&
+      prev.longitude === initialLocation.longitude
+        ? prev
+        : initialLocation,
+    );
+    setSelectedDayIdx(0);
+  }, [initialLocation?.name, initialLocation?.latitude, initialLocation?.longitude]);
   const now = useNow();
 
   useEffect(() => {
