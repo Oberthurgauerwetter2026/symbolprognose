@@ -534,7 +534,8 @@ export function RegionMap() {
             })}
             interactive={false}
           />
-          {SPOTS.map((s) => (
+          <ZoomWatcher onZoom={setZoom} />
+          {SPOTS.filter((s) => !s.minZoom || zoom >= s.minZoom).map((s) => (
             <SpotMarker
               key={s.id}
               spot={s}
