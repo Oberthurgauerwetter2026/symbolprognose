@@ -23,7 +23,7 @@ function BoundsFitter({ bounds }: { bounds: L.LatLngBoundsExpression }) {
   useEffect(() => {
     const fit = () => {
       map.invalidateSize();
-      map.fitBounds(bounds, { padding: [16, 16] });
+      map.fitBounds(bounds, { padding: [4, 4] });
     };
     fit();
     window.addEventListener("resize", fit);
@@ -439,8 +439,8 @@ export function RegionMap() {
     const c = b.getCenter();
     // Etwas Puffer, damit Marker-Pills komplett ins Bild passen
     const fit = L.latLngBounds(
-      [sw.lat - 0.01, sw.lng - 0.02],
-      [ne.lat + 0.01, ne.lng + 0.02],
+      [sw.lat - 0.002, sw.lng - 0.002],
+      [ne.lat + 0.002, ne.lng + 0.002],
     );
     return {
       center: [c.lat, c.lng] as [number, number],
@@ -503,7 +503,7 @@ export function RegionMap() {
   return (
     <div className="space-y-4">
       {/* Karte */}
-      <div className="relative -mx-3 h-[420px] w-auto overflow-hidden shadow-lg sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl">
+      <div className="relative -mx-3 h-[560px] w-auto overflow-hidden shadow-lg sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl">
         <MapContainer
           center={center}
           zoom={11}

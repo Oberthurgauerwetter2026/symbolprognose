@@ -1,9 +1,9 @@
-Auf Mobile darf die Karte etwas über den seitlichen Seiten-Padding hinausragen, damit mehr von der Region sichtbar ist. Die Wochentags-Pills bleiben unverändert in ihrer aktuellen Breite/Position.
+Die Karte auf Mobile so anpassen, dass sie wie im Screenshot wirkt: stärker auf die Region herangezoomt, größere Höhe, Marker-Pills dürfen am linken/rechten Rand leicht angeschnitten sein.
 
-Umsetzung in `src/routes/karten.region.tsx`:
-- Nur die Karten-Komponente in einen Wrapper packen, der per negativem horizontalem Margin (`-mx-3 sm:mx-0`) den Container-Padding aufhebt — so nutzt die Karte auf Mobile die volle Viewport-Breite.
-- `MapTabs` (Tab-Leiste oben) und `DayTabs` (Wochentage) bleiben unverändert innerhalb des bisherigen Paddings.
+Änderungen nur in `src/components/region-map.tsx`:
 
-Alternativ kann auch direkt in `region-map.tsx` der äußere Karten-Wrapper (`<div className="relative h-[420px] w-full ...">`) den negativen Margin auf kleinen Breakpoints bekommen, sodass alle Seiten, die `RegionMap` einbinden, automatisch profitieren. Das ist die saubere Variante und wird so umgesetzt.
+1. **Mobile-Höhe erhöhen** — den Karten-Wrapper auf Mobile von `h-[420px]` auf `h-[560px]` setzen (Desktop bleibt `sm:h-[600px]`).
+2. **Stärkerer Zoom durch engere Bounds** — den Puffer in `regionBounds` reduzieren (von ±0.01/±0.02 auf ~±0.002), sodass `fitBounds` näher an die Region heranzoomt.
+3. **Kleinere fitBounds-Padding** — `padding: [16, 16]` auf `[4, 4]` reduzieren, damit Leaflet die Region maximal ausnutzt.
 
-Keine weiteren Änderungen.
+Wochentags-Pills, Slider und alle anderen Bereiche bleiben unverändert.
