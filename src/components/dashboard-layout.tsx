@@ -15,7 +15,7 @@ export function DashboardLayout({
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-background/95 px-3 backdrop-blur sm:px-5">
             <SidebarTrigger />
             <div className="flex min-w-0 flex-col">
@@ -31,7 +31,7 @@ export function DashboardLayout({
               )}
             </div>
           </header>
-          <main className="flex-1">{children}</main>
+          <main className="min-w-0 flex-1 overflow-x-clip">{children}</main>
         </div>
       </div>
     </SidebarProvider>

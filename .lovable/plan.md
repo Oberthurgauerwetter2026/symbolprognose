@@ -1,24 +1,23 @@
-## Pill-Klick → Lokalprognose des Ortes
+Ich passe die Region-Karte gezielt für Smartphone-Breiten an, damit keine rechte Seite mehr abgeschnitten wird und die Wochentage sauber erreichbar bleiben.
 
-### 1. `src/routes/karten.lokal.tsx`
-Search-Schema erweitern um optionale `lat`, `lon`, `name` und an `WeatherWidget` durchreichen:
-```ts
-const searchSchema = z.object({
-  day: fallback(z.number().int().min(0).max(6).optional(), undefined).optional(),
-  lat: fallback(z.number().optional(), undefined).optional(),
-  lon: fallback(z.number().optional(), undefined).optional(),
-  name: fallback(z.string().optional(), undefined).optional(),
-});
-```
-`<WeatherWidget initialDayIdx={day} initialLocation={lat && lon && name ? { name, latitude: lat, longitude: lon } : undefined} />`
+Plan:
+1. **Layout-Overflow entfernen**
+   - In `DashboardLayout` und der Region-Seite die flex/min-width-Struktur so korrigieren, dass der Hauptbereich auf Mobile nicht breiter als der Viewport wird.
+   - Die Seiten-Paddings auf kleinen Displays reduzieren, damit die Karte die verfügbare Breite nutzt statt horizontalen Seiten-Overflow zu erzeugen.
 
-### 2. `src/components/weather-widget.tsx`
-- Neue Prop `initialLocation?: { name; latitude; longitude }`.
-- Initialer `location`-State: wenn `initialLocation` gesetzt → diese verwenden, sonst localStorage/Default.
-- `useEffect` auf `initialLocation` → bei Änderung `setLocation(initialLocation)` und `setSelectedDayIdx(0)`.
+2. **Karte wirklich komplett einpassen**
+   - In `src/components/region-map.tsx` statt fester Leaflet-Zentrierung/Zoom einen berechneten `regionBounds` verwenden.
+   - Die Bounds um Marker-Pill-Breite/Höhe optisch puffern, sodass auch rechts liegende Orte wie Uttwil/Egnach inklusive Pill vollständig sichtbar sind.
+   - Auf Resize/Rotation `invalidateSize()` und `fitBounds()` erneut ausführen.
+   - `minZoom` auf kleinen Screens lockern, damit Leaflet weit genug herauszoomen darf.
 
-### 3. `src/components/region-map.tsx`
-- `goHome` ersetzen durch `goToLokal(spot: Spot)` → `router.navigate({ to: "/karten/lokal", search: { lat: spot.lat, lon: spot.lon, name: spot.name } })`.
-- In der `SPOTS.map(...)`-Schleife: `onClick={() => goToLokal(s)}`.
+3. **Marker-Pills auf Mobile kompakter machen**
+   - Die Pill-Größen/Icon-Anker abhängig von der Viewport-Breite verkleinern, damit sie nicht aus dem sichtbaren Kartenbereich ragen.
+   - Die Karte bleibt weiterhin klickbar und leitet wie gewünscht zur Lokalprognose weiter.
 
-Keine weiteren Änderungen. Mobile/Responsive bleibt unverändert.
+4. **Wochentage sichtbar/bedienbar halten**
+   - Die DayTabs unter der Karte so anpassen, dass sie auf Mobile nicht den Gesamtseiten-Overflow verursachen.
+   - Aktiver Tag bleibt sichtbar; horizontales Scrollen innerhalb der Tab-Leiste bleibt möglich, ohne dass die ganze Seite seitlich scrollt.
+
+5. **Mobile-Check**
+   - Danach auf Smartphone-Breite prüfen, dass Karte, rechte Marker und Wochentage ohne abgeschnittene rechte Seite angezeigt werden.

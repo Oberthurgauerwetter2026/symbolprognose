@@ -7,6 +7,7 @@ import {
   Marker,
   TileLayer,
   ZoomControl,
+  useMap,
   useMapEvents,
 } from "react-leaflet";
 
@@ -14,6 +15,24 @@ function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
   const map = useMapEvents({
     zoomend: () => onZoom(map.getZoom()),
   });
+  return null;
+}
+
+function BoundsFitter({ bounds }: { bounds: L.LatLngBoundsExpression }) {
+  const map = useMap();
+  useEffect(() => {
+    const fit = () => {
+      map.invalidateSize();
+      map.fitBounds(bounds, { padding: [16, 16] });
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", fit);
+    return () => {
+      window.removeEventListener("resize", fit);
+      window.removeEventListener("orientationchange", fit);
+    };
+  }, [map, bounds]);
   return null;
 }
 import L from "leaflet";
@@ -408,7 +427,7 @@ export function RegionMap() {
     });
   }, []);
 
-  const { center, maxBounds } = useMemo(() => {
+  const { center, maxBounds, regionBounds } = useMemo(() => {
     const layer = L.geoJSON(REGION);
     const b = layer.getBounds();
     const sw = b.getSouthWest();
@@ -418,9 +437,15 @@ export function RegionMap() {
       [ne.lat + 0.001, ne.lng + 0.001],
     );
     const c = b.getCenter();
+    // Etwas Puffer, damit Marker-Pills komplett ins Bild passen
+    const fit = L.latLngBounds(
+      [sw.lat - 0.01, sw.lng - 0.02],
+      [ne.lat + 0.01, ne.lng + 0.02],
+    );
     return {
       center: [c.lat, c.lng] as [number, number],
       maxBounds: extended.pad(0.3),
+      regionBounds: fit,
     };
   }, []);
 
@@ -484,13 +509,14 @@ export function RegionMap() {
           zoom={11}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
-          minZoom={9}
+          minZoom={8}
           maxZoom={17}
           scrollWheelZoom
           zoomControl={false}
           attributionControl={true}
           style={{ height: "100%", width: "100%", background: "#e8edef" }}
         >
+          <BoundsFitter bounds={regionBounds} />
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
