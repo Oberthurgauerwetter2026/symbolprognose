@@ -7,7 +7,15 @@ import {
   Marker,
   TileLayer,
   ZoomControl,
+  useMapEvents,
 } from "react-leaflet";
+
+function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
+  const map = useMapEvents({
+    zoomend: () => onZoom(map.getZoom()),
+  });
+  return null;
+}
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -357,6 +365,7 @@ export function RegionMap() {
   const [stepOffset, setStepOffset] = useState(0);
   const [viewMode, setViewMode] = useState<"hourly" | "daily">("daily");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+  const [zoom, setZoom] = useState(11);
 
   // Nachrücken: jede Minute prüfen, ob eine neue Stunde begonnen hat.
   useEffect(() => {
@@ -525,7 +534,8 @@ export function RegionMap() {
             })}
             interactive={false}
           />
-          {SPOTS.map((s) => (
+          <ZoomWatcher onZoom={setZoom} />
+          {SPOTS.filter((s) => !s.minZoom || zoom >= s.minZoom).map((s) => (
             <SpotMarker
               key={s.id}
               spot={s}
