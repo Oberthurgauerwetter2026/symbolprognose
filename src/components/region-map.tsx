@@ -507,6 +507,7 @@ export function RegionMap() {
         <MapContainer
           center={center}
           zoom={11}
+          zoomSnap={0.25}
           maxBounds={maxBounds}
           maxBoundsViscosity={1.0}
           minZoom={8}
