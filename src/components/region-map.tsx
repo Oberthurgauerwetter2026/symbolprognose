@@ -365,6 +365,7 @@ export function RegionMap() {
   const [stepOffset, setStepOffset] = useState(0);
   const [viewMode, setViewMode] = useState<"hourly" | "daily">("daily");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+  const [zoom, setZoom] = useState(11);
 
   // Nachrücken: jede Minute prüfen, ob eine neue Stunde begonnen hat.
   useEffect(() => {
