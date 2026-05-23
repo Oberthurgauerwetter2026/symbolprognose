@@ -246,6 +246,106 @@ function longWeekday(d: Date): string {
   return wd.charAt(0).toUpperCase() + wd.slice(1);
 }
 
+function DayTabs({
+  days,
+  viewMode,
+  selectedDayIdx,
+  onSelectHourly,
+  onSelectDay,
+}: {
+  days: Date[];
+  viewMode: "hourly" | "daily";
+  selectedDayIdx: number;
+  onSelectHourly: () => void;
+  onSelectDay: (i: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+
+  const activeIndex = viewMode === "hourly" ? 0 : selectedDayIdx + 1;
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const btn = btnRefs.current[activeIndex];
+      const container = containerRef.current;
+      if (!btn || !container) return;
+      setIndicator({ left: btn.offsetLeft, width: btn.offsetWidth });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [activeIndex, days.length]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="no-scrollbar relative flex w-full gap-1 overflow-x-auto rounded-full bg-muted p-1"
+    >
+      {indicator && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-1 bottom-1 rounded-full shadow"
+          style={{
+            left: indicator.left,
+            width: indicator.width,
+            background: BRAND,
+            transition:
+              "left 260ms cubic-bezier(0.22, 1, 0.36, 1), width 260ms cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+        />
+      )}
+      <button
+        ref={(el) => {
+          btnRefs.current[0] = el;
+        }}
+        type="button"
+        onClick={onSelectHourly}
+        className={cn(
+          "relative z-10 flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors duration-200 sm:px-4 sm:text-sm",
+          viewMode === "hourly" ? "text-white" : "text-foreground hover:bg-foreground/5",
+        )}
+        aria-label="Stündliche Ansicht"
+        title="Stündliche Ansicht"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <polyline points="12 7 12 12 15 14" />
+        </svg>
+        <span className="hidden leading-tight sm:inline">Stündlich</span>
+      </button>
+      {days.map((d, i) => {
+        const { top, sub } = formatDayLabel(d, i);
+        const active = viewMode === "daily" && i === selectedDayIdx;
+        return (
+          <button
+            key={i}
+            ref={(el) => {
+              btnRefs.current[i + 1] = el;
+            }}
+            type="button"
+            onClick={() => onSelectDay(i)}
+            className={cn(
+              "relative z-10 flex shrink-0 flex-1 flex-col items-center justify-center rounded-full px-2 py-2 text-xs font-medium transition-colors duration-200 sm:px-3 sm:text-sm",
+              active ? "text-white" : "text-foreground hover:bg-foreground/5",
+            )}
+          >
+            <span className="font-semibold leading-tight">{top}</span>
+            <span
+              className={cn(
+                "text-[10px] leading-tight transition-colors duration-200 sm:text-xs",
+                active ? "text-white/80" : "text-muted-foreground",
+              )}
+            >
+              {sub}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function RegionMap() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
