@@ -1,10 +1,7 @@
 ## Ziel
-Zwei bestehende Spot-Namen in `src/data/spots.ts` anpassen:
-- **Sitterdorf** → **Zihlschlacht-Sitterdorf**
-- **Hauptwil** → **Hauptwil-Gottshaus**
+In `src/data/spots.ts`:
+- **Hauptwil-Gottshaus**: Koordinaten auf `47.5247, 9.1719` korrigieren (`minZoom: 12` bleibt).
+- **Zihlschlacht-Sitterdorf** (`id: "sitterdorf"`) entfernen.
+- Neuen Eintrag **Bischofszell** (`id: "bischofszell"`, `47.4944, 9.2389`) hinzufügen, ohne `minZoom` (immer sichtbar).
 
-Koordinaten, IDs und `minZoom` bleiben unverändert.
-
-## Umsetzung
-- In `src/data/spots.ts` die `name`-Felder der Einträge mit `id: "sitterdorf"` und `id: "hauptwil"` aktualisieren.
-- Keine weiteren Dateien betroffen.
+Keine weiteren Dateien betroffen.
