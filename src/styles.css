@@ -133,6 +133,10 @@
 }
 .region-slider :where([class*="bg-primary"]:not([class*="/20"])) {
   background-color: var(--accent);
+  transition:
+    right 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    left 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .region-slider :where([class*="h-4"][class*="w-4"][class*="rounded-full"]) {
   height: 16px;
@@ -140,6 +144,10 @@
   border: 2px solid var(--accent);
   box-shadow: 0 4px 12px rgba(37, 97, 161, 0.35);
   background: #fff;
+  transition:
+    left 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 120ms ease,
+    box-shadow 150ms ease;
 }
 
 /* Region map: marker hover lift */
