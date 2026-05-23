@@ -457,10 +457,22 @@ export function RegionMap() {
   const thumbPct = MAX_STEPS > 0 ? (stepOffset / MAX_STEPS) * 100 : 0;
   const HOUR_LABELS = Array.from({ length: 25 }, (_, i) => i);
 
-  const goHome = () => {
-    router.navigate({ to: "/" }).catch(() => {
-      if (typeof window !== "undefined") window.location.assign("/");
-    });
+  const goToLokal = (spot: Spot) => {
+    router
+      .navigate({
+        to: "/karten/lokal",
+        search: { lat: spot.lat, lon: spot.lon, name: spot.name },
+      })
+      .catch(() => {
+        if (typeof window !== "undefined") {
+          const qs = new URLSearchParams({
+            lat: String(spot.lat),
+            lon: String(spot.lon),
+            name: spot.name,
+          });
+          window.location.assign(`/karten/lokal?${qs.toString()}`);
+        }
+      });
   };
 
   return (
@@ -543,7 +555,7 @@ export function RegionMap() {
               dayIdx={dayIndex}
               absoluteHour={absoluteHour}
               isDay={isDay}
-              onClick={goHome}
+              onClick={() => goToLokal(s)}
             />
           ))}
           <ZoomControl position="topright" />
