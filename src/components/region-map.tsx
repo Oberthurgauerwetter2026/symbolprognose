@@ -535,7 +535,11 @@ export function RegionMap() {
           {viewMode === "hourly" && (
             <div
               className="pointer-events-none absolute top-0 z-10"
-              style={{ left: `calc(${thumbPct}% + 4px)`, transform: "translateX(-50%)" }}
+              style={{
+                left: `calc(${thumbPct}% + 4px)`,
+                transform: "translateX(-50%)",
+                transition: "left 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
             >
               <div
                 className="whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
@@ -565,6 +569,7 @@ export function RegionMap() {
                 width: 1,
                 background: BRAND,
                 opacity: 0.5,
+                transition: "left 220ms cubic-bezier(0.22, 1, 0.36, 1)",
               }}
             />
           )}
