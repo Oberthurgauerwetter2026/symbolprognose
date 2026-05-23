@@ -46,8 +46,15 @@ function useNow(intervalMs = 60_000): Date {
   return now;
 }
 
-export function WeatherWidget({ initialDayIdx }: { initialDayIdx?: number } = {}) {
+export function WeatherWidget({
+  initialDayIdx,
+  initialLocation,
+}: {
+  initialDayIdx?: number;
+  initialLocation?: { name: string; latitude: number; longitude: number };
+} = {}) {
   const [location, setLocation] = useState<StoredLocation>(() => {
+    if (initialLocation) return initialLocation;
     if (typeof window === "undefined") return DEFAULT_LOCATION;
     try {
       const raw = localStorage.getItem("weather:location");
@@ -71,6 +78,17 @@ export function WeatherWidget({ initialDayIdx }: { initialDayIdx?: number } = {}
       setSelectedDayIdx(initialDayIdx);
     }
   }, [initialDayIdx]);
+  useEffect(() => {
+    if (!initialLocation) return;
+    setLocation((prev) =>
+      prev.name === initialLocation.name &&
+      prev.latitude === initialLocation.latitude &&
+      prev.longitude === initialLocation.longitude
+        ? prev
+        : initialLocation,
+    );
+    setSelectedDayIdx(0);
+  }, [initialLocation?.name, initialLocation?.latitude, initialLocation?.longitude]);
   const now = useNow();
 
   useEffect(() => {
