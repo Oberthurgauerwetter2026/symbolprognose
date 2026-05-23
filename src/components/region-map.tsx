@@ -503,7 +503,7 @@ export function RegionMap() {
   return (
     <div className="space-y-4">
       {/* Karte */}
-      <div className="relative h-[420px] w-full overflow-hidden rounded-2xl shadow-lg sm:h-[600px]">
+      <div className="relative -mx-3 h-[420px] w-auto overflow-hidden shadow-lg sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl">
         <MapContainer
           center={center}
           zoom={11}
