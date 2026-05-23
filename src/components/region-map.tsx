@@ -441,61 +441,19 @@ export function RegionMap() {
       </div>
 
       {/* Stündlich-Toggle + Wochentage */}
-      <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-full bg-muted p-1">
-        <button
-          type="button"
-          onClick={() => {
-            setStepOffset(0);
-            setViewMode("hourly");
-          }}
-          className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
-            viewMode === "hourly"
-              ? "text-white shadow"
-              : "text-foreground hover:bg-foreground/5",
-          )}
-          style={viewMode === "hourly" ? { background: BRAND } : undefined}
-          aria-label="Stündliche Ansicht"
-          title="Stündliche Ansicht"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9" />
-            <polyline points="12 7 12 12 15 14" />
-          </svg>
-          <span className="hidden leading-tight sm:inline">Stündlich</span>
-        </button>
-        {days.map((d, i) => {
-          const { top, sub } = formatDayLabel(d, i);
-          const active = viewMode === "daily" && i === selectedDayIdx;
-          return (
-            <button
-              key={i}
-              type="button"
-              onClick={() => {
-                setSelectedDayIdx(i);
-                setViewMode("daily");
-              }}
-              className={cn(
-                "flex shrink-0 flex-1 flex-col items-center justify-center rounded-full px-2 py-2 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
-                active
-                  ? "text-white shadow"
-                  : "text-foreground hover:bg-foreground/5",
-              )}
-              style={active ? { background: BRAND } : undefined}
-            >
-              <span className="font-semibold leading-tight">{top}</span>
-              <span
-                className={cn(
-                  "text-[10px] leading-tight sm:text-xs",
-                  active ? "text-white/80" : "text-muted-foreground",
-                )}
-              >
-                {sub}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <DayTabs
+        days={days}
+        viewMode={viewMode}
+        selectedDayIdx={selectedDayIdx}
+        onSelectHourly={() => {
+          setStepOffset(0);
+          setViewMode("hourly");
+        }}
+        onSelectDay={(i) => {
+          setSelectedDayIdx(i);
+          setViewMode("daily");
+        }}
+      />
 
 
 
