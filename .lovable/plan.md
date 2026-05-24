@@ -1,29 +1,21 @@
 ## Problem
 
-Auf `/embed-info` wird die iframe-`src` aus `window.location.origin` gebaut:
+`/embed-info` baut den Snippet aus `window.location.origin`. Öffnest du die Seite im **Preview** (`id-preview--….lovable.app`), zeigt der kopierte iframe auf die Preview-Domain – die ist passwortgeschützt → Lovable-Login in WordPress.
 
-```ts
-const url = typeof window !== "undefined" ? window.location.origin : "https://…";
-```
-
-- **SSR** rendert wörtlich `https://…/embed/all` in die `<pre>`-Snippets.
-- **Client** rendert die echte Origin (`https://id-preview--….lovable.app`).
-- React meldet daher den **Hydration-Mismatch** (siehe Runtime-Error im Log).
-- Wenn Nutzer den SSR-Output kopieren (bevor Hydration durch ist) oder ihn aus dem Quelltext greifen, landet `https://…/embed/all` im WordPress – das führt zum **„Lovable proxy error (404)"**.
+Die publizierte Version (`symbolprognose.lovable.app`) ist `public`, dort funktionieren die Embeds.
 
 ## Fix
 
 In `src/routes/embed-info.tsx`:
 
-1. `url` als State mit `useState<string | null>(null)`.
-2. In `useEffect` (nur Client) `window.location.origin` setzen.
-3. Solange `url === null` (SSR + erster Client-Render): in `SnippetBlock` einen neutralen Platzhalter rendern, z. B. `// Snippet wird geladen …`, und den Kopier-Button deaktivieren. Dadurch ist der HTML-Output auf Server und Client identisch → keine Hydration-Mismatch mehr, und es ist unmöglich, ein Snippet mit `https://…` zu kopieren.
-4. Sobald `url` gesetzt ist, werden die echten Snippets via `buildSnippet` / `buildViewportSnippet` mit der echten Origin gerendert.
+1. Konstante `PUBLISHED_ORIGIN = "https://symbolprognose.lovable.app"` definieren.
+2. Snippets immer mit `PUBLISHED_ORIGIN` bauen – unabhängig davon, wo `/embed-info` geöffnet wird. Damit ist der kopierte Code immer korrekt, egal ob Preview oder publizierte Domain.
+3. `useState`/`useEffect` für die Origin entfällt – keine Hydration-Problematik mehr.
+4. Kleiner Hinweistext über den Snippets: „Snippets zeigen immer auf die publizierte URL (symbolprognose.lovable.app). Nach Code-Änderungen erst publishen, dann werden sie in WordPress sichtbar."
 
-Keine anderen Dateien betroffen. Verhalten der eigentlichen Embeds (`/embed/all`, `/embed/region-lokal`, …) bleibt unverändert.
+Keine weiteren Dateien betroffen.
 
 ## Verifikation
 
-- `/embed-info` neu laden → kein Hydration-Error mehr in der Konsole.
-- Snippet kopieren → `src="https://id-preview--….lovable.app/embed/all"` (bzw. die jeweils aktuelle Origin), kein `https://…` mehr.
-- In WordPress eingebettet → iframe lädt statt 404.
+- `/embed-info` neu laden, ein Snippet kopieren → `src="https://symbolprognose.lovable.app/embed/..."`.
+- In WordPress einfügen → iframe lädt ohne Login.
