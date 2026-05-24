@@ -3,13 +3,21 @@ import { useEffect, useRef, type ReactNode } from "react";
 /**
  * Schlanke Hülle für /embed/*-Routen.
  * - Kein Sidebar/Header
- * - Sendet die Höhe per postMessage an das einbettende Fenster
+ * - Standard: sendet die Höhe per postMessage an das einbettende Fenster
+ * - `fillViewport`: füllt 100dvh, kein postMessage (iframe-Höhe wird vom Host gesetzt)
  */
-export function EmbedShell({ children }: { children: ReactNode }) {
+export function EmbedShell({
+  children,
+  fillViewport = false,
+}: {
+  children: ReactNode;
+  fillViewport?: boolean;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (fillViewport) return;
     const el = ref.current;
     if (!el) return;
 
@@ -26,7 +34,15 @@ export function EmbedShell({ children }: { children: ReactNode }) {
       ro.disconnect();
       window.removeEventListener("load", send);
     };
-  }, []);
+  }, [fillViewport]);
+
+  if (fillViewport) {
+    return (
+      <div ref={ref} className="@container h-[100dvh] w-full overflow-hidden">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div
