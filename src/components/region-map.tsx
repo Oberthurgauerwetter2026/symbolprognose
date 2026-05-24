@@ -46,6 +46,7 @@ import type { Feature, FeatureCollection, Polygon } from "geojson";
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
 import thurgauData from "@/data/thurgau.json";
+import switzerlandData from "@/data/switzerland.json";
 import { fetchForecast } from "@/lib/weather";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
@@ -59,6 +60,7 @@ const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const THURGAU = thurgauData as unknown as FeatureCollection;
+const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
 const OUTSIDE_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
@@ -77,6 +79,34 @@ const OUTSIDE_MASK: FeatureCollection = (() => {
   };
   collect(REGION);
   collect(LAKE);
+  const world: number[][] = [
+    [-180, -85],
+    [180, -85],
+    [180, 85],
+    [-180, 85],
+    [-180, -85],
+  ];
+  const feat: Feature<Polygon> = {
+    type: "Feature",
+    properties: {},
+    geometry: { type: "Polygon", coordinates: [world, ...holes] },
+  };
+  return { type: "FeatureCollection", features: [feat] };
+})();
+
+const OUTSIDE_CH_MASK: FeatureCollection = (() => {
+  const holes: number[][][] = [];
+  for (const f of SWITZERLAND.features) {
+    const g = f.geometry;
+    if (!g) continue;
+    if (g.type === "Polygon") {
+      if (g.coordinates[0]) holes.push(g.coordinates[0]);
+    } else if (g.type === "MultiPolygon") {
+      for (const poly of g.coordinates) {
+        if (poly[0]) holes.push(poly[0]);
+      }
+    }
+  }
   const world: number[][] = [
     [-180, -85],
     [180, -85],
@@ -527,23 +557,33 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           scrollWheelZoom
           zoomControl={false}
           attributionControl={true}
-          style={{ height: "100%", width: "100%", background: "#f2f4f5" }}
+          style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <BoundsFitter bounds={regionBounds} />
           {/* Swisstopo Relief-Basiskarte (nur Reliefschattierung, keine Labels/Strassen) */}
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
-            opacity={0.85}
+            opacity={0.55}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
           />
-          {/* Aussen-Maske: dunkles Grau (See + Region ausgestanzt) — bleibt ausserhalb CH dunkel */}
+          {/* Aussen-CH-Maske: deutlich dunkler, gilt nur ausserhalb der Schweizer Landesgrenze */}
+          <GeoJSON
+            data={OUTSIDE_CH_MASK}
+            style={() => ({
+              stroke: false,
+              fillColor: "#3a4148",
+              fillOpacity: 0.55,
+            })}
+            interactive={false}
+          />
+          {/* Aussen-Maske: mittleres Grau (See + Region ausgestanzt) — wirkt innerhalb CH ausserhalb Oberthurgau */}
           <GeoJSON
             data={OUTSIDE_MASK}
             style={() => ({
               stroke: false,
               fillColor: "#5a6670",
-              fillOpacity: 0.6,
+              fillOpacity: 0.35,
             })}
             interactive={false}
           />
