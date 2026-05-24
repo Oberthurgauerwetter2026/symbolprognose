@@ -547,14 +547,13 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             })}
             interactive={false}
           />
-          {/* Kanton Thurgau: nur dezent angedeutet (zarte Outline, keine Füllung) */}
+          {/* Kanton Thurgau: deutliche Outline ohne Füllung */}
           <GeoJSON
             data={THURGAU}
             style={() => ({
-              color: "#2561a1",
-              weight: 1,
-              opacity: 0.45,
-              dashArray: "3 3",
+              color: "#1f4d80",
+              weight: 2,
+              opacity: 0.85,
               fill: false,
             })}
             interactive={false}
