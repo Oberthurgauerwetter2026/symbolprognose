@@ -640,7 +640,7 @@ function DetailPanel({
       </div>
       <div className="flex items-stretch">
         {/* Y-axes for charts */}
-        <div className="w-10 shrink-0 border-r border-zinc-200 bg-zinc-100/50 flex flex-col justify-end">
+        <div className="w-10 shrink-0 border-r border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] flex flex-col justify-end">
           <div className="flex-1" />
           {/* Precipitation axis */}
           <div className="relative h-[72px] text-[10px] text-zinc-700 font-semibold tabular-nums">
@@ -808,7 +808,7 @@ function DetailPanel({
               })}
             </div>
             {/* Precipitation bar chart */}
-            <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+            <div className="flex border-t border-zinc-200 bg-transparent">
               {hourlyIndices.map((s, i) => {
                 const { idx, cadence } = s;
                 const iso = h.time[idx];
@@ -879,7 +879,7 @@ function DetailPanel({
             </div>
             {/* Sunshine bar chart (extended only) */}
             {extended && (
-              <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+              <div className="flex border-t border-zinc-200 bg-transparent">
                 {hourlyIndices.map((s, i) => {
                   const { idx, cadence } = s;
                   const iso = h.time[idx];
@@ -971,7 +971,7 @@ function DetailPanel({
             )}
             {/* Snowfall bar chart (snow only) */}
             {snow && (
-              <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+              <div className="flex border-t border-zinc-200 bg-transparent">
                 {hourlyIndices.map((s, i) => {
                   const { idx, cadence } = s;
                   const iso = h.time[idx];
@@ -1021,7 +1021,7 @@ function DetailPanel({
           </div>
         </div>
       </div>
-      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-100/50 text-[11px] text-zinc-700 font-semibold flex flex-wrap gap-x-4 gap-y-1">
+      <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-700 font-semibold flex flex-wrap gap-x-4 gap-y-1">
         <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
         <span>Wind / Böenspitzen in km/h</span>
         {extended && (
