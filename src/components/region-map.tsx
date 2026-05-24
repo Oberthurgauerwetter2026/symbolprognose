@@ -620,7 +620,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               color: "#6bb6d6",
               weight: 0.6,
               fillColor: "#7ec8e3",
-              fillOpacity: 0.9,
+              fillOpacity: 1,
             })}
             interactive={false}
           />
