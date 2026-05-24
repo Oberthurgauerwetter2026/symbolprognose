@@ -91,9 +91,9 @@ function EmbedInfo() {
             Karte + Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Wetterkarte (nur Karte, ohne Tabs/Slider) und direkt darunter die Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste.
+            Wetterkarte (nur Karte, ohne Tabs/Slider) und direkt darunter die Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste. Das iframe füllt die volle sichtbare Höhe (100vh) und komprimiert den Inhalt – kein Seiten-Scroll.
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal")} />
+          <SnippetBlock snippet={buildViewportSnippet(url, "/embed/region-lokal", "region-lokal")} />
         </section>
 
         <section className="space-y-6">
