@@ -261,7 +261,6 @@ function DataStamp({ updatedAt }: { updatedAt: number }) {
 
 function Header({
   locationName,
-  isDefaultLocation,
   hideSearch,
   onSelectLocation,
   onGeolocate,
@@ -270,8 +269,7 @@ function Header({
   snow,
   onToggleSnow,
 }: {
-  locationName: string;
-  isDefaultLocation: boolean;
+  locationName: string | null;
   hideSearch: boolean;
   onSelectLocation: (loc: GeoLocation) => void;
   onGeolocate: () => void;
