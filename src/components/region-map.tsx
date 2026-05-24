@@ -745,6 +745,8 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               )}
 
               <Slider
+                size="touch"
+                aria-label="Prognosezeit"
                 min={0}
                 max={MAX_STEPS}
                 step={1}
