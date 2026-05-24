@@ -123,29 +123,43 @@ function MarkerPill({
     <div
       className={MARKER_PILL_CLASS}
       style={{
+        position: "relative",
         display: "inline-flex",
         alignItems: "center",
         gap: 8,
-        padding: "8px 16px 8px 10px",
+        padding: "8px 14px 8px 12px",
         borderRadius: 999,
-        background: BRAND,
-        border: "1px solid rgba(255,255,255,0.25)",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.10)",
+        background: "var(--accent-soft)",
+        border: "1px solid color-mix(in oklab, var(--accent) 35%, transparent)",
+        boxShadow:
+          "0 4px 14px color-mix(in oklab, var(--accent) 22%, transparent), 0 1px 2px rgba(0,0,0,0.08)",
         fontFamily: '"Figtree", system-ui, sans-serif',
-        color: "#fff",
+        color: "var(--zinc-900)",
         lineHeight: 1.15,
         cursor: "pointer",
         transition: "transform 120ms ease, box-shadow 150ms ease",
         whiteSpace: "nowrap",
+        overflow: "hidden",
       }}
     >
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 4,
+          background: "var(--accent-strong)",
+        }}
+      />
       <WeatherIcon code={code} isDay={isDay} size={40} />
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
           style={{
             fontSize: 12,
-            fontWeight: 600,
-            color: "rgba(255,255,255,0.85)",
+            fontWeight: 700,
+            color: "var(--accent-strong)",
             letterSpacing: "0.04em",
             lineHeight: 1,
             textTransform: "uppercase",
@@ -156,16 +170,16 @@ function MarkerPill({
         <div style={{ display: "flex", gap: 4, alignItems: "baseline" }}>
           {mode === "daily" ? (
             <>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--zinc-600)" }}>
                 {Math.round(tMin)}°
               </span>
-              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>/</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
+              <span style={{ fontSize: 12, color: "var(--zinc-400)" }}>/</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "var(--zinc-900)" }}>
                 {Math.round(tMax)}°
               </span>
             </>
           ) : (
-            <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: "var(--zinc-900)" }}>
               {Math.round(tNow)}°
             </span>
           )}
