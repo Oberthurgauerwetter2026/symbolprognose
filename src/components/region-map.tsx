@@ -557,23 +557,33 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           scrollWheelZoom
           zoomControl={false}
           attributionControl={true}
-          style={{ height: "100%", width: "100%", background: "#f2f4f5" }}
+          style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <BoundsFitter bounds={regionBounds} />
           {/* Swisstopo Relief-Basiskarte (nur Reliefschattierung, keine Labels/Strassen) */}
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
-            opacity={0.85}
+            opacity={0.55}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
           />
-          {/* Aussen-Maske: dunkles Grau (See + Region ausgestanzt) — bleibt ausserhalb CH dunkel */}
+          {/* Aussen-CH-Maske: deutlich dunkler, gilt nur ausserhalb der Schweizer Landesgrenze */}
+          <GeoJSON
+            data={OUTSIDE_CH_MASK}
+            style={() => ({
+              stroke: false,
+              fillColor: "#3a4148",
+              fillOpacity: 0.55,
+            })}
+            interactive={false}
+          />
+          {/* Aussen-Maske: mittleres Grau (See + Region ausgestanzt) — wirkt innerhalb CH ausserhalb Oberthurgau */}
           <GeoJSON
             data={OUTSIDE_MASK}
             style={() => ({
               stroke: false,
               fillColor: "#5a6670",
-              fillOpacity: 0.6,
+              fillOpacity: 0.35,
             })}
             interactive={false}
           />
