@@ -56,15 +56,18 @@ export function WeatherWidget({
   const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (lockedLocation) return lockedLocation;
     if (initialLocation) return initialLocation;
-    if (typeof window === "undefined") return null;
+    return null;
+  });
+  useEffect(() => {
+    if (lockedLocation || initialLocation) return;
+    if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem("weather:location");
-      if (raw) return JSON.parse(raw) as StoredLocation;
+      if (raw) setLocation(JSON.parse(raw) as StoredLocation);
     } catch {
       /* ignore */
     }
-    return null;
-  });
+  }, []);
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
