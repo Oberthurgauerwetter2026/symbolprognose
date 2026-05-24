@@ -501,9 +501,16 @@ export function RegionMap({ bare = false }: { bare?: boolean } = {}) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="@container space-y-4">
       {/* Karte */}
-      <div className="relative -mx-3 h-[560px] w-auto overflow-hidden shadow-lg sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl">
+      <div
+        className={cn(
+          "relative overflow-hidden shadow-lg",
+          bare
+            ? "w-full rounded-xl @[640px]:rounded-2xl aspect-[4/3] @[520px]:aspect-[16/11] @[820px]:aspect-[16/10] min-h-[320px] max-h-[640px]"
+            : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
+        )}
+      >
         <MapContainer
           center={center}
           zoom={11}
