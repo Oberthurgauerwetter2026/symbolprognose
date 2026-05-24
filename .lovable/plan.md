@@ -1,32 +1,72 @@
-# Iframe-Snippet selbst auch flexibler machen
+## Ziel
 
-Das Embed-Markup setzt aktuell ein hartes `min-height: 1100px` auf dem `<iframe>` für `/embed/region-lokal`. Das ist ein **Mindestplatz**, den der WordPress-Host immer reserviert — auch in einer 300 px schmalen Spalte, in der die Karte + Detailprognose zusammen nur ~700–800 px hoch sind. Nach dem ersten `postMessage` korrigiert sich die Höhe zwar nach unten, aber der initiale „Reservierungssprung" sorgt für unnötige Leere und Layout-Shift.
+Der iframe-Snippet, den Nutzer in WordPress einbetten, soll sich **vollständig** an seinen Container anpassen — sowohl in der Breite (schmale Spalten, Sidebars) als auch in der Höhe (kein reservierter Leerraum, sofortiges Mitwachsen/-schrumpfen).
 
-## Änderungen in `src/routes/embed-info.tsx`
+## Aktueller Stand
 
-1. `buildSnippet` so anpassen, dass das `min-height` als **Startwert** kleiner ist (`320px` Default) — die echte Höhe wird ohnehin sofort per `postMessage` gesetzt. Der `min-height` dient nur noch als Fallback, falls JS deaktiviert ist.
-2. Aufruf für `region-lokal`: `buildSnippet(url, "/embed/region-lokal", "region-lokal")` ohne den Höhen-Override (statt `1100`).
-3. Aufruf für `/embed/all` bleibt bei einem moderaten Fallback (`760`, Default), denn der hat Tabs.
+- Breite: `width:100%; max-width:100%` ist bereits gesetzt ✅
+- Höhe: `min-height:320px` als Fallback + `postMessage` setzt `height` live.
+- Innen: `EmbedShell` hat einen `ResizeObserver` und sendet bei jeder Größenänderung die neue Höhe.
 
-Damit der iframe in einer schmalen Spalte sofort sauber sitzt:
-- Snippet erhält zusätzlich `max-width:100%` (für Hosts, die das `<iframe>` in ein flex/grid mit fester Spaltenbreite packen).
-- Höhe wird per `postMessage` weiterhin live nachgeführt — bei Resize des Hosts springt die Iframe-Höhe direkt mit (`ResizeObserver` in `EmbedShell` ist bereits aktiv).
+## Schwachstellen
 
-### Konkretes neues Snippet (für alle Embeds)
+1. **`min-height:320px`** verhindert, dass der iframe in sehr kompakten Hosts (z.B. Sticky-Sidebar 260px) unter 320px schrumpft, selbst wenn der Inhalt es zuließe.
+2. Das Snippet setzt **nur `style.height`**, aber nicht `style.minHeight = '0'`. Dadurch bleibt der initiale `min-height`-Wert dominant, auch wenn die postMessage-Höhe kleiner ist.
+3. Beim allerersten Render (vor erstem `postMessage`) reserviert der iframe sichtbar Platz — bei schmalem Host springt das Layout.
+4. Keine `box-sizing`-Absicherung — manche WordPress-Themes setzen `border` oder `padding` global auf iframes und brechen dann die 100%-Breite.
 
-```
+## Änderungen in `src/routes/embed-info.tsx` → `buildSnippet`
+
+Neues Snippet-Template:
+
+```html
 <iframe
-  id="wx-region-lokal"
-  src=".../embed/region-lokal"
-  style="width:100%;max-width:100%;min-height:320px;border:0;display:block"
+  id="wx-{id}"
+  src="{url}{path}"
+  style="width:100%;max-width:100%;min-width:0;height:0;border:0;display:block;box-sizing:border-box"
   loading="lazy"
   title="Wetter-Karte"
 ></iframe>
-<script>…postMessage-Listener wie bisher…</script>
+<script>
+  (function () {
+    var f = document.getElementById("wx-{id}");
+    if (!f) return;
+    window.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "lovable-weather:height" && e.source === f.contentWindow) {
+        f.style.height = e.data.height + "px";
+      }
+    });
+  })();
+</script>
 ```
+
+Wichtige Punkte:
+- `height:0` statt `min-height:320px` → der iframe nimmt vor der ersten Höhen-Message **null Platz** ein und wächst dann genau auf die gemeldete Höhe. Kein Reservierungssprung mehr.
+- `min-width:0` → erlaubt Schrumpfen in Flex-/Grid-Containern ohne 280-px-Mindestbreite.
+- `box-sizing:border-box` → schützt vor Theme-CSS, das padding/border auf iframes setzt.
+- `e.source === f.contentWindow` → ignoriert fremde postMessages anderer Embeds auf derselben Seite (wichtig, wenn Nutzer mehrere Karten einbinden).
+- `(function(){})()` als IIFE → keine Globalen, Snippet kann mehrfach pro Seite vorkommen.
+
+## Fallback ohne JavaScript
+
+Da `height:0` ohne JS bedeutet „unsichtbar", ergänze unmittelbar nach dem `<iframe>`-Tag ein `<noscript>`:
+
+```html
+<noscript>
+  <style>#wx-{id}{height:600px}</style>
+</noscript>
+```
+
+Setzt nur dann eine sinnvolle Mindesthöhe, wenn JS deaktiviert ist (selten, aber sauber).
 
 ## Nicht angefasst
 
-- `/embed/*`-Routen selbst — die sind bereits durch den letzten Schritt voll responsiv.
-- `postMessage`-Mechanik in `EmbedShell` — bleibt unverändert.
-- Andere Snippets (Einzelkarten) übernehmen ebenfalls den kleineren Default; das verbessert ihre Einbettung in schmalen Spalten ebenfalls.
+- `EmbedShell` (ResizeObserver + postMessage funktionieren bereits korrekt) — sendet bei jeder Breiten- und Inhaltsänderung automatisch die neue Höhe, so dass der iframe live mitschrumpft, wenn die Spalte schmaler wird.
+- `/embed/*`-Routen sind durch die letzten Schritte bereits voll responsiv.
+- `MAPS`-Einzelkarten profitieren automatisch vom neuen Default.
+
+## Effekt
+
+- Schmale 260-px-Sidebar: iframe nimmt exakt die gerenderte Höhe ein (oft 600–700 px statt vorher hartem 320 px Mindestplatz vor erstem Message).
+- Volle Breite 1200 px: unverändert.
+- Live-Resize des Hosts (z.B. Browser-Zoom, Spalten-Drag): iframe folgt sofort, weil `ResizeObserver` in der Embed-Seite jede Breitenänderung registriert.

@@ -10,21 +10,25 @@ export const Route = createFileRoute("/embed-info")({
   }),
 });
 
-function buildSnippet(url: string, path: string, idSuffix: string, minHeight = 320) {
+function buildSnippet(url: string, path: string, idSuffix: string, fallbackHeight = 600) {
   return `<iframe
   id="wx-${idSuffix}"
   src="${url}${path}"
-  style="width:100%;max-width:100%;min-height:${minHeight}px;border:0;display:block"
+  style="width:100%;max-width:100%;min-width:0;height:0;border:0;display:block;box-sizing:border-box"
   loading="lazy"
   title="Wetter-Karte"
 ></iframe>
+<noscript><style>#wx-${idSuffix}{height:${fallbackHeight}px}</style></noscript>
 <script>
-  window.addEventListener("message", function (e) {
-    if (e.data && e.data.type === "lovable-weather:height") {
-      var f = document.getElementById("wx-${idSuffix}");
-      if (f) f.style.height = e.data.height + "px";
-    }
-  });
+  (function () {
+    var f = document.getElementById("wx-${idSuffix}");
+    if (!f) return;
+    window.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "lovable-weather:height" && e.source === f.contentWindow) {
+        f.style.height = e.data.height + "px";
+      }
+    });
+  })();
 </script>`;
 }
 
