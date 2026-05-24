@@ -74,6 +74,16 @@ function EmbedInfo() {
           <SnippetBlock snippet={buildSnippet(url, "/embed/all", "all")} />
         </section>
 
+        <section className="space-y-3">
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+            Karte + Lokalprognose Amriswil
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Wetterkarte (nur Karte, ohne Tabs/Slider) und direkt darunter die Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste.
+          </p>
+          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal", 1100)} />
+        </section>
+
         <section className="space-y-6">
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">

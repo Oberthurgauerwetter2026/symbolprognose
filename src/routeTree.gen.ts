@@ -19,6 +19,7 @@ import { Route as KartenRadarRouteImport } from './routes/karten.radar'
 import { Route as KartenPollenRouteImport } from './routes/karten.pollen'
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
+import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
 import { Route as EmbedPollenRouteImport } from './routes/embed.pollen'
@@ -75,6 +76,11 @@ const EmbedWindRoute = EmbedWindRouteImport.update({
   path: '/embed/wind',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmbedRegionLokalRoute = EmbedRegionLokalRouteImport.update({
+  id: '/embed/region-lokal',
+  path: '/embed/region-lokal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmbedRegionRoute = EmbedRegionRouteImport.update({
   id: '/embed/region',
   path: '/embed/region',
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/embed/pollen': typeof EmbedPollenRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
+  '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/pollen': typeof KartenPollenRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/embed/pollen': typeof EmbedPollenRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
+  '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/pollen': typeof KartenPollenRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/embed/pollen': typeof EmbedPollenRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
+  '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/pollen': typeof KartenPollenRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/embed/pollen'
     | '/embed/radar'
     | '/embed/region'
+    | '/embed/region-lokal'
     | '/embed/wind'
     | '/karten/lokal'
     | '/karten/pollen'
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/embed/pollen'
     | '/embed/radar'
     | '/embed/region'
+    | '/embed/region-lokal'
     | '/embed/wind'
     | '/karten/lokal'
     | '/karten/pollen'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/embed/pollen'
     | '/embed/radar'
     | '/embed/region'
+    | '/embed/region-lokal'
     | '/embed/wind'
     | '/karten/lokal'
     | '/karten/pollen'
@@ -217,6 +229,7 @@ export interface RootRouteChildren {
   EmbedPollenRoute: typeof EmbedPollenRoute
   EmbedRadarRoute: typeof EmbedRadarRoute
   EmbedRegionRoute: typeof EmbedRegionRoute
+  EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
   EmbedWindRoute: typeof EmbedWindRoute
   KartenLokalRoute: typeof KartenLokalRoute
   KartenPollenRoute: typeof KartenPollenRoute
@@ -297,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedWindRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/embed/region-lokal': {
+      id: '/embed/region-lokal'
+      path: '/embed/region-lokal'
+      fullPath: '/embed/region-lokal'
+      preLoaderRoute: typeof EmbedRegionLokalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/embed/region': {
       id: '/embed/region'
       path: '/embed/region'
@@ -345,6 +365,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedPollenRoute: EmbedPollenRoute,
   EmbedRadarRoute: EmbedRadarRoute,
   EmbedRegionRoute: EmbedRegionRoute,
+  EmbedRegionLokalRoute: EmbedRegionLokalRoute,
   EmbedWindRoute: EmbedWindRoute,
   KartenLokalRoute: KartenLokalRoute,
   KartenPollenRoute: KartenPollenRoute,
