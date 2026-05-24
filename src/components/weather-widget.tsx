@@ -16,12 +16,6 @@ import {
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
 
-const DEFAULT_LOCATION = {
-  name: "Amriswil",
-  latitude: 47.5469,
-  longitude: 9.298,
-};
-
 interface StoredLocation {
   name: string;
   latitude: number;
@@ -53,16 +47,16 @@ export function WeatherWidget({
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
 } = {}) {
-  const [location, setLocation] = useState<StoredLocation>(() => {
+  const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (initialLocation) return initialLocation;
-    if (typeof window === "undefined") return DEFAULT_LOCATION;
+    if (typeof window === "undefined") return null;
     try {
       const raw = localStorage.getItem("weather:location");
       if (raw) return JSON.parse(raw) as StoredLocation;
     } catch {
       /* ignore */
     }
-    return DEFAULT_LOCATION;
+    return null;
   });
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
@@ -81,6 +75,7 @@ export function WeatherWidget({
   useEffect(() => {
     if (!initialLocation) return;
     setLocation((prev) =>
+      prev &&
       prev.name === initialLocation.name &&
       prev.latitude === initialLocation.latitude &&
       prev.longitude === initialLocation.longitude
@@ -92,6 +87,7 @@ export function WeatherWidget({
   const now = useNow();
 
   useEffect(() => {
+    if (!location) return;
     try {
       localStorage.setItem("weather:location", JSON.stringify(location));
     } catch {
@@ -119,8 +115,9 @@ export function WeatherWidget({
   }, []);
 
   const forecast = useQuery({
-    queryKey: ["forecast", location.latitude, location.longitude],
-    queryFn: () => fetchForecast(location.latitude, location.longitude),
+    queryKey: ["forecast", location?.latitude ?? 0, location?.longitude ?? 0],
+    queryFn: () => fetchForecast(location!.latitude, location!.longitude),
+    enabled: !!location,
     staleTime: 15 * 60 * 1000,
   });
 
@@ -163,8 +160,7 @@ export function WeatherWidget({
     <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
       <div className="max-w-5xl mx-auto space-y-5">
         <Header
-          locationName={location.name}
-          isDefaultLocation={location.name === DEFAULT_LOCATION.name}
+          locationName={location?.name ?? null}
           hideSearch={embedMinimal}
           onSelectLocation={(loc) => {
             setLocation({
@@ -195,8 +191,19 @@ export function WeatherWidget({
           onToggleSnow={setSnow}
         />
 
-        {forecast.isLoading && <SkeletonWidget />}
-        {forecast.isError && (
+        {!location && (
+          <div className="p-8 bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2">
+            <div className="text-2xl" aria-hidden>↑</div>
+            <p className="text-sm font-semibold text-zinc-900">
+              Gemeinde suchen oder „Ortung" verwenden,
+            </p>
+            <p className="text-sm text-zinc-700">
+              um die 5-Tage-Prognose anzuzeigen.
+            </p>
+          </div>
+        )}
+        {location && forecast.isLoading && <SkeletonWidget />}
+        {location && forecast.isError && (
           <div className="p-6 bg-zinc-50 border border-zinc-200 rounded-sm text-sm text-zinc-600">
             Wetterdaten konnten nicht geladen werden. Bitte später erneut
             versuchen.
@@ -265,7 +272,6 @@ function DataStamp({ updatedAt }: { updatedAt: number }) {
 
 function Header({
   locationName,
-  isDefaultLocation,
   hideSearch,
   onSelectLocation,
   onGeolocate,
@@ -274,8 +280,7 @@ function Header({
   snow,
   onToggleSnow,
 }: {
-  locationName: string;
-  isDefaultLocation: boolean;
+  locationName: string | null;
   hideSearch: boolean;
   onSelectLocation: (loc: GeoLocation) => void;
   onGeolocate: () => void;
@@ -359,7 +364,7 @@ function Header({
             <span className="hidden sm:inline">Ortung</span>
           </button>
         </div>
-        {(!isDefaultLocation || hideSearch) && (
+        {locationName && (
           <div className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
             <span className="text-accent" aria-hidden>
               ⌖
@@ -432,8 +437,8 @@ function DayStrip({
               onClick={() => onSelect(i)}
               className={`relative text-left p-3 @[640px]:p-4 @[1000px]:p-3 space-y-3 snap-start shrink-0 basis-[70%] @[420px]:basis-[45%] @[640px]:basis-[calc(100%/4-1px)] @[820px]:basis-[calc(100%/5-1px)] @[1000px]:basis-[calc(100%/7-1px)] transition-colors ${
                 selected
-                  ? "bg-[var(--accent-soft)]"
-                  : "bg-zinc-50 hover:bg-zinc-50/80"
+                  ? "bg-[color-mix(in_oklab,var(--accent)_22%,white)]"
+                  : "bg-[var(--accent-soft)] hover:bg-[color-mix(in_oklab,var(--accent)_14%,white)]"
               }`}
             >
               {selected && (
@@ -613,8 +618,8 @@ function DetailPanel({
       : "w-[108px] @[640px]:w-[124px]";
 
   return (
-    <section className="bg-zinc-50 rounded-md border border-zinc-200 overflow-hidden">
-      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3 flex-wrap">
+    <section className="bg-[var(--accent-soft)] rounded-md border border-accent/20 overflow-hidden">
+      <div className="px-4 py-3 bg-[color-mix(in_oklab,var(--accent)_18%,white)] border-b border-accent/20 flex items-center justify-between gap-3 flex-wrap">
         <span className="text-base font-bold text-zinc-900 font-[family-name:var(--font-display)]">
           {selectedDayIdx === 0
             ? "Heute"
@@ -635,7 +640,7 @@ function DetailPanel({
       </div>
       <div className="flex items-stretch">
         {/* Y-axes for charts */}
-        <div className="w-10 shrink-0 border-r border-zinc-200 bg-zinc-100/50 flex flex-col justify-end">
+        <div className="w-10 shrink-0 border-r border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] flex flex-col justify-end">
           <div className="flex-1" />
           {/* Precipitation axis */}
           <div className="relative h-[72px] text-[10px] text-zinc-700 font-semibold tabular-nums">
@@ -755,7 +760,7 @@ function DetailPanel({
                         : isDayStart
                           ? "border-l border-zinc-300"
                           : ""
-                    } ${isCurrent ? "bg-[var(--accent-soft)]" : ""}`}
+                    } ${isCurrent ? "bg-[color-mix(in_oklab,var(--accent)_22%,white)]" : ""}`}
                   >
                     {isCadenceBreak && (
                       <div className="absolute -top-px left-0 right-0 -translate-y-full px-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
@@ -803,7 +808,7 @@ function DetailPanel({
               })}
             </div>
             {/* Precipitation bar chart */}
-            <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+            <div className="flex border-t border-zinc-200 bg-transparent">
               {hourlyIndices.map((s, i) => {
                 const { idx, cadence } = s;
                 const iso = h.time[idx];
@@ -874,7 +879,7 @@ function DetailPanel({
             </div>
             {/* Sunshine bar chart (extended only) */}
             {extended && (
-              <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+              <div className="flex border-t border-zinc-200 bg-transparent">
                 {hourlyIndices.map((s, i) => {
                   const { idx, cadence } = s;
                   const iso = h.time[idx];
@@ -966,7 +971,7 @@ function DetailPanel({
             )}
             {/* Snowfall bar chart (snow only) */}
             {snow && (
-              <div className="flex border-t border-zinc-200 bg-zinc-50/60">
+              <div className="flex border-t border-zinc-200 bg-transparent">
                 {hourlyIndices.map((s, i) => {
                   const { idx, cadence } = s;
                   const iso = h.time[idx];
@@ -1016,7 +1021,7 @@ function DetailPanel({
           </div>
         </div>
       </div>
-      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-100/50 text-[11px] text-zinc-700 font-semibold flex flex-wrap gap-x-4 gap-y-1">
+      <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-700 font-semibold flex flex-wrap gap-x-4 gap-y-1">
         <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
         <span>Wind / Böenspitzen in km/h</span>
         {extended && (
