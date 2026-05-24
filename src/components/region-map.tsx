@@ -96,17 +96,21 @@ const OUTSIDE_MASK: FeatureCollection = (() => {
 
 const OUTSIDE_CH_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
-  for (const f of SWITZERLAND.features) {
-    const g = f.geometry;
-    if (!g) continue;
-    if (g.type === "Polygon") {
-      if (g.coordinates[0]) holes.push(g.coordinates[0]);
-    } else if (g.type === "MultiPolygon") {
-      for (const poly of g.coordinates) {
-        if (poly[0]) holes.push(poly[0]);
+  const collect = (fc: FeatureCollection) => {
+    for (const f of fc.features) {
+      const g = f.geometry;
+      if (!g) continue;
+      if (g.type === "Polygon") {
+        if (g.coordinates[0]) holes.push(g.coordinates[0]);
+      } else if (g.type === "MultiPolygon") {
+        for (const poly of g.coordinates) {
+          if (poly[0]) holes.push(poly[0]);
+        }
       }
     }
-  }
+  };
+  collect(SWITZERLAND);
+  collect(LAKE);
   const world: number[][] = [
     [-180, -85],
     [180, -85],
