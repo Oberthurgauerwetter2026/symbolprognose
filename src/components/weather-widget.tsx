@@ -43,11 +43,16 @@ function useNow(intervalMs = 60_000): Date {
 export function WeatherWidget({
   initialDayIdx,
   initialLocation,
+  detailOnly = false,
+  lockedLocation,
 }: {
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
+  detailOnly?: boolean;
+  lockedLocation?: { name: string; latitude: number; longitude: number };
 } = {}) {
   const [location, setLocation] = useState<StoredLocation | null>(() => {
+    if (lockedLocation) return lockedLocation;
     if (initialLocation) return initialLocation;
     if (typeof window === "undefined") return null;
     try {
@@ -73,7 +78,7 @@ export function WeatherWidget({
     }
   }, [initialDayIdx]);
   useEffect(() => {
-    if (!initialLocation) return;
+    if (detailOnly || !initialLocation) return;
     setLocation((prev) =>
       prev &&
       prev.name === initialLocation.name &&
@@ -83,17 +88,17 @@ export function WeatherWidget({
         : initialLocation,
     );
     setSelectedDayIdx(0);
-  }, [initialLocation?.name, initialLocation?.latitude, initialLocation?.longitude]);
+  }, [detailOnly, initialLocation?.name, initialLocation?.latitude, initialLocation?.longitude]);
   const now = useNow();
 
   useEffect(() => {
-    if (!location) return;
+    if (detailOnly || !location) return;
     try {
       localStorage.setItem("weather:location", JSON.stringify(location));
     } catch {
       /* ignore */
     }
-  }, [location]);
+  }, [location, detailOnly]);
 
   // Post height to parent (for iframe embed auto-resize)
   const rootRef = useRef<HTMLDivElement>(null);
