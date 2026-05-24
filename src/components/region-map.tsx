@@ -758,21 +758,15 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
 
             {/* Stundenlegende: jede Stunde */}
             <div
-              className={cn(
-                "mt-1 px-1",
-                viewMode === "daily" ? "pointer-events-none opacity-40" : "cursor-pointer",
-              )}
-              onPointerDown={
-                viewMode === "daily"
-                  ? undefined
-                  : (e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const x = e.clientX - rect.left;
-                      const pct = Math.max(0, Math.min(1, x / rect.width));
-                      const step = Math.round(pct * MAX_STEPS);
-                      setStepOffset(Math.max(0, Math.min(MAX_STEPS, step)));
-                    }
-              }
+              className="mt-1 px-1 cursor-pointer"
+              onPointerDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const pct = Math.max(0, Math.min(1, x / rect.width));
+                const step = Math.round(pct * MAX_STEPS);
+                if (viewMode !== "hourly") setViewMode("hourly");
+                setStepOffset(Math.max(0, Math.min(MAX_STEPS, step)));
+              }}
             >
               <div className="pointer-events-none relative h-1.5">
                 {HOUR_LABELS.map((h) => (
