@@ -760,7 +760,7 @@ function DetailPanel({
                         : isDayStart
                           ? "border-l border-zinc-300"
                           : ""
-                    } ${isCurrent ? "bg-[var(--accent-soft)]" : ""}`}
+                    } ${isCurrent ? "bg-[color-mix(in_oklab,var(--accent)_22%,white)]" : ""}`}
                   >
                     {isCadenceBreak && (
                       <div className="absolute -top-px left-0 right-0 -translate-y-full px-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
