@@ -120,22 +120,30 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+let cachedPersister: ReturnType<typeof createSyncStoragePersister> | null = null;
+function getPersister() {
+  if (typeof window === "undefined") return null;
+  if (!cachedPersister) {
+    cachedPersister = createSyncStoragePersister({
+      storage: window.localStorage,
+      key: "wx-rq-cache-v1",
+    });
+  }
+  return cachedPersister;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const persister = getPersister();
 
-  // localStorage persistence is client-only; fall back to in-memory on SSR.
-  if (typeof window === "undefined") {
+  // SSR or no localStorage: in-memory provider only.
+  if (!persister) {
     return (
       <QueryClientProvider client={queryClient}>
         <Outlet />
       </QueryClientProvider>
     );
   }
-
-  const persister = createSyncStoragePersister({
-    storage: window.localStorage,
-    key: "wx-rq-cache-v1",
-  });
 
   return (
     <PersistQueryClientProvider
