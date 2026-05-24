@@ -10,11 +10,11 @@ export const Route = createFileRoute("/embed-info")({
   }),
 });
 
-function buildSnippet(url: string, path: string, idSuffix: string, minHeight = 760) {
+function buildSnippet(url: string, path: string, idSuffix: string, minHeight = 320) {
   return `<iframe
   id="wx-${idSuffix}"
   src="${url}${path}"
-  style="width:100%;min-height:${minHeight}px;border:0;display:block"
+  style="width:100%;max-width:100%;min-height:${minHeight}px;border:0;display:block"
   loading="lazy"
   title="Wetter-Karte"
 ></iframe>
@@ -71,7 +71,7 @@ function EmbedInfo() {
           <p className="text-sm text-muted-foreground">
             Region, Lokalprognose, Wind, Radar und Pollen in einer einzigen Einbettung. Besucher wechseln im iframe selbst.
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/all", "all")} />
+          <SnippetBlock snippet={buildSnippet(url, "/embed/all", "all", 760)} />
         </section>
 
         <section className="space-y-3">
@@ -81,7 +81,7 @@ function EmbedInfo() {
           <p className="text-sm text-muted-foreground">
             Wetterkarte (nur Karte, ohne Tabs/Slider) und direkt darunter die Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste.
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal", 1100)} />
+          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal")} />
         </section>
 
         <section className="space-y-6">
