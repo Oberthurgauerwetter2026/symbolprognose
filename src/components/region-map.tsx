@@ -527,13 +527,14 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           scrollWheelZoom
           zoomControl={false}
           attributionControl={true}
-          style={{ height: "100%", width: "100%", background: "#e8edef" }}
+          style={{ height: "100%", width: "100%", background: "#f2f4f5" }}
         >
           <BoundsFitter bounds={regionBounds} />
           {/* Swisstopo Relief-Basiskarte (nur Reliefschattierung, keine Labels/Strassen) */}
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
+            opacity={0.85}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
           />
           {/* Aussen-Maske: dunkles Grau (See + Region ausgestanzt) — bleibt ausserhalb CH dunkel */}

@@ -1,13 +1,5 @@
-## Ziel
-
-Basis-Tiles auf swisstopo **`ch.swisstopo.leichte-basiskarte_reliefschattierung`** wechseln (reines Relief ohne Beschriftungen/Strassen), Hintergrund `void` (neutral).
-
 ## Änderungen in `src/components/region-map.tsx`
 
-- `pixelkarte-grau` TileLayer entfernen.
-- Separate `swissalti3d-reliefschattierung` TileLayer entfernen.
-- Einen einzigen TileLayer einsetzen:
-  - URL: `https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png`
-  - opacity `1`
-- MapContainer-Hintergrund auf neutrales Hellgrau setzen (entspricht `void` bgLayer).
-- Aussenmaske, Region (grün), See, Kanton-TG-Andeutung und Marker bleiben unverändert.
+1. **Hellerer Grauton im Karteninneren**: MapContainer-Hintergrund von `#e8edef` auf helleres `#f2f4f5` setzen, damit die Reliefkarte heller/leichter wirkt. Optional: Relief-TileLayer leicht transparent (`opacity 0.85`), damit der helle Untergrund durchscheint.
+2. **Aussen-Maske unverändert** (`#5a6670`, opacity `0.6`) — bleibt wie gewünscht.
+3. **Kanton Thurgau deutlicher**: Outline-Style anpassen — `weight: 2`, `opacity: 0.85`, `dashArray` entfernen (durchgezogene Linie), Farbe ggf. dunkler (`#1f4d80`) für besseren Kontrast. Weiterhin keine Füllung.
