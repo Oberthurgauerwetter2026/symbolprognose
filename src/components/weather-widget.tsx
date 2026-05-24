@@ -45,11 +45,13 @@ export function WeatherWidget({
   initialLocation,
   detailOnly = false,
   lockedLocation,
+  compact = false,
 }: {
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
   detailOnly?: boolean;
   lockedLocation?: { name: string; latitude: number; longitude: number };
+  compact?: boolean;
 } = {}) {
   const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (lockedLocation) return lockedLocation;
@@ -162,8 +164,11 @@ export function WeatherWidget({
 
 
   if (detailOnly) {
+    const wrapperPad = compact
+      ? "py-1 px-1"
+      : "py-2 px-1 @[420px]:py-3 @[420px]:px-2 @[640px]:py-6 @[640px]:px-5 @[900px]:py-8 @[900px]:px-6";
     return (
-      <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-2 px-1 @[420px]:py-3 @[420px]:px-2 @[640px]:py-6 @[640px]:px-5 @[900px]:py-8 @[900px]:px-6">
+      <div ref={rootRef} className={`@container bg-zinc-100 text-zinc-900 antialiased font-medium ${wrapperPad}`}>
         <div className="max-w-5xl mx-auto">
           {location && forecast.isLoading && <SkeletonWidget />}
           {location && forecast.isError && (
