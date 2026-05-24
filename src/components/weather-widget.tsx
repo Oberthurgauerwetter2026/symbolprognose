@@ -16,12 +16,6 @@ import {
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
 
-const DEFAULT_LOCATION = {
-  name: "Amriswil",
-  latitude: 47.5469,
-  longitude: 9.298,
-};
-
 interface StoredLocation {
   name: string;
   latitude: number;
