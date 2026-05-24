@@ -618,8 +618,8 @@ function DetailPanel({
       : "w-[108px] @[640px]:w-[124px]";
 
   return (
-    <section className="bg-zinc-50 rounded-md border border-zinc-200 overflow-hidden">
-      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200 flex items-center justify-between gap-3 flex-wrap">
+    <section className="bg-[var(--accent-soft)] rounded-md border border-accent/20 overflow-hidden">
+      <div className="px-4 py-3 bg-[color-mix(in_oklab,var(--accent)_18%,white)] border-b border-accent/20 flex items-center justify-between gap-3 flex-wrap">
         <span className="text-base font-bold text-zinc-900 font-[family-name:var(--font-display)]">
           {selectedDayIdx === 0
             ? "Heute"
