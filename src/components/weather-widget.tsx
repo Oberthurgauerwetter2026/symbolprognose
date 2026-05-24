@@ -191,8 +191,19 @@ export function WeatherWidget({
           onToggleSnow={setSnow}
         />
 
-        {forecast.isLoading && <SkeletonWidget />}
-        {forecast.isError && (
+        {!location && (
+          <div className="p-8 bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2">
+            <div className="text-2xl" aria-hidden>↑</div>
+            <p className="text-sm font-semibold text-zinc-900">
+              Gemeinde suchen oder „Ortung" verwenden,
+            </p>
+            <p className="text-sm text-zinc-700">
+              um die 5-Tage-Prognose anzuzeigen.
+            </p>
+          </div>
+        )}
+        {location && forecast.isLoading && <SkeletonWidget />}
+        {location && forecast.isError && (
           <div className="p-6 bg-zinc-50 border border-zinc-200 rounded-sm text-sm text-zinc-600">
             Wetterdaten konnten nicht geladen werden. Bitte später erneut
             versuchen.
