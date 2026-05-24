@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MAPS } from "@/lib/maps-config";
 
@@ -40,21 +40,25 @@ function buildViewportSnippet(url: string, path: string, idSuffix: string) {
 ></iframe>`;
 }
 
-function SnippetBlock({ snippet }: { snippet: string }) {
+function SnippetBlock({ snippet }: { snippet: string | null }) {
   const [copied, setCopied] = useState(false);
+  const ready = snippet !== null;
+  const display = ready ? snippet : "// Snippet wird geladen …";
   return (
     <div className="relative">
       <pre className="overflow-x-auto rounded-md bg-zinc-900 p-4 font-mono text-xs text-zinc-100">
-        {snippet}
+        {display}
       </pre>
       <button
         type="button"
+        disabled={!ready}
         onClick={() => {
-          navigator.clipboard.writeText(snippet);
+          if (!ready) return;
+          navigator.clipboard.writeText(snippet!);
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         }}
-        className="absolute right-2 top-2 h-7 rounded-sm bg-accent px-3 text-[10px] font-semibold uppercase tracking-widest text-accent-foreground"
+        className="absolute right-2 top-2 h-7 rounded-sm bg-accent px-3 text-[10px] font-semibold uppercase tracking-widest text-accent-foreground disabled:opacity-50"
       >
         {copied ? "Kopiert" : "Kopieren"}
       </button>
@@ -63,8 +67,10 @@ function SnippetBlock({ snippet }: { snippet: string }) {
 }
 
 function EmbedInfo() {
-  const url =
-    typeof window !== "undefined" ? window.location.origin : "https://…";
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setUrl(window.location.origin);
+  }, []);
 
   return (
     <DashboardLayout
@@ -83,7 +89,7 @@ function EmbedInfo() {
           <p className="text-sm text-muted-foreground">
             Region, Lokalprognose, Wind, Radar und Pollen in einer einzigen Einbettung. Besucher wechseln im iframe selbst.
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/all", "all", 760)} />
+          <SnippetBlock snippet={url ? buildSnippet(url, "/embed/all", "all", 760) : null} />
         </section>
 
         <section className="space-y-3">
@@ -93,7 +99,7 @@ function EmbedInfo() {
           <p className="text-sm text-muted-foreground">
             Wetterkarte (nur Karte, ohne Tabs/Slider) und direkt darunter die Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste. Das iframe füllt die volle sichtbare Höhe (100vh) und komprimiert den Inhalt – kein Seiten-Scroll.
           </p>
-          <SnippetBlock snippet={buildViewportSnippet(url, "/embed/region-lokal", "region-lokal")} />
+          <SnippetBlock snippet={url ? buildViewportSnippet(url, "/embed/region-lokal", "region-lokal") : null} />
         </section>
 
         <section className="space-y-6">
@@ -127,7 +133,7 @@ function EmbedInfo() {
                     </span>
                   )}
                 </div>
-                <SnippetBlock snippet={buildSnippet(url, m.embedPath, m.id)} />
+                <SnippetBlock snippet={url ? buildSnippet(url, m.embedPath, m.id) : null} />
               </div>
             );
           })}
