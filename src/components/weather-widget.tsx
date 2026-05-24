@@ -353,7 +353,7 @@ function Header({
             <span className="hidden sm:inline">Ortung</span>
           </button>
         </div>
-        {(!isDefaultLocation || hideSearch) && (
+        {locationName && (
           <div className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
             <span className="text-accent" aria-hidden>
               ⌖
