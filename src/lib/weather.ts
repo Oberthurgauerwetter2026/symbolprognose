@@ -68,6 +68,7 @@ export async function reverseGeocode(
   latitude: number,
   longitude: number,
 ): Promise<string> {
+  // 1) Open-Meteo
   try {
     const url = new URL("https://geocoding-api.open-meteo.com/v1/reverse");
     url.searchParams.set("latitude", String(latitude));
@@ -82,7 +83,26 @@ export async function reverseGeocode(
   } catch {
     /* ignore */
   }
-  return `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
+  // 2) Nominatim Fallback
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("lat", String(latitude));
+    url.searchParams.set("lon", String(longitude));
+    url.searchParams.set("zoom", "12");
+    url.searchParams.set("accept-language", "de");
+    const res = await fetch(url.toString());
+    if (res.ok) {
+      const data = await res.json();
+      const a = data?.address ?? {};
+      const name =
+        a.city ?? a.town ?? a.village ?? a.municipality ?? a.suburb ?? a.county;
+      if (name) return String(name);
+    }
+  } catch {
+    /* ignore */
+  }
+  return "Aktueller Standort";
 }
 
 const DAILY_VARS = [
