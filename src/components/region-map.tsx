@@ -757,7 +757,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             </div>
 
             {/* Stundenlegende: jede Stunde */}
-            <div className={cn("mt-1 px-1", viewMode === "daily" && "opacity-40")}>
+            <div className={cn("pointer-events-none mt-1 px-1", viewMode === "daily" && "opacity-40")}>
               <div className="relative h-1.5">
                 {HOUR_LABELS.map((h) => (
                   <span
