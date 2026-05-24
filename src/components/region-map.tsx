@@ -581,6 +581,17 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             })}
             interactive={false}
           />
+          {/* Feine weisse Linie an der CH-Landesgrenze */}
+          <GeoJSON
+            data={SWITZERLAND}
+            style={() => ({
+              color: "#ffffff",
+              weight: 1.2,
+              opacity: 0.95,
+              fill: false,
+            })}
+            interactive={false}
+          />
           {/* Aussen-Maske: mittleres Grau (See + Region ausgestanzt) — wirkt innerhalb CH ausserhalb Oberthurgau */}
           <GeoJSON
             data={OUTSIDE_MASK}
