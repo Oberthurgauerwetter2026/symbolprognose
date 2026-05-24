@@ -739,7 +739,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                     width: 1,
                     background: BRAND,
                     opacity: 0.5,
-                    transition: "left 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    transition: "left 0ms",
                   }}
                 />
               )}
