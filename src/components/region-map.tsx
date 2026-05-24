@@ -376,7 +376,7 @@ function DayTabs({
   );
 }
 
-export function RegionMap({ bare = false }: { bare?: boolean } = {}) {
+export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill?: boolean } = {}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -504,14 +504,16 @@ export function RegionMap({ bare = false }: { bare?: boolean } = {}) {
   };
 
   return (
-    <div className="@container space-y-4">
+    <div className={cn("@container", fill ? "flex h-full w-full flex-col" : "space-y-4")}>
       {/* Karte */}
       <div
         className={cn(
           "relative overflow-hidden shadow-lg",
-          bare
-            ? "w-full rounded-lg @[420px]:rounded-xl @[640px]:rounded-2xl aspect-square @[360px]:aspect-[5/4] @[480px]:aspect-[4/3] @[640px]:aspect-[16/11] @[820px]:aspect-[16/10] min-h-[200px] max-h-[640px]"
-            : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
+          fill
+            ? "h-full w-full min-h-0 flex-1"
+            : bare
+              ? "w-full rounded-lg @[420px]:rounded-xl @[640px]:rounded-2xl aspect-square @[360px]:aspect-[5/4] @[480px]:aspect-[4/3] @[640px]:aspect-[16/11] @[820px]:aspect-[16/10] min-h-[200px] max-h-[640px]"
+              : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
         )}
       >
         <MapContainer

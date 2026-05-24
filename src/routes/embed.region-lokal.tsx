@@ -21,7 +21,7 @@ function EmbedRegionLokal() {
     <EmbedShell fillViewport>
       <div className="@container flex h-full w-full flex-col overflow-hidden">
         <div className="min-h-0 flex-1">
-          <RegionMap bare />
+          <RegionMap bare fill />
         </div>
         <div className="shrink-0">
           <WeatherWidget detailOnly compact lockedLocation={AMRISWIL} />
