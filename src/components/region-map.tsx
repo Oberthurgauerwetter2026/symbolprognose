@@ -28,9 +28,12 @@ function BoundsFitter({ bounds }: { bounds: L.LatLngBoundsExpression }) {
     fit();
     window.addEventListener("resize", fit);
     window.addEventListener("orientationchange", fit);
+    const ro = new ResizeObserver(fit);
+    ro.observe(map.getContainer());
     return () => {
       window.removeEventListener("resize", fit);
       window.removeEventListener("orientationchange", fit);
+      ro.disconnect();
     };
   }, [map, bounds]);
   return null;
