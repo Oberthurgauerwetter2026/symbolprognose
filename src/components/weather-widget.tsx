@@ -161,6 +161,33 @@ export function WeatherWidget({
   }, [forecast.data, now]);
 
 
+  if (detailOnly) {
+    return (
+      <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
+        <div className="max-w-5xl mx-auto">
+          {location && forecast.isLoading && <SkeletonWidget />}
+          {location && forecast.isError && (
+            <div className="p-6 bg-zinc-50 border border-zinc-200 rounded-sm text-sm text-zinc-600">
+              Wetterdaten konnten nicht geladen werden. Bitte später erneut versuchen.
+            </div>
+          )}
+          {forecast.data && (
+            <DetailPanel
+              forecast={forecast.data}
+              hourlyIndices={allHourly}
+              days={days}
+              selectedDayIdx={selectedDayIdx}
+              onVisibleDayChange={setSelectedDayIdx}
+              now={now}
+              extended={false}
+              snow={false}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
       <div className="max-w-5xl mx-auto space-y-5">
