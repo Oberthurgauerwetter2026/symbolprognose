@@ -160,8 +160,7 @@ export function WeatherWidget({
     <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
       <div className="max-w-5xl mx-auto space-y-5">
         <Header
-          locationName={location.name}
-          isDefaultLocation={location.name === DEFAULT_LOCATION.name}
+          locationName={location?.name ?? null}
           hideSearch={embedMinimal}
           onSelectLocation={(loc) => {
             setLocation({
