@@ -47,16 +47,16 @@ export function WeatherWidget({
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
 } = {}) {
-  const [location, setLocation] = useState<StoredLocation>(() => {
+  const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (initialLocation) return initialLocation;
-    if (typeof window === "undefined") return DEFAULT_LOCATION;
+    if (typeof window === "undefined") return null;
     try {
       const raw = localStorage.getItem("weather:location");
       if (raw) return JSON.parse(raw) as StoredLocation;
     } catch {
       /* ignore */
     }
-    return DEFAULT_LOCATION;
+    return null;
   });
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
@@ -75,6 +75,7 @@ export function WeatherWidget({
   useEffect(() => {
     if (!initialLocation) return;
     setLocation((prev) =>
+      prev &&
       prev.name === initialLocation.name &&
       prev.latitude === initialLocation.latitude &&
       prev.longitude === initialLocation.longitude
@@ -86,6 +87,7 @@ export function WeatherWidget({
   const now = useNow();
 
   useEffect(() => {
+    if (!location) return;
     try {
       localStorage.setItem("weather:location", JSON.stringify(location));
     } catch {
