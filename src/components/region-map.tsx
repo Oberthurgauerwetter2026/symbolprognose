@@ -708,7 +708,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                   style={{
                     left: `calc(${thumbPct}% + 4px)`,
                     transform: "translateX(-50%)",
-                    transition: "left 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    transition: "left 0ms",
                   }}
                 >
                   <div
