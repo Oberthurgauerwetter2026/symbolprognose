@@ -29,7 +29,10 @@ export function EmbedShell({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div ref={ref} className="mx-auto w-full max-w-6xl px-3 py-3 sm:px-5 sm:py-5">
+    <div
+      ref={ref}
+      className="@container mx-auto w-full max-w-6xl px-2 py-2 @[520px]:px-4 @[520px]:py-4"
+    >
       {children}
     </div>
   );

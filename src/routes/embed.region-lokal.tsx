@@ -19,9 +19,11 @@ export const Route = createFileRoute("/embed/region-lokal")({
 function EmbedRegionLokal() {
   return (
     <EmbedShell>
-      <RegionMap bare />
-      <div className="mt-4">
-        <WeatherWidget detailOnly lockedLocation={AMRISWIL} />
+      <div className="@container">
+        <RegionMap bare />
+        <div className="mt-3 @[640px]:mt-5">
+          <WeatherWidget detailOnly lockedLocation={AMRISWIL} />
+        </div>
       </div>
     </EmbedShell>
   );
