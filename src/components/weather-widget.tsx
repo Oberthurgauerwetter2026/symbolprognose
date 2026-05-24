@@ -115,8 +115,9 @@ export function WeatherWidget({
   }, []);
 
   const forecast = useQuery({
-    queryKey: ["forecast", location.latitude, location.longitude],
-    queryFn: () => fetchForecast(location.latitude, location.longitude),
+    queryKey: ["forecast", location?.latitude ?? 0, location?.longitude ?? 0],
+    queryFn: () => fetchForecast(location!.latitude, location!.longitude),
+    enabled: !!location,
     staleTime: 15 * 60 * 1000,
   });
 
