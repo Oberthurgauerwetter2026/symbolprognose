@@ -708,7 +708,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                   style={{
                     left: `calc(${thumbPct}% + 4px)`,
                     transform: "translateX(-50%)",
-                    transition: "left 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    transition: "left 0ms",
                   }}
                 >
                   <div
@@ -739,12 +739,14 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                     width: 1,
                     background: BRAND,
                     opacity: 0.5,
-                    transition: "left 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    transition: "left 0ms",
                   }}
                 />
               )}
 
               <Slider
+                size="touch"
+                aria-label="Prognosezeit"
                 min={0}
                 max={MAX_STEPS}
                 step={1}
@@ -755,7 +757,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             </div>
 
             {/* Stundenlegende: jede Stunde */}
-            <div className={cn("mt-1 px-1", viewMode === "daily" && "opacity-40")}>
+            <div className={cn("pointer-events-none mt-1 px-1", viewMode === "daily" && "opacity-40")}>
               <div className="relative h-1.5">
                 {HOUR_LABELS.map((h) => (
                   <span
