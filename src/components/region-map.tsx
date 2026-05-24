@@ -530,17 +530,11 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           style={{ height: "100%", width: "100%", background: "#e8edef" }}
         >
           <BoundsFitter bounds={regionBounds} />
-          {/* Swisstopo Relief-Basiskarte (Landeskarte grau mit Reliefschattierung) */}
+          {/* Swisstopo Relief-Basiskarte (nur Reliefschattierung, keine Labels/Strassen) */}
           <TileLayer
-            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg"
+            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
-          />
-          {/* Reliefschattierung leicht darüber für mehr Plastizität */}
-          <TileLayer
-            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissalti3d-reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
-            maxZoom={18}
-            opacity={0.35}
           />
           {/* Aussen-Maske: dunkles Grau (See + Region ausgestanzt) — bleibt ausserhalb CH dunkel */}
           <GeoJSON
