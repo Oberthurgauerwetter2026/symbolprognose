@@ -527,13 +527,14 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           scrollWheelZoom
           zoomControl={false}
           attributionControl={true}
-          style={{ height: "100%", width: "100%", background: "#e8edef" }}
+          style={{ height: "100%", width: "100%", background: "#f2f4f5" }}
         >
           <BoundsFitter bounds={regionBounds} />
           {/* Swisstopo Relief-Basiskarte (nur Reliefschattierung, keine Labels/Strassen) */}
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
+            opacity={0.85}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
           />
           {/* Aussen-Maske: dunkles Grau (See + Region ausgestanzt) — bleibt ausserhalb CH dunkel */}
@@ -546,14 +547,13 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             })}
             interactive={false}
           />
-          {/* Kanton Thurgau: nur dezent angedeutet (zarte Outline, keine Füllung) */}
+          {/* Kanton Thurgau: deutliche Outline ohne Füllung */}
           <GeoJSON
             data={THURGAU}
             style={() => ({
-              color: "#2561a1",
-              weight: 1,
-              opacity: 0.45,
-              dashArray: "3 3",
+              color: "#1f4d80",
+              weight: 2,
+              opacity: 0.85,
               fill: false,
             })}
             interactive={false}
