@@ -1,21 +1,28 @@
-## Problem
+## Ziel
+Die Lovable-Vorschau soll nicht mehr regelmäßig leer werden. Karten- und Admin-Seiten sollen stabil laden, statt durch den aktuellen React-/Router-Hook-Fehler komplett zu verschwinden.
 
-`/embed-info` baut den Snippet aus `window.location.origin`. Öffnest du die Seite im **Preview** (`id-preview--….lovable.app`), zeigt der kopierte iframe auf die Preview-Domain – die ist passwortgeschützt → Lovable-Login in WordPress.
+## Befund
+- Die Vorschau wirft wiederholt `Invalid hook call` in TanStack Router `<AwaitInner>`.
+- Gleichzeitig sind die TanStack-Pakete im Projekt nicht auf einem konsistenten Versionsstand: `@tanstack/react-router` ist neuer als `@tanstack/react-start` und `@tanstack/router-plugin`.
+- Das passt zum beobachteten Verhalten: nach Hot-Reload/Dependency-Optimierung lädt die App teilweise, dann verschwindet der Inhalt.
+- Die Karten- und Admin-Routen selbst existieren; das Problem liegt sehr wahrscheinlich in der Router/Start-Laufzeit-Kombination, nicht in der Karte allein.
 
-Die publizierte Version (`symbolprognose.lovable.app`) ist `public`, dort funktionieren die Embeds.
+## Umsetzung
+1. **TanStack-Versionen angleichen**
+   - `@tanstack/react-start`, `@tanstack/react-router`, `@tanstack/router-plugin` und `@tanstack/zod-adapter` auf kompatible Versionen bringen.
+   - Lockfile entsprechend aktualisieren.
 
-## Fix
+2. **Root-Provider stabilisieren**
+   - `src/routes/__root.tsx` so anpassen, dass der Query-Persister nicht bei jedem Render neu erzeugt wird.
+   - Client-only Persistenz sauber trennen, damit SSR/Hydration/Hot-Reload weniger anfällig sind.
 
-In `src/routes/embed-info.tsx`:
+3. **Fehler sichtbar statt leer machen**
+   - Bestehende Error Boundaries behalten/leicht härten, damit bei einem Fehler eine verständliche Meldung erscheint und nicht eine komplett leere Seite.
 
-1. Konstante `PUBLISHED_ORIGIN = "https://symbolprognose.lovable.app"` definieren.
-2. Snippets immer mit `PUBLISHED_ORIGIN` bauen – unabhängig davon, wo `/embed-info` geöffnet wird. Damit ist der kopierte Code immer korrekt, egal ob Preview oder publizierte Domain.
-3. `useState`/`useEffect` für die Origin entfällt – keine Hydration-Problematik mehr.
-4. Kleiner Hinweistext über den Snippets: „Snippets zeigen immer auf die publizierte URL (symbolprognose.lovable.app). Nach Code-Änderungen erst publishen, dann werden sie in WordPress sichtbar."
+4. **Validierung**
+   - Vorschau auf `/karten/lokal`, `/karten/region`, `/embed/region-lokal` und `/admin` prüfen.
+   - Console-Fehler kontrollieren, insbesondere ob `Invalid hook call` verschwunden ist.
 
-Keine weiteren Dateien betroffen.
-
-## Verifikation
-
-- `/embed-info` neu laden, ein Snippet kopieren → `src="https://symbolprognose.lovable.app/embed/..."`.
-- In WordPress einfügen → iframe lädt ohne Login.
+## Nicht Teil dieses Fixes
+- Keine Änderung an den Wetterdaten, Kartenpositionen oder WordPress-Embed-Snippets.
+- Kein Umbau des Admin-Passwortsystems, nur Wiederherstellung der Ladefähigkeit.
