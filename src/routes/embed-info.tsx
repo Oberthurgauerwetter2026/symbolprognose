@@ -14,8 +14,7 @@ function buildSnippet(url: string, path: string, idSuffix: string, fallbackHeigh
   return `<iframe
   id="wx-${idSuffix}"
   src="${url}${path}"
-  style="width:100%;max-width:100%;min-width:0;height:0;border:0;display:block;box-sizing:border-box"
-  loading="lazy"
+  style="width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;display:block;box-sizing:border-box"
   title="Wetter-Karte"
 ></iframe>
 <noscript><style>#wx-${idSuffix}{height:${fallbackHeight}px}</style></noscript>
