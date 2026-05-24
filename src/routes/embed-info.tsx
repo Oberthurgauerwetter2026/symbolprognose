@@ -31,6 +31,15 @@ function buildSnippet(url: string, path: string, idSuffix: string, fallbackHeigh
 </script>`;
 }
 
+function buildViewportSnippet(url: string, path: string, idSuffix: string) {
+  return `<iframe
+  id="wx-${idSuffix}"
+  src="${url}${path}"
+  style="width:100%;max-width:100%;min-width:0;height:100vh;max-height:100vh;min-height:360px;border:0;display:block;box-sizing:border-box"
+  title="Wetter-Karte"
+></iframe>`;
+}
+
 function SnippetBlock({ snippet }: { snippet: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -82,9 +91,9 @@ function EmbedInfo() {
             Karte + Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Wetterkarte (nur Karte, ohne Tabs/Slider) und direkt darunter die Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste.
+            Wetterkarte (nur Karte, ohne Tabs/Slider) und direkt darunter die Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste. Das iframe füllt die volle sichtbare Höhe (100vh) und komprimiert den Inhalt – kein Seiten-Scroll.
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal")} />
+          <SnippetBlock snippet={buildViewportSnippet(url, "/embed/region-lokal", "region-lokal")} />
         </section>
 
         <section className="space-y-6">
