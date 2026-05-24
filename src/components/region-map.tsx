@@ -757,8 +757,24 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             </div>
 
             {/* Stundenlegende: jede Stunde */}
-            <div className={cn("pointer-events-none mt-1 px-1", viewMode === "daily" && "opacity-40")}>
-              <div className="relative h-1.5">
+            <div
+              className={cn(
+                "mt-1 px-1",
+                viewMode === "daily" ? "pointer-events-none opacity-40" : "cursor-pointer",
+              )}
+              onPointerDown={
+                viewMode === "daily"
+                  ? undefined
+                  : (e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = e.clientX - rect.left;
+                      const pct = Math.max(0, Math.min(1, x / rect.width));
+                      const step = Math.round(pct * MAX_STEPS);
+                      setStepOffset(Math.max(0, Math.min(MAX_STEPS, step)));
+                    }
+              }
+            >
+              <div className="pointer-events-none relative h-1.5">
                 {HOUR_LABELS.map((h) => (
                   <span
                     key={`tick-${h}`}
@@ -770,7 +786,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                   />
                 ))}
               </div>
-              <div className="relative mt-0.5 h-3">
+              <div className="pointer-events-none relative mt-0.5 h-3">
                 {HOUR_LABELS.map((h) => {
                   const realHour = (baseHour + h) % 24;
                   const display = `${String(realHour).padStart(2, "0")}:00`;
