@@ -96,17 +96,21 @@ const OUTSIDE_MASK: FeatureCollection = (() => {
 
 const OUTSIDE_CH_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
-  for (const f of SWITZERLAND.features) {
-    const g = f.geometry;
-    if (!g) continue;
-    if (g.type === "Polygon") {
-      if (g.coordinates[0]) holes.push(g.coordinates[0]);
-    } else if (g.type === "MultiPolygon") {
-      for (const poly of g.coordinates) {
-        if (poly[0]) holes.push(poly[0]);
+  const collect = (fc: FeatureCollection) => {
+    for (const f of fc.features) {
+      const g = f.geometry;
+      if (!g) continue;
+      if (g.type === "Polygon") {
+        if (g.coordinates[0]) holes.push(g.coordinates[0]);
+      } else if (g.type === "MultiPolygon") {
+        for (const poly of g.coordinates) {
+          if (poly[0]) holes.push(poly[0]);
+        }
       }
     }
-  }
+  };
+  collect(SWITZERLAND);
+  collect(LAKE);
   const world: number[][] = [
     [-180, -85],
     [180, -85],
@@ -577,6 +581,17 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             })}
             interactive={false}
           />
+          {/* Feine weisse Linie an der CH-Landesgrenze */}
+          <GeoJSON
+            data={SWITZERLAND}
+            style={() => ({
+              color: "#ffffff",
+              weight: 1.2,
+              opacity: 0.95,
+              fill: false,
+            })}
+            interactive={false}
+          />
           {/* Aussen-Maske: mittleres Grau (See + Region ausgestanzt) — wirkt innerhalb CH ausserhalb Oberthurgau */}
           <GeoJSON
             data={OUTSIDE_MASK}
@@ -605,7 +620,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               color: "#6bb6d6",
               weight: 0.6,
               fillColor: "#7ec8e3",
-              fillOpacity: 0.9,
+              fillOpacity: 1,
             })}
             interactive={false}
           />
