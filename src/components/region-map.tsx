@@ -786,7 +786,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                   />
                 ))}
               </div>
-              <div className="relative mt-0.5 h-3">
+              <div className="pointer-events-none relative mt-0.5 h-3">
                 {HOUR_LABELS.map((h) => {
                   const realHour = (baseHour + h) % 24;
                   const display = `${String(realHour).padStart(2, "0")}:00`;
