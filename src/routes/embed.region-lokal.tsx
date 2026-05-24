@@ -21,7 +21,7 @@ function EmbedRegionLokal() {
     <EmbedShell>
       <div className="@container">
         <RegionMap bare />
-        <div className="mt-3 @[640px]:mt-5">
+        <div className="mt-2 @[420px]:mt-3 @[640px]:mt-5">
           <WeatherWidget detailOnly lockedLocation={AMRISWIL} />
         </div>
       </div>

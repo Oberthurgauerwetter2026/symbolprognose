@@ -163,7 +163,7 @@ export function WeatherWidget({
 
   if (detailOnly) {
     return (
-      <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-3 px-2 @[640px]:py-6 @[640px]:px-5 @[900px]:py-8 @[900px]:px-6">
+      <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-2 px-1 @[420px]:py-3 @[420px]:px-2 @[640px]:py-6 @[640px]:px-5 @[900px]:py-8 @[900px]:px-6">
         <div className="max-w-5xl mx-auto">
           {location && forecast.isLoading && <SkeletonWidget />}
           {location && forecast.isError && (
