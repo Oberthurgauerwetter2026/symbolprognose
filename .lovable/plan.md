@@ -1,28 +1,28 @@
 ## Ziel
-Die Lovable-Vorschau soll nicht mehr regelmäßig leer werden. Karten- und Admin-Seiten sollen stabil laden, statt durch den aktuellen React-/Router-Hook-Fehler komplett zu verschwinden.
 
-## Befund
-- Die Vorschau wirft wiederholt `Invalid hook call` in TanStack Router `<AwaitInner>`.
-- Gleichzeitig sind die TanStack-Pakete im Projekt nicht auf einem konsistenten Versionsstand: `@tanstack/react-router` ist neuer als `@tanstack/react-start` und `@tanstack/router-plugin`.
-- Das passt zum beobachteten Verhalten: nach Hot-Reload/Dependency-Optimierung lädt die App teilweise, dann verschwindet der Inhalt.
-- Die Karten- und Admin-Routen selbst existieren; das Problem liegt sehr wahrscheinlich in der Router/Start-Laufzeit-Kombination, nicht in der Karte allein.
+Kartenstil in `src/components/region-map-template.tsx` anpassen:
 
-## Umsetzung
-1. **TanStack-Versionen angleichen**
-   - `@tanstack/react-start`, `@tanstack/react-router`, `@tanstack/router-plugin` und `@tanstack/zod-adapter` auf kompatible Versionen bringen.
-   - Lockfile entsprechend aktualisieren.
+1. **Basiskarte wechseln**: Statt `ch.swisstopo.leichte-basiskarte` die Swisstopo **Reliefkarte** als Hauptlayer verwenden (`ch.swisstopo.pixelkarte-farbe` mit Relief, oder direkt das Reliefschattierungs-Layer `ch.swisstopo.swissalti3d-reliefschattierung_mono` als Basis auf neutralem Hintergrund). Konkret: `ch.swisstopo.pixelkarte-grau` als Basis + bestehende Reliefschattierung darüber, oder den swisstopo "Landeskarte als Relief"-Layer `ch.swisstopo.pixelkarte-farbe-pk25.noscale` — ich nehme die Kombi **leichte Basiskarte grau/relief** → Layer `ch.swisstopo.leichte-basiskarte_reliefschattierung` (offizieller Relief-Stil).
+2. **Oberthurgau** bleibt grün (aktuelle `regionFillColor` `#7ebd5a`) — unverändert.
+3. **Ausserhalb der Schweiz**: aktuelle graue Maske (`#5a6670`, opacity `0.6`) bleibt erhalten — sie liegt sowieso über allem ausserhalb der Region. Damit ausserhalb der **Schweizer Landesgrenze** dunkel bleibt, die Maske so anpassen, dass sie die Schweiz-Aussenform berücksichtigt (oder einfach belassen, da swisstopo-Tiles ohnehin nur CH zeigen).
+4. **Kanton Thurgau leicht andeuten**: neues GeoJSON `src/data/thurgau-canton.json` (Kantonsgrenze TG) als dezenter Outline-Layer (z. B. `#2561a1` / weight `1` / opacity `0.4`, ohne Füllung) hinzufügen. Quelle: swissBOUNDARIES3D via `api3.geo.admin.ch` (Kanton Thurgau).
 
-2. **Root-Provider stabilisieren**
-   - `src/routes/__root.tsx` so anpassen, dass der Query-Persister nicht bei jedem Render neu erzeugt wird.
-   - Client-only Persistenz sauber trennen, damit SSR/Hydration/Hot-Reload weniger anfällig sind.
+## Änderungen
 
-3. **Fehler sichtbar statt leer machen**
-   - Bestehende Error Boundaries behalten/leicht härten, damit bei einem Fehler eine verständliche Meldung erscheint und nicht eine komplett leere Seite.
+- **`src/components/region-map-template.tsx`**
+  - Neuer optionaler Prop `cantonOutline?: FeatureCollection`.
+  - Basis-`TileLayer` URL ändern auf den Relief-Stil von swisstopo.
+  - Bestehender Reliefschattierungs-Layer bleibt (oder wird entfernt, falls der neue Basis-Layer bereits Relief enthält — dann nur ein Layer).
+  - Neuer `GeoJSON`-Layer für `cantonOutline` (nur Stroke, keine Füllung, dezent).
+- **`src/data/thurgau-canton.json`** (neu) — Kantonsgrenze TG als FeatureCollection.
+- **`src/components/region-map.tsx`** — `cantonOutline={thurgauCanton}` durchreichen.
 
-4. **Validierung**
-   - Vorschau auf `/karten/lokal`, `/karten/region`, `/embed/region-lokal` und `/admin` prüfen.
-   - Console-Fehler kontrollieren, insbesondere ob `Invalid hook call` verschwunden ist.
+## Offene Frage
 
-## Nicht Teil dieses Fixes
-- Keine Änderung an den Wetterdaten, Kartenpositionen oder WordPress-Embed-Snippets.
-- Kein Umbau des Admin-Passwortsystems, nur Wiederherstellung der Ladefähigkeit.
+Welcher swisstopo-Stil ist gemeint?
+
+- **A**: `ch.swisstopo.pixelkarte-farbe` (farbige Landeskarte mit Relief, kräftig)
+- **B**: `ch.swisstopo.leichte-basiskarte_reliefschattierung` (helle Basiskarte mit Reliefschatten, dezent)
+- **C**: Nur Reliefschattierung pur (`swissalti3d-reliefschattierung`) auf neutralem Grau (sehr minimal, topografisch)
+
+Default-Vorschlag: **B** — passt am besten zum aktuellen klaren Look und betont das Relief.

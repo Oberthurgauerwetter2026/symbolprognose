@@ -530,18 +530,19 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           style={{ height: "100%", width: "100%", background: "#e8edef" }}
         >
           <BoundsFitter bounds={regionBounds} />
+          {/* Swisstopo Relief-Basiskarte (Landeskarte grau mit Reliefschattierung) */}
           <TileLayer
-            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte/default/current/3857/{z}/{x}/{y}.png"
+            url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg"
             maxZoom={18}
-            attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
           />
-          {/* Relief-Schummerung (swissALTI3D) — stärker */}
+          {/* Reliefschattierung leicht darüber für mehr Plastizität */}
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissalti3d-reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
-            opacity={0.8}
+            opacity={0.35}
           />
-          {/* Aussen-Maske: Grau (See + Region ausgestanzt) */}
+          {/* Aussen-Maske: dunkles Grau (See + Region ausgestanzt) — bleibt ausserhalb CH dunkel */}
           <GeoJSON
             data={OUTSIDE_MASK}
             style={() => ({
@@ -551,14 +552,15 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             })}
             interactive={false}
           />
-          {/* Kanton Thurgau: 60 % heller als die Aussen-Maske */}
+          {/* Kanton Thurgau: nur dezent angedeutet (zarte Outline, keine Füllung) */}
           <GeoJSON
             data={THURGAU}
             style={() => ({
-              color: "#8a9399",
-              weight: 0.8,
-              fillColor: "#bdc2c6",
-              fillOpacity: 0.6,
+              color: "#2561a1",
+              weight: 1,
+              opacity: 0.45,
+              dashArray: "3 3",
+              fill: false,
             })}
             interactive={false}
           />
