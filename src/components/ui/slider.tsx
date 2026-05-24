@@ -17,7 +17,7 @@ const Slider = React.forwardRef<
       ref={ref}
       className={cn(
         "relative flex w-full touch-none select-none items-center",
-        isTouch && "py-3",
+        isTouch && "py-1.5",
         className,
       )}
       {...props}
@@ -34,7 +34,7 @@ const Slider = React.forwardRef<
         className={cn(
           "relative block rounded-full border bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
           isTouch
-            ? "h-6 w-6 border-2 border-primary shadow-md before:absolute before:-inset-3 before:content-['']"
+            ? "h-5 w-5 border-2 border-primary shadow-md before:absolute before:-inset-2.5 before:content-['']"
             : "h-4 w-4 border-primary/50",
         )}
       />

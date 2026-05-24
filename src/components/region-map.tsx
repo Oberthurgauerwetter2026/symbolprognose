@@ -697,7 +697,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
 
             <div
               className={cn(
-                "region-slider relative px-1 pt-10",
+                "region-slider relative px-1 pt-8",
                 viewMode === "daily" && "pointer-events-none opacity-40",
               )}
             >
@@ -734,7 +734,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                   className="pointer-events-none absolute z-0"
                   style={{
                     left: `calc(${thumbPct}% + 4px)`,
-                    top: "1.25rem",
+                    top: "1rem",
                     bottom: "-1.25rem",
                     width: 1,
                     background: BRAND,
