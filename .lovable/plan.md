@@ -1,46 +1,40 @@
-## Ziel
+# Fix: ICON-CH1 / ICON-CH2 im Radar wieder aktivieren
 
-Den bestehenden Open-Meteo R2-Cache von 2 Phasen (Radar) auf das **3-Phasen-Schema** aus dem Amriswil-Projekt erweitern. Damit landet der komplette 7-Tage-Multi-Modell-Forecast in R2, statt pro Worker-Request live bei Open-Meteo geholt zu werden.
+## Root Cause
 
-```text
-GitHub Action (alle 5 min) ─► Open-Meteo (3 Phasen) ─► R2 (openmeteo/forecast.json)
-                                                          ▲
-Cloudflare Worker / Server-Fn ───────────────────────────┘  (nur lesen, 30 s edge cache)
+Der Debug-Endpoint zeigt `hasCache: false`, obwohl die Datei in R2 existiert (1 MB, vor 3h aktualisiert):
+
+```
+R2_PUBLIC_URL = https://pub-…r2.dev/radar/frames.json
+→ openmeteo/forecast.json  ✓ HTTP 200 (existiert)
+→ debug endpoint           ✗ hasCache:false
 ```
 
-## Schritte
+Grund: `r2BaseUrl()` in `src/lib/openmeteo-cache.server.ts` strippt nur `/radar/?$` am Ende, nicht `/radar/frames.json`. Resultat: der Helper baut die URL `…/radar/frames.json/openmeteo/forecast.json` → 404 → kein Cache → keine Phase 1/2 → ICON-CH1/CH2-Frames fehlen.
 
-1. **`scripts/ingest_openmeteo.py` erweitern** auf 3 Phasen:
-   - **Phase A** — Multi-Modell hourly+daily, `forecast_days=7`, Modelle: `meteoswiss_icon_ch2,icon_d2,arpege_europe,ecmwf_ifs025,gfs_global`. Variablen: temperature_2m, humidity, precipitation, weathercode, cloudcover, wind_speed/dir/gusts, pressure_msl + daily min/max/sum.
-   - **Phase B** — ICON-CH1 `minutely_15`, ±6 h (Nowcast). Ersetzt aktuelles `phase1`.
-   - **Phase C** — Bias-Lookback hourly, `past_days=7`, `best_match` (temperature_2m, wind_speed_10m).
-   - Version-String auf `oberthurgau-openmeteo-cache-v2` setzen, BBox bleibt 47.38–47.72 / 9.00–9.62, Grid 9×14.
-   - Payload-Struktur: `{ version, generatedAt, grid:{points}, phaseA, phaseB, phaseC }`.
+Der Cache selbst ist intakt (1 MB, alle Phasen). Es ist ein reines URL-Parsing-Problem im Worker.
 
-2. **`src/lib/radar.functions.ts` migrieren**: liest weiterhin `openmeteo/forecast.json`, aber neue Felder `phaseB` (statt `phase1`) und `phaseA[*].hourly.precipitation` (statt `phase2`). Logik (Frame-Erzeugung, Cut-off, Manifest-Merge) bleibt identisch.
+## Fix (1 Datei)
 
-3. **Neues `src/lib/openmeteo-cache.server.ts`** als zentrale Read-Helper-Datei (analog Amriswil): liest R2 einmal, in-memory Memo-Cache (30 s), liefert `getOpenMeteoCache()` für alle Server-Funktionen.
+`src/lib/openmeteo-cache.server.ts` — `r2BaseUrl()` robust machen, sodass jeder Pfad-Suffix unter Bucket-Root weggeschnitten wird:
 
-4. **Neue Server-Funktion `src/lib/forecast.functions.ts`** mit `getMultiModelForecast({ lat, lon })`: greift in `phaseA` zum nächstgelegenen Grid-Punkt, gibt `ForecastResponse`-kompatibles DTO zurück. Damit kann `weather.ts` optional auf Server-Read umgestellt werden — Client-Calls bleiben aber als Fallback erhalten (jeder Besucher hat eigene IP, kein 429-Risiko).
+```ts
+function r2BaseUrl(): string | null {
+  const base = process.env.R2_PUBLIC_URL;
+  if (!base) return null;
+  try {
+    // Nur Origin verwenden — Bucket-Root liegt dort, /radar/… und /openmeteo/… sind Geschwister.
+    return new URL(base).origin;
+  } catch {
+    return base.replace(/\/+$/, "").replace(/\/radar(\/.*)?$/i, "");
+  }
+}
+```
 
-5. **Debug-Route `src/routes/api/public/debug/r2-cache.ts`** (wie Amriswil) — listet `version`, `generatedAt`, Phasen-Längen. Erlaubt schnellen Check ob Cache frisch ist.
+## Verifikation
 
-6. **`.github/workflows/openmeteo-ingest.yml`**: keine Änderung, Cron alle 5 min bleibt.
+Nach dem Deploy:
+1. `GET /api/public/debug/r2-cache` → `hasCache:true`, `counts.phase1>0`, `counts.phase2>0`.
+2. `/karten/radar` → Frames in der Zukunft mit Labels „Prognose ICON-CH1" und „Prognose ICON-CH2" erscheinen wieder.
 
-7. **Workflow manuell triggern** → in R2 prüfen, dass `openmeteo/forecast.json` ~3× grösser ist (3 Phasen) und Radar weiter funktioniert.
-
-## Voraussetzungen
-
-R2-Secrets sind bereits gesetzt (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`) und `R2_PUBLIC_URL` als Env. Nichts Neues nötig.
-
-## Was wir NICHT tun
-
-- `src/lib/weather.ts` Client-Calls bleiben — Migration auf Server-Read ist optional, separater Schritt.
-- `scripts/ingest_radar.py` und `.github/workflows/radar-ingest.yml` bleiben unverändert.
-- Kein Breaking-Change im Frontend — Radar-Payload (`getRadarFrames`) gibt das gleiche Format zurück.
-
-## Risiken
-
-- **Payload-Grösse**: Phase A mit 5 Modellen × 126 Grid-Punkten × 7 d hourly ≈ 1–2 MB. Vertretbar, R2-Read ist günstig.
-- **Open-Meteo-Limit beim Ingest**: 3 Multi-Location-Calls × 288/Tag = 864 Requests/Tag. Weit unter dem ~10 000/Tag Free-Tier.
-- **Migration**: Falls Frontend während Roll-Out alte `phase1`/`phase2`-Felder liest → kurzer Übergang mit beiden Feldnamen befüllt, oder Atomic Deploy von Skript+Worker zusammen.
+Keine weiteren Änderungen nötig — Python-Ingest, R2-Inhalt und Radar-Renderer sind alle korrekt.

@@ -26,7 +26,12 @@ let memo: { at: number; data: OpenMeteoCachePayload } | null = null;
 function r2BaseUrl(): string | null {
   const base = process.env.R2_PUBLIC_URL;
   if (!base) return null;
-  return base.replace(/\/+$/, "").replace(/\/radar\/?$/i, "");
+  try {
+    // Bucket-Root: /radar/… und /openmeteo/… sind Geschwister unter Origin.
+    return new URL(base).origin;
+  } catch {
+    return base.replace(/\/+$/, "").replace(/\/radar(\/.*)?$/i, "");
+  }
 }
 
 export async function getOpenMeteoCache(): Promise<OpenMeteoCachePayload | null> {
