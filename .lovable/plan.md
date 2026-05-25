@@ -1,24 +1,47 @@
-## Plan: Radar-Ingest gegen Zeitversatz absichern
+## Befund
 
-### Ziel
-Der GitHub-Action-Run soll auch dann Radarframes finden, wenn MeteoSchweiz die aktuellen Dateien erst verzögert bereitstellt oder die Dateizeitstempel etwas hinter der aktuellen Uhrzeit liegen.
+Dein aktueller GitHub-Action-Log enthält weiterhin nur:
 
-### Änderungen
+```text
+== precip (since ... ) ==
+  0 candidate frames
+== hail (since ... ) ==
+  0 candidate frames
+manifest: 0 frames
+```
 
-1. **Lookback im Workflow vergrößern**
-   - In `.github/workflows/radar-ingest.yml` `RADAR_LOOKBACK_HOURS` explizit auf einen robusteren Wert setzen, z. B. `12`.
-   - Grund: Dein Log zeigt `since 2026-05-25T10:04...`; wenn die verfügbaren Frames z. B. bei `00:00–10:00` liegen, werden sie durch den sehr engen 3h-Filter komplett verworfen.
+Im aktuellen Repository-Code müssten aber vor `0 candidate frames` zusätzliche Diagnosezeilen erscheinen, z. B.:
 
-2. **Ingest-Log eindeutig machen**
-   - In `scripts/ingest_radar.py` zusätzlich ausgeben:
-     - verwendeter Lookback in Stunden
-     - ältester/neuester erkannter Asset-Zeitstempel je Produkt
-     - ob Frames wegen `since` verworfen wurden
-   - Damit ist sofort sichtbar, ob `0 candidate frames` an leerer STAC-Antwort, falschem Prefix oder nur am Zeitfilter liegt.
+```text
+lookback=12h since=...
+STAC GET ... -> 200
+item: total=... prefix=... matched=...
+asset ts range: oldest=... newest=...
+```
 
-3. **Asset-Erkennung leicht robuster machen**
-   - Dateiname nicht nur aus `asset_key`/`href`/`title`, sondern auch aus `description` erkennen.
-   - Asset-Key im Manifest weiterhin stabil halten, aber den echten `.h5`-Dateinamen fürs Timestamp-Parsing nutzen.
+Dass diese Zeilen fehlen, bedeutet sehr wahrscheinlich: Die GitHub Action läuft nicht mit dem aktuellen Lovable-Code, sondern mit einem älteren Commit/Branch oder die Änderungen sind noch nicht in GitHub angekommen.
 
-### Erwartetes Ergebnis
-Nach dem nächsten manuellen GitHub Actions Run sollte der Log wieder mehrere `candidate frames` zeigen. Falls nicht, zeigt der Log konkret, ob die API Assets liefert und welche Zeitstempel verfügbar sind.
+## Plan
+
+1. **Workflow sichtbarer machen**
+   - Im GitHub-Workflow vor dem Python-Aufruf explizit ausgeben:
+     - aktuellen Commit-SHA
+     - Branch/Ref
+     - `RADAR_LOOKBACK_HOURS`
+     - relevante Zeilen aus `scripts/ingest_radar.py`, damit sichtbar ist, welche Version wirklich läuft.
+
+2. **Ingest-Startbanner ergänzen**
+   - `scripts/ingest_radar.py` direkt beim Start eine eindeutige Versions-/Diagnosezeile ausgeben, z. B. `radar ingest diagnostics v2`.
+   - So erkennt man sofort, ob GitHub die neue Datei ausführt.
+
+3. **Robusteren Fallback einbauen**
+   - Falls trotz STAC-Fund keine Frames nach `since` übrig bleiben, optional die neuesten verfügbaren Frames trotzdem verarbeiten, statt das Manifest auf `0 frames` zu setzen.
+   - Damit bleibt die Karte nutzbar, auch wenn MeteoSchweiz-Daten verzögert sind.
+
+4. **Manifest nicht leer überschreiben**
+   - Wenn `0` neue Frames gefunden werden, aber ein bestehendes Manifest vorhanden ist, alte Frames innerhalb der Retention behalten.
+   - Das verhindert, dass ein einzelner leerer Ingest-Run die Radar-Karte leer macht.
+
+## Erwartetes Ergebnis
+
+Der nächste Action-Run zeigt eindeutig, welcher Commit und welche Script-Version ausgeführt wird. Danach ist klar, ob es ein Sync-/Branch-Problem ist oder ob der Ingest selbst noch angepasst werden muss.
