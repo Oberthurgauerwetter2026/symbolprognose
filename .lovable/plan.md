@@ -1,35 +1,21 @@
 ## Plan
 
-Ich passe nur das Radar-Ingest-Skript an.
+Ich behebe den Ingest gezielt an der Stelle, an der aktuell alle Frames verworfen werden.
 
 ### Ursache
-Die MeteoSchweiz-Dateinamen enthalten Zeitstempel wie:
-
-```text
-cpc261451220vl.801.h5
-bzc261451245vl.845.h5
-```
-
-Das aktuelle Regex erwartet nach Stunde und Minute noch einen Unterstrich (`_`). Bei den aktuellen Dateien steht dort aber oft `vl` oder eine andere Endung. Dadurch kann `parse_ts_from_filename()` keinen Zeitstempel lesen und alle Assets werden verworfen → `0 candidate frames`.
+Der Workflow läuft mit aktuellem Code, aber `0 candidate frames` ohne `note:` bedeutet sehr wahrscheinlich: Die STAC-Assets heißen nicht mehr mit Asset-Key `cpc...`/`bzc...`, sondern der Zeitstempel steckt im Asset-`href` oder einem anderen Feld. Der Code prüft bisher nur `asset_key.startswith(prefix)` und übersieht dadurch alle passenden H5-Dateien.
 
 ### Umsetzung
-1. Regex für Radar-Dateinamen robuster machen:
-   - Prefix: `cpc`, `bzc`, etc.
-   - Jahr: `26`
-   - Tag-im-Jahr: `145`
-   - Uhrzeit: `HHMM`
-   - Danach beliebige Produkt-Endung erlauben (`_`, `vl`, `.`, etc.)
-2. Kleine Diagnose-Ausgabe ergänzen, wenn ein Tages-Item Assets enthält, aber kein einziger Zeitstempel parsebar ist.
-3. Optional den Workflow so erweitern, dass `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` gesetzt ist, damit die GitHub-Warnung zu Node 20 verschwindet.
+1. `scripts/ingest_radar.py` robuster machen:
+   - Nicht nur Asset-Key prüfen, sondern auch Dateiname aus `href`, `title` und `description`.
+   - Zeitstempel aus dem tatsächlichen H5-Dateinamen extrahieren.
+   - Assets mit `.h5` und passendem Produktpräfix behalten, auch wenn der STAC-Key anders heißt.
+2. Diagnose verbessern:
+   - Wenn keine Frames gefunden werden, im Log ausgeben, wie viele Assets vorhanden waren und 3 Beispiel-Keys/Hrefs zeigen.
+   - So ist beim nächsten GitHub-Run sofort sichtbar, ob MeteoSchweiz die Struktur erneut geändert hat.
+3. Kleine lokale Smoke-Prüfung ergänzen/ausführen:
+   - Die öffentliche STAC-Abfrage gegen heutiges Tages-Item testen.
+   - Prüfen, dass mindestens aktuelle `precip`/`hail` AssetRefs erkannt werden, bevor der Workflow wieder laufen soll.
 
 ### Erwartetes Ergebnis
-Beim nächsten manuellen Workflow-Start sollten im Log statt `0 candidate frames` mehrere Frames erscheinen, z. B.:
-
-```text
-== precip ... ==
-  XX candidate frames
-...
-manifest: XX frames
-```
-
-Danach sollte `frames.json` Einträge enthalten und `/karten/radar` Bilder anzeigen.
+Beim nächsten manuellen Run steht im Schritt **Run ingest** nicht mehr `0 candidate frames`, sondern mehrere Kandidaten; danach wird `radar/frames.json` mit Frame-URLs geschrieben und `/karten/radar` kann Bilder anzeigen.
