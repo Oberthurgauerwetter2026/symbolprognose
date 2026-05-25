@@ -86,7 +86,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   p2.set("hourly", "precipitation");
   p2.set("forecast_days", "6");
   p2.set("timezone", "UTC");
-  p2.set("models", "icon_ch2");
+  p2.set("models", "meteoswiss_icon_ch2");
 
   const [r1, r2] = await Promise.all([fetchOpenMeteo(p1), fetchOpenMeteo(p2)]);
 
