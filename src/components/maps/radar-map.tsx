@@ -585,8 +585,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             </div>
 
             <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              Quellen: Open-Meteo Radar-Nowcast (Messung, −12 h … jetzt) · ICON-CH1
-              (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h) · Datenstand:{" "}
+              {data.hasRealRadar
+                ? "Quellen: MeteoSchweiz CPC-Radar (Messung, ≤ jetzt) · ICON-CH1 (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h)"
+                : "Quellen: Open-Meteo Radar-Nowcast (Messung, −12 h … jetzt) · ICON-CH1 (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h)"}{" "}
+              · Datenstand:{" "}
               {new Intl.DateTimeFormat("de-CH", {
                 day: "2-digit",
                 month: "2-digit",
