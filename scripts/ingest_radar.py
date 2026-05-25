@@ -142,36 +142,62 @@ def parse_ts_from_filename(name: str) -> datetime | None:
     return base
 
 
+def _extract_assets(feature: dict, product: str, prefix: str, since: datetime) -> list[AssetRef]:
+    out: list[AssetRef] = []
+    for asset_key, asset in (feature.get("assets") or {}).items():
+        if not asset_key.startswith(prefix):
+            continue
+        ts = parse_ts_from_filename(asset_key)
+        if ts is None or ts < since:
+            continue
+        href = asset.get("href")
+        if not href:
+            continue
+        out.append(AssetRef(product=product, ts=ts, href=href, key=asset_key))
+    return out
+
+
 def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
-    """Return asset refs newer than `since`."""
+    """Return asset refs newer than `since`.
+
+    STAC items here are grouped per day with id `YYYYMMDD-ch`. The default
+    `…/items?limit=N` returns OLDEST first, so we address daily items
+    directly (today + yesterday UTC to cover midnight rollover).
+    """
     coll = COLLECTIONS[product]
     prefix = ASSET_PREFIX[product]
-    # STAC items here are grouped per day. Pull the last few days to be safe.
-    url = f"{STAC_BASE}/{coll}/items?limit=10"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    feats = r.json().get("features", [])
-    out: list[AssetRef] = []
-    for f in feats:
-        for asset_key, asset in (f.get("assets") or {}).items():
-            if not asset_key.startswith(prefix):
+    now = datetime.now(tz=timezone.utc)
+    candidates: list[AssetRef] = []
+    for day_offset in (0, 1):
+        day = (now - timedelta(days=day_offset)).strftime("%Y%m%d")
+        url = f"{STAC_BASE}/{coll}/items/{day}-ch"
+        try:
+            r = requests.get(url, timeout=30)
+            if r.status_code == 404:
                 continue
-            ts = parse_ts_from_filename(asset_key)
-            if ts is None or ts < since:
-                continue
-            href = asset.get("href")
-            if not href:
-                continue
-            out.append(AssetRef(product=product, ts=ts, href=href, key=asset_key))
-    # Sort newest-first, dedupe by ts.
-    seen = set()
+            r.raise_for_status()
+            candidates.extend(_extract_assets(r.json(), product, prefix, since))
+        except Exception as exc:
+            print(f"  STAC item {day}-ch: {exc}", flush=True)
+
+    if not candidates:
+        try:
+            url = f"{STAC_BASE}/{coll}/items?sortby=-properties.datetime&limit=3"
+            r = requests.get(url, timeout=30)
+            r.raise_for_status()
+            for feat in r.json().get("features", []):
+                candidates.extend(_extract_assets(feat, product, prefix, since))
+        except Exception as exc:
+            print(f"  STAC sort fallback: {exc}", flush=True)
+
+    seen: set[datetime] = set()
     uniq: list[AssetRef] = []
-    for a in sorted(out, key=lambda x: x.ts, reverse=True):
+    for a in sorted(candidates, key=lambda x: x.ts):
         if a.ts in seen:
             continue
         seen.add(a.ts)
         uniq.append(a)
-    return list(reversed(uniq))  # oldest first
+    return uniq
 
 
 # ---------------------------------------------------------------------------
