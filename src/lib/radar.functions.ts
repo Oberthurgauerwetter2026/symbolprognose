@@ -7,13 +7,19 @@ import { setResponseHeader } from "@tanstack/react-start/server";
  * Vergangenheit (≤ now):
  *   - Bevorzugt: echte MeteoSchweiz-CPC- / POH-PNGs aus Cloudflare R2
  *     (befüllt durch `scripts/ingest_radar.py` via GitHub Actions).
- *   - Fallback: Open-Meteo minutely_15.precipitation als interpoliertes
+ *   - Fallback: ICON-CH1 minutely_15.precipitation als interpoliertes
  *     Punkt-Grid (kein echtes Radar).
  *
  * Vorhersage (> now):
- *   - ICON-CH1 (+33h, 15-min Raster) via Open-Meteo Multi-Location-Grid
- *   - ICON-CH2 (+120h, 1-h Raster) via Open-Meteo
+ *   - ICON-CH1 (+33h, 15-min Raster)
+ *   - ICON-CH2 (+120h, 1-h Raster)
+ *
+ * Alle Open-Meteo-Daten werden NICHT vom Worker live abgerufen, sondern
+ * alle 5 Minuten via GitHub Actions (`scripts/ingest_openmeteo.py`) in R2
+ * unter `openmeteo/forecast.json` gecached. Damit teilt sich kein Besucher-
+ * traffic mehr die Open-Meteo-Free-Tier-Quote.
  */
+
 
 // Bounding-Box passend zur Region (auch im Python-Ingest verwendet).
 const BBOX = { minLat: 47.38, maxLat: 47.72, minLon: 9.0, maxLon: 9.62 } as const;
@@ -61,13 +67,45 @@ export interface RadarPayload {
   warning?: string;
 }
 
-async function fetchOpenMeteo(params: URLSearchParams): Promise<unknown[]> {
-  const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Open-Meteo ${res.status}: ${await res.text().catch(() => "")}`);
-  const data = (await res.json()) as unknown;
-  return Array.isArray(data) ? data : [data];
+type OpenMeteoCache = {
+  version?: string;
+  generatedAt: string;
+  phase1: unknown[];
+  phase2: unknown[];
+};
+
+function r2BaseUrl(): string | null {
+  const base = process.env.R2_PUBLIC_URL;
+  if (!base) return null;
+  return base.replace(/\/+$/, "").replace(/\/radar\/?$/i, "");
 }
+
+async function fetchOpenMeteoCache(): Promise<OpenMeteoCache | null> {
+  const base = r2BaseUrl();
+  if (!base) {
+    console.warn("[radar] R2_PUBLIC_URL not set — open-meteo cache unavailable");
+    return null;
+  }
+  const url = `${base}/openmeteo/forecast.json`;
+  try {
+    const res = await fetch(url, {
+      cf: { cacheTtl: 30 } as unknown as undefined,
+    } as RequestInit);
+    if (!res.ok) {
+      console.warn(`[radar] openmeteo cache ${url} -> ${res.status}`);
+      return null;
+    }
+    const json = (await res.json()) as OpenMeteoCache;
+    console.log(
+      `[radar] openmeteo cache loaded: phase1=${json.phase1?.length ?? 0} phase2=${json.phase2?.length ?? 0} generatedAt=${json.generatedAt}`,
+    );
+    return json;
+  } catch (e) {
+    console.warn(`[radar] openmeteo cache error: ${(e as Error).message}`);
+    return null;
+  }
+}
+
 
 
 type LocResponse = {
@@ -113,47 +151,22 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   setResponseHeader("Cache-Control", "public, max-age=60, s-maxage=120");
 
   const { lats, lons, pts } = buildGrid();
-  const latStr = pts.map((p) => p.lat.toFixed(4)).join(",");
-  const lonStr = pts.map((p) => p.lon.toFixed(4)).join(",");
 
-  // Phase 1: Open-Meteo Radar-Nowcast (-12h) + ICON-CH1 (+33h), 15-min.
-  const p1 = new URLSearchParams();
-  p1.set("latitude", latStr);
-  p1.set("longitude", lonStr);
-  p1.set("minutely_15", "precipitation");
-  p1.set("past_minutely_15", String(48));
-  p1.set("forecast_minutely_15", String(132));
-  p1.set("timezone", "UTC");
-  p1.set("models", "meteoswiss_icon_ch1");
-
-  // Phase 2: ICON-CH2 stündlich für +33h ... +120h.
-  const p2 = new URLSearchParams();
-  p2.set("latitude", latStr);
-  p2.set("longitude", lonStr);
-  p2.set("hourly", "precipitation");
-  p2.set("forecast_days", "6");
-  p2.set("timezone", "UTC");
-  p2.set("models", "meteoswiss_icon_ch2");
-
-  const [r1Res, r2Res, manifestRes] = await Promise.allSettled([
-    fetchOpenMeteo(p1),
-    fetchOpenMeteo(p2),
+  const [cacheRes, manifestRes] = await Promise.allSettled([
+    fetchOpenMeteoCache(),
     fetchR2Manifest(),
   ]);
 
-  const r1 = r1Res.status === "fulfilled" ? r1Res.value : null;
-  const r2 = r2Res.status === "fulfilled" ? r2Res.value : null;
+  const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
+  const r1 = cache?.phase1 ?? null;
+  const r2 = cache?.phase2 ?? null;
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
 
   const warnings: string[] = [];
-  if (r1Res.status === "rejected") {
-    console.warn("[radar] phase1 failed:", (r1Res.reason as Error)?.message);
-    warnings.push("Nowcast/ICON-CH1 temporär nicht verfügbar");
+  if (!cache) {
+    warnings.push("Open-Meteo-Cache temporär nicht verfügbar");
   }
-  if (r2Res.status === "rejected") {
-    console.warn("[radar] phase2 failed:", (r2Res.reason as Error)?.message);
-    warnings.push("ICON-CH2 temporär nicht verfügbar");
-  }
+
 
   const now = Date.now();
   const ch1Cutoff = now + 33 * 3600 * 1000;
