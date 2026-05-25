@@ -126,7 +126,7 @@ class AssetRef:
     key: str  # filename
 
 
-CPC_RE = re.compile(r"^([a-z]{3})(\d{2})(\d{3})(\d{2})(\d{2})\d")
+CPC_RE = re.compile(r"^([a-z]{3})(\d{2})(\d{3})(\d{2})(\d{2})")
 
 
 def parse_ts_from_filename(name: str) -> datetime | None:
