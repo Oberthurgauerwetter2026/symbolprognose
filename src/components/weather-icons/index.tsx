@@ -15,6 +15,7 @@ const C = {
   cloudDark: "var(--wx-cloud-dark)",
   cloudDarkShade: "var(--wx-cloud-dark-shade)",
   rain: "var(--wx-rain)",
+  rainEdge: "var(--wx-rain-edge)",
   snow: "var(--wx-snow)",
   snowEdge: "var(--wx-snow-edge)",
   bolt: "var(--wx-bolt)",
