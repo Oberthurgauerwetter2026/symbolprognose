@@ -21,6 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 
 const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
