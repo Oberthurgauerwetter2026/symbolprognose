@@ -577,7 +577,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             style={() => ({
               stroke: false,
               fillColor: "#3a4148",
-              fillOpacity: 0.55,
+              fillOpacity: 0.4,
             })}
             interactive={false}
           />
@@ -598,7 +598,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             style={() => ({
               stroke: false,
               fillColor: "#5a6670",
-              fillOpacity: 0.35,
+              fillOpacity: 0.18,
             })}
             interactive={false}
           />
