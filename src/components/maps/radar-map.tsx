@@ -21,6 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 
 const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
@@ -314,6 +315,54 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   return { label: "Prognose ICON-CH2", color: "#7a4ca0" };
 }
 
+function LightningOverlay({ strikes }: { strikes: LightningStrike[] }) {
+  const map = useMap();
+  const layerRef = useRef<L.LayerGroup | null>(null);
+
+  useEffect(() => {
+    const group = L.layerGroup().addTo(map);
+    layerRef.current = group;
+    return () => {
+      group.remove();
+      layerRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const group = layerRef.current;
+    if (!group) return;
+    group.clearLayers();
+    const now = Date.now();
+    for (const s of strikes) {
+      const ageMin = (now - Date.parse(s.t)) / 60_000;
+      if (ageMin < 0 || ageMin > 30) continue;
+      const opacity = ageMin <= 5 ? 1 : ageMin <= 15 ? 0.6 : 0.25;
+      const radius = ageMin <= 5 ? 6 : 4;
+      const marker = L.circleMarker([s.lat, s.lon], {
+        radius,
+        color: "#a35a00",
+        weight: 1.5,
+        opacity,
+        fillColor: "#ffd54a",
+        fillOpacity: opacity * 0.95,
+        interactive: true,
+      });
+      const tStr = new Intl.DateTimeFormat("de-CH", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).format(new Date(s.t));
+      marker.bindTooltip(`Blitz · ${tStr} · vor ${Math.round(ageMin)} min`, {
+        direction: "top",
+        offset: [0, -4],
+      });
+      group.addLayer(marker);
+    }
+  }, [strikes]);
+
+  return null;
+}
+
 export function RadarMap({ bare = false }: { bare?: boolean }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["radar-frames"],
@@ -321,6 +370,14 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
   });
+
+  const lightning = useQuery({
+    queryKey: ["lightning-strikes"],
+    queryFn: () => getLightningStrikes(),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+
 
   const frames = data?.frames ?? [];
   const nowIdx = useNowFrameIndex(frames);
@@ -409,6 +466,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               opacity={0.7}
             />
           )}
+          {showLightning && lightning.data && (
+            <LightningOverlay strikes={lightning.data.strikes} />
+          )}
+
           <GeoJSON
             data={OUTSIDE_CH_MASK}
             style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
@@ -536,18 +597,22 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   type="button"
                   onClick={() => setShowLightning((v) => !v)}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium",
+                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium transition",
                     showLightning
-                      ? "bg-yellow-100 text-yellow-900 border-yellow-300"
+                      ? "border-yellow-300 bg-yellow-100 text-yellow-900"
                       : "bg-muted text-muted-foreground",
                   )}
-                  title="Blitze – bald verfügbar"
-                  disabled
+                  title="Blitze der letzten 30 Minuten (Blitzortung.org)"
                 >
                   <Zap className="h-3.5 w-3.5" />
                   Blitze
-                  <span className="text-[9px] opacity-70">bald</span>
+                  {lightning.data && lightning.data.strikes.length > 0 && (
+                    <span className="tabular-nums text-[10px] opacity-80">
+                      {lightning.data.strikes.length}
+                    </span>
+                  )}
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setShowHail((v) => !v)}
