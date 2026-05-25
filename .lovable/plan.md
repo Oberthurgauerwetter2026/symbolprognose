@@ -1,26 +1,15 @@
-## Hintergrund der Region-Karte an Radar angleichen
+# Region-Füllfarbe: Grün → Helles Grau
 
-Beide Karten nutzen bereits dieselbe Swisstopo-Reliefkachel mit Opacity 0.55. Der sichtbare Unterschied liegt nur an den Grau-Masken, die in der Region-Karte deutlich kräftiger sind. Diese werden auf die Werte der Radar-Karte abgesenkt. Outlines (Region Oberthurgau, Kanton Thurgau, CH-Landesgrenze, See) bleiben unverändert.
+## Ziel
+In der Symbolprognose-Karte (`RegionMap`) die grüne Region-Füllung (`#7ebd5a`) durch ein helles Grau ersetzen, das zum Radar-Map-Stil passt.
 
-### Änderungen in `src/components/region-map.tsx`
+## Änderung
+**Datei:** `src/components/region-map.tsx` (Zeile 634)
 
-1. **Aussen-CH-Maske** (Z. 575–583):
-   - `fillOpacity: 0.55` → `0.4` (wie Radar)
+- `fillColor: "#7ebd5a"` → `fillColor: "#c4cdd4"` (helles, dezentes Kaltgrau)
+- `fillOpacity: 0.28` → `fillOpacity: 0.35` (leicht erhöht, damit die Fläche bei hellem Grau weiterhin gut sichtbar bleibt)
 
-2. **Aussen-Maske Oberthurgau** (Z. 596–604):
-   - `fillOpacity: 0.35` → `0.18` (wie Radar)
-
-3. **Unverändert bleiben**:
-   - Tile-Layer (`leichte-basiskarte_reliefschattierung`, opacity 0.55) — schon identisch
-   - Hintergrundfarbe `#ebefeb` — schon identisch
-   - Weisse CH-Landesgrenze
-   - Kanton-Thurgau-Outline (`#1f4d80`, weight 2)
-   - Region-Oberthurgau-Outline + Füllung (`BRAND`, weight 2, fill `#7ebd5a` opacity 0.28)
-   - See (`#7ec8e3`, opacity 1)
-   - Marker (SpotMarker)
-
-### Effekt
-
-Die Umgebung wird heller/transparenter und das Relief tritt stärker hervor — visuell wie auf der Radar-Karte. Die hervorgehobene Region und Thurgau bleiben klar erkennbar durch ihre Outlines.
-
-Keine weiteren Dateien betroffen.
+## Nicht verändert
+- Region-Outline (`color: BRAND` / `#2561a1`, weight 2)
+- Alle Masken (OUTSIDE_CH_MASK, OUTSIDE_MASK — bereits an Radar angeglichen)
+- See-Farbe, Thurgau-Outline, Marker, Slider, Tabs
