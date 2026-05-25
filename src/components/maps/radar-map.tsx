@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapContainer, GeoJSON, TileLayer, ZoomControl, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  GeoJSON,
+  TileLayer,
+  ZoomControl,
+  ImageOverlay,
+  useMap,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
