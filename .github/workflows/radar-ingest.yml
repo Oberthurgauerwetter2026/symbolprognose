@@ -30,6 +30,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r scripts/requirements.txt
 
+      - name: Show version info
+        run: |
+          echo "commit: $GITHUB_SHA"
+          echo "ref: $GITHUB_REF"
+          echo "--- ingest_radar.py head ---"
+          sed -n '1,30p' scripts/ingest_radar.py
+          echo "--- list_recent_assets signature ---"
+          grep -n "def list_recent_assets\|RADAR_INGEST_VERSION\|def _extract_assets" scripts/ingest_radar.py || true
+
       - name: Run ingest
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
