@@ -304,9 +304,13 @@ function fmtTime(iso: string): string {
   }).format(d);
 }
 
-function sourceLabel(s: RadarFrame["source"]): { label: string; color: string } {
-  if (s === "radar") return { label: "Messung (Radar-Nowcast)", color: "#1f7a3a" };
-  if (s === "icon-ch1") return { label: "Prognose ICON-CH1", color: BRAND };
+function sourceLabel(frame: RadarFrame): { label: string; color: string } {
+  if (frame.source === "radar") {
+    return frame.precipUrl
+      ? { label: "Messung MeteoSchweiz-Radar", color: "#1f7a3a" }
+      : { label: "Messung (Open-Meteo Nowcast)", color: "#1f7a3a" };
+  }
+  if (frame.source === "icon-ch1") return { label: "Prognose ICON-CH1", color: BRAND };
   return { label: "Prognose ICON-CH2", color: "#7a4ca0" };
 }
 
