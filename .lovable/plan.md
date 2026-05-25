@@ -1,31 +1,30 @@
+# Auto-Geolocation auf der Lokalprognose
+
 ## Ziel
-Regen, Niesel, Schnee und Gewitter sollen auf den Karten-Symbolen sofort als Niederschlag erkennbar sein. Aktuell sind die Tropfen zu klein und zu blass gegenüber der grauen Wolke.
+Wenn die Seite `/karten/lokal` neu geladen wird und noch kein Ort gewählt ist, soll automatisch der aktuelle Standort des Nutzers erkannt und als Prognose-Ort gesetzt werden. Manuelle Suche und der Ortungs-Button bleiben unverändert verfügbar.
 
-## Änderungen in `src/components/weather-icons/index.tsx`
+## Aktuelles Verhalten
+In `src/components/weather-widget.tsx`:
+- `location` wird initialisiert aus (in dieser Reihenfolge): `lockedLocation` → `initialLocation` (URL-Params `lat`/`lon`/`name`) → `localStorage["weather:location"]` → `null`.
+- Bei `null` erscheint der Hinweis „Gemeinde suchen oder Ortung verwenden".
+- Geolocation passiert nur, wenn der Nutzer explizit den Ortungs-Button im `Header` klickt.
 
-**Tropfen (`Drop`)**
-- Form deutlich vergrößern (size-Faktor ~1.6) und als echte Tropfenform mit Spitze oben zeichnen statt ovaler Beere.
-- Dunkleren, kräftigeren Blauton verwenden und feine dunkle Outline (`stroke`) für Kontrast auf hellem Hintergrund.
+## Änderung
+Einen einmaligen Auto-Geolocation-Effekt im `WeatherWidget` ergänzen:
 
-**Schneeflocke (`Flake`)**
-- Arme länger und dicker, mit dunklem Edge-Stroke darunter für sichtbaren Rand auf weißem/hellem Grund.
+- Läuft nur im Browser, nicht wenn `detailOnly` oder `lockedLocation` gesetzt sind.
+- Läuft erst, nachdem der LocalStorage-Hydrate-Effekt durch ist (kleiner Microtask / Flag), damit eine gespeicherte Wahl nicht überschrieben wird.
+- Wenn dann immer noch `location === null` ist und `navigator.geolocation` verfügbar ist: `getCurrentPosition` aufrufen, `reverseGeocode` für den Namen, `setLocation(...)` setzen. `setSelectedDayIdx(0)`.
+- Bei Fehler / Permission-Denied: still bleiben — der bestehende „Gemeinde suchen oder Ortung verwenden"-Block bleibt sichtbar, der Nutzer kann manuell wählen.
+- Nur einmal pro Mount auslösen (Ref-Guard), damit kein erneuter Permission-Prompt nach einer manuellen Wahl entsteht.
 
-**Regen-Icon (`IconRain`)**
-- Mehr Tropfen (5–6), größer, in zwei versetzten Reihen, schräg gestellt (Bewegungsrichtung).
-- Wolke etwas höher schieben, damit Tropfen voll sichtbar bleiben.
+Kein Verhalten in `region-map`, Embeds oder URL-gesteuerten Aufrufen (`?lat=…&lon=…`) ändern — dort liefert `initialLocation` bzw. `lockedLocation` schon einen Wert, der Effekt überspringt sich.
 
-**Niesel-Icon (`IconDrizzle`)**
-- Tropfen kleiner als Regen, aber dichter und mit klarem Blau (nicht nur 3 winzige Punkte).
+## Technische Details
+Datei: `src/components/weather-widget.tsx`
+- Neuen `useEffect` direkt nach dem bestehenden LocalStorage-Hydrate-Effekt einfügen.
+- `useRef<boolean>(false)` als Guard `didAutoLocate`.
+- Mini-Delay via `setTimeout(…, 0)` oder zweiter Effekt mit Abhängigkeit auf einen `hydrated`-State, der nach dem ersten LocalStorage-Lauf auf `true` springt — verhindert Race mit dem Storage-Read.
+- Geolocation-Optionen: `{ timeout: 8000, maximumAge: 5 * 60_000 }`, damit der Aufruf nicht hängt.
 
-**Schnee-Icon (`IconSnow`)**
-- 5 Flocken in zwei Reihen, mit dunkleren Konturen.
-
-**Gewitter (`IconThunderstorm`)**
-- Blitz größer und vor Wolke gelegt, Tropfen größer.
-
-**Farb-Tokens in `src/styles.css`**
-- `--wx-rain` von `#1d6fb8` auf kräftigeres `#0b4f8a` und neue Variable `--wx-rain-edge: #062f55` für Tropfen-Outline.
-- `--wx-snow-edge` etwas dunkler, damit weiße Flocken auf hellem Pin sichtbar bleiben.
-
-## Nicht-Ziel
-Keine Änderung an Sonne/Mond/Wolken-Grundformen oder am Dispatcher-Mapping (WMO-Codes bleiben gleich).
+Keine weiteren Dateien betroffen.

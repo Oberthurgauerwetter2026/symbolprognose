@@ -58,8 +58,12 @@ export function WeatherWidget({
     if (initialLocation) return initialLocation;
     return null;
   });
+  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
-    if (lockedLocation || initialLocation) return;
+    if (lockedLocation || initialLocation) {
+      setHydrated(true);
+      return;
+    }
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem("weather:location");
@@ -67,7 +71,37 @@ export function WeatherWidget({
     } catch {
       /* ignore */
     }
+    setHydrated(true);
   }, []);
+  const didAutoLocate = useRef(false);
+  useEffect(() => {
+    if (!hydrated) return;
+    if (detailOnly || lockedLocation || initialLocation) return;
+    if (location) return;
+    if (didAutoLocate.current) return;
+    if (typeof window === "undefined" || !navigator.geolocation) return;
+    didAutoLocate.current = true;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const name = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+          setLocation({
+            name,
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          });
+          setSelectedDayIdx(0);
+        } catch {
+          /* ignore */
+        }
+      },
+      () => {
+        /* permission denied / error – user can choose manually */
+      },
+      { timeout: 8000, maximumAge: 5 * 60_000 },
+    );
+  }, [hydrated, location, detailOnly, lockedLocation, initialLocation]);
+
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
