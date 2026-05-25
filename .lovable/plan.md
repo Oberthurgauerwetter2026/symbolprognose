@@ -1,75 +1,98 @@
-# Radar-Animation (Karten/Radar)
 
-## Hinweis zur Datenquelle
+# Echtes MeteoSchweiz-Radar (CPC + Hagel) via GitHub Actions → R2 → App
 
-Open-Meteo betreibt **keine eigene Radar-Tile-API** (wie RainViewer das tut). Es liefert aber **rasterbasierte Niederschlags-Punktdaten**:
+## Architektur
 
-- **Vergangenheit (bis −24 h)**: `minutely_15.precipitation` — basiert auf gemerged Radar-Nowcast-Daten (kommt indirekt aus europäischen Radarnetzen inkl. MeteoSchweiz/DWD). Auflösung 15 min.
-- **Gegenwart → +33 h**: `models=icon_ch1` mit `minutely_15.precipitation` oder `hourly.precipitation`.
-- **+33 h → +120 h**: `models=icon_ch2` mit `hourly.precipitation`.
+```text
+MeteoSchweiz OGD STAC API
+   │  (alle 5 min)
+   ▼
+GitHub Actions Cron  ──── python: h5py, numpy, Pillow, boto3
+   │   1) STAC abfragen: neue CPC- und POH/MESHS-Frames
+   │   2) HDF5 herunterladen, auf Oberthurgau-Bbox croppen
+   │   3) PNG mit Farbpalette + Alpha rendern (EPSG:3857-Reprojektion)
+   │   4) Upload nach Cloudflare R2 (S3-API)
+   │   5) frames.json (Manifest) aktualisieren
+   ▼
+Cloudflare R2 (public bucket, S3-kompatibel)
+   │  radar/precip/<ts>.png
+   │  radar/hail/<ts>.png
+   │  radar/frames.json
+   ▼
+Lovable-App (TanStack Start)
+   │  Server-Fn liest frames.json (mit Cache-Control)
+   │  Leaflet ImageOverlay + Timeline (vorhandene radar-map.tsx)
+```
 
-Daraus lässt sich für den Oberthurgau-Ausschnitt eine **animierte Heatmap-Überlagerung** auf der Leaflet-Karte aufbauen — kein „echtes" Radarbild, aber visuell ähnlich (farbcodierter Niederschlag pro Pixel, animiert über die Zeit). Das ist die einzig saubere Lösung allein mit Open-Meteo und ohne externen Renderer.
+## Warum Cloudflare R2 statt AWS S3
 
-Falls später echte Radar-Tiles gewünscht sind, ist RainViewer der einfachste Drop-in (kann nachgereicht werden, ohne dass die UI sich ändert).
+- **Kostenlos** bis 10 GB Storage + 10 Mio Reads/Monat (reicht für Jahre Radar-Archiv)
+- Keine Egress-Gebühren (AWS S3 verrechnet Traffic)
+- S3-kompatible API → identischer Python-Code wie für AWS
+- Eigene `pub-xxx.r2.dev` Domain → Bilder direkt im Browser ladbar, kein Signed-URL nötig
 
-## Was gebaut wird
+## Schritt-für-Schritt-Setup (was du machst)
 
-Eine neue Karte `/karten/radar` (und `/embed/radar`) mit:
+### 1. Cloudflare R2 Bucket anlegen (5 min)
+- Cloudflare-Account erstellen (gratis)
+- R2 aktivieren → Bucket `symbolprognose-radar` anlegen
+- Public Access aktivieren → URL `https://pub-<hash>.r2.dev` notieren
+- API Token erstellen: R2 → Manage API Tokens → "Object Read & Write" für diesen Bucket → `Access Key ID` + `Secret Access Key` notieren
 
-1. **Leaflet-Karte** im gleichen Region-Oberthurgau-Stil wie die anderen Karten (Maske, See, Region-Outline).
-2. **Niederschlags-Heatmap-Overlay** als animiertes Canvas, das sich pro Zeitschritt neu rendert.
-3. **Zeit-Steuerung** unten:
-   - Slider von **−12 h** bis **+120 h** (in 15-min-Schritten für −12 h…+33 h, in 1-h-Schritten ab +33 h)
-   - Play/Pause, Geschwindigkeit (1×/2×/4×)
-   - Aktueller Zeitstempel + Badge: **„Messung"** (Vergangenheit, Nowcast) / **„ICON-CH1"** (≤ +33 h) / **„ICON-CH2"** (> +33 h)
-   - „Jetzt"-Button springt zum aktuellen Zeitpunkt
-4. **Startpunkt beim Öffnen = aktuelle Uhrzeit** (Slider auf t = 0).
-5. **Legende** mit Niederschlagsklassen (mm/h: 0.1, 0.5, 1, 2, 5, 10, 20, 50).
-6. **Hagel/Blitze**: vorerst nicht implementiert (Platzhalter-Toggle in der Legende, „Bald verfügbar").
+### 2. GitHub-Repo des Projekts mit Lovable verbinden
+Plus-Menü → GitHub → Connect project (falls noch nicht geschehen)
 
-## Technische Umsetzung
+### 3. GitHub Secrets eintragen (im verbundenen Repo)
+Settings → Secrets and variables → Actions → New secret:
+- `R2_ACCOUNT_ID` (Cloudflare Account-ID)
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET` (z. B. `symbolprognose-radar`)
+- `R2_PUBLIC_URL` (z. B. `https://pub-abc123.r2.dev`)
 
-### Datenfetch (Server-Funktion)
+## Was Lovable baut
 
-Datei: `src/lib/radar.functions.ts`
+### A) Konverter-Service (im selben Repo, läuft auf GitHub)
+- **`.github/workflows/radar-ingest.yml`** — Cron `*/5 * * * *`, läuft Python-Script, 2-min Timeout
+- **`scripts/ingest_radar.py`** — Hauptlogik:
+  - STAC-Polling: `ch.meteoschweiz.ogd-radar-precip` (CPC, mm/h) + `ch.meteoschweiz.ogd-radar-hail` (POH %)
+  - Nur Frames der letzten 3 h verarbeiten, die noch nicht in R2 sind (HEAD-Check)
+  - H5 laden (`h5py`), Dataset extrahieren, auf Bbox `[8.8, 47.4, 9.6, 47.7]` croppen
+  - Reprojektion CH1903+/LV95 → WebMercator (`pyproj`)
+  - Farbpalette identisch zur MeteoSchweiz-Skala (0.1/0.4/0.7/1.3/2/3.5/6/10/20/30/50/80/130/200/350 mm/h), `< 0.1 mm/h` transparent
+  - Speichern als PNG mit Alpha, Upload nach R2 unter Key `radar/precip/<ISO-ts>.png`
+  - Manifest `radar/frames.json` neu schreiben: `[{ ts, precipUrl, hailUrl?, bbox }]` der letzten 24 h
+  - Alte Frames (>24 h) aus R2 löschen
+- **`scripts/requirements.txt`** — `h5py`, `numpy`, `pillow`, `pyproj`, `boto3`, `requests`
 
-- `getRadarFrames` (`createServerFn`, GET, gecached über TanStack Query).
-- Holt **ein Grid** von ca. **24×16 = 384 Punkten** über die Bounding-Box Oberthurgau (≈ 9.0–9.7° E, 47.45–47.75° N, ~3 km Raster).
-- 1 HTTP-Call pro Punkt ist zuviel — stattdessen **Open-Meteo Multi-Location-Format** (`latitude=47.5,47.55,…&longitude=9.1,9.15,…`), das in einer Antwort alle Punkte liefert. Es wird in 2 Calls aufgeteilt:
-  1. **Vergangenheit + Nowcast**: `past_days=1`, `forecast_minutely_15=192` (=48 h), `minutely_15=precipitation`, ohne `models` (Open-Meteo wählt Best-Match inkl. Radar).
-  2. **Modell-Vorhersage**: `models=icon_seamless` mit `hourly=precipitation`, `forecast_days=6`. (icon_seamless = automatisches ICON-CH1 für die ersten 33h, dann ICON-CH2; das macht die Quellenangabe sauber.)
-- Rückgabe: `{ bbox, gridLat[], gridLon[], frames: [{ t: ISO, source: 'radar'|'icon-ch1'|'icon-ch2', values: number[] }] }`.
-- Server-Cache via Response-Header `Cache-Control: public, max-age=600` (Radar-Daten aktualisieren ca. alle 5 min).
+### B) App-Integration (Lovable-Codebase)
+- **`src/lib/radar.functions.ts`** — neue Server-Fn `getRadarFrames`:
+  - Fetcht `${R2_PUBLIC_URL}/radar/frames.json` (Cache 60 s)
+  - Returnt `{ frames: [{ t, source: 'radar'|'icon-ch1'|'icon-ch2', precipUrl, hailUrl }], bbox }`
+  - Vergangenheit (-3 h bis jetzt) = R2-PNGs, Zukunft (+33 h / +120 h) = bestehender Open-Meteo-Code bleibt für Modellprognose
+- **`src/components/maps/radar-map.tsx`** — Umbau:
+  - Für `source === 'radar'`: Leaflet `ImageOverlay` mit der PNG-URL (statt Canvas-Interpolation)
+  - Für ICON-Frames: bestehender Canvas-Code bleibt
+  - Smooth-Übergang beim Sprung von Messung → Prognose
+- **`src/components/maps/radar-legend.tsx`** — MeteoSchweiz-Farbskala übernehmen (15 Klassen)
+- **`src/components/maps/radar-timeline.tsx`** — Toggle „Hagel-Layer einblenden" aktivieren (statt „coming soon")
 
-### Frontend-Komponente
+## Was ausserhalb des Scope bleibt
+- **Blitze**: nicht in OGD verfügbar (kommerzielle Lizenz). Bleibt „coming soon".
+- **Echtzeit < 5 min**: STAC hat ~5–10 min Verzögerung gegenüber Live-Radar; GitHub-Cron-Lag kann weitere 1–5 min addieren → Latenz ~10–15 min ist realistisch.
+- **Historie > 24 h**: aus Kostengründen wird nur das rollende 24-h-Fenster vorgehalten.
 
-Datei: `src/components/maps/radar-map.tsx`
+## Reihenfolge der Umsetzung
 
-- Wiederverwendung des Layouts aus `region-map.tsx` (Tiles, Maske, GeoJSON).
-- **Custom Leaflet-Layer** (`L.Layer` Subclass mit Canvas-Overlay), der pro Frame:
-  - das Grid auf Pixelkoordinaten projiziert
-  - eine bilineare Interpolation zwischen den Grid-Punkten zeichnet
-  - Farbskala anwendet (Niederschlags-Klassen wie oben)
-- **Animations-Loop** über `requestAnimationFrame` mit konfigurierbarer FPS.
-- Frames werden vorab fetched (TanStack Query, `staleTime: 5 min`), während Animation läuft → flüssig.
+1. Du legst R2-Bucket + GitHub-Secrets an (s. o.)
+2. Lovable: Konverter committen (`scripts/` + `.github/workflows/`)
+3. Workflow manuell triggern, prüfen dass Frames in R2 landen
+4. Lovable: App-Integration (Server-Fn + Map-Umbau)
+5. Verifikation auf `/karten/radar`: Vergangenheit zeigt echtes Radar, Zukunft zeigt ICON
 
-### Routen
+## Technische Details
 
-- `src/routes/karten.radar.tsx` ersetzt den jetzigen `ComingSoonMap`-Stub.
-- `src/routes/embed.radar.tsx` ersetzt analog.
-- Status in `src/lib/maps-config.ts` für `radar` von `coming-soon` auf `live` setzen.
-
-### UI-Komponenten
-
-- `src/components/maps/radar-timeline.tsx` — Slider + Play/Pause + Quelle-Badge + „Jetzt"-Button.
-- `src/components/maps/radar-legend.tsx` — Farbskala mit mm/h-Werten, Toggle-Platzhalter „Blitze / Hagel (bald)".
-
-## Was außerhalb dieses Plans bleibt
-
-- Blitze (Blitzortung.org) und Hagel-Layer (POH/MESHS) — als „bald"-Toggle sichtbar, aber nicht funktional.
-- Echte Radar-Reflektivitäts-Bilder (würden externe Tile-Quelle/Renderer erfordern).
-- Persistenz von Nutzer-Einstellungen (Geschwindigkeit etc.).
-
-## Geschätzter Umfang
-
-5 neue/geänderte Dateien, ein Server-Function-Call alle 10 Min pro Nutzer, kein neuer Secret/API-Key nötig (Open-Meteo ist frei).
+- **HDF5-Struktur CPC**: Dataset `/dataset1/data1/data` (uint8, gain/offset in `what`-Attribut), Geo-Referenz in `/where`
+- **Bbox-Crop**: aus 710×640 CH-Raster wird ein ~80×60 px Oberthurgau-Subset → PNGs ~5–15 KB
+- **R2 Pricing-Realität**: 288 Frames/Tag × 2 Produkte × 10 KB ≈ 6 MB/Tag, mit Hagel ≈ 12 MB/Tag → bei 24 h-Retention dauerhaft ~12 MB Storage (gratis-tier endet bei 10 GB)
+- **GitHub Actions Quota**: 5-min-Run × 12 Mal/h × 24 h × 30 = 2160 min/Monat → liegt knapp über free-tier (2000 min). Workaround: Cron auf `*/10` (~1080 min/Monat) oder bezahltes GH-Plan ($0.008/min). Empfehlung: erst mit `*/10` starten, bei Bedarf hochdrehen.
