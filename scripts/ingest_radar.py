@@ -149,16 +149,27 @@ def parse_ts_from_filename(name: str) -> datetime | None:
 
 def _extract_assets(feature: dict, product: str, prefix: str, since: datetime) -> list[AssetRef]:
     out: list[AssetRef] = []
-    for asset_key, asset in (feature.get("assets") or {}).items():
+    assets = feature.get("assets") or {}
+    matching = 0
+    unparsed = 0
+    for asset_key, asset in assets.items():
         if not asset_key.startswith(prefix):
             continue
+        matching += 1
         ts = parse_ts_from_filename(asset_key)
-        if ts is None or ts < since:
+        if ts is None:
+            unparsed += 1
+            continue
+        if ts < since:
             continue
         href = asset.get("href")
         if not href:
             continue
         out.append(AssetRef(product=product, ts=ts, href=href, key=asset_key))
+    if matching and not out:
+        sample = next((k for k in assets if k.startswith(prefix)), "")
+        print(f"  note: {matching} assets matched prefix '{prefix}' but 0 kept "
+              f"(unparsed={unparsed}, sample={sample!r})", flush=True)
     return out
 
 
