@@ -81,15 +81,24 @@ type Manifest = {
 
 async function fetchR2Manifest(): Promise<Manifest | null> {
   const base = process.env.R2_PUBLIC_URL;
-  if (!base) return null;
+  if (!base) {
+    console.warn("[radar] R2_PUBLIC_URL not set — falling back to Open-Meteo only");
+    return null;
+  }
+  const url = `${base.replace(/\/$/, "")}/radar/frames.json`;
   try {
-    const res = await fetch(`${base.replace(/\/$/, "")}/radar/frames.json`, {
-      // Manifest wird alle 10 min neu geschrieben → 30 s Cache ist genug.
+    const res = await fetch(url, {
       cf: { cacheTtl: 30 } as unknown as undefined,
     } as RequestInit);
-    if (!res.ok) return null;
-    return (await res.json()) as Manifest;
-  } catch {
+    if (!res.ok) {
+      console.warn(`[radar] manifest fetch ${url} -> ${res.status}`);
+      return null;
+    }
+    const json = (await res.json()) as Manifest;
+    console.log(`[radar] manifest loaded: ${json.frames?.length ?? 0} frames`);
+    return json;
+  } catch (e) {
+    console.warn(`[radar] manifest fetch error: ${(e as Error).message}`);
     return null;
   }
 }
