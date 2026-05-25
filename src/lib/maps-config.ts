@@ -48,11 +48,11 @@ export const MAPS: MapDefinition[] = [
     id: "radar",
     label: "Radar",
     shortLabel: "Radar",
-    description: "Vergangene Niederschlagsmessungen und Kurzfristvorhersage.",
+    description: "Niederschlags-Animation: −12 h Radar-Nowcast und Vorhersage (ICON-CH1/CH2).",
     icon: CloudRain,
     routePath: "/karten/radar",
     embedPath: "/embed/radar",
-    status: "coming-soon",
+    status: "live",
   },
   {
     id: "pollen",
