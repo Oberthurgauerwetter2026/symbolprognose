@@ -379,7 +379,32 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             opacity={0.55}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · Open-Meteo · ICON-CH1/CH2'
           />
-          {data && currentFrame && <PrecipOverlay payload={data} frame={currentFrame} />}
+          {data &&
+            currentFrame &&
+            (currentFrame.precipUrl ? (
+              <ImageOverlay
+                key={`precip-${currentFrame.t}`}
+                url={currentFrame.precipUrl}
+                bounds={[
+                  [data.imageBbox.minLat, data.imageBbox.minLon],
+                  [data.imageBbox.maxLat, data.imageBbox.maxLon],
+                ]}
+                opacity={0.75}
+              />
+            ) : (
+              <PrecipOverlay payload={data} frame={currentFrame} />
+            ))}
+          {data && currentFrame && showHail && currentFrame.hailUrl && (
+            <ImageOverlay
+              key={`hail-${currentFrame.t}`}
+              url={currentFrame.hailUrl}
+              bounds={[
+                [data.imageBbox.minLat, data.imageBbox.minLon],
+                [data.imageBbox.maxLat, data.imageBbox.maxLon],
+              ]}
+              opacity={0.7}
+            />
+          )}
           <GeoJSON
             data={OUTSIDE_CH_MASK}
             style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
