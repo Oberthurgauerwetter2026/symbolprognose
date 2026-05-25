@@ -19,6 +19,7 @@ import { Pause, Play, SkipForward, CloudHail } from "lucide-react";
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
+import thurgauData from "@/data/thurgau.json";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
@@ -27,6 +28,7 @@ const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
+const THURGAU = thurgauData as unknown as FeatureCollection;
 
 const RADAR_CITIES: { name: string; lat: number; lon: number }[] = [
   { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
@@ -642,6 +644,11 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           <GeoJSON
             data={SWITZERLAND}
             style={() => ({ color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })}
+            interactive={false}
+          />
+          <GeoJSON
+            data={THURGAU}
+            style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
             interactive={false}
           />
           <GeoJSON
