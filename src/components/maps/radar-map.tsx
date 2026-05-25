@@ -597,18 +597,22 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   type="button"
                   onClick={() => setShowLightning((v) => !v)}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium",
+                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium transition",
                     showLightning
-                      ? "bg-yellow-100 text-yellow-900 border-yellow-300"
+                      ? "border-yellow-300 bg-yellow-100 text-yellow-900"
                       : "bg-muted text-muted-foreground",
                   )}
-                  title="Blitze – bald verfügbar"
-                  disabled
+                  title="Blitze der letzten 30 Minuten (Blitzortung.org)"
                 >
                   <Zap className="h-3.5 w-3.5" />
                   Blitze
-                  <span className="text-[9px] opacity-70">bald</span>
+                  {lightning.data && lightning.data.strikes.length > 0 && (
+                    <span className="tabular-nums text-[10px] opacity-80">
+                      {lightning.data.strikes.length}
+                    </span>
+                  )}
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setShowHail((v) => !v)}
