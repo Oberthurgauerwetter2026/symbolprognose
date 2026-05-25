@@ -374,15 +374,19 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
     gcTime: 30 * 60_000,
   });
 
-
-
-
+  const lightning = useQuery({
+    queryKey: ["lightning-strikes"],
+    queryFn: () => getLightningStrikes(),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
 
   const frames = data?.frames ?? [];
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1); // 1× = 400ms/frame
+  const [showLightning, setShowLightning] = useState(false);
   const [showHail, setShowHail] = useState(false);
 
   // Auf "jetzt" springen sobald Daten da sind.
