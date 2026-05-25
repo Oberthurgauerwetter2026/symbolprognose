@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   MapContainer,
   GeoJSON,
+  Marker,
   TileLayer,
   ZoomControl,
   ImageOverlay,
@@ -15,9 +16,7 @@ import { Pause, Play, SkipForward, CloudHail } from "lucide-react";
 
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
-import thurgauData from "@/data/thurgau.json";
 import switzerlandData from "@/data/switzerland.json";
-import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
@@ -25,8 +24,26 @@ import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.
 const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
-const THURGAU = thurgauData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
+
+const RADAR_CITIES: { name: string; lat: number; lon: number }[] = [
+  { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
+  { name: "Erlen", lat: 47.5375, lon: 9.2378 },
+  { name: "Bischofszell", lat: 47.4944, lon: 9.2389 },
+  { name: "Münsterlingen", lat: 47.6306, lon: 9.2378 },
+  { name: "Romanshorn", lat: 47.5664, lon: 9.3789 },
+  { name: "Egnach", lat: 47.5444, lon: 9.3833 },
+  { name: "Horn", lat: 47.4986, lon: 9.4470 },
+];
+
+function cityIcon(name: string): L.DivIcon {
+  return L.divIcon({
+    className: "radar-city-marker",
+    html: `<span class="radar-city-dot"></span><span class="radar-city-label">${name}</span>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
