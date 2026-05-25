@@ -270,10 +270,11 @@ export function IconFog({ size, ...rest }: IconProps) {
 export function IconDrizzle({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <Cloud x={32} y={28} scale={1} />
-      <Drop x={22} y={50} size={0.85} />
-      <Drop x={32} y={52} size={0.85} />
-      <Drop x={42} y={50} size={0.85} />
+      <Cloud x={32} y={26} scale={1} />
+      <Drop x={20} y={48} size={0.8} tilt={-12} />
+      <Drop x={28} y={52} size={0.8} tilt={-12} />
+      <Drop x={36} y={48} size={0.8} tilt={-12} />
+      <Drop x={44} y={52} size={0.8} tilt={-12} />
     </Svg>
   );
 }
@@ -281,11 +282,13 @@ export function IconDrizzle({ size, ...rest }: IconProps) {
 export function IconRain({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <Cloud x={32} y={28} scale={1} />
-      <Drop x={20} y={50} size={1.15} />
-      <Drop x={28} y={54} size={1.15} />
-      <Drop x={36} y={50} size={1.15} />
-      <Drop x={44} y={54} size={1.15} />
+      <Cloud x={32} y={24} scale={1} />
+      <Drop x={18} y={48} size={1.4} tilt={-15} />
+      <Drop x={28} y={52} size={1.4} tilt={-15} />
+      <Drop x={38} y={48} size={1.4} tilt={-15} />
+      <Drop x={48} y={52} size={1.4} tilt={-15} />
+      <Drop x={23} y={58} size={1.4} tilt={-15} />
+      <Drop x={43} y={58} size={1.4} tilt={-15} />
     </Svg>
   );
 }
@@ -293,10 +296,12 @@ export function IconRain({ size, ...rest }: IconProps) {
 export function IconSnow({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <Cloud x={32} y={28} scale={1} />
-      <Flake x={20} y={50} size={1} />
-      <Flake x={32} y={55} size={1.1} />
-      <Flake x={44} y={50} size={1} />
+      <Cloud x={32} y={26} scale={1} />
+      <Flake x={18} y={48} size={1.1} />
+      <Flake x={32} y={52} size={1.2} />
+      <Flake x={46} y={48} size={1.1} />
+      <Flake x={25} y={59} size={1} />
+      <Flake x={39} y={59} size={1} />
     </Svg>
   );
 }
@@ -304,9 +309,9 @@ export function IconSnow({ size, ...rest }: IconProps) {
 export function IconThunderstorm({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <Cloud x={32} y={28} scale={1.05} dark />
-      <Drop x={20} y={52} size={1} />
-      <Drop x={46} y={52} size={1} />
+      <Cloud x={32} y={26} scale={1.05} dark />
+      <Drop x={18} y={52} size={1.3} tilt={-15} />
+      <Drop x={48} y={52} size={1.3} tilt={-15} />
       <Bolt />
     </Svg>
   );
