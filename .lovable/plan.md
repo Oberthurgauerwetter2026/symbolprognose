@@ -1,15 +1,21 @@
-# Region-Füllfarbe: Grün → Helles Grau
-
-## Ziel
-In der Symbolprognose-Karte (`RegionMap`) die grüne Region-Füllung (`#7ebd5a`) durch ein helles Grau ersetzen, das zum Radar-Map-Stil passt.
+# Thurgau-Umriss im Radar dezent einzeichnen
 
 ## Änderung
-**Datei:** `src/components/region-map.tsx` (Zeile 634)
+**Datei:** `src/components/maps/radar-map.tsx`
 
-- `fillColor: "#7ebd5a"` → `fillColor: "#c4cdd4"` (helles, dezentes Kaltgrau)
-- `fillOpacity: 0.28` → `fillOpacity: 0.35` (leicht erhöht, damit die Fläche bei hellem Grau weiterhin gut sichtbar bleibt)
+1. Import ergänzen: `import thurgauData from "@/data/thurgau.json";`
+2. Konstante: `const THURGAU = thurgauData as unknown as FeatureCollection;`
+3. Im `MapContainer` zwischen der CH-Border-Linie (Z. 642–646) und `OUTSIDE_MASK` (Z. 647) einen neuen `<GeoJSON>`-Layer für Thurgau einfügen — dezent, nur Outline, keine Füllung:
+
+```tsx
+<GeoJSON
+  data={THURGAU}
+  style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
+  interactive={false}
+/>
+```
+
+Schwächer als in der Region-Map (dort weight 2 / opacity 0.85), damit Radar-Niederschlag im Vordergrund bleibt.
 
 ## Nicht verändert
-- Region-Outline (`color: BRAND` / `#2561a1`, weight 2)
-- Alle Masken (OUTSIDE_CH_MASK, OUTSIDE_MASK — bereits an Radar angeglichen)
-- See-Farbe, Thurgau-Outline, Marker, Slider, Tabs
+Niederschlags-Overlay, Hagel, Masken, See, City-Marker, Slider.
