@@ -466,6 +466,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               opacity={0.7}
             />
           )}
+          {showLightning && lightning.data && (
+            <LightningOverlay strikes={lightning.data.strikes} />
+          )}
+
           <GeoJSON
             data={OUTSIDE_CH_MASK}
             style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
