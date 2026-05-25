@@ -539,7 +539,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1); // 1× = 400ms/frame
-  const [showHail, setShowHail] = useState(false);
+  const [showHail, setShowHail] = useState(true);
 
   // Auf "jetzt" springen sobald Daten da sind.
   useEffect(() => {
