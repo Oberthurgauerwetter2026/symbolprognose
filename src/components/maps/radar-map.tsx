@@ -412,9 +412,6 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               opacity={0.7}
             />
           )}
-          {showLightning && lightning.data && (
-            <LightningOverlay strikes={lightning.data.strikes} />
-          )}
 
 
 
