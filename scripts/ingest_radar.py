@@ -145,11 +145,16 @@ def parse_ts_from_filename(name: str) -> datetime | None:
     if not m:
         return None
     _, yy, doy, hh, mm = m.groups()
-    year = 2000 + int(yy)
-    base = datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(
-        days=int(doy) - 1, hours=int(hh), minutes=int(mm)
-    )
-    return base
+    try:
+        year = 2000 + int(yy)
+        h, mi = int(hh), int(mm)
+        if not (0 <= h < 24 and 0 <= mi < 60 and 1 <= int(doy) <= 366):
+            return None
+        return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(
+            days=int(doy) - 1, hours=h, minutes=mi
+        )
+    except ValueError:
+        return None
 
 
 def _filename_from_asset(asset_key: str, asset: dict) -> str:
@@ -517,6 +522,7 @@ def main() -> int:
     since = now - timedelta(hours=LOOKBACK)
 
     processed = 0
+    skipped_existing = 0
     for product in COLLECTIONS:
         print(f"== {product} (since {since.isoformat()}) ==", flush=True)
         try:
@@ -527,10 +533,27 @@ def main() -> int:
         print(f"  {len(assets)} candidate frames", flush=True)
         for a in assets:
             try:
+                key = f"radar/{a.product}/{a.ts.strftime('%Y%m%dT%H%M')}.png"
+                if head_exists(s3, key):
+                    skipped_existing += 1
+                    continue
                 if process_asset(s3, a):
                     processed += 1
             except Exception as exc:
                 print(f"  ! {a.key}: {exc}", flush=True)
+
+    print(f"summary: processed={processed} skipped_existing={skipped_existing}", flush=True)
+
+    # Bucket-Inventur, damit klar ist, was tatsächlich in R2 liegt.
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        for product in COLLECTIONS:
+            count = 0
+            for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
+                count += len(page.get("Contents", []) or [])
+            print(f"  R2 inventory radar/{product}/: {count} objects", flush=True)
+    except Exception as exc:
+        print(f"  R2 inventory error: {exc!r}", flush=True)
 
     cleanup(s3, now - timedelta(hours=RETENTION))
     write_manifest(s3)
