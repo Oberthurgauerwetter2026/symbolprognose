@@ -15,6 +15,7 @@ const C = {
   cloudDark: "var(--wx-cloud-dark)",
   cloudDarkShade: "var(--wx-cloud-dark-shade)",
   rain: "var(--wx-rain)",
+  rainEdge: "var(--wx-rain-edge)",
   snow: "var(--wx-snow)",
   snowEdge: "var(--wx-snow-edge)",
   bolt: "var(--wx-bolt)",
@@ -141,49 +142,52 @@ function Cloud({
   );
 }
 
-function Drop({ x, y, size = 1 }: { x: number; y: number; size?: number }) {
-  // Tear-drop pointing down, ~5×7 at size=1
+function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: number; tilt?: number }) {
+  // Real teardrop: pointed top, round bottom. Drawn ~6 wide × 11 tall at size=1.
   return (
     <path
-      transform={`translate(${x} ${y}) scale(${size})`}
-      d="M 0 -3.5 C 2.4 -0.5 2.4 3 0 3.5 C -2.4 3 -2.4 -0.5 0 -3.5 Z"
+      transform={`translate(${x} ${y}) rotate(${tilt}) scale(${size})`}
+      d="M 0 -6 C 3.2 -2 4.2 1.2 4.2 3.2 C 4.2 5.9 2.1 7.6 0 7.6 C -2.1 7.6 -4.2 5.9 -4.2 3.2 C -4.2 1.2 -3.2 -2 0 -6 Z"
       fill={C.rain}
+      stroke={C.rainEdge}
+      strokeWidth="0.9"
+      strokeLinejoin="round"
     />
   );
 }
 
 function Flake({ x, y, size = 1 }: { x: number; y: number; size?: number }) {
-  // 6-arm star
+  // 6-arm star with dark edge underneath for contrast
   const arms = [0, 60, 120];
   return (
     <g transform={`translate(${x} ${y}) scale(${size})`}>
       {arms.map((deg) => (
         <line
-          key={deg}
-          x1="-3.5"
+          key={`e-${deg}`}
+          x1="-5"
           y1="0"
-          x2="3.5"
+          x2="5"
           y2="0"
-          stroke={C.snow}
-          strokeWidth="2"
+          stroke={C.snowEdge}
+          strokeWidth="3.6"
           strokeLinecap="round"
           transform={`rotate(${deg})`}
         />
       ))}
       {arms.map((deg) => (
         <line
-          key={`e-${deg}`}
-          x1="-3.5"
+          key={deg}
+          x1="-5"
           y1="0"
-          x2="3.5"
+          x2="5"
           y2="0"
-          stroke={C.snowEdge}
-          strokeWidth="0.8"
+          stroke={C.snow}
+          strokeWidth="2.4"
           strokeLinecap="round"
           transform={`rotate(${deg})`}
         />
       ))}
-      <circle cx="0" cy="0" r="1" fill={C.snow} />
+      <circle cx="0" cy="0" r="1.6" fill={C.snow} stroke={C.snowEdge} strokeWidth="0.6" />
     </g>
   );
 }
@@ -266,10 +270,11 @@ export function IconFog({ size, ...rest }: IconProps) {
 export function IconDrizzle({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <Cloud x={32} y={28} scale={1} />
-      <Drop x={22} y={50} size={0.85} />
-      <Drop x={32} y={52} size={0.85} />
-      <Drop x={42} y={50} size={0.85} />
+      <Cloud x={32} y={26} scale={1} />
+      <Drop x={20} y={48} size={0.8} tilt={-12} />
+      <Drop x={28} y={52} size={0.8} tilt={-12} />
+      <Drop x={36} y={48} size={0.8} tilt={-12} />
+      <Drop x={44} y={52} size={0.8} tilt={-12} />
     </Svg>
   );
 }
@@ -277,11 +282,13 @@ export function IconDrizzle({ size, ...rest }: IconProps) {
 export function IconRain({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <Cloud x={32} y={28} scale={1} />
-      <Drop x={20} y={50} size={1.15} />
-      <Drop x={28} y={54} size={1.15} />
-      <Drop x={36} y={50} size={1.15} />
-      <Drop x={44} y={54} size={1.15} />
+      <Cloud x={32} y={24} scale={1} />
+      <Drop x={18} y={48} size={1.4} tilt={-15} />
+      <Drop x={28} y={52} size={1.4} tilt={-15} />
+      <Drop x={38} y={48} size={1.4} tilt={-15} />
+      <Drop x={48} y={52} size={1.4} tilt={-15} />
+      <Drop x={23} y={58} size={1.4} tilt={-15} />
+      <Drop x={43} y={58} size={1.4} tilt={-15} />
     </Svg>
   );
 }
@@ -289,10 +296,12 @@ export function IconRain({ size, ...rest }: IconProps) {
 export function IconSnow({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <Cloud x={32} y={28} scale={1} />
-      <Flake x={20} y={50} size={1} />
-      <Flake x={32} y={55} size={1.1} />
-      <Flake x={44} y={50} size={1} />
+      <Cloud x={32} y={26} scale={1} />
+      <Flake x={18} y={48} size={1.1} />
+      <Flake x={32} y={52} size={1.2} />
+      <Flake x={46} y={48} size={1.1} />
+      <Flake x={25} y={59} size={1} />
+      <Flake x={39} y={59} size={1} />
     </Svg>
   );
 }
@@ -300,9 +309,9 @@ export function IconSnow({ size, ...rest }: IconProps) {
 export function IconThunderstorm({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
-      <Cloud x={32} y={28} scale={1.05} dark />
-      <Drop x={20} y={52} size={1} />
-      <Drop x={46} y={52} size={1} />
+      <Cloud x={32} y={26} scale={1.05} dark />
+      <Drop x={18} y={52} size={1.3} tilt={-15} />
+      <Drop x={48} y={52} size={1.3} tilt={-15} />
       <Bolt />
     </Svg>
   );

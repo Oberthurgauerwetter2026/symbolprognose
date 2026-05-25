@@ -1,15 +1,31 @@
 ## Ziel
-Aktuell ist die Stundenleiste unter dem Slider im Tages-Modus deaktiviert (ausgegraut, keine Reaktion auf Klicks). Sie soll auch im Tages-Modus klickbar sein und beim Klick automatisch in den Stunden-Modus wechseln und an die gewählte Stunde springen.
+Regen, Niesel, Schnee und Gewitter sollen auf den Karten-Symbolen sofort als Niederschlag erkennbar sein. Aktuell sind die Tropfen zu klein und zu blass gegenüber der grauen Wolke.
 
-## Änderung
-**`src/components/region-map.tsx`** (Stundenleisten-Container, Zeilen ~760–776):
+## Änderungen in `src/components/weather-icons/index.tsx`
 
-- `pointer-events-none opacity-40` im Daily-Modus entfernen — Leiste bleibt sichtbar und voll aktiv. Optional eine sehr dezente visuelle Unterscheidung (z. B. leicht reduzierter Kontrast) beibehalten, aber klickbar.
-- `onPointerDown` immer registrieren (nicht mehr modusabhängig).
-- Im Handler zusätzlich `setViewMode("hourly")` aufrufen, bevor `setStepOffset(...)` gesetzt wird.
-- `cursor-pointer` immer aktiv.
+**Tropfen (`Drop`)**
+- Form deutlich vergrößern (size-Faktor ~1.6) und als echte Tropfenform mit Spitze oben zeichnen statt ovaler Beere.
+- Dunkleren, kräftigeren Blauton verwenden und feine dunkle Outline (`stroke`) für Kontrast auf hellem Hintergrund.
 
-Die Tick- und Label-Spans behalten `pointer-events-none`, damit Klicks am Container landen. Der Radix-Slider selbst bleibt unverändert.
+**Schneeflocke (`Flake`)**
+- Arme länger und dicker, mit dunklem Edge-Stroke darunter für sichtbaren Rand auf weißem/hellem Grund.
 
-## Ergebnis
-Egal ob im Tages- oder Stunden-Modus: Ein Klick/Tap auf die Stundenleiste (06:00, 09:00 …) springt zur entsprechenden Stunde und schaltet den View automatisch auf „Stunden".
+**Regen-Icon (`IconRain`)**
+- Mehr Tropfen (5–6), größer, in zwei versetzten Reihen, schräg gestellt (Bewegungsrichtung).
+- Wolke etwas höher schieben, damit Tropfen voll sichtbar bleiben.
+
+**Niesel-Icon (`IconDrizzle`)**
+- Tropfen kleiner als Regen, aber dichter und mit klarem Blau (nicht nur 3 winzige Punkte).
+
+**Schnee-Icon (`IconSnow`)**
+- 5 Flocken in zwei Reihen, mit dunkleren Konturen.
+
+**Gewitter (`IconThunderstorm`)**
+- Blitz größer und vor Wolke gelegt, Tropfen größer.
+
+**Farb-Tokens in `src/styles.css`**
+- `--wx-rain` von `#1d6fb8` auf kräftigeres `#0b4f8a` und neue Variable `--wx-rain-edge: #062f55` für Tropfen-Outline.
+- `--wx-snow-edge` etwas dunkler, damit weiße Flocken auf hellem Pin sichtbar bleiben.
+
+## Nicht-Ziel
+Keine Änderung an Sonne/Mond/Wolken-Grundformen oder am Dispatcher-Mapping (WMO-Codes bleiben gleich).
