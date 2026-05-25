@@ -13,7 +13,11 @@ ENV (required):
   R2_BUCKET, R2_PUBLIC_URL
 
 ENV (optional):
-  RADAR_LOOKBACK_HOURS  default 3
+  RADAR_LOOKBACK_HOURS  default 12
+
+NOTE: This repo (symbolprognose) is the SINGLE source of truth for
+radar/frames.json. The old symbolprognose-radar repo's workflow must be
+disabled, otherwise it overwrites the manifest with stale data.
   RADAR_RETENTION_HOURS default 24
 """
 from __future__ import annotations
