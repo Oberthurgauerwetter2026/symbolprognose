@@ -145,11 +145,16 @@ def parse_ts_from_filename(name: str) -> datetime | None:
     if not m:
         return None
     _, yy, doy, hh, mm = m.groups()
-    year = 2000 + int(yy)
-    base = datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(
-        days=int(doy) - 1, hours=int(hh), minutes=int(mm)
-    )
-    return base
+    try:
+        year = 2000 + int(yy)
+        h, mi = int(hh), int(mm)
+        if not (0 <= h < 24 and 0 <= mi < 60 and 1 <= int(doy) <= 366):
+            return None
+        return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(
+            days=int(doy) - 1, hours=h, minutes=mi
+        )
+    except ValueError:
+        return None
 
 
 def _filename_from_asset(asset_key: str, asset: dict) -> str:
