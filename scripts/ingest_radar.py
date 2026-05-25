@@ -148,10 +148,21 @@ def parse_ts_from_filename(name: str) -> datetime | None:
 
 
 def _filename_from_asset(asset_key: str, asset: dict) -> str:
-    """Best-effort filename: asset_key, href tail, or title."""
-    for cand in (asset_key, (asset.get("href") or "").rsplit("/", 1)[-1], asset.get("title") or ""):
+    """Best-effort filename: asset_key, href tail, title, or description."""
+    candidates = [
+        asset_key,
+        (asset.get("href") or "").rsplit("/", 1)[-1],
+        asset.get("title") or "",
+        asset.get("description") or "",
+    ]
+    for cand in candidates:
         if cand and cand.endswith(".h5"):
             return cand
+    # also scan description for an embedded .h5 token
+    desc = asset.get("description") or ""
+    m = re.search(r"([a-z]{3}\d{6,}[^\s/]*\.h5)", desc)
+    if m:
+        return m.group(1)
     return asset_key
 
 
@@ -190,6 +201,19 @@ def _extract_assets(feature: dict, product: str, prefix: str, since: datetime) -
     return out
 
 
+def _scan_all_timestamps(feature: dict, prefix: str) -> list[datetime]:
+    """Return all parseable timestamps for `prefix` assets in feature (ignores `since`)."""
+    out: list[datetime] = []
+    for asset_key, asset in (feature.get("assets") or {}).items():
+        fname = _filename_from_asset(asset_key, asset)
+        if not fname.startswith(prefix):
+            continue
+        ts = parse_ts_from_filename(fname)
+        if ts is not None:
+            out.append(ts)
+    return out
+
+
 def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
     """Return asset refs newer than `since`.
 
@@ -198,7 +222,9 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
     coll = COLLECTIONS[product]
     prefix = ASSET_PREFIX[product]
     now = datetime.now(tz=timezone.utc)
+    print(f"  lookback={LOOKBACK}h since={since.isoformat()}", flush=True)
     candidates: list[AssetRef] = []
+    all_ts: list[datetime] = []
     for day_offset in (0, 1):
         day = (now - timedelta(days=day_offset)).strftime("%Y%m%d")
         url = f"{STAC_BASE}/{coll}/items/{day}-ch"
@@ -208,7 +234,9 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
             if r.status_code == 404:
                 continue
             r.raise_for_status()
-            candidates.extend(_extract_assets(r.json(), product, prefix, since))
+            feat = r.json()
+            candidates.extend(_extract_assets(feat, product, prefix, since))
+            all_ts.extend(_scan_all_timestamps(feat, prefix))
         except Exception as exc:
             print(f"  STAC item {day}-ch error: {exc!r}", flush=True)
 
@@ -220,8 +248,24 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
             r.raise_for_status()
             for feat in r.json().get("features", []):
                 candidates.extend(_extract_assets(feat, product, prefix, since))
+                all_ts.extend(_scan_all_timestamps(feat, prefix))
         except Exception as exc:
             print(f"  STAC sort fallback error: {exc!r}", flush=True)
+
+    if all_ts:
+        print(
+            f"  asset ts range: oldest={min(all_ts).isoformat()} "
+            f"newest={max(all_ts).isoformat()} count={len(all_ts)}",
+            flush=True,
+        )
+        if not candidates:
+            print(
+                f"  NOTE: {len(all_ts)} assets found but all older than since "
+                f"({since.isoformat()}). Increase RADAR_LOOKBACK_HOURS.",
+                flush=True,
+            )
+    else:
+        print("  NOTE: no parseable asset timestamps found at all.", flush=True)
 
     seen: set[datetime] = set()
     uniq: list[AssetRef] = []
