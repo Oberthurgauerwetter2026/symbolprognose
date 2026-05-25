@@ -1,52 +1,28 @@
-## Schritt-für-Schritt-Checkliste
+## Problem
 
-Wir prüfen drei Bereiche: **GitHub Repo & Secrets**, **Lovable Cloud Secrets**, **Cloudflare R2**.
+Im Server-Log steht:
+```
+[radar] manifest fetch https://pub-2273d12392334ebd9bdba291a60d5398.r2.dev/radar/frames.json/radar/frames.json -> 404
+```
 
-### A) Lovable Cloud Secrets (kann ich sehen)
+Das Secret `R2_PUBLIC_URL` wurde inklusive Pfad `/radar/frames.json` gesetzt. Der Server-Code (`src/lib/radar.functions.ts`) hängt aber selbst `/radar/frames.json` an die Basis-URL an → Pfad doppelt → 404 → Frontend zeigt "Radardaten konnten nicht geladen werden".
 
-Aktuell hinterlegt in Lovable:
-- `LOVABLE_API_KEY` (managed, OK)
-- `R2_PUBLIC_URL` (OK)
+## Fix in zwei Schritten
 
-App braucht **nur `R2_PUBLIC_URL`** → 
+**1. Secret korrigieren (du)**
+`R2_PUBLIC_URL` ändern auf nur die Bucket-Basis:
+```
+https://pub-2273d12392334ebd9bdba291a60d5398.r2.dev
+```
+(ohne `/radar/frames.json` am Ende, ohne Slash)
 
-Bitte du einmal kontrollieren:
-1. Wert von `R2_PUBLIC_URL` in Lovable = öffentliche R2-Bucket-Basis-URL **ohne** `/radar/frames.json` am Ende, z.B. `https://pub-xxxxx.r2.dev` oder `https://radar.deinedomain.tld`.
-2. Beim Aufruf von `<R2_PUBLIC_URL>/radar/frames.json` im Browser muss eine JSON-Datei erscheinen (oder 404, wenn noch nie hochgeladen).
+**2. Code härten (ich)**
+In `src/lib/radar.functions.ts` `fetchR2Manifest()` defensiv machen, damit beide Varianten funktionieren — egal ob das Secret mit oder ohne `/radar/frames.json` gesetzt wird. Konkret: vor dem Anhängen prüfen, ob `base` bereits auf `frames.json` endet, und in dem Fall direkt verwenden.
 
-### B) GitHub Repo `symbolprognose`
+## Erwartung danach
 
-Bitte einmal prüfen und mir bestätigen:
+- Server-Log zeigt `[radar] manifest loaded: 145 frames`
+- Auf `/karten/radar` verschwindet die Fehlermeldung
+- Badge zeigt die echten MeteoSchweiz-Frames
 
-1. **Workflow-Datei vorhanden**: `.github/workflows/radar-ingest.yml` liegt auf `main` (Default-Branch).
-2. **Actions aktiviert**: Repo → Tab **Actions** → "Radar Ingest" sichtbar.
-3. **Letzter Run-Status**: Repo → Actions → "Radar Ingest" → letzter Run. Erwartet: grün ✓. Falls rot → vollständigen Log schicken.
-4. **Secrets gesetzt**: Repo → Settings → Secrets and variables → **Actions** → **Repository secrets**. Es müssen exakt diese 5 Einträge existieren:
-   - `R2_ACCOUNT_ID`
-   - `R2_ACCESS_KEY_ID`
-   - `R2_SECRET_ACCESS_KEY`
-   - `R2_BUCKET`
-   - `R2_PUBLIC_URL` (gleicher Wert wie in Lovable)
-   
-   Bitte die Namen 1:1 kontrollieren (Tippfehler, Großschreibung).
-5. **Manueller Testlauf**: Actions → "Radar Ingest" → "Run workflow" auf `main` triggern. Volle Logausgabe danach hierher kopieren.
-
-### C) Altes Repo `symbolprognose-radar`
-
-Falls noch vorhanden:
-- Sein Workflow muss **deaktiviert** sein (Actions-Tab → Workflow → "···" → Disable), sonst überschreibt er periodisch `radar/frames.json` mit veralteten Daten.
-
-### D) Cloudflare R2
-
-Im Cloudflare Dashboard → R2 → Bucket prüfen:
-1. Bucket-Name = exakt Wert von `R2_BUCKET`.
-2. **Public Access** aktiviert (entweder `r2.dev`-URL freigeschaltet oder Custom Domain).
-3. Im Bucket existieren nach erfolgreichem Lauf:
-   - Ordner `radar/precip/` mit `.png`-Dateien
-   - Ordner `radar/hail/` mit `.png`-Dateien
-   - Datei `radar/frames.json`
-4. `R2_PUBLIC_URL/radar/frames.json` im Browser liefert JSON mit `frames: [...]`.
-
-### Ablauf
-
-Du gehst Punkt für Punkt durch und meldest Stand. Sobald wir einen Fehler finden, fixen wir ihn gezielt. Am wichtigsten ist Schritt **B5 (manueller Run + voller Log)** — damit zeigt unser neues Diagnose-Logging eindeutig, woran es scheitert (STAC, Parsing, R2-Upload oder Manifest).
+Soll ich Schritt 2 umsetzen?
