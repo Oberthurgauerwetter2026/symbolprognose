@@ -85,7 +85,10 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
     console.warn("[radar] R2_PUBLIC_URL not set — falling back to Open-Meteo only");
     return null;
   }
-  const url = `${base.replace(/\/$/, "")}/radar/frames.json`;
+  const trimmed = base.replace(/\/+$/, "");
+  const url = /\/radar\/frames\.json$/i.test(trimmed)
+    ? trimmed
+    : `${trimmed.replace(/\/radar\/?$/i, "")}/radar/frames.json`;
   try {
     const res = await fetch(url, {
       cf: { cacheTtl: 30 } as unknown as undefined,
