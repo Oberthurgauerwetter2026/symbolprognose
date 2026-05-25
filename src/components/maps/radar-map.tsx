@@ -28,16 +28,22 @@ const LAKE = lakeData as unknown as FeatureCollection;
 const THURGAU = thurgauData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
-// Niederschlags-Farbskala (mm/h) — orientiert an MeteoSchweiz-Radar.
+// Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [180, 220, 255] },
-  { mmh: 0.5, rgb: [120, 180, 240] },
-  { mmh: 1, rgb: [60, 140, 220] },
-  { mmh: 2, rgb: [40, 200, 120] },
-  { mmh: 5, rgb: [240, 220, 60] },
-  { mmh: 10, rgb: [240, 140, 30] },
-  { mmh: 20, rgb: [220, 40, 40] },
-  { mmh: 50, rgb: [160, 30, 160] },
+  { mmh: 0.1, rgb: [200, 220, 245] },
+  { mmh: 0.4, rgb: [160, 200, 240] },
+  { mmh: 0.7, rgb: [120, 180, 235] },
+  { mmh: 1.3, rgb: [80, 160, 220] },
+  { mmh: 2, rgb: [60, 200, 140] },
+  { mmh: 3.5, rgb: [60, 200, 60] },
+  { mmh: 6, rgb: [220, 220, 60] },
+  { mmh: 10, rgb: [240, 180, 40] },
+  { mmh: 20, rgb: [240, 120, 40] },
+  { mmh: 30, rgb: [235, 60, 60] },
+  { mmh: 50, rgb: [200, 30, 90] },
+  { mmh: 80, rgb: [170, 20, 130] },
+  { mmh: 130, rgb: [140, 20, 180] },
+  { mmh: 200, rgb: [120, 80, 220] },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -45,8 +51,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      // Alpha steigt etwas mit Intensität.
-      const a = Math.min(0.85, 0.45 + (i / SCALE.length) * 0.4);
+      const a = Math.min(0.9, 0.55 + (i / SCALE.length) * 0.35);
       return [r, g, b, a];
     }
   }
