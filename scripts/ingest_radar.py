@@ -486,6 +486,7 @@ def write_manifest(s3) -> None:
 
 
 def main() -> int:
+    print(f"radar ingest {RADAR_INGEST_VERSION} lookback={LOOKBACK}h retention={RETENTION}h", flush=True)
     if not BUCKET or not PUBLIC_URL:
         sys.exit("R2_BUCKET and R2_PUBLIC_URL must be set")
     s3 = make_s3()
