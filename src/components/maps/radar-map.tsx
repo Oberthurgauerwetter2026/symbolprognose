@@ -575,10 +575,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         )}
       >
         <MapContainer
-          center={[47.55, 9.33]}
-          zoom={11}
+          center={[47.555, 9.33]}
+          zoom={10.5}
           zoomSnap={0.25}
-          maxBounds={regionBounds}
+          maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
           minZoom={9}
           maxZoom={15}
@@ -587,12 +587,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           attributionControl={true}
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
-          <BoundsFitter />
+          <InvalidateOnResize />
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
             opacity={0.55}
-            attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · Open-Meteo · ICON-CH1/CH2'
+            attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz'
           />
           {data &&
             currentFrame &&
@@ -621,8 +621,6 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             />
           )}
 
-
-
           <GeoJSON
             data={OUTSIDE_CH_MASK}
             style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
@@ -639,20 +637,19 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             interactive={false}
           />
           <GeoJSON
-            data={THURGAU}
-            style={() => ({ color: "#1f4d80", weight: 2, opacity: 0.85, fill: false })}
-            interactive={false}
-          />
-          <GeoJSON
             data={LAKE}
             style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 0.9 })}
             interactive={false}
           />
-          <GeoJSON
-            data={REGION}
-            style={() => ({ color: BRAND, weight: 2, opacity: 0.9, fill: false })}
-            interactive={false}
-          />
+          {RADAR_CITIES.map((c) => (
+            <Marker
+              key={c.name}
+              position={[c.lat, c.lon]}
+              icon={cityIcon(c.name)}
+              interactive={false}
+              keyboard={false}
+            />
+          ))}
           <ZoomControl position="topright" />
         </MapContainer>
 
