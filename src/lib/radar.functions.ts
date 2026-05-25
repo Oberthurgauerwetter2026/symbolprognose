@@ -57,6 +57,8 @@ export interface RadarPayload {
   hasRealRadar: boolean;
   /** True, wenn POH-Hagel-Layer verfügbar ist. */
   hasHail: boolean;
+  /** Hinweis, falls einzelne Datenquellen temporär nicht verfügbar sind. */
+  warning?: string;
 }
 
 async function fetchOpenMeteo(params: URLSearchParams): Promise<unknown[]> {
@@ -66,6 +68,7 @@ async function fetchOpenMeteo(params: URLSearchParams): Promise<unknown[]> {
   const data = (await res.json()) as unknown;
   return Array.isArray(data) ? data : [data];
 }
+
 
 type LocResponse = {
   minutely_15?: { time: string[]; precipitation: (number | null)[] };
@@ -132,11 +135,25 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   p2.set("timezone", "UTC");
   p2.set("models", "meteoswiss_icon_ch2");
 
-  const [r1, r2, manifest] = await Promise.all([
+  const [r1Res, r2Res, manifestRes] = await Promise.allSettled([
     fetchOpenMeteo(p1),
     fetchOpenMeteo(p2),
     fetchR2Manifest(),
   ]);
+
+  const r1 = r1Res.status === "fulfilled" ? r1Res.value : null;
+  const r2 = r2Res.status === "fulfilled" ? r2Res.value : null;
+  const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
+
+  const warnings: string[] = [];
+  if (r1Res.status === "rejected") {
+    console.warn("[radar] phase1 failed:", (r1Res.reason as Error)?.message);
+    warnings.push("Nowcast/ICON-CH1 temporär nicht verfügbar");
+  }
+  if (r2Res.status === "rejected") {
+    console.warn("[radar] phase2 failed:", (r2Res.reason as Error)?.message);
+    warnings.push("ICON-CH2 temporär nicht verfügbar");
+  }
 
   const now = Date.now();
   const ch1Cutoff = now + 33 * 3600 * 1000;
@@ -148,7 +165,6 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   const imageBbox = manifest?.bbox ?? BBOX;
 
   if (hasRealRadar) {
-    // R2-Frames (nur Vergangenheit, ≤ now).
     for (const mf of manifest!.frames) {
       const tMs = Date.parse(mf.t);
       if (tMs > now) continue;
@@ -163,12 +179,11 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   }
 
   // ---- Phase 1 (Open-Meteo): Fallback-Past + ICON-CH1-Future ----
-  const ref1 = (r1[0] as LocResponse | undefined)?.minutely_15;
-  if (ref1) {
+  const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
+  if (ref1 && r1) {
     for (let ti = 0; ti < ref1.time.length; ti++) {
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
-      // Vergangenheit nur als Fallback, wenn kein R2.
       if (tMs <= now && hasRealRadar) continue;
       const values: number[] = new Array(pts.length);
       for (let pi = 0; pi < pts.length; pi++) {
@@ -182,8 +197,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   }
 
   // ---- Phase 2 (Open-Meteo): ICON-CH2 stündlich ab ch1Cutoff ----
-  const ref2 = (r2[0] as LocResponse | undefined)?.hourly;
-  if (ref2) {
+  const ref2 = r2 ? (r2[0] as LocResponse | undefined)?.hourly : undefined;
+  if (ref2 && r2) {
     for (let ti = 0; ti < ref2.time.length; ti++) {
       const tIso = ref2.time[ti] + "Z";
       const tMs = Date.parse(tIso);
@@ -200,6 +215,16 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
+  // Wenn wir überhaupt keine Frames haben, hart fehlschlagen, damit die UI
+  // den Fehlerzustand anzeigt.
+  if (frames.length === 0) {
+    throw new Error(
+      warnings.length > 0
+        ? `Radardaten nicht verfügbar: ${warnings.join("; ")}`
+        : "Radardaten nicht verfügbar",
+    );
+  }
+
   const payload: RadarPayload = {
     bbox: BBOX,
     imageBbox,
@@ -209,6 +234,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     generatedAt: new Date().toISOString(),
     hasRealRadar,
     hasHail,
+    warning: warnings.length > 0 ? warnings.join("; ") : undefined,
   };
   return payload;
 });
+

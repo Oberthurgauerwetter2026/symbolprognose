@@ -484,6 +484,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             Radardaten konnten nicht geladen werden.
           </p>
         )}
+        {data?.warning && (
+          <p className="mb-2 text-center text-xs text-muted-foreground">
+            Hinweis: {data.warning}
+          </p>
+        )}
+
         {data && frames.length > 0 && idx !== null && (
           <>
             <div className="mb-2 flex flex-wrap items-center gap-2">
