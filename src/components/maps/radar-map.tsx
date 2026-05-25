@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapContainer, GeoJSON, TileLayer, ZoomControl, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  GeoJSON,
+  TileLayer,
+  ZoomControl,
+  ImageOverlay,
+  useMap,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
@@ -21,16 +28,22 @@ const LAKE = lakeData as unknown as FeatureCollection;
 const THURGAU = thurgauData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
-// Niederschlags-Farbskala (mm/h) — orientiert an MeteoSchweiz-Radar.
+// Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [180, 220, 255] },
-  { mmh: 0.5, rgb: [120, 180, 240] },
-  { mmh: 1, rgb: [60, 140, 220] },
-  { mmh: 2, rgb: [40, 200, 120] },
-  { mmh: 5, rgb: [240, 220, 60] },
-  { mmh: 10, rgb: [240, 140, 30] },
-  { mmh: 20, rgb: [220, 40, 40] },
-  { mmh: 50, rgb: [160, 30, 160] },
+  { mmh: 0.1, rgb: [200, 220, 245] },
+  { mmh: 0.4, rgb: [160, 200, 240] },
+  { mmh: 0.7, rgb: [120, 180, 235] },
+  { mmh: 1.3, rgb: [80, 160, 220] },
+  { mmh: 2, rgb: [60, 200, 140] },
+  { mmh: 3.5, rgb: [60, 200, 60] },
+  { mmh: 6, rgb: [220, 220, 60] },
+  { mmh: 10, rgb: [240, 180, 40] },
+  { mmh: 20, rgb: [240, 120, 40] },
+  { mmh: 30, rgb: [235, 60, 60] },
+  { mmh: 50, rgb: [200, 30, 90] },
+  { mmh: 80, rgb: [170, 20, 130] },
+  { mmh: 130, rgb: [140, 20, 180] },
+  { mmh: 200, rgb: [120, 80, 220] },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -38,8 +51,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      // Alpha steigt etwas mit Intensität.
-      const a = Math.min(0.85, 0.45 + (i / SCALE.length) * 0.4);
+      const a = Math.min(0.9, 0.55 + (i / SCALE.length) * 0.35);
       return [r, g, b, a];
     }
   }
@@ -292,9 +304,13 @@ function fmtTime(iso: string): string {
   }).format(d);
 }
 
-function sourceLabel(s: RadarFrame["source"]): { label: string; color: string } {
-  if (s === "radar") return { label: "Messung (Radar-Nowcast)", color: "#1f7a3a" };
-  if (s === "icon-ch1") return { label: "Prognose ICON-CH1", color: BRAND };
+function sourceLabel(frame: RadarFrame): { label: string; color: string } {
+  if (frame.source === "radar") {
+    return frame.precipUrl
+      ? { label: "Messung MeteoSchweiz-Radar", color: "#1f7a3a" }
+      : { label: "Messung (Open-Meteo Nowcast)", color: "#1f7a3a" };
+  }
+  if (frame.source === "icon-ch1") return { label: "Prognose ICON-CH1", color: BRAND };
   return { label: "Prognose ICON-CH2", color: "#7a4ca0" };
 }
 
@@ -335,7 +351,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   }, [playing, speed, frames.length]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
-  const meta = currentFrame ? sourceLabel(currentFrame.source) : null;
+  const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   return (
     <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
@@ -367,7 +383,32 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             opacity={0.55}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · Open-Meteo · ICON-CH1/CH2'
           />
-          {data && currentFrame && <PrecipOverlay payload={data} frame={currentFrame} />}
+          {data &&
+            currentFrame &&
+            (currentFrame.precipUrl ? (
+              <ImageOverlay
+                key={`precip-${currentFrame.t}`}
+                url={currentFrame.precipUrl}
+                bounds={[
+                  [data.imageBbox.minLat, data.imageBbox.minLon],
+                  [data.imageBbox.maxLat, data.imageBbox.maxLon],
+                ]}
+                opacity={0.75}
+              />
+            ) : (
+              <PrecipOverlay payload={data} frame={currentFrame} />
+            ))}
+          {data && currentFrame && showHail && currentFrame.hailUrl && (
+            <ImageOverlay
+              key={`hail-${currentFrame.t}`}
+              url={currentFrame.hailUrl}
+              bounds={[
+                [data.imageBbox.minLat, data.imageBbox.minLon],
+                [data.imageBbox.maxLat, data.imageBbox.maxLon],
+              ]}
+              opacity={0.7}
+            />
+          )}
           <GeoJSON
             data={OUTSIDE_CH_MASK}
             style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
@@ -505,17 +546,22 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   type="button"
                   onClick={() => setShowHail((v) => !v)}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium",
-                    showHail
-                      ? "bg-purple-100 text-purple-900 border-purple-300"
+                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium transition",
+                    !data?.hasHail && "cursor-not-allowed opacity-60",
+                    showHail && data?.hasHail
+                      ? "border-purple-300 bg-purple-100 text-purple-900"
                       : "bg-muted text-muted-foreground",
                   )}
-                  title="Hagel – bald verfügbar"
-                  disabled
+                  title={
+                    data?.hasHail
+                      ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
+                      : "Hagel – nur in der Vergangenheit verfügbar, sobald MeteoSchweiz-Radar aktiv ist"
+                  }
+                  disabled={!data?.hasHail}
                 >
                   <CloudHail className="h-3.5 w-3.5" />
                   Hagel
-                  <span className="text-[9px] opacity-70">bald</span>
+                  {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
                 </button>
               </div>
             </div>
@@ -543,8 +589,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             </div>
 
             <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              Quellen: Open-Meteo Radar-Nowcast (Messung, −12 h … jetzt) · ICON-CH1
-              (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h) · Datenstand:{" "}
+              {data.hasRealRadar
+                ? "Quellen: MeteoSchweiz CPC-Radar (Messung, ≤ jetzt) · ICON-CH1 (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h)"
+                : "Quellen: Open-Meteo Radar-Nowcast (Messung, −12 h … jetzt) · ICON-CH1 (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h)"}{" "}
+              · Datenstand:{" "}
               {new Intl.DateTimeFormat("de-CH", {
                 day: "2-digit",
                 month: "2-digit",
