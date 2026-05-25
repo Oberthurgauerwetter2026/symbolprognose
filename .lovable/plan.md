@@ -1,19 +1,16 @@
-## Nächste Schritte
+## Ziel
 
-Da der KNMI API Key jetzt als GitHub Secret `KNMI_API_KEY` hinterlegt ist:
+Das Blitz-Datenset vollständig aus der App entfernen. Die KNMI-Quelle ist nicht verfügbar (404), MeteoSwiss bietet Blitzdaten nicht als Open Data an.
 
-1. **Workflow manuell triggern** zum Testen
-   - GitHub Repo → Actions → "Lightning Ingest" → "Run workflow"
-   - Prüfen, ob der Job ohne Fehler durchläuft (HDF5 Download + Parsing + Upload)
+## Schritte
 
-2. **Ergebnis verifizieren**
-   - Logs des Workflow-Runs prüfen (Anzahl geparster Blitze)
-   - In der App auf `/karten/radar` die Lightning-Overlay-Punkte sichten
+1. `scripts/ingest_lightning.py` löschen
+2. `.github/workflows/lightning-ingest.yml` löschen
+3. `src/lib/lightning.functions.ts` löschen
+4. `src/components/maps/radar-map.tsx`: Blitz-Layer-Code entfernen
+5. `scripts/requirements.txt` prüfen – ggf. `h5py` entfernen wenn nicht mehr anderweitig benötigt
 
-3. **Cron-Schedule aktiv lassen**
-   - Workflow läuft automatisch alle 5 Minuten (bereits in `.github/workflows/lightning-ingest.yml` konfiguriert)
+## Danach
 
-4. **Falls Fehler auftreten**
-   - Workflow-Logs teilen → ich debugge HDF5-Parsing oder Auth-Header
-
-Aktuell sind **keine Code-Änderungen** nötig. Sag Bescheid, sobald der erste Workflow-Run durch ist, oder schick mir die Logs falls etwas schiefgeht.
+- Keine neuen Ingests mehr für Blitzdaten
+- Warten auf zukünftige verfügbare Quellen (MeteoSwiss API erst Ende 2026 geplant)
