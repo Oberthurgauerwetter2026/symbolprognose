@@ -1,43 +1,64 @@
-# Blitzortung zurückrollen + Alternativen für Blitzdaten
+# Blitzdaten via KNMI (kostenlos)
 
-## Zurückrollen Blitzortung
+## Quelle
 
-Die folgenden Änderungen von Blitzortung müssen rückgängig gemacht werden:
+KNMI Data Platform — Dataset `lightning-detection-nl23-1-0`:
+- Quelle: Météorage (kommerzielles Detektionsnetz, hochwertig in CH/EU)
+- Update: alle 5 Minuten
+- Format: HDF5-Rohdaten
+- Abdeckung: West-/Mitteleuropa inkl. Schweiz
+- Auth: API-Key (kostenlose Registrierung auf `developer.dataplatform.knmi.nl`)
 
-1.  **Dateien löschen:**
-    *   `scripts/ingest_lightning.py`
-    *   `.github/workflows/lightning-ingest.yml`
-    *   `src/lib/lightning.functions.ts`
+## Architektur (identisch zur Blitzortung-Variante)
 
-2.  **`src/components/maps/radar-map.tsx` zurücksetzen:**
-    *   Import `getLightningStrikes` entfernen.
-    *   Komponente `LightningOverlay` entfernen.
-    *   `useQuery` für `lightning-strikes` entfernen.
-    *   State `showLightning` entfernen.
-    *   Blitze-Button wieder auf `disabled` / "bald" setzen (kein Live-Daten-Fetch).
-    *   `<LightningOverlay>` aus `MapContainer` entfernen.
+```text
+KNMI Open Data API  →  GitHub-Action (5 min)  →  R2 lightning/strikes.json
+                                                         ↓
+                                          Server-Fn  →  RadarMap-Frontend
+```
 
----
+## Schritte
 
-## Alternativen für Blitzdaten (Europa / CH)
+### 1. Ingest-Skript `scripts/ingest_lightning.py` (neu)
 
-| Quelle | Kosten | Account | Abdeckung | Update | Anmerkung |
-|--------|--------|---------|-----------|--------|-----------|
-| **Weatherbit Lightning** | Free-Tier (non-commercial) | API-Key nötig | Europa, 5-min | 5 min | Kostenlos bis ~500 calls/Tag. Key bei Weatherbit.io anmelden. |
-| **DMI (Dänemark)** | Kostenlos | API-Key nötig | Nordeuropa | 5 min | Offizielle dänische API. |
-| **KNMI (Niederlande)** | Kostenlos | API-Key nötig | West-Europa (NL23) | 5 min | Offizieller niederländischer Wetterdienst. |
-| **Meteomatics** | Kostenpflichtig | API-Key nötig | Global | Echtzeit | Sehr zuverlässig, aber teuer. |
-| **Open-Meteo** | – | – | – | – | Bietet **keine** Blitzdaten an. |
+- Liste letzte Files in Dataset `lightning-detection-nl23` via Open Data API
+  (`GET /v1/datasets/lightning-detection-nl23/versions/1.0/files?maxKeys=5&orderBy=created&sorting=desc`).
+- Letztes File downloaden via Signed-URL-Endpoint.
+- HDF5 parsen mit `h5py` → Strikes (lat, lon, timestamp) extrahieren.
+- Filter: BBox 47.0–48.0 N / 8.5–10.0 E, letzte 30 Min.
+- Upload nach R2 als `lightning/strikes.json` mit Schema:
+  `{ generatedAt, windowMinutes: 30, bbox, strikes: [{ t, lat, lon }] }`.
+- `requirements.txt` ergänzen: `h5py`, `numpy`, `requests`, `boto3`.
 
-**Empfehlung:** Weatherbit oder KNMI — beide sind kostenlos, erfordern aber eine kostenlose Registrierung für einen API-Key. Die Datenqualität ist für unsere Region (CH) ausreichend.
+### 2. GitHub-Workflow `.github/workflows/lightning-ingest.yml` (neu)
 
-**Wichtig:** Es gibt leider keine bekannte kostenlose Blitz-API für Europa, die komplett ohne Account funktioniert. Blitzortung war die einzige umfassende Quelle, die mit einem (geschützten) Account erreichbar war.
+- Cron `*/5 * * * *` + `workflow_dispatch`.
+- Secrets: `KNMI_API_KEY` (neu) + bestehende R2-Secrets.
 
----
+### 3. Server-Funktion `src/lib/lightning.functions.ts` (neu)
 
-## Wie weiter?
+- Liest `lightning/strikes.json` von R2 (gleiches Muster wie Radar).
+- Cache-Header 20s.
+- Gibt Strikes der letzten 30 Min zurück.
 
-Option A: Blitz-Layer komplett entfernen und den "Blitze"-Button auf "bald" lassen.
-Option B: Eine der Alternativen (Weatherbit/KNMI/DMI) mit kostenlosem API-Key integrieren.
+### 4. Frontend `src/components/maps/radar-map.tsx`
 
-**Wie möchtest du fortfahren?**
+- Import `getLightningStrikes` + `LightningOverlay` wiederherstellen.
+- State `showLightning`, `useQuery` mit `refetchInterval: 30_000`.
+- Toggle aktivieren (kein `disabled`/"bald" mehr), Strike-Counter im Button.
+- Zeit-Fade: ≤5 min 100%, 5–15 min 60%, 15–30 min 25%.
+
+## Was du tun musst
+
+1.  Account auf `https://developer.dataplatform.knmi.nl/` erstellen (gratis).
+2.  Im Portal "Open Data API" → "Request an API key" → Key kopieren.
+3.  GitHub-Repo-Secret `KNMI_API_KEY` setzen.
+4.  Workflow "Lightning Ingest" einmal manuell triggern.
+
+## Risiken / offene Punkte
+
+- **Abdeckungstest CH**: Météorage deckt CH gut ab, aber wir wissen erst nach dem ersten Ingest, wie viele Strikes wirklich in unserer BBox ankommen. Falls dünn, können wir BBox erweitern oder NL25 nicht — NL25 ist nur NL.
+- **HDF5-Schema**: Erst nach Download des ersten Files final klar. Skript loggt Felder beim ersten Run.
+- **Lizenz**: KNMI-Daten sind CC BY 4.0 — Attribution "© KNMI / Météorage" muss in der UI ergänzt werden.
+
+Nach Approval implementiere ich alle vier Schritte.
