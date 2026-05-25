@@ -126,11 +126,16 @@ class AssetRef:
     key: str  # filename
 
 
-CPC_RE = re.compile(r"^([a-z]{3})(\d{2})(\d{3})(\d{2})(\d{2})_")
+CPC_RE = re.compile(r"^([a-z]{3})(\d{2})(\d{3})(\d{2})(\d{2})\d")
 
 
 def parse_ts_from_filename(name: str) -> datetime | None:
-    """MeteoSchweiz radar filename: <prefix><YY><DOY><HH><MM>_...h5"""
+    """MeteoSchweiz radar filename: <prefix><YY><DOY><HH><MM><X>...
+
+    Examples:
+      cpc2614500000_00060.001.h5  -> 2026-05-25 00:00 UTC
+      bzc261451245vl.845.h5       -> 2026-05-25 12:45 UTC
+    """
     m = CPC_RE.match(name)
     if not m:
         return None
