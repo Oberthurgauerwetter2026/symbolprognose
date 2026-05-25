@@ -31,23 +31,24 @@ const RADAR_CITIES: { name: string; lat: number; lon: number }[] = [
   { name: "Erlen", lat: 47.5375, lon: 9.2378 },
   { name: "Bischofszell", lat: 47.4944, lon: 9.2389 },
   { name: "Münsterlingen", lat: 47.6306, lon: 9.2378 },
-  { name: "Romanshorn", lat: 47.5664, lon: 9.3789 },
+  { name: "Güttingen", lat: 47.6011, lon: 9.2917 },
   { name: "Egnach", lat: 47.5444, lon: 9.3833 },
   { name: "Horn", lat: 47.4986, lon: 9.4470 },
 ];
 
 function cityIcon(name: string): L.DivIcon {
-  const dot =
-    "display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffffff;border:1.5px solid #1a1a1a;box-shadow:0 0 0 1px rgba(255,255,255,0.6);vertical-align:middle;";
+  const bullet =
+    "font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2561a1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;line-height:1;margin-right:4px;vertical-align:middle;";
   const label =
-    "margin-left:5px;font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;vertical-align:middle;white-space:nowrap;";
+    "font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;vertical-align:middle;";
   return L.divIcon({
     className: "radar-city-marker",
-    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-4px,-4px);"><span style="${dot}"></span><span style="${label}">${name}</span></div>`,
+    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-3px,-7px);"><span style="${bullet}">•</span><span style="${label}">${name}</span></div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
 }
+
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
@@ -642,7 +643,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           />
           <GeoJSON
             data={LAKE}
-            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 0.9 })}
+            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 1 })}
             interactive={false}
           />
           {RADAR_CITIES.map((c) => (

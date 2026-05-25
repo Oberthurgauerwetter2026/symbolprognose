@@ -1,86 +1,77 @@
-# Radar-Karte überarbeiten
+# Radar-Karte: Orte, See-Farbe, Slider-Refresh
 
-Alle Änderungen in `src/components/maps/radar-map.tsx` (plus minimaler Eintrag in `src/data/spots.ts` für die Ortsliste). Keine Backend-Änderungen.
+Alle Änderungen in `src/components/maps/radar-map.tsx`. Keine Backend- oder anderen Datei-Änderungen.
 
-## 1. Standard-Zoom leicht raus
-- `BoundsFitter` ersetzt durch festen `center=[47.55, 9.33]`, `zoom=10.5` (statt aktuell `fitBounds(regionBounds)` ≈ Zoom 11.5).
-- `maxBounds` weiter, damit der neue Ausschnitt erlaubt ist (ca. ±0.15° um Bbox).
-- `minZoom` bleibt 9.
-
-## 2. Hagel standardmässig an
-- `useState(showHail)` Startwert auf `true`.
-- Button-Beschriftung bleibt; aktiv = lila, inaktiv = grau. Wenn keine Hagel-Daten verfügbar (`!data?.hasHail`), bleibt der Button disabled (kein Auto-Toggle).
-
-## 3. Moderner Zeitslider (MeteoSchweiz-Stil)
-Ersetzt den aktuellen `<Slider>` + 3-Zeilen-Label durch eine eigene Timeline-Komponente direkt im File:
-
-```text
-[-2h ──── -1h ──── │NOW│ ──── +1h ──── +3h ──── +6h ──── +12h ──── +24h ──── +48h ──── +120h]
-                              ▲ Drag-Handle mit aktueller Uhrzeit als Tooltip
+## 1. Romanshorn → Güttingen
+In `RADAR_CITIES` den Eintrag `Romanshorn` ersetzen durch:
+```ts
+{ name: "Güttingen", lat: 47.6011, lon: 9.2917 },
 ```
 
-- Horizontaler Balken, volle Breite, Höhe ~44 px.
-- Hintergrund-Segmente:
-  - Vergangenheit (`t ≤ now`): heller Blau-Grau (`bg-muted`).
-  - Zukunft ICON-CH1 (`now < t ≤ now+33h`): heller Markenblau-Verlauf.
-  - Zukunft ICON-CH2 (`> now+33h`): heller Lila-Verlauf.
-- Senkrechte Linie für "jetzt" (kontrastfarben, ~2 px, mit kleinem Punkt oben).
-- Tick-Labels darüber bei -2h, -1h, JETZT, +3h, +6h, +12h, +24h, +48h, +120h (nur die, die im Frame-Range liegen) — kompakt, tabular-nums.
-- Drag-Handle: 14 px Kreis mit Markenfarbe, beim Hover/Active erscheint Bubble mit Datum + Uhrzeit.
-- Interaktion: Klick auf Balken springt zu Frame, Drag verschiebt; Tastatur ←/→ ein Frame.
-- Play/Pause/Jetzt/Speed-Buttons bleiben oberhalb wie bisher; Hagel-Toggle bleibt rechts.
+## 2. See in gleicher Farbe wie Symbolprognose "Region"
+Aktuell (radar-map.tsx, Z. 643–647):
+```tsx
+<GeoJSON data={LAKE}
+  style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 0.9 })} ... />
+```
+Anpassen exakt wie in `region-map.tsx` (Z. 617–625):
+```tsx
+style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 1 })}
+```
+(`fillOpacity: 0.9` → `1`, sonst gleich — damit der See unter dem leichten Radar-Overlay konstant in der Region-Farbe erscheint und nicht durch Niederschlagspixel verfärbt wirkt.)
 
-Technische Umsetzung: kein Radix-Slider, sondern `<div>` + `onPointerDown/Move/Up` mit `getBoundingClientRect()`, weil wir farbige Segmente und freie Tick-Beschriftung brauchen. Index wird über lineare Interpolation aus Pointer-X bestimmt und auf nächsten Frame gerundet.
-
-## 4. Quelle: MeteoSchweiz statt Open-Meteo
-- `sourceLabel()` und der Fussnoten-Text: alle "Open-Meteo …" → "MeteoSchweiz". Konkret:
-  - `"Messung (Open-Meteo Nowcast)"` → `"Messung MeteoSchweiz"`.
-  - Footer ohne `hasRealRadar`-Verzweigung: `"Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Nowcast bis +33 h) · MeteoSchweiz ICON-CH2 (+33 h … +120 h)"`.
-- `TileLayer attribution` von `…Open-Meteo · ICON-CH1/CH2` → `© swisstopo · MeteoSchweiz`.
-- Backend / Modell-Namen werden NICHT umbenannt (intern bleibt es Open-Meteo-API), nur die UI-Texte.
-
-## 5. Umrisse entfernen
-Diese zwei `<GeoJSON>`-Blöcke werden entfernt:
-- `data={THURGAU}` (blaue Thurgau-Grenze).
-- `data={REGION}` (Markenfarbe-Region-Umriss).
-
-Behalten: `OUTSIDE_CH_MASK`, `SWITZERLAND` (weisser CH-Umriss), `OUTSIDE_MASK` (sanfter Aussen-Schatten), `LAKE`. Damit bleiben Bodensee, CH-Grenze und die generelle Kartenfarbe erhalten.
-
-## 6. Orte hinzufügen
-In `src/data/spots.ts`: neue konstante Liste (NICHT die bestehende `SPOTS` ändern, um andere Seiten nicht zu brechen) — oder direkt im `radar-map.tsx` als lokales Array, da nur dort benötigt:
+## 3. Aufzählungszeichen vor Ortsnamen
+In `cityIcon()` den weissen Punkt (8 px Kreis mit dunklem Rand) ersetzen durch ein typografisches Bullet `•` in Markenblau mit weissem Halo:
 
 ```ts
-const RADAR_CITIES = [
-  { name: "Amriswil",       lat: 47.5469, lon: 9.2986 },
-  { name: "Erlen",          lat: 47.5375, lon: 9.2378 },
-  { name: "Bischofszell",   lat: 47.4944, lon: 9.2389 },
-  { name: "Münsterlingen",  lat: 47.6306, lon: 9.2378 },
-  { name: "Romanshorn",     lat: 47.5664, lon: 9.3789 },
-  { name: "Egnach",         lat: 47.5444, lon: 9.3833 },
-  { name: "Horn",           lat: 47.4986, lon: 9.4470 },
-];
+const bullet = "font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2561a1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;line-height:1;margin-right:4px;";
+const label  = "font:500 12px/1 system-ui,...;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;";
+html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-3px,-7px);"><span style="${bullet}">•</span><span style="${label}">${name}</span></div>`
 ```
+Resultat: `• Amriswil` — kompakter, lesbar auf jedem Untergrund, kein „kitschiger" Doppelkreis mehr.
 
-Rendering analog zum Screenshot: kleiner weisser Hohlkreis (4 px Radius, dunkler Rand) + Label rechts daneben in dunklem Sans-Serif. Umsetzung als `L.divIcon` pro Stadt + `L.marker(..., { interactive: false, keyboard: false })`. Labels liegen über allen Overlays (`zIndexOffset` hoch + eigene CSS-Klasse mit `pointer-events:none`, weisser Text-Schatten für Lesbarkeit auf Niederschlag).
+## 4. Slider: moderner, ruhiger, smartphone-friendly
+Ziel: weniger Farbe/Gradient-„Kitsch", klare Hierarchie, grosse Touch-Targets.
 
-```text
-○ Amriswil
-```
+Änderungen in `Timeline` (Z. 350–527):
 
-CSS (inline `<style>` oder Tailwind-Klassen):
-- Punkt: 8 px Kreis, `background:#fff`, `border:1.5px solid #1a1a1a`.
-- Text: 12 px, `font-weight:500`, Farbe `#1a1a1a`, leichter weisser Halo (`text-shadow: 0 0 2px #fff, 0 0 2px #fff`).
+a) **Track flacher, dezentere Segmente**
+- Höhe `h-10` → `h-2.5` für die Track-Linie selbst (statt fetter Pille).
+- Wrapper-Höhe bleibt grosszügig (`py-3`), damit Touch-Trefferfläche weiterhin ≥ 44 px hoch ist (`touch-none`, `cursor-pointer` auf dem Wrapper, nicht dem dünnen Track).
+- Bisherige 3 farbigen Verlaufs-Segmente ersetzt durch dezente, einfarbige Bereiche:
+  - Vergangenheit: `bg-muted-foreground/25`
+  - ICON-CH1: `bg-[hsl(var(--primary)/0.45)]` (Markenblau, halbtransparent)
+  - ICON-CH2: gestreiftes Pattern in derselben Farbe mit `0.25` Alpha, um „Modellunsicherheit" optisch anzudeuten (CSS `repeating-linear-gradient`, 6 px Streifen).
+- Keine Rundungen an den Übergängen zwischen Segmenten, nur an den äusseren Enden (`rounded-full` am Outer-Track).
+
+b) **„Jetzt"-Linie subtiler**
+- 1 px statt 2 px, Farbe `bg-foreground/60`. Punkt oben entfällt.
+
+c) **Handle moderner und grösser für Touch**
+- Aktuell 20 px (`h-5 w-5`). Neu: 22 px (`h-[22px] w-[22px]`) auf Mobile, 18 px (`sm:h-[18px] sm:w-[18px]`) auf Desktop. Weisser Kreis mit 2 px Border in `--primary`, schlichter `shadow-sm` (kein dicker `shadow-md`).
+- Tooltip-Bubble (`handleLabel`):
+  - Nur sichtbar während Drag oder bei `:hover`/`:focus-visible` des Tracks — per State `dragging` + `focused`. Vorher immer sichtbar → wirkt überladen.
+  - Styling: `bg-foreground text-background`, `rounded-md`, `px-2 py-1`, `text-[11px] font-medium`, kleines nach unten zeigendes Dreieck via `::after`.
+
+d) **Tick-Labels reduzieren**
+- Aktuelle Tick-Liste `[-2, -1, 0, 1, 3, 6, 12, 24, 48, 120]` ist auf 320 px Breite überfüllt.
+- Neu: Container hat `useIsMobile()`-Check. Auf Mobile zeigt nur `[-1, 0, 6, 24, 72]`, auf Desktop unverändert `[-2, -1, 0, 3, 12, 24, 48, 120]` (1 h entfällt überall, 72 h kommt dazu).
+- `text-[10px]` → `text-[11px]`, Tick-Container `mb-1 h-4` → `mb-1.5 h-3.5`.
+
+e) **Buttons-Reihe (Play/Jetzt/Speed/Hagel) smartphone-tauglich**
+- Aktueller Wrapper `flex flex-wrap items-center gap-2`. Auf 360 px landet Hagel in eigener Reihe — ok.
+- Touch-Targets: alle Buttons auf `min-h-9` (statt `size="sm"` mit ~32 px). Speed-Pills `py-1` → `py-1.5`.
+- Reihenfolge auf Mobile per `order`-Klassen: Play | Jetzt | Hagel | Speed (Speed nach hinten, da seltener gebraucht).
+
+f) **Kein Radix-Slider**: bleibt eigene Pointer-Implementation, nur das Markup wird umgebaut. Tastatur-Support (←/→) bleibt.
 
 ## Out of Scope
-- Backend / `radar.functions.ts` / Cache bleiben unverändert.
-- Andere Karten (Wind, Pollen, …) bleiben unverändert.
-- Keine neuen npm-Packages.
+- `radar.functions.ts`, Cache, Backend, andere Karten — unverändert.
+- Keine neuen Pakete.
+- `src/data/spots.ts` bleibt unverändert (Liste ist nur lokal in `radar-map.tsx`).
 
 ## Verification
-Nach Build: `/karten/radar` öffnen und prüfen:
-1. Karte zeigt etwas mehr Umland als bisher.
-2. Hagel-Toggle ist beim Laden aktiv (sofern `hasHail`).
-3. Slider zeigt farbige Bereiche + "jetzt"-Linie + Tick-Labels; Drag funktioniert flüssig.
-4. Quelle-Badge und Footer nennen nur noch MeteoSchweiz.
-5. Keine blauen Region-/Thurgau-Linien mehr sichtbar; Bodensee + CH-Grenze noch da.
-6. 7 Ortsmarker mit Punkt + Label sichtbar, lesbar auf Regen-Overlay.
+1. `/karten/radar`: `• Güttingen` statt Romanshorn, kein doppelter Kreis mehr, Bullet in Markenblau.
+2. Bodensee zeigt dieselbe Farbe wie in der Symbolprognose „Region" (auch wenn Niederschlag drüber zieht).
+3. Slider auf Desktop (1336 px): dünner Track, 3 Phasen sichtbar (grau / blau / blau-gestreift), Tooltip nur bei Drag.
+4. Slider auf 375 px (iPhone): Touch-Drag flüssig, Handle ≥ 22 px, weniger Tick-Labels, keine überlappenden Buttons.
