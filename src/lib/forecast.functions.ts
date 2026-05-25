@@ -14,14 +14,16 @@ import { getOpenMeteoCache } from "./openmeteo-cache.server";
  * und wird hier unverändert weitergereicht.
  */
 
+type Series = Record<string, (number | string | null)[]>;
+
 export interface MultiModelLocationForecast {
   latitude: number;
   longitude: number;
   timezone?: string;
   utc_offset_seconds?: number;
   generatedAt: string;
-  hourly?: Record<string, unknown>;
-  daily?: Record<string, unknown>;
+  hourly?: Series;
+  daily?: Series;
 }
 
 type Loc = {
@@ -29,9 +31,10 @@ type Loc = {
   longitude?: number;
   timezone?: string;
   utc_offset_seconds?: number;
-  hourly?: Record<string, unknown>;
-  daily?: Record<string, unknown>;
+  hourly?: Series;
+  daily?: Series;
 };
+
 
 function dist2(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
   const dLat = a.lat - b.lat;
