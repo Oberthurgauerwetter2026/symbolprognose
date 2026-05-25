@@ -7,13 +7,19 @@ import { setResponseHeader } from "@tanstack/react-start/server";
  * Vergangenheit (≤ now):
  *   - Bevorzugt: echte MeteoSchweiz-CPC- / POH-PNGs aus Cloudflare R2
  *     (befüllt durch `scripts/ingest_radar.py` via GitHub Actions).
- *   - Fallback: Open-Meteo minutely_15.precipitation als interpoliertes
+ *   - Fallback: ICON-CH1 minutely_15.precipitation als interpoliertes
  *     Punkt-Grid (kein echtes Radar).
  *
  * Vorhersage (> now):
- *   - ICON-CH1 (+33h, 15-min Raster) via Open-Meteo Multi-Location-Grid
- *   - ICON-CH2 (+120h, 1-h Raster) via Open-Meteo
+ *   - ICON-CH1 (+33h, 15-min Raster)
+ *   - ICON-CH2 (+120h, 1-h Raster)
+ *
+ * Alle Open-Meteo-Daten werden NICHT vom Worker live abgerufen, sondern
+ * alle 5 Minuten via GitHub Actions (`scripts/ingest_openmeteo.py`) in R2
+ * unter `openmeteo/forecast.json` gecached. Damit teilt sich kein Besucher-
+ * traffic mehr die Open-Meteo-Free-Tier-Quote.
  */
+
 
 // Bounding-Box passend zur Region (auch im Python-Ingest verwendet).
 const BBOX = { minLat: 47.38, maxLat: 47.72, minLon: 9.0, maxLon: 9.62 } as const;
