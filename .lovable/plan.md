@@ -1,21 +1,24 @@
 ## Plan
 
-Ich behebe den Ingest gezielt an der Stelle, an der aktuell alle Frames verworfen werden.
+Ich würde den Radar-Ingest robuster machen, damit er MeteoSchweiz-STAC-Assets auch dann findet, wenn der STAC-Asset-Key nicht direkt mit `cpc` oder `bzc` beginnt.
 
-### Ursache
-Der Workflow läuft mit aktuellem Code, aber `0 candidate frames` ohne `note:` bedeutet sehr wahrscheinlich: Die STAC-Assets heißen nicht mehr mit Asset-Key `cpc...`/`bzc...`, sondern der Zeitstempel steckt im Asset-`href` oder einem anderen Feld. Der Code prüft bisher nur `asset_key.startswith(prefix)` und übersieht dadurch alle passenden H5-Dateien.
+### Änderung
 
-### Umsetzung
-1. `scripts/ingest_radar.py` robuster machen:
-   - Nicht nur Asset-Key prüfen, sondern auch Dateiname aus `href`, `title` und `description`.
-   - Zeitstempel aus dem tatsächlichen H5-Dateinamen extrahieren.
-   - Assets mit `.h5` und passendem Produktpräfix behalten, auch wenn der STAC-Key anders heißt.
-2. Diagnose verbessern:
-   - Wenn keine Frames gefunden werden, im Log ausgeben, wie viele Assets vorhanden waren und 3 Beispiel-Keys/Hrefs zeigen.
-   - So ist beim nächsten GitHub-Run sofort sichtbar, ob MeteoSchweiz die Struktur erneut geändert hat.
-3. Kleine lokale Smoke-Prüfung ergänzen/ausführen:
-   - Die öffentliche STAC-Abfrage gegen heutiges Tages-Item testen.
-   - Prüfen, dass mindestens aktuelle `precip`/`hail` AssetRefs erkannt werden, bevor der Workflow wieder laufen soll.
+1. **Asset-Erkennung erweitern**
+   - In `scripts/ingest_radar.py` nicht nur `asset_key.startswith(prefix)` prüfen.
+   - Zusätzlich den Dateinamen aus `href`, `title` und `description` auswerten.
+   - Den Zeitstempel aus dem tatsächlichen `.h5`-Dateinamen parsen.
+   - Passende `.h5`-Assets behalten, wenn irgendwo ein gültiger `cpc...`- bzw. `bzc...`-Dateiname erkannt wird.
+
+2. **Diagnose im GitHub-Log verbessern**
+   - Pro STAC-Tagesitem ausgeben, wie viele Assets vorhanden sind.
+   - Wenn 0 Frames gefunden werden, 3 Beispiel-Asset-Keys und Hrefs loggen.
+   - Dadurch sieht man beim nächsten Run sofort, ob die API leer ist, die Namen anders sind oder die Zeitfilterung greift.
+
+3. **Zeitfilter sichtbarer machen**
+   - Im Log zeigen, ob Assets wegen `since` verworfen wurden.
+   - Optional `RADAR_LOOKBACK_HOURS` im Workflow auf einen etwas großzügigeren Wert setzen, falls der MeteoSchweiz-Feed zeitversetzt aktualisiert wird.
 
 ### Erwartetes Ergebnis
-Beim nächsten manuellen Run steht im Schritt **Run ingest** nicht mehr `0 candidate frames`, sondern mehrere Kandidaten; danach wird `radar/frames.json` mit Frame-URLs geschrieben und `/karten/radar` kann Bilder anzeigen.
+
+Beim nächsten manuellen GitHub Actions Run sollte im Schritt **Run ingest** sichtbar sein, welche STAC-Items geladen wurden und warum Assets behalten oder verworfen werden. Wenn die Asset-Namen wie erwartet im `href` stehen, erscheinen danach wieder mehrere `candidate frames` und `radar/frames.json` wird mit Frames gefüllt.

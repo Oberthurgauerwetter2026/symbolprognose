@@ -147,38 +147,53 @@ def parse_ts_from_filename(name: str) -> datetime | None:
     return base
 
 
+def _filename_from_asset(asset_key: str, asset: dict) -> str:
+    """Best-effort filename: asset_key, href tail, or title."""
+    for cand in (asset_key, (asset.get("href") or "").rsplit("/", 1)[-1], asset.get("title") or ""):
+        if cand and cand.endswith(".h5"):
+            return cand
+    return asset_key
+
+
 def _extract_assets(feature: dict, product: str, prefix: str, since: datetime) -> list[AssetRef]:
     out: list[AssetRef] = []
     assets = feature.get("assets") or {}
+    total = len(assets)
     matching = 0
     unparsed = 0
+    too_old = 0
+    no_href = 0
     for asset_key, asset in assets.items():
-        if not asset_key.startswith(prefix):
+        fname = _filename_from_asset(asset_key, asset)
+        if not fname.startswith(prefix):
             continue
         matching += 1
-        ts = parse_ts_from_filename(asset_key)
+        ts = parse_ts_from_filename(fname)
         if ts is None:
             unparsed += 1
             continue
         if ts < since:
+            too_old += 1
             continue
         href = asset.get("href")
         if not href:
+            no_href += 1
             continue
         out.append(AssetRef(product=product, ts=ts, href=href, key=asset_key))
-    if matching and not out:
-        sample = next((k for k in assets if k.startswith(prefix)), "")
-        print(f"  note: {matching} assets matched prefix '{prefix}' but 0 kept "
-              f"(unparsed={unparsed}, sample={sample!r})", flush=True)
+    print(f"  item: total={total} prefix='{prefix}' matched={matching} "
+          f"kept={len(out)} too_old={too_old} unparsed={unparsed} no_href={no_href}",
+          flush=True)
+    if total and not out:
+        samples = list(assets.items())[:3]
+        for k, v in samples:
+            print(f"    sample key={k!r} href={v.get('href','')!r}", flush=True)
     return out
 
 
 def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
     """Return asset refs newer than `since`.
 
-    STAC items here are grouped per day with id `YYYYMMDD-ch`. The default
-    `…/items?limit=N` returns OLDEST first, so we address daily items
-    directly (today + yesterday UTC to cover midnight rollover).
+    STAC items here are grouped per day with id `YYYYMMDD-ch`.
     """
     coll = COLLECTIONS[product]
     prefix = ASSET_PREFIX[product]
@@ -195,7 +210,7 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
             r.raise_for_status()
             candidates.extend(_extract_assets(r.json(), product, prefix, since))
         except Exception as exc:
-            print(f"  STAC item {day}-ch: {exc}", flush=True)
+            print(f"  STAC item {day}-ch error: {exc!r}", flush=True)
 
     if not candidates:
         try:
@@ -206,7 +221,7 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
             for feat in r.json().get("features", []):
                 candidates.extend(_extract_assets(feat, product, prefix, since))
         except Exception as exc:
-            print(f"  STAC sort fallback: {exc}", flush=True)
+            print(f"  STAC sort fallback error: {exc!r}", flush=True)
 
     seen: set[datetime] = set()
     uniq: list[AssetRef] = []
