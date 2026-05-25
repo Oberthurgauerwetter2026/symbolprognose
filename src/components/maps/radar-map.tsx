@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   MapContainer,
   GeoJSON,
+  Marker,
   TileLayer,
   ZoomControl,
   ImageOverlay,
@@ -15,9 +16,7 @@ import { Pause, Play, SkipForward, CloudHail } from "lucide-react";
 
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
-import thurgauData from "@/data/thurgau.json";
 import switzerlandData from "@/data/switzerland.json";
-import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
@@ -25,8 +24,30 @@ import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.
 const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
-const THURGAU = thurgauData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
+
+const RADAR_CITIES: { name: string; lat: number; lon: number }[] = [
+  { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
+  { name: "Erlen", lat: 47.5375, lon: 9.2378 },
+  { name: "Bischofszell", lat: 47.4944, lon: 9.2389 },
+  { name: "Münsterlingen", lat: 47.6306, lon: 9.2378 },
+  { name: "Romanshorn", lat: 47.5664, lon: 9.3789 },
+  { name: "Egnach", lat: 47.5444, lon: 9.3833 },
+  { name: "Horn", lat: 47.4986, lon: 9.4470 },
+];
+
+function cityIcon(name: string): L.DivIcon {
+  const dot =
+    "display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffffff;border:1.5px solid #1a1a1a;box-shadow:0 0 0 1px rgba(255,255,255,0.6);vertical-align:middle;";
+  const label =
+    "margin-left:5px;font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;vertical-align:middle;white-space:nowrap;";
+  return L.divIcon({
+    className: "radar-city-marker",
+    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-4px,-4px);"><span style="${dot}"></span><span style="${label}">${name}</span></div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
@@ -117,13 +138,17 @@ const regionBounds: L.LatLngBoundsExpression = [
   [47.6392538, 9.4773698],
 ];
 
-function BoundsFitter() {
+// Etwas weiter als die strenge Region-Bbox, damit der leicht herausgezoomte
+// Standardausschnitt nicht direkt am Rand kollidiert.
+const maxBoundsExt: L.LatLngBoundsExpression = [
+  [47.32, 8.95],
+  [47.79, 9.70],
+];
+
+function InvalidateOnResize() {
   const map = useMap();
   useEffect(() => {
-    const fit = () => {
-      map.invalidateSize();
-      map.fitBounds(regionBounds, { padding: [4, 4] });
-    };
+    const fit = () => map.invalidateSize();
     fit();
     window.addEventListener("resize", fit);
     const ro = new ResizeObserver(fit);
@@ -306,12 +331,199 @@ function fmtTime(iso: string): string {
 
 function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "radar") {
-    return frame.precipUrl
-      ? { label: "Messung MeteoSchweiz-Radar", color: "#1f7a3a" }
-      : { label: "Messung (Open-Meteo Nowcast)", color: "#1f7a3a" };
+    return { label: "Messung MeteoSchweiz", color: "#1f7a3a" };
   }
-  if (frame.source === "icon-ch1") return { label: "Prognose ICON-CH1", color: BRAND };
-  return { label: "Prognose ICON-CH2", color: "#7a4ca0" };
+  if (frame.source === "icon-ch1") return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
+  return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
+}
+
+// ---------------- Modern Timeline Slider ----------------
+
+const TIMELINE_TICKS_H = [-2, -1, 0, 1, 3, 6, 12, 24, 48, 120];
+
+function tickLabel(h: number): string {
+  if (h === 0) return "Jetzt";
+  if (h < 0) return `${h}h`;
+  return `+${h}h`;
+}
+
+function Timeline({
+  frames,
+  idx,
+  onChange,
+}: {
+  frames: RadarFrame[];
+  idx: number;
+  onChange: (i: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+
+  const times = useMemo(() => frames.map((f) => Date.parse(f.t)), [frames]);
+  const tMin = times[0] ?? 0;
+  const tMax = times[times.length - 1] ?? 1;
+  const span = Math.max(1, tMax - tMin);
+  const now = Date.now();
+  const nowPct = Math.max(0, Math.min(100, ((now - tMin) / span) * 100));
+
+  // Phase-Segmente (Vergangenheit / ICON-CH1 / ICON-CH2)
+  const ch1CutMs = now + 33 * 3600 * 1000;
+  const ch1Pct = Math.max(0, Math.min(100, ((ch1CutMs - tMin) / span) * 100));
+
+  const pctForIdx = (i: number): number => {
+    const t = times[i] ?? tMin;
+    return Math.max(0, Math.min(100, ((t - tMin) / span) * 100));
+  };
+
+  const idxFromClientX = (clientX: number): number => {
+    const el = trackRef.current;
+    if (!el) return idx;
+    const r = el.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    const target = tMin + pct * span;
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < times.length; i++) {
+      const dt = Math.abs(times[i] - target);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
+      }
+    }
+    return best;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    draggingRef.current = true;
+    onChange(idxFromClientX(e.clientX));
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    onChange(idxFromClientX(e.clientX));
+  };
+  const handlePointerUp = (e: React.PointerEvent) => {
+    draggingRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handlePct = pctForIdx(idx);
+  const currentMs = times[idx] ?? now;
+  const handleLabel = new Intl.DateTimeFormat("de-CH", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(currentMs));
+
+  // Sichtbare Ticks (nur die im Range)
+  const visibleTicks = TIMELINE_TICKS_H
+    .map((h) => {
+      const tMs = now + h * 3600 * 1000;
+      const pct = ((tMs - tMin) / span) * 100;
+      return { h, pct };
+    })
+    .filter((t) => t.pct >= 0 && t.pct <= 100);
+
+  return (
+    <div className="select-none">
+      {/* Tick-Labels */}
+      <div className="relative mb-1 h-4 text-[10px] text-muted-foreground">
+        {visibleTicks.map((t) => (
+          <span
+            key={t.h}
+            className={cn(
+              "absolute -translate-x-1/2 tabular-nums",
+              t.h === 0 && "font-semibold text-foreground",
+            )}
+            style={{ left: `${t.pct}%` }}
+          >
+            {tickLabel(t.h)}
+          </span>
+        ))}
+      </div>
+
+      {/* Track */}
+      <div
+        ref={trackRef}
+        role="slider"
+        aria-label="Radar-Zeit"
+        aria-valuemin={0}
+        aria-valuemax={frames.length - 1}
+        aria-valuenow={idx}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            onChange(Math.max(0, idx - 1));
+          } else if (e.key === "ArrowRight") {
+            e.preventDefault();
+            onChange(Math.min(frames.length - 1, idx + 1));
+          }
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="relative h-10 w-full cursor-pointer touch-none rounded-full bg-muted shadow-inner outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        {/* Vergangenheit-Segment */}
+        <div
+          className="absolute inset-y-0 left-0 rounded-l-full"
+          style={{
+            width: `${nowPct}%`,
+            background:
+              "linear-gradient(90deg, hsl(210 25% 78%) 0%, hsl(210 30% 70%) 100%)",
+          }}
+        />
+        {/* ICON-CH1 Segment */}
+        <div
+          className="absolute inset-y-0"
+          style={{
+            left: `${nowPct}%`,
+            width: `${Math.max(0, ch1Pct - nowPct)}%`,
+            background:
+              "linear-gradient(90deg, hsl(212 60% 70%) 0%, hsl(212 55% 78%) 100%)",
+          }}
+        />
+        {/* ICON-CH2 Segment */}
+        <div
+          className="absolute inset-y-0 rounded-r-full"
+          style={{
+            left: `${ch1Pct}%`,
+            width: `${Math.max(0, 100 - ch1Pct)}%`,
+            background:
+              "linear-gradient(90deg, hsl(275 45% 78%) 0%, hsl(275 40% 85%) 100%)",
+          }}
+        />
+
+        {/* "Jetzt"-Marker */}
+        {nowPct > 0 && nowPct < 100 && (
+          <div
+            className="pointer-events-none absolute inset-y-0 w-[2px] bg-foreground/80"
+            style={{ left: `${nowPct}%` }}
+          >
+            <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-foreground" />
+          </div>
+        )}
+
+        {/* Drag-Handle */}
+        <div
+          className="pointer-events-none absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md"
+          style={{ left: `${handlePct}%`, background: BRAND }}
+        >
+          <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-0.5 text-[10px] font-semibold text-background shadow-md">
+            {handleLabel}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
@@ -331,7 +543,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1); // 1× = 400ms/frame
-  const [showHail, setShowHail] = useState(false);
+  const [showHail, setShowHail] = useState(true);
 
   // Auf "jetzt" springen sobald Daten da sind.
   useEffect(() => {
@@ -367,10 +579,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         )}
       >
         <MapContainer
-          center={[47.55, 9.33]}
-          zoom={11}
+          center={[47.555, 9.33]}
+          zoom={10.5}
           zoomSnap={0.25}
-          maxBounds={regionBounds}
+          maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
           minZoom={9}
           maxZoom={15}
@@ -379,12 +591,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           attributionControl={true}
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
-          <BoundsFitter />
+          <InvalidateOnResize />
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
             opacity={0.55}
-            attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · Open-Meteo · ICON-CH1/CH2'
+            attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz'
           />
           {data &&
             currentFrame &&
@@ -413,8 +625,6 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             />
           )}
 
-
-
           <GeoJSON
             data={OUTSIDE_CH_MASK}
             style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
@@ -431,20 +641,19 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             interactive={false}
           />
           <GeoJSON
-            data={THURGAU}
-            style={() => ({ color: "#1f4d80", weight: 2, opacity: 0.85, fill: false })}
-            interactive={false}
-          />
-          <GeoJSON
             data={LAKE}
             style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 0.9 })}
             interactive={false}
           />
-          <GeoJSON
-            data={REGION}
-            style={() => ({ color: BRAND, weight: 2, opacity: 0.9, fill: false })}
-            interactive={false}
-          />
+          {RADAR_CITIES.map((c) => (
+            <Marker
+              key={c.name}
+              position={[c.lat, c.lon]}
+              icon={cityIcon(c.name)}
+              interactive={false}
+              keyboard={false}
+            />
+          ))}
           <ZoomControl position="topright" />
         </MapContainer>
 
@@ -563,33 +772,20 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               </div>
             </div>
 
-            <div className="px-1">
-              <Slider
-                size="touch"
-                aria-label="Radar-Zeit"
-                min={0}
-                max={frames.length - 1}
-                step={1}
-                value={[idx]}
-                onValueChange={(v) => {
-                  setIdx(v[0] ?? 0);
+            <div className="px-1 pt-4">
+              <Timeline
+                frames={frames}
+                idx={idx}
+                onChange={(i) => {
+                  setIdx(i);
                   setPlaying(false);
                 }}
               />
-              <div className="mt-1 flex justify-between text-[10px] text-muted-foreground tabular-nums">
-                <span>{frames[0] ? fmtTime(frames[0].t) : ""}</span>
-                <span className="font-semibold text-foreground">
-                  {currentFrame ? fmtTime(currentFrame.t) : ""}
-                </span>
-                <span>{frames[frames.length - 1] ? fmtTime(frames[frames.length - 1].t) : ""}</span>
-              </div>
             </div>
 
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              {data.hasRealRadar
-                ? "Quellen: MeteoSchweiz CPC-Radar (Messung, ≤ jetzt) · ICON-CH1 (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h)"
-                : "Quellen: Open-Meteo Radar-Nowcast (Messung, −12 h … jetzt) · ICON-CH1 (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h)"}{" "}
-              · Datenstand:{" "}
+            <p className="mt-3 text-center text-[11px] text-muted-foreground">
+              Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Nowcast bis +33 h) · MeteoSchweiz ICON-CH2 (+33 h … +120 h)
+              {" · Datenstand: "}
               {new Intl.DateTimeFormat("de-CH", {
                 day: "2-digit",
                 month: "2-digit",
