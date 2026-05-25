@@ -13,7 +13,11 @@ ENV (required):
   R2_BUCKET, R2_PUBLIC_URL
 
 ENV (optional):
-  RADAR_LOOKBACK_HOURS  default 3
+  RADAR_LOOKBACK_HOURS  default 12
+
+NOTE: This repo (symbolprognose) is the SINGLE source of truth for
+radar/frames.json. The old symbolprognose-radar repo's workflow must be
+disabled, otherwise it overwrites the manifest with stale data.
   RADAR_RETENTION_HOURS default 24
 """
 from __future__ import annotations
@@ -58,7 +62,7 @@ BBOX_WGS = {"minLon": 9.00, "maxLon": 9.62, "minLat": 47.38, "maxLat": 47.72}
 # Output PNG resolution (Web Mercator pixels). 512×384 keeps PNGs <20 KB.
 OUT_W, OUT_H = 512, 384
 
-LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "3"))
+LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 
 # MeteoSchweiz CPC colour scale (mm/h → RGBA). < 0.1 mm/h = transparent.
