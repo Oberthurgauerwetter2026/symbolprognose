@@ -11,7 +11,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, SkipForward, Zap, CloudHail } from "lucide-react";
+import { Pause, Play, SkipForward, CloudHail } from "lucide-react";
 
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
@@ -21,7 +21,6 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
-import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 
 const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
