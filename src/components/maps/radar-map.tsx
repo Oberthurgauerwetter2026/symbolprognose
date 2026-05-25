@@ -327,12 +327,199 @@ function fmtTime(iso: string): string {
 
 function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "radar") {
-    return frame.precipUrl
-      ? { label: "Messung MeteoSchweiz-Radar", color: "#1f7a3a" }
-      : { label: "Messung (Open-Meteo Nowcast)", color: "#1f7a3a" };
+    return { label: "Messung MeteoSchweiz", color: "#1f7a3a" };
   }
-  if (frame.source === "icon-ch1") return { label: "Prognose ICON-CH1", color: BRAND };
-  return { label: "Prognose ICON-CH2", color: "#7a4ca0" };
+  if (frame.source === "icon-ch1") return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
+  return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
+}
+
+// ---------------- Modern Timeline Slider ----------------
+
+const TIMELINE_TICKS_H = [-2, -1, 0, 1, 3, 6, 12, 24, 48, 120];
+
+function tickLabel(h: number): string {
+  if (h === 0) return "Jetzt";
+  if (h < 0) return `${h}h`;
+  return `+${h}h`;
+}
+
+function Timeline({
+  frames,
+  idx,
+  onChange,
+}: {
+  frames: RadarFrame[];
+  idx: number;
+  onChange: (i: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+
+  const times = useMemo(() => frames.map((f) => Date.parse(f.t)), [frames]);
+  const tMin = times[0] ?? 0;
+  const tMax = times[times.length - 1] ?? 1;
+  const span = Math.max(1, tMax - tMin);
+  const now = Date.now();
+  const nowPct = Math.max(0, Math.min(100, ((now - tMin) / span) * 100));
+
+  // Phase-Segmente (Vergangenheit / ICON-CH1 / ICON-CH2)
+  const ch1CutMs = now + 33 * 3600 * 1000;
+  const ch1Pct = Math.max(0, Math.min(100, ((ch1CutMs - tMin) / span) * 100));
+
+  const pctForIdx = (i: number): number => {
+    const t = times[i] ?? tMin;
+    return Math.max(0, Math.min(100, ((t - tMin) / span) * 100));
+  };
+
+  const idxFromClientX = (clientX: number): number => {
+    const el = trackRef.current;
+    if (!el) return idx;
+    const r = el.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    const target = tMin + pct * span;
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < times.length; i++) {
+      const dt = Math.abs(times[i] - target);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
+      }
+    }
+    return best;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    draggingRef.current = true;
+    onChange(idxFromClientX(e.clientX));
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current) return;
+    onChange(idxFromClientX(e.clientX));
+  };
+  const handlePointerUp = (e: React.PointerEvent) => {
+    draggingRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handlePct = pctForIdx(idx);
+  const currentMs = times[idx] ?? now;
+  const handleLabel = new Intl.DateTimeFormat("de-CH", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(currentMs));
+
+  // Sichtbare Ticks (nur die im Range)
+  const visibleTicks = TIMELINE_TICKS_H
+    .map((h) => {
+      const tMs = now + h * 3600 * 1000;
+      const pct = ((tMs - tMin) / span) * 100;
+      return { h, pct };
+    })
+    .filter((t) => t.pct >= 0 && t.pct <= 100);
+
+  return (
+    <div className="select-none">
+      {/* Tick-Labels */}
+      <div className="relative mb-1 h-4 text-[10px] text-muted-foreground">
+        {visibleTicks.map((t) => (
+          <span
+            key={t.h}
+            className={cn(
+              "absolute -translate-x-1/2 tabular-nums",
+              t.h === 0 && "font-semibold text-foreground",
+            )}
+            style={{ left: `${t.pct}%` }}
+          >
+            {tickLabel(t.h)}
+          </span>
+        ))}
+      </div>
+
+      {/* Track */}
+      <div
+        ref={trackRef}
+        role="slider"
+        aria-label="Radar-Zeit"
+        aria-valuemin={0}
+        aria-valuemax={frames.length - 1}
+        aria-valuenow={idx}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            onChange(Math.max(0, idx - 1));
+          } else if (e.key === "ArrowRight") {
+            e.preventDefault();
+            onChange(Math.min(frames.length - 1, idx + 1));
+          }
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        className="relative h-10 w-full cursor-pointer touch-none rounded-full bg-muted shadow-inner outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        {/* Vergangenheit-Segment */}
+        <div
+          className="absolute inset-y-0 left-0 rounded-l-full"
+          style={{
+            width: `${nowPct}%`,
+            background:
+              "linear-gradient(90deg, hsl(210 25% 78%) 0%, hsl(210 30% 70%) 100%)",
+          }}
+        />
+        {/* ICON-CH1 Segment */}
+        <div
+          className="absolute inset-y-0"
+          style={{
+            left: `${nowPct}%`,
+            width: `${Math.max(0, ch1Pct - nowPct)}%`,
+            background:
+              "linear-gradient(90deg, hsl(212 60% 70%) 0%, hsl(212 55% 78%) 100%)",
+          }}
+        />
+        {/* ICON-CH2 Segment */}
+        <div
+          className="absolute inset-y-0 rounded-r-full"
+          style={{
+            left: `${ch1Pct}%`,
+            width: `${Math.max(0, 100 - ch1Pct)}%`,
+            background:
+              "linear-gradient(90deg, hsl(275 45% 78%) 0%, hsl(275 40% 85%) 100%)",
+          }}
+        />
+
+        {/* "Jetzt"-Marker */}
+        {nowPct > 0 && nowPct < 100 && (
+          <div
+            className="pointer-events-none absolute inset-y-0 w-[2px] bg-foreground/80"
+            style={{ left: `${nowPct}%` }}
+          >
+            <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-foreground" />
+          </div>
+        )}
+
+        {/* Drag-Handle */}
+        <div
+          className="pointer-events-none absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md"
+          style={{ left: `${handlePct}%`, background: BRAND }}
+        >
+          <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-0.5 text-[10px] font-semibold text-background shadow-md">
+            {handleLabel}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 
