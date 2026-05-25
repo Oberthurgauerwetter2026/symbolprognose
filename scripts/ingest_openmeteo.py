@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 """
-Open-Meteo (ICON-CH1 minutely_15 + ICON-CH2 hourly) -> Cloudflare R2 cache.
+Open-Meteo -> Cloudflare R2 Cache (Oberthurgau / Symbolprognose).
 
-Holt die zwei Multi-Location-Forecast-Requests, die das Frontend sonst pro
-Worker-Request selbst gemacht hätte, und legt das rohe JSON unter
-`openmeteo/forecast.json` in R2 ab. Der Worker liest danach nur noch R2 →
-keine Open-Meteo-Calls vom Worker mehr → keine 429-Limits.
+3-Phasen-Schema (analog Amriswil-Projekt):
+
+  phase1 / phaseB  ICON-CH1 minutely_15 precipitation, -12h … +33h
+                   (Radar / Nowcast — bestehender Frame-Erzeuger)
+  phase2           ICON-CH2 hourly precipitation, +0 … +6 d
+                   (Radar Phase-2 Forecast — Single-Modell)
+  phaseA           Multi-Modell hourly+daily, +0 … +7 d
+                   (Symbolprognose, Wochenforecast)
+  phaseC           Bias-Lookback hourly, -7 d … +1 d, best_match
+                   (für statistische Korrekturen / Reviews)
+
+phase1 + phase2 bleiben für Backwards-Compat mit src/lib/radar.functions.ts.
 
 ENV (required):
   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
 ENV (optional):
-  OPENMETEO_OUT_KEY   default "openmeteo/forecast.json"
-  BBOX_MIN_LAT/MAX_LAT/MIN_LON/MAX_LON   default = Oberthurgau
+  OPENMETEO_OUT_KEY  default "openmeteo/forecast.json"
+  BBOX_MIN_LAT/MAX_LAT/MIN_LON/MAX_LON  default = Oberthurgau
   GRID_LAT (default 9), GRID_LON (default 14)
 """
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
@@ -25,7 +32,7 @@ from datetime import datetime, timezone
 import boto3
 import requests
 
-VERSION = "openmeteo-cache-v1"
+VERSION = "oberthurgau-openmeteo-cache-v2"
 API = "https://api.open-meteo.com/v1/forecast"
 
 
@@ -63,14 +70,13 @@ def build_grid():
     n_lon = envi("GRID_LON", 14)
     lats = [min_lat + (max_lat - min_lat) * i / (n_lat - 1) for i in range(n_lat)]
     lons = [min_lon + (max_lon - min_lon) * j / (n_lon - 1) for j in range(n_lon)]
-    pts = [(la, lo) for la in lats for lo in lons]
-    return pts
+    return [(la, lo) for la in lats for lo in lons]
 
 
-def fetch(params: dict) -> list:
-    r = requests.get(API, params=params, timeout=45)
+def fetch(label: str, params: dict) -> list:
+    r = requests.get(API, params=params, timeout=60)
     if not r.ok:
-        sys.exit(f"open-meteo HTTP {r.status_code}: {r.text[:300]}")
+        sys.exit(f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}")
     data = r.json()
     return data if isinstance(data, list) else [data]
 
@@ -82,7 +88,7 @@ def main() -> None:
     lon_str = ",".join(f"{p[1]:.4f}" for p in pts)
     print(f"grid points: {len(pts)}")
 
-    # Phase 1: ICON-CH1 minutely_15 (-12 h … +33 h)
+    # phase1: ICON-CH1 minutely_15 (-12h … +33h) — Radar/Nowcast
     p1 = {
         "latitude": lat_str,
         "longitude": lon_str,
@@ -92,7 +98,7 @@ def main() -> None:
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
-    # Phase 2: ICON-CH2 hourly (+0 … +6 d)
+    # phase2: ICON-CH2 hourly (+0 … +6 d) — Radar Phase-2
     p2 = {
         "latitude": lat_str,
         "longitude": lon_str,
@@ -101,21 +107,79 @@ def main() -> None:
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch2",
     }
+    # phaseA: Multi-Modell hourly+daily 7 d — Symbolprognose Hot-Path
+    pa = {
+        "latitude": lat_str,
+        "longitude": lon_str,
+        "hourly": ",".join([
+            "temperature_2m",
+            "relative_humidity_2m",
+            "precipitation",
+            "precipitation_probability",
+            "weathercode",
+            "cloudcover",
+            "wind_speed_10m",
+            "wind_direction_10m",
+            "wind_gusts_10m",
+            "pressure_msl",
+            "snowfall",
+            "sunshine_duration",
+        ]),
+        "daily": ",".join([
+            "weathercode",
+            "temperature_2m_min",
+            "temperature_2m_max",
+            "precipitation_sum",
+            "precipitation_probability_max",
+            "wind_speed_10m_max",
+            "wind_gusts_10m_max",
+            "wind_direction_10m_dominant",
+            "sunshine_duration",
+            "sunrise",
+            "sunset",
+            "snowfall_sum",
+        ]),
+        "forecast_days": 7,
+        "timezone": "Europe/Zurich",
+        "models": "meteoswiss_icon_ch2,icon_d2,arpege_europe,ecmwf_ifs025,gfs_global",
+    }
+    # phaseC: Bias-Lookback (-7 d … +1 d) best_match
+    pc = {
+        "latitude": lat_str,
+        "longitude": lon_str,
+        "hourly": "temperature_2m,wind_speed_10m,precipitation",
+        "past_days": 7,
+        "forecast_days": 1,
+        "timezone": "Europe/Zurich",
+        "models": "best_match",
+    }
 
-    print("fetch phase1 (ICON-CH1) …")
-    phase1 = fetch(p1)
+    print("fetch phase1 (ICON-CH1 minutely_15) …")
+    phase1 = fetch("phase1", p1)
     print(f"  -> {len(phase1)} locations")
-    print("fetch phase2 (ICON-CH2) …")
-    phase2 = fetch(p2)
+    print("fetch phase2 (ICON-CH2 hourly) …")
+    phase2 = fetch("phase2", p2)
     print(f"  -> {len(phase2)} locations")
+    print("fetch phaseA (multi-model 7d) …")
+    phaseA = fetch("phaseA", pa)
+    print(f"  -> {len(phaseA)} locations")
+    print("fetch phaseC (bias lookback) …")
+    phaseC = fetch("phaseC", pc)
+    print(f"  -> {len(phaseC)} locations")
 
     payload = {
         "version": VERSION,
         "generatedAt": datetime.now(timezone.utc)
         .isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
+        "grid": {"points": [{"lat": la, "lon": lo} for la, lo in pts]},
+        # Backwards-Compat für src/lib/radar.functions.ts
         "phase1": phase1,
         "phase2": phase2,
+        # Neues 3-Phasen-Schema (analog Amriswil)
+        "phaseB": phase1,
+        "phaseA": phaseA,
+        "phaseC": phaseC,
     }
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
