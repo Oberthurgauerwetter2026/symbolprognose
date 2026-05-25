@@ -37,9 +37,13 @@ const RADAR_CITIES: { name: string; lat: number; lon: number }[] = [
 ];
 
 function cityIcon(name: string): L.DivIcon {
+  const dot =
+    "display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffffff;border:1.5px solid #1a1a1a;box-shadow:0 0 0 1px rgba(255,255,255,0.6);vertical-align:middle;";
+  const label =
+    "margin-left:5px;font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;vertical-align:middle;white-space:nowrap;";
   return L.divIcon({
     className: "radar-city-marker",
-    html: `<span class="radar-city-dot"></span><span class="radar-city-label">${name}</span>`,
+    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-4px,-4px);"><span style="${dot}"></span><span style="${label}">${name}</span></div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
