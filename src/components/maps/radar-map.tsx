@@ -768,33 +768,20 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               </div>
             </div>
 
-            <div className="px-1">
-              <Slider
-                size="touch"
-                aria-label="Radar-Zeit"
-                min={0}
-                max={frames.length - 1}
-                step={1}
-                value={[idx]}
-                onValueChange={(v) => {
-                  setIdx(v[0] ?? 0);
+            <div className="px-1 pt-4">
+              <Timeline
+                frames={frames}
+                idx={idx}
+                onChange={(i) => {
+                  setIdx(i);
                   setPlaying(false);
                 }}
               />
-              <div className="mt-1 flex justify-between text-[10px] text-muted-foreground tabular-nums">
-                <span>{frames[0] ? fmtTime(frames[0].t) : ""}</span>
-                <span className="font-semibold text-foreground">
-                  {currentFrame ? fmtTime(currentFrame.t) : ""}
-                </span>
-                <span>{frames[frames.length - 1] ? fmtTime(frames[frames.length - 1].t) : ""}</span>
-              </div>
             </div>
 
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              {data.hasRealRadar
-                ? "Quellen: MeteoSchweiz CPC-Radar (Messung, ≤ jetzt) · ICON-CH1 (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h)"
-                : "Quellen: Open-Meteo Radar-Nowcast (Messung, −12 h … jetzt) · ICON-CH1 (jetzt … +33 h) · ICON-CH2 (+33 h … +120 h)"}{" "}
-              · Datenstand:{" "}
+            <p className="mt-3 text-center text-[11px] text-muted-foreground">
+              Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Nowcast bis +33 h) · MeteoSchweiz ICON-CH2 (+33 h … +120 h)
+              {" · Datenstand: "}
               {new Intl.DateTimeFormat("de-CH", {
                 day: "2-digit",
                 month: "2-digit",
