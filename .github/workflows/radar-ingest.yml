@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 5
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      EXPECTED_RADAR_INGEST_VERSION: "v4-failfast-manifest-guard"
+      RADAR_LOOKBACK_HOURS: "12"
     steps:
       - uses: actions/checkout@v4
 
@@ -34,10 +36,22 @@ jobs:
         run: |
           echo "commit: $GITHUB_SHA"
           echo "ref: $GITHUB_REF"
+          echo "expected ingest version: $EXPECTED_RADAR_INGEST_VERSION"
+          echo "RADAR_LOOKBACK_HOURS: $RADAR_LOOKBACK_HOURS"
           echo "--- ingest_radar.py head ---"
           sed -n '1,30p' scripts/ingest_radar.py
           echo "--- list_recent_assets signature ---"
           grep -n "def list_recent_assets\|RADAR_INGEST_VERSION\|def _extract_assets" scripts/ingest_radar.py || true
+
+      - name: Verify ingest version
+        run: |
+          if ! grep -q "RADAR_INGEST_VERSION = \"${EXPECTED_RADAR_INGEST_VERSION}\"" scripts/ingest_radar.py; then
+            echo "ERROR: GitHub Actions is not running the expected ingest script version: ${EXPECTED_RADAR_INGEST_VERSION}"
+            echo "This usually means the workflow is on an older commit or branch."
+            echo "--- current ingest_radar.py version lines ---"
+            grep -n "RADAR_INGEST_VERSION" scripts/ingest_radar.py || true
+            exit 1
+          fi
 
       - name: Run ingest
         env:
@@ -46,5 +60,4 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-          RADAR_LOOKBACK_HOURS: "12"
-        run: python scripts/ingest_radar.py
+        run: python -u scripts/ingest_radar.py

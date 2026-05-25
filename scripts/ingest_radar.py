@@ -39,7 +39,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v3-diagnostics-fallback"
+RADAR_INGEST_VERSION = "v4-failfast-manifest-guard"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -262,8 +262,8 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
         )
         if not candidates:
             print(
-                f"  NOTE: {len(ts_list)} assets found but all older than since "
-                f"({since.isoformat()}). Falling back to newest 6.",
+                f"  FALLBACK: {len(ts_list)} parseable {product} assets found but all older than since "
+                f"({since.isoformat()}); using newest 6 available frames.",
                 flush=True,
             )
             # Use newest 6 frames even though they are older than `since`,
@@ -475,6 +475,19 @@ def write_manifest(s3) -> None:
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "frames": sorted_frames,
     }
+    if not sorted_frames:
+        try:
+            existing = s3.get_object(Bucket=BUCKET, Key="radar/frames.json")
+            existing_body = json.loads(existing["Body"].read().decode("utf-8"))
+            existing_count = len(existing_body.get("frames") or [])
+            if existing_count:
+                print(
+                    f"manifest: keeping existing {existing_count} frames; current run found 0 frames",
+                    flush=True,
+                )
+                return
+        except Exception as exc:
+            print(f"manifest: no existing manifest to keep ({exc!r})", flush=True)
     s3.put_object(
         Bucket=BUCKET,
         Key="radar/frames.json",
@@ -486,7 +499,13 @@ def write_manifest(s3) -> None:
 
 
 def main() -> int:
-    print(f"radar ingest {RADAR_INGEST_VERSION} lookback={LOOKBACK}h retention={RETENTION}h", flush=True)
+    github_sha = os.environ.get("GITHUB_SHA", "local")
+    github_ref = os.environ.get("GITHUB_REF", "local")
+    print(
+        f"RADAR INGEST START version={RADAR_INGEST_VERSION} lookback={LOOKBACK}h "
+        f"retention={RETENTION}h sha={github_sha} ref={github_ref}",
+        flush=True,
+    )
     if not BUCKET or not PUBLIC_URL:
         sys.exit("R2_BUCKET and R2_PUBLIC_URL must be set")
     s3 = make_s3()
