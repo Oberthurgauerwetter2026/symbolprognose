@@ -542,17 +542,22 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   type="button"
                   onClick={() => setShowHail((v) => !v)}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium",
-                    showHail
-                      ? "bg-purple-100 text-purple-900 border-purple-300"
+                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium transition",
+                    !data?.hasHail && "cursor-not-allowed opacity-60",
+                    showHail && data?.hasHail
+                      ? "border-purple-300 bg-purple-100 text-purple-900"
                       : "bg-muted text-muted-foreground",
                   )}
-                  title="Hagel – bald verfügbar"
-                  disabled
+                  title={
+                    data?.hasHail
+                      ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
+                      : "Hagel – nur in der Vergangenheit verfügbar, sobald MeteoSchweiz-Radar aktiv ist"
+                  }
+                  disabled={!data?.hasHail}
                 >
                   <CloudHail className="h-3.5 w-3.5" />
                   Hagel
-                  <span className="text-[9px] opacity-70">bald</span>
+                  {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
                 </button>
               </div>
             </div>
