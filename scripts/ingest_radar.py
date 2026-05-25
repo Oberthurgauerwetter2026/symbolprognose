@@ -62,7 +62,7 @@ BBOX_WGS = {"minLon": 9.00, "maxLon": 9.62, "minLat": 47.38, "maxLat": 47.72}
 # Output PNG resolution (Web Mercator pixels). 512×384 keeps PNGs <20 KB.
 OUT_W, OUT_H = 512, 384
 
-LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "3"))
+LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 
 # MeteoSchweiz CPC colour scale (mm/h → RGBA). < 0.1 mm/h = transparent.
