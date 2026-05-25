@@ -351,7 +351,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   }, [playing, speed, frames.length]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
-  const meta = currentFrame ? sourceLabel(currentFrame.source) : null;
+  const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   return (
     <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
