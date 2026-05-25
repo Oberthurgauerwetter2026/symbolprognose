@@ -1,33 +1,52 @@
-## Befund
+## Schritt-für-Schritt-Checkliste
 
-Der Ingest findet `0 candidate frames`, obwohl MeteoSchweiz aktuell Assets liefert. Die Ursache liegt sehr wahrscheinlich im Timestamp-Parser:
+Wir prüfen drei Bereiche: **GitHub Repo & Secrets**, **Lovable Cloud Secrets**, **Cloudflare R2**.
 
-- Niederschlag-Dateien sehen aktuell so aus: `cpc2614500000_00060.001.h5`
-- Hagel-Dateien sehen aktuell so aus: `bzc261450000vl.845.h5`
-- Der aktuelle Regex erwartet nach Prefix + Jahr + Tag exakt 2 Stellen Stunde + 2 Stellen Minute.
-- Bei MeteoSchweiz steckt dort aber häufig ein zusätzlicher Lead-/Sequenz-Zifferblock bzw. eine 5-stellige Zeitkennung (`00000`, `00050`, `12450` usw.). Dadurch werden die Dateien nicht zuverlässig als neue Frames erkannt.
+### A) Lovable Cloud Secrets (kann ich sehen)
 
-## Plan
+Aktuell hinterlegt in Lovable:
+- `LOVABLE_API_KEY` (managed, OK)
+- `R2_PUBLIC_URL` (OK)
 
-1. **Timestamp-Parser reparieren**
-   - `parse_ts_from_filename()` so umbauen, dass er beide aktuellen Muster korrekt liest:
-     - CPC: `cpcYYDOYHHMM...` bzw. `cpcYYDOY0HHMM...`
-     - BZC/Hagel: `bzcYYDOYHHMM...` bzw. `bzcYYDOY0HHMM...`
-   - Minutenwerte wie `005`, `010`, `035` bei Hagel korrekt als `00:05`, `00:10`, `00:35` interpretieren.
-   - Ungültige Zeiten defensiv verwerfen statt falsche Frames zu erzeugen.
+App braucht **nur `R2_PUBLIC_URL`** → 
 
-2. **Ingest-Debug-Ausgabe verbessern**
-   - Wenn keine Kandidaten gefunden werden, konkrete Sample-Dateinamen plus Parser-Ergebnis loggen.
-   - So sieht man im nächsten GitHub Actions Run sofort, ob Parsing oder Upload das Problem ist.
+Bitte du einmal kontrollieren:
+1. Wert von `R2_PUBLIC_URL` in Lovable = öffentliche R2-Bucket-Basis-URL **ohne** `/radar/frames.json` am Ende, z.B. `https://pub-xxxxx.r2.dev` oder `https://radar.deinedomain.tld`.
+2. Beim Aufruf von `<R2_PUBLIC_URL>/radar/frames.json` im Browser muss eine JSON-Datei erscheinen (oder 404, wenn noch nie hochgeladen).
 
-3. **Manifest-Schutz beibehalten**
-   - Den bestehenden Schutz, dass ein leerer Lauf ein bestehendes Manifest nicht überschreibt, unverändert lassen.
-   - Damit wird nicht wieder versehentlich `frames.json` auf 0 Frames gesetzt, sobald einmal echte Frames vorhanden sind.
+### B) GitHub Repo `symbolprognose`
 
-4. **Validierung**
-   - Lokal mit aktuellen STAC-Dateinamen prüfen, dass für `precip` und `hail` Kandidaten gefunden werden.
-   - Erwartung nach dem nächsten GitHub Actions Run: `candidate frames > 0`, danach `manifest: ... frames` und in der App `hasRealRadar: true`.
+Bitte einmal prüfen und mir bestätigen:
 
-## Technische Details
+1. **Workflow-Datei vorhanden**: `.github/workflows/radar-ingest.yml` liegt auf `main` (Default-Branch).
+2. **Actions aktiviert**: Repo → Tab **Actions** → "Radar Ingest" sichtbar.
+3. **Letzter Run-Status**: Repo → Actions → "Radar Ingest" → letzter Run. Erwartet: grün ✓. Falls rot → vollständigen Log schicken.
+4. **Secrets gesetzt**: Repo → Settings → Secrets and variables → **Actions** → **Repository secrets**. Es müssen exakt diese 5 Einträge existieren:
+   - `R2_ACCOUNT_ID`
+   - `R2_ACCESS_KEY_ID`
+   - `R2_SECRET_ACCESS_KEY`
+   - `R2_BUCKET`
+   - `R2_PUBLIC_URL` (gleicher Wert wie in Lovable)
+   
+   Bitte die Namen 1:1 kontrollieren (Tippfehler, Großschreibung).
+5. **Manueller Testlauf**: Actions → "Radar Ingest" → "Run workflow" auf `main` triggern. Volle Logausgabe danach hierher kopieren.
 
-Die Änderung betrifft voraussichtlich nur `scripts/ingest_radar.py`. Keine UI-Änderung und keine neuen Secrets nötig.
+### C) Altes Repo `symbolprognose-radar`
+
+Falls noch vorhanden:
+- Sein Workflow muss **deaktiviert** sein (Actions-Tab → Workflow → "···" → Disable), sonst überschreibt er periodisch `radar/frames.json` mit veralteten Daten.
+
+### D) Cloudflare R2
+
+Im Cloudflare Dashboard → R2 → Bucket prüfen:
+1. Bucket-Name = exakt Wert von `R2_BUCKET`.
+2. **Public Access** aktiviert (entweder `r2.dev`-URL freigeschaltet oder Custom Domain).
+3. Im Bucket existieren nach erfolgreichem Lauf:
+   - Ordner `radar/precip/` mit `.png`-Dateien
+   - Ordner `radar/hail/` mit `.png`-Dateien
+   - Datei `radar/frames.json`
+4. `R2_PUBLIC_URL/radar/frames.json` im Browser liefert JSON mit `frames: [...]`.
+
+### Ablauf
+
+Du gehst Punkt für Punkt durch und meldest Stand. Sobald wir einen Fehler finden, fixen wir ihn gezielt. Am wichtigsten ist Schritt **B5 (manueller Run + voller Log)** — damit zeigt unser neues Diagnose-Logging eindeutig, woran es scheitert (STAC, Parsing, R2-Upload oder Manifest).
