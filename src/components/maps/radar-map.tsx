@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+
 import { useQuery } from "@tanstack/react-query";
 import {
   MapContainer,
@@ -340,7 +342,8 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
 
 // ---------------- Modern Timeline Slider ----------------
 
-const TIMELINE_TICKS_H = [-2, -1, 0, 1, 3, 6, 12, 24, 48, 120];
+const TIMELINE_TICKS_DESKTOP = [-2, -1, 0, 3, 12, 24, 48, 120];
+const TIMELINE_TICKS_MOBILE = [-1, 0, 6, 24, 72];
 
 function tickLabel(h: number): string {
   if (h === 0) return "Jetzt";
@@ -358,7 +361,9 @@ function Timeline({
   onChange: (i: number) => void;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const draggingRef = useRef(false);
+  const [dragging, setDragging] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const isMobile = useIsMobile();
 
   const times = useMemo(() => frames.map((f) => Date.parse(f.t)), [frames]);
   const tMin = times[0] ?? 0;
@@ -366,8 +371,6 @@ function Timeline({
   const span = Math.max(1, tMax - tMin);
   const now = Date.now();
   const nowPct = Math.max(0, Math.min(100, ((now - tMin) / span) * 100));
-
-  // Phase-Segmente (Vergangenheit / ICON-CH1 / ICON-CH2)
   const ch1CutMs = now + 33 * 3600 * 1000;
   const ch1Pct = Math.max(0, Math.min(100, ((ch1CutMs - tMin) / span) * 100));
 
@@ -396,15 +399,15 @@ function Timeline({
 
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    draggingRef.current = true;
+    setDragging(true);
     onChange(idxFromClientX(e.clientX));
   };
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!draggingRef.current) return;
+    if (!dragging) return;
     onChange(idxFromClientX(e.clientX));
   };
   const handlePointerUp = (e: React.PointerEvent) => {
-    draggingRef.current = false;
+    setDragging(false);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
@@ -422,8 +425,8 @@ function Timeline({
     minute: "2-digit",
   }).format(new Date(currentMs));
 
-  // Sichtbare Ticks (nur die im Range)
-  const visibleTicks = TIMELINE_TICKS_H
+  const tickHours = isMobile ? TIMELINE_TICKS_MOBILE : TIMELINE_TICKS_DESKTOP;
+  const visibleTicks = tickHours
     .map((h) => {
       const tMs = now + h * 3600 * 1000;
       const pct = ((tMs - tMin) / span) * 100;
@@ -431,10 +434,12 @@ function Timeline({
     })
     .filter((t) => t.pct >= 0 && t.pct <= 100);
 
+  const showBubble = dragging || focused;
+
   return (
     <div className="select-none">
       {/* Tick-Labels */}
-      <div className="relative mb-1 h-4 text-[10px] text-muted-foreground">
+      <div className="relative mb-1.5 h-3.5 text-[11px] text-muted-foreground">
         {visibleTicks.map((t) => (
           <span
             key={t.h}
@@ -449,7 +454,7 @@ function Timeline({
         ))}
       </div>
 
-      {/* Track */}
+      {/* Track-Wrapper (grosses Touch-Target) */}
       <div
         ref={trackRef}
         role="slider"
@@ -458,6 +463,8 @@ function Timeline({
         aria-valuemax={frames.length - 1}
         aria-valuenow={idx}
         tabIndex={0}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onKeyDown={(e) => {
           if (e.key === "ArrowLeft") {
             e.preventDefault();
@@ -471,61 +478,62 @@ function Timeline({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="relative h-10 w-full cursor-pointer touch-none rounded-full bg-muted shadow-inner outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="relative flex h-11 w-full cursor-pointer touch-none items-center outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
       >
-        {/* Vergangenheit-Segment */}
-        <div
-          className="absolute inset-y-0 left-0 rounded-l-full"
-          style={{
-            width: `${nowPct}%`,
-            background:
-              "linear-gradient(90deg, hsl(210 25% 78%) 0%, hsl(210 30% 70%) 100%)",
-          }}
-        />
-        {/* ICON-CH1 Segment */}
-        <div
-          className="absolute inset-y-0"
-          style={{
-            left: `${nowPct}%`,
-            width: `${Math.max(0, ch1Pct - nowPct)}%`,
-            background:
-              "linear-gradient(90deg, hsl(212 60% 70%) 0%, hsl(212 55% 78%) 100%)",
-          }}
-        />
-        {/* ICON-CH2 Segment */}
-        <div
-          className="absolute inset-y-0 rounded-r-full"
-          style={{
-            left: `${ch1Pct}%`,
-            width: `${Math.max(0, 100 - ch1Pct)}%`,
-            background:
-              "linear-gradient(90deg, hsl(275 45% 78%) 0%, hsl(275 40% 85%) 100%)",
-          }}
-        />
+        {/* Dünne Track-Linie */}
+        <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted">
+          {/* Vergangenheit */}
+          <div
+            className="absolute inset-y-0 left-0 bg-muted-foreground/25"
+            style={{ width: `${nowPct}%` }}
+          />
+          {/* ICON-CH1 */}
+          <div
+            className="absolute inset-y-0"
+            style={{
+              left: `${nowPct}%`,
+              width: `${Math.max(0, ch1Pct - nowPct)}%`,
+              background: "hsl(212 60% 55% / 0.45)",
+            }}
+          />
+          {/* ICON-CH2 (gestreift) */}
+          <div
+            className="absolute inset-y-0"
+            style={{
+              left: `${ch1Pct}%`,
+              width: `${Math.max(0, 100 - ch1Pct)}%`,
+              backgroundImage:
+                "repeating-linear-gradient(135deg, hsl(212 60% 55% / 0.3) 0 4px, hsl(212 60% 55% / 0.1) 4px 8px)",
+            }}
+          />
+        </div>
 
-        {/* "Jetzt"-Marker */}
+        {/* "Jetzt"-Linie */}
         {nowPct > 0 && nowPct < 100 && (
           <div
-            className="pointer-events-none absolute inset-y-0 w-[2px] bg-foreground/80"
+            className="pointer-events-none absolute inset-y-1.5 w-px bg-foreground/60"
             style={{ left: `${nowPct}%` }}
-          >
-            <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-foreground" />
-          </div>
+          />
         )}
 
         {/* Drag-Handle */}
         <div
-          className="pointer-events-none absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md"
-          style={{ left: `${handlePct}%`, background: BRAND }}
+          className="pointer-events-none absolute top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background shadow-sm transition-transform sm:h-[18px] sm:w-[18px]"
+          style={{ left: `${handlePct}%`, borderColor: BRAND }}
         >
-          <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-0.5 text-[10px] font-semibold text-background shadow-md">
-            {handleLabel}
-          </span>
+          {showBubble && (
+            <span
+              className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background shadow-md after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-foreground after:content-['']"
+            >
+              {handleLabel}
+            </span>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 
 
 
