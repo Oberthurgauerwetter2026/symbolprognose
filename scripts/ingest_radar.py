@@ -39,6 +39,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
+RADAR_INGEST_VERSION = "v3-diagnostics-fallback"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -215,7 +216,7 @@ def _scan_all_timestamps(feature: dict, prefix: str) -> list[datetime]:
 
 
 def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
-    """Return asset refs newer than `since`.
+    """Return asset refs newer than `since`, with fallback to newest if empty.
 
     STAC items here are grouped per day with id `YYYYMMDD-ch`.
     """
@@ -224,7 +225,7 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
     now = datetime.now(tz=timezone.utc)
     print(f"  lookback={LOOKBACK}h since={since.isoformat()}", flush=True)
     candidates: list[AssetRef] = []
-    all_ts: list[datetime] = []
+    all_assets: list[AssetRef] = []  # ignoring `since`, for fallback
     for day_offset in (0, 1):
         day = (now - timedelta(days=day_offset)).strftime("%Y%m%d")
         url = f"{STAC_BASE}/{coll}/items/{day}-ch"
@@ -236,7 +237,7 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
             r.raise_for_status()
             feat = r.json()
             candidates.extend(_extract_assets(feat, product, prefix, since))
-            all_ts.extend(_scan_all_timestamps(feat, prefix))
+            all_assets.extend(_extract_assets(feat, product, prefix, datetime(1970, 1, 1, tzinfo=timezone.utc)))
         except Exception as exc:
             print(f"  STAC item {day}-ch error: {exc!r}", flush=True)
 
@@ -248,24 +249,28 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
             r.raise_for_status()
             for feat in r.json().get("features", []):
                 candidates.extend(_extract_assets(feat, product, prefix, since))
-                all_ts.extend(_scan_all_timestamps(feat, prefix))
+                all_assets.extend(_extract_assets(feat, product, prefix, datetime(1970, 1, 1, tzinfo=timezone.utc)))
         except Exception as exc:
             print(f"  STAC sort fallback error: {exc!r}", flush=True)
 
-    if all_ts:
+    if all_assets:
+        ts_list = [a.ts for a in all_assets]
         print(
-            f"  asset ts range: oldest={min(all_ts).isoformat()} "
-            f"newest={max(all_ts).isoformat()} count={len(all_ts)}",
+            f"  asset ts range: oldest={min(ts_list).isoformat()} "
+            f"newest={max(ts_list).isoformat()} count={len(ts_list)}",
             flush=True,
         )
         if not candidates:
             print(
-                f"  NOTE: {len(all_ts)} assets found but all older than since "
-                f"({since.isoformat()}). Increase RADAR_LOOKBACK_HOURS.",
+                f"  NOTE: {len(ts_list)} assets found but all older than since "
+                f"({since.isoformat()}). Falling back to newest 6.",
                 flush=True,
             )
+            # Use newest 6 frames even though they are older than `since`,
+            # so the radar map stays populated when MeteoSchweiz lags.
+            candidates = sorted(all_assets, key=lambda x: x.ts)[-6:]
     else:
-        print("  NOTE: no parseable asset timestamps found at all.", flush=True)
+        print("  NOTE: no parseable assets found at all.", flush=True)
 
     seen: set[datetime] = set()
     uniq: list[AssetRef] = []
@@ -481,6 +486,7 @@ def write_manifest(s3) -> None:
 
 
 def main() -> int:
+    print(f"radar ingest {RADAR_INGEST_VERSION} lookback={LOOKBACK}h retention={RETENTION}h", flush=True)
     if not BUCKET or not PUBLIC_URL:
         sys.exit("R2_BUCKET and R2_PUBLIC_URL must be set")
     s3 = make_s3()
