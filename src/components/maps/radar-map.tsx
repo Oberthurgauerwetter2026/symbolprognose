@@ -134,13 +134,17 @@ const regionBounds: L.LatLngBoundsExpression = [
   [47.6392538, 9.4773698],
 ];
 
-function BoundsFitter() {
+// Etwas weiter als die strenge Region-Bbox, damit der leicht herausgezoomte
+// Standardausschnitt nicht direkt am Rand kollidiert.
+const maxBoundsExt: L.LatLngBoundsExpression = [
+  [47.32, 8.95],
+  [47.79, 9.70],
+];
+
+function InvalidateOnResize() {
   const map = useMap();
   useEffect(() => {
-    const fit = () => {
-      map.invalidateSize();
-      map.fitBounds(regionBounds, { padding: [4, 4] });
-    };
+    const fit = () => map.invalidateSize();
     fit();
     window.addEventListener("resize", fit);
     const ro = new ResizeObserver(fit);
