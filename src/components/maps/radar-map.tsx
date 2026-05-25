@@ -538,25 +538,6 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 ))}
               </div>
               <div className="ml-auto flex items-center gap-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setShowLightning((v) => !v)}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium transition",
-                    showLightning
-                      ? "border-yellow-300 bg-yellow-100 text-yellow-900"
-                      : "bg-muted text-muted-foreground",
-                  )}
-                  title="Blitze der letzten 30 Minuten (KNMI / Météorage)"
-                >
-                  <Zap className="h-3.5 w-3.5" />
-                  Blitze
-                  {lightning.data && lightning.data.strikes.length > 0 && (
-                    <span className="tabular-nums text-[10px] opacity-80">
-                      {lightning.data.strikes.length}
-                    </span>
-                  )}
-                </button>
 
                 <button
                   type="button"
