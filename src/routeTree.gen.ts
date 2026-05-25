@@ -25,6 +25,7 @@ import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
 import { Route as EmbedPollenRouteImport } from './routes/embed.pollen'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
+import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 
 const KarteRoute = KarteRouteImport.update({
   id: '/karte',
@@ -106,6 +107,11 @@ const EmbedAllRoute = EmbedAllRouteImport.update({
   path: '/embed/all',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicDebugR2CacheRoute = ApiPublicDebugR2CacheRouteImport.update({
+  id: '/api/public/debug/r2-cache',
+  path: '/api/public/debug/r2-cache',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
+    | '/api/public/debug/r2-cache'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
+    | '/api/public/debug/r2-cache'
   id:
     | '__root__'
     | '/'
@@ -217,6 +228,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
+    | '/api/public/debug/r2-cache'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -236,6 +248,7 @@ export interface RootRouteChildren {
   KartenRadarRoute: typeof KartenRadarRoute
   KartenRegionRoute: typeof KartenRegionRoute
   KartenWindRoute: typeof KartenWindRoute
+  ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -352,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedAllRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/debug/r2-cache': {
+      id: '/api/public/debug/r2-cache'
+      path: '/api/public/debug/r2-cache'
+      fullPath: '/api/public/debug/r2-cache'
+      preLoaderRoute: typeof ApiPublicDebugR2CacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -372,17 +392,8 @@ const rootRouteChildren: RootRouteChildren = {
   KartenRadarRoute: KartenRadarRoute,
   KartenRegionRoute: KartenRegionRoute,
   KartenWindRoute: KartenWindRoute,
+  ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
+import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache.server";
+
 
 /**
  * Radar-Frames für die Region Oberthurgau.
@@ -67,44 +69,12 @@ export interface RadarPayload {
   warning?: string;
 }
 
-type OpenMeteoCache = {
-  version?: string;
-  generatedAt: string;
-  phase1: unknown[];
-  phase2: unknown[];
-};
-
-function r2BaseUrl(): string | null {
-  const base = process.env.R2_PUBLIC_URL;
-  if (!base) return null;
-  return base.replace(/\/+$/, "").replace(/\/radar\/?$/i, "");
-}
+type OpenMeteoCache = OpenMeteoCachePayload;
 
 async function fetchOpenMeteoCache(): Promise<OpenMeteoCache | null> {
-  const base = r2BaseUrl();
-  if (!base) {
-    console.warn("[radar] R2_PUBLIC_URL not set — open-meteo cache unavailable");
-    return null;
-  }
-  const url = `${base}/openmeteo/forecast.json`;
-  try {
-    const res = await fetch(url, {
-      cf: { cacheTtl: 30 } as unknown as undefined,
-    } as RequestInit);
-    if (!res.ok) {
-      console.warn(`[radar] openmeteo cache ${url} -> ${res.status}`);
-      return null;
-    }
-    const json = (await res.json()) as OpenMeteoCache;
-    console.log(
-      `[radar] openmeteo cache loaded: phase1=${json.phase1?.length ?? 0} phase2=${json.phase2?.length ?? 0} generatedAt=${json.generatedAt}`,
-    );
-    return json;
-  } catch (e) {
-    console.warn(`[radar] openmeteo cache error: ${(e as Error).message}`);
-    return null;
-  }
+  return getOpenMeteoCache();
 }
+
 
 
 
