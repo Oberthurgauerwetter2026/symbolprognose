@@ -1,47 +1,31 @@
 ## Befund
 
-Dein aktueller GitHub-Action-Log enthält weiterhin nur:
+Der gepostete `Run ingest`-Output ist weiterhin die alte Ausgabe. In der aktuellen Datei müsste vor `== precip ... ==` zwingend stehen:
 
 ```text
-== precip (since ... ) ==
-  0 candidate frames
-== hail (since ... ) ==
-  0 candidate frames
-manifest: 0 frames
+radar ingest v3-diagnostics-fallback lookback=12h retention=24h
 ```
 
-Im aktuellen Repository-Code müssten aber vor `0 candidate frames` zusätzliche Diagnosezeilen erscheinen, z. B.:
-
-```text
-lookback=12h since=...
-STAC GET ... -> 200
-item: total=... prefix=... matched=...
-asset ts range: oldest=... newest=...
-```
-
-Dass diese Zeilen fehlen, bedeutet sehr wahrscheinlich: Die GitHub Action läuft nicht mit dem aktuellen Lovable-Code, sondern mit einem älteren Commit/Branch oder die Änderungen sind noch nicht in GitHub angekommen.
+Und innerhalb jedes Produkts müssten Zeilen wie `lookback=12h`, `STAC GET ...`, `asset ts range ...` erscheinen. Dass sie fehlen, spricht stark dafür, dass GitHub Actions noch nicht den aktuellen Lovable-Stand ausführt.
 
 ## Plan
 
-1. **Workflow sichtbarer machen**
-   - Im GitHub-Workflow vor dem Python-Aufruf explizit ausgeben:
-     - aktuellen Commit-SHA
-     - Branch/Ref
-     - `RADAR_LOOKBACK_HOURS`
-     - relevante Zeilen aus `scripts/ingest_radar.py`, damit sichtbar ist, welche Version wirklich läuft.
+1. **Workflow mit Fail-Fast-Versioncheck absichern**
+   - Vor dem eigentlichen Ingest prüfen, ob `scripts/ingest_radar.py` die erwartete `RADAR_INGEST_VERSION` enthält.
+   - Wenn nicht, bricht der Workflow mit klarer Fehlermeldung ab, statt still den alten Code auszuführen.
 
-2. **Ingest-Startbanner ergänzen**
-   - `scripts/ingest_radar.py` direkt beim Start eine eindeutige Versions-/Diagnosezeile ausgeben, z. B. `radar ingest diagnostics v2`.
-   - So erkennt man sofort, ob GitHub die neue Datei ausführt.
+2. **Ingest-Ausgabe unverwechselbar machen**
+   - Den Startbanner noch auffälliger machen und mit Commit-/Ref-Kontext aus der Action kombinieren.
+   - Den Python-Aufruf mit ungepufferter Ausgabe ausführen, damit Diagnosezeilen sicher im Log erscheinen.
 
-3. **Robusteren Fallback einbauen**
-   - Falls trotz STAC-Fund keine Frames nach `since` übrig bleiben, optional die neuesten verfügbaren Frames trotzdem verarbeiten, statt das Manifest auf `0 frames` zu setzen.
-   - Damit bleibt die Karte nutzbar, auch wenn MeteoSchweiz-Daten verzögert sind.
+3. **Leeres Manifest verhindern**
+   - `write_manifest` so härten, dass ein Run ohne Frames nicht mehr `radar/frames.json` auf `0 frames` überschreibt, sofern bereits ein bestehendes Manifest vorhanden ist.
+   - Dadurch bleibt die Radar-Karte sichtbar, selbst wenn ein einzelner Ingest keine neuen Daten findet.
 
-4. **Manifest nicht leer überschreiben**
-   - Wenn `0` neue Frames gefunden werden, aber ein bestehendes Manifest vorhanden ist, alte Frames innerhalb der Retention behalten.
-   - Das verhindert, dass ein einzelner leerer Ingest-Run die Radar-Karte leer macht.
+4. **Fallback klarer machen**
+   - Wenn nach `since` keine Frames übrig bleiben, werden die neuesten parsebaren STAC-Assets verwendet und explizit als Fallback geloggt.
+   - Falls gar keine parsebaren Assets gefunden werden, wird das als echter Daten-/Parsing-Fehler sichtbar.
 
 ## Erwartetes Ergebnis
 
-Der nächste Action-Run zeigt eindeutig, welcher Commit und welche Script-Version ausgeführt wird. Danach ist klar, ob es ein Sync-/Branch-Problem ist oder ob der Ingest selbst noch angepasst werden muss.
+Der nächste Action-Run zeigt entweder eindeutig die neue Script-Version und verarbeitet Fallback-Frames, oder er bricht früh mit einer klaren Meldung ab, dass GitHub noch einen alten Commit/Branch ausführt.
