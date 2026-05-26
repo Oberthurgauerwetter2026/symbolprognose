@@ -589,12 +589,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         )}
       >
         <MapContainer
-          center={[47.555, 9.33]}
-          zoom={10.5}
+          center={[47.575, 9.35]}
+          zoom={9.75}
           zoomSnap={0.25}
           maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
-          minZoom={9}
+          minZoom={8.5}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
