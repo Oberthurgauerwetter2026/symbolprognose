@@ -20,7 +20,7 @@ import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
-import { Button } from "@/components/ui/button";
+
 import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 
