@@ -261,6 +261,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
     const nLat = gridLat.length;
     const nLon = gridLon.length;
     const vals = frame.values;
+    const snowVals = frame.snowValues;
 
     // Vollen Viewport zeichnen — Werte ausserhalb des Grids auf Rand klampfen,
     // damit auch die Karten-Ränder eingefärbt werden.
