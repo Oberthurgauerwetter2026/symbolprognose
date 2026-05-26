@@ -47,6 +47,8 @@ export interface RadarFrame {
   source: "radar" | "icon-ch1" | "icon-ch2";
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei `imageUrl`-Frames leer. */
   values: number[];
+  /** Schnee-Wasser-Äquivalent mm/h pro Grid-Punkt (row-major). Leer = unbekannt. */
+  snowValues?: number[];
   /** Wenn gesetzt, als ImageOverlay rendern statt Canvas (echte MCH-Daten). */
   precipUrl?: string;
   /** Optionaler Hagel-Overlay (POH %) URL. */
