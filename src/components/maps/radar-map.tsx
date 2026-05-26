@@ -631,6 +631,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1); // 1× = 400ms/frame
   const [showHail, setShowHail] = useState(true);
+  const isMobile = useIsMobile();
 
   // Auf "jetzt" springen sobald Daten da sind.
   useEffect(() => {
