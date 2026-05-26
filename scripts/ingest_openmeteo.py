@@ -148,8 +148,18 @@ def read_existing_payload(s3, bucket: str, key: str) -> dict | None:
 
 
 
+def _envflag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def main() -> None:
-    print(f"OPENMETEO INGEST START version={VERSION}")
+    skip_phaseA = _envflag("SKIP_PHASEA")
+    only_phaseA = _envflag("ONLY_PHASEA")
+    if skip_phaseA and only_phaseA:
+        sys.exit("SKIP_PHASEA and ONLY_PHASEA are mutually exclusive")
+
+    mode = "ONLY_PHASEA" if only_phaseA else ("SKIP_PHASEA" if skip_phaseA else "FULL")
+    print(f"OPENMETEO INGEST START version={VERSION} mode={mode}")
     pts = build_grid()
     print(f"grid points: {len(pts)}")
 
@@ -205,7 +215,6 @@ def main() -> None:
         "models": "best_match",
     }
 
-    # Chunk-Grössen — kleiner = weniger 502, mehr Requests
     chunk_p1 = envi("CHUNK_PHASE1", 15)
     chunk_pa = envi("CHUNK_PHASEA", 25)
     chunk_pc = envi("CHUNK_PHASEC", 40)
@@ -214,31 +223,45 @@ def main() -> None:
     s3 = make_s3()
     bucket = env("R2_BUCKET")
 
-    # phase1 = Radar-Nowcast = kritisch → pflicht, kein Fallback.
-    print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
-    phase1 = chunk_fetch("phase1", p1, pts, chunk_p1)
-    print(f"  -> {len(phase1)} locations")
+    # Bestehenden Cache laden — wird je nach Mode für übersprungene Phasen
+    # weiterverwendet, damit forecast.json immer ein vollständiges Set behält.
+    prev = read_existing_payload(s3, bucket, key) or {}
 
-    # phaseC = Bias-Lookback, klein & schnell, optional.
-    print(f"fetch phaseC (bias lookback, optional) in chunks of {chunk_pc} …")
-    phaseC = chunk_fetch("phaseC", pc, pts, chunk_pc, optional=True)
-    print(f"  -> {len(phaseC) if phaseC is not None else 'skipped'} locations")
-
-    # phaseA = Symbolprognose = darf alt sein → optional + R2-Fallback.
-    print(f"fetch phaseA (multi-model 7d, optional) in chunks of {chunk_pa} …")
-    phaseA = chunk_fetch("phaseA", pa, pts, chunk_pa, optional=True)
-    if phaseA is None:
-        print("phaseA failed — versuche Fallback auf bestehenden R2-Cache …")
-        prev = read_existing_payload(s3, bucket, key)
-        if prev and isinstance(prev.get("phaseA"), list) and prev["phaseA"]:
-            phaseA = prev["phaseA"]
-            print(f"  -> Fallback ok: {len(phaseA)} locations aus bestehendem Cache")
-        else:
-            phaseA = []
-            print("  -> kein Fallback verfügbar, phaseA bleibt leer")
+    # ---- phase1 (Radar/Nowcast) ----
+    if only_phaseA:
+        phase1 = prev.get("phase1") or prev.get("phaseB") or []
+        print(f"phase1 übernommen aus Cache: {len(phase1)} locations")
     else:
-        print(f"  -> {len(phaseA)} locations")
+        print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
+        phase1 = chunk_fetch("phase1", p1, pts, chunk_p1)
+        print(f"  -> {len(phase1)} locations")
 
+    # ---- phaseC (Bias-Lookback) ----
+    if only_phaseA:
+        phaseC = prev.get("phaseC")
+        print(f"phaseC übernommen aus Cache: {len(phaseC) if isinstance(phaseC, list) else 'none'} locations")
+    else:
+        print(f"fetch phaseC (bias lookback, optional) in chunks of {chunk_pc} …")
+        phaseC = chunk_fetch("phaseC", pc, pts, chunk_pc, optional=True)
+        print(f"  -> {len(phaseC) if phaseC is not None else 'skipped'} locations")
+
+    # ---- phaseA (Symbolprognose) ----
+    if skip_phaseA:
+        phaseA = prev.get("phaseA") if isinstance(prev.get("phaseA"), list) else []
+        print(f"phaseA übernommen aus Cache: {len(phaseA)} locations")
+    else:
+        print(f"fetch phaseA (multi-model 7d, optional) in chunks of {chunk_pa} …")
+        phaseA = chunk_fetch("phaseA", pa, pts, chunk_pa, optional=True)
+        if phaseA is None:
+            print("phaseA failed — versuche Fallback auf bestehenden R2-Cache …")
+            if isinstance(prev.get("phaseA"), list) and prev["phaseA"]:
+                phaseA = prev["phaseA"]
+                print(f"  -> Fallback ok: {len(phaseA)} locations aus bestehendem Cache")
+            else:
+                phaseA = []
+                print("  -> kein Fallback verfügbar, phaseA bleibt leer")
+        else:
+            print(f"  -> {len(phaseA)} locations")
 
     payload = {
         "version": VERSION,
