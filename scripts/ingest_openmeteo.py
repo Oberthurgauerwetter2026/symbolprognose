@@ -75,9 +75,9 @@ def build_grid():
 
 
 def fetch(label: str, params: dict, optional: bool = False) -> list | None:
-    backoffs = [2, 6, 18]
+    backoffs = [3, 10, 30, 60, 120]
     last_err: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             r = requests.get(API, params=params, timeout=120)
             if not r.ok:
@@ -99,9 +99,9 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
         ) as e:
             last_err = e
         wait = backoffs[attempt]
-        print(f"WARN: {label} attempt {attempt + 1}/3 failed ({last_err}); retry in {wait}s")
+        print(f"WARN: {label} attempt {attempt + 1}/5 failed ({last_err}); retry in {wait}s")
         time.sleep(wait)
-    msg = f"open-meteo {label} failed after 3 attempts: {last_err}"
+    msg = f"open-meteo {label} failed after 5 attempts: {last_err}"
     if optional:
         print(f"WARN: {msg} — skipping (optional)")
         return None
