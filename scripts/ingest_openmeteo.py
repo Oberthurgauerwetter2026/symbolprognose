@@ -105,7 +105,29 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     if optional:
         print(f"WARN: {msg} — skipping (optional)")
         return None
-    sys.exit(msg)
+
+
+
+def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optional: bool = False) -> list | None:
+    """Open-Meteo Bulk-Requests in Batches, um 502 vom Upstream-nginx zu vermeiden."""
+    out: list = []
+    total = len(pts)
+    n_batches = (total + chunk_size - 1) // chunk_size
+    for bi in range(n_batches):
+        batch = pts[bi * chunk_size : (bi + 1) * chunk_size]
+        params = dict(base_params)
+        params["latitude"] = ",".join(f"{p[0]:.4f}" for p in batch)
+        params["longitude"] = ",".join(f"{p[1]:.4f}" for p in batch)
+        sub_label = f"{label} batch {bi + 1}/{n_batches} ({len(batch)} pts)"
+        res = fetch(sub_label, params, optional=optional)
+        if res is None:
+            # nur möglich wenn optional=True und alle Retries scheitern -> ganze Phase überspringen
+            print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
+            return None
+        out.extend(res)
+        print(f"  {sub_label} ok")
+    return out
+
 
 
 
