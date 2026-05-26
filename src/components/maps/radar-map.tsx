@@ -20,7 +20,7 @@ import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
-import { Button } from "@/components/ui/button";
+
 import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 
@@ -445,9 +445,9 @@ function Timeline({
             key={t.h}
             className={cn(
               "absolute -translate-x-1/2 tabular-nums",
-              t.h === 0 && "font-semibold text-foreground",
+              t.h === 0 && "font-semibold",
             )}
-            style={{ left: `${t.pct}%` }}
+            style={{ left: `${t.pct}%`, color: t.h === 0 ? BRAND : undefined }}
           >
             {tickLabel(t.h)}
           </span>
@@ -493,7 +493,7 @@ function Timeline({
             style={{
               left: `${nowPct}%`,
               width: `${Math.max(0, 100 - nowPct)}%`,
-              background: "hsl(212 60% 55% / 0.45)",
+              background: `color-mix(in oklab, ${BRAND} 35%, transparent)`,
             }}
           />
         </div>
@@ -501,22 +501,33 @@ function Timeline({
         {/* "Jetzt"-Linie */}
         {nowPct > 0 && nowPct < 100 && (
           <div
-            className="pointer-events-none absolute inset-y-1.5 w-px bg-foreground/60"
-            style={{ left: `${nowPct}%` }}
+            className="pointer-events-none absolute inset-y-1.5"
+            style={{ left: `${nowPct}%`, width: 1.5, background: BRAND }}
           />
         )}
 
         {/* Drag-Handle */}
         <div
-          className="pointer-events-none absolute top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background shadow-sm transition-transform sm:h-[18px] sm:w-[18px]"
+          className="pointer-events-none absolute top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background shadow-md transition-transform sm:h-[18px] sm:w-[18px]"
           style={{ left: `${handlePct}%`, borderColor: BRAND }}
         >
           {showBubble && (
-            <span
-              className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-[11px] font-medium text-background shadow-md after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-foreground after:content-['']"
-            >
-              {handleLabel}
-            </span>
+            <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center">
+              <span
+                className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
+                style={{ background: BRAND }}
+              >
+                {handleLabel}
+              </span>
+              <span
+                className="h-0 w-0"
+                style={{
+                  borderLeft: "5px solid transparent",
+                  borderRight: "5px solid transparent",
+                  borderTop: `5px solid ${BRAND}`,
+                }}
+              />
+            </div>
           )}
         </div>
       </div>
@@ -712,56 +723,62 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         {data && frames.length > 0 && idx !== null && (
           <>
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant={playing ? "secondary" : "default"}
-                onClick={() => setPlaying((p) => !p)}
-                className="gap-1.5"
-              >
-                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                {playing ? "Pause" : "Play"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setIdx(nowIdx);
-                  setPlaying(false);
-                }}
-                className="gap-1.5"
-              >
-                <SkipForward className="h-4 w-4" />
-                Jetzt
-              </Button>
-              <div className="flex items-center gap-1 rounded-md border border-border bg-muted p-0.5 text-xs">
-                {[1, 2, 4].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSpeed(s)}
-                    className={cn(
-                      "rounded px-2 py-1 font-semibold",
-                      speed === s
-                        ? "bg-card text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {s}×
-                  </button>
-                ))}
+              <div className="inline-flex items-center gap-1 rounded-full bg-muted p-1">
+                <button
+                  type="button"
+                  onClick={() => setPlaying((p) => !p)}
+                  className={cn(
+                    "relative z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 sm:text-sm",
+                    playing ? "text-white shadow-sm" : "text-foreground hover:bg-foreground/5",
+                  )}
+                  style={playing ? { background: BRAND } : undefined}
+                >
+                  {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  {playing ? "Pause" : "Play"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIdx(nowIdx);
+                    setPlaying(false);
+                  }}
+                  className="relative z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-foreground transition-colors duration-200 hover:bg-foreground/5 sm:text-sm"
+                >
+                  <SkipForward className="h-4 w-4" />
+                  Jetzt
+                </button>
               </div>
-              <div className="ml-auto flex items-center gap-1 text-xs">
-
+              <div className="inline-flex items-center gap-1 rounded-full bg-muted p-1">
+                {[1, 2, 4].map((s) => {
+                  const active = speed === s;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSpeed(s)}
+                      className={cn(
+                        "relative z-10 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 sm:text-sm",
+                        active ? "text-white shadow-sm" : "text-foreground hover:bg-foreground/5",
+                      )}
+                      style={active ? { background: BRAND } : undefined}
+                    >
+                      {s}×
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="ml-auto inline-flex items-center rounded-full bg-muted p-1">
                 <button
                   type="button"
                   onClick={() => setShowHail((v) => !v)}
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 font-medium transition",
+                    "relative z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 sm:text-sm",
                     !data?.hasHail && "cursor-not-allowed opacity-60",
                     showHail && data?.hasHail
-                      ? "border-purple-300 bg-purple-100 text-purple-900"
-                      : "bg-muted text-muted-foreground",
+                      ? "text-white shadow-sm"
+                      : "text-foreground hover:bg-foreground/5",
                   )}
+                  style={showHail && data?.hasHail ? { background: BRAND } : undefined}
                   title={
                     data?.hasHail
                       ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
