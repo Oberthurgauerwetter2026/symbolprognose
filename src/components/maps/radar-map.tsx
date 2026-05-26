@@ -788,7 +788,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             </div>
 
             <p className="mt-3 text-center text-[11px] text-muted-foreground">
-              Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Nowcast bis +33 h) · MeteoSchweiz ICON-CH2 (+33 h … +120 h)
+              Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
               {" · Datenstand: "}
               {new Intl.DateTimeFormat("de-CH", {
                 day: "2-digit",
