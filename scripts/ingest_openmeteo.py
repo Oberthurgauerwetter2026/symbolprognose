@@ -202,13 +202,28 @@ def main() -> None:
     }
 
     # Chunk-Grössen — kleiner = weniger 502, mehr Requests
-    chunk_p1 = envi("CHUNK_PHASE1", 30)
+    chunk_p1 = envi("CHUNK_PHASE1", 15)
     chunk_pa = envi("CHUNK_PHASEA", 25)
     chunk_pc = envi("CHUNK_PHASEC", 40)
 
+    key = os.environ.get("OPENMETEO_OUT_KEY", "openmeteo/forecast.json")
+    s3 = make_s3()
+    bucket = env("R2_BUCKET")
+
     print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
-    phase1 = chunk_fetch("phase1", p1, pts, chunk_p1)
-    print(f"  -> {len(phase1)} locations")
+    phase1 = chunk_fetch("phase1", p1, pts, chunk_p1, optional=True)
+    if phase1 is None:
+        print("phase1 failed — versuche Fallback auf bestehenden R2-Cache …")
+        prev = read_existing_payload(s3, bucket, key)
+        if prev and isinstance(prev.get("phase1"), list) and prev["phase1"]:
+            phase1 = prev["phase1"]
+            print(f"  -> Fallback ok: {len(phase1)} locations aus bestehendem Cache")
+        else:
+            phase1 = []
+            print("  -> kein Fallback verfügbar, phase1 bleibt leer")
+    else:
+        print(f"  -> {len(phase1)} locations")
+
     print(f"fetch phaseA (multi-model 7d) in chunks of {chunk_pa} …")
     phaseA = chunk_fetch("phaseA", pa, pts, chunk_pa)
     print(f"  -> {len(phaseA)} locations")
@@ -233,10 +248,8 @@ def main() -> None:
     }
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
-    key = os.environ.get("OPENMETEO_OUT_KEY", "openmeteo/forecast.json")
-    s3 = make_s3()
     s3.put_object(
-        Bucket=env("R2_BUCKET"),
+        Bucket=bucket,
         Key=key,
         Body=body,
         ContentType="application/json",
