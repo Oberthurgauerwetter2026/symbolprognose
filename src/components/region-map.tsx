@@ -669,165 +669,131 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             }}
           />
 
-          {/* Moderner 3-Stunden-Zeitstrahl mit Stundenlegende */}
-          <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
-            <div className="mb-2 flex items-end justify-between">
-              <div className="flex flex-col">
-                <span className="font-[family-name:var(--font-display)] text-lg font-semibold leading-tight text-foreground">
-                  {longWeekday(days[Math.min(dayIndex, days.length - 1)])}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {viewMode === "daily" ? "Tagesübersicht" : activeDayLabel.sub}
-                </span>
-              </div>
-              {viewMode === "daily" ? (
-                <span className="rounded-lg border border-border bg-muted px-3 py-1 text-sm font-semibold text-muted-foreground">
-                  Tagesübersicht
-                </span>
-              ) : (
-                <span
-                  className="rounded-lg px-3 py-1 text-base font-bold text-white shadow-sm"
-                  style={{ background: BRAND }}
-                >
-                  {hourLabel}
-                </span>
-              )}
-            </div>
-
-
+          {/* Schlankes weisses Zeitstrahl-Panel (Radar-Stil) */}
+          <div className="rounded-xl border border-neutral-200 bg-white p-2 shadow-md sm:p-3">
             <div
               className={cn(
-                "region-slider relative px-1 pt-8",
+                "region-slider-slim relative select-none",
                 viewMode === "daily" && "pointer-events-none opacity-40",
               )}
             >
-              {/* Tooltip über dem Thumb */}
-              {viewMode === "hourly" && (
-                <div
-                  className="pointer-events-none absolute top-0 z-10"
-                  style={{
-                    left: `calc(${thumbPct}% + 4px)`,
-                    transform: "translateX(-50%)",
-                    transition: "left 0ms",
-                  }}
-                >
-                  <div
-                    className="whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
-                    style={{ background: BRAND }}
-                  >
-                    Prognose: {sliderWeekdayCap}, {sliderTimeStr}
-                  </div>
-                  <div
-                    className="mx-auto h-0 w-0"
-                    style={{
-                      borderLeft: "5px solid transparent",
-                      borderRight: "5px solid transparent",
-                      borderTop: `5px solid ${BRAND}`,
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Vertikale Marker-Linie am Thumb */}
-              {viewMode === "hourly" && (
-                <div
-                  className="pointer-events-none absolute z-0"
-                  style={{
-                    left: `calc(${thumbPct}% + 4px)`,
-                    top: "1rem",
-                    bottom: "-1.25rem",
-                    width: 1,
-                    background: BRAND,
-                    opacity: 0.5,
-                    transition: "left 0ms",
-                  }}
-                />
-              )}
-
-              <Slider
-                size="touch"
-                aria-label="Prognosezeit"
-                min={0}
-                max={MAX_STEPS}
-                step={1}
-                value={[stepOffset]}
-                onValueChange={(v) => setStepOffset(v[0] ?? 0)}
-                disabled={viewMode === "daily"}
-              />
-            </div>
-
-            {/* Stundenlegende: jede Stunde */}
-            <div
-              className="mt-1 px-1 cursor-pointer"
-              onPointerDown={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const pct = Math.max(0, Math.min(1, x / rect.width));
-                const step = Math.round(pct * MAX_STEPS);
-                if (viewMode !== "hourly") setViewMode("hourly");
-                setStepOffset(Math.max(0, Math.min(MAX_STEPS, step)));
-              }}
-            >
-              <div className="pointer-events-none relative h-1.5">
-                {HOUR_LABELS.map((h) => (
-                  <span
-                    key={`tick-${h}`}
-                    className="absolute top-0 w-px bg-border"
-                    style={{
-                      left: `${(h / MAX_STEPS) * 100}%`,
-                      height: h % 3 === 0 ? "0.4rem" : "0.2rem",
-                    }}
-                  />
-                ))}
-              </div>
-              <div className="pointer-events-none relative mt-0.5 h-3">
+              {/* Stundenlabels (HH) über dem Track */}
+              <div className="pointer-events-none relative mb-1 h-4">
                 {HOUR_LABELS.map((h) => {
                   const realHour = (baseHour + h) % 24;
-                  const display = `${String(realHour).padStart(2, "0")}:00`;
-                  const active = h === stepOffset;
                   const showOnMobile = h % 3 === 0;
                   return (
                     <span
-                      key={`label-${h}`}
+                      key={`hl-${h}`}
                       className={cn(
-                        "absolute top-0 -translate-x-1/2 text-[10px] tabular-nums transition-colors duration-200",
-                        active ? "font-bold" : "font-medium text-muted-foreground",
+                        "absolute top-0 -translate-x-1/2 text-[9px] font-medium tabular-nums text-neutral-500",
                         !showOnMobile && "hidden sm:inline",
                       )}
-                      style={{
-                        left: `${(h / MAX_STEPS) * 100}%`,
-                        color: active ? BRAND : undefined,
-                      }}
+                      style={{ left: `${(h / MAX_STEPS) * 100}%` }}
                     >
-                      {display}
+                      {String(realHour).padStart(2, "0")}
                     </span>
                   );
                 })}
               </div>
+
+              {/* Track + Time-Bubble */}
+              <div className="relative px-1">
+                {/* Time-Bubble über dem Thumb */}
+                {viewMode === "hourly" && (
+                  <div
+                    className="pointer-events-none absolute -top-7 z-10 flex flex-col items-center"
+                    style={{
+                      left: `calc(${thumbPct}% + 4px)`,
+                      transform: "translateX(-50%)",
+                    }}
+                  >
+                    <span
+                      className="whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                      style={{ background: BRAND }}
+                    >
+                      {sliderTimeStr}
+                    </span>
+                    <span
+                      className="h-0 w-0"
+                      style={{
+                        borderLeft: "4px solid transparent",
+                        borderRight: "4px solid transparent",
+                        borderTop: `4px solid ${BRAND}`,
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Day-Break-Vertikallinien bei 00:00 */}
+                {HOUR_LABELS.filter((h) => (baseHour + h) % 24 === 0).map((h) => (
+                  <span
+                    key={`db-${h}`}
+                    className="pointer-events-none absolute -top-1 -bottom-1 w-px bg-neutral-300"
+                    style={{ left: `calc(${(h / MAX_STEPS) * 100}% + 4px)` }}
+                  />
+                ))}
+
+                {/* "Jetzt"-Marker bei step=0 */}
+                <span
+                  className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white"
+                  style={{ left: `calc(0% + 4px)` }}
+                />
+
+                <Slider
+                  size="touch"
+                  aria-label="Prognosezeit"
+                  min={0}
+                  max={MAX_STEPS}
+                  step={1}
+                  value={[stepOffset]}
+                  onValueChange={(v) => setStepOffset(v[0] ?? 0)}
+                  disabled={viewMode === "daily"}
+                />
+              </div>
+
+              {/* Tages-Label unter dem Track */}
+              <div className="mt-1.5 text-[10px] font-medium text-neutral-600">
+                {sliderWeekdayCap}, {sliderDateStr}
+              </div>
             </div>
 
-            <div className="mt-1.5 text-[11px] font-medium text-muted-foreground">
-              {sliderWeekdayCap}, {sliderDateStr}
+            {/* Sekundär-Toolbar */}
+            <div className="mt-2 flex items-center gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => {
+                  if (viewMode !== "hourly") setViewMode("hourly");
+                  setStepOffset(0);
+                }}
+                className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
+              >
+                Jetzt
+              </button>
+              {viewMode === "daily" && (
+                <span className="ml-auto rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 font-semibold text-neutral-500">
+                  Tagesübersicht
+                </span>
+              )}
             </div>
 
+            {dataUpdatedAt > 0 && (
+              <p
+                className="mt-1.5 text-[10px] text-neutral-500"
+                title="Wettermodelle (ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX) werden ca. alle 6 Stunden (00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 30 Min. zwischengespeichert."
+              >
+                Datenstand:{" "}
+                {new Intl.DateTimeFormat("de-CH", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }).format(new Date(dataUpdatedAt))}{" "}
+                · Quellen: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
+              </p>
+            )}
           </div>
-
-          {dataUpdatedAt > 0 && (
-            <p
-              className="text-center text-[11px] text-muted-foreground"
-              title="Wettermodelle (ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX) werden ca. alle 6 Stunden (00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 30 Min. zwischengespeichert."
-            >
-              Datenstand:{" "}
-              {new Intl.DateTimeFormat("de-CH", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              }).format(new Date(dataUpdatedAt))}{" "}
-              · Quellen: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
-            </p>
-          )}
         </>
       )}
     </div>
