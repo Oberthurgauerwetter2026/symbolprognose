@@ -352,10 +352,10 @@ function PrecipOverlay({
     ctx.putImageData(img, minX * dpr, minY * dpr);
   };
 
-  // Bei Frame-Wechsel neu zeichnen.
+  // Bei Frame-/Progress-Wechsel neu zeichnen.
   useEffect(() => {
     redrawRef.current();
-  }, [frame, payload]);
+  }, [frame, nextFrame, progress, payload]);
 
   return null;
 }
