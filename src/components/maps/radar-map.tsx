@@ -344,8 +344,8 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
 
 // ---------------- Modern Timeline Slider ----------------
 
-const TIMELINE_TICKS_DESKTOP = [-2, -1, 0, 3, 12, 24, 48, 120];
-const TIMELINE_TICKS_MOBILE = [-1, 0, 6, 24, 72];
+const TIMELINE_TICKS_DESKTOP = [-2, -1, 0, 3, 6, 12, 24, 32];
+const TIMELINE_TICKS_MOBILE = [-1, 0, 6, 16, 32];
 
 function tickLabel(h: number): string {
   if (h === 0) return "Jetzt";
