@@ -197,6 +197,43 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
+  // ---- 15-min-Smoothing für Forecast-Frames ----
+  // Open-Meteo liefert für `meteoswiss_icon_ch1` in minutely_15 effektiv stündliche
+  // Werte (4× wiederholt). Wir interpolieren linear zwischen den Stunden-Ankern,
+  // damit jeder 15-min-Slot einen eigenen Zwischenwert trägt.
+  const forecastFrames = frames.filter((f) => f.source === "icon-ch1");
+  if (forecastFrames.length >= 2) {
+    // Anker-Indizes: Frames mit Minute :00 (UTC).
+    const anchorIdx: number[] = [];
+    for (let i = 0; i < forecastFrames.length; i++) {
+      if (new Date(forecastFrames[i].t).getUTCMinutes() === 0) anchorIdx.push(i);
+    }
+    if (anchorIdx.length >= 2) {
+      const interp = (key: "values" | "snowValues") => {
+        for (let a = 0; a < anchorIdx.length - 1; a++) {
+          const iA = anchorIdx[a];
+          const iB = anchorIdx[a + 1];
+          const span = iB - iA;
+          if (span <= 1) continue;
+          const arrA = forecastFrames[iA][key];
+          const arrB = forecastFrames[iB][key];
+          if (!arrA || !arrB) continue;
+          for (let k = 1; k < span; k++) {
+            const t = k / span;
+            const target = forecastFrames[iA + k][key];
+            if (!target) continue;
+            for (let pi = 0; pi < target.length; pi++) {
+              target[pi] = arrA[pi] * (1 - t) + arrB[pi] * t;
+            }
+          }
+        }
+      };
+      interp("values");
+      interp("snowValues");
+    }
+  }
+
+
   // Wenn wir überhaupt keine Frames haben, hart fehlschlagen, damit die UI
   // den Fehlerzustand anzeigt.
   if (frames.length === 0) {
