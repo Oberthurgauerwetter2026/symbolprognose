@@ -56,7 +56,7 @@ function cityIcon(name: string): L.DivIcon {
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [170, 205, 240] },
+  { mmh: 0.1, rgb: [150, 190, 235] },
   { mmh: 0.4, rgb: [130, 185, 235] },
   { mmh: 0.7, rgb: [90, 165, 225] },
   { mmh: 1.3, rgb: [50, 140, 210] },
@@ -77,7 +77,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      const a = Math.min(1.0, 0.85 + (i / SCALE.length) * 0.15);
+      const a = Math.min(1.0, 0.95 + (i / SCALE.length) * 0.05);
       return [r, g, b, a];
     }
   }
