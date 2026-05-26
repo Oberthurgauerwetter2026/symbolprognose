@@ -299,26 +299,33 @@ function PrecipOverlay({
         const BUFFER = 3;
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
-        // Nearest-Edge-Clamp für Sampling (extrapoliert sanft über den Grid-Rand).
-        const fx = Math.max(0, Math.min(nLon - 1, fxRaw));
-        const fy = Math.max(0, Math.min(nLat - 1, fyRaw));
-        const x0 = Math.floor(fx);
-        const y0 = Math.floor(fy);
-        const x1 = Math.min(nLon - 1, x0 + 1);
-        const y1 = Math.min(nLat - 1, y0 + 1);
-        const tx = fx - x0;
-        const ty = fy - y0;
-        const i00 = y0 * nLon + x0;
-        const i01 = y0 * nLon + x1;
-        const i10 = y1 * nLon + x0;
-        const i11 = y1 * nLon + x1;
-        const sample = (arr: number[]) =>
-          arr[i00] * (1 - tx) * (1 - ty) +
-          arr[i01] * tx * (1 - ty) +
-          arr[i10] * (1 - tx) * ty +
-          arr[i11] * tx * ty;
+        // Zero-padded bilinear sampling: ausserhalb des Grids gilt 0 →
+        // natürlicher Blob-Falloff statt Streifen längs der Grid-Kanten.
+        const x0 = Math.floor(fxRaw);
+        const y0 = Math.floor(fyRaw);
+        const x1 = x0 + 1;
+        const y1 = y0 + 1;
+        const tx = fxRaw - x0;
+        const ty = fyRaw - y0;
+        const inX0 = x0 >= 0 && x0 < nLon;
+        const inX1 = x1 >= 0 && x1 < nLon;
+        const inY0 = y0 >= 0 && y0 < nLat;
+        const inY1 = y1 >= 0 && y1 < nLat;
+        const sample = (arr: number[]) => {
+          const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+          const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+          const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+          const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+          return (
+            v00 * (1 - tx) * (1 - ty) +
+            v01 * tx * (1 - ty) +
+            v10 * (1 - tx) * ty +
+            v11 * tx * ty
+          );
+        };
         const vCur = sample(vals);
         const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
+        if (v < 0.05) continue;
         let snowFrac = 0;
         if (snowVals) {
           const svCur = sample(snowVals);
@@ -327,14 +334,7 @@ function PrecipOverlay({
         }
         const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
         if (a === 0) continue;
-        const edgeDist = Math.min(fxRaw, nLon - 1 - fxRaw, fyRaw, nLat - 1 - fyRaw);
-        const edgeFade =
-          edgeDist >= 0.5
-            ? 1
-            : edgeDist >= -BUFFER
-              ? Math.max(0, (edgeDist + BUFFER) / (BUFFER + 0.5))
-              : 0;
-        const alpha = Math.round(a * edgeFade * 255);
+        const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
         for (let sy = 0; sy < dpr; sy++) {
           const row = (py * dpr + sy) * stride;
