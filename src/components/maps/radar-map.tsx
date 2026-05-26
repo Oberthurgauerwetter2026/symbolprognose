@@ -817,6 +817,16 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               <span className="tabular-nums text-muted-foreground">{s.mmh}</span>
             </div>
           ))}
+          <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
+          <div className="flex items-center gap-1">
+            {SNOW_SCALE.filter((_, i) => i % 2 === 0).map((s) => (
+              <span
+                key={`snow-${s.mmh}`}
+                className="inline-block h-2.5 w-2.5 rounded-sm"
+                style={{ background: `rgb(${s.rgb.join(",")})` }}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
