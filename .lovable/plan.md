@@ -1,39 +1,51 @@
-## Problem
+## Ziele
 
-Die "Balken" im Niederschlag entstehen, weil das Fallback-Grid (ICON-CH1, ~20×12 Punkte über die Region) zu grob ist. Die bilineare Interpolation erzeugt zwischen benachbarten Stützstellen achsen-parallele lineare Verläufe → optisch wie rechteckige Streifen/Balken. Das ist kein Bug der Datenpipeline, sondern eine Grenze der Datenauflösung.
-
-Im Wunsch-Screenshot (MeteoSchweiz-Radar 1 km) liegen die Konturen weich, satt und blob-förmig. Dieselbe Optik lässt sich aus dem groben Grid durch Post-Smoothing + kräftigere Farb-Alpha annähern.
+1. **Blobs markanter** wie im Referenz-Screenshot: satte, klar abgrenzbare Farbringe innen, weicher halb-transparenter Halo aussen — nicht so weichgespült wie aktuell.
+2. **Niederschlag bis an die Karten-Ränder** sichtbar (aktuell endet er an der Daten-Bbox 8.85–9.85 / 47.30–47.85, dahinter ist nichts).
 
 ## Änderungen in `src/components/maps/radar-map.tsx`
 
-1. **CSS-Filter Blur auf das Canvas-Overlay**
-   - In der `CanvasLayer.onAdd()` zusätzlich:
-     `cv.style.filter = "blur(6px) saturate(1.15) contrast(1.05)"`.
-   - Wirkung: rechteckige bilinear-Kanten verschmelzen zu weichen Blob-Konturen, Farben wirken satter — genau die Optik aus dem Screenshot. Kosten: 0 (GPU-Filter), keine Performance-Auswirkung.
+### A. Markantere Blobs
 
-2. **Canvas-Opacity auf 1.0**
-   - `cv.style.opacity = "0.9"` → `"1"`.
-   - Der Halo am Rand kommt jetzt aus der Alpha-Kurve + Blur, nicht aus einer pauschalen Transparenz.
+1. **Blur reduzieren, Sättigung/Kontrast erhöhen**
+  `cv.style.filter = "blur(6px) saturate(1.15) contrast(1.05)"`
+   → `"blur(3px) saturate(1.4) contrast(1.2)"`.
+   Weniger Weichzeichnung = klar erkennbare Farbbänder; mehr Sättigung/Kontrast = Look wie im Screenshot.
+2. **Alpha-Kurve voll auf 1.0 im Kern**
+  In `colorFor()`:
+   `a = Math.min(1.0, 0.85 + (i/SCALE.length)*0.15)`
+   → `a = Math.min(1.0, 0.95 + (i/SCALE.length)*0.05)` (0.95 … 1.00).
+   Innen praktisch opak; der weiche Halo entsteht über den Edge-Fade + Blur.
+3. **Mehr Farb-Stops am unteren Ende komprimieren** *(optional, klein)*
+  Aktuell erster Farbstop bei 0.1 mm/h sehr hell. Schwellen bleiben gleich, aber unterster Stop wird minimal kräftiger:
+   `{ mmh: 0.1, rgb: [170,205,240] }` → `{ mmh: 0.1, rgb: [150,190,235] }`.
+   Das erzeugt den deutlich sichtbaren blauen Aussenring wie im Screenshot.
 
-3. **Alpha-Kurve in `colorFor()` kräftiger**
-   - Aktuell: `a = min(0.95, 0.7 + (i/14)*0.25)` → 0.70 … 0.95.
-   - Neu: `a = min(1.0, 0.85 + (i/14)*0.15)` → 0.85 … 1.00.
-   - Kombiniert mit Blur ergibt das die satte Mitte und den weichen, halb-transparenten Rand wie im Screenshot.
+### B. Niederschlag über die ganze Karte
 
-4. **STEP zurück auf 1**
-   - `STEP = 2` → `STEP = 1` (zusammen mit Blur sieht das Pixel-Raster komplett verschwinden, statt 2×2-Blöcke unter dem Blur durchzuscheinen).
-   - Innere `STEP`-Schleifen entfallen, der Code wird kürzer.
+Aktuell wird jeder Pixel ausserhalb des Grids per `continue` übersprungen. Die Daten-Bbox ist nur ~5 km kleiner als die Karten-Maxbounds — das entspricht ca. **1 Grid-Zelle Puffer**.
 
-5. **Edge-Fade beibehalten**
-   - Der in der letzten Iteration eingeführte `edgeFade` (sanfter Übergang am Grid-Rand, kein `clamp`-Extrapolieren) bleibt unverändert — verhindert weiterhin Balken bis an den Karten-Rand.
+Neuer Ansatz: **Nearest-Edge-Clamp mit begrenztem Puffer und Edge-Fade**:
 
-## Was sich NICHT ändert
+```ts
+const BUFFER = 1.5; // Grid-Zellen, die per Clamp extrapoliert werden
+if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
+if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
+const fx = Math.max(0, Math.min(nLon - 1, fxRaw));
+const fy = Math.max(0, Math.min(nLat - 1, fyRaw));
+// … bilinear sampling auf fx/fy (statt fxRaw/fyRaw)
+const edgeDist = Math.min(fxRaw, nLon-1-fxRaw, fyRaw, nLat-1-fyRaw);
+// edgeDist <0 = ausserhalb. Fade-Bereich = 0.5 innen + ganze 1.5 ausserhalb.
+const edgeFade =
+  edgeDist >= 0.5 ? 1 :
+  edgeDist >= -BUFFER ? Math.max(0, (edgeDist + BUFFER) / (BUFFER + 0.5)) : 0;
+```
 
-- See, Aussen-Masken, Karten-Layer-Reihenfolge.
-- Hagel-Punkte im Nowcast (schwarz).
-- `radar.functions.ts`, Cron, Bbox, Legende, Color-Stops.
-- Die Datenquelle bleibt; bei vorhandenem MCH-Radar-PNG wird ohnehin direkt das offizielle Bild gerendert.
+Effekt:
 
-## Erwartetes Ergebnis
+- Innen (≥ 0.5 Zellen vom Rand): voll deckend.
+- Im 0.5-Zellen-Randbereich des Grids: Fade beginnt.
 
-Die Niederschlags-Felder erscheinen als weiche, kräftige Blobs mit sanften, halb-transparenten Rändern — visuell wie im Referenz-Screenshot. Keine sichtbaren Balken/Streifen mehr aus dem Stützstellen-Raster.
+&nbsp;
+
+Zusätzlich in der Prognose Schneefallgrenze einbauen und unterscheiden zwischen Schnee und Regen.
