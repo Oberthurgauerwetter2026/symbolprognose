@@ -344,8 +344,8 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
 
 // ---------------- Modern Timeline Slider ----------------
 
-const TIMELINE_TICKS_DESKTOP = [-2, -1, 0, 3, 12, 24, 48, 120];
-const TIMELINE_TICKS_MOBILE = [-1, 0, 6, 24, 72];
+const TIMELINE_TICKS_DESKTOP = [-2, -1, 0, 3, 6, 12, 24, 32];
+const TIMELINE_TICKS_MOBILE = [-1, 0, 6, 16, 32];
 
 function tickLabel(h: number): string {
   if (h === 0) return "Jetzt";
@@ -373,8 +373,6 @@ function Timeline({
   const span = Math.max(1, tMax - tMin);
   const now = Date.now();
   const nowPct = Math.max(0, Math.min(100, ((now - tMin) / span) * 100));
-  const ch1CutMs = now + 33 * 3600 * 1000;
-  const ch1Pct = Math.max(0, Math.min(100, ((ch1CutMs - tMin) / span) * 100));
 
   const pctForIdx = (i: number): number => {
     const t = times[i] ?? tMin;
@@ -489,23 +487,13 @@ function Timeline({
             className="absolute inset-y-0 left-0 bg-muted-foreground/25"
             style={{ width: `${nowPct}%` }}
           />
-          {/* ICON-CH1 */}
+          {/* ICON-CH1 (Vorhersage) */}
           <div
             className="absolute inset-y-0"
             style={{
               left: `${nowPct}%`,
-              width: `${Math.max(0, ch1Pct - nowPct)}%`,
+              width: `${Math.max(0, 100 - nowPct)}%`,
               background: "hsl(212 60% 55% / 0.45)",
-            }}
-          />
-          {/* ICON-CH2 (gestreift) */}
-          <div
-            className="absolute inset-y-0"
-            style={{
-              left: `${ch1Pct}%`,
-              width: `${Math.max(0, 100 - ch1Pct)}%`,
-              backgroundImage:
-                "repeating-linear-gradient(135deg, hsl(212 60% 55% / 0.3) 0 4px, hsl(212 60% 55% / 0.1) 4px 8px)",
             }}
           />
         </div>
@@ -800,7 +788,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             </div>
 
             <p className="mt-3 text-center text-[11px] text-muted-foreground">
-              Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Nowcast bis +33 h) · MeteoSchweiz ICON-CH2 (+33 h … +120 h)
+              Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
               {" · Datenstand: "}
               {new Intl.DateTimeFormat("de-CH", {
                 day: "2-digit",
