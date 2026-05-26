@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 import boto3
@@ -73,12 +74,39 @@ def build_grid():
     return [(la, lo) for la in lats for lo in lons]
 
 
-def fetch(label: str, params: dict) -> list:
-    r = requests.get(API, params=params, timeout=60)
-    if not r.ok:
-        sys.exit(f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}")
-    data = r.json()
-    return data if isinstance(data, list) else [data]
+def fetch(label: str, params: dict, optional: bool = False) -> list | None:
+    backoffs = [2, 6, 18]
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            r = requests.get(API, params=params, timeout=120)
+            if not r.ok:
+                # 4xx: nicht retrybar — sofort behandeln.
+                if 400 <= r.status_code < 500:
+                    msg = f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}"
+                    if optional:
+                        print(f"WARN: {msg} — skipping (optional)")
+                        return None
+                    sys.exit(msg)
+                last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
+            else:
+                data = r.json()
+                return data if isinstance(data, list) else [data]
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.SSLError,
+        ) as e:
+            last_err = e
+        wait = backoffs[attempt]
+        print(f"WARN: {label} attempt {attempt + 1}/3 failed ({last_err}); retry in {wait}s")
+        time.sleep(wait)
+    msg = f"open-meteo {label} failed after 3 attempts: {last_err}"
+    if optional:
+        print(f"WARN: {msg} — skipping (optional)")
+        return None
+    sys.exit(msg)
+
 
 
 def main() -> None:
@@ -98,15 +126,7 @@ def main() -> None:
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
-    # phase2: ICON-CH2 hourly (+0 … +6 d) — Radar Phase-2
-    p2 = {
-        "latitude": lat_str,
-        "longitude": lon_str,
-        "hourly": "precipitation",
-        "forecast_days": 6,
-        "timezone": "UTC",
-        "models": "meteoswiss_icon_ch2",
-    }
+    # phase2 entfernt — Worker nutzt nur ICON-CH1 (+32 h).
     # phaseA: Multi-Modell hourly+daily 7 d — Symbolprognose Hot-Path
     pa = {
         "latitude": lat_str,
@@ -157,15 +177,12 @@ def main() -> None:
     print("fetch phase1 (ICON-CH1 minutely_15) …")
     phase1 = fetch("phase1", p1)
     print(f"  -> {len(phase1)} locations")
-    print("fetch phase2 (ICON-CH2 hourly) …")
-    phase2 = fetch("phase2", p2)
-    print(f"  -> {len(phase2)} locations")
     print("fetch phaseA (multi-model 7d) …")
     phaseA = fetch("phaseA", pa)
     print(f"  -> {len(phaseA)} locations")
-    print("fetch phaseC (bias lookback) …")
-    phaseC = fetch("phaseC", pc)
-    print(f"  -> {len(phaseC)} locations")
+    print("fetch phaseC (bias lookback, optional) …")
+    phaseC = fetch("phaseC", pc, optional=True)
+    print(f"  -> {len(phaseC) if phaseC is not None else 'skipped'} locations")
 
     payload = {
         "version": VERSION,
@@ -175,7 +192,7 @@ def main() -> None:
         "grid": {"points": [{"lat": la, "lon": lo} for la, lo in pts]},
         # Backwards-Compat für src/lib/radar.functions.ts
         "phase1": phase1,
-        "phase2": phase2,
+        "phase2": [],
         # Neues 3-Phasen-Schema (analog Amriswil)
         "phaseB": phase1,
         "phaseA": phaseA,
@@ -198,3 +215,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
