@@ -192,11 +192,33 @@ function InvalidateOnResize() {
   return null;
 }
 
+function LakePane() {
+  const map = useMap();
+  useEffect(() => {
+    if (!map.getPane("lake")) {
+      const p = map.createPane("lake");
+      p.style.zIndex = "350"; // unter overlayPane (400) → Ns liegt darüber
+      p.style.pointerEvents = "none";
+    }
+  }, [map]);
+  return null;
+}
+
 /**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
-function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: RadarFrame | null }) {
+function PrecipOverlay({
+  payload,
+  frame,
+  nextFrame,
+  progress,
+}: {
+  payload: RadarPayload;
+  frame: RadarFrame | null;
+  nextFrame?: RadarFrame | null;
+  progress?: number;
+}) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
@@ -262,6 +284,10 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
     const nLon = gridLon.length;
     const vals = frame.values;
     const snowVals = frame.snowValues;
+    const nextVals = nextFrame?.values;
+    const nextSnowVals = nextFrame?.snowValues;
+    const t = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
+    const lerp = (a: number, b: number) => a + (b - a) * t;
 
     // Vollen Viewport zeichnen — Werte ausserhalb des Grids auf Rand klampfen,
     // damit auch die Karten-Ränder eingefärbt werden.
@@ -295,18 +321,21 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         const y1 = Math.min(nLat - 1, y0 + 1);
         const tx = fx - x0;
         const ty = fy - y0;
-        const v =
-          vals[y0 * nLon + x0] * (1 - tx) * (1 - ty) +
-          vals[y0 * nLon + x1] * tx * (1 - ty) +
-          vals[y1 * nLon + x0] * (1 - tx) * ty +
-          vals[y1 * nLon + x1] * tx * ty;
+        const i00 = y0 * nLon + x0;
+        const i01 = y0 * nLon + x1;
+        const i10 = y1 * nLon + x0;
+        const i11 = y1 * nLon + x1;
+        const sample = (arr: number[]) =>
+          arr[i00] * (1 - tx) * (1 - ty) +
+          arr[i01] * tx * (1 - ty) +
+          arr[i10] * (1 - tx) * ty +
+          arr[i11] * tx * ty;
+        const vCur = sample(vals);
+        const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
         let snowFrac = 0;
         if (snowVals) {
-          const sv =
-            snowVals[y0 * nLon + x0] * (1 - tx) * (1 - ty) +
-            snowVals[y0 * nLon + x1] * tx * (1 - ty) +
-            snowVals[y1 * nLon + x0] * (1 - tx) * ty +
-            snowVals[y1 * nLon + x1] * tx * ty;
+          const svCur = sample(snowVals);
+          const sv = nextSnowVals ? lerp(svCur, sample(nextSnowVals)) : svCur;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
         const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
@@ -335,10 +364,10 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
     ctx.putImageData(img, minX * dpr, minY * dpr);
   };
 
-  // Bei Frame-Wechsel neu zeichnen.
+  // Bei Frame-/Progress-Wechsel neu zeichnen.
   useEffect(() => {
     redrawRef.current();
-  }, [frame, payload]);
+  }, [frame, nextFrame, progress, payload]);
 
   return null;
 }
@@ -665,8 +694,9 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1); // 1× = 400ms/frame
+  const [speed, setSpeed] = useState(1); // 1× ≈ 800ms pro 15-min-Frame
   const [showHail, setShowHail] = useState(true);
+  const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
 
   // Auf "jetzt" springen sobald Daten da sind.
@@ -674,22 +704,43 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
 
-  // Play-Loop.
+  // Play-Loop mit Cross-Fade: rAF-getrieben, idx steigt erst wenn progress > 1.
   useEffect(() => {
-    if (!playing || frames.length === 0) return;
-    const ms = 400 / speed;
-    const id = window.setInterval(() => {
-      setIdx((cur) => {
-        if (cur === null) return 0;
-        const next = cur + 1;
-        if (next >= frames.length) return 0;
-        return next;
+    if (!playing || frames.length === 0) {
+      setProgress(0);
+      return;
+    }
+    const FRAME_MS = 800 / speed;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
+      setProgress((p) => {
+        const np = p + dt / FRAME_MS;
+        if (np >= 1) {
+          setIdx((cur) => {
+            if (cur === null) return 0;
+            const next = cur + 1;
+            return next >= frames.length ? 0 : next;
+          });
+          return np - 1;
+        }
+        return np;
       });
-    }, ms);
-    return () => window.clearInterval(id);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [playing, speed, frames.length]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
+  const nextFrame =
+    idx !== null && playing && currentFrame && !currentFrame.precipUrl
+      ? frames[(idx + 1) % frames.length] ?? null
+      : null;
+  // Nur zwischen gleichartigen Canvas-Frames cross-faden (nicht zwischen PNG-Frames).
+  const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   return (
@@ -716,6 +767,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <InvalidateOnResize />
+          <LakePane />
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
@@ -734,7 +786,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           />
           <GeoJSON
             data={LAKE}
-            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 1 })}
+            pane="lake"
+            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 0.92 })}
             interactive={false}
           />
 
@@ -762,7 +815,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 className="mch-precip"
               />
             ) : (
-              <PrecipOverlay payload={data} frame={currentFrame} />
+              <PrecipOverlay
+                payload={data}
+                frame={currentFrame}
+                nextFrame={blendNext}
+                progress={progress}
+              />
             ))}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
             <ImageOverlay
