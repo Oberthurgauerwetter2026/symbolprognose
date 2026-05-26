@@ -191,9 +191,9 @@ def main() -> None:
     }
 
     # Chunk-Grössen — kleiner = weniger 502, mehr Requests
-    chunk_p1 = envi("CHUNK_PHASE1", 60)
-    chunk_pa = envi("CHUNK_PHASEA", 40)
-    chunk_pc = envi("CHUNK_PHASEC", 80)
+    chunk_p1 = envi("CHUNK_PHASE1", 30)
+    chunk_pa = envi("CHUNK_PHASEA", 25)
+    chunk_pc = envi("CHUNK_PHASEC", 40)
 
     print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
     phase1 = chunk_fetch("phase1", p1, pts, chunk_p1)
