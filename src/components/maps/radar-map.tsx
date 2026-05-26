@@ -77,7 +77,8 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      const a = Math.min(1.0, 0.95 + (i / SCALE.length) * 0.05);
+      // Hohe Reflektivität → volle Deckkraft, klar konturierte Zellen.
+      const a = 1.0;
       return [r, g, b, a];
     }
   }
