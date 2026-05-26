@@ -13,11 +13,11 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       EXPECTED_RADAR_INGEST_VERSION: "v4-failfast-manifest-guard"
-      RADAR_LOOKBACK_HOURS: "12"
+      RADAR_LOOKBACK_HOURS: "6"
     steps:
       - uses: actions/checkout@v4
 
