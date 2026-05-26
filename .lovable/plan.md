@@ -1,80 +1,65 @@
-
 ## Ziel
 
-Zwischen zwei stündlichen ICON-CH1-Niederschlagsfeldern echte **Bewegung** (statt Crossfade) für die drei 15-min-Zwischenslots erzeugen. Verschiebungsrichtung kommt aus dem mittleren 700-hPa-Windvektor der jeweiligen Stunde (steuert Niederschlag in mittleren Breiten gut).
+Drei zusammenhängende Darstellungs-Probleme im Radar-/Niederschlags-Overlay (`src/components/maps/radar-map.tsx`) beheben:
 
-Verhalten beim Sliden:
-```text
-H:00  ████░░░░  (Originalfeld H)
-H:15  ░████░░░  (Feld H um ¼ Stunde mit Wind verschoben)
-H:30  ░░████░░  (Feld H um ½ Stunde verschoben, mit B beginnend einzublenden)
-H:45  ░░░████░  (¾, fast vollständig B rückwärts verschoben)
-H+1:00 ░░░░████ (Originalfeld H+1)
-```
+1. **Ns über dem See sichtbar** — der Bodensee überdeckt aktuell die Niederschlagsfelder vollständig.
+2. **Markante Blobs statt Balken am Kartenrand** — der äussere Rand der Daten-BBox zeigt streifige Linien statt runder Strukturen.
+3. **Strukturen klar konturiert, höhere Reflektivität im Inneren** — die Felder wirken zu weich/verwaschen.
+
+Nur Frontend / Rendering — keine Datenpipeline, keine Backend-Änderung.
 
 ## Änderungen
 
-### 1. `scripts/ingest_openmeteo.py` (phase1 erweitern)
+### A. See nicht mehr deckend (Zeile ~773–777)
 
-`p1`-Request um stündliche Windkomponenten ergänzen — Open-Meteo erlaubt `minutely_15` + `hourly` im selben Call:
-
-```python
-p1 = {
-    "minutely_15": "precipitation,snowfall",
-    "past_minutely_15": 48,
-    "forecast_minutely_15": 132,
-    "hourly": "wind_speed_700hPa,wind_direction_700hPa",
-    "past_hours": 12,
-    "forecast_hours": 36,
-    "timezone": "UTC",
-    "models": "meteoswiss_icon_ch1",
-}
+```tsx
+// vorher: fillOpacity: 1  → überdeckt Niederschlag
+<GeoJSON
+  data={LAKE}
+  style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 0.35 })}
+/>
 ```
 
-Wind-Werte werden pro Grid-Punkt zurückgegeben und genauso wie `minutely_15` in `phase1` der Cache-JSON gespeichert (kein neues Top-Level-Feld nötig; LocResponse hat schon `hourly`-Block).
+Reihenfolge so anpassen, dass **Lake VOR PrecipOverlay** im JSX steht (ist bereits so), und im PrecipOverlay den Canvas in einen höher liegenden Pane (`overlayPane` → custom z-index 450 via `cv.style.zIndex = "450"`) hängen, damit Canvas garantiert über Lake-SVG liegt. Lake-Kontur (`weight: 0.6`) bleibt sichtbar als Ufer-Linie, blaue Füllung scheint schwach durch und Niederschlag liegt klar darüber.
 
-### 2. `src/lib/radar.functions.ts`
+### B. Blob-Falloff am Rand statt Balken (Zeile ~298–336)
 
-**A.** `LocResponse.hourly` um `wind_speed_700hPa` und `wind_direction_700hPa` erweitern (Typ).
+Aktuelles Verhalten: Pixel ausserhalb der Grid-BBox werden auf den nächstgelegenen Rand-Gridpunkt geklemmt (`nearest-edge clamp`) und damit weit über den Rand extrapoliert → erzeugt streifige Balken längs der Grid-Kanten.
 
-**B.** Nach dem Bauen der Forecast-Frames pro Stundenanker einen **mittleren Windvektor** über alle Grid-Punkte ableiten:
+Neu:
 
-```text
-u = -speed * sin(dir_rad)   (Komponente in Lon-Richtung, m/s)
-v = -speed * cos(dir_rad)   (Komponente in Lat-Richtung, m/s)
+- **Kein Klemm-Extrapolieren** mehr. Wenn `fxRaw` oder `fyRaw` ausserhalb `[0, n-1]` liegen, bilineares Sample mit **Null als Aussenwert** (Padding 0). Das ergibt natürliche, runde Blob-Ränder, weil der Wert dort weich gegen 0 läuft, statt am Rand mit dem Rand-Wert weiterzuschmieren.
+- Konkret: in `sample(arr)` jeden Eckwert durch `0` ersetzen, wenn der zugehörige Grid-Index ausserhalb liegt.
+- `BUFFER` bleibt bei 3 (für Sample-Bereich), `edgeFade` wird zu **isotropem Falloff**: weiter `Math.min(...)` ist OK, aber zusätzlich `if (v < 0.05) continue;` damit unter Schwellwert nichts gezeichnet wird → echte „Blob"-Silhouetten ohne Rest-Streifen.
+
+```ts
+// pseudo
+const v00 = inside(x0,y0) ? vals[i00] : 0;
+// ... analog v01, v10, v11
+const v = bilinear(v00, v01, v10, v11, tx, ty);
+if (v < 0.05) continue;
 ```
 
-Dann pro Stunde Anker H Versatz in **Grid-Zellen pro 15 min** umrechnen:
-- 1 Grad Lat ≈ 111 km; 1 Grad Lon ≈ 111 km · cos(mittlere Lat)
-- Zellgröße: `dLat = (maxLat-minLat)/(GRID_LAT-1)`, `dLon = analog`
-- Verschiebung Δi (Zeilen) = `v · 900 s / (dLat · 111000)`
-- Verschiebung Δj (Spalten) = `u · 900 s / (dLon · 111000 · cos(lat))`
+### C. Schärfere Konturen / höhere Reflektivität (Zeile ~225)
 
-**C.** Aktuelle lineare Wert-Interpolation (Zeilen 200–234) ersetzen durch **semi-Lagrange-Advection** zwischen Anker A (Stunde H) und B (Stunde H+1):
+CSS-Filter am Canvas:
 
-```text
-für jeden 15-min-Slot k ∈ {1,2,3} zwischen A und B:
-  t = k / 4
-  A_shifted = shift(A, +k · ΔAB)      // A vorwärts mit Wind H
-  B_shifted = shift(B, -(4-k) · ΔAB)  // B rückwärts mit Wind H+1
-  frame_k.values = (1-t) · A_shifted + t · B_shifted
+```ts
+// vorher: cv.style.filter = "blur(2px) saturate(1.7) contrast(1.3)";
+cv.style.filter = "blur(1px) saturate(2.0) contrast(1.5)";
 ```
 
-`shift(field, di, dj)` bilinear über das row-major-Grid (Padding mit 0 am Rand). Klein und schnell — Grid ist 20×12 = 240 Punkte, pro Frame O(240).
-
-**D.** Snowfall analog (gleicher Windvektor).
-
-**E.** Frames vor dem ersten Anker (z. B. `:15` `:30` `:45` direkt nach „now") bekommen `A_shifted` mit `B = A` als Fallback, damit auch dort Bewegung sichtbar ist.
+Plus minimale Anhebung der Alpha-Werte für hohe Reflektivitäts-Bereiche in `colorFor` (mittlere/grosse Werte erhalten volles `a = 1.0`), damit kräftige Zellen klar abgegrenzt erscheinen — kein Farb-Neuentwurf, nur Alpha-Kurve.
 
 ## Was unverändert bleibt
 
-- Radar-Past (R2-PNGs) — keine Advection nötig, echte 5-min-Messungen.
-- Hagel-Layer, BBox, Slider-UI, Cross-Fade, Farben, Filter, Edge-Fade.
-- Frontend (`radar-map.tsx`, `PrecipOverlay`) — bekommt nur „bessere" Werte in denselben Frames.
-- ICON-CH2, phaseA/C, alle Symbolprognose-Daten.
+- Radarmessungen (PNG-Overlay) — gleiche Logik, profitiert aber automatisch von dünnerer Lake-Füllung.
+- Hagel-Layer, Slider, Cross-Fade, Wind-Advection (15-min), Symbolprognose.
+- Farbskalen-Werte und -Schwellwerte (nur Alpha-Feintuning).
+- Lake-Geometrie, BBox, Region- und Schweiz-Konturen.
 
-## Hinweise
+## Erwartetes Resultat
 
-- 700 hPa ist ein guter Kompromiss für Schichtbewölkung/Niederschlag. Für Schauer/Gewitter wäre Optical Flow nötig (Option A) — bewusst hier nicht.
-- Wenn Open-Meteo `wind_*_700hPa` für ICON-CH1 nicht liefert (manche Modelle nur 10m), Fallback auf `wind_speed_10m`/`wind_direction_10m` × 2.5 als grobe Schätzung des Steuerwinds. Wird beim ersten Ingest-Run sichtbar; ich passe dann an.
-- GitHub Action muss nach dem Skript-Update einmal manuell getriggert werden, damit der R2-Cache die Windfelder enthält.
+- Niederschlag zieht **über den Bodensee** ohne Cut-out.
+- Aussenkanten der Karte zeigen **runde, kompakte Blobs**, keine Streifen längs Lat/Lon-Linien.
+- Niederschlagszellen wirken **kontrastreicher, klarer konturiert**, mehr „Radar-Look".
