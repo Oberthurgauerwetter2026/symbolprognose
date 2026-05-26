@@ -77,7 +77,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      const a = Math.min(0.95, 0.7 + (i / SCALE.length) * 0.25);
+      const a = Math.min(1.0, 0.85 + (i / SCALE.length) * 0.15);
       return [r, g, b, a];
     }
   }
@@ -184,7 +184,8 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         cv.style.position = "absolute";
         cv.style.pointerEvents = "none";
         cv.style.willChange = "transform";
-        cv.style.opacity = "0.9";
+        cv.style.opacity = "1";
+        cv.style.filter = "blur(6px) saturate(1.15) contrast(1.05)";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -245,27 +246,23 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
 
     const w = maxX - minX;
     const h = maxY - minY;
-    // Step in CSS-Pixeln; gröberes Raster = schneller, immer noch glatt durch bilinear.
-    const STEP = 2;
+    const STEP = 1;
     const img = ctx.createImageData(w * dpr, h * dpr);
     const data = img.data;
-
-    const clamp = (n: number, lo: number, hi: number) => (n < lo ? lo : n > hi ? hi : n);
+    const stride = w * dpr * 4;
 
     for (let py = 0; py < h; py += STEP) {
       for (let px = 0; px < w; px += STEP) {
         const ll = map.containerPointToLatLng([minX + px, minY + py]);
-        // Grid-Indizes (fractional) mit Clamp auf Grid-Rand → Nearest-Edge-Extrapolation.
         const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
         const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-        const fx = clamp(fxRaw, 0, nLon - 1);
-        const fy = clamp(fyRaw, 0, nLat - 1);
-        const x0 = Math.floor(fx);
-        const y0 = Math.floor(fy);
+        if (fxRaw < 0 || fxRaw > nLon - 1 || fyRaw < 0 || fyRaw > nLat - 1) continue;
+        const x0 = Math.floor(fxRaw);
+        const y0 = Math.floor(fyRaw);
         const x1 = Math.min(nLon - 1, x0 + 1);
         const y1 = Math.min(nLat - 1, y0 + 1);
-        const tx = fx - x0;
-        const ty = fy - y0;
+        const tx = fxRaw - x0;
+        const ty = fyRaw - y0;
         const v =
           vals[y0 * nLon + x0] * (1 - tx) * (1 - ty) +
           vals[y0 * nLon + x1] * tx * (1 - ty) +
@@ -273,22 +270,18 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
           vals[y1 * nLon + x1] * tx * ty;
         const [r, g, b, a] = colorFor(v);
         if (a === 0) continue;
-        // Block STEP×STEP CSS-Pixel füllen (mit DPR).
-        for (let dy = 0; dy < STEP; dy++) {
-          const yy = (py + dy) * dpr;
-          if (yy >= h * dpr) break;
-          for (let dx = 0; dx < STEP; dx++) {
-            const xx = (px + dx) * dpr;
-            if (xx >= w * dpr) break;
-            for (let sy = 0; sy < dpr; sy++) {
-              for (let sx = 0; sx < dpr; sx++) {
-                const idx = ((Math.floor(yy) + sy) * w * dpr + Math.floor(xx) + sx) * 4;
-                data[idx] = r;
-                data[idx + 1] = g;
-                data[idx + 2] = b;
-                data[idx + 3] = Math.round(a * 255);
-              }
-            }
+        const edgeDist = Math.min(fxRaw, nLon - 1 - fxRaw, fyRaw, nLat - 1 - fyRaw);
+        const edgeFade = edgeDist >= 0.5 ? 1 : Math.max(0, edgeDist / 0.5);
+        const alpha = Math.round(a * edgeFade * 255);
+        if (alpha === 0) continue;
+        for (let sy = 0; sy < dpr; sy++) {
+          const row = (py * dpr + sy) * stride;
+          for (let sx = 0; sx < dpr; sx++) {
+            const idx = row + (px * dpr + sx) * 4;
+            data[idx] = r;
+            data[idx + 1] = g;
+            data[idx + 2] = b;
+            data[idx + 3] = alpha;
           }
         }
       }
