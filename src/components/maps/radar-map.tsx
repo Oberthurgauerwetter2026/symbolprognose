@@ -781,51 +781,88 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         </div>
       </div>
 
-      {/* Steuerung */}
-      <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+      {/* Steuerung — MeteoSchweiz-Style Panel */}
+      <div className="rounded-2xl bg-[#1a1f24] p-3 text-white shadow-lg sm:p-4">
         {isLoading && (
-          <p className="text-center text-sm text-muted-foreground">Lade Radardaten …</p>
+          <p className="text-center text-sm text-white/70">Lade Radardaten …</p>
         )}
         {error && (
-          <p className="text-center text-sm text-destructive">
+          <p className="text-center text-sm text-red-300">
             Radardaten konnten nicht geladen werden.
           </p>
         )}
         {data?.warning && (
-          <p className="mb-2 text-center text-xs text-muted-foreground">
+          <p className="mb-2 text-center text-xs text-white/60">
             Hinweis: {data.warning}
           </p>
         )}
 
         {data && frames.length > 0 && idx !== null && (
           <>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-1 rounded-full bg-muted p-1">
-                <button
-                  type="button"
-                  onClick={() => setPlaying((p) => !p)}
-                  className={cn(
-                    "relative z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 sm:text-sm",
-                    playing ? "text-white shadow-sm" : "text-foreground hover:bg-foreground/5",
-                  )}
-                  style={playing ? { background: BRAND } : undefined}
-                >
-                  {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  {playing ? "Pause" : "Play"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIdx(nowIdx);
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Play/Pause */}
+              <button
+                type="button"
+                onClick={() => setPlaying((p) => !p)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                aria-label={playing ? "Pause" : "Play"}
+              >
+                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-px" />}
+              </button>
+              {/* Prev */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaying(false);
+                  setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
+                }}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                aria-label="Vorheriger Frame"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              {/* Track */}
+              <div className="min-w-0 flex-1">
+                <MeteoTimeline
+                  frames={frames}
+                  idx={idx}
+                  isMobile={isMobile}
+                  onChange={(i) => {
+                    setIdx(i);
                     setPlaying(false);
                   }}
-                  className="relative z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-foreground transition-colors duration-200 hover:bg-foreground/5 sm:text-sm"
-                >
-                  <SkipForward className="h-4 w-4" />
-                  Jetzt
-                </button>
+                />
               </div>
-              <div className="inline-flex items-center gap-1 rounded-full bg-muted p-1">
+
+              {/* Next */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaying(false);
+                  setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
+                }}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                aria-label="Nächster Frame"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Sekundär-Toolbar: Jetzt, Speed, Hagel */}
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setIdx(nowIdx);
+                  setPlaying(false);
+                }}
+                className="rounded-full bg-white/10 px-3 py-1.5 font-semibold text-white transition hover:bg-white/20"
+              >
+                Jetzt
+              </button>
+
+              <div className="inline-flex items-center rounded-full bg-white/10 p-0.5">
                 {[1, 2, 4].map((s) => {
                   const active = speed === s;
                   return (
@@ -834,62 +871,41 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                       type="button"
                       onClick={() => setSpeed(s)}
                       className={cn(
-                        "relative z-10 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 sm:text-sm",
-                        active ? "text-white shadow-sm" : "text-foreground hover:bg-foreground/5",
+                        "rounded-full px-2.5 py-1 font-semibold transition",
+                        active ? "bg-white text-[#1a1f24] shadow-sm" : "text-white/80 hover:text-white",
                       )}
-                      style={active ? { background: BRAND } : undefined}
                     >
                       {s}×
                     </button>
                   );
                 })}
               </div>
-              <div className="ml-auto inline-flex items-center rounded-full bg-muted p-1">
-                <button
-                  type="button"
-                  onClick={() => setShowHail((v) => !v)}
-                  className={cn(
-                    "relative z-10 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 sm:text-sm",
-                    !data?.hasHail && "cursor-not-allowed opacity-60",
-                    showHail && data?.hasHail
-                      ? "text-white shadow-sm"
-                      : "text-foreground hover:bg-foreground/5",
-                  )}
-                  style={showHail && data?.hasHail ? { background: BRAND } : undefined}
-                  title={
-                    data?.hasHail
-                      ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
-                      : "Hagel – nur in der Vergangenheit verfügbar, sobald MeteoSchweiz-Radar aktiv ist"
-                  }
-                  disabled={!data?.hasHail}
-                >
-                  <CloudHail className="h-3.5 w-3.5" />
-                  Hagel
-                  {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
-                </button>
-              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowHail((v) => !v)}
+                className={cn(
+                  "ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-semibold transition",
+                  !data?.hasHail && "cursor-not-allowed opacity-60",
+                  showHail && data?.hasHail
+                    ? "bg-white text-[#1a1f24] shadow-sm"
+                    : "bg-white/10 text-white/80 hover:bg-white/20",
+                )}
+                title={
+                  data?.hasHail
+                    ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
+                    : "Hagel – nur in der Vergangenheit verfügbar, sobald MeteoSchweiz-Radar aktiv ist"
+                }
+                disabled={!data?.hasHail}
+              >
+                <CloudHail className="h-3.5 w-3.5" />
+                Hagel
+                {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
+              </button>
             </div>
 
-            <div className="px-1 pt-4">
-              <Timeline
-                frames={frames}
-                idx={idx}
-                onChange={(i) => {
-                  setIdx(i);
-                  setPlaying(false);
-                }}
-              />
-            </div>
-
-            <p className="mt-3 text-center text-[11px] text-muted-foreground">
-              Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
-              {" · Datenstand: "}
-              {new Intl.DateTimeFormat("de-CH", {
-                day: "2-digit",
-                month: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              }).format(new Date(data.generatedAt))}
+            <p className="mt-3 text-[11px] text-white/60">
+              Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
             </p>
           </>
         )}
