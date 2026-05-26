@@ -1,28 +1,43 @@
-Plan: Open-Meteo Ingest robuster gegen 502/504
+## Fix: 429 sauber behandeln in `scripts/ingest_openmeteo.py`
 
-Problem
-- Open-Meteo Upstream-nginx liefert sporadisch 502 Bad Gateway / 504 Gateway Time-out.
-- Aktuell: 3 Retries mit Backoff [2, 6, 18]s → gibt nach ~26s auf → ganzer Run failed.
-- 502/504 sind typischerweise kurzlebige Upstream-Hänger; mit mehr Geduld + kleineren Batches geht es meistens durch.
+### Problem
+In `fetch()` führen alle 4xx (inkl. **429 Too Many Requests**) sofort zu `sys.exit()` — auch wenn `optional=True`. Damit:
+- greift der R2-Fallback für phaseA nicht, wenn Open-Meteo das Minutenlimit meldet
+- wird der GitHub-Job rot, obwohl 429 nach 60s wieder weg ist
 
-Changes in `scripts/ingest_openmeteo.py`
+### Änderung in `fetch()` (Phase 1: Statuscode-Handling)
 
-1. **Mehr Retries, längerer Backoff** (Zeile 78 + 80):
-   - `backoffs = [2, 6, 18]` → `backoffs = [3, 10, 30, 60, 120]`
-   - `for attempt in range(3):` → `for attempt in range(5)`
-   - Log-Message `attempt X/3` → `attempt X/5`, Fail-Message `after 3 attempts` → `after 5 attempts`
-   → Gesamt-Wartezeit pro Batch im worst case ~3.5 Min statt 26s, deckt typische 502/504-Phasen ab.
+Sonderbehandlung für **429** vor dem generischen 4xx-Block:
 
-2. **Kleinere Default-Chunks** (Zeile 194–196):
-   - `CHUNK_PHASE1` default `60` → `30`
-   - `CHUNK_PHASEA` default `40` → `25`
-   - `CHUNK_PHASEC` default `80` → `40`
-   → Halbiert die Last pro Request; Open-Meteo verarbeitet kleine Batches stabiler. ENV-Overrides bleiben funktional.
+```python
+if r.status_code == 429:
+    # Minutenlimit — retrybar, längeres Backoff
+    last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
+    # fällt durch in den retry-Block unten
+elif 400 <= r.status_code < 500:
+    # echte 4xx (400/401/404 …) bleiben hart
+    msg = f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}"
+    if optional:
+        print(f"WARN: {msg} — skipping (optional)")
+        return None
+    sys.exit(msg)
+else:
+    last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
+```
 
-3. **502/504/503 explizit als retrybar markieren** (Zeile 85):
-   - Aktuell wird `400 <= status < 500` als nicht-retrybar behandelt (korrekt), und `>=500` fällt durch in den Retry-Pfad. Das ist bereits ok — keine Änderung nötig.
+Backoffs für 429 etwas verlängern: aktuell `[3, 10, 30, 60, 120]` reicht — die 120s am Ende decken das Minutenlimit gut ab. Keine Änderung an der Backoff-Liste nötig.
 
-Workflow `.github/workflows/openmeteo-ingest.yml`
-4. Falls `timeout-minutes` < 15: auf `15` setzen (mehr Retries brauchen mehr Zeit). Prüfe ich beim Build.
+### Was damit funktioniert
 
-Keine anderen Dateien betroffen. Frontend bleibt unverändert.
+- **phase1 + 429**: retried 5× bis 120s — typischerweise reicht ein 60s/120s-Wait, um wieder durchzukommen. Erst wenn auch danach 429 kommt, wird der Job rot (korrekt: Radar-Cache ist dann veraltet).
+- **phaseA + 429**: retried 5×; bleibt es bei 429 → `optional=True` greift → Fallback auf `openmeteo/forecast.json` aus R2 (bereits implementiert).
+- **phaseC + 429**: identisch zu phaseA, optional, kein Fallback nötig.
+
+### Nicht geändert
+- `.github/workflows/openmeteo-ingest.yml`
+- Reihenfolge phase1 → phaseC → phaseA bleibt
+- Chunk-Grössen bleiben
+- Worker / Frontend bleiben
+
+### Erwartetes Bild im nächsten Lauf
+Wenn Open-Meteo das Minutenlimit wirft: 1-2 Retries mit Wait, dann ok. Falls phaseA trotzdem scheitert → Cache-Fallback, Symbolprognose bleibt vom letzten Lauf. Radar bleibt frisch.
