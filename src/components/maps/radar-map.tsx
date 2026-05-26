@@ -56,9 +56,9 @@ function cityIcon(name: string): L.DivIcon {
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [150, 190, 235] },
-  { mmh: 0.4, rgb: [130, 185, 235] },
-  { mmh: 0.7, rgb: [90, 165, 225] },
+  { mmh: 0.1, rgb: [120, 180, 235] },
+  { mmh: 0.4, rgb: [80, 160, 230] },
+  { mmh: 0.7, rgb: [50, 140, 220] },
   { mmh: 1.3, rgb: [50, 140, 210] },
   { mmh: 2, rgb: [40, 195, 130] },
   { mmh: 3.5, rgb: [40, 195, 40] },
@@ -211,7 +211,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         cv.style.pointerEvents = "none";
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
-        cv.style.filter = "blur(3px) saturate(1.4) contrast(1.2)";
+        cv.style.filter = "blur(2px) saturate(1.7) contrast(1.3)";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -283,7 +283,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         const ll = map.containerPointToLatLng([minX + px, minY + py]);
         const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
         const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-        const BUFFER = 1.5;
+        const BUFFER = 3;
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
         // Nearest-Edge-Clamp für Sampling (extrapoliert sanft über den Grid-Rand).
@@ -309,7 +309,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
             snowVals[y1 * nLon + x1] * tx * ty;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
-        const [r, g, b, a] = snowFrac > 0.5 ? snowColorFor(v) : colorFor(v);
+        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
         if (a === 0) continue;
         const edgeDist = Math.min(fxRaw, nLon - 1 - fxRaw, fyRaw, nLat - 1 - fyRaw);
         const edgeFade =
@@ -758,7 +758,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   [data.imageBbox.minLat, data.imageBbox.minLon],
                   [data.imageBbox.maxLat, data.imageBbox.maxLon],
                 ]}
-                opacity={0.9}
+                opacity={0.95}
+                className="mch-precip"
               />
             ) : (
               <PrecipOverlay payload={data} frame={currentFrame} />

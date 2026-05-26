@@ -184,3 +184,8 @@
 .hail-blackdots {
   filter: brightness(0) saturate(100%);
 }
+
+/* Radar: MeteoSchweiz-PNG markanter (mehr Sättigung & Kontrast) */
+.mch-precip {
+  filter: saturate(1.5) contrast(1.25);
+}

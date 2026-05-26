@@ -1,51 +1,33 @@
-## Ziele
+## Änderungen
 
-1. **Blobs markanter** wie im Referenz-Screenshot: satte, klar abgrenzbare Farbringe innen, weicher halb-transparenter Halo aussen — nicht so weichgespült wie aktuell.
-2. **Niederschlag bis an die Karten-Ränder** sichtbar (aktuell endet er an der Daten-Bbox 8.85–9.85 / 47.30–47.85, dahinter ist nichts).
+### 1. MCH-Radar-PNG markanter (`src/components/maps/radar-map.tsx`)
 
-## Änderungen in `src/components/maps/radar-map.tsx`
-
-### A. Markantere Blobs
-
-1. **Blur reduzieren, Sättigung/Kontrast erhöhen**
-  `cv.style.filter = "blur(6px) saturate(1.15) contrast(1.05)"`
-   → `"blur(3px) saturate(1.4) contrast(1.2)"`.
-   Weniger Weichzeichnung = klar erkennbare Farbbänder; mehr Sättigung/Kontrast = Look wie im Screenshot.
-2. **Alpha-Kurve voll auf 1.0 im Kern**
-  In `colorFor()`:
-   `a = Math.min(1.0, 0.85 + (i/SCALE.length)*0.15)`
-   → `a = Math.min(1.0, 0.95 + (i/SCALE.length)*0.05)` (0.95 … 1.00).
-   Innen praktisch opak; der weiche Halo entsteht über den Edge-Fade + Blur.
-3. **Mehr Farb-Stops am unteren Ende komprimieren** *(optional, klein)*
-  Aktuell erster Farbstop bei 0.1 mm/h sehr hell. Schwellen bleiben gleich, aber unterster Stop wird minimal kräftiger:
-   `{ mmh: 0.1, rgb: [170,205,240] }` → `{ mmh: 0.1, rgb: [150,190,235] }`.
-   Das erzeugt den deutlich sichtbaren blauen Aussenring wie im Screenshot.
-
-### B. Niederschlag über die ganze Karte
-
-Aktuell wird jeder Pixel ausserhalb des Grids per `continue` übersprungen. Die Daten-Bbox ist nur ~5 km kleiner als die Karten-Maxbounds — das entspricht ca. **1 Grid-Zelle Puffer**.
-
-Neuer Ansatz: **Nearest-Edge-Clamp mit begrenztem Puffer und Edge-Fade**:
-
-```ts
-const BUFFER = 1.5; // Grid-Zellen, die per Clamp extrapoliert werden
-if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
-if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
-const fx = Math.max(0, Math.min(nLon - 1, fxRaw));
-const fy = Math.max(0, Math.min(nLat - 1, fyRaw));
-// … bilinear sampling auf fx/fy (statt fxRaw/fyRaw)
-const edgeDist = Math.min(fxRaw, nLon-1-fxRaw, fyRaw, nLat-1-fyRaw);
-// edgeDist <0 = ausserhalb. Fade-Bereich = 0.5 innen + ganze 1.5 ausserhalb.
-const edgeFade =
-  edgeDist >= 0.5 ? 1 :
-  edgeDist >= -BUFFER ? Math.max(0, (edgeDist + BUFFER) / (BUFFER + 0.5)) : 0;
+`ImageOverlay` für `precipUrl` bekommt eine CSS-Klasse `mch-precip`, dazu in `src/styles.css`:
+```css
+.mch-precip { filter: saturate(1.5) contrast(1.25); }
 ```
+→ MeteoSchweiz-Messung erscheint mit denselben kräftigen Farben wie der ICON-CH1-Canvas.
 
-Effekt:
+### 2. BUFFER auf 3 erhöhen (Canvas-Renderer)
 
-- Innen (≥ 0.5 Zellen vom Rand): voll deckend.
-- Im 0.5-Zellen-Randbereich des Grids: Fade beginnt.
+`const BUFFER = 1.5` → `const BUFFER = 3`. Ns wird ~15 km über die Daten-Bbox hinaus per Nearest-Edge extrapoliert (mit Edge-Fade, also ohne Balken-Artefakte).
 
-&nbsp;
+### 3. Snow-Schwelle senken
 
-Zusätzlich in der Prognose Schneefallgrenze einbauen und unterscheiden zwischen Schnee und Regen.
+`snowFrac > 0.5` → `snowFrac > 0.3`. Schnee-Palette greift früher.
+
+### 4. Farben noch markanter
+
+Im Canvas-Renderer Filter verstärken:
+`blur(3px) saturate(1.4) contrast(1.2)` → `blur(2px) saturate(1.7) contrast(1.3)`.
+
+In `SCALE` die unteren 3 Blau-Stufen sattern (statt verwaschen):
+- `[150,190,235]` → `[120,180,235]`
+- `[130,185,235]` → `[80,160,230]`
+- `[90,165,225]`  → `[50,140,220]`
+
+So sind selbst leichte Niederschlagsfelder klar erkennbar — Look entspricht dem Referenz-Screenshot.
+
+### Was unverändert bleibt
+
+See, Aussen-Masken, Hagel-Punkte, Cron-Skripte, Schneefall-Pipeline, Legende-Layout, Layer-Reihenfolge.
