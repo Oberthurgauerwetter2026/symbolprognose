@@ -54,22 +54,17 @@ function cityIcon(name: string): L.DivIcon {
 }
 
 
-// Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
+// Niederschlags-Farbskala (mm/h) — MeteoSchweiz-Legende.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [120, 180, 235] },
-  { mmh: 0.4, rgb: [80, 160, 230] },
-  { mmh: 0.7, rgb: [50, 140, 220] },
-  { mmh: 1.3, rgb: [50, 140, 210] },
-  { mmh: 2, rgb: [40, 195, 130] },
-  { mmh: 3.5, rgb: [40, 195, 40] },
-  { mmh: 6, rgb: [220, 220, 50] },
-  { mmh: 10, rgb: [240, 175, 30] },
-  { mmh: 20, rgb: [240, 115, 30] },
-  { mmh: 30, rgb: [235, 50, 50] },
-  { mmh: 50, rgb: [200, 25, 85] },
-  { mmh: 80, rgb: [170, 15, 125] },
-  { mmh: 130, rgb: [140, 15, 175] },
-  { mmh: 200, rgb: [120, 75, 215] },
+  { mmh: 0.2, rgb: [185, 170, 185] },
+  { mmh: 1, rgb: [30, 60, 230] },
+  { mmh: 2, rgb: [30, 120, 50] },
+  { mmh: 4, rgb: [70, 200, 70] },
+  { mmh: 6, rgb: [240, 235, 50] },
+  { mmh: 10, rgb: [240, 200, 120] },
+  { mmh: 20, rgb: [240, 140, 30] },
+  { mmh: 40, rgb: [225, 30, 30] },
+  { mmh: 60, rgb: [150, 30, 200] },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -77,7 +72,6 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      // Hohe Reflektivität → volle Deckkraft, klar konturierte Zellen.
       const a = 1.0;
       return [r, g, b, a];
     }
@@ -85,18 +79,10 @@ function colorFor(mmh: number): [number, number, number, number] {
   return [0, 0, 0, 0];
 }
 
-// Schnee-Farbskala (mm/h Wasser-Äquivalent) — kühles Weiss → Blau.
-const SNOW_SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [235, 240, 248] },
-  { mmh: 0.4, rgb: [210, 222, 238] },
-  { mmh: 0.7, rgb: [180, 200, 228] },
-  { mmh: 1.3, rgb: [150, 180, 218] },
-  { mmh: 2, rgb: [120, 160, 210] },
-  { mmh: 3.5, rgb: [95, 140, 200] },
-  { mmh: 6, rgb: [70, 120, 190] },
-  { mmh: 10, rgb: [50, 100, 175] },
-  { mmh: 20, rgb: [35, 80, 160] },
-  { mmh: 30, rgb: [25, 60, 140] },
+// Schnee-Farbskala (mm/h Wasser-Äquivalent) — MeteoSchweiz: leicht / stark.
+const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
+  { mmh: 0.1, rgb: [205, 195, 230], label: "leicht" },
+  { mmh: 2, rgb: [150, 60, 200], label: "stark" },
 ];
 
 function snowColorFor(mmh: number): [number, number, number, number] {
@@ -864,15 +850,15 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             </div>
           ))}
           <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
-          <div className="flex items-center gap-1">
-            {SNOW_SCALE.filter((_, i) => i % 2 === 0).map((s) => (
+          {SNOW_SCALE.map((s) => (
+            <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
               <span
-                key={`snow-${s.mmh}`}
-                className="inline-block h-2.5 w-2.5 rounded-sm"
+                className="inline-block h-3 w-4 rounded-sm"
                 style={{ background: `rgb(${s.rgb.join(",")})` }}
               />
-            ))}
-          </div>
+              <span className="text-muted-foreground">{s.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
