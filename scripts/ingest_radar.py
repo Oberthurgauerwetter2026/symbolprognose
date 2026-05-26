@@ -56,11 +56,11 @@ ASSET_PREFIX = {
     "hail": "bzc",  # POH product (Probability Of Hail)
 }
 
-# Oberthurgau bounding box (WGS84).
-BBOX_WGS = {"minLon": 9.00, "maxLon": 9.62, "minLat": 47.38, "maxLat": 47.72}
+# Bodensee-Region bounding box (WGS84) — Oberthurgau + Umland für volle Kartenabdeckung.
+BBOX_WGS = {"minLon": 8.85, "maxLon": 9.85, "minLat": 47.30, "maxLat": 47.85}
 
-# Output PNG resolution (Web Mercator pixels). 512×384 keeps PNGs <20 KB.
-OUT_W, OUT_H = 512, 384
+# Output PNG resolution (Web Mercator pixels). 768×512 hält PNGs weiterhin <40 KB.
+OUT_W, OUT_H = 768, 512
 
 LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
