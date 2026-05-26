@@ -283,7 +283,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         const ll = map.containerPointToLatLng([minX + px, minY + py]);
         const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
         const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-        const BUFFER = 1.5;
+        const BUFFER = 3;
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
         // Nearest-Edge-Clamp für Sampling (extrapoliert sanft über den Grid-Rand).
