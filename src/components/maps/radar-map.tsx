@@ -487,23 +487,13 @@ function Timeline({
             className="absolute inset-y-0 left-0 bg-muted-foreground/25"
             style={{ width: `${nowPct}%` }}
           />
-          {/* ICON-CH1 */}
+          {/* ICON-CH1 (Vorhersage) */}
           <div
             className="absolute inset-y-0"
             style={{
               left: `${nowPct}%`,
-              width: `${Math.max(0, ch1Pct - nowPct)}%`,
+              width: `${Math.max(0, 100 - nowPct)}%`,
               background: "hsl(212 60% 55% / 0.45)",
-            }}
-          />
-          {/* ICON-CH2 (gestreift) */}
-          <div
-            className="absolute inset-y-0"
-            style={{
-              left: `${ch1Pct}%`,
-              width: `${Math.max(0, 100 - ch1Pct)}%`,
-              backgroundImage:
-                "repeating-linear-gradient(135deg, hsl(212 60% 55% / 0.3) 0 4px, hsl(212 60% 55% / 0.1) 4px 8px)",
             }}
           />
         </div>
