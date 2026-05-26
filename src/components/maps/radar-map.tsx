@@ -256,13 +256,18 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         const ll = map.containerPointToLatLng([minX + px, minY + py]);
         const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
         const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-        if (fxRaw < 0 || fxRaw > nLon - 1 || fyRaw < 0 || fyRaw > nLat - 1) continue;
-        const x0 = Math.floor(fxRaw);
-        const y0 = Math.floor(fyRaw);
+        const BUFFER = 1.5;
+        if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
+        if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
+        // Nearest-Edge-Clamp für Sampling (extrapoliert sanft über den Grid-Rand).
+        const fx = Math.max(0, Math.min(nLon - 1, fxRaw));
+        const fy = Math.max(0, Math.min(nLat - 1, fyRaw));
+        const x0 = Math.floor(fx);
+        const y0 = Math.floor(fy);
         const x1 = Math.min(nLon - 1, x0 + 1);
         const y1 = Math.min(nLat - 1, y0 + 1);
-        const tx = fxRaw - x0;
-        const ty = fyRaw - y0;
+        const tx = fx - x0;
+        const ty = fy - y0;
         const v =
           vals[y0 * nLon + x0] * (1 - tx) * (1 - ty) +
           vals[y0 * nLon + x1] * tx * (1 - ty) +
@@ -271,7 +276,12 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         const [r, g, b, a] = colorFor(v);
         if (a === 0) continue;
         const edgeDist = Math.min(fxRaw, nLon - 1 - fxRaw, fyRaw, nLat - 1 - fyRaw);
-        const edgeFade = edgeDist >= 0.5 ? 1 : Math.max(0, edgeDist / 0.5);
+        const edgeFade =
+          edgeDist >= 0.5
+            ? 1
+            : edgeDist >= -BUFFER
+              ? Math.max(0, (edgeDist + BUFFER) / (BUFFER + 0.5))
+              : 0;
         const alpha = Math.round(a * edgeFade * 255);
         if (alpha === 0) continue;
         for (let sy = 0; sy < dpr; sy++) {
