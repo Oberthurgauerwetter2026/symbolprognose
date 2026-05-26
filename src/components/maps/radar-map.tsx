@@ -801,7 +801,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 className="mch-precip"
               />
             ) : (
-              <PrecipOverlay payload={data} frame={currentFrame} />
+              <PrecipOverlay
+                payload={data}
+                frame={currentFrame}
+                nextFrame={blendNext}
+                progress={progress}
+              />
             ))}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
             <ImageOverlay
