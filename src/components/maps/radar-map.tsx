@@ -850,15 +850,15 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             </div>
           ))}
           <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
-          <div className="flex items-center gap-1">
-            {SNOW_SCALE.filter((_, i) => i % 2 === 0).map((s) => (
+          {SNOW_SCALE.map((s) => (
+            <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
               <span
-                key={`snow-${s.mmh}`}
-                className="inline-block h-2.5 w-2.5 rounded-sm"
+                className="inline-block h-3 w-4 rounded-sm"
                 style={{ background: `rgb(${s.rgb.join(",")})` }}
               />
-            ))}
-          </div>
+              <span className="text-muted-foreground">{s.label}</span>
+            </div>
+          ))}
         </div>
       </div>
 
