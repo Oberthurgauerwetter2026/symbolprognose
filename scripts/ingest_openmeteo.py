@@ -126,15 +126,7 @@ def main() -> None:
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
-    # phase2: ICON-CH2 hourly (+0 … +6 d) — Radar Phase-2
-    p2 = {
-        "latitude": lat_str,
-        "longitude": lon_str,
-        "hourly": "precipitation",
-        "forecast_days": 6,
-        "timezone": "UTC",
-        "models": "meteoswiss_icon_ch2",
-    }
+    # phase2 entfernt — Worker nutzt nur ICON-CH1 (+32 h).
     # phaseA: Multi-Modell hourly+daily 7 d — Symbolprognose Hot-Path
     pa = {
         "latitude": lat_str,
@@ -185,15 +177,12 @@ def main() -> None:
     print("fetch phase1 (ICON-CH1 minutely_15) …")
     phase1 = fetch("phase1", p1)
     print(f"  -> {len(phase1)} locations")
-    print("fetch phase2 (ICON-CH2 hourly) …")
-    phase2 = fetch("phase2", p2)
-    print(f"  -> {len(phase2)} locations")
     print("fetch phaseA (multi-model 7d) …")
     phaseA = fetch("phaseA", pa)
     print(f"  -> {len(phaseA)} locations")
-    print("fetch phaseC (bias lookback) …")
-    phaseC = fetch("phaseC", pc)
-    print(f"  -> {len(phaseC)} locations")
+    print("fetch phaseC (bias lookback, optional) …")
+    phaseC = fetch("phaseC", pc, optional=True)
+    print(f"  -> {len(phaseC) if phaseC is not None else 'skipped'} locations")
 
     payload = {
         "version": VERSION,
@@ -203,7 +192,7 @@ def main() -> None:
         "grid": {"points": [{"lat": la, "lon": lo} for la, lo in pts]},
         # Backwards-Compat für src/lib/radar.functions.ts
         "phase1": phase1,
-        "phase2": phase2,
+        "phase2": [],
         # Neues 3-Phasen-Schema (analog Amriswil)
         "phaseB": phase1,
         "phaseA": phaseA,
@@ -226,3 +215,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
