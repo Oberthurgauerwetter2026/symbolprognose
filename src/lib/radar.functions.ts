@@ -145,6 +145,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   const now = Date.now();
   const forecastCutoff = now + 32 * 3600 * 1000;
+  const pastCutoff = now - 6 * 3600 * 1000;
   const frames: RadarFrame[] = [];
 
   // ---- Vergangenheit ----
@@ -156,6 +157,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     for (const mf of manifest!.frames) {
       const tMs = Date.parse(mf.t);
       if (tMs > now) continue;
+      if (tMs < pastCutoff) continue; // nur letzte 6 h MCH-Messung
       frames.push({
         t: mf.t,
         source: "radar",
@@ -176,7 +178,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       if (tMs <= now && hasRealRadar) continue;
       if (tMs > forecastCutoff) continue;
       // Prognose-Frames nur im Stundentakt (volle Stunde UTC).
-      if (tMs > now && new Date(tMs).getUTCMinutes() !== 0) continue;
+      if (tMs > now && tMs % (3600 * 1000) !== 0) continue;
       const values: number[] = new Array(pts.length);
       const snowValues: number[] | undefined = hasSnow ? new Array(pts.length) : undefined;
       for (let pi = 0; pi < pts.length; pi++) {

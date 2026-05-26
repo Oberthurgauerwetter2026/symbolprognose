@@ -1,41 +1,44 @@
 ## Ziel
 
-1. Prognose-Frames in der Radarkarte auf **Stunden-Takt** umstellen (statt aktuell 15-min ICON-CH1).
-2. Bodensee in der Radarkarte **vollflächig** einfärben wie auf der Wetterkarte Region.
+1. MeteoSchweiz-Messung (Vergangenheits-Radar) auf die **letzten 6 Stunden** beschränken.
+2. Prognose-Frames hart auf **volle Stunden-Buckets** filtern (robuster als die bisherige Minuten-Prüfung).
 
 ## Änderungen
 
-### A. Stunden-Takt für die Prognose (`src/lib/radar.functions.ts`)
+### A. Past-Radar auf 6 h begrenzen — `src/lib/radar.functions.ts`
 
-In der `phase1`-Schleife (`ref1.time`) nur jeden Frame übernehmen, dessen Minute `:00` ist (also jede volle Stunde). Vergangenheit (echte MCH-Radar-PNGs) bleibt unverändert in ihrem nativen 5-min-Takt.
+In der Vergangenheits-Schleife (Manifest aus R2) eine Untergrenze einführen:
 
 ```ts
-for (let ti = 0; ti < ref1.time.length; ti++) {
-  const tIso = ref1.time[ti] + "Z";
-  const tMs = Date.parse(tIso);
-  if (tMs <= now && hasRealRadar) continue;
-  if (tMs > forecastCutoff) continue;
-  // NEU: nur volle Stunden für die Prognose
-  if (tMs > now && new Date(tMs).getUTCMinutes() !== 0) continue;
-  …
+const pastCutoff = now - 6 * 3600 * 1000;
+if (hasRealRadar) {
+  for (const mf of manifest!.frames) {
+    const tMs = Date.parse(mf.t);
+    if (tMs > now) continue;
+    if (tMs < pastCutoff) continue; // NEU
+    frames.push({ t: mf.t, source: "radar", values: [], precipUrl: mf.precipUrl, hailUrl: mf.hailUrl });
+  }
 }
 ```
 
-### B. Cross-Fade-Interpolation entfernen (`src/components/maps/radar-map.tsx`)
+### B. Prognose-Stundentakt robuster — `src/lib/radar.functions.ts`
 
-Da Stunden-Schritte ohnehin sichtbar groß sind und der User explizit auf Stundentakt umstellt, ist die Cross-Fade-Logik nicht mehr nötig. Rückbau:
+Bestehende Zeile
 
-- `subProgress` / `requestAnimationFrame`-Loop → wieder `setInterval` mit 800 ms / `speed` und `setIdx(next)`.
-- `PrecipOverlay`-Props `nextFrame` und `progress` entfernen; Render-Effekt zurück auf `[frame, payload]`.
-- `blendNext`-Berechnung im `RadarMap`-Body entfernen.
+```ts
+if (tMs > now && new Date(tMs).getUTCMinutes() !== 0) continue;
+```
 
-### C. See vollflächig wie Region-Karte (`src/components/maps/radar-map.tsx`)
+ersetzen durch einen exakten Stunden-Bucket-Vergleich:
 
-- Lake-Style angleichen an `region-map.tsx`: `fillOpacity: 1`, `weight: 0.6`, gleiche Farben (`#6bb6d6` / `#7ec8e3`).
-- `LakePane` mit `zIndex: 350` bleibt zwar funktional, aber zur Konsistenz auf den **default `overlayPane`** zurückstellen (kein eigener Pane, `pane`-Prop entfernen, Pane-Creation-Effekt löschen) — dann liegt der See in der natürlichen Reihenfolge **über** dem Precipitation-Canvas, identisch zur Region-Karte (die ja gar keinen Ns-Layer hat).
+```ts
+if (tMs > now && tMs % (3600 * 1000) !== 0) continue;
+```
+
+Damit landen ausschließlich Frames mit `:00`-UTC-Zeitstempel in der Prognose, unabhängig vom genauen ISO-Format.
 
 ## Nicht angefasst
 
-- Vergangenheits-Frames (echte MCH-CPC-PNGs, 5-min) bleiben unverändert.
-- Datenpipeline / Ingest-Skript / R2 / BBox / Legende / Hagel-Layer / Farbskalen / Filter / Edge-Fade / Touch- & Keyboard-Bedienung.
-- Wetterkarte Region selbst.
+- Slider-UI (Ticks, Labels, Snap-Logik, Keyboard) — die Hourly-Logik existiert dort bereits und greift, sobald das Backend nur noch Stunden-Frames liefert.
+- Wetterkarte Region, See-Styling, Hagel-Layer, Farbskalen, Filter, Ingest-Skripte, BBox, Cache-TTL.
+- Frontend-`useQuery`-Konfiguration (Cache regeneriert sich beim nächsten Lauf automatisch).
