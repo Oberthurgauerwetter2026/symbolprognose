@@ -84,6 +84,32 @@ function colorFor(mmh: number): [number, number, number, number] {
   return [0, 0, 0, 0];
 }
 
+// Schnee-Farbskala (mm/h Wasser-Äquivalent) — kühles Weiss → Blau.
+const SNOW_SCALE: { mmh: number; rgb: [number, number, number] }[] = [
+  { mmh: 0.1, rgb: [235, 240, 248] },
+  { mmh: 0.4, rgb: [210, 222, 238] },
+  { mmh: 0.7, rgb: [180, 200, 228] },
+  { mmh: 1.3, rgb: [150, 180, 218] },
+  { mmh: 2, rgb: [120, 160, 210] },
+  { mmh: 3.5, rgb: [95, 140, 200] },
+  { mmh: 6, rgb: [70, 120, 190] },
+  { mmh: 10, rgb: [50, 100, 175] },
+  { mmh: 20, rgb: [35, 80, 160] },
+  { mmh: 30, rgb: [25, 60, 140] },
+];
+
+function snowColorFor(mmh: number): [number, number, number, number] {
+  if (mmh < SNOW_SCALE[0].mmh) return [0, 0, 0, 0];
+  for (let i = SNOW_SCALE.length - 1; i >= 0; i--) {
+    if (mmh >= SNOW_SCALE[i].mmh) {
+      const [r, g, b] = SNOW_SCALE[i].rgb;
+      const a = Math.min(1.0, 0.92 + (i / SNOW_SCALE.length) * 0.08);
+      return [r, g, b, a];
+    }
+  }
+  return [0, 0, 0, 0];
+}
+
 const OUTSIDE_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
   const collect = (fc: FeatureCollection) => {
