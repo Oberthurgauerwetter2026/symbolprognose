@@ -75,17 +75,20 @@ def build_grid():
 
 
 def fetch(label: str, params: dict, optional: bool = False) -> list | None:
-    backoffs = [3, 10, 30, 60, 120]
+    # 429 = Minutenlimit -> volle Minute warten (API sagt explizit "try again in one minute").
+    backoff_429 = [65, 65, 70, 90, 120]
+    backoff_other = [3, 10, 30, 60, 120]
     last_err: Exception | None = None
+    last_was_429 = False
     for attempt in range(5):
+        last_was_429 = False
         try:
             r = requests.get(API, params=params, timeout=120)
             if not r.ok:
                 if r.status_code == 429:
-                    # Minutenlimit — retrybar mit Backoff.
                     last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
+                    last_was_429 = True
                 elif 400 <= r.status_code < 500:
-                    # echte 4xx (400/401/404 …): nicht retrybar.
                     msg = f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}"
                     if optional:
                         print(f"WARN: {msg} — skipping (optional)")
@@ -102,7 +105,7 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
             requests.exceptions.SSLError,
         ) as e:
             last_err = e
-        wait = backoffs[attempt]
+        wait = backoff_429[attempt] if last_was_429 else backoff_other[attempt]
         print(f"WARN: {label} attempt {attempt + 1}/5 failed ({last_err}); retry in {wait}s")
         time.sleep(wait)
     msg = f"open-meteo {label} failed after 5 attempts: {last_err}"
@@ -114,11 +117,16 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
 
 
 
+
 def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optional: bool = False) -> list | None:
     """Open-Meteo Bulk-Requests in Batches, um 502 vom Upstream-nginx zu vermeiden."""
     out: list = []
     total = len(pts)
     n_batches = (total + chunk_size - 1) // chunk_size
+    try:
+        batch_sleep = float(os.environ.get("BATCH_SLEEP_S", "6.0"))
+    except ValueError:
+        batch_sleep = 6.0
     for bi in range(n_batches):
         batch = pts[bi * chunk_size : (bi + 1) * chunk_size]
         params = dict(base_params)
@@ -132,8 +140,9 @@ def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optio
         out.extend(res)
         print(f"  {sub_label} ok")
         if bi + 1 < n_batches:
-            time.sleep(0.5)
+            time.sleep(batch_sleep)
     return out
+
 
 
 def read_existing_payload(s3, bucket: str, key: str) -> dict | None:
@@ -219,7 +228,7 @@ def main() -> None:
     }
 
     chunk_p1 = envi("CHUNK_PHASE1", 15)
-    chunk_pa = envi("CHUNK_PHASEA", 25)
+    chunk_pa = envi("CHUNK_PHASEA", 20)
     chunk_pc = envi("CHUNK_PHASEC", 40)
 
     key = os.environ.get("OPENMETEO_OUT_KEY", "openmeteo/forecast.json")
