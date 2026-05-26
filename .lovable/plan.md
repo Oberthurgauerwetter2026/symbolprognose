@@ -1,43 +1,15 @@
-## Ziel
-
-Identischer See-Look in Radar- und Region-Karte — eine einzige Farbe, eine einzige Transparenz, keine sichtbaren Tonunterschiede.
+Den See in beiden Karten vollständig deckend mit dem bestehenden helleren Blau `#7ec8e3` darstellen (keine Transparenz mehr).
 
 ## Änderungen
 
-### 1. `src/components/region-map.tsx` (Zeile ~617–626)
+**1. `src/components/maps/radar-map.tsx`** (Zeile 777)
+- `fillOpacity: 0.35` → `fillOpacity: 1`
+- Farbe `#7ec8e3` und `weight: 0.6` bleiben.
 
-```tsx
-<GeoJSON
-  data={LAKE}
-  style={() => ({
-    color: "#7ec8e3",
-    weight: 0.6,
-    fillColor: "#7ec8e3",
-    fillOpacity: 0.35,
-  })}
-  interactive={false}
-/>
-```
+**2. `src/components/region-map.tsx`** (Zeile 623)
+- `fillOpacity: 0.35` → `fillOpacity: 1`
+- Farbe `#7ec8e3` und `weight: 0.6` bleiben.
 
-### 2. `src/components/maps/radar-map.tsx` (Zeile ~773–777)
+## Unverändert
 
-Stroke-Farbe auf denselben Ton wie Fill setzen, damit beide Karten 1:1 identisch wirken:
-
-```tsx
-<GeoJSON
-  data={LAKE}
-  style={() => ({
-    color: "#7ec8e3",
-    weight: 0.6,
-    fillColor: "#7ec8e3",
-    fillOpacity: 0.35,
-  })}
-  interactive={false}
-/>
-```
-
-## Was unverändert bleibt
-
-- Lake-Geometrie, Reihenfolge der Layer, Outside-Masken, Region/Schweiz-Konturen.
-- Niederschlags-Overlay scheint weiter durch den See.
-- Region-Karte: Marker, Symbolprognose, Reliefschattierung.
+See-Geometrie, Layer-Reihenfolge, Outside-Masken, Schweiz/Region-Konturen, Niederschlagsoverlay, Marker und Reliefschattierung. Auf dem Radar liegt die Niederschlags-Bildebene weiterhin über dem See, sodass Regenflächen über dem Wasser sichtbar bleiben.
