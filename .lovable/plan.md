@@ -1,5 +1,10 @@
-**Änderungen in `src/components/maps/radar-map.tsx`:**
+## Änderung: 0,2-mm-Farbe auf #A7AED3 mit starker Transparenz
 
-1. Zeile 59: 0.2 mm/h Farbe auf #6C85BD setzen → `rgb: [108, 133, 189]`
-2. Zeile 75: Alpha für Regen von `1.0` auf `0.75` reduzieren (Karte bleibt sichtbar)
-3. Zeile 93: Alpha für Schnee auf konstant `0.75` setzen
+1. Zeile 59 in `src/components/maps/radar-map.tsx`:
+   - RGB-Wert von `[108, 133, 189]` auf `[167, 174, 211]` (#A7AED3) ändern.
+
+2. Funktion `colorFor()` (Zeile 70–80):
+   - Für den ersten Skalenwert (0,2 mm, Index 0) eine deutlich niedrigere Alpha verwenden (z. B. 0,35 statt 0,75), damit die Farbe stark transparent wirkt.
+   - Alle anderen Regen-Intensitäten bleiben bei Alpha 0,75.
+
+Schnee- und übrige Regenfarben bleiben unverändert.
