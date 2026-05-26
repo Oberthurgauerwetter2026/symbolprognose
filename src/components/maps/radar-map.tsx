@@ -734,9 +734,11 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 [data.imageBbox.minLat, data.imageBbox.minLon],
                 [data.imageBbox.maxLat, data.imageBbox.maxLon],
               ]}
-              opacity={0.85}
+              opacity={0.95}
+              className="hail-blackdots"
             />
           )}
+
           {RADAR_CITIES.map((c) => (
             <Marker
               key={c.name}
