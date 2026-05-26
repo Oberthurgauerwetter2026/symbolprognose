@@ -722,7 +722,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <InvalidateOnResize />
-          <LakePane />
+          
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
