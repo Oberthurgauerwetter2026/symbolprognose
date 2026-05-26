@@ -84,6 +84,32 @@ function colorFor(mmh: number): [number, number, number, number] {
   return [0, 0, 0, 0];
 }
 
+// Schnee-Farbskala (mm/h Wasser-Äquivalent) — kühles Weiss → Blau.
+const SNOW_SCALE: { mmh: number; rgb: [number, number, number] }[] = [
+  { mmh: 0.1, rgb: [235, 240, 248] },
+  { mmh: 0.4, rgb: [210, 222, 238] },
+  { mmh: 0.7, rgb: [180, 200, 228] },
+  { mmh: 1.3, rgb: [150, 180, 218] },
+  { mmh: 2, rgb: [120, 160, 210] },
+  { mmh: 3.5, rgb: [95, 140, 200] },
+  { mmh: 6, rgb: [70, 120, 190] },
+  { mmh: 10, rgb: [50, 100, 175] },
+  { mmh: 20, rgb: [35, 80, 160] },
+  { mmh: 30, rgb: [25, 60, 140] },
+];
+
+function snowColorFor(mmh: number): [number, number, number, number] {
+  if (mmh < SNOW_SCALE[0].mmh) return [0, 0, 0, 0];
+  for (let i = SNOW_SCALE.length - 1; i >= 0; i--) {
+    if (mmh >= SNOW_SCALE[i].mmh) {
+      const [r, g, b] = SNOW_SCALE[i].rgb;
+      const a = Math.min(1.0, 0.92 + (i / SNOW_SCALE.length) * 0.08);
+      return [r, g, b, a];
+    }
+  }
+  return [0, 0, 0, 0];
+}
+
 const OUTSIDE_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
   const collect = (fc: FeatureCollection) => {
@@ -235,6 +261,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
     const nLat = gridLat.length;
     const nLon = gridLon.length;
     const vals = frame.values;
+    const snowVals = frame.snowValues;
 
     // Vollen Viewport zeichnen — Werte ausserhalb des Grids auf Rand klampfen,
     // damit auch die Karten-Ränder eingefärbt werden.
@@ -273,7 +300,16 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
           vals[y0 * nLon + x1] * tx * (1 - ty) +
           vals[y1 * nLon + x0] * (1 - tx) * ty +
           vals[y1 * nLon + x1] * tx * ty;
-        const [r, g, b, a] = colorFor(v);
+        let snowFrac = 0;
+        if (snowVals) {
+          const sv =
+            snowVals[y0 * nLon + x0] * (1 - tx) * (1 - ty) +
+            snowVals[y0 * nLon + x1] * tx * (1 - ty) +
+            snowVals[y1 * nLon + x0] * (1 - tx) * ty +
+            snowVals[y1 * nLon + x1] * tx * ty;
+          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+        }
+        const [r, g, b, a] = snowFrac > 0.5 ? snowColorFor(v) : colorFor(v);
         if (a === 0) continue;
         const edgeDist = Math.min(fxRaw, nLon - 1 - fxRaw, fyRaw, nLat - 1 - fyRaw);
         const edgeFade =
@@ -781,6 +817,16 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               <span className="tabular-nums text-muted-foreground">{s.mmh}</span>
             </div>
           ))}
+          <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
+          <div className="flex items-center gap-1">
+            {SNOW_SCALE.filter((_, i) => i % 2 === 0).map((s) => (
+              <span
+                key={`snow-${s.mmh}`}
+                className="inline-block h-2.5 w-2.5 rounded-sm"
+                style={{ background: `rgb(${s.rgb.join(",")})` }}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

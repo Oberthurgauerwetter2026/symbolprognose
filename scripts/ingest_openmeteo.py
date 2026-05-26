@@ -165,7 +165,7 @@ def main() -> None:
 
     # phase1: ICON-CH1 minutely_15 (-12h … +33h) — Radar/Nowcast
     p1 = {
-        "minutely_15": "precipitation",
+        "minutely_15": "precipitation,snowfall",
         "past_minutely_15": 48,
         "forecast_minutely_15": 132,
         "timezone": "UTC",
