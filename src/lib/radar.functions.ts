@@ -129,7 +129,6 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
   const r1 = cache?.phase1 ?? null;
-  const r2 = cache?.phase2 ?? null;
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
 
   const warnings: string[] = [];
@@ -139,7 +138,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
 
   const now = Date.now();
-  const ch1Cutoff = now + 33 * 3600 * 1000;
+  const forecastCutoff = now + 32 * 3600 * 1000;
   const frames: RadarFrame[] = [];
 
   // ---- Vergangenheit ----
@@ -161,13 +160,14 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     }
   }
 
-  // ---- Phase 1 (Open-Meteo): Fallback-Past + ICON-CH1-Future ----
+  // ---- Phase 1 (Open-Meteo): Fallback-Past + ICON-CH1-Future (bis +32h) ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
   if (ref1 && r1) {
     for (let ti = 0; ti < ref1.time.length; ti++) {
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
       if (tMs <= now && hasRealRadar) continue;
+      if (tMs > forecastCutoff) continue;
       const values: number[] = new Array(pts.length);
       for (let pi = 0; pi < pts.length; pi++) {
         const loc = r1[pi] as LocResponse | undefined;
@@ -176,23 +176,6 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       }
       const source: RadarFrame["source"] = tMs <= now ? "radar" : "icon-ch1";
       frames.push({ t: tIso, source, values });
-    }
-  }
-
-  // ---- Phase 2 (Open-Meteo): ICON-CH2 stündlich ab ch1Cutoff ----
-  const ref2 = r2 ? (r2[0] as LocResponse | undefined)?.hourly : undefined;
-  if (ref2 && r2) {
-    for (let ti = 0; ti < ref2.time.length; ti++) {
-      const tIso = ref2.time[ti] + "Z";
-      const tMs = Date.parse(tIso);
-      if (tMs <= ch1Cutoff) continue;
-      const values: number[] = new Array(pts.length);
-      for (let pi = 0; pi < pts.length; pi++) {
-        const loc = r2[pi] as LocResponse | undefined;
-        const v = loc?.hourly?.precipitation?.[ti];
-        values[pi] = typeof v === "number" ? v : 0;
-      }
-      frames.push({ t: tIso, source: "icon-ch2", values });
     }
   }
 
