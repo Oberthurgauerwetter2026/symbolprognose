@@ -680,8 +680,9 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1); // 1× ≈ 800ms pro Frame
+  const [speed, setSpeed] = useState(1); // 1× ≈ 800ms pro 15-min-Frame
   const [showHail, setShowHail] = useState(true);
+  const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
 
   // Auf "jetzt" springen sobald Daten da sind.
@@ -689,20 +690,43 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
 
-  // Play-Loop: setInterval, harter Frame-Wechsel.
+  // Play-Loop mit Cross-Fade: rAF-getrieben, idx steigt erst wenn progress > 1.
   useEffect(() => {
-    if (!playing || frames.length === 0) return;
-    const id = setInterval(() => {
-      setIdx((cur) => {
-        if (cur === null) return 0;
-        const next = cur + 1;
-        return next >= frames.length ? 0 : next;
+    if (!playing || frames.length === 0) {
+      setProgress(0);
+      return;
+    }
+    const FRAME_MS = 800 / speed;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
+      setProgress((p) => {
+        const np = p + dt / FRAME_MS;
+        if (np >= 1) {
+          setIdx((cur) => {
+            if (cur === null) return 0;
+            const next = cur + 1;
+            return next >= frames.length ? 0 : next;
+          });
+          return np - 1;
+        }
+        return np;
       });
-    }, 800 / speed);
-    return () => clearInterval(id);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [playing, speed, frames.length]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
+  const nextFrame =
+    idx !== null && playing && currentFrame && !currentFrame.precipUrl
+      ? frames[(idx + 1) % frames.length] ?? null
+      : null;
+  // Nur zwischen gleichartigen Canvas-Frames cross-faden (nicht zwischen PNG-Frames).
+  const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   return (
