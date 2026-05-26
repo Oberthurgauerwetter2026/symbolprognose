@@ -342,30 +342,48 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
 }
 
-// ---------------- Modern Timeline Slider ----------------
+// ---------------- MeteoSchweiz-Style Timeline ----------------
 
-const TIMELINE_TICKS_DESKTOP = [-2, -1, 0, 3, 6, 12, 24, 32];
-const TIMELINE_TICKS_MOBILE = [-1, 0, 6, 16, 32];
+const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
-function tickLabel(h: number): string {
-  if (h === 0) return "Jetzt";
-  if (h < 0) return `${h}h`;
-  return `+${h}h`;
+function fmtUpdatedAt(iso: string): string {
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat("de-CH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d);
 }
 
-function Timeline({
+function fmtDayLong(d: Date): string {
+  const wd = WEEKDAY_LONG[d.getDay()];
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
+}
+
+function fmtBubble(d: Date, isForecast: boolean): string {
+  const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${isForecast ? "Prognose" : "Messung"}: ${wd}, ${hh}:${mm}`;
+}
+
+function MeteoTimeline({
   frames,
   idx,
   onChange,
+  isMobile,
 }: {
   frames: RadarFrame[];
   idx: number;
   onChange: (i: number) => void;
+  isMobile: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const isMobile = useIsMobile();
 
   const times = useMemo(() => frames.map((f) => Date.parse(f.t)), [frames]);
   const tMin = times[0] ?? 0;
@@ -374,10 +392,8 @@ function Timeline({
   const now = Date.now();
   const nowPct = Math.max(0, Math.min(100, ((now - tMin) / span) * 100));
 
-  const pctForIdx = (i: number): number => {
-    const t = times[i] ?? tMin;
-    return Math.max(0, Math.min(100, ((t - tMin) / span) * 100));
-  };
+  const pctForMs = (ms: number) => Math.max(0, Math.min(100, ((ms - tMin) / span) * 100));
+  const pctForIdx = (i: number) => pctForMs(times[i] ?? tMin);
 
   const idxFromClientX = (clientX: number): number => {
     const el = trackRef.current;
@@ -415,109 +431,146 @@ function Timeline({
     }
   };
 
+  // Stündliche Ticks im sichtbaren Zeitraum.
+  const hourTicks = useMemo(() => {
+    const startMs = Math.ceil(tMin / 3600000) * 3600000;
+    const out: { ms: number; pct: number; hour: number }[] = [];
+    for (let t = startMs; t <= tMax; t += 3600000) {
+      const d = new Date(t);
+      out.push({ ms: t, pct: pctForMs(t), hour: d.getHours() });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tMin, tMax]);
+
+  // Tageswechsel-Linien (00:00).
+  const dayBreaks = hourTicks.filter((t) => t.hour === 0);
+
+  // Tages-Labels: Segmente zwischen Day-Breaks.
+  const daySegments = useMemo(() => {
+    const breaks = [tMin, ...dayBreaks.map((b) => b.ms), tMax];
+    const segs: { startPct: number; endPct: number; label: string }[] = [];
+    for (let i = 0; i < breaks.length - 1; i++) {
+      const a = breaks[i];
+      const b = breaks[i + 1];
+      if (b <= a) continue;
+      // Label = Datum des Mittelpunkts.
+      const mid = new Date((a + b) / 2);
+      segs.push({
+        startPct: pctForMs(a),
+        endPct: pctForMs(b),
+        label: fmtDayLong(mid),
+      });
+    }
+    return segs;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tMin, tMax, dayBreaks.length]);
+
   const handlePct = pctForIdx(idx);
   const currentMs = times[idx] ?? now;
-  const handleLabel = new Intl.DateTimeFormat("de-CH", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(currentMs));
+  const currentDate = new Date(currentMs);
+  const isForecast = currentMs > now + 60000;
+  const bubbleLabel = fmtBubble(currentDate, isForecast);
 
-  const tickHours = isMobile ? TIMELINE_TICKS_MOBILE : TIMELINE_TICKS_DESKTOP;
-  const visibleTicks = tickHours
-    .map((h) => {
-      const tMs = now + h * 3600 * 1000;
-      const pct = ((tMs - tMin) / span) * 100;
-      return { h, pct };
-    })
-    .filter((t) => t.pct >= 0 && t.pct <= 100);
-
-  const showBubble = dragging || focused;
+  // Auf Mobile nur jede 3. Stunde labeln, damit's nicht überlappt.
+  const labelStep = isMobile ? 3 : 1;
 
   return (
     <div className="select-none">
-      {/* Tick-Labels */}
-      <div className="relative mb-1.5 h-3.5 text-[11px] text-muted-foreground">
-        {visibleTicks.map((t) => (
-          <span
-            key={t.h}
-            className={cn(
-              "absolute -translate-x-1/2 tabular-nums",
-              t.h === 0 && "font-semibold",
-            )}
-            style={{ left: `${t.pct}%`, color: t.h === 0 ? BRAND : undefined }}
-          >
-            {tickLabel(t.h)}
-          </span>
-        ))}
-      </div>
-
-      {/* Track-Wrapper (grosses Touch-Target) */}
-      <div
-        ref={trackRef}
-        role="slider"
-        aria-label="Radar-Zeit"
-        aria-valuemin={0}
-        aria-valuemax={frames.length - 1}
-        aria-valuenow={idx}
-        tabIndex={0}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowLeft") {
-            e.preventDefault();
-            onChange(Math.max(0, idx - 1));
-          } else if (e.key === "ArrowRight") {
-            e.preventDefault();
-            onChange(Math.min(frames.length - 1, idx + 1));
-          }
-        }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        className="relative flex h-11 w-full cursor-pointer touch-none items-center outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
-      >
-        {/* Dünne Track-Linie */}
-        <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted">
-          {/* Vergangenheit */}
-          <div
-            className="absolute inset-y-0 left-0 bg-muted-foreground/25"
-            style={{ width: `${nowPct}%` }}
-          />
-          {/* ICON-CH1 (Vorhersage) */}
-          <div
-            className="absolute inset-y-0"
-            style={{
-              left: `${nowPct}%`,
-              width: `${Math.max(0, 100 - nowPct)}%`,
-              background: `color-mix(in oklab, ${BRAND} 35%, transparent)`,
-            }}
-          />
+      {/* Track-Wrapper mit Stundenlabels darüber + Track + Day-Labels darunter */}
+      <div className="relative pt-6 pb-5">
+        {/* Stundenlabels über dem Track */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-5">
+          {hourTicks.map((t, i) => {
+            if (i % labelStep !== 0) return null;
+            return (
+              <span
+                key={`hl-${t.ms}`}
+                className="absolute -translate-x-1/2 text-[10px] font-medium tabular-nums text-white/80"
+                style={{ left: `${t.pct}%`, top: 0 }}
+              >
+                {String(t.hour).padStart(2, "0")}
+              </span>
+            );
+          })}
         </div>
 
-        {/* "Jetzt"-Linie */}
-        {nowPct > 0 && nowPct < 100 && (
-          <div
-            className="pointer-events-none absolute inset-y-1.5"
-            style={{ left: `${nowPct}%`, width: 1.5, background: BRAND }}
-          />
-        )}
-
-        {/* Drag-Handle */}
+        {/* Track-Hit-Area */}
         <div
-          className="pointer-events-none absolute top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-background shadow-md transition-transform sm:h-[18px] sm:w-[18px]"
-          style={{ left: `${handlePct}%`, borderColor: BRAND }}
+          ref={trackRef}
+          role="slider"
+          aria-label="Radar-Zeit"
+          aria-valuemin={0}
+          aria-valuemax={frames.length - 1}
+          aria-valuenow={idx}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              onChange(Math.max(0, idx - 1));
+            } else if (e.key === "ArrowRight") {
+              e.preventDefault();
+              onChange(Math.min(frames.length - 1, idx + 1));
+            }
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none ring-offset-[#1a1f24] focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 rounded"
         >
-          {showBubble && (
-            <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center">
+          {/* Hintergrund-Track */}
+          <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/15">
+            {/* Vorhersage-Range */}
+            <div
+              className="absolute inset-y-0"
+              style={{
+                left: `${nowPct}%`,
+                width: `${Math.max(0, 100 - nowPct)}%`,
+                background: BRAND,
+                opacity: 0.85,
+              }}
+            />
+            {/* Hour-Ticks im Track */}
+            {hourTicks.map((t) => (
+              <span
+                key={`ht-${t.ms}`}
+                className="absolute top-0 h-full w-px bg-white/25"
+                style={{ left: `${t.pct}%` }}
+              />
+            ))}
+          </div>
+
+          {/* Day-Break-Vertikallinien (durch den ganzen Slot) */}
+          {dayBreaks.map((b) => (
+            <span
+              key={`db-${b.ms}`}
+              className="pointer-events-none absolute inset-y-0 w-px bg-white/40"
+              style={{ left: `${b.pct}%` }}
+            />
+          ))}
+
+          {/* "Jetzt"-Marker (kleiner Kreis auf der Linie) */}
+          {nowPct > 0 && nowPct < 100 && (
+            <span
+              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-white shadow"
+              style={{ left: `${nowPct}%` }}
+            />
+          )}
+
+          {/* Handle: weisser senkrechter Strich durch den ganzen Track */}
+          <div
+            className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${handlePct}%` }}
+          >
+            <div className="h-6 w-0.5 rounded-sm bg-white shadow-md" />
+            {/* Bubble */}
+            <div className="absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center">
               <span
                 className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
                 style={{ background: BRAND }}
               >
-                {handleLabel}
+                {bubbleLabel}
               </span>
               <span
                 className="h-0 w-0"
@@ -528,12 +581,36 @@ function Timeline({
                 }}
               />
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Tages-Labels unter dem Track */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-5">
+          {daySegments.map((s, i) => {
+            const width = Math.max(0, s.endPct - s.startPct);
+            // Sehr schmale Segmente weglassen, sonst Überlappung.
+            if (width < (isMobile ? 18 : 10)) return null;
+            return (
+              <span
+                key={`ds-${i}`}
+                className="absolute top-0 text-[11px] font-medium text-white/80 truncate"
+                style={{
+                  left: `${s.startPct}%`,
+                  width: `${width}%`,
+                  textAlign: "center",
+                }}
+              >
+                {s.label}
+              </span>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
+
+
 
 
 
