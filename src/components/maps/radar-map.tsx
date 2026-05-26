@@ -477,16 +477,15 @@ function MeteoTimeline({
 
   return (
     <div className="select-none">
-      {/* Track-Wrapper mit Stundenlabels darüber + Track + Day-Labels darunter */}
-      <div className="relative pt-6 pb-5">
+      <div className="relative pt-5 pb-4">
         {/* Stundenlabels über dem Track */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-4">
           {hourTicks.map((t, i) => {
             if (i % labelStep !== 0) return null;
             return (
               <span
                 key={`hl-${t.ms}`}
-                className="absolute -translate-x-1/2 text-[10px] font-medium tabular-nums text-white/80"
+                className="absolute -translate-x-1/2 text-[9px] font-medium tabular-nums text-neutral-500"
                 style={{ left: `${t.pct}%`, top: 0 }}
               >
                 {String(t.hour).padStart(2, "0")}
@@ -517,10 +516,11 @@ function MeteoTimeline({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none ring-offset-[#1a1f24] focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 rounded"
+          className="relative flex h-4 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded"
+          style={{ ['--tw-ring-color' as never]: BRAND }}
         >
           {/* Hintergrund-Track */}
-          <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/15">
+          <div className="relative h-[3px] w-full overflow-hidden rounded-full bg-neutral-200">
             {/* Vorhersage-Range */}
             <div
               className="absolute inset-y-0"
@@ -528,46 +528,46 @@ function MeteoTimeline({
                 left: `${nowPct}%`,
                 width: `${Math.max(0, 100 - nowPct)}%`,
                 background: BRAND,
-                opacity: 0.85,
+                opacity: 0.9,
               }}
             />
             {/* Hour-Ticks im Track */}
             {hourTicks.map((t) => (
               <span
                 key={`ht-${t.ms}`}
-                className="absolute top-0 h-full w-px bg-white/25"
+                className="absolute top-0 h-full w-px bg-neutral-300"
                 style={{ left: `${t.pct}%` }}
               />
             ))}
           </div>
 
-          {/* Day-Break-Vertikallinien (durch den ganzen Slot) */}
+          {/* Day-Break-Vertikallinien */}
           {dayBreaks.map((b) => (
             <span
               key={`db-${b.ms}`}
-              className="pointer-events-none absolute inset-y-0 w-px bg-white/40"
+              className="pointer-events-none absolute inset-y-0 w-px bg-neutral-300"
               style={{ left: `${b.pct}%` }}
             />
           ))}
 
-          {/* "Jetzt"-Marker (kleiner Kreis auf der Linie) */}
+          {/* "Jetzt"-Marker */}
           {nowPct > 0 && nowPct < 100 && (
             <span
-              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-white shadow"
+              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white"
               style={{ left: `${nowPct}%` }}
             />
           )}
 
-          {/* Handle: weisser senkrechter Strich durch den ganzen Track */}
+          {/* Handle */}
           <div
             className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${handlePct}%` }}
           >
-            <div className="h-6 w-0.5 rounded-sm bg-white shadow-md" />
+            <div className="h-4 w-0.5 rounded-sm bg-neutral-900" />
             {/* Bubble */}
-            <div className="absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center">
               <span
-                className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
+                className="whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
                 style={{ background: BRAND }}
               >
                 {bubbleLabel}
@@ -575,9 +575,9 @@ function MeteoTimeline({
               <span
                 className="h-0 w-0"
                 style={{
-                  borderLeft: "5px solid transparent",
-                  borderRight: "5px solid transparent",
-                  borderTop: `5px solid ${BRAND}`,
+                  borderLeft: "4px solid transparent",
+                  borderRight: "4px solid transparent",
+                  borderTop: `4px solid ${BRAND}`,
                 }}
               />
             </div>
@@ -585,15 +585,14 @@ function MeteoTimeline({
         </div>
 
         {/* Tages-Labels unter dem Track */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-5">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4">
           {daySegments.map((s, i) => {
             const width = Math.max(0, s.endPct - s.startPct);
-            // Sehr schmale Segmente weglassen, sonst Überlappung.
             if (width < (isMobile ? 18 : 10)) return null;
             return (
               <span
                 key={`ds-${i}`}
-                className="absolute top-0 text-[11px] font-medium text-white/80 truncate"
+                className="absolute top-0 text-[10px] font-medium text-neutral-600 truncate"
                 style={{
                   left: `${s.startPct}%`,
                   width: `${width}%`,
@@ -782,33 +781,34 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         </div>
       </div>
 
-      {/* Steuerung — MeteoSchweiz-Style Panel */}
-      <div className="rounded-2xl bg-[#1a1f24] p-3 text-white shadow-lg sm:p-4">
+      {/* Steuerung — schlankes weisses Panel */}
+      <div className="rounded-xl border border-neutral-200 bg-white p-2 text-neutral-900 shadow-md sm:p-3">
         {isLoading && (
-          <p className="text-center text-sm text-white/70">Lade Radardaten …</p>
+          <p className="text-center text-xs text-neutral-500">Lade Radardaten …</p>
         )}
         {error && (
-          <p className="text-center text-sm text-red-300">
+          <p className="text-center text-xs text-red-600">
             Radardaten konnten nicht geladen werden.
           </p>
         )}
         {data?.warning && (
-          <p className="mb-2 text-center text-xs text-white/60">
+          <p className="mb-1.5 text-center text-[11px] text-neutral-500">
             Hinweis: {data.warning}
           </p>
         )}
 
         {data && frames.length > 0 && idx !== null && (
           <>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Play/Pause */}
               <button
                 type="button"
                 onClick={() => setPlaying((p) => !p)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2"
+                style={{ ['--tw-ring-color' as never]: BRAND }}
                 aria-label={playing ? "Pause" : "Play"}
               >
-                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-px" />}
+                {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 translate-x-px" />}
               </button>
               {/* Prev */}
               <button
@@ -817,10 +817,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   setPlaying(false);
                   setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
                 }}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
                 aria-label="Vorheriger Frame"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
               </button>
 
               {/* Track */}
@@ -843,27 +843,27 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   setPlaying(false);
                   setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
                 }}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
                 aria-label="Nächster Frame"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
 
             {/* Sekundär-Toolbar: Jetzt, Speed, Hagel */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
               <button
                 type="button"
                 onClick={() => {
                   setIdx(nowIdx);
                   setPlaying(false);
                 }}
-                className="rounded-full bg-white/10 px-3 py-1.5 font-semibold text-white transition hover:bg-white/20"
+                className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
               >
                 Jetzt
               </button>
 
-              <div className="inline-flex items-center rounded-full bg-white/10 p-0.5">
+              <div className="inline-flex items-center rounded-full border border-neutral-200 bg-white p-0.5">
                 {[1, 2, 4].map((s) => {
                   const active = speed === s;
                   return (
@@ -872,9 +872,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                       type="button"
                       onClick={() => setSpeed(s)}
                       className={cn(
-                        "rounded-full px-2.5 py-1 font-semibold transition",
-                        active ? "bg-white text-[#1a1f24] shadow-sm" : "text-white/80 hover:text-white",
+                        "rounded-full px-2 py-0.5 font-semibold transition",
+                        active ? "text-white shadow-sm" : "text-neutral-600 hover:text-neutral-900",
                       )}
+                      style={active ? { background: BRAND } : undefined}
                     >
                       {s}×
                     </button>
@@ -886,12 +887,13 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 type="button"
                 onClick={() => setShowHail((v) => !v)}
                 className={cn(
-                  "ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-semibold transition",
+                  "ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold transition",
                   !data?.hasHail && "cursor-not-allowed opacity-60",
                   showHail && data?.hasHail
-                    ? "bg-white text-[#1a1f24] shadow-sm"
-                    : "bg-white/10 text-white/80 hover:bg-white/20",
+                    ? "border-transparent text-white shadow-sm"
+                    : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50",
                 )}
+                style={showHail && data?.hasHail ? { background: BRAND } : undefined}
                 title={
                   data?.hasHail
                     ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
@@ -899,13 +901,13 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 }
                 disabled={!data?.hasHail}
               >
-                <CloudHail className="h-3.5 w-3.5" />
+                <CloudHail className="h-3 w-3" />
                 Hagel
                 {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
               </button>
             </div>
 
-            <p className="mt-3 text-[11px] text-white/60">
+            <p className="mt-1.5 text-[10px] text-neutral-500">
               Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
             </p>
           </>
