@@ -86,7 +86,14 @@ type LocResponse = {
     precipitation: (number | null)[];
     snowfall?: (number | null)[];
   };
-  hourly?: { time: string[]; precipitation: (number | null)[] };
+  hourly?: {
+    time: string[];
+    precipitation?: (number | null)[];
+    wind_speed_700hPa?: (number | null)[];
+    wind_direction_700hPa?: (number | null)[];
+    wind_speed_10m?: (number | null)[];
+    wind_direction_10m?: (number | null)[];
+  };
 };
 
 type ManifestFrame = { t: string; precipUrl?: string; hailUrl?: string };
