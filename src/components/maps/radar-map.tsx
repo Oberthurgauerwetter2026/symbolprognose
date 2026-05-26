@@ -687,19 +687,20 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           />
           <GeoJSON
             data={OUTSIDE_CH_MASK}
-            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.15 })}
+            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
             interactive={false}
           />
           <GeoJSON
             data={OUTSIDE_MASK}
-            style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.05 })}
+            style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
             interactive={false}
           />
           <GeoJSON
             data={LAKE}
-            style={() => ({ color: "#6bb6d6", weight: 0.8, fill: false })}
+            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 1 })}
             interactive={false}
           />
+
           <GeoJSON
             data={SWITZERLAND}
             style={() => ({ color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })}
