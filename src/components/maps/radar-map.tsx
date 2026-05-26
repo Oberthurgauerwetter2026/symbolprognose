@@ -786,7 +786,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           />
           <GeoJSON
             data={LAKE}
-            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 1 })}
+            pane="lake"
+            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 0.92 })}
             interactive={false}
           />
 
