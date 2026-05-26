@@ -77,7 +77,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      const a = Math.min(0.95, 0.7 + (i / SCALE.length) * 0.25);
+      const a = Math.min(1.0, 0.85 + (i / SCALE.length) * 0.15);
       return [r, g, b, a];
     }
   }
