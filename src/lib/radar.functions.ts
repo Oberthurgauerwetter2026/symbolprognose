@@ -81,7 +81,11 @@ async function fetchOpenMeteoCache(): Promise<OpenMeteoCache | null> {
 
 
 type LocResponse = {
-  minutely_15?: { time: string[]; precipitation: (number | null)[] };
+  minutely_15?: {
+    time: string[];
+    precipitation: (number | null)[];
+    snowfall?: (number | null)[];
+  };
   hourly?: { time: string[]; precipitation: (number | null)[] };
 };
 
