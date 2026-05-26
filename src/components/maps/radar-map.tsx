@@ -723,6 +723,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   }, [playing, speed, frames.length]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
+  const nextFrame =
+    idx !== null && playing && currentFrame && !currentFrame.precipUrl
+      ? frames[(idx + 1) % frames.length] ?? null
+      : null;
+  // Nur zwischen gleichartigen Canvas-Frames cross-faden (nicht zwischen PNG-Frames).
+  const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   return (
