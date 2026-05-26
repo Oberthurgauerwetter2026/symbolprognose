@@ -477,16 +477,15 @@ function MeteoTimeline({
 
   return (
     <div className="select-none">
-      {/* Track-Wrapper mit Stundenlabels darüber + Track + Day-Labels darunter */}
-      <div className="relative pt-6 pb-5">
+      <div className="relative pt-5 pb-4">
         {/* Stundenlabels über dem Track */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-4">
           {hourTicks.map((t, i) => {
             if (i % labelStep !== 0) return null;
             return (
               <span
                 key={`hl-${t.ms}`}
-                className="absolute -translate-x-1/2 text-[10px] font-medium tabular-nums text-white/80"
+                className="absolute -translate-x-1/2 text-[9px] font-medium tabular-nums text-neutral-500"
                 style={{ left: `${t.pct}%`, top: 0 }}
               >
                 {String(t.hour).padStart(2, "0")}
@@ -517,10 +516,11 @@ function MeteoTimeline({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none ring-offset-[#1a1f24] focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 rounded"
+          className="relative flex h-4 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded"
+          style={{ ['--tw-ring-color' as never]: BRAND }}
         >
           {/* Hintergrund-Track */}
-          <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/15">
+          <div className="relative h-[3px] w-full overflow-hidden rounded-full bg-neutral-200">
             {/* Vorhersage-Range */}
             <div
               className="absolute inset-y-0"
@@ -528,46 +528,46 @@ function MeteoTimeline({
                 left: `${nowPct}%`,
                 width: `${Math.max(0, 100 - nowPct)}%`,
                 background: BRAND,
-                opacity: 0.85,
+                opacity: 0.9,
               }}
             />
             {/* Hour-Ticks im Track */}
             {hourTicks.map((t) => (
               <span
                 key={`ht-${t.ms}`}
-                className="absolute top-0 h-full w-px bg-white/25"
+                className="absolute top-0 h-full w-px bg-neutral-300"
                 style={{ left: `${t.pct}%` }}
               />
             ))}
           </div>
 
-          {/* Day-Break-Vertikallinien (durch den ganzen Slot) */}
+          {/* Day-Break-Vertikallinien */}
           {dayBreaks.map((b) => (
             <span
               key={`db-${b.ms}`}
-              className="pointer-events-none absolute inset-y-0 w-px bg-white/40"
+              className="pointer-events-none absolute inset-y-0 w-px bg-neutral-300"
               style={{ left: `${b.pct}%` }}
             />
           ))}
 
-          {/* "Jetzt"-Marker (kleiner Kreis auf der Linie) */}
+          {/* "Jetzt"-Marker */}
           {nowPct > 0 && nowPct < 100 && (
             <span
-              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-white shadow"
+              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white"
               style={{ left: `${nowPct}%` }}
             />
           )}
 
-          {/* Handle: weisser senkrechter Strich durch den ganzen Track */}
+          {/* Handle */}
           <div
             className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${handlePct}%` }}
           >
-            <div className="h-6 w-0.5 rounded-sm bg-white shadow-md" />
+            <div className="h-4 w-0.5 rounded-sm bg-neutral-900" />
             {/* Bubble */}
-            <div className="absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center">
               <span
-                className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
+                className="whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
                 style={{ background: BRAND }}
               >
                 {bubbleLabel}
@@ -575,9 +575,9 @@ function MeteoTimeline({
               <span
                 className="h-0 w-0"
                 style={{
-                  borderLeft: "5px solid transparent",
-                  borderRight: "5px solid transparent",
-                  borderTop: `5px solid ${BRAND}`,
+                  borderLeft: "4px solid transparent",
+                  borderRight: "4px solid transparent",
+                  borderTop: `4px solid ${BRAND}`,
                 }}
               />
             </div>
@@ -585,15 +585,14 @@ function MeteoTimeline({
         </div>
 
         {/* Tages-Labels unter dem Track */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-5">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4">
           {daySegments.map((s, i) => {
             const width = Math.max(0, s.endPct - s.startPct);
-            // Sehr schmale Segmente weglassen, sonst Überlappung.
             if (width < (isMobile ? 18 : 10)) return null;
             return (
               <span
                 key={`ds-${i}`}
-                className="absolute top-0 text-[11px] font-medium text-white/80 truncate"
+                className="absolute top-0 text-[10px] font-medium text-neutral-600 truncate"
                 style={{
                   left: `${s.startPct}%`,
                   width: `${width}%`,
