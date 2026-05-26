@@ -39,4 +39,6 @@ jobs:
           BBOX_MAX_LON: "9.85"
           GRID_LAT: "12"
           GRID_LON: "20"
+          # phaseA (Symbolprognose) läuft nur 4× täglich via openmeteo-symbol.yml
+          SKIP_PHASEA: "1"
         run: python -u scripts/ingest_openmeteo.py
