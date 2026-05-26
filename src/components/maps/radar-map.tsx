@@ -200,13 +200,9 @@ function InvalidateOnResize() {
 function PrecipOverlay({
   payload,
   frame,
-  nextFrame,
-  progress,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
