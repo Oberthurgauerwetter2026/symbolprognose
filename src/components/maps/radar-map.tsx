@@ -272,6 +272,10 @@ function PrecipOverlay({
     const nLon = gridLon.length;
     const vals = frame.values;
     const snowVals = frame.snowValues;
+    const nextVals = nextFrame?.values;
+    const nextSnowVals = nextFrame?.snowValues;
+    const t = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
+    const lerp = (a: number, b: number) => a + (b - a) * t;
 
     // Vollen Viewport zeichnen — Werte ausserhalb des Grids auf Rand klampfen,
     // damit auch die Karten-Ränder eingefärbt werden.
