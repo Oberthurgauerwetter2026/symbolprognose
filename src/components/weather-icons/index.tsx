@@ -143,15 +143,16 @@ function Cloud({
 }
 
 function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: number; tilt?: number }) {
-  // Real teardrop: pointed top, round bottom. Drawn ~6 wide × 11 tall at size=1.
+  // Schlanker Tropfen: pointed top, round bottom. ~4.4 breit × 9.5 hoch bei size=1.
   return (
     <path
       transform={`translate(${x} ${y}) rotate(${tilt}) scale(${size})`}
-      d="M 0 -6 C 3.2 -2 4.2 1.2 4.2 3.2 C 4.2 5.9 2.1 7.6 0 7.6 C -2.1 7.6 -4.2 5.9 -4.2 3.2 C -4.2 1.2 -3.2 -2 0 -6 Z"
+      d="M 0 -5 C 2.2 -1.6 3 1 3 2.7 C 3 5 1.5 6.5 0 6.5 C -1.5 6.5 -3 5 -3 2.7 C -3 1 -2.2 -1.6 0 -5 Z"
       fill={C.rain}
       stroke={C.rainEdge}
-      strokeWidth="0.9"
+      strokeWidth="0.5"
       strokeLinejoin="round"
+      opacity="0.85"
     />
   );
 }
