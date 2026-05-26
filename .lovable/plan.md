@@ -1,25 +1,41 @@
-Open-Meteo Ingest gegen 429 (Minutenlimit) härten. Keine Logik-/Datenänderung, nur Pacing & Backoff.
+Die Radar-Farbskalen für Regen und Schnee in `src/components/maps/radar-map.tsx` werden 1:1 an die MeteoSchweiz-Legende aus den Screenshots angepasst.
 
-## Änderungen in `scripts/ingest_openmeteo.py`
+## Neue Regen-Skala (`SCALE`, Zeile 58–73)
 
-**1. Backoffs für 429 auf volle Minuten anheben** (`fetch`, Zeile ~78)
-- Aktuell: `[3, 10, 30, 60, 120]` Sekunden
-- Neu: bei `429` direkt **65 s** warten (Minutenfenster + Puffer), bei sonstigen Fehlern weiterhin progressiv. Konkret: zwei Backoff-Listen führen — `BACKOFF_429 = [65, 65, 70, 90, 120]`, `BACKOFF_OTHER = [3, 10, 30, 60, 120]` — und in `fetch` je nach `last_err`-Typ wählen.
+Bins entsprechen jetzt exakt den Klassen aus dem Screenshot. Schwellwert = Untergrenze der Klasse:
 
-**2. Inter-Batch-Pause erhöhen** (`chunk_fetch`, Zeile 135)
-- Aktuell: `time.sleep(0.5)` zwischen Batches
-- Neu: konfigurierbar via Env `BATCH_SLEEP_S` (Default `6.0`). 10 Batches × 6 s = ~60 s Spread → bleibt sicher unter dem Minutenlimit.
+| mm/h ab | Farbe (rgb) | Hex |
+|---|---|---|
+| 0.2 | 185, 170, 185 | `#b9aab9` (gräuliches Lila) |
+| 1   | 30, 60, 230   | `#1e3ce6` (Blau) |
+| 2   | 30, 120, 50   | `#1e7832` (Dunkelgrün) |
+| 4   | 70, 200, 70   | `#46c846` (Hellgrün) |
+| 6   | 240, 235, 50  | `#f0eb32` (Gelb) |
+| 10  | 240, 200, 120 | `#f0c878` (Sand/Hellorange) |
+| 20  | 240, 140, 30  | `#f08c1e` (Orange) |
+| 40  | 225, 30, 30   | `#e11e1e` (Rot) |
+| 60  | 150, 30, 200  | `#961ec8` (Magenta) |
 
-**3. Optional: Chunk-Größe etwas senken**
-- `CHUNK_PHASEA` Default von `25` auf `20` setzen (mehr, dafür kleinere Requests sind freundlicher zum Upstream).
+`colorFor` bleibt strukturell gleich (volle Deckkraft).
+
+## Neue Schnee-Skala (`SNOW_SCALE`, Zeile 89–100)
+
+Nur zwei Klassen entsprechend Screenshot „leicht / stark":
+
+| mm/h ab | Farbe (rgb) | Hex |
+|---|---|---|
+| 0.1 | 205, 195, 230 | `#cdc3e6` (leicht, helles Lila) |
+| 2   | 150, 60, 200  | `#963cc8` (stark, kräftiges Lila) |
+
+`snowColorFor` bleibt unverändert.
+
+## Legende (Zeile 854–876)
+
+- Regen-Legende zeigt automatisch die neuen Bins (kommt aus `SCALE`), Labels bleiben numerisch (mm/h-Untergrenze) — passt zur bestehenden Darstellung.
+- Schnee-Legende: zwei Swatches („leicht" / „stark") statt der bisherigen Verlaufsreihe, da nur noch zwei Klassen existieren. Kleine Text-Labels werden ergänzt.
 
 ## Nicht verändert
 
-- Phase1/PhaseC-Cache-Übernahme, R2-Upload, JSON-Schema, Fallback-Pfad bei komplettem PhaseA-Fail.
-- Workflow `.github/workflows/openmeteo-ingest.yml` bleibt unverändert (Werte überschreibbar via Env, falls später nötig).
-
-## Erwartetes Verhalten
-
-- Jeder Lauf: ~10 Batches × ~6 s = 60–90 s Gesamtdauer für PhaseA bei Idealfall.
-- Bei 429 wartet der Worker eine ganze Minute → Open-Meteo-Limit reset → nächster Versuch klappt fast immer beim ersten Retry, statt 4–5 Retries zu verbrennen.
-- Kein Action-Cancel mehr durch endlose Backoff-Eskalation.
+- Render-Logik (`snowFrac > 0.3 ? snowColorFor : colorFor`) bleibt gleich.
+- Datenquellen, Frames, Hagel-Overlay, MeteoSchweiz-PNG-Pfad: unverändert.
+- Keine Änderungen an Ingest-Skripten oder anderen Karten.
