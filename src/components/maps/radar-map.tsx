@@ -373,8 +373,6 @@ function Timeline({
   const span = Math.max(1, tMax - tMin);
   const now = Date.now();
   const nowPct = Math.max(0, Math.min(100, ((now - tMin) / span) * 100));
-  const ch1CutMs = now + 33 * 3600 * 1000;
-  const ch1Pct = Math.max(0, Math.min(100, ((ch1CutMs - tMin) / span) * 100));
 
   const pctForIdx = (i: number): number => {
     const t = times[i] ?? tMin;
