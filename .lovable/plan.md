@@ -1,44 +1,90 @@
 ## Ziel
 
-1. MeteoSchweiz-Messung (Vergangenheits-Radar) auf die **letzten 6 Stunden** beschränken.
-2. Prognose-Frames hart auf **volle Stunden-Buckets** filtern (robuster als die bisherige Minuten-Prüfung).
+ICON-CH1-Prognose wieder im nativen **15-min-Takt** ausliefern und mit **Cross-Fade-Interpolation** zwischen den Frames flüssig animieren (Optik wie SRF Meteo Radar).
 
 ## Änderungen
 
-### A. Past-Radar auf 6 h begrenzen — `src/lib/radar.functions.ts`
+### A. Stunden-Filter entfernen — `src/lib/radar.functions.ts`
 
-In der Vergangenheits-Schleife (Manifest aus R2) eine Untergrenze einführen:
-
-```ts
-const pastCutoff = now - 6 * 3600 * 1000;
-if (hasRealRadar) {
-  for (const mf of manifest!.frames) {
-    const tMs = Date.parse(mf.t);
-    if (tMs > now) continue;
-    if (tMs < pastCutoff) continue; // NEU
-    frames.push({ t: mf.t, source: "radar", values: [], precipUrl: mf.precipUrl, hailUrl: mf.hailUrl });
-  }
-}
-```
-
-### B. Prognose-Stundentakt robuster — `src/lib/radar.functions.ts`
-
-Bestehende Zeile
-
-```ts
-if (tMs > now && new Date(tMs).getUTCMinutes() !== 0) continue;
-```
-
-ersetzen durch einen exakten Stunden-Bucket-Vergleich:
+Die Zeile
 
 ```ts
 if (tMs > now && tMs % (3600 * 1000) !== 0) continue;
 ```
 
-Damit landen ausschließlich Frames mit `:00`-UTC-Zeitstempel in der Prognose, unabhängig vom genauen ISO-Format.
+aus der Phase-1-Schleife (`ref1.time`) ersatzlos löschen. Damit kommen wieder alle ICON-CH1 15-min-Frames bis `forecastCutoff` (+32 h) in die Payload. Past-Cutoff (-6 h MCH) und alles andere bleibt.
+
+### B. Cross-Fade reaktivieren — `src/components/maps/radar-map.tsx`
+
+**`PrecipOverlay`-Signatur:** wieder `nextFrame?: RadarFrame | null` und `progress?: number` annehmen.
+
+**Sampling-Loop:** im bilinearen Sample-Block
+
+```ts
+const vCur = sample(vals);
+const v = nextVals ? lerp(vCur, sample(nextVals), t) : vCur;
+let snowFrac = 0;
+if (snowVals) {
+  const svCur = sample(snowVals);
+  const sv = nextSnowVals ? lerp(svCur, sample(nextSnowVals), t) : svCur;
+  if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+}
+```
+
+mit `t = clamp(progress ?? 0, 0, 1)` und `lerp(a,b,t) = a + (b-a)*t`.
+
+Redraw-Effekt: Dependencies wieder `[frame, nextFrame, progress, payload]`.
+
+**Play-Loop in `RadarMap`:** Statt `setInterval` mit hartem `setIdx` wieder rAF-basiert:
+
+```ts
+const [progress, setProgress] = useState(0);
+
+useEffect(() => {
+  if (!playing || frames.length === 0) { setProgress(0); return; }
+  const FRAME_MS = 800 / speed;
+  let raf = 0, last = performance.now();
+  const tick = (now: number) => {
+    const dt = now - last; last = now;
+    setProgress((p) => {
+      const np = p + dt / FRAME_MS;
+      if (np >= 1) {
+        setIdx((cur) => {
+          if (cur === null) return 0;
+          const next = cur + 1;
+          return next >= frames.length ? 0 : next;
+        });
+        return np - 1;
+      }
+      return np;
+    });
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
+}, [playing, speed, frames.length]);
+```
+
+**`blendNext` im Body:** Nur zwischen zwei Canvas-Frames (kein `precipUrl`) crossfaden — MCH-PNG-Frames bleiben hartes Switching.
+
+```ts
+const currentFrame = idx !== null ? frames[idx] ?? null : null;
+const nextFrame =
+  idx !== null && playing && currentFrame && !currentFrame.precipUrl
+    ? frames[(idx + 1) % frames.length] ?? null
+    : null;
+const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
+```
+
+`<PrecipOverlay … nextFrame={blendNext} progress={progress} />` übergeben.
 
 ## Nicht angefasst
 
-- Slider-UI (Ticks, Labels, Snap-Logik, Keyboard) — die Hourly-Logik existiert dort bereits und greift, sobald das Backend nur noch Stunden-Frames liefert.
-- Wetterkarte Region, See-Styling, Hagel-Layer, Farbskalen, Filter, Ingest-Skripte, BBox, Cache-TTL.
-- Frontend-`useQuery`-Konfiguration (Cache regeneriert sich beim nächsten Lauf automatisch).
+- 6-h-Past-Cutoff (MCH-Messung) bleibt.
+- See vollflächig (`fillOpacity: 1`) bleibt.
+- Slider-UI: Stunden-Ticks/Labels bleiben — Snap zum nächstgelegenen Frame ist zeit-basiert und funktioniert weiterhin mit 15-min-Auflösung.
+- Hagel-Layer, BBox, Farbskalen, Filter, Edge-Fade, Ingest-Skripte, Region-Karte.
+
+## Hinweis
+
+Echtes Motion-Vector-Morphing (wie sehr aufwändige Radar-Viewer) ist nicht Teil dieses Plans. Lineare Pixel-Interpolation reicht im typischen Karten-Zoom für eine flüssige, SRF-ähnliche Anmutung.
