@@ -617,10 +617,10 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           <GeoJSON
             data={LAKE}
             style={() => ({
-              color: "#6bb6d6",
+              color: "#7ec8e3",
               weight: 0.6,
               fillColor: "#7ec8e3",
-              fillOpacity: 1,
+              fillOpacity: 0.35,
             })}
             interactive={false}
           />
