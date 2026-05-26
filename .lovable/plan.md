@@ -1,90 +1,43 @@
 ## Ziel
 
-ICON-CH1-Prognose wieder im nativen **15-min-Takt** ausliefern und mit **Cross-Fade-Interpolation** zwischen den Frames flüssig animieren (Optik wie SRF Meteo Radar).
+Niederschlag (und Schnee) der ICON-CH1-Prognose so aufbereiten, dass jeder 15-min-Slot einen eigenen, linear interpolierten Wert zwischen den umgebenden Stunden-Ankerpunkten enthält. Damit verschiebt sich die Ns-Signatur beim Sliden **und** beim Play in echten 15-min-Schritten — statt 4× identisch und dann harter Stunden-Sprung.
 
-## Änderungen
+## Änderung — `src/lib/radar.functions.ts`
 
-### A. Stunden-Filter entfernen — `src/lib/radar.functions.ts`
+In der Phase-1-Verarbeitung (`ref1.time` + `r1[pi].minutely_15`) **bevor** die Frames in `frames` gepusht werden, je Grid-Punkt eine Smoothing-Stufe einbauen:
 
-Die Zeile
+1. Pro Grid-Punkt die Rohwerte aus `minutely_15.precipitation` (mm/15min × 4 → mm/h) und `minutely_15.snowfall` einlesen wie bisher.
+2. Aus diesen ein Array von **Stunden-Ankern** ableiten: der Wert am `:00`-Slot (bzw. der erste Slot innerhalb jeder Stunde) zählt als Ankerwert für diese Stunde.
+3. Für jeden 15-min-Slot `i` zwischen zwei Ankern (Stunde `H` und `H+1`) den Wert linear interpolieren:
+   - Slot `:00` → 1.0 × Anker(H) + 0.0 × Anker(H+1)
+   - Slot `:15` → 0.75 × Anker(H) + 0.25 × Anker(H+1)
+   - Slot `:30` → 0.50 × Anker(H) + 0.50 × Anker(H+1)
+   - Slot `:45` → 0.25 × Anker(H) + 0.75 × Anker(H+1)
+4. Für den letzten Stundenblock (kein nachfolgender Anker mehr) fällt die Interpolation auf den letzten Anker zurück (= konstanter Wert).
 
-```ts
-if (tMs > now && tMs % (3600 * 1000) !== 0) continue;
-```
+Die Interpolation läuft komplett auf Frame-Ebene **nach** dem aktuellen `values[pi] = v*4`-Schritt und ersetzt nur die Forecast-Frames (`tMs > now`); Vergangenheits-Frames bleiben unangetastet.
 
-aus der Phase-1-Schleife (`ref1.time`) ersatzlos löschen. Damit kommen wieder alle ICON-CH1 15-min-Frames bis `forecastCutoff` (+32 h) in die Payload. Past-Cutoff (-6 h MCH) und alles andere bleibt.
-
-### B. Cross-Fade reaktivieren — `src/components/maps/radar-map.tsx`
-
-**`PrecipOverlay`-Signatur:** wieder `nextFrame?: RadarFrame | null` und `progress?: number` annehmen.
-
-**Sampling-Loop:** im bilinearen Sample-Block
-
-```ts
-const vCur = sample(vals);
-const v = nextVals ? lerp(vCur, sample(nextVals), t) : vCur;
-let snowFrac = 0;
-if (snowVals) {
-  const svCur = sample(snowVals);
-  const sv = nextSnowVals ? lerp(svCur, sample(nextSnowVals), t) : svCur;
-  if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
-}
-```
-
-mit `t = clamp(progress ?? 0, 0, 1)` und `lerp(a,b,t) = a + (b-a)*t`.
-
-Redraw-Effekt: Dependencies wieder `[frame, nextFrame, progress, payload]`.
-
-**Play-Loop in `RadarMap`:** Statt `setInterval` mit hartem `setIdx` wieder rAF-basiert:
+### Implementierungsskizze
 
 ```ts
-const [progress, setProgress] = useState(0);
-
-useEffect(() => {
-  if (!playing || frames.length === 0) { setProgress(0); return; }
-  const FRAME_MS = 800 / speed;
-  let raf = 0, last = performance.now();
-  const tick = (now: number) => {
-    const dt = now - last; last = now;
-    setProgress((p) => {
-      const np = p + dt / FRAME_MS;
-      if (np >= 1) {
-        setIdx((cur) => {
-          if (cur === null) return 0;
-          const next = cur + 1;
-          return next >= frames.length ? 0 : next;
-        });
-        return np - 1;
-      }
-      return np;
-    });
-    raf = requestAnimationFrame(tick);
-  };
-  raf = requestAnimationFrame(tick);
-  return () => cancelAnimationFrame(raf);
-}, [playing, speed, frames.length]);
+// Schritt 1: pro Grid-Punkt ein chronologisches Forecast-Array bauen.
+// Schritt 2: Anker-Indizes finden (jeder 4. Slot beginnend beim ersten :00).
+// Schritt 3: zwischen aufeinanderfolgenden Ankern linear interpolieren.
+// Schritt 4: die interpolierten Werte zurück in die jeweiligen frame.values[pi] schreiben.
 ```
 
-**`blendNext` im Body:** Nur zwischen zwei Canvas-Frames (kein `precipUrl`) crossfaden — MCH-PNG-Frames bleiben hartes Switching.
+Da die Schleife heute über `ti` (Zeit-Index) außen und `pi` (Grid-Punkt) innen läuft, lege ich erst alle Frames an wie bisher, sammle anschließend pro `pi` die Forecast-Werte in einem Sub-Array, interpoliere, und schreibe zurück. Dasselbe für `snowValues`, sofern vorhanden.
 
-```ts
-const currentFrame = idx !== null ? frames[idx] ?? null : null;
-const nextFrame =
-  idx !== null && playing && currentFrame && !currentFrame.precipUrl
-    ? frames[(idx + 1) % frames.length] ?? null
-    : null;
-const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
-```
+## Animationspfad unverändert
 
-`<PrecipOverlay … nextFrame={blendNext} progress={progress} />` übergeben.
+Die bestehende Cross-Fade-Logik im Frontend bleibt — sie überblendet jetzt zwischen 15-min-Frames, die echte Zwischenwerte tragen. Dadurch wirkt die Animation doppelt geglättet (zeitlich interpoliert + visuell überblendet).
 
 ## Nicht angefasst
 
-- 6-h-Past-Cutoff (MCH-Messung) bleibt.
-- See vollflächig (`fillOpacity: 1`) bleibt.
-- Slider-UI: Stunden-Ticks/Labels bleiben — Snap zum nächstgelegenen Frame ist zeit-basiert und funktioniert weiterhin mit 15-min-Auflösung.
-- Hagel-Layer, BBox, Farbskalen, Filter, Edge-Fade, Ingest-Skripte, Region-Karte.
+- Past-Cutoff −6 h, See-Styling, Slider-UI, Hagel-Layer, BBox, Farbskalen, Filter, Edge-Fade.
+- Frontend / `PrecipOverlay` / Play-Loop / `useQuery` / Ingest-Skripte.
+- Datenpfad für ICON-CH2 (kommt aktuell nicht zum Einsatz in den Frames, siehe `ref1`-Schleife only).
 
-## Hinweis
+## Hinweis zur Semantik
 
-Echtes Motion-Vector-Morphing (wie sehr aufwändige Radar-Viewer) ist nicht Teil dieses Plans. Lineare Pixel-Interpolation reicht im typischen Karten-Zoom für eine flüssige, SRF-ähnliche Anmutung.
+Die linear interpolierten Zwischenwerte sind eine **visuelle Glättung**, kein zusätzliches Modell-Signal — Open-Meteo liefert für ICON-CH1 precipitation effektiv stündliche Akkumulationen. Für eine Radar-Symbolprognose-UI ist die Annäherung übliche Praxis (vergleichbar mit dem Verhalten von SRF Meteo).
