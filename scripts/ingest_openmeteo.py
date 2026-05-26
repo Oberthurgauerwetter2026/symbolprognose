@@ -123,12 +123,23 @@ def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optio
         sub_label = f"{label} batch {bi + 1}/{n_batches} ({len(batch)} pts)"
         res = fetch(sub_label, params, optional=optional)
         if res is None:
-            # nur möglich wenn optional=True und alle Retries scheitern -> ganze Phase überspringen
             print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
             return None
         out.extend(res)
         print(f"  {sub_label} ok")
+        if bi + 1 < n_batches:
+            time.sleep(0.5)
     return out
+
+
+def read_existing_payload(s3, bucket: str, key: str) -> dict | None:
+    """Letzten R2-Cache lesen, um phase1 bei Open-Meteo-Ausfall wiederzuverwenden."""
+    try:
+        obj = s3.get_object(Bucket=bucket, Key=key)
+        return json.loads(obj["Body"].read())
+    except Exception as e:
+        print(f"WARN: could not read existing {key}: {e}")
+        return None
 
 
 
