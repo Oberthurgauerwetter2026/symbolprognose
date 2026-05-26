@@ -56,20 +56,20 @@ function cityIcon(name: string): L.DivIcon {
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [200, 220, 245] },
-  { mmh: 0.4, rgb: [160, 200, 240] },
-  { mmh: 0.7, rgb: [120, 180, 235] },
-  { mmh: 1.3, rgb: [80, 160, 220] },
-  { mmh: 2, rgb: [60, 200, 140] },
-  { mmh: 3.5, rgb: [60, 200, 60] },
-  { mmh: 6, rgb: [220, 220, 60] },
-  { mmh: 10, rgb: [240, 180, 40] },
-  { mmh: 20, rgb: [240, 120, 40] },
-  { mmh: 30, rgb: [235, 60, 60] },
-  { mmh: 50, rgb: [200, 30, 90] },
-  { mmh: 80, rgb: [170, 20, 130] },
-  { mmh: 130, rgb: [140, 20, 180] },
-  { mmh: 200, rgb: [120, 80, 220] },
+  { mmh: 0.1, rgb: [170, 205, 240] },
+  { mmh: 0.4, rgb: [130, 185, 235] },
+  { mmh: 0.7, rgb: [90, 165, 225] },
+  { mmh: 1.3, rgb: [50, 140, 210] },
+  { mmh: 2, rgb: [40, 195, 130] },
+  { mmh: 3.5, rgb: [40, 195, 40] },
+  { mmh: 6, rgb: [220, 220, 50] },
+  { mmh: 10, rgb: [240, 175, 30] },
+  { mmh: 20, rgb: [240, 115, 30] },
+  { mmh: 30, rgb: [235, 50, 50] },
+  { mmh: 50, rgb: [200, 25, 85] },
+  { mmh: 80, rgb: [170, 15, 125] },
+  { mmh: 130, rgb: [140, 15, 175] },
+  { mmh: 200, rgb: [120, 75, 215] },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -77,7 +77,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      const a = Math.min(0.9, 0.55 + (i / SCALE.length) * 0.35);
+      const a = Math.min(0.95, 0.7 + (i / SCALE.length) * 0.25);
       return [r, g, b, a];
     }
   }
@@ -184,7 +184,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         cv.style.position = "absolute";
         cv.style.pointerEvents = "none";
         cv.style.willChange = "transform";
-        cv.style.opacity = "0.7";
+        cv.style.opacity = "0.9";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -251,7 +251,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
     const w = maxX - minX;
     const h = maxY - minY;
     // Step in CSS-Pixeln; gröberes Raster = schneller, immer noch glatt durch bilinear.
-    const STEP = 3;
+    const STEP = 2;
     const img = ctx.createImageData(w * dpr, h * dpr);
     const data = img.data;
 
@@ -685,36 +685,19 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             opacity={0.55}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz'
           />
-          {data &&
-            currentFrame &&
-            (currentFrame.precipUrl ? (
-              <ImageOverlay
-                key={`precip-${currentFrame.t}`}
-                url={currentFrame.precipUrl}
-                bounds={[
-                  [data.imageBbox.minLat, data.imageBbox.minLon],
-                  [data.imageBbox.maxLat, data.imageBbox.maxLon],
-                ]}
-                opacity={0.75}
-              />
-            ) : (
-              <PrecipOverlay payload={data} frame={currentFrame} />
-            ))}
-          {data && currentFrame && showHail && currentFrame.hailUrl && (
-            <ImageOverlay
-              key={`hail-${currentFrame.t}`}
-              url={currentFrame.hailUrl}
-              bounds={[
-                [data.imageBbox.minLat, data.imageBbox.minLon],
-                [data.imageBbox.maxLat, data.imageBbox.maxLon],
-              ]}
-              opacity={0.7}
-            />
-          )}
-
           <GeoJSON
             data={OUTSIDE_CH_MASK}
-            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
+            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.15 })}
+            interactive={false}
+          />
+          <GeoJSON
+            data={OUTSIDE_MASK}
+            style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.05 })}
+            interactive={false}
+          />
+          <GeoJSON
+            data={LAKE}
+            style={() => ({ color: "#6bb6d6", weight: 0.8, fill: false })}
             interactive={false}
           />
           <GeoJSON
@@ -727,16 +710,32 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
             interactive={false}
           />
-          <GeoJSON
-            data={OUTSIDE_MASK}
-            style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
-            interactive={false}
-          />
-          <GeoJSON
-            data={LAKE}
-            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 1 })}
-            interactive={false}
-          />
+          {data &&
+            currentFrame &&
+            (currentFrame.precipUrl ? (
+              <ImageOverlay
+                key={`precip-${currentFrame.t}`}
+                url={currentFrame.precipUrl}
+                bounds={[
+                  [data.imageBbox.minLat, data.imageBbox.minLon],
+                  [data.imageBbox.maxLat, data.imageBbox.maxLon],
+                ]}
+                opacity={0.9}
+              />
+            ) : (
+              <PrecipOverlay payload={data} frame={currentFrame} />
+            ))}
+          {data && currentFrame && showHail && currentFrame.hailUrl && (
+            <ImageOverlay
+              key={`hail-${currentFrame.t}`}
+              url={currentFrame.hailUrl}
+              bounds={[
+                [data.imageBbox.minLat, data.imageBbox.minLon],
+                [data.imageBbox.maxLat, data.imageBbox.maxLon],
+              ]}
+              opacity={0.85}
+            />
+          )}
           {RADAR_CITIES.map((c) => (
             <Marker
               key={c.name}
