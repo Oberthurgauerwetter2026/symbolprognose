@@ -24,9 +24,9 @@ import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache
 
 
 // Bounding-Box passend zur Region (auch im Python-Ingest verwendet).
-const BBOX = { minLat: 47.38, maxLat: 47.72, minLon: 9.0, maxLon: 9.62 } as const;
-const GRID_LON = 14;
-const GRID_LAT = 9;
+const BBOX = { minLat: 47.30, maxLat: 47.85, minLon: 8.85, maxLon: 9.85 } as const;
+const GRID_LON = 20;
+const GRID_LAT = 12;
 
 function buildGrid() {
   const lats: number[] = [];
