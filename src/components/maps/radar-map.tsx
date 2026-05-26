@@ -56,7 +56,7 @@ function cityIcon(name: string): L.DivIcon {
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz-Legende.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.2, rgb: [108, 133, 189] },
+  { mmh: 0.2, rgb: [167, 174, 211] },
   { mmh: 1, rgb: [30, 60, 230] },
   { mmh: 2, rgb: [30, 120, 50] },
   { mmh: 4, rgb: [70, 200, 70] },
@@ -72,7 +72,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      const a = 0.75;
+      const a = i === 0 ? 0.35 : 0.75;
       return [r, g, b, a];
     }
   }
