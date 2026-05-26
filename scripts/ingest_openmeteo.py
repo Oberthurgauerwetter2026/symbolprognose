@@ -81,14 +81,18 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
         try:
             r = requests.get(API, params=params, timeout=120)
             if not r.ok:
-                # 4xx: nicht retrybar — sofort behandeln.
-                if 400 <= r.status_code < 500:
+                if r.status_code == 429:
+                    # Minutenlimit — retrybar mit Backoff.
+                    last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
+                elif 400 <= r.status_code < 500:
+                    # echte 4xx (400/401/404 …): nicht retrybar.
                     msg = f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}"
                     if optional:
                         print(f"WARN: {msg} — skipping (optional)")
                         return None
                     sys.exit(msg)
-                last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
+                else:
+                    last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
             else:
                 data = r.json()
                 return data if isinstance(data, list) else [data]
