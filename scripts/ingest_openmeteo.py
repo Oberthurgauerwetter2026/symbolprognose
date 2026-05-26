@@ -168,6 +168,9 @@ def main() -> None:
         "minutely_15": "precipitation,snowfall",
         "past_minutely_15": 48,
         "forecast_minutely_15": 132,
+        "hourly": "wind_speed_700hPa,wind_direction_700hPa,wind_speed_10m,wind_direction_10m",
+        "past_hours": 12,
+        "forecast_hours": 36,
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
