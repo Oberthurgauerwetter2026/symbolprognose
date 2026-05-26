@@ -309,7 +309,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
             snowVals[y1 * nLon + x1] * tx * ty;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
-        const [r, g, b, a] = snowFrac > 0.5 ? snowColorFor(v) : colorFor(v);
+        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
         if (a === 0) continue;
         const edgeDist = Math.min(fxRaw, nLon - 1 - fxRaw, fyRaw, nLat - 1 - fyRaw);
         const edgeFade =
