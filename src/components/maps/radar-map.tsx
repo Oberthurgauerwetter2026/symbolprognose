@@ -685,36 +685,19 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             opacity={0.55}
             attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz'
           />
-          {data &&
-            currentFrame &&
-            (currentFrame.precipUrl ? (
-              <ImageOverlay
-                key={`precip-${currentFrame.t}`}
-                url={currentFrame.precipUrl}
-                bounds={[
-                  [data.imageBbox.minLat, data.imageBbox.minLon],
-                  [data.imageBbox.maxLat, data.imageBbox.maxLon],
-                ]}
-                opacity={0.75}
-              />
-            ) : (
-              <PrecipOverlay payload={data} frame={currentFrame} />
-            ))}
-          {data && currentFrame && showHail && currentFrame.hailUrl && (
-            <ImageOverlay
-              key={`hail-${currentFrame.t}`}
-              url={currentFrame.hailUrl}
-              bounds={[
-                [data.imageBbox.minLat, data.imageBbox.minLon],
-                [data.imageBbox.maxLat, data.imageBbox.maxLon],
-              ]}
-              opacity={0.7}
-            />
-          )}
-
           <GeoJSON
             data={OUTSIDE_CH_MASK}
-            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
+            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.15 })}
+            interactive={false}
+          />
+          <GeoJSON
+            data={OUTSIDE_MASK}
+            style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.05 })}
+            interactive={false}
+          />
+          <GeoJSON
+            data={LAKE}
+            style={() => ({ color: "#6bb6d6", weight: 0.8, fill: false })}
             interactive={false}
           />
           <GeoJSON
@@ -727,16 +710,32 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
             interactive={false}
           />
-          <GeoJSON
-            data={OUTSIDE_MASK}
-            style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
-            interactive={false}
-          />
-          <GeoJSON
-            data={LAKE}
-            style={() => ({ color: "#6bb6d6", weight: 0.6, fillColor: "#7ec8e3", fillOpacity: 1 })}
-            interactive={false}
-          />
+          {data &&
+            currentFrame &&
+            (currentFrame.precipUrl ? (
+              <ImageOverlay
+                key={`precip-${currentFrame.t}`}
+                url={currentFrame.precipUrl}
+                bounds={[
+                  [data.imageBbox.minLat, data.imageBbox.minLon],
+                  [data.imageBbox.maxLat, data.imageBbox.maxLon],
+                ]}
+                opacity={0.9}
+              />
+            ) : (
+              <PrecipOverlay payload={data} frame={currentFrame} />
+            ))}
+          {data && currentFrame && showHail && currentFrame.hailUrl && (
+            <ImageOverlay
+              key={`hail-${currentFrame.t}`}
+              url={currentFrame.hailUrl}
+              bounds={[
+                [data.imageBbox.minLat, data.imageBbox.minLon],
+                [data.imageBbox.maxLat, data.imageBbox.maxLon],
+              ]}
+              opacity={0.85}
+            />
+          )}
           {RADAR_CITIES.map((c) => (
             <Marker
               key={c.name}
