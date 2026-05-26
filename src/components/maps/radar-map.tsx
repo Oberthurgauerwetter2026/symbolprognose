@@ -200,9 +200,13 @@ function InvalidateOnResize() {
 function PrecipOverlay({
   payload,
   frame,
+  nextFrame,
+  progress,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
+  nextFrame?: RadarFrame | null;
+  progress?: number;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -269,9 +273,10 @@ function PrecipOverlay({
     const nLon = gridLon.length;
     const vals = frame.values;
     const snowVals = frame.snowValues;
-
-    // Vollen Viewport zeichnen — Werte ausserhalb des Grids auf Rand klampfen,
-    // damit auch die Karten-Ränder eingefärbt werden.
+    const nextVals = nextFrame?.values;
+    const nextSnowVals = nextFrame?.snowValues;
+    const t = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
+    const lerp = (a: number, b: number) => a + (b - a) * t;
     const minX = 0;
     const maxX = size.x;
     const minY = 0;
@@ -311,10 +316,12 @@ function PrecipOverlay({
           arr[i01] * tx * (1 - ty) +
           arr[i10] * (1 - tx) * ty +
           arr[i11] * tx * ty;
-        const v = sample(vals);
+        const vCur = sample(vals);
+        const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
         let snowFrac = 0;
         if (snowVals) {
-          const sv = sample(snowVals);
+          const svCur = sample(snowVals);
+          const sv = nextSnowVals ? lerp(svCur, sample(nextSnowVals)) : svCur;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
         const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
@@ -346,7 +353,7 @@ function PrecipOverlay({
   // Bei Frame-/Progress-Wechsel neu zeichnen.
   useEffect(() => {
     redrawRef.current();
-  }, [frame, payload]);
+  }, [frame, nextFrame, progress, payload]);
 
   return null;
 }
@@ -673,8 +680,9 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1); // 1× ≈ 800ms pro Frame
+  const [speed, setSpeed] = useState(1); // 1× ≈ 800ms pro 15-min-Frame
   const [showHail, setShowHail] = useState(true);
+  const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
 
   // Auf "jetzt" springen sobald Daten da sind.
@@ -682,20 +690,43 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
 
-  // Play-Loop: setInterval, harter Frame-Wechsel.
+  // Play-Loop mit Cross-Fade: rAF-getrieben, idx steigt erst wenn progress > 1.
   useEffect(() => {
-    if (!playing || frames.length === 0) return;
-    const id = setInterval(() => {
-      setIdx((cur) => {
-        if (cur === null) return 0;
-        const next = cur + 1;
-        return next >= frames.length ? 0 : next;
+    if (!playing || frames.length === 0) {
+      setProgress(0);
+      return;
+    }
+    const FRAME_MS = 800 / speed;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
+      setProgress((p) => {
+        const np = p + dt / FRAME_MS;
+        if (np >= 1) {
+          setIdx((cur) => {
+            if (cur === null) return 0;
+            const next = cur + 1;
+            return next >= frames.length ? 0 : next;
+          });
+          return np - 1;
+        }
+        return np;
       });
-    }, 800 / speed);
-    return () => clearInterval(id);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [playing, speed, frames.length]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
+  const nextFrame =
+    idx !== null && playing && currentFrame && !currentFrame.precipUrl
+      ? frames[(idx + 1) % frames.length] ?? null
+      : null;
+  // Nur zwischen gleichartigen Canvas-Frames cross-faden (nicht zwischen PNG-Frames).
+  const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   return (
@@ -772,6 +803,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               <PrecipOverlay
                 payload={data}
                 frame={currentFrame}
+                nextFrame={blendNext}
+                progress={progress}
               />
             ))}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
