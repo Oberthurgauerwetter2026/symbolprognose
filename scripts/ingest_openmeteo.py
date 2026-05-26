@@ -109,17 +109,37 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
 
 
 
+
+def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optional: bool = False) -> list | None:
+    """Open-Meteo Bulk-Requests in Batches, um 502 vom Upstream-nginx zu vermeiden."""
+    out: list = []
+    total = len(pts)
+    n_batches = (total + chunk_size - 1) // chunk_size
+    for bi in range(n_batches):
+        batch = pts[bi * chunk_size : (bi + 1) * chunk_size]
+        params = dict(base_params)
+        params["latitude"] = ",".join(f"{p[0]:.4f}" for p in batch)
+        params["longitude"] = ",".join(f"{p[1]:.4f}" for p in batch)
+        sub_label = f"{label} batch {bi + 1}/{n_batches} ({len(batch)} pts)"
+        res = fetch(sub_label, params, optional=optional)
+        if res is None:
+            # nur möglich wenn optional=True und alle Retries scheitern -> ganze Phase überspringen
+            print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
+            return None
+        out.extend(res)
+        print(f"  {sub_label} ok")
+    return out
+
+
+
+
 def main() -> None:
     print(f"OPENMETEO INGEST START version={VERSION}")
     pts = build_grid()
-    lat_str = ",".join(f"{p[0]:.4f}" for p in pts)
-    lon_str = ",".join(f"{p[1]:.4f}" for p in pts)
     print(f"grid points: {len(pts)}")
 
     # phase1: ICON-CH1 minutely_15 (-12h … +33h) — Radar/Nowcast
     p1 = {
-        "latitude": lat_str,
-        "longitude": lon_str,
         "minutely_15": "precipitation",
         "past_minutely_15": 48,
         "forecast_minutely_15": 132,
@@ -129,8 +149,6 @@ def main() -> None:
     # phase2 entfernt — Worker nutzt nur ICON-CH1 (+32 h).
     # phaseA: Multi-Modell hourly+daily 7 d — Symbolprognose Hot-Path
     pa = {
-        "latitude": lat_str,
-        "longitude": lon_str,
         "hourly": ",".join([
             "temperature_2m",
             "relative_humidity_2m",
@@ -165,8 +183,6 @@ def main() -> None:
     }
     # phaseC: Bias-Lookback (-7 d … +1 d) best_match
     pc = {
-        "latitude": lat_str,
-        "longitude": lon_str,
         "hourly": "temperature_2m,wind_speed_10m,precipitation",
         "past_days": 7,
         "forecast_days": 1,
@@ -174,15 +190,21 @@ def main() -> None:
         "models": "best_match",
     }
 
-    print("fetch phase1 (ICON-CH1 minutely_15) …")
-    phase1 = fetch("phase1", p1)
+    # Chunk-Grössen — kleiner = weniger 502, mehr Requests
+    chunk_p1 = envi("CHUNK_PHASE1", 60)
+    chunk_pa = envi("CHUNK_PHASEA", 40)
+    chunk_pc = envi("CHUNK_PHASEC", 80)
+
+    print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
+    phase1 = chunk_fetch("phase1", p1, pts, chunk_p1)
     print(f"  -> {len(phase1)} locations")
-    print("fetch phaseA (multi-model 7d) …")
-    phaseA = fetch("phaseA", pa)
+    print(f"fetch phaseA (multi-model 7d) in chunks of {chunk_pa} …")
+    phaseA = chunk_fetch("phaseA", pa, pts, chunk_pa)
     print(f"  -> {len(phaseA)} locations")
-    print("fetch phaseC (bias lookback, optional) …")
-    phaseC = fetch("phaseC", pc, optional=True)
+    print(f"fetch phaseC (bias lookback, optional) in chunks of {chunk_pc} …")
+    phaseC = chunk_fetch("phaseC", pc, pts, chunk_pc, optional=True)
     print(f"  -> {len(phaseC) if phaseC is not None else 'skipped'} locations")
+
 
     payload = {
         "version": VERSION,
