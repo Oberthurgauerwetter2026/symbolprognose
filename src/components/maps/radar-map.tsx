@@ -192,17 +192,6 @@ function InvalidateOnResize() {
   return null;
 }
 
-function LakePane() {
-  const map = useMap();
-  useEffect(() => {
-    if (!map.getPane("lake")) {
-      const p = map.createPane("lake");
-      p.style.zIndex = "350"; // unter overlayPane (400) → Ns liegt darüber
-      p.style.pointerEvents = "none";
-    }
-  }, [map]);
-  return null;
-}
 
 /**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
