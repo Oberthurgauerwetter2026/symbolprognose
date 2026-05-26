@@ -1,0 +1,44 @@
+name: Open-Meteo Symbolprognose (phaseA)
+
+on:
+  schedule:
+    # 4× täglich, ~2 h nach den Modell-Läufen 00/06/12/18 UTC
+    - cron: "0 2,8,14,20 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: openmeteo-symbol
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install boto3 requests
+
+      - name: Run phaseA ingest
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          BBOX_MIN_LAT: "47.30"
+          BBOX_MAX_LAT: "47.85"
+          BBOX_MIN_LON: "8.85"
+          BBOX_MAX_LON: "9.85"
+          GRID_LAT: "12"
+          GRID_LON: "20"
+          ONLY_PHASEA: "1"
+        run: python -u scripts/ingest_openmeteo.py
