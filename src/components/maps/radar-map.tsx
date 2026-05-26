@@ -773,8 +773,6 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               <PrecipOverlay
                 payload={data}
                 frame={currentFrame}
-                nextFrame={blendNext}
-                progress={progress}
               />
             ))}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
