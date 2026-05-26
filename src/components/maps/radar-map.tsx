@@ -185,7 +185,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
         cv.style.pointerEvents = "none";
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
-        cv.style.filter = "blur(6px) saturate(1.15) contrast(1.05)";
+        cv.style.filter = "blur(3px) saturate(1.4) contrast(1.2)";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
