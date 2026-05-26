@@ -169,19 +169,27 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   // ---- Phase 1 (Open-Meteo): Fallback-Past + ICON-CH1-Future (bis +32h) ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
   if (ref1 && r1) {
+    const hasSnow = Array.isArray((r1[0] as LocResponse | undefined)?.minutely_15?.snowfall);
     for (let ti = 0; ti < ref1.time.length; ti++) {
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
       if (tMs <= now && hasRealRadar) continue;
       if (tMs > forecastCutoff) continue;
       const values: number[] = new Array(pts.length);
+      const snowValues: number[] | undefined = hasSnow ? new Array(pts.length) : undefined;
       for (let pi = 0; pi < pts.length; pi++) {
         const loc = r1[pi] as LocResponse | undefined;
         const v = loc?.minutely_15?.precipitation?.[ti];
         values[pi] = typeof v === "number" ? v * 4 : 0;
+        if (snowValues) {
+          // Open-Meteo snowfall ist cm/15min; *10 → mm Schneetiefe, *(1mm Wasser/10mm Schnee) = 1
+          // Also: snowfall_cm * 4 → mm Wasser-Äquivalent/h (Faustregel 1cm Schnee ≈ 1mm Wasser).
+          const s = loc?.minutely_15?.snowfall?.[ti];
+          snowValues[pi] = typeof s === "number" ? s * 4 : 0;
+        }
       }
       const source: RadarFrame["source"] = tMs <= now ? "radar" : "icon-ch1";
-      frames.push({ t: tIso, source, values });
+      frames.push({ t: tIso, source, values, snowValues });
     }
   }
 
