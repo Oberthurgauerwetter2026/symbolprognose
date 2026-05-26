@@ -235,17 +235,12 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
     const nLon = gridLon.length;
     const vals = frame.values;
 
-    // Pixel-Bounds des Grids berechnen (Eckpunkte projizieren).
-    const corners = [
-      map.latLngToContainerPoint([gridLat[0], gridLon[0]]),
-      map.latLngToContainerPoint([gridLat[0], gridLon[nLon - 1]]),
-      map.latLngToContainerPoint([gridLat[nLat - 1], gridLon[0]]),
-      map.latLngToContainerPoint([gridLat[nLat - 1], gridLon[nLon - 1]]),
-    ];
-    const minX = Math.max(0, Math.floor(Math.min(...corners.map((c) => c.x))));
-    const maxX = Math.min(size.x, Math.ceil(Math.max(...corners.map((c) => c.x))));
-    const minY = Math.max(0, Math.floor(Math.min(...corners.map((c) => c.y))));
-    const maxY = Math.min(size.y, Math.ceil(Math.max(...corners.map((c) => c.y))));
+    // Vollen Viewport zeichnen — Werte ausserhalb des Grids auf Rand klampfen,
+    // damit auch die Karten-Ränder eingefärbt werden.
+    const minX = 0;
+    const maxX = size.x;
+    const minY = 0;
+    const maxY = size.y;
     if (maxX <= minX || maxY <= minY) return;
 
     const w = maxX - minX;
@@ -255,13 +250,16 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
     const img = ctx.createImageData(w * dpr, h * dpr);
     const data = img.data;
 
+    const clamp = (n: number, lo: number, hi: number) => (n < lo ? lo : n > hi ? hi : n);
+
     for (let py = 0; py < h; py += STEP) {
       for (let px = 0; px < w; px += STEP) {
         const ll = map.containerPointToLatLng([minX + px, minY + py]);
-        // Grid-Indizes (fractional).
-        const fx = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
-        const fy = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-        if (fx < 0 || fy < 0 || fx > nLon - 1 || fy > nLat - 1) continue;
+        // Grid-Indizes (fractional) mit Clamp auf Grid-Rand → Nearest-Edge-Extrapolation.
+        const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+        const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+        const fx = clamp(fxRaw, 0, nLon - 1);
+        const fy = clamp(fyRaw, 0, nLat - 1);
         const x0 = Math.floor(fx);
         const y0 = Math.floor(fy);
         const x1 = Math.min(nLon - 1, x0 + 1);
