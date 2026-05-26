@@ -143,11 +143,11 @@ const regionBounds: L.LatLngBoundsExpression = [
   [47.6392538, 9.4773698],
 ];
 
-// Etwas weiter als die strenge Region-Bbox, damit der leicht herausgezoomte
-// Standardausschnitt nicht direkt am Rand kollidiert.
+// Etwas grösser als die Daten-Bbox (47.30–47.85 / 8.85–9.85), damit der
+// Standardausschnitt knapp drüber liegt.
 const maxBoundsExt: L.LatLngBoundsExpression = [
-  [47.32, 8.95],
-  [47.79, 9.70],
+  [47.25, 8.78],
+  [47.90, 9.92],
 ];
 
 function InvalidateOnResize() {
