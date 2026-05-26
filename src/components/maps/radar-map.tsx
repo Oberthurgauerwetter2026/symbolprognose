@@ -251,7 +251,7 @@ function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: Radar
     const w = maxX - minX;
     const h = maxY - minY;
     // Step in CSS-Pixeln; gröberes Raster = schneller, immer noch glatt durch bilinear.
-    const STEP = 3;
+    const STEP = 2;
     const img = ctx.createImageData(w * dpr, h * dpr);
     const data = img.data;
 
