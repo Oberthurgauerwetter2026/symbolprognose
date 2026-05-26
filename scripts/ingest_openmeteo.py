@@ -210,26 +210,30 @@ def main() -> None:
     s3 = make_s3()
     bucket = env("R2_BUCKET")
 
+    # phase1 = Radar-Nowcast = kritisch → pflicht, kein Fallback.
     print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
-    phase1 = chunk_fetch("phase1", p1, pts, chunk_p1, optional=True)
-    if phase1 is None:
-        print("phase1 failed — versuche Fallback auf bestehenden R2-Cache …")
-        prev = read_existing_payload(s3, bucket, key)
-        if prev and isinstance(prev.get("phase1"), list) and prev["phase1"]:
-            phase1 = prev["phase1"]
-            print(f"  -> Fallback ok: {len(phase1)} locations aus bestehendem Cache")
-        else:
-            phase1 = []
-            print("  -> kein Fallback verfügbar, phase1 bleibt leer")
-    else:
-        print(f"  -> {len(phase1)} locations")
+    phase1 = chunk_fetch("phase1", p1, pts, chunk_p1)
+    print(f"  -> {len(phase1)} locations")
 
-    print(f"fetch phaseA (multi-model 7d) in chunks of {chunk_pa} …")
-    phaseA = chunk_fetch("phaseA", pa, pts, chunk_pa)
-    print(f"  -> {len(phaseA)} locations")
+    # phaseC = Bias-Lookback, klein & schnell, optional.
     print(f"fetch phaseC (bias lookback, optional) in chunks of {chunk_pc} …")
     phaseC = chunk_fetch("phaseC", pc, pts, chunk_pc, optional=True)
     print(f"  -> {len(phaseC) if phaseC is not None else 'skipped'} locations")
+
+    # phaseA = Symbolprognose = darf alt sein → optional + R2-Fallback.
+    print(f"fetch phaseA (multi-model 7d, optional) in chunks of {chunk_pa} …")
+    phaseA = chunk_fetch("phaseA", pa, pts, chunk_pa, optional=True)
+    if phaseA is None:
+        print("phaseA failed — versuche Fallback auf bestehenden R2-Cache …")
+        prev = read_existing_payload(s3, bucket, key)
+        if prev and isinstance(prev.get("phaseA"), list) and prev["phaseA"]:
+            phaseA = prev["phaseA"]
+            print(f"  -> Fallback ok: {len(phaseA)} locations aus bestehendem Cache")
+        else:
+            phaseA = []
+            print("  -> kein Fallback verfügbar, phaseA bleibt leer")
+    else:
+        print(f"  -> {len(phaseA)} locations")
 
 
     payload = {
