@@ -196,7 +196,17 @@ function InvalidateOnResize() {
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
-function PrecipOverlay({ payload, frame }: { payload: RadarPayload; frame: RadarFrame | null }) {
+function PrecipOverlay({
+  payload,
+  frame,
+  nextFrame,
+  progress,
+}: {
+  payload: RadarPayload;
+  frame: RadarFrame | null;
+  nextFrame?: RadarFrame | null;
+  progress?: number;
+}) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
