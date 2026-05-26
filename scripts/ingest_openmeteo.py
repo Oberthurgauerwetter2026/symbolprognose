@@ -105,6 +105,8 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     if optional:
         print(f"WARN: {msg} — skipping (optional)")
         return None
+    sys.exit(msg)
+
 
 
 
