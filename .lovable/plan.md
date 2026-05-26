@@ -1,43 +1,31 @@
-## Fix: 429 sauber behandeln in `scripts/ingest_openmeteo.py`
+## Ziel
 
-### Problem
-In `fetch()` führen alle 4xx (inkl. **429 Too Many Requests**) sofort zu `sys.exit()` — auch wenn `optional=True`. Damit:
-- greift der R2-Fallback für phaseA nicht, wenn Open-Meteo das Minutenlimit meldet
-- wird der GitHub-Job rot, obwohl 429 nach 60s wieder weg ist
+**Symbolprognose (phaseA)** nur noch **4× täglich** aktualisieren — um **02:00, 08:00, 14:00, 20:00 UTC** (je ~2 h nach den Modell-Läufen 00/06/12/18 UTC). Radar/Nowcast (phase1) und Bias-Lookback (phaseC) bleiben auf 5-Minuten-Takt.
 
-### Änderung in `fetch()` (Phase 1: Statuscode-Handling)
+Erwartete Open-Meteo-Last für phaseA: **~2'880 → ~40 Calls/Tag** (~98 % weniger).
 
-Sonderbehandlung für **429** vor dem generischen 4xx-Block:
+## Umsetzung
 
-```python
-if r.status_code == 429:
-    # Minutenlimit — retrybar, längeres Backoff
-    last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
-    # fällt durch in den retry-Block unten
-elif 400 <= r.status_code < 500:
-    # echte 4xx (400/401/404 …) bleiben hart
-    msg = f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}"
-    if optional:
-        print(f"WARN: {msg} — skipping (optional)")
-        return None
-    sys.exit(msg)
-else:
-    last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
-```
+### 1. `scripts/ingest_openmeteo.py` — zwei neue Modi
+- `SKIP_PHASEA=1`: phase1 + phaseC frisch holen, phaseA-Block unverändert aus bestehendem R2-`forecast.json` übernehmen.
+- `ONLY_PHASEA=1`: phaseA frisch holen, phase1 + phaseC unverändert aus bestehendem R2-`forecast.json` übernehmen.
+- Ohne Flag: heutiges Verhalten (alle drei frisch — manueller Notfall-Run).
 
-Backoffs für 429 etwas verlängern: aktuell `[3, 10, 30, 60, 120]` reicht — die 120s am Ende decken das Minutenlimit gut ab. Keine Änderung an der Backoff-Liste nötig.
+Implementierung: vor dem Schreiben von `forecast.json` den bestehenden Cache via `read_existing_payload()` laden (Funktion existiert bereits) und je nach Flag die fehlenden Phasen daraus übernehmen.
 
-### Was damit funktioniert
+### 2. `.github/workflows/openmeteo-ingest.yml` (bestehend, 5-Min-Takt)
+- Neue Env-Var `SKIP_PHASEA: "1"` ergänzen.
+- Cron bleibt `*/5 * * * *`.
 
-- **phase1 + 429**: retried 5× bis 120s — typischerweise reicht ein 60s/120s-Wait, um wieder durchzukommen. Erst wenn auch danach 429 kommt, wird der Job rot (korrekt: Radar-Cache ist dann veraltet).
-- **phaseA + 429**: retried 5×; bleibt es bei 429 → `optional=True` greift → Fallback auf `openmeteo/forecast.json` aus R2 (bereits implementiert).
-- **phaseC + 429**: identisch zu phaseA, optional, kein Fallback nötig.
+### 3. Neuer Workflow `.github/workflows/openmeteo-symbol.yml` (4× täglich)
+- Cron: `0 2,8,14,20 * * *` + `workflow_dispatch`.
+- Env-Var `ONLY_PHASEA: "1"`.
+- Sonst identischer Aufbau wie `openmeteo-ingest.yml` (Checkout, Python, R2-Secrets, dasselbe Skript).
 
-### Nicht geändert
-- `.github/workflows/openmeteo-ingest.yml`
-- Reihenfolge phase1 → phaseC → phaseA bleibt
-- Chunk-Grössen bleiben
-- Worker / Frontend bleiben
+### 4. Frontend / Worker
+Keine Änderung. `openmeteo/forecast.json` und das phaseA-Schema bleiben identisch — nur das Aktualisierungs-Intervall der phaseA-Einträge ändert sich.
 
-### Erwartetes Bild im nächsten Lauf
-Wenn Open-Meteo das Minutenlimit wirft: 1-2 Retries mit Wait, dann ok. Falls phaseA trotzdem scheitert → Cache-Fallback, Symbolprognose bleibt vom letzten Lauf. Radar bleibt frisch.
+## Edge Cases
+
+- **Erster Lauf nach Deployment**: falls noch kein phaseA im Cache ist (sehr unwahrscheinlich, ist seit Wochen da), bleibt phaseA im `SKIP_PHASEA`-Run leer bis der erste `ONLY_PHASEA`-Run um 02:00 UTC läuft. Mitigation: nach Deployment einmal `openmeteo-symbol` manuell via `workflow_dispatch` triggern.
+- **Race Condition**: theoretisch könnten 5-Min- und 4×-Workflow gleichzeitig schreiben (z. B. 02:00 UTC). Beide lesen denselben Cache und mergen jeweils ihre Phase rein → der spätere Write überschreibt — aber beide Versionen enthalten die jeweils anderen Phasen aus dem gemeinsamen Vorgänger-Cache. Im schlimmsten Fall ist eine Phase um einen Run veraltet (5 Min bzw. 6 h), kein Datenverlust. Akzeptabel.
