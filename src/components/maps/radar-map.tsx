@@ -316,10 +316,12 @@ function PrecipOverlay({
           arr[i01] * tx * (1 - ty) +
           arr[i10] * (1 - tx) * ty +
           arr[i11] * tx * ty;
-        const v = sample(vals);
+        const vCur = sample(vals);
+        const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
         let snowFrac = 0;
         if (snowVals) {
-          const sv = sample(snowVals);
+          const svCur = sample(snowVals);
+          const sv = nextSnowVals ? lerp(svCur, sample(nextSnowVals)) : svCur;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
         const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
