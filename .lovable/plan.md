@@ -1,48 +1,41 @@
-## Ziele
+## Ziel
 
-1. **Prognose flüssiger animieren** — zwischen den 15-min-Frames temporal interpolieren, damit die Wiedergabe weich morpht statt zu springen. möglich im 5 min-Takt?
-2. **Niederschlag über dem See sichtbar** — Lake-Layer hinter das Precip-Overlay legen, damit Ns auch über dem Bodensee farbig erscheint.
+1. Prognose-Frames in der Radarkarte auf **Stunden-Takt** umstellen (statt aktuell 15-min ICON-CH1).
+2. Bodensee in der Radarkarte **vollflächig** einfärben wie auf der Wetterkarte Region.
 
-## Änderungen — `src/components/maps/radar-map.tsx`
+## Änderungen
 
-### A. Zwischen-Frames sanft cross-faden (Prognose)
+### A. Stunden-Takt für die Prognose (`src/lib/radar.functions.ts`)
 
-Aktuell schaltet die Animation hart zwischen 15-min-Frames um (`setInterval`, `setIdx(cur+1)`). Mit ICON-CH1 sind das alle 400 ms (1×) ein Sprung.
+In der `phase1`-Schleife (`ref1.time`) nur jeden Frame übernehmen, dessen Minute `:00` ist (also jede volle Stunde). Vergangenheit (echte MCH-Radar-PNGs) bleibt unverändert in ihrem nativen 5-min-Takt.
 
-Neuer Ansatz im `PrecipOverlay`:
-
-- Statt nur des aktuellen Frames bekommt das Overlay `**frame` + `nextFrame` + `progress` (0…1)**.
-- In der bilinearen Sample-Schleife wird `v = lerp(currentV, nextV, progress)` und analog `snowV` gemischt.
-- `RadarMap` führt einen zusätzlichen `subProgress`-State (0…1) ein:
-  - Beim Play wird `subProgress` per `requestAnimationFrame` zwischen 0 und 1 hochgezählt; bei 1 → `idx++`, `subProgress = 0`.
-  - Beim Pause/Scrub bleibt `subProgress = 0`.
-- Tween-Dauer = `400 ms / speed` (entspricht der bisherigen Frame-Dauer), Wiedergabe wird damit nicht schneller, nur weicher.
-
-Folge: Ns-Felder „fliessen" durch die Karte, statt zu blitzen.
-
-### B. Lake unter den Niederschlag legen
-
-Aktuell-Reihenfolge in JSX:
-
-```
-TileLayer → OUTSIDE_CH_MASK → OUTSIDE_MASK → LAKE → SWITZERLAND → THURGAU → Precip
+```ts
+for (let ti = 0; ti < ref1.time.length; ti++) {
+  const tIso = ref1.time[ti] + "Z";
+  const tMs = Date.parse(tIso);
+  if (tMs <= now && hasRealRadar) continue;
+  if (tMs > forecastCutoff) continue;
+  // NEU: nur volle Stunden für die Prognose
+  if (tMs > now && new Date(tMs).getUTCMinutes() !== 0) continue;
+  …
+}
 ```
 
-Leaflet stapelt SVG-GeoJSON in einer gemeinsamen `<svg>` im `overlayPane`. Wenn das Precip-`<canvas>`/`<img>` später hinzukommt, *müsste* es darüber liegen — tut es aber visuell nicht, weil das Lake-Polygon mit `fillOpacity: 1` opak ist und beim Re-Render der React-Leaflet-Children manchmal nach der ImageOverlay wieder vorgehängt wird (gleicher Pane, gleiche svg-Wurzel, Reihenfolge des letzten `addLayer`-Calls gewinnt).
+### B. Cross-Fade-Interpolation entfernen (`src/components/maps/radar-map.tsx`)
 
-Fix in zwei Schritten:
+Da Stunden-Schritte ohnehin sichtbar groß sind und der User explizit auf Stundentakt umstellt, ist die Cross-Fade-Logik nicht mehr nötig. Rückbau:
 
-1. **Lake in einen dedizierten Pane unter dem Overlay legen.**
-  In einem kleinen `LakePane`-Helper (eigene Komponente, ähnlich `InvalidateOnResize`):
-   GeoJSON für `LAKE` bekommt `pane="lake"`.
-2. **Lake-Füllung leicht durchscheinend lassen.**
-  `fillOpacity: 1` → `fillOpacity: 0.92`. Plus der eigene Pane garantiert, dass die Precip-Overlays (Canvas + MCH-PNG, Pane = overlayPane, z-index 400) immer darüber liegen.
+- `subProgress` / `requestAnimationFrame`-Loop → wieder `setInterval` mit 800 ms / `speed` und `setIdx(next)`.
+- `PrecipOverlay`-Props `nextFrame` und `progress` entfernen; Render-Effekt zurück auf `[frame, payload]`.
+- `blendNext`-Berechnung im `RadarMap`-Body entfernen.
 
-So bleibt das See-Blau erkennbar, ein darüber liegender Regen-/Schnee-Blob wird aber farbig durchscheinend sichtbar.
+### C. See vollflächig wie Region-Karte (`src/components/maps/radar-map.tsx`)
 
-## Was sich NICHT ändert
+- Lake-Style angleichen an `region-map.tsx`: `fillOpacity: 1`, `weight: 0.6`, gleiche Farben (`#6bb6d6` / `#7ec8e3`).
+- `LakePane` mit `zIndex: 350` bleibt zwar funktional, aber zur Konsistenz auf den **default `overlayPane`** zurückstellen (kein eigener Pane, `pane`-Prop entfernen, Pane-Creation-Effekt löschen) — dann liegt der See in der natürlichen Reihenfolge **über** dem Precipitation-Canvas, identisch zur Region-Karte (die ja gar keinen Ns-Layer hat).
 
-- Datenpipeline (`radar.functions.ts`, Ingest, Cron).
-- Frame-Quellen, BBox, Legende, Hagel.
-- Farb-Skalen, Filter, BUFFER, Edge-Fade.
-- Touch-/Keyboard-Steuerung der Timeline.
+## Nicht angefasst
+
+- Vergangenheits-Frames (echte MCH-CPC-PNGs, 5-min) bleiben unverändert.
+- Datenpipeline / Ingest-Skript / R2 / BBox / Legende / Hagel-Layer / Farbskalen / Filter / Edge-Fade / Touch- & Keyboard-Bedienung.
+- Wetterkarte Region selbst.
