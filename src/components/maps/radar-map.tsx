@@ -346,7 +346,7 @@ function PrecipOverlay({
   // Bei Frame-/Progress-Wechsel neu zeichnen.
   useEffect(() => {
     redrawRef.current();
-  }, [frame, nextFrame, progress, payload]);
+  }, [frame, payload]);
 
   return null;
 }
