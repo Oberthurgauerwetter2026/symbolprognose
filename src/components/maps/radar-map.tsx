@@ -781,33 +781,34 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         </div>
       </div>
 
-      {/* Steuerung — MeteoSchweiz-Style Panel */}
-      <div className="rounded-2xl bg-[#1a1f24] p-3 text-white shadow-lg sm:p-4">
+      {/* Steuerung — schlankes weisses Panel */}
+      <div className="rounded-xl border border-neutral-200 bg-white p-2 text-neutral-900 shadow-md sm:p-3">
         {isLoading && (
-          <p className="text-center text-sm text-white/70">Lade Radardaten …</p>
+          <p className="text-center text-xs text-neutral-500">Lade Radardaten …</p>
         )}
         {error && (
-          <p className="text-center text-sm text-red-300">
+          <p className="text-center text-xs text-red-600">
             Radardaten konnten nicht geladen werden.
           </p>
         )}
         {data?.warning && (
-          <p className="mb-2 text-center text-xs text-white/60">
+          <p className="mb-1.5 text-center text-[11px] text-neutral-500">
             Hinweis: {data.warning}
           </p>
         )}
 
         {data && frames.length > 0 && idx !== null && (
           <>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               {/* Play/Pause */}
               <button
                 type="button"
                 onClick={() => setPlaying((p) => !p)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2"
+                style={{ ['--tw-ring-color' as never]: BRAND }}
                 aria-label={playing ? "Pause" : "Play"}
               >
-                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-px" />}
+                {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 translate-x-px" />}
               </button>
               {/* Prev */}
               <button
@@ -816,10 +817,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   setPlaying(false);
                   setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
                 }}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
                 aria-label="Vorheriger Frame"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
               </button>
 
               {/* Track */}
@@ -842,27 +843,27 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   setPlaying(false);
                   setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
                 }}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
                 aria-label="Nächster Frame"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
 
             {/* Sekundär-Toolbar: Jetzt, Speed, Hagel */}
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
               <button
                 type="button"
                 onClick={() => {
                   setIdx(nowIdx);
                   setPlaying(false);
                 }}
-                className="rounded-full bg-white/10 px-3 py-1.5 font-semibold text-white transition hover:bg-white/20"
+                className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
               >
                 Jetzt
               </button>
 
-              <div className="inline-flex items-center rounded-full bg-white/10 p-0.5">
+              <div className="inline-flex items-center rounded-full border border-neutral-200 bg-white p-0.5">
                 {[1, 2, 4].map((s) => {
                   const active = speed === s;
                   return (
@@ -871,9 +872,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                       type="button"
                       onClick={() => setSpeed(s)}
                       className={cn(
-                        "rounded-full px-2.5 py-1 font-semibold transition",
-                        active ? "bg-white text-[#1a1f24] shadow-sm" : "text-white/80 hover:text-white",
+                        "rounded-full px-2 py-0.5 font-semibold transition",
+                        active ? "text-white shadow-sm" : "text-neutral-600 hover:text-neutral-900",
                       )}
+                      style={active ? { background: BRAND } : undefined}
                     >
                       {s}×
                     </button>
@@ -885,12 +887,13 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 type="button"
                 onClick={() => setShowHail((v) => !v)}
                 className={cn(
-                  "ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-semibold transition",
+                  "ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold transition",
                   !data?.hasHail && "cursor-not-allowed opacity-60",
                   showHail && data?.hasHail
-                    ? "bg-white text-[#1a1f24] shadow-sm"
-                    : "bg-white/10 text-white/80 hover:bg-white/20",
+                    ? "border-transparent text-white shadow-sm"
+                    : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50",
                 )}
+                style={showHail && data?.hasHail ? { background: BRAND } : undefined}
                 title={
                   data?.hasHail
                     ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
@@ -898,13 +901,13 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 }
                 disabled={!data?.hasHail}
               >
-                <CloudHail className="h-3.5 w-3.5" />
+                <CloudHail className="h-3 w-3" />
                 Hagel
                 {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
               </button>
             </div>
 
-            <p className="mt-3 text-[11px] text-white/60">
+            <p className="mt-1.5 text-[10px] text-neutral-500">
               Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
             </p>
           </>
