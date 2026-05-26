@@ -179,3 +179,8 @@
 .region-map-pill:hover {
   transform: translateY(-1px);
 }
+
+/* Radar: Hagel-Overlay als schwarze Punkte (POH-PNG einfärben) */
+.hail-blackdots {
+  filter: brightness(0) saturate(100%);
+}
