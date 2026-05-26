@@ -1,12 +1,13 @@
-name: Open-Meteo Cache Ingest
+name: Open-Meteo Symbolprognose (phaseA)
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # 4× täglich, ~2 h nach den Modell-Läufen 00/06/12/18 UTC
+    - cron: "0 2,8,14,20 * * *"
   workflow_dispatch: {}
 
 concurrency:
-  group: openmeteo-ingest
+  group: openmeteo-symbol
   cancel-in-progress: false
 
 jobs:
@@ -27,7 +28,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install boto3 requests
 
-      - name: Run ingest
+      - name: Run phaseA ingest
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -39,6 +40,5 @@ jobs:
           BBOX_MAX_LON: "9.85"
           GRID_LAT: "12"
           GRID_LON: "20"
-          # phaseA (Symbolprognose) läuft nur 4× täglich via openmeteo-symbol.yml
-          SKIP_PHASEA: "1"
+          ONLY_PHASEA: "1"
         run: python -u scripts/ingest_openmeteo.py
