@@ -175,6 +175,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       const tMs = Date.parse(tIso);
       if (tMs <= now && hasRealRadar) continue;
       if (tMs > forecastCutoff) continue;
+      // Prognose-Frames nur im Stundentakt (volle Stunde UTC).
+      if (tMs > now && new Date(tMs).getUTCMinutes() !== 0) continue;
       const values: number[] = new Array(pts.length);
       const snowValues: number[] | undefined = hasSnow ? new Array(pts.length) : undefined;
       for (let pi = 0; pi < pts.length; pi++) {
