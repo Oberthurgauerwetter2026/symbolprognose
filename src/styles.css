@@ -151,6 +151,30 @@
     box-shadow 150ms ease;
 }
 
+/* Region map: slim slider (3px track, small handle) — matches Radar style */
+.region-slider-slim :where([class*="bg-primary/20"]) {
+  height: 3px;
+  background-color: rgb(229 229 229); /* neutral-200 */
+}
+.region-slider-slim :where([class*="bg-primary"]:not([class*="/20"])) {
+  background-color: var(--accent);
+  height: 3px;
+  transition:
+    right 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    left 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.region-slider-slim :where([class*="h-4"][class*="w-4"][class*="rounded-full"]) {
+  height: 14px;
+  width: 2px;
+  border-radius: 2px;
+  border: 0;
+  background: rgb(23 23 23); /* neutral-900 */
+  box-shadow: none;
+  transition:
+    left 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Region map: marker hover lift */
 .region-map-pill:hover {
   transform: translateY(-1px);
