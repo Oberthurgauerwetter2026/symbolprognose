@@ -56,20 +56,20 @@ function cityIcon(name: string): L.DivIcon {
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz CPC.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [200, 220, 245] },
-  { mmh: 0.4, rgb: [160, 200, 240] },
-  { mmh: 0.7, rgb: [120, 180, 235] },
-  { mmh: 1.3, rgb: [80, 160, 220] },
-  { mmh: 2, rgb: [60, 200, 140] },
-  { mmh: 3.5, rgb: [60, 200, 60] },
-  { mmh: 6, rgb: [220, 220, 60] },
-  { mmh: 10, rgb: [240, 180, 40] },
-  { mmh: 20, rgb: [240, 120, 40] },
-  { mmh: 30, rgb: [235, 60, 60] },
-  { mmh: 50, rgb: [200, 30, 90] },
-  { mmh: 80, rgb: [170, 20, 130] },
-  { mmh: 130, rgb: [140, 20, 180] },
-  { mmh: 200, rgb: [120, 80, 220] },
+  { mmh: 0.1, rgb: [170, 205, 240] },
+  { mmh: 0.4, rgb: [130, 185, 235] },
+  { mmh: 0.7, rgb: [90, 165, 225] },
+  { mmh: 1.3, rgb: [50, 140, 210] },
+  { mmh: 2, rgb: [40, 195, 130] },
+  { mmh: 3.5, rgb: [40, 195, 40] },
+  { mmh: 6, rgb: [220, 220, 50] },
+  { mmh: 10, rgb: [240, 175, 30] },
+  { mmh: 20, rgb: [240, 115, 30] },
+  { mmh: 30, rgb: [235, 50, 50] },
+  { mmh: 50, rgb: [200, 25, 85] },
+  { mmh: 80, rgb: [170, 15, 125] },
+  { mmh: 130, rgb: [140, 15, 175] },
+  { mmh: 200, rgb: [120, 75, 215] },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -77,7 +77,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       const [r, g, b] = SCALE[i].rgb;
-      const a = Math.min(0.9, 0.55 + (i / SCALE.length) * 0.35);
+      const a = Math.min(0.95, 0.7 + (i / SCALE.length) * 0.25);
       return [r, g, b, a];
     }
   }
