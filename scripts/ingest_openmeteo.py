@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 import boto3
@@ -73,12 +74,39 @@ def build_grid():
     return [(la, lo) for la in lats for lo in lons]
 
 
-def fetch(label: str, params: dict) -> list:
-    r = requests.get(API, params=params, timeout=60)
-    if not r.ok:
-        sys.exit(f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}")
-    data = r.json()
-    return data if isinstance(data, list) else [data]
+def fetch(label: str, params: dict, optional: bool = False) -> list | None:
+    backoffs = [2, 6, 18]
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            r = requests.get(API, params=params, timeout=120)
+            if not r.ok:
+                # 4xx: nicht retrybar — sofort behandeln.
+                if 400 <= r.status_code < 500:
+                    msg = f"open-meteo HTTP {r.status_code} ({label}): {r.text[:300]}"
+                    if optional:
+                        print(f"WARN: {msg} — skipping (optional)")
+                        return None
+                    sys.exit(msg)
+                last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
+            else:
+                data = r.json()
+                return data if isinstance(data, list) else [data]
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.SSLError,
+        ) as e:
+            last_err = e
+        wait = backoffs[attempt]
+        print(f"WARN: {label} attempt {attempt + 1}/3 failed ({last_err}); retry in {wait}s")
+        time.sleep(wait)
+    msg = f"open-meteo {label} failed after 3 attempts: {last_err}"
+    if optional:
+        print(f"WARN: {msg} — skipping (optional)")
+        return None
+    sys.exit(msg)
+
 
 
 def main() -> None:
