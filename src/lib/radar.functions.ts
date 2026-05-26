@@ -86,7 +86,14 @@ type LocResponse = {
     precipitation: (number | null)[];
     snowfall?: (number | null)[];
   };
-  hourly?: { time: string[]; precipitation: (number | null)[] };
+  hourly?: {
+    time: string[];
+    precipitation?: (number | null)[];
+    wind_speed_700hPa?: (number | null)[];
+    wind_direction_700hPa?: (number | null)[];
+    wind_speed_10m?: (number | null)[];
+    wind_direction_10m?: (number | null)[];
+  };
 };
 
 type ManifestFrame = { t: string; precipUrl?: string; hailUrl?: string };
@@ -197,41 +204,166 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
-  // ---- 15-min-Smoothing für Forecast-Frames ----
-  // Open-Meteo liefert für `meteoswiss_icon_ch1` in minutely_15 effektiv stündliche
-  // Werte (4× wiederholt). Wir interpolieren linear zwischen den Stunden-Ankern,
-  // damit jeder 15-min-Slot einen eigenen Zwischenwert trägt.
+  // ---- 15-min-Smoothing für Forecast-Frames via Wind-Advection ----
+  // Zwischen zwei stündlichen ICON-CH1-Ankern (H und H+1) verschieben wir
+  // das Niederschlagsfeld semi-Lagrange entlang des mittleren 700-hPa-
+  // Windvektors. Dadurch "wandern" Niederschlagsgebiete echt, statt nur
+  // crossfade-mäßig zu überblenden.
+  const NCOLS = lons.length; // = GRID_LON
+  const NROWS = lats.length; // = GRID_LAT
+  const dLat = (BBOX.maxLat - BBOX.minLat) / Math.max(1, NROWS - 1);
+  const dLon = (BBOX.maxLon - BBOX.minLon) / Math.max(1, NCOLS - 1);
+  const midLat = (BBOX.maxLat + BBOX.minLat) / 2;
+  const M_PER_DEG_LAT = 111_000;
+  const M_PER_DEG_LON = 111_000 * Math.cos((midLat * Math.PI) / 180);
+
+  // Mittleren (u,v) für einen Zeitstempel aus dem hourly-Block aller Grid-Punkte
+  // ableiten. Bevorzugt 700 hPa, sonst 10 m * 2.5 (grober Steuerwind-Proxy).
+  function meanWindAt(tIso: string): { u: number; v: number } {
+    if (!r1) return { u: 0, v: 0 };
+    let su = 0, sv = 0, n = 0;
+    for (let pi = 0; pi < pts.length; pi++) {
+      const loc = r1[pi] as LocResponse | undefined;
+      const h = loc?.hourly;
+      if (!h?.time) continue;
+      // Hourly time strings haben kein "Z"; tIso enthält ggf. Z.
+      const target = tIso.replace(/Z$/, "");
+      const ti = h.time.indexOf(target);
+      if (ti < 0) continue;
+      let sp = h.wind_speed_700hPa?.[ti];
+      let dir = h.wind_direction_700hPa?.[ti];
+      if (typeof sp !== "number" || typeof dir !== "number") {
+        const sp10 = h.wind_speed_10m?.[ti];
+        const dir10 = h.wind_direction_10m?.[ti];
+        if (typeof sp10 === "number" && typeof dir10 === "number") {
+          sp = sp10 * 2.5;
+          dir = dir10;
+        } else continue;
+      }
+      // Open-Meteo wind_speed = km/h → m/s
+      const spMs = sp / 3.6;
+      const rad = (dir * Math.PI) / 180;
+      // Meteorologische Richtung: woher der Wind kommt. Bewegung des Felds = wohin.
+      su += -spMs * Math.sin(rad); // Ost-Komponente (Lon +)
+      sv += -spMs * Math.cos(rad); // Nord-Komponente (Lat +)
+      n++;
+    }
+    if (n === 0) return { u: 0, v: 0 };
+    return { u: su / n, v: sv / n };
+  }
+
+  // Bilineares Sampling eines row-major-Felds an (rowF, colF) mit 0-Padding.
+  function sample(field: number[], rowF: number, colF: number): number {
+    if (rowF < 0 || rowF > NROWS - 1 || colF < 0 || colF > NCOLS - 1) return 0;
+    const r0 = Math.floor(rowF), c0 = Math.floor(colF);
+    const r1i = Math.min(NROWS - 1, r0 + 1), c1i = Math.min(NCOLS - 1, c0 + 1);
+    const fr = rowF - r0, fc = colF - c0;
+    const v00 = field[r0 * NCOLS + c0] ?? 0;
+    const v01 = field[r0 * NCOLS + c1i] ?? 0;
+    const v10 = field[r1i * NCOLS + c0] ?? 0;
+    const v11 = field[r1i * NCOLS + c1i] ?? 0;
+    return (
+      v00 * (1 - fr) * (1 - fc) +
+      v01 * (1 - fr) * fc +
+      v10 * fr * (1 - fc) +
+      v11 * fr * fc
+    );
+  }
+
+  // Verschiebt das Feld um (diRows, djCols). Positive di = nach Norden bewegt,
+  // d.h. wir sampeln aus dem Süden: source_row = row - di.
+  function shiftField(field: number[], diRows: number, djCols: number): number[] {
+    const out = new Array(field.length);
+    for (let r = 0; r < NROWS; r++) {
+      for (let c = 0; c < NCOLS; c++) {
+        out[r * NCOLS + c] = sample(field, r - diRows, c - djCols);
+      }
+    }
+    return out;
+  }
+
   const forecastFrames = frames.filter((f) => f.source === "icon-ch1");
   if (forecastFrames.length >= 2) {
-    // Anker-Indizes: Frames mit Minute :00 (UTC).
     const anchorIdx: number[] = [];
     for (let i = 0; i < forecastFrames.length; i++) {
       if (new Date(forecastFrames[i].t).getUTCMinutes() === 0) anchorIdx.push(i);
     }
-    if (anchorIdx.length >= 2) {
-      const interp = (key: "values" | "snowValues") => {
-        for (let a = 0; a < anchorIdx.length - 1; a++) {
-          const iA = anchorIdx[a];
-          const iB = anchorIdx[a + 1];
-          const span = iB - iA;
-          if (span <= 1) continue;
-          const arrA = forecastFrames[iA][key];
-          const arrB = forecastFrames[iB][key];
-          if (!arrA || !arrB) continue;
-          for (let k = 1; k < span; k++) {
-            const t = k / span;
-            const target = forecastFrames[iA + k][key];
-            if (!target) continue;
-            for (let pi = 0; pi < target.length; pi++) {
-              target[pi] = arrA[pi] * (1 - t) + arrB[pi] * t;
+
+    const advectPair = (key: "values" | "snowValues") => {
+      // Zwischen aufeinanderfolgenden Ankern A und B
+      for (let a = 0; a < anchorIdx.length - 1; a++) {
+        const iA = anchorIdx[a];
+        const iB = anchorIdx[a + 1];
+        const span = iB - iA;
+        if (span <= 1) continue;
+        const arrA = forecastFrames[iA][key];
+        const arrB = forecastFrames[iB][key];
+        if (!arrA || !arrB) continue;
+
+        const wA = meanWindAt(forecastFrames[iA].t);
+        const wB = meanWindAt(forecastFrames[iB].t);
+
+        // Versatz pro 15-min-Slot in Grid-Zellen.
+        const SLOT_S = 900;
+        const diA = (wA.v * SLOT_S) / (dLat * M_PER_DEG_LAT);
+        const djA = (wA.u * SLOT_S) / (dLon * M_PER_DEG_LON);
+        const diB = (wB.v * SLOT_S) / (dLat * M_PER_DEG_LAT);
+        const djB = (wB.u * SLOT_S) / (dLon * M_PER_DEG_LON);
+
+        for (let k = 1; k < span; k++) {
+          const t = k / span;
+          const target = forecastFrames[iA + k][key];
+          if (!target) continue;
+          const aShift = shiftField(arrA, k * diA, k * djA);
+          const bShift = shiftField(arrB, -(span - k) * diB, -(span - k) * djB);
+          for (let pi = 0; pi < target.length; pi++) {
+            target[pi] = aShift[pi] * (1 - t) + bShift[pi] * t;
+          }
+        }
+      }
+
+      // Frames VOR dem ersten Anker: nur Vorwärts-Advection von Anker 0.
+      if (anchorIdx.length >= 1) {
+        const i0 = anchorIdx[0];
+        if (i0 > 0) {
+          const arr0 = forecastFrames[i0][key];
+          if (arr0) {
+            const w0 = meanWindAt(forecastFrames[i0].t);
+            const di = (w0.v * 900) / (dLat * M_PER_DEG_LAT);
+            const dj = (w0.u * 900) / (dLon * M_PER_DEG_LON);
+            for (let i = 0; i < i0; i++) {
+              const target = forecastFrames[i][key];
+              if (!target) continue;
+              const k = i - i0; // negativ
+              const shifted = shiftField(arr0, k * di, k * dj);
+              for (let pi = 0; pi < target.length; pi++) target[pi] = shifted[pi];
             }
           }
         }
-      };
-      interp("values");
-      interp("snowValues");
-    }
+        // Frames NACH dem letzten Anker: Rückwärts-Advection vom letzten Anker.
+        const iL = anchorIdx[anchorIdx.length - 1];
+        if (iL < forecastFrames.length - 1) {
+          const arrL = forecastFrames[iL][key];
+          if (arrL) {
+            const wL = meanWindAt(forecastFrames[iL].t);
+            const di = (wL.v * 900) / (dLat * M_PER_DEG_LAT);
+            const dj = (wL.u * 900) / (dLon * M_PER_DEG_LON);
+            for (let i = iL + 1; i < forecastFrames.length; i++) {
+              const target = forecastFrames[i][key];
+              if (!target) continue;
+              const k = i - iL;
+              const shifted = shiftField(arrL, k * di, k * dj);
+              for (let pi = 0; pi < target.length; pi++) target[pi] = shifted[pi];
+            }
+          }
+        }
+      }
+    };
+
+    advectPair("values");
+    advectPair("snowValues");
   }
+
 
 
   // Wenn wir überhaupt keine Frames haben, hart fehlschlagen, damit die UI
