@@ -758,7 +758,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   [data.imageBbox.minLat, data.imageBbox.minLon],
                   [data.imageBbox.maxLat, data.imageBbox.maxLon],
                 ]}
-                opacity={0.9}
+                opacity={0.95}
+                className="mch-precip"
               />
             ) : (
               <PrecipOverlay payload={data} frame={currentFrame} />
