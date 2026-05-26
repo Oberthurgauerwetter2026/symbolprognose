@@ -1,25 +1,32 @@
-## Timeline-Panel umgestalten
+## Slider-Layout der Radar-Karte auf "Wetterkarte Region" übertragen
 
-**Datei:** `src/components/maps/radar-map.tsx` (MeteoTimeline-Komponente)
+**Datei:** `src/components/region-map.tsx` (Block ab Zeile ~672 "Moderner 3-Stunden-Zeitstrahl")
 
 ### Änderungen
 
-1. **Hintergrund auf Weiss**
-   - Panel-Container: `bg-[#1a1f24]` → `bg-white` mit dezentem Schatten (`shadow-lg`) und feinem Rand (`border border-neutral-200`)
-   - Textfarben anpassen: weisser/heller Text → `text-neutral-900` (Hauptlabels), `text-neutral-500` (Stunden, Sekundär), `text-neutral-700` (Datum)
-   - Vertikale Day-Break-Linien: hell → `bg-neutral-200`
-   - Aktive Handle-Linie: weiss → `bg-neutral-900`
-   - Time-Bubble: weiterhin in `BRAND`-Blau mit weisser Schrift (Kontrast)
-   - Buttons (Play, Prev/Next, „Jetzt", Speed-Pills, Hagel-Toggle): Stil wie der bestehende Region-Button — weisser Hintergrund, dünner grauer Rand, aktiver Zustand in `BRAND`-Blau
+Den bestehenden Zeitstrahl-Block visuell an das neue Radar-Panel angleichen, ohne die Region-Logik (stündlich/täglich, `stepOffset`, `MAX_STEPS`) zu verändern.
+
+1. **Panel-Stil**
+   - Container: `rounded-2xl border border-border bg-card p-3` → `rounded-xl border border-neutral-200 bg-white p-2 sm:p-3 shadow-md`
+   - Kompaktere Innenabstände, keine grosse Kopfzeile mehr — der Wochentag/das Datum wandert in eine schmale Zeile unter den Track (analog Radar).
+   - Aktueller Stundenchip (`BRAND`-Hintergrund) entfällt; stattdessen Time-Bubble direkt am Thumb (existiert bereits, wird kompakter `px-2 py-0.5 text-[10px]`).
 
 2. **Slider deutlich schlanker**
-   - Gesamthöhe Panel reduzieren (padding `py-3` → `py-2`, innere Abstände straffen)
-   - Track-Höhe reduzieren (z. B. `h-[2px]` statt aktueller Dicke)
-   - Stundenlabels kleiner (`text-[10px]`) und näher am Track
-   - Day-Label-Zeile kompakter, „Aktualisiert am"-Footer in eine Zeile mit kleinerer Schrift
-   - Handle-Bubble kompakter (kleinerer Padding, `text-xs`)
-   - Sekundär-Toolbar (Speed, Hagel) in eine Reihe mit den Play-Controls statt eigene Zeile, wenn Platz reicht
+   - Stundenlabels (HH) **über** dem Track, `text-[9px] text-neutral-500`, jede Stunde (mobile: jede 3.).
+   - Track-Höhe auf 3 px (`bg-neutral-200`), gefüllter Bereich von 0 bis Thumb in `BRAND`-Blau, dünner senkrechter Handle (`h-4 w-0.5 bg-neutral-900`).
+   - Verwendet weiterhin die shadcn `<Slider>`-Komponente, aber per CSS (Klasse `region-slider` ist schon da, oder inline-Override) auf 3 px Track und kleineren Thumb gestylt.
+   - Tages-Label (`Montag, 25.05.2026`) unter dem Track, `text-[10px] text-neutral-600`. Vertikale Trennlinien bei 00:00, falls der Bereich mehrere Tage umfasst.
+   - "Jetzt"-Marker (kleiner Kreis bei `step = 0`).
+
+3. **Sekundär-Toolbar im gleichen Stil**
+   - Die bisherigen `DayTabs` darüber bleiben erhalten (eigene Komponente, unverändert in Funktion).
+   - Innerhalb des Panels darunter optional eine kompakte Zeile mit "Jetzt"-Button (`stepOffset → 0`), Stil identisch zu Radar (weiss, Border, aktiv = BRAND-Blau).
+   - Im "daily"-Modus bleibt der Slider deaktiviert/abgedimmt wie bisher.
+
+4. **Footer**
+   - "Datenstand: …" Zeile innerhalb des Panels in `text-[10px] text-neutral-500` analog Radar-Footer, statt separater zentrierter Zeile darunter.
 
 ### Nicht geändert
-- Logik (Frames, Play/Pause, Geschwindigkeit, Hagel-Toggle, Datenquellen, BBox)
-- Kartenkomponente selbst
+- `DayTabs`, Karten-Logik, Wetter-Datenmodell, `stepOffset`/`MAX_STEPS`, `HOUR_LABELS`.
+- Kein Play/Pause (Region-Karte hat keine Animation).
+- Kein Eingriff in `radar-map.tsx`.
