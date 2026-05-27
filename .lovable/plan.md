@@ -1,59 +1,55 @@
-## Ziel
+# Radar-Messung farblich an Prognose angleichen
 
-Wie bei MeteoSchweiz (INCA) oder DWD (RadVOR): Die letzten echten Radar-Messungen werden genutzt, um die **Verlagerung der Niederschlagszellen** für die nächsten ~60–90 min vorherzusagen — statt direkt nach `now` auf das gröbere ICON-CH1-Modellfeld umzuschalten. Danach wird sanft in ICON-CH1 übergeblendet.
+## Problem
 
-## Heutiger Zustand (kurz)
+Im Radar-Layer auf `/karten/radar` werden gemessene Niederschläge anders eingefärbt als die Prognose / Nowcast-Frames:
 
-- Vergangenheit (≤ now): echte MCH-CPC-PNGs aus R2 (`scripts/ingest_radar.py`).
-- Zukunft (> now): direkt ICON-CH1 minutely_15, zwischen Stunden-Ankern via 700-hPa-Wind advektiert.
-- Lücke: T+0…T+60 min nutzt **nicht** die tatsächlich gemessene Zellbewegung der letzten Radar-Frames → Prognose "springt" beim Übergang sichtbar und ist in der ersten Stunde ungenauer als nötig.
+- **Messung** (PNG, gerendert in `scripts/ingest_radar.py` via `PRECIP_SCALE`): 15 Stufen, helle Blautöne, viel Gelb/Orange, eingebackenes Alpha 140–250.
+- **Prognose / Nowcast-Canvas** (`PrecipOverlay` in `src/components/maps/radar-map.tsx` via `SCALE` / `colorFor`): 9 Stufen, andere Schwellwerte, Alpha 0.35 (lowest) bzw. 0.60.
 
-## Lösungsansatz
+Resultat: gleiche mm/h-Werte sehen verschieden aus, und beim Übergang vom letzten Mess-Frame zum ersten Nowcast/ICON-Frame springt die Farbe sichtbar.
 
-Zweistufiges Nowcasting analog INCA:
+## Änderungen
 
-1. **Motion-Field aus Radar** (im Python-Ingest, der ohnehin numpy/PIL hat):
-   - Aus den letzten 3 CPC-Arrays per **Phase-Correlation (FFT-Cross-Correlation)** einen mittleren Bewegungsvektor `(u_px_per_min, v_px_per_min)` der gesamten Szene berechnen — robust, schnell, deterministisch, keine ML-Abhängigkeit.
-   - Vektor zusätzlich in m/s sowie als Lat/Lon-Drift pro Minute in `radar/frames.json` schreiben:
-     ```
-     motion: { u_ms, v_ms, u_deg_per_min, v_deg_per_min, sourceTs, confidence }
-     ```
-   - `confidence` = normierter Korrelations-Peak (0…1). Bei `confidence < 0.3` (z. B. flächiger gleichmässiger Regen oder leere Szene) wird der Vektor verworfen.
+### 1. `scripts/ingest_radar.py` — `PRECIP_SCALE` ersetzen
 
-2. **Nowcast-Frames im Server-FN** (`src/lib/radar.functions.ts`):
-   - Wenn `manifest.motion` mit ausreichender Confidence vorhanden ist, erzeuge zwischen `lastRadarT` und `lastRadarT + 60 min` **6 Nowcast-Frames im 10-min-Raster** als neuen `source: "nowcast"`:
-     - `precipUrl` = letzte gemessene Radar-PNG-URL (wiederverwendet)
-     - `imageOffset = { dLat, dLon }` = `motion.{v,u}_deg_per_min × Δt_min`
-   - In diesem Fenster werden **vorhandene ICON-CH1-Frames unterdrückt** (oder linear gewichtet 1→0 von T+0 bis T+60 min, ICON 0→1 ab T+30 bis T+90 min, harter Übergang ab T+90).
-   - Fallback: kein Motion-Vektor → heutiges Verhalten (ICON-CH1 sofort).
+Skala 1:1 auf die JS-Prognosepalette ausrichten (Schwellen + RGB exakt wie `SCALE`, Alpha gemäss `colorFor`: 89 für niedrigste Stufe, 153 darüber):
 
-3. **Rendering** (`src/components/maps/radar-map.tsx`):
-   - Erweitere `RadarFrame` um optionales `imageOffset?: { dLat, dLon }`.
-   - Beim `ImageOverlay`-Render für Nowcast-Frames: `imageBbox` um `dLat/dLon` verschoben übergeben — Leaflet zeichnet das identische PNG einfach an einer verschobenen Position. Kein Pixel-Resampling im Browser nötig.
-   - Cross-Fade-Loop bleibt unverändert; die Verlagerung sieht in der Animation aus wie echtes "Wandern" der Zellen.
-   - Timeline-Label `Messung`/`Prognose` ergänzen um `Nowcast` (für `source === "nowcast"`).
+```python
+PRECIP_SCALE = [
+    (0.2,  (167, 174, 211,  89)),
+    (1.0,  ( 30,  60, 230, 153)),
+    (2.0,  ( 30, 120,  50, 153)),
+    (4.0,  ( 70, 200,  70, 153)),
+    (6.0,  (240, 235,  50, 153)),
+    (10.0, (240, 200, 120, 153)),
+    (20.0, (240, 140,  30, 153)),
+    (40.0, (225,  30,  30, 153)),
+    (60.0, (150,  30, 200, 153)),
+]
+```
 
-## Warum so
+`< 0.2 mm/h` bleibt transparent.
 
-- **Phase-Correlation** ist das Standardverfahren in operationellem Nowcasting (Rainymotion / pysteps `LucasKanade`-Alternative) und in Worker-tauglicher Python-Komplexität in <50 Zeilen mit `numpy.fft` umsetzbar.
-- Das **PNG-Shift im Browser** vermeidet sowohl serverseitiges Re-Rendern als auch Canvas-Arbeit im Worker — und nutzt das tatsächliche MCH-Pixelbild (inkl. korrektem Farbschema) statt einer Modell-Interpolation.
-- Modulares Confidence-Gate verhindert, dass bei stationärem oder leerem Niederschlag völlig falsche Drift-Vektoren angezeigt werden.
+### 2. `src/components/maps/radar-map.tsx` — `ImageOverlay opacity` für Messung
 
-## Betroffene Dateien
+`opacity={0.95}` auf dem Radar-PNG (≈ Z. 800) auf `1.0` setzen, damit das jetzt im PNG eingebrannte Alpha nicht doppelt multipliziert wird. Hagel-Overlay und `PrecipOverlay` (Forecast-Canvas) bleiben unverändert.
 
-- `scripts/ingest_radar.py` — Phase-Correlation aus den letzten 3 CPC-Arrays, `motion`-Block in `frames.json`.
-- `src/lib/radar.functions.ts` — `Manifest`/`RadarPayload` um `motion`/`imageOffset` erweitern; Nowcast-Frames generieren; ICON-CH1 im 0–60-min-Fenster gewichten.
-- `src/components/maps/radar-map.tsx` — `RadarFrame.imageOffset` lesen, `ImageOverlay`-Bounds verschieben, Timeline-Bubble-Label "Nowcast".
+### 3. Legende prüfen
 
-## Out of scope
+Falls eine separate Legende auf der Karte eine eigene Skala enthält, an die neue (= bestehende `SCALE`) angleichen. Wird die Legende bereits aus `SCALE` gespeist, ist sie automatisch konsistent.
 
-- Pixel-genaues Optical-Flow pro Zelle (vs. Szenen-Mittelwert) — späterer Schritt, falls nötig.
-- Wachstum/Abschwächung der Zellen modellieren (Intensitäts-Trend) — Phase-1 verschiebt nur, ändert keine Werte.
-- `region-map.tsx` und Schnee-Layer bleiben unangetastet (kein Radar-Nowcast für Schnee, da CPC = Niederschlag).
+## Nicht im Scope
+
+- `HAIL_SCALE` (Hagel) unverändert.
+- `SNOW_SCALE` (Schnee) unverändert.
+- Geometrie / Bounds / Nowcast-Motion-Logik unverändert.
+
+## Wirksamkeit
+
+Wirkt erst, nachdem der Ingest-Job mindestens einmal neu gelaufen ist. Bereits in R2 liegende PNGs sind mit der alten Palette eingebrannt und werden vom Ingest nicht überschrieben. Optionen: warten, bis nur noch neu generierte Frames im 24h-Retentionsfenster liegen, oder die Precip-PNGs im R2 einmalig löschen, damit sie neu erzeugt werden.
 
 ## Verifikation
 
-1. Nach nächstem Ingest: `radar/frames.json` enthält `motion: { u_ms, v_ms, confidence }`.
-2. Auf `/karten/radar`: Beim Abspielen sieht man, wie die zuletzt gemessene Zelle 10/20/…/60 min in die Wind-Richtung wandert, statt bei `now` auf ein anderes Bild zu springen.
-3. Bei leerer Szene (kein Niederschlag): keine Nowcast-Frames erzeugt, Verhalten = heute.
-4. Build grün, keine neuen TS-Fehler.
+- Identische mm/h-Werte (z. B. 4 mm/h-Pixel) zeigen in Messung und Prognose den gleichen Grünton.
+- Übergang im Zeitstrahl vom letzten Mess-Frame zum ersten Nowcast-/ICON-Frame ohne Farb-Sprung.

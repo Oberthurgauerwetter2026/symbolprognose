@@ -797,7 +797,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                     data.imageBbox.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
                   ],
                 ]}
-                opacity={0.95}
+                opacity={1.0}
                 className="mch-precip"
               />
             ) : (
