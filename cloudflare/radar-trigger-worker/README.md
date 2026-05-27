@@ -1,7 +1,12 @@
 # Radar Trigger Worker
 
-Externer Cloudflare-Worker, der alle 5 Minuten den Radar-Ingest-Endpoint der App
-pingt. Damit ist der Ingest unabhängig vom unzuverlässigen GitHub-Actions-Cron.
+**Primärer** Trigger für den Radar-Ingest: ein eigener Cloudflare Worker, der
+alle 5 Minuten den `/api/public/radar/ingest-trigger`-Endpoint der App pingt.
+Der Endpoint löst dann GitHub `workflow_dispatch` aus.
+
+Als Sicherheitsnetz läuft im Workflow zusätzlich ein GitHub-`schedule`-Cron alle
+15 min — falls dieser Worker mal ausfällt, läuft der Ingest trotzdem weiter
+(nur seltener).
 
 ## Architektur
 
