@@ -733,8 +733,8 @@ function DetailPanel({
               </div>
             ))}
           </div>
-          <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
-            Regen<br />mm/3h
+          <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
+            <CloudRain className="w-3.5 h-3.5" aria-label="Regen" /> mm/3h
           </div>
           {extended && (
             <>
