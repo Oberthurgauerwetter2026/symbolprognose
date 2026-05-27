@@ -1,63 +1,80 @@
-# Radar-Pipeline: Cloudflare Cron Trigger statt GitHub-Cron
-
 ## Ziel
-Die unzuverlässigen Aussetzer kommen daher, dass `radar-ingest.yml` per GitHub-`schedule:`-Cron läuft — GitHub Actions verzögert/überspringt Schedules regelmäßig (oft 10–30 min). Die MCH-Pipeline (HDF5 → PNG → R2) selbst und die Frontend-Anzeige bleiben unverändert. Wir ersetzen nur den **Auslöser**: Cloudflare's eigener Worker-Cron triggert alle 5 min den GitHub `workflow_dispatch` — das läuft pünktlich.
 
-## Änderungen
+Der Lovable-Managed-Worker übernimmt `triggers.crons` aus `wrangler.jsonc` offenbar nicht — GitHub zeigt nur manuelle Runs, keine `workflow_dispatch` vom Cron. Lösung: den bereits vorbereiteten **eigenen** Cloudflare Worker unter `cloudflare/radar-trigger-worker/` in deinem eigenen CF-Account deployen. Der Worker pingt alle 5 min den HTTP-Endpoint `/api/public/radar/ingest-trigger`, der wiederum `workflow_dispatch` auslöst.
 
-### 1. `wrangler.jsonc` — Cron-Trigger registrieren
-Neue `triggers.crons`-Sektion mit `"*/5 * * * *"`. Cloudflare ruft dann alle 5 min die `scheduled()`-Funktion des Workers auf.
+## Was du selbst tun musst (manuelle Schritte)
 
-### 2. `src/server.ts` — `scheduled` Handler exportieren
-Neben dem bestehenden `fetch` einen `scheduled(event, env, ctx)` Export hinzufügen, der die GitHub-Dispatch-Logik direkt ausführt (kein HTTP-Hop nötig). Nutzt `ctx.waitUntil(...)` damit der Worker auf den fetch-Aufruf wartet.
+Diese Schritte kann Lovable nicht für dich ausführen — sie brauchen deinen Cloudflare-Account.
 
-### 3. Logik in `src/lib/radar-dispatch.server.ts` auslagern
-Die GitHub-`workflow_dispatch`-Logik aus `ingest-trigger.ts` (lines ~75-100) in eine wiederverwendbare Funktion `dispatchRadarIngest()` ausziehen. Verwendet `process.env.GITHUB_DISPATCH_TOKEN`, `GITHUB_REPO`, `GITHUB_REF`. Throttle (60s) bleibt drin.
+### 1. Cloudflare-Account + wrangler CLI
 
-### 4. `src/routes/api/public/radar/ingest-trigger.ts` — bleibt als Fallback
-Endpoint bleibt erhalten (ruft jetzt `dispatchRadarIngest()` auf), damit man bei Bedarf manuell per curl/cron-job.org triggern kann. Throttle und Secret-Check unverändert.
+- Falls noch nicht vorhanden: Account auf cloudflare.com anlegen (free tier reicht, Cron Triggers sind inkludiert).
+- Lokal in einem Terminal:
+  ```
+  npm i -g wrangler
+  wrangler login
+  ```
 
-### 5. GitHub Workflow `radar-ingest.yml`
-Den `schedule:`-Trigger entfernen (oder als Backup mit längerem Intervall belassen, z. B. alle 30 min). `workflow_dispatch:` bleibt — das ist was Cloudflare jetzt aufruft.
+### 2. Worker deployen
 
-## Was unverändert bleibt
-- HDF5 → PNG Konvertierung, R2-Upload, Frontend-Animation, Farbskala, alle Karten
-- Open-Meteo Vorhersage-Pipeline
-- Embed-Seiten
+Repo lokal auschecken (oder direkt aus Lovable's GitHub-Mirror klonen), dann:
+```
+cd cloudflare/radar-trigger-worker
+wrangler deploy
+```
+`wrangler.toml` mit `crons = ["*/5 * * * *"]` ist bereits committet.
 
-## Technische Details
+### 3. Worker-Secrets setzen
 
-**`wrangler.jsonc`:**
-```jsonc
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-start-app",
-  "compatibility_date": "2025-09-24",
-  "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts",
-  "triggers": { "crons": ["*/5 * * * *"] }
-}
+```
+wrangler secret put TRIGGER_URL
+# Wert: https://symbolprognose.lovable.app/api/public/radar/ingest-trigger
+
+wrangler secret put TRIGGER_SECRET
+# Wert: exakt der gleiche String wie RADAR_TRIGGER_SECRET in Lovable Cloud
 ```
 
-**`src/server.ts` (Ergänzung):**
-```ts
-export default {
-  async fetch(request, env, ctx) { /* unverändert */ },
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(
-      (async () => {
-        const { dispatchRadarIngest } = await import("./lib/radar-dispatch.server");
-        try { await dispatchRadarIngest(); }
-        catch (e) { console.error("[cron] radar dispatch failed:", e); }
-      })()
-    );
-  },
-};
+Den aktuellen `RADAR_TRIGGER_SECRET`-Wert findest du in Lovable → Project Settings → Secrets.
+
+### 4. Smoketest
+
+```
+curl -X POST https://symbolprognose.lovable.app/api/public/radar/ingest-trigger \
+  -H "x-trigger-secret: <RADAR_TRIGGER_SECRET>"
+```
+Erwartet: `202 {"ok":true,...}`. Innerhalb 1–2 s erscheint ein neuer GitHub-Actions-Run mit Trigger **workflow_dispatch**.
+
+### 5. Verifikation nach 10 min
+
+- Cloudflare Dashboard → Workers → `radar-trigger` → Logs: alle 5 min Eintrag `trigger status=202`.
+- GitHub Actions → "Radar Ingest": alle 5 min neuer Run, Trigger = `workflow_dispatch`.
+
+## Was Lovable im Code aufräumt
+
+Da der Lovable-Worker-Cron nicht greift und der externe Worker übernimmt, sollten wir die nicht-funktionierende Konfiguration entfernen, damit es nicht so aussieht als würde da etwas laufen:
+
+1. **`wrangler.jsonc`** — `"triggers": { "crons": [...] }` entfernen (greift bei Lovable-Managed-Deploy nicht).
+2. **`src/server.ts`** — `scheduled()`-Handler entfernen (wird nie aufgerufen).
+3. **`src/lib/radar-dispatch.server.ts`** — bleibt wie es ist, wird weiter vom HTTP-Endpoint genutzt.
+4. **`src/routes/api/public/radar/ingest-trigger.ts`** — bleibt unverändert (= das, was der externe Worker pingt).
+5. **`.github/workflows/radar-ingest.yml`** — Backup-Cron auf `*/15 * * * *` erhöhen (von `*/30`), als Sicherheitsnetz falls der externe Worker mal ausfällt. `workflow_dispatch` bleibt.
+6. **`cloudflare/radar-trigger-worker/README.md`** — kurz aktualisieren: klarstellen, dass dieser Worker jetzt der **primäre** Trigger ist (nicht mehr nur Backup).
+
+## Architektur danach
+
+```text
+Eigener Cloudflare Worker (Cron */5)
+        │ POST x-trigger-secret
+        ▼
+/api/public/radar/ingest-trigger  (Lovable App)
+        │ GitHub workflow_dispatch
+        ▼
+GitHub Actions "Radar Ingest"  →  R2  →  /karten/radar
+
+Backup: GitHub schedule */15  (falls Worker mal stillsteht)
 ```
 
-**Env-Vars (bereits vorhanden):** `GITHUB_DISPATCH_TOKEN`, `GITHUB_REPO`, `GITHUB_REF`. `RADAR_TRIGGER_SECRET` wird nur noch vom HTTP-Endpoint geprüft.
+## Out of scope
 
-## Risiken / Hinweise
-- Cloudflare Cron Triggers müssen beim Lovable-Deploy aus `wrangler.jsonc` übernommen werden. Falls der Deploy die `triggers`-Sektion ignoriert, fallen wir auf cron-job.org → bestehender HTTP-Endpoint zurück (Option C).
-- Min. Intervall bei Cloudflare Workers Cron: 1 min. `*/5` ist sicher.
-- Erste 1–2 Triggers nach Deploy verifizieren (Worker-Logs).
+- Eigene `RADAR_TRIGGER_SECRET`-Rotation
+- Monitoring/Alerts (kann später ergänzt werden, z. B. healthcheck-Endpoint)
