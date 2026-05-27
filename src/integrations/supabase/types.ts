@@ -17,7 +17,16 @@ export type Database = {
       [_ in never]: never
     }
     Views: {
-      [_ in never]: never
+      radar_cron_health: {
+        Row: {
+          duration_s: number | null
+          end_time: string | null
+          return_message: string | null
+          start_time: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
