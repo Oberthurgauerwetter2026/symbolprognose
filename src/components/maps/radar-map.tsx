@@ -788,8 +788,14 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 key={`precip-${currentFrame.t}`}
                 url={currentFrame.precipUrl}
                 bounds={[
-                  [data.imageBbox.minLat, data.imageBbox.minLon],
-                  [data.imageBbox.maxLat, data.imageBbox.maxLon],
+                  [
+                    data.imageBbox.minLat + (currentFrame.imageOffset?.dLat ?? 0),
+                    data.imageBbox.minLon + (currentFrame.imageOffset?.dLon ?? 0),
+                  ],
+                  [
+                    data.imageBbox.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
+                    data.imageBbox.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
+                  ],
                 ]}
                 opacity={0.95}
                 className="mch-precip"
