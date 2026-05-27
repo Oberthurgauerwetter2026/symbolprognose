@@ -2,10 +2,12 @@ name: Radar Ingest
 
 on:
   schedule:
-    # Backup-Schedule (alle 30 min), falls Cloudflare Cron Trigger ausfällt.
-    # Primärer Trigger ist Cloudflare Worker Cron → workflow_dispatch alle 5 min.
-    - cron: "*/30 * * * *"
+    # Backup-Schedule (alle 15 min), falls der externe Cloudflare-Worker ausfällt.
+    # Primärer Trigger ist der eigene Cloudflare Worker (cloudflare/radar-trigger-worker/)
+    # via workflow_dispatch alle 5 min.
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
+
 
 
 concurrency:
