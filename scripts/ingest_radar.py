@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v4-failfast-manifest-guard"
+RADAR_INGEST_VERSION = "v5-bbox-extended"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -56,11 +56,11 @@ ASSET_PREFIX = {
     "hail": "bzc",  # POH product (Probability Of Hail)
 }
 
-# Bodensee-Region bounding box (WGS84) — Oberthurgau + Umland für volle Kartenabdeckung.
-BBOX_WGS = {"minLon": 8.85, "maxLon": 9.85, "minLat": 47.30, "maxLat": 47.85}
+# Erweiterte Bbox (WGS84) — Oberthurgau + ~50 km in alle Richtungen, deckt CH-Mitte/Ost, Süd-Schwarzwald, Bodensee/Allgäu, Vorarlberg ab.
+BBOX_WGS = {"minLon": 8.15, "maxLon": 10.55, "minLat": 46.85, "maxLat": 48.30}
 
-# Output PNG resolution (Web Mercator pixels). 768×512 hält PNGs weiterhin <40 KB.
-OUT_W, OUT_H = 768, 512
+# Output PNG resolution (Web Mercator pixels). 1024×768 hält ~1 km/px bei der grösseren Fläche.
+OUT_W, OUT_H = 1024, 768
 
 LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))

@@ -156,11 +156,11 @@ const regionBounds: L.LatLngBoundsExpression = [
   [47.6392538, 9.4773698],
 ];
 
-// Etwas grösser als die Daten-Bbox (47.30–47.85 / 8.85–9.85), damit der
+// Etwas grösser als die erweiterte Daten-Bbox (46.85–48.30 / 8.15–10.55), damit der
 // Standardausschnitt knapp drüber liegt.
 const maxBoundsExt: L.LatLngBoundsExpression = [
-  [47.25, 8.78],
-  [47.90, 9.92],
+  [46.80, 8.10],
+  [48.35, 10.60],
 ];
 
 function InvalidateOnResize() {
@@ -733,7 +733,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           zoomSnap={0.25}
           maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
-          minZoom={8.5}
+          minZoom={8}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
