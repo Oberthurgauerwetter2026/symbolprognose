@@ -407,11 +407,15 @@ function fmtDayLong(d: Date): string {
   return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
 }
 
-function fmtBubble(d: Date, isForecast: boolean): string {
+function fmtBubble(d: Date, frame: RadarFrame | null): string {
+  const now = Date.now();
+  const isForecast = frame ? d.getTime() > now + 60000 : false;
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${isForecast ? "Prognose" : "Messung"}: ${wd}, ${hh}:${mm}`;
+  const kind =
+    frame?.source === "nowcast" ? "Nowcast" : isForecast ? "Prognose" : "Messung";
+  return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
 function MeteoTimeline({
