@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v5-bbox-extended"
+RADAR_INGEST_VERSION = "v6-retry"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -116,6 +116,32 @@ def make_s3():
 
 BUCKET = os.environ.get("R2_BUCKET", "")
 PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
+
+
+# ---------------------------------------------------------------------------
+# HTTP helper with retry/backoff for transient failures
+# ---------------------------------------------------------------------------
+
+
+def http_get(url: str, *, timeout: int = 60, attempts: int = 4) -> requests.Response:
+    """GET with exponential backoff. Retries on network errors and 5xx/429."""
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            r = requests.get(url, timeout=timeout)
+            # Retry on server errors / rate limit, otherwise return immediately.
+            if r.status_code >= 500 or r.status_code == 429:
+                raise requests.HTTPError(f"{r.status_code} for {url}", response=r)
+            return r
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if i == attempts - 1:
+                break
+            sleep_s = 2 ** i  # 1, 2, 4, 8
+            print(f"  retry {i + 1}/{attempts - 1} after {sleep_s}s: {exc!r}", flush=True)
+            time.sleep(sleep_s)
+    assert last_exc is not None
+    raise last_exc
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +265,7 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
         day = (now - timedelta(days=day_offset)).strftime("%Y%m%d")
         url = f"{STAC_BASE}/{coll}/items/{day}-ch"
         try:
-            r = requests.get(url, timeout=30)
+            r = http_get(url, timeout=30)
             print(f"  STAC GET {day}-ch -> {r.status_code}", flush=True)
             if r.status_code == 404:
                 continue
@@ -253,7 +279,7 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
     if not candidates:
         try:
             url = f"{STAC_BASE}/{coll}/items?sortby=-properties.datetime&limit=3"
-            r = requests.get(url, timeout=30)
+            r = http_get(url, timeout=30)
             print(f"  STAC fallback sort -> {r.status_code}", flush=True)
             r.raise_for_status()
             for feat in r.json().get("features", []):
@@ -426,7 +452,7 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     if head_exists(s3, key):
         return key
     print(f"  fetching {asset.href}", flush=True)
-    r = requests.get(asset.href, timeout=60)
+    r = http_get(asset.href, timeout=60)
     r.raise_for_status()
     values, meta = read_h5_grid(r.content)
     cropped = sample_to_bbox(values, meta)
