@@ -1,30 +1,38 @@
-## Problem
-- Die letzte Migration war ein reiner DB-Hintergrund-Fix (Extensions aus `public` raus) — auf der `/karten/radar`-Seite gibt es deshalb **bewusst** nichts Sichtbares zu sehen.
-- Aber: die Server-Logs zeigen **seit 18:30 Uhr keinen einzigen POST** auf `/api/public/radar/ingest-trigger`. Der pg_cron-Job feuert nicht (sollte alle 5 Min laufen, jetzt ist es ~19:18).
-- Zusätzlich: selbst wenn er feuert, gibt der **Produktions-Endpoint immer noch 401 zurück**, weil die Code-Änderung (apikey-Header akzeptieren) noch **nicht publishd** wurde — der letzte Live-Code prüft nur `x-trigger-secret`.
+## Ziel
 
-## Ursachenanalyse
+Der Embed `/embed/region-lokal` ("Wetterkarte + Lokalprognose Amriswil") soll kompakter werden, damit er sich gut in beliebige Seiten (Blog-Artikel, Sidebars, Spalten) einbetten lässt, ohne 100 % Viewport-Höhe zu beanspruchen.
 
-**1. Cron feuert nicht (vermutlich):** Nach `DROP EXTENSION pg_cron; CREATE EXTENSION pg_cron;` kann es passieren, dass der Background-Worker den neuen Job erst nach einem DB-Restart aufnimmt. Plus: nach Recreate fehlen oft GRANTs auf das `cron`-Schema für `postgres`/`service_role`.
+## Aktueller Zustand
 
-**2. Endpoint-Code noch nicht live:** Die Datei `src/routes/api/public/radar/ingest-trigger.ts` akzeptiert in Preview den `apikey`-Header — aber die Produktion (`symbolprognose.lovable.app` / `project--…lovable.app`) läuft noch auf der alten Version → 401.
+`src/routes/embed.region-lokal.tsx` nutzt `EmbedShell` mit `fillViewport=true` → das Embed füllt immer `100dvh`. In einem WordPress-Artikel mit fester iframe-Höhe wird die Karte dadurch entweder zu hoch oder zu klein, und das Layout passt sich der Host-Seite nicht an.
 
-## Plan
+```
+EmbedShell fillViewport        → 100dvh, kein postMessage
+  RegionMap bare fill          → h-full (füllt verfügbare Höhe)
+  WeatherWidget detailOnly compact  → natürliche Höhe
+```
 
-**Schritt A — Endpoint publishen (du)**
-Klick auf "Publish". Damit geht die Code-Änderung live und der `apikey`-Header wird akzeptiert.
+## Änderung
 
-**Schritt B — Cron-Job diagnostizieren + ggf. neu schedulen (ich, per Migration)**
-Eine neue Migration die:
-1. Den alten Job sicher entfernt (`cron.unschedule`).
-2. GRANTs auf `cron`-Schema setzt (`GRANT USAGE ON SCHEMA cron TO postgres, service_role;`).
-3. Den Job **neu schedulet** mit identischem `extensions.http_post`-Call.
-4. Direkt einen Test-Call ausführt (`SELECT extensions.http_post(...)`) und das Ergebnis loggt.
-5. Eine kleine Diagnose-View `public.radar_cron_health` anlegt, die letzten 10 Job-Runs + HTTP-Responses zeigt — damit ich/du den Status künftig sehen kann ohne psql-Adminrechte.
+1. **`src/routes/embed.region-lokal.tsx`**
+   - `fillViewport` entfernen → `EmbedShell` postet die tatsächliche Höhe per `postMessage` an den Host (gleiches Verhalten wie die anderen `/embed/*`-Routen).
+   - `RegionMap` nicht mehr im `fill`-Modus, sondern im `bare`-Modus mit responsiven Aspect-Ratios + Höhendeckel — so wird die Karte automatisch klein in schmalen Spalten und nutzt bis zu ca. 420 px Höhe in breiten.
+   - Wrapper auf Stack ohne `h-full`/`overflow-hidden` umstellen, damit die Gesamthöhe natürlich aus Karte + Lokalprognose entsteht.
 
-**Schritt C — Verifikation**
-- Server-Logs prüfen → POST alle 5 Min sichtbar, Status 202.
-- `/karten/radar` öffnen → Slider zeigt aktuelle Frames bis "jetzt".
+2. **`src/components/region-map.tsx`** (`bare`-Pfad anpassen, nur für das Embed relevant)
+   - `max-h-[640px]` auf `max-h-[420px]` reduzieren und Aspect-Ratios pro Container-Breakpoint leicht flacher wählen (z. B. `aspect-[5/4]` / `aspect-[16/10]` / `aspect-[16/9]`), so dass die Karte selbst auf breiten Embeds nicht dominiert.
 
-## Reihenfolge
-Bitte **erst publishen** (Schritt A), sonst feuert der Cron zwar, bekommt aber weiter 401. Sobald publishd ist, sag Bescheid → ich lege die Diagnose-Migration nach (Schritt B+C).
+3. **`src/components/weather-widget.tsx`** (`detailOnly + compact`-Pfad)
+   - Padding im `compact`-Wrapper bleibt schlank, aber sicherstellen, dass die Höhenmeldung an den Host stabil ist (kein zusätzliches Tuning nötig — die bestehende `postMessage`-Logik in `WeatherWidget` läuft weiter, EmbedShell sendet zusätzlich die Gesamthöhe).
+
+## Out of scope
+
+- `/karten/radar`, `/karten/lokal`, `/karten/region` (Vollseiten) bleiben unverändert.
+- Datenquellen, Cron, RLS, Auth: nichts angefasst.
+- Andere `/embed/*`-Routen (`/embed/lokal`, `/embed/region`) bleiben unverändert.
+
+## Verifikation
+
+- `/embed/region-lokal` in einem schmalen Container (~360 px) → Karte ~quadratisch, Lokalprognose darunter, Gesamthöhe < 700 px.
+- `/embed/region-lokal` in einem breiten Container (~960 px) → Karte ~16:9 mit Deckel 420 px, Lokalprognose darunter.
+- iframe-Auto-Resize: `lovable-weather:height` wird vom EmbedShell gesendet (Höhe = scrollHeight des Wrappers).
