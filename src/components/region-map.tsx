@@ -546,7 +546,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           fill
             ? "h-full w-full min-h-0 flex-1"
             : bare
-              ? "w-full rounded-lg @[420px]:rounded-xl @[640px]:rounded-2xl aspect-square @[360px]:aspect-[5/4] @[480px]:aspect-[4/3] @[640px]:aspect-[16/11] @[820px]:aspect-[16/10] min-h-[200px] max-h-[640px]"
+              ? "w-full rounded-lg @[420px]:rounded-xl @[640px]:rounded-2xl aspect-[5/4] @[420px]:aspect-[4/3] @[640px]:aspect-[16/10] @[820px]:aspect-[16/9] min-h-[180px] max-h-[420px]"
               : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
         )}
       >
