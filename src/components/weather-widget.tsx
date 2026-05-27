@@ -1092,14 +1092,14 @@ function DetailPanel({
           </div>
         </div>
       </div>
-      <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-700 font-semibold flex flex-wrap gap-x-4 gap-y-1">
-        <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
-        <span>Wind / Böenspitzen in km/h</span>
+      <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-700 font-semibold flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] align-middle" /><CloudRain className="w-3.5 h-3.5" aria-label="Regen" /> mm · %</span>
+        <span className="inline-flex items-center gap-1.5"><Wind className="w-3.5 h-3.5" aria-label="Wind" /> km/h (Wind / Böen)</span>
         {extended && (
-          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] mr-1.5 align-middle" />Sonnenscheindauer in min/h · <span className="text-amber-700 font-semibold">↑</span> Sonnenaufgang · <span className="text-amber-700 font-semibold">↓</span> Sonnenuntergang</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] align-middle" /><Sun className="w-3.5 h-3.5" aria-label="Sonne" /> min/h · <Sunrise className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenaufgang" /> · <Sunset className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenuntergang" /></span>
         )}
         {snow && (
-          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-snow-bar)] border border-sky-300 mr-1.5 align-middle" />Neuschnee in cm</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-snow-bar)] border border-sky-300 align-middle" /><Snowflake className="w-3.5 h-3.5" aria-label="Neuschnee" /> cm</span>
         )}
       </div>
     </section>
