@@ -378,6 +378,9 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "radar") {
     return { label: "Messung MeteoSchweiz", color: "#1f7a3a" };
   }
+  if (frame.source === "nowcast") {
+    return { label: "Nowcast Radar-Extrapolation", color: "#d97706" };
+  }
   if (frame.source === "icon-ch1") return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
   return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
 }
