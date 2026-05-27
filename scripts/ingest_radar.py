@@ -544,6 +544,16 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         if abs(dx_px) > 60 or abs(dy_px) > 60:
             print(f"motion: pair {t_old}→{t_new} jump too large, skip", flush=True)
             continue
+        # Degenerierter Null-Peak: bei flachen/persistenten Szenen rastet die
+        # FFT-Phase-Korrelation auf (0, 0) ein und meldet hohe Confidence,
+        # obwohl real keine Drift erkennbar ist. Solche Paare verwerfen.
+        if abs(dx_px) < 0.5 and abs(dy_px) < 0.5:
+            print(
+                f"motion: pair {t_old.strftime('%H:%M')}→{t_new.strftime('%H:%M')} "
+                f"zero shift dx={dx_px:+.2f}px dy={dy_px:+.2f}px → discard",
+                flush=True,
+            )
+            continue
         pair_motions.append((dx_px / dt_min, dy_px / dt_min, conf))
         print(
             f"motion: pair {t_old.strftime('%H:%M')}→{t_new.strftime('%H:%M')} "
@@ -552,11 +562,20 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         )
 
     if not pair_motions:
+        print("motion: no usable pairs → discarded", flush=True)
         return None
 
     u_px_min = float(np.median([p[0] for p in pair_motions]))
     v_px_min = float(np.median([p[1] for p in pair_motions]))
     conf_med = float(np.median([p[2] for p in pair_motions]))
+
+    # Nach Median-Bildung erneut auf Null-Drift prüfen.
+    if abs(u_px_min) < 0.5 and abs(v_px_min) < 0.5:
+        print(
+            f"motion: median zero shift u={u_px_min:+.2f}px/min v={v_px_min:+.2f}px/min → discarded",
+            flush=True,
+        )
+        return None
 
     deg_lon_per_px = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / OUT_W
     deg_lat_per_px = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / OUT_H
