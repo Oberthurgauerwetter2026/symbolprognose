@@ -484,7 +484,109 @@ def cleanup(s3, keep_since: datetime) -> None:
         print(f"cleanup: deleted {deleted} old frames", flush=True)
 
 
-def write_manifest(s3) -> None:
+def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float]:
+    """FFT phase correlation. Returns (dx_px, dy_px, confidence) for motion
+    from a (older) to b (newer). dy_px > 0 = southward (numpy row+ = south).
+    Confidence in 0..1 (normalised correlation-peak SNR)."""
+    a = np.nan_to_num(a, nan=0.0).astype(np.float32)
+    b = np.nan_to_num(b, nan=0.0).astype(np.float32)
+    a = a - a.mean()
+    b = b - b.mean()
+    h, w = a.shape
+    win = np.hanning(h)[:, None] * np.hanning(w)[None, :]
+    A = np.fft.fft2(a * win)
+    B = np.fft.fft2(b * win)
+    R = A * np.conj(B)
+    R /= np.abs(R) + 1e-10
+    c = np.fft.ifft2(R).real
+    peak = np.unravel_index(int(np.argmax(c)), c.shape)
+    py, px = int(peak[0]), int(peak[1])
+    if py > h // 2:
+        py -= h
+    if px > w // 2:
+        px -= w
+    # phase-corr peak: a(x) ≈ b(x − shift) → motion a→b is +shift
+    dx_px = float(px)
+    dy_px = float(py)
+    peak_v = float(c.max())
+    mean_v = float(c.mean())
+    std_v = float(c.std()) + 1e-10
+    snr = (peak_v - mean_v) / std_v
+    conf = float(max(0.0, min(1.0, snr / 60.0)))
+    return dx_px, dy_px, conf
+
+
+def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
+    """Mean precipitation-cell motion from the latest 3 precip frames."""
+    last = sorted(precip_assets, key=lambda a: a.ts)[-3:]
+    if len(last) < 2:
+        print("motion: <2 recent precip frames, skipping", flush=True)
+        return None
+    arrs: list[tuple[datetime, np.ndarray]] = []
+    for a in last:
+        try:
+            r = http_get(a.href, timeout=60)
+            r.raise_for_status()
+            values, meta = read_h5_grid(r.content)
+            cropped = sample_to_bbox(values, meta)
+            arrs.append((a.ts, cropped))
+        except Exception as exc:
+            print(f"motion: decode {a.key} failed: {exc!r}", flush=True)
+    if len(arrs) < 2:
+        print("motion: <2 decoded frames, skipping", flush=True)
+        return None
+
+    pair_motions: list[tuple[float, float, float]] = []
+    for i in range(len(arrs) - 1):
+        t_old, a_old = arrs[i]
+        t_new, a_new = arrs[i + 1]
+        dt_min = max(1.0, (t_new - t_old).total_seconds() / 60.0)
+        if np.nansum(a_old > 0.1) < 50 or np.nansum(a_new > 0.1) < 50:
+            print(f"motion: pair {t_old}→{t_new} too sparse, skip", flush=True)
+            continue
+        dx_px, dy_px, conf = _phase_correlation(a_old, a_new)
+        if abs(dx_px) > 60 or abs(dy_px) > 60:
+            print(f"motion: pair {t_old}→{t_new} jump too large, skip", flush=True)
+            continue
+        pair_motions.append((dx_px / dt_min, dy_px / dt_min, conf))
+        print(
+            f"motion: pair {t_old.strftime('%H:%M')}→{t_new.strftime('%H:%M')} "
+            f"dx={dx_px:+.1f}px dy={dy_px:+.1f}px conf={conf:.2f} dt={dt_min:.0f}min",
+            flush=True,
+        )
+
+    if not pair_motions:
+        return None
+
+    u_px_min = float(np.median([p[0] for p in pair_motions]))
+    v_px_min = float(np.median([p[1] for p in pair_motions]))
+    conf_med = float(np.median([p[2] for p in pair_motions]))
+
+    deg_lon_per_px = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / OUT_W
+    deg_lat_per_px = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / OUT_H
+    u_deg_min = u_px_min * deg_lon_per_px
+    v_deg_min = -v_px_min * deg_lat_per_px  # south px → north deg negative
+
+    mid_lat = (BBOX_WGS["maxLat"] + BBOX_WGS["minLat"]) / 2
+    m_per_deg_lat = 111_000.0
+    m_per_deg_lon = 111_000.0 * float(np.cos(np.radians(mid_lat)))
+    u_ms = u_deg_min * m_per_deg_lon / 60.0
+    v_ms = v_deg_min * m_per_deg_lat / 60.0
+
+    motion = {
+        "u_ms": round(u_ms, 3),
+        "v_ms": round(v_ms, 3),
+        "u_deg_per_min": round(u_deg_min, 6),
+        "v_deg_per_min": round(v_deg_min, 6),
+        "sourceTs": arrs[-1][0].strftime("%Y-%m-%dT%H:%M:00Z"),
+        "confidence": round(conf_med, 3),
+        "pairs": len(pair_motions),
+    }
+    print(f"motion: {motion}", flush=True)
+    return motion
+
+
+def write_manifest(s3, motion: dict | None = None) -> None:
     """List all current radar/*.png keys and build frames.json."""
     paginator = s3.get_paginator("list_objects_v2")
     frames: dict[str, dict] = {}  # ts_iso → {ts, precipUrl?, hailUrl?}
@@ -505,11 +607,13 @@ def write_manifest(s3) -> None:
                 else:
                     entry["hailUrl"] = url
     sorted_frames = sorted(frames.values(), key=lambda x: x["t"])
-    body = {
+    body: dict = {
         "bbox": BBOX_WGS,
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "frames": sorted_frames,
     }
+    if motion is not None:
+        body["motion"] = motion
     if not sorted_frames:
         try:
             existing = s3.get_object(Bucket=BUCKET, Key="radar/frames.json")
@@ -530,7 +634,10 @@ def write_manifest(s3) -> None:
         ContentType="application/json",
         CacheControl="public, max-age=30",
     )
-    print(f"manifest: {len(sorted_frames)} frames", flush=True)
+    print(
+        f"manifest: {len(sorted_frames)} frames, motion={'yes' if motion else 'no'}",
+        flush=True,
+    )
 
 
 def main() -> int:
