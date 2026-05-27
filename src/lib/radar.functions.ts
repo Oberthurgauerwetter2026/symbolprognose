@@ -474,6 +474,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     generatedAt: new Date().toISOString(),
     hasRealRadar,
     hasHail,
+    motion: manifest?.motion,
     warning: warnings.length > 0 ? warnings.join("; ") : undefined,
   };
   return payload;
