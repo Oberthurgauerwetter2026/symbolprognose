@@ -516,8 +516,8 @@ function MeteoTimeline({
   const handlePct = pctForIdx(idx);
   const currentMs = times[idx] ?? now;
   const currentDate = new Date(currentMs);
-  const isForecast = currentMs > now + 60000;
-  const bubbleLabel = fmtBubble(currentDate, isForecast);
+  const currentFrame = frames[idx] ?? null;
+  const bubbleLabel = fmtBubble(currentDate, currentFrame);
 
   // Auf Mobile nur jede 3. Stunde labeln, damit's nicht überlappt.
   const labelStep = isMobile ? 3 : 1;
