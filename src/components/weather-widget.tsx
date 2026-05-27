@@ -15,6 +15,7 @@ import {
 } from "@/lib/weather";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
+import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset } from "lucide-react";
 
 interface StoredLocation {
   name: string;
