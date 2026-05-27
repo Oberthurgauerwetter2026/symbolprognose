@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v6-retry"
+RADAR_INGEST_VERSION = "v7-resilient"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -549,6 +549,8 @@ def main() -> int:
 
     processed = 0
     skipped_existing = 0
+    failed: dict[str, list[str]] = {p: [] for p in COLLECTIONS}
+    candidates: dict[str, int] = {p: 0 for p in COLLECTIONS}
     for product in COLLECTIONS:
         print(f"== {product} (since {since.isoformat()}) ==", flush=True)
         try:
@@ -556,28 +558,63 @@ def main() -> int:
         except Exception as exc:
             print(f"  STAC error: {exc}", flush=True)
             continue
+        candidates[product] = len(assets)
         print(f"  {len(assets)} candidate frames", flush=True)
         for a in assets:
-            try:
-                key = f"radar/{a.product}/{a.ts.strftime('%Y%m%dT%H%M')}.png"
-                if head_exists(s3, key):
-                    skipped_existing += 1
-                    continue
-                if process_asset(s3, a):
-                    processed += 1
-            except Exception as exc:
-                print(f"  ! {a.key}: {exc}", flush=True)
+            key = f"radar/{a.product}/{a.ts.strftime('%Y%m%dT%H%M')}.png"
+            if head_exists(s3, key):
+                skipped_existing += 1
+                continue
+            # Per-Asset Retry: ein Fehler bei einem einzelnen Frame darf
+            # weder den Rest des Produkts noch das andere Produkt abbrechen.
+            ok = False
+            last_exc: Exception | None = None
+            for attempt in range(2):
+                try:
+                    if process_asset(s3, a):
+                        ok = True
+                        processed += 1
+                    break
+                except Exception as exc:
+                    last_exc = exc
+                    print(
+                        f"  ! attempt {attempt + 1}/2 failed for {a.key}: {exc!r}",
+                        flush=True,
+                    )
+                    time.sleep(1.5 * (attempt + 1))
+            if not ok:
+                failed[product].append(a.ts.strftime("%Y%m%dT%H%M"))
+                print(f"  X giving up on {a.key}: {last_exc!r}", flush=True)
 
-    print(f"summary: processed={processed} skipped_existing={skipped_existing}", flush=True)
+    print(
+        f"summary: processed={processed} skipped_existing={skipped_existing} "
+        f"failed_precip={len(failed['precip'])} failed_hail={len(failed['hail'])}",
+        flush=True,
+    )
+    for product, tags in failed.items():
+        if tags:
+            print(f"  failed {product}: {', '.join(tags[:20])}{' ...' if len(tags) > 20 else ''}", flush=True)
 
-    # Bucket-Inventur, damit klar ist, was tatsächlich in R2 liegt.
+    # Bucket-Inventur + Lückenstatistik, damit klar ist was wirklich in R2 liegt.
     try:
         paginator = s3.get_paginator("list_objects_v2")
+        inventory: dict[str, set[str]] = {p: set() for p in COLLECTIONS}
         for product in COLLECTIONS:
-            count = 0
             for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
-                count += len(page.get("Contents", []) or [])
-            print(f"  R2 inventory radar/{product}/: {count} objects", flush=True)
+                for obj in page.get("Contents", []) or []:
+                    tail = obj["Key"].rsplit("/", 1)[-1].removesuffix(".png")
+                    inventory[product].add(tail)
+            print(
+                f"  R2 inventory radar/{product}/: {len(inventory[product])} objects",
+                flush=True,
+            )
+        # Asymmetrie precip vs hail (Frames mit nur einem Produkt → halb-leere Animation)
+        only_precip = inventory["precip"] - inventory["hail"]
+        only_hail = inventory["hail"] - inventory["precip"]
+        print(
+            f"  asymmetry: only_precip={len(only_precip)} only_hail={len(only_hail)}",
+            flush=True,
+        )
     except Exception as exc:
         print(f"  R2 inventory error: {exc!r}", flush=True)
 
