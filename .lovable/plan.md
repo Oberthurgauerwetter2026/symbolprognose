@@ -1,55 +1,44 @@
-# Radar-Messung farblich an Prognose angleichen
+# Nowcast-Verlagerung: Null-Motion verwerfen + Wind-Fallback
 
 ## Problem
 
-Im Radar-Layer auf `/karten/radar` werden gemessene Niederschläge anders eingefärbt als die Prognose / Nowcast-Frames:
-
-- **Messung** (PNG, gerendert in `scripts/ingest_radar.py` via `PRECIP_SCALE`): 15 Stufen, helle Blautöne, viel Gelb/Orange, eingebackenes Alpha 140–250.
-- **Prognose / Nowcast-Canvas** (`PrecipOverlay` in `src/components/maps/radar-map.tsx` via `SCALE` / `colorFor`): 9 Stufen, andere Schwellwerte, Alpha 0.35 (lowest) bzw. 0.60.
-
-Resultat: gleiche mm/h-Werte sehen verschieden aus, und beim Übergang vom letzten Mess-Frame zum ersten Nowcast/ICON-Frame springt die Farbe sichtbar.
+Manifest enthält aktuell `motion = { u_ms: 0, v_ms: 0, confidence: 1.0 }`.
+Die FFT-Phasenkorrelation rastet bei flachen / persistenten Szenen am Null-Peak ein und meldet trotzdem hohe Confidence. Der Server erzeugt 6 Nowcast-Frames mit `imageOffset = (0, 0)` — Niederschlag steht still.
 
 ## Änderungen
 
-### 1. `scripts/ingest_radar.py` — `PRECIP_SCALE` ersetzen
+### 1. `scripts/ingest_radar.py` — degenerierte Motion verwerfen
 
-Skala 1:1 auf die JS-Prognosepalette ausrichten (Schwellen + RGB exakt wie `SCALE`, Alpha gemäss `colorFor`: 89 für niedrigste Stufe, 153 darüber):
+In `compute_motion`:
+- Pair-Filter: Einzelpaare mit `|dx_px| < 0.5 ∧ |dy_px| < 0.5` werden nicht in `pair_motions` aufgenommen.
+- Nach Median-Bildung: wenn `|u_px_min| < 0.5 ∧ |v_px_min| < 0.5` oder keine validen Pairs → `return None`.
+- Log: `motion: zero shift → discarded`.
 
-```python
-PRECIP_SCALE = [
-    (0.2,  (167, 174, 211,  89)),
-    (1.0,  ( 30,  60, 230, 153)),
-    (2.0,  ( 30, 120,  50, 153)),
-    (4.0,  ( 70, 200,  70, 153)),
-    (6.0,  (240, 235,  50, 153)),
-    (10.0, (240, 200, 120, 153)),
-    (20.0, (240, 140,  30, 153)),
-    (40.0, (225,  30,  30, 153)),
-    (60.0, (150,  30, 200, 153)),
-]
-```
+### 2. `src/lib/radar.functions.ts` — Wind-Fallback
 
-`< 0.2 mm/h` bleibt transparent.
+Wenn `motion` fehlt oder degeneriert ist (`|u_ms| + |v_ms| < 1.0`) und das letzte Radar-Frame existiert:
 
-### 2. `src/components/maps/radar-map.tsx` — `ImageOverlay opacity` für Messung
+- Aus dem bereits in `r1` (Open-Meteo hourly) vorhandenen Punkt, der dem Bbox-Mittelpunkt am nächsten liegt, `wind_speed_10m` + `wind_direction_10m` für die Stunde von `lastRadarT` lesen.
+- Falls `wind_direction_10m` nicht in `r1` enthalten ist (Variablenliste prüfen), Variable zum Open-Meteo-Request hinzufügen.
+- Steering-Annäherung: `speed_steer = wind_speed_10m * 1.8` (grober Faktor 10 m → ~700 hPa für offenes Gelände).
+- Vektor (meteo-Konvention „Wind aus …"):
+  `u_ms = -speed_steer * sin(dir_rad)`, `v_ms = -speed_steer * cos(dir_rad)`.
+- Umrechnung in `u_deg_per_min`, `v_deg_per_min` mit `m_per_deg_lon = 111_000 * cos(midLat)`, `m_per_deg_lat = 111_000`.
+- Neuer `kind`-Marker: Nowcast-Frames bekommen `source: "nowcast"` + zusätzliches Flag `motionSource: "wind"` (im `RadarFrame`-Typ ergänzen).
 
-`opacity={0.95}` auf dem Radar-PNG (≈ Z. 800) auf `1.0` setzen, damit das jetzt im PNG eingebrannte Alpha nicht doppelt multipliziert wird. Hagel-Overlay und `PrecipOverlay` (Forecast-Canvas) bleiben unverändert.
+### 3. `src/components/maps/radar-map.tsx` — Label
 
-### 3. Legende prüfen
-
-Falls eine separate Legende auf der Karte eine eigene Skala enthält, an die neue (= bestehende `SCALE`) angleichen. Wird die Legende bereits aus `SCALE` gespeist, ist sie automatisch konsistent.
+`sourceLabel` / `fmtBubble`:
+- Bei `frame.source === "nowcast"` und `frame.motionSource === "wind"` Label „Nowcast (Wind-Fallback)" anzeigen, sonst weiter „Nowcast Radar-Extrapolation".
 
 ## Nicht im Scope
 
-- `HAIL_SCALE` (Hagel) unverändert.
-- `SNOW_SCALE` (Schnee) unverändert.
-- Geometrie / Bounds / Nowcast-Motion-Logik unverändert.
-
-## Wirksamkeit
-
-Wirkt erst, nachdem der Ingest-Job mindestens einmal neu gelaufen ist. Bereits in R2 liegende PNGs sind mit der alten Palette eingebrannt und werden vom Ingest nicht überschrieben. Optionen: warten, bis nur noch neu generierte Frames im 24h-Retentionsfenster liegen, oder die Precip-PNGs im R2 einmalig löschen, damit sie neu erzeugt werden.
+- Kein Pixel-optisches-Flow.
+- Keine Änderung an Farbpaletten, Hagel, Schnee, Geometrie.
+- Keine Erweiterung auf 700 hPa-Pressure-Level-Wind (nur falls hourly-Variable bereits trivial verfügbar; sonst 10 m × 1.8).
 
 ## Verifikation
 
-- Identische mm/h-Werte (z. B. 4 mm/h-Pixel) zeigen in Messung und Prognose den gleichen Grünton.
-- Übergang im Zeitstrahl vom letzten Mess-Frame zum ersten Nowcast-/ICON-Frame ohne Farb-Sprung.
+- Ruhige Lage, leere Szene → `motion = null`, keine Nowcast-Frames, ICON-CH1 ab T+0.
+- Reale Zellverlagerung → Phase-Korrelation liefert Drift, Nowcast verschiebt sich sichtbar.
+- Niederschlag + Null-Radar-Motion → Wind-Fallback bewegt das Bild, Label „Wind-Fallback".
