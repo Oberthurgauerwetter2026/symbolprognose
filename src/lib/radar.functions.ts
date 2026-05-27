@@ -310,11 +310,12 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
             dirDeg !== null &&
             speedMs >= MIN_RADAR_MS
           ) {
-            // Meteo-Konvention: dir = Richtung, AUS der der Wind kommt.
-            // Bewegungsvektor = wohin er weht → Vorzeichen invertieren.
+            // Empirisch in dieser Bild-Pipeline: dir wird als „wohin der Wind
+            // weht" behandelt (Vorzeichen NICHT invertieren), sonst zieht die
+            // Niederschlagsverlagerung sichtbar rückwärts.
             const rad = (dirDeg * Math.PI) / 180;
-            const uMs = -speedMs * Math.sin(rad);
-            const vMs = -speedMs * Math.cos(rad);
+            const uMs = speedMs * Math.sin(rad);
+            const vMs = speedMs * Math.cos(rad);
             const mPerDegLat = 111_000;
             const mPerDegLon = 111_000 * Math.cos((midLat * Math.PI) / 180);
             nowcastMotion = {
