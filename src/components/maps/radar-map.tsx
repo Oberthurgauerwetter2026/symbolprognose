@@ -418,7 +418,13 @@ function fmtBubble(d: Date, frame: RadarFrame | null): string {
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
   const kind =
-    frame?.source === "nowcast" ? "Nowcast" : isForecast ? "Prognose" : "Messung";
+    frame?.source === "nowcast"
+      ? frame.motionSource === "wind"
+        ? "Nowcast (Wind)"
+        : "Nowcast"
+      : isForecast
+        ? "Prognose"
+        : "Messung";
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
