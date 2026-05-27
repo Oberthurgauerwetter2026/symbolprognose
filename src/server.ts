@@ -66,6 +66,8 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
+type ScheduledCtx = { waitUntil: (p: Promise<unknown>) => void };
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
@@ -76,5 +78,18 @@ export default {
       console.error(error);
       return brandedErrorResponse();
     }
+  },
+  async scheduled(_event: unknown, _env: unknown, ctx: ScheduledCtx) {
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const { dispatchRadarIngest } = await import("./lib/radar-dispatch.server");
+          const result = await dispatchRadarIngest();
+          console.log("[cron] radar dispatch:", JSON.stringify(result));
+        } catch (e) {
+          console.error("[cron] radar dispatch failed:", e);
+        }
+      })(),
+    );
   },
 };
