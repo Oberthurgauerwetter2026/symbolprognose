@@ -156,11 +156,11 @@ const regionBounds: L.LatLngBoundsExpression = [
   [47.6392538, 9.4773698],
 ];
 
-// Etwas grösser als die Daten-Bbox (47.30–47.85 / 8.85–9.85), damit der
+// Etwas grösser als die Daten-Bbox (47.025–48.125 / 8.35–10.35), damit der
 // Standardausschnitt knapp drüber liegt.
 const maxBoundsExt: L.LatLngBoundsExpression = [
-  [47.25, 8.78],
-  [47.90, 9.92],
+  [46.97, 8.27],
+  [48.18, 10.42],
 ];
 
 function InvalidateOnResize() {
