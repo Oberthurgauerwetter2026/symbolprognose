@@ -2,8 +2,8 @@ name: Radar Ingest
 
 on:
   schedule:
-    # alle 10 Minuten (free-tier-freundlich: ~144 Runs/Tag à ~1 min)
-    - cron: "*/10 * * * *"
+    # alle 5 Minuten
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 concurrency:
