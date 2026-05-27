@@ -658,6 +658,7 @@ def main() -> int:
     skipped_existing = 0
     failed: dict[str, list[str]] = {p: [] for p in COLLECTIONS}
     candidates: dict[str, int] = {p: 0 for p in COLLECTIONS}
+    precip_assets_all: list[AssetRef] = []
     for product in COLLECTIONS:
         print(f"== {product} (since {since.isoformat()}) ==", flush=True)
         try:
@@ -667,6 +668,8 @@ def main() -> int:
             continue
         candidates[product] = len(assets)
         print(f"  {len(assets)} candidate frames", flush=True)
+        if product == "precip":
+            precip_assets_all = list(assets)
         for a in assets:
             key = f"radar/{a.product}/{a.ts.strftime('%Y%m%dT%H%M')}.png"
             if head_exists(s3, key):
@@ -725,8 +728,17 @@ def main() -> int:
     except Exception as exc:
         print(f"  R2 inventory error: {exc!r}", flush=True)
 
+    # Nowcast-Motion aus den letzten 3 echten Radar-Frames per FFT-Phasen-
+    # korrelation. Wird in frames.json geschrieben und vom Server-FN zur
+    # Erzeugung von Nowcast-Frames (T+0…+60min) genutzt.
+    motion: dict | None = None
+    try:
+        motion = compute_motion(precip_assets_all)
+    except Exception as exc:
+        print(f"motion: error {exc!r}", flush=True)
+
     cleanup(s3, now - timedelta(hours=RETENTION))
-    write_manifest(s3)
+    write_manifest(s3, motion=motion)
     print(f"done: processed {processed} new frames", flush=True)
     return 0
 
