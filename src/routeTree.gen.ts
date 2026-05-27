@@ -25,6 +25,7 @@ import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
 import { Route as EmbedPollenRouteImport } from './routes/embed.pollen'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
+import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
 import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 
 const KarteRoute = KarteRouteImport.update({
@@ -107,6 +108,12 @@ const EmbedAllRoute = EmbedAllRouteImport.update({
   path: '/embed/all',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRadarIngestTriggerRoute =
+  ApiPublicRadarIngestTriggerRouteImport.update({
+    id: '/api/public/radar/ingest-trigger',
+    path: '/api/public/radar/ingest-trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicDebugR2CacheRoute = ApiPublicDebugR2CacheRouteImport.update({
   id: '/api/public/debug/r2-cache',
   path: '/api/public/debug/r2-cache',
@@ -131,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
+  '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -150,6 +158,7 @@ export interface FileRoutesByTo {
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
+  '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -170,6 +179,7 @@ export interface FileRoutesById {
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
+  '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/karten/region'
     | '/karten/wind'
     | '/api/public/debug/r2-cache'
+    | '/api/public/radar/ingest-trigger'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -210,6 +221,7 @@ export interface FileRouteTypes {
     | '/karten/region'
     | '/karten/wind'
     | '/api/public/debug/r2-cache'
+    | '/api/public/radar/ingest-trigger'
   id:
     | '__root__'
     | '/'
@@ -229,6 +241,7 @@ export interface FileRouteTypes {
     | '/karten/region'
     | '/karten/wind'
     | '/api/public/debug/r2-cache'
+    | '/api/public/radar/ingest-trigger'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -249,6 +262,7 @@ export interface RootRouteChildren {
   KartenRegionRoute: typeof KartenRegionRoute
   KartenWindRoute: typeof KartenWindRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
+  ApiPublicRadarIngestTriggerRoute: typeof ApiPublicRadarIngestTriggerRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -365,6 +379,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedAllRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/radar/ingest-trigger': {
+      id: '/api/public/radar/ingest-trigger'
+      path: '/api/public/radar/ingest-trigger'
+      fullPath: '/api/public/radar/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicRadarIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/debug/r2-cache': {
       id: '/api/public/debug/r2-cache'
       path: '/api/public/debug/r2-cache'
@@ -393,6 +414,7 @@ const rootRouteChildren: RootRouteChildren = {
   KartenRegionRoute: KartenRegionRoute,
   KartenWindRoute: KartenWindRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
+  ApiPublicRadarIngestTriggerRoute: ApiPublicRadarIngestTriggerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

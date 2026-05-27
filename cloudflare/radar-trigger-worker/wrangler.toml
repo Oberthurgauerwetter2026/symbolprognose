@@ -1,0 +1,13 @@
+name = "radar-trigger"
+main = "src/index.ts"
+compatibility_date = "2025-09-24"
+
+# Cloudflare Cron Triggers ticken zuverlässig alle 5 Minuten —
+# unabhängig vom GitHub-Actions-Scheduler-Jitter.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Secrets müssen nach dem Deploy einmalig gesetzt werden:
+#   wrangler secret put TRIGGER_SECRET
+#   wrangler secret put TRIGGER_URL
+# (TRIGGER_URL z.B. https://symbolprognose.lovable.app/api/public/radar/ingest-trigger)
