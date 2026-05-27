@@ -55,6 +55,8 @@ export interface RadarFrame {
   hailUrl?: string;
   /** Nowcast: Verschiebung des PNG-Overlays gegenüber `imageBbox` in Grad. */
   imageOffset?: { dLat: number; dLon: number };
+  /** Nur für `source==="nowcast"`: Herkunft des Bewegungsvektors. */
+  motionSource?: "radar" | "wind";
 }
 
 export interface RadarMotion {
