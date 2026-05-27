@@ -452,7 +452,7 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     if head_exists(s3, key):
         return key
     print(f"  fetching {asset.href}", flush=True)
-    r = requests.get(asset.href, timeout=60)
+    r = http_get(asset.href, timeout=60)
     r.raise_for_status()
     values, meta = read_h5_grid(r.content)
     cropped = sample_to_bbox(values, meta)
