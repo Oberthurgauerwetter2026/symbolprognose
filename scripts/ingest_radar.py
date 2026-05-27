@@ -119,6 +119,32 @@ PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
 
 
 # ---------------------------------------------------------------------------
+# HTTP helper with retry/backoff for transient failures
+# ---------------------------------------------------------------------------
+
+
+def http_get(url: str, *, timeout: int = 60, attempts: int = 4) -> requests.Response:
+    """GET with exponential backoff. Retries on network errors and 5xx/429."""
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            r = requests.get(url, timeout=timeout)
+            # Retry on server errors / rate limit, otherwise return immediately.
+            if r.status_code >= 500 or r.status_code == 429:
+                raise requests.HTTPError(f"{r.status_code} for {url}", response=r)
+            return r
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if i == attempts - 1:
+                break
+            sleep_s = 2 ** i  # 1, 2, 4, 8
+            print(f"  retry {i + 1}/{attempts - 1} after {sleep_s}s: {exc!r}", flush=True)
+            time.sleep(sleep_s)
+    assert last_exc is not None
+    raise last_exc
+
+
+# ---------------------------------------------------------------------------
 # STAC discovery
 # ---------------------------------------------------------------------------
 
