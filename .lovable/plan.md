@@ -1,62 +1,63 @@
+# Radar-Pipeline: Cloudflare Cron Trigger statt GitHub-Cron
+
 ## Ziel
-Radar-Aussetzer beseitigen, indem der Browser die MeteoSchweiz-Radardaten **direkt** von geo.admin.ch lädt — komplett ohne GitHub-Cron, ohne R2, ohne Ingest-Pipeline. Damit gibt es keine Lücken mehr durch übersprungene Workflow-Runs.
+Die unzuverlässigen Aussetzer kommen daher, dass `radar-ingest.yml` per GitHub-`schedule:`-Cron läuft — GitHub Actions verzögert/überspringt Schedules regelmäßig (oft 10–30 min). Die MCH-Pipeline (HDF5 → PNG → R2) selbst und die Frontend-Anzeige bleiben unverändert. Wir ersetzen nur den **Auslöser**: Cloudflare's eigener Worker-Cron triggert alle 5 min den GitHub `workflow_dispatch` — das läuft pünktlich.
 
-## Datenquelle
-**MeteoSchweiz Niederschlagsradar via Bundes-Geoportal (geo.admin.ch)**
-- Layer: `ch.meteoschweiz.messwerte-niederschlagsradar`
-- Bereitstellung: WMTS-Time-Service, **alle 5 Minuten** vom Bund offiziell aktualisiert
-- Kostenlos, kein API-Key, CORS erlaubt für Browser-Zugriff
-- Zeitstempel der verfügbaren Frames werden über die STAC-API von `data.geo.admin.ch` ermittelt → letzte ~2h verfügbar
+## Änderungen
 
-Das ist exakt dieselbe Datenquelle wie auf meteoschweiz.ch — nur direkt angezapft statt via Ingest-Umweg.
+### 1. `wrangler.jsonc` — Cron-Trigger registrieren
+Neue `triggers.crons`-Sektion mit `"*/5 * * * *"`. Cloudflare ruft dann alle 5 min die `scheduled()`-Funktion des Workers auf.
 
-## Was geändert wird
+### 2. `src/server.ts` — `scheduled` Handler exportieren
+Neben dem bestehenden `fetch` einen `scheduled(event, env, ctx)` Export hinzufügen, der die GitHub-Dispatch-Logik direkt ausführt (kein HTTP-Hop nötig). Nutzt `ctx.waitUntil(...)` damit der Worker auf den fetch-Aufruf wartet.
 
-### 1. Client-seitiger Radar-Loader (neu)
-- Neue Datei `src/lib/radar-mch-client.ts`:
-  - holt die Liste verfügbarer Radar-Timestamps via STAC-API
-  - liefert für jedes Frame eine `tileUrl` (WMTS-Pattern mit Timestamp)
-  - läuft komplett im Browser, kein Server-Roundtrip
-- Auto-Refresh alle 60 Sekunden über React Query → sobald MeteoSchweiz einen neuen Frame veröffentlicht, ist er da
+### 3. Logik in `src/lib/radar-dispatch.server.ts` auslagern
+Die GitHub-`workflow_dispatch`-Logik aus `ingest-trigger.ts` (lines ~75-100) in eine wiederverwendbare Funktion `dispatchRadarIngest()` ausziehen. Verwendet `process.env.GITHUB_DISPATCH_TOKEN`, `GITHUB_REPO`, `GITHUB_REF`. Throttle (60s) bleibt drin.
 
-### 2. `radar-map.tsx` umstellen
-- Bisher: lädt Server-Funktion `getRadarFrames()` → R2-PNG-Overlay als `ImageOverlay`
-- Neu: nutzt direkt den Client-Loader, rendert die Radar-Tiles als `<TileLayer url={...}>` (Leaflet WMTS)
-- Animation-Loop (Play/Pause, Frames-Slider) bleibt wie er ist — nur die Tile-Quelle ändert sich
-- Vorhersage-Frames (ICON-CH1/CH2) bleiben wie bisher aus Open-Meteo-Cache (das funktioniert ja)
+### 4. `src/routes/api/public/radar/ingest-trigger.ts` — bleibt als Fallback
+Endpoint bleibt erhalten (ruft jetzt `dispatchRadarIngest()` auf), damit man bei Bedarf manuell per curl/cron-job.org triggern kann. Throttle und Secret-Check unverändert.
 
-### 3. Aufräumen
-- `src/routes/api/public/radar/ingest-trigger.ts` löschen
-- Secret `RADAR_TRIGGER_SECRET` aus Lovable Cloud entfernen
-- R2-bezogenen Code in `radar.functions.ts` (CPC/POH-Manifest-Logik) entfernen — server-fn liefert nur noch Vorhersage-Frames
-- GitHub: du selbst kannst den `radar-ingest`-Workflow im Repo deaktivieren/löschen (mache ich nicht, ist außerhalb von Lovable)
+### 5. GitHub Workflow `radar-ingest.yml`
+Den `schedule:`-Trigger entfernen (oder als Backup mit längerem Intervall belassen, z. B. alle 30 min). `workflow_dispatch:` bleibt — das ist was Cloudflare jetzt aufruft.
 
-## Was nicht geändert wird
-- Vorhersage-Pipeline (Open-Meteo → R2 → Worker) bleibt — die funktioniert
-- UI/Animation/Farbskala/Legende des Radars
-- Alle anderen Karten
-
-## Vorteile
-- **Null Aussetzer**: kein GitHub-Cron mehr im Pfad
-- **Aktueller**: Frames sind sofort verfügbar, sobald MCH sie publiziert (kein 5-Min-Delay durch Ingest)
-- **Einfacher**: keine Ingest-Skripte, keine R2-Schreibrechte, kein Secret-Management für den Radar
-
-## Risiken / Hinweise
-- **CORS**: geo.admin.ch erlaubt browser-seitigen Zugriff bei allen normalen WMTS/STAC-Endpoints. Falls einzelne Endpoints doch blocken, wird ein dünner Edge-Proxy unter `/api/radar-mch/*` nachgerüstet (kein Cron, nur Pass-through bei Bedarf).
-- **Mobil-Traffic**: jeder Besucher lädt die Tiles selbst. Bei einem WMTS-Layer in der Schweiz-Region pro Frame sind das ~4–8 Tiles à wenige KB — vernachlässigbar.
-- **Embed-Seiten** (`embed.radar.tsx`, `embed.all.tsx`) ziehen automatisch nach, weil sie dieselbe `radar-map.tsx` nutzen.
+## Was unverändert bleibt
+- HDF5 → PNG Konvertierung, R2-Upload, Frontend-Animation, Farbskala, alle Karten
+- Open-Meteo Vorhersage-Pipeline
+- Embed-Seiten
 
 ## Technische Details
 
-```text
-Browser ──STAC──► data.geo.admin.ch  (Liste der Frame-Timestamps, alle 60s)
-   │
-   └──WMTS──► wmts.geo.admin.ch       (Tiles pro Frame)
+**`wrangler.jsonc`:**
+```jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanstack-start-app",
+  "compatibility_date": "2025-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/server.ts",
+  "triggers": { "crons": ["*/5 * * * *"] }
+}
 ```
 
-Tile-URL-Schema (vereinfacht):
+**`src/server.ts` (Ergänzung):**
+```ts
+export default {
+  async fetch(request, env, ctx) { /* unverändert */ },
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      (async () => {
+        const { dispatchRadarIngest } = await import("./lib/radar-dispatch.server");
+        try { await dispatchRadarIngest(); }
+        catch (e) { console.error("[cron] radar dispatch failed:", e); }
+      })()
+    );
+  },
+};
 ```
-https://wmts.geo.admin.ch/1.0.0/ch.meteoschweiz.messwerte-niederschlagsradar/
-default/{TIME}/3857/{z}/{x}/{y}.png
-```
-`{TIME}` = ISO-Timestamp aus STAC-Antwort (z. B. `2026-05-27T17:15:00Z`).
+
+**Env-Vars (bereits vorhanden):** `GITHUB_DISPATCH_TOKEN`, `GITHUB_REPO`, `GITHUB_REF`. `RADAR_TRIGGER_SECRET` wird nur noch vom HTTP-Endpoint geprüft.
+
+## Risiken / Hinweise
+- Cloudflare Cron Triggers müssen beim Lovable-Deploy aus `wrangler.jsonc` übernommen werden. Falls der Deploy die `triggers`-Sektion ignoriert, fallen wir auf cron-job.org → bestehender HTTP-Endpoint zurück (Option C).
+- Min. Intervall bei Cloudflare Workers Cron: 1 min. `*/5` ist sicher.
+- Erste 1–2 Triggers nach Deploy verifizieren (Worker-Logs).
