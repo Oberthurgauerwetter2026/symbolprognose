@@ -1,0 +1,1 @@
+ALTER VIEW public.radar_cron_health SET (security_invoker = true);
