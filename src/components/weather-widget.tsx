@@ -757,8 +757,8 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
-                Sonne<br />min/h
+              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
+                <Sun className="w-3.5 h-3.5" aria-label="Sonne" /> min/h
               </div>
             </>
           )}
