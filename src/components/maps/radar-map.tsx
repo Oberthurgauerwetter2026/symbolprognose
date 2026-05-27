@@ -733,7 +733,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           zoomSnap={0.25}
           maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
-          minZoom={8.5}
+          minZoom={8}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
