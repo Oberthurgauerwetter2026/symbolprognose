@@ -1,17 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { dispatchRadarIngest } from "@/lib/radar-dispatch.server";
 
 /**
  * Externer Trigger-Endpoint für den Radar-Ingest-Workflow.
- * Wird vom Cloudflare-Worker-Cron alle 5 min aufgerufen.
+ * Primärer Trigger ist jetzt der Cloudflare Worker Cron (siehe src/server.ts).
+ * Dieser Endpoint bleibt als manueller Fallback (curl / cron-job.org).
  *
  * Auth: Header `x-trigger-secret` == process.env.RADAR_TRIGGER_SECRET
- * Action: workflow_dispatch auf radar-ingest.yml via GitHub API.
- *
- * Required env:
- *   - RADAR_TRIGGER_SECRET   (Shared Secret, vom Worker mitgeschickt)
- *   - GITHUB_DISPATCH_TOKEN  (Fine-grained PAT, Actions: read+write)
- *   - GITHUB_REPO            (z.B. "user/repo")
- *   - GITHUB_REF             (optional, default "main")
  */
 
 const CORS_HEADERS = {
@@ -19,10 +14,6 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, x-trigger-secret",
 } as const;
-
-// Module-level Throttle: max 1 Dispatch pro 60s pro Worker-Instanz.
-let lastDispatchAt = 0;
-const MIN_INTERVAL_MS = 60_000;
 
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -41,13 +32,9 @@ export const Route = createFileRoute("/api/public/radar/ingest-trigger")({
 
       POST: async ({ request }) => {
         const secret = process.env.RADAR_TRIGGER_SECRET;
-        const token = process.env.GITHUB_DISPATCH_TOKEN;
-        const repo = process.env.GITHUB_REPO;
-        const ref = process.env.GITHUB_REF ?? "main";
-
-        if (!secret || !token || !repo) {
+        if (!secret) {
           return Response.json(
-            { ok: false, error: "Server misconfigured: missing env vars" },
+            { ok: false, error: "Server misconfigured: missing RADAR_TRIGGER_SECRET" },
             { status: 500, headers: CORS_HEADERS },
           );
         }
@@ -60,44 +47,15 @@ export const Route = createFileRoute("/api/public/radar/ingest-trigger")({
           );
         }
 
-        const now = Date.now();
-        if (now - lastDispatchAt < MIN_INTERVAL_MS) {
-          return Response.json(
-            {
-              ok: false,
-              throttled: true,
-              retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt),
-            },
-            { status: 429, headers: CORS_HEADERS },
-          );
+        const result = await dispatchRadarIngest();
+        if (result.ok) {
+          return Response.json(result, { status: 202, headers: CORS_HEADERS });
         }
-
-        const url = `https://api.github.com/repos/${repo}/actions/workflows/radar-ingest.yml/dispatches`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "lovable-radar-trigger",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ ref }),
-        });
-
-        if (!res.ok) {
-          const text = await res.text();
-          return Response.json(
-            { ok: false, status: res.status, error: text.slice(0, 500) },
-            { status: 502, headers: CORS_HEADERS },
-          );
+        if ("throttled" in result) {
+          return Response.json(result, { status: 429, headers: CORS_HEADERS });
         }
-
-        lastDispatchAt = now;
-        return Response.json(
-          { ok: true, dispatchedAt: new Date(now).toISOString(), ref },
-          { status: 202, headers: CORS_HEADERS },
-        );
+        const status = "status" in result ? 502 : 500;
+        return Response.json(result, { status, headers: CORS_HEADERS });
       },
     },
   },
