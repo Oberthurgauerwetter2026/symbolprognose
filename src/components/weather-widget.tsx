@@ -550,7 +550,7 @@ function DayStrip({
               </div>
               <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-zinc-700 font-medium">
-                  <span>Wind</span>
+                  <Wind className="w-3.5 h-3.5" aria-label="Wind" />
                   <span className="text-zinc-900 font-bold tabular-nums flex items-center gap-1">
                     <WindArrow deg={d.winddirection_10m_dominant[i]} />
                     {Math.round(d.windspeed_10m_max[i])}
