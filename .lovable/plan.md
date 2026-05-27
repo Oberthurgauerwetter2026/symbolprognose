@@ -1,47 +1,33 @@
-## Ziel
+## Problem
 
-Den Radius der Niederschlags-Sichtbarkeit (Messung MeteoSchweiz **und** Prognose ICON-CH1/CH2) auf das **Doppelte** vergrössern — also doppelte Lat-/Lon-Ausdehnung um das bisherige Zentrum (≈ 47.575 N / 9.35 E).
+1. In `IconRain` (und teilweise `IconThunderstorm`, `IconSnow`) liegen Tropfen/Flocken so tief, dass sie über den `viewBox` (0–64) hinausragen und unten abgeschnitten werden. Beispiel: Tropfen bei `y=58`, `size=1.4` reicht bis `y ≈ 67`.
+2. Regenfarbe `--wx-rain: #0b4f8a` mit `--wx-rain-edge: #062f55` ist dunkelblau auf dunkelblau — schlecht erkennbar auf blauem Karten-/Widget-Hintergrund. Auch der Drop hat aktuell `opacity="0.85"` und nur `strokeWidth="0.5"`, was den Kontrast weiter reduziert.
 
-Bisherige Bbox: lat 47.30–47.85, lon 8.85–9.85 (≈ 61 km × 75 km).
-Neue Bbox: lat **47.025–48.125**, lon **8.35–10.35** (≈ 122 km × 150 km).
+## Änderungen in `src/components/weather-icons/index.tsx`
 
-## Änderungen
+### A) Tropfen-/Flockenpositionen nach oben rücken (alles innerhalb viewBox 64)
 
-### 1. `src/lib/radar.functions.ts` (Prognose-Grid)
+- `IconRain`: Cloud `y=24` → `y=22`. Tropfen-Reihen:
+  - obere Reihe `y=48` → `y=44`
+  - mittlere Reihe `y=52` → `y=48`
+  - untere Reihe `y=58` → `y=54`
+- `IconThunderstorm`: Tropfen `y=52` → `y=48`; Bolt entsprechend hochziehen (`d`-Pfad um ca. 3 Einheiten nach oben).
+- `IconDrizzle`: Cloud `y=26` → `y=24`; Tropfenreihen `y=48`/`52` → `y=46`/`50`.
+- `IconSnow`: Cloud `y=26` → `y=24`; Flocken `y=48`/`52`/`59` → `y=44`/`48`/`55` (size 1.1/1.2 reicht sonst bis 64).
 
-- `BBOX` aktualisieren auf `{ minLat: 47.025, maxLat: 48.125, minLon: 8.35, maxLon: 10.35 }`.
-- Zellgrösse beibehalten → Punktzahl ebenfalls verdoppeln, damit die Open-Meteo-Auflösung pro km gleich bleibt:
-  - `GRID_LON: 20 → 40`
-  - `GRID_LAT: 12 → 24`
-- Konsequenz: Open-Meteo-Punkte 240 → 960. Der GitHub-Actions-Ingest (`ingest_openmeteo.py`) ruft entsprechend mehr Locations ab; läuft alle 5 min, sollte mit Multi-Location-Requests pro Call weiterhin im Free-Tier liegen.
+### B) Bessere Sichtbarkeit auf weissem und blauem Hintergrund
 
-### 2. `scripts/ingest_openmeteo.py` (Default-Bbox)
+In `src/styles.css`:
+- `--wx-rain`: `#0b4f8a` → `#38bdf8` (helles Cyan-Blau, hebt sich auf dunkelblauem Karten-Hintergrund ab)
+- `--wx-rain-edge`: `#062f55` → `#0c2a4a` (kräftige dunkle Kontur, gut sichtbar auf weiss)
 
-- Defaults anpassen:
-  - `BBOX_MIN_LAT`: 47.30 → 47.025
-  - `BBOX_MAX_LAT`: 47.85 → 48.125
-  - `BBOX_MIN_LON`: 8.85 → 8.35
-  - `BBOX_MAX_LON`: 9.85 → 10.35
-- Falls dort eine feste Schrittweite/Punktzahl-Konstante existiert, an `GRID_LON=40` / `GRID_LAT=24` angleichen (verifizieren beim Implementieren).
+In `Drop()` (Zeile 145–158):
+- `strokeWidth="0.5"` → `strokeWidth="1"` (klare Kontur)
+- `opacity="0.85"` entfernen (volle Deckkraft)
 
-### 3. `scripts/ingest_radar.py` (MeteoSchweiz-Messung, R2-PNG-Output)
-
-- `BBOX_WGS = {"minLon": 8.35, "maxLon": 10.35, "minLat": 47.025, "maxLat": 48.125}`.
-- `OUT_W` / `OUT_H` ggf. proportional erhöhen, damit die Pixel-Auflösung des MCH-Reprojection-Outputs gleich bleibt (wenn sie aktuell auf die alte Bbox dimensioniert sind). Beim Implementieren prüfen — wenn sie heute z. B. ~200×110 sind, auf ~400×220.
-
-### 4. `src/components/maps/radar-map.tsx` (Karten-Panning-Grenzen)
-
-- `maxBoundsExt` mitziehen, damit man die nun grössere Sichtbarkeit auch erreichen kann:
-  - alt: `[[47.25, 8.78], [47.90, 9.92]]`
-  - neu: `[[46.97, 8.27], [48.18, 10.42]]` (etwas grösser als die neue Daten-Bbox).
-- `regionBounds` (Startausschnitt Oberthurgau) **bleibt unverändert** — der Default-Zoom soll weiterhin auf die Region zentriert sein.
-- Farb-/Transparenz-Konstanten, Tropfen-Icons etc. unverändert.
+Schnee bleibt unverändert (weiss + dunkle Kontur funktioniert bereits auf beiden Hintergründen).
 
 ## Nicht betroffen
 
-- Farbskala, Alpha-Werte, Smoothing/Advection-Logik, Timeline-UI.
-- Region-/Lake-/Switzerland-GeoJSONs.
-
-## Hinweis Workflow
-
-Die neue Bbox wird erst nach dem nächsten GitHub-Actions-Lauf von `openmeteo-ingest.yml` und `radar-ingest.yml` im R2-Cache sichtbar — bis dahin liefert die Karte den bisherigen kleineren Ausschnitt.
+- Radar-Karte / `radar-map.tsx` (andere Komponente).
+- Cloud-, Sun-, Moon-, Fog-, Bolt-Farben.

@@ -57,10 +57,10 @@ ASSET_PREFIX = {
 }
 
 # Bodensee-Region bounding box (WGS84) — Oberthurgau + Umland für volle Kartenabdeckung.
-BBOX_WGS = {"minLon": 8.35, "maxLon": 10.35, "minLat": 47.025, "maxLat": 48.125}
+BBOX_WGS = {"minLon": 8.85, "maxLon": 9.85, "minLat": 47.30, "maxLat": 47.85}
 
-# Output PNG resolution (Web Mercator pixels). 1536×1024 hält Auflösung pro km bei verdoppelter Bbox.
-OUT_W, OUT_H = 1536, 1024
+# Output PNG resolution (Web Mercator pixels). 768×512 hält PNGs weiterhin <40 KB.
+OUT_W, OUT_H = 768, 512
 
 LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
