@@ -44,7 +44,7 @@ function buildGrid() {
 
 export interface RadarFrame {
   t: string; // ISO UTC
-  source: "radar" | "icon-ch1" | "icon-ch2";
+  source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2";
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei `imageUrl`-Frames leer. */
   values: number[];
   /** Schnee-Wasser-Äquivalent mm/h pro Grid-Punkt (row-major). Leer = unbekannt. */
@@ -53,6 +53,18 @@ export interface RadarFrame {
   precipUrl?: string;
   /** Optionaler Hagel-Overlay (POH %) URL. */
   hailUrl?: string;
+  /** Nowcast: Verschiebung des PNG-Overlays gegenüber `imageBbox` in Grad. */
+  imageOffset?: { dLat: number; dLon: number };
+}
+
+export interface RadarMotion {
+  u_ms: number;
+  v_ms: number;
+  u_deg_per_min: number;
+  v_deg_per_min: number;
+  sourceTs: string;
+  confidence: number;
+  pairs?: number;
 }
 
 export interface RadarPayload {
@@ -67,6 +79,8 @@ export interface RadarPayload {
   hasRealRadar: boolean;
   /** True, wenn POH-Hagel-Layer verfügbar ist. */
   hasHail: boolean;
+  /** Echte Zellbewegung aus den letzten Radar-Frames (Phase-Correlation). */
+  motion?: RadarMotion;
   /** Hinweis, falls einzelne Datenquellen temporär nicht verfügbar sind. */
   warning?: string;
 }
