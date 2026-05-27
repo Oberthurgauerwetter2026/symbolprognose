@@ -1,80 +1,65 @@
 ## Ziel
 
-Der Lovable-Managed-Worker übernimmt `triggers.crons` aus `wrangler.jsonc` offenbar nicht — GitHub zeigt nur manuelle Runs, keine `workflow_dispatch` vom Cron. Lösung: den bereits vorbereiteten **eigenen** Cloudflare Worker unter `cloudflare/radar-trigger-worker/` in deinem eigenen CF-Account deployen. Der Worker pingt alle 5 min den HTTP-Endpoint `/api/public/radar/ingest-trigger`, der wiederum `workflow_dispatch` auslöst.
+Externer Cloudflare Worker pingt alle 5 Minuten den bestehenden Endpoint `/api/public/radar/ingest-trigger`, damit der Radar-Ingest zuverlässig läuft (nicht mehr abhängig von GitHub Actions `schedule:`, das oft verspätet/ausgelassen wird).
 
-## Was du selbst tun musst (manuelle Schritte)
+GitHub Actions `schedule:` bleibt unverändert als Sicherheitsnetz – die `MIN_INTERVAL_MS = 60_000`-Throttle in `dispatchRadarIngest` verhindert Doppel-Runs.
 
-Diese Schritte kann Lovable nicht für dich ausführen — sie brauchen deinen Cloudflare-Account.
+## Was angelegt wird
 
-### 1. Cloudflare-Account + wrangler CLI
+Neuer Ordner `cron-worker/` (komplett separat von der Lovable-App, kein Einfluss auf den Build):
 
-- Falls noch nicht vorhanden: Account auf cloudflare.com anlegen (free tier reicht, Cron Triggers sind inkludiert).
-- Lokal in einem Terminal:
-  ```
-  npm i -g wrangler
-  wrangler login
-  ```
-
-### 2. Worker deployen
-
-Repo lokal auschecken (oder direkt aus Lovable's GitHub-Mirror klonen), dann:
 ```
-cd cloudflare/radar-trigger-worker
+cron-worker/
+├── wrangler.toml        # name, main, cron, vars
+├── package.json         # nur wrangler als devDep
+├── tsconfig.json
+└── src/index.ts         # scheduled() + fetch() Handler
+```
+
+### `cron-worker/wrangler.toml`
+- `name = "symbolprognose-radar-cron"`
+- `main = "src/index.ts"`
+- `compatibility_date = "2025-09-24"`
+- `[triggers] crons = ["*/5 * * * *"]`
+- `[vars] TARGET_URL = "https://symbolprognose.lovable.app/api/public/radar/ingest-trigger"`
+- Secret `RADAR_TRIGGER_SECRET` wird per `wrangler secret put` gesetzt (nicht im File)
+
+### `cron-worker/src/index.ts`
+- `scheduled(event, env, ctx)`:
+  - `POST` an `env.TARGET_URL` mit Header `x-trigger-secret: env.RADAR_TRIGGER_SECRET`
+  - Loggt Status + Response-Snippet (sichtbar in `wrangler tail`)
+  - Bei non-2xx & nicht 429 (throttle) → `console.error` für spätere Alerts
+- `fetch()` Handler:
+  - `GET /` → kleiner Status: "ok, last cron at …" (nice-to-have, kein State persistiert)
+  - Sonst 404
+
+## Deploy-Schritte (du, im Mac-Terminal)
+
+```
+cd ~/<projekt-ordner>/cron-worker
+npm install
 wrangler deploy
-```
-`wrangler.toml` mit `crons = ["*/5 * * * *"]` ist bereits committet.
-
-### 3. Worker-Secrets setzen
-
-```
-wrangler secret put TRIGGER_URL
-# Wert: https://symbolprognose.lovable.app/api/public/radar/ingest-trigger
-
-wrangler secret put TRIGGER_SECRET
-# Wert: exakt der gleiche String wie RADAR_TRIGGER_SECRET in Lovable Cloud
+wrangler secret put RADAR_TRIGGER_SECRET
+# → Wert eingeben (selber Wert wie in Lovable Cloud Runtime-Secret)
+wrangler tail            # zum Live-Mitschauen, optional
 ```
 
-Den aktuellen `RADAR_TRIGGER_SECRET`-Wert findest du in Lovable → Project Settings → Secrets.
+Ich liefere dir die genauen Befehle nochmals direkt nach dem Erstellen der Files.
 
-### 4. Smoketest
+## Verifikation
 
-```
-curl -X POST https://symbolprognose.lovable.app/api/public/radar/ingest-trigger \
-  -H "x-trigger-secret: <RADAR_TRIGGER_SECRET>"
-```
-Erwartet: `202 {"ok":true,...}`. Innerhalb 1–2 s erscheint ein neuer GitHub-Actions-Run mit Trigger **workflow_dispatch**.
+1. Nach `wrangler deploy` 5–10 Min warten, dann `wrangler tail` → muss alle 5 Min einen `202 Accepted` von Lovable zeigen.
+2. In Lovable Worker-Logs: `[radar]` Manifest-Einträge sollten ab dem Zeitpunkt einen frischen `t`-Wert ≤ 10 Min alt haben.
+3. UI-Check `/karten/radar`: Animation deckt die letzten ~6h lückenlos ab.
 
-### 5. Verifikation nach 10 min
+## Nicht im Plan (bewusst weggelassen)
 
-- Cloudflare Dashboard → Workers → `radar-trigger` → Logs: alle 5 min Eintrag `trigger status=202`.
-- GitHub Actions → "Radar Ingest": alle 5 min neuer Run, Trigger = `workflow_dispatch`.
+- GitHub-Actions `schedule:` anfassen – bleibt als Backup.
+- Heartbeat-Anzeige in UI – kann später als separater Schritt nachgezogen werden, wenn der Worker stabil läuft.
+- Discord/E-Mail-Alert – später bei Bedarf.
 
-## Was Lovable im Code aufräumt
+## Voraussetzungen / Annahmen
 
-Da der Lovable-Worker-Cron nicht greift und der externe Worker übernimmt, sollten wir die nicht-funktionierende Konfiguration entfernen, damit es nicht so aussieht als würde da etwas laufen:
-
-1. **`wrangler.jsonc`** — `"triggers": { "crons": [...] }` entfernen (greift bei Lovable-Managed-Deploy nicht).
-2. **`src/server.ts`** — `scheduled()`-Handler entfernen (wird nie aufgerufen).
-3. **`src/lib/radar-dispatch.server.ts`** — bleibt wie es ist, wird weiter vom HTTP-Endpoint genutzt.
-4. **`src/routes/api/public/radar/ingest-trigger.ts`** — bleibt unverändert (= das, was der externe Worker pingt).
-5. **`.github/workflows/radar-ingest.yml`** — Backup-Cron auf `*/15 * * * *` erhöhen (von `*/30`), als Sicherheitsnetz falls der externe Worker mal ausfällt. `workflow_dispatch` bleibt.
-6. **`cloudflare/radar-trigger-worker/README.md`** — kurz aktualisieren: klarstellen, dass dieser Worker jetzt der **primäre** Trigger ist (nicht mehr nur Backup).
-
-## Architektur danach
-
-```text
-Eigener Cloudflare Worker (Cron */5)
-        │ POST x-trigger-secret
-        ▼
-/api/public/radar/ingest-trigger  (Lovable App)
-        │ GitHub workflow_dispatch
-        ▼
-GitHub Actions "Radar Ingest"  →  R2  →  /karten/radar
-
-Backup: GitHub schedule */15  (falls Worker mal stillsteht)
-```
-
-## Out of scope
-
-- Eigene `RADAR_TRIGGER_SECRET`-Rotation
-- Monitoring/Alerts (kann später ergänzt werden, z. B. healthcheck-Endpoint)
+- Du hast ein Cloudflare-Konto und bist via `wrangler login` eingeloggt (✓ bereits erledigt).
+- Runtime-Secret `RADAR_TRIGGER_SECRET` existiert bereits in Lovable Cloud – du kennst den Wert oder kannst ihn neu setzen (in dem Fall muss er an beiden Stellen identisch sein).
+- Der Endpoint `https://symbolprognose.lovable.app/api/public/radar/ingest-trigger` ist die korrekte Produktions-URL.

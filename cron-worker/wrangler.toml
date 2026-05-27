@@ -1,0 +1,12 @@
+name = "symbolprognose-radar-cron"
+main = "src/index.ts"
+compatibility_date = "2025-09-24"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+TARGET_URL = "https://symbolprognose.lovable.app/api/public/radar/ingest-trigger"
+
+[observability]
+enabled = true
