@@ -265,7 +265,7 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
         day = (now - timedelta(days=day_offset)).strftime("%Y%m%d")
         url = f"{STAC_BASE}/{coll}/items/{day}-ch"
         try:
-            r = requests.get(url, timeout=30)
+            r = http_get(url, timeout=30)
             print(f"  STAC GET {day}-ch -> {r.status_code}", flush=True)
             if r.status_code == 404:
                 continue
@@ -279,7 +279,7 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
     if not candidates:
         try:
             url = f"{STAC_BASE}/{coll}/items?sortby=-properties.datetime&limit=3"
-            r = requests.get(url, timeout=30)
+            r = http_get(url, timeout=30)
             print(f"  STAC fallback sort -> {r.status_code}", flush=True)
             r.raise_for_status()
             for feat in r.json().get("features", []):
