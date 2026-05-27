@@ -2,11 +2,11 @@ name: Radar Ingest
 
 on:
   schedule:
-    # Doppelter Cron mit Offset, damit GitHub Actions Jitter ausgeglichen wird.
-    # Effektiv läuft der Job alle ~2-3 Minuten (statt unzuverlässigen 5 min).
-    - cron: "*/5 * * * *"
-    - cron: "2-59/5 * * * *"
+    # Backup-Schedule (alle 30 min), falls Cloudflare Cron Trigger ausfällt.
+    # Primärer Trigger ist Cloudflare Worker Cron → workflow_dispatch alle 5 min.
+    - cron: "*/30 * * * *"
   workflow_dispatch: {}
+
 
 concurrency:
   group: radar-ingest
