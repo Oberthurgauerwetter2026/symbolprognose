@@ -55,6 +55,8 @@ export interface RadarFrame {
   hailUrl?: string;
   /** Nowcast: Verschiebung des PNG-Overlays gegenüber `imageBbox` in Grad. */
   imageOffset?: { dLat: number; dLon: number };
+  /** Nur für `source==="nowcast"`: Herkunft des Bewegungsvektors. */
+  motionSource?: "radar" | "wind";
 }
 
 export interface RadarMotion {
@@ -223,23 +225,110 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   // ---- Nowcast (Radar-Extrapolation, T+0…+60 min) ----
   // Operationelles Verfahren wie MeteoSchweiz INCA / DWD RadVOR: das letzte
-  // gemessene Radarbild wird entlang des per Phase-Correlation aus den
-  // letzten 3 Radar-Frames bestimmten Bewegungsvektors verschoben. Im
+  // gemessene Radarbild wird entlang eines Bewegungsvektors verschoben. Im
   // Browser passiert das als reines ImageOverlay-Bounds-Shift — kein
   // Pixel-Resampling, kein Modell-Glättungs-Effekt.
+  //
+  // Primär: Vektor aus FFT-Phase-Korrelation der letzten 3 Radar-Frames
+  // (im Manifest unter `motion`). Fallback: Steering-Wind aus ICON-CH1 (10 m
+  // hochskaliert auf ~700 hPa-Niveau via Faktor 1.8), wenn Radar-Motion
+  // fehlt oder degeneriert (≈ 0 m/s) ist.
   const motion = manifest?.motion;
   const MIN_CONF = 0.3;
+  const MIN_RADAR_MS = 1.0; // < 1 m/s effektiv Stillstand → Fallback
   const NOWCAST_HORIZON_MIN = 60;
   const NOWCAST_STEP_MIN = 10;
   let nowcastEndMs = -Infinity;
-  if (
-    hasRealRadar &&
-    motion &&
+
+  const radarMotionUsable =
+    !!motion &&
     typeof motion.u_deg_per_min === "number" &&
     typeof motion.v_deg_per_min === "number" &&
-    motion.confidence >= MIN_CONF
-  ) {
-    // Letztes Radar-Frame mit precipUrl finden.
+    motion.confidence >= MIN_CONF &&
+    Math.hypot(motion.u_ms ?? 0, motion.v_ms ?? 0) >= MIN_RADAR_MS;
+
+  let nowcastMotion: {
+    u_deg_per_min: number;
+    v_deg_per_min: number;
+    source: "radar" | "wind";
+  } | null = null;
+
+  if (radarMotionUsable && motion) {
+    nowcastMotion = {
+      u_deg_per_min: motion.u_deg_per_min,
+      v_deg_per_min: motion.v_deg_per_min,
+      source: "radar",
+    };
+  } else if (hasRealRadar && r1) {
+    // Wind-Fallback: Punkt aus phase1, der dem Bbox-Mittelpunkt am nächsten
+    // liegt; Stunde, die `lastRadarT` enthält.
+    const radarFramesForT = frames.filter(
+      (f) => f.source === "radar" && f.precipUrl,
+    );
+    const lastForT = radarFramesForT[radarFramesForT.length - 1];
+    if (lastForT) {
+      const lastMs = Date.parse(lastForT.t);
+      const midLat = (BBOX.minLat + BBOX.maxLat) / 2;
+      const midLon = (BBOX.minLon + BBOX.maxLon) / 2;
+      let bestIdx = -1;
+      let bestD = Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const d =
+          (pts[i].lat - midLat) ** 2 + (pts[i].lon - midLon) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          bestIdx = i;
+        }
+      }
+      const loc = bestIdx >= 0 ? (r1[bestIdx] as LocResponse | undefined) : undefined;
+      const hourly = loc?.hourly;
+      if (hourly && hourly.time && hourly.time.length) {
+        let hi = -1;
+        for (let i = 0; i < hourly.time.length; i++) {
+          const ms = Date.parse(hourly.time[i] + "Z");
+          if (ms <= lastMs) hi = i;
+          else break;
+        }
+        if (hi >= 0) {
+          const sp700 = hourly.wind_speed_700hPa?.[hi];
+          const dir700 = hourly.wind_direction_700hPa?.[hi];
+          const sp10 = hourly.wind_speed_10m?.[hi];
+          const dir10 = hourly.wind_direction_10m?.[hi];
+          let speedMs: number | null = null;
+          let dirDeg: number | null = null;
+          if (typeof sp700 === "number" && typeof dir700 === "number") {
+            // Open-Meteo wind_speed_* ist in km/h.
+            speedMs = (sp700 * 1000) / 3600;
+            dirDeg = dir700;
+          } else if (typeof sp10 === "number" && typeof dir10 === "number") {
+            // 10 m → ~700 hPa Steering-Approx (offenes Gelände).
+            speedMs = ((sp10 * 1000) / 3600) * 1.8;
+            dirDeg = dir10;
+          }
+          if (
+            speedMs !== null &&
+            dirDeg !== null &&
+            speedMs >= MIN_RADAR_MS
+          ) {
+            // Meteo-Konvention: dir = Richtung, AUS der der Wind kommt.
+            // Bewegungsvektor = wohin er weht → Vorzeichen invertieren.
+            const rad = (dirDeg * Math.PI) / 180;
+            const uMs = -speedMs * Math.sin(rad);
+            const vMs = -speedMs * Math.cos(rad);
+            const mPerDegLat = 111_000;
+            const mPerDegLon = 111_000 * Math.cos((midLat * Math.PI) / 180);
+            nowcastMotion = {
+              u_deg_per_min: (uMs * 60) / mPerDegLon,
+              v_deg_per_min: (vMs * 60) / mPerDegLat,
+              source: "wind",
+            };
+          }
+        }
+      }
+    }
+  }
+
+  if (hasRealRadar && nowcastMotion) {
     const radarFrames = frames.filter((f) => f.source === "radar" && f.precipUrl);
     const last = radarFrames[radarFrames.length - 1];
     if (last && last.precipUrl) {
@@ -253,9 +342,10 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
           values: [],
           precipUrl: last.precipUrl,
           imageOffset: {
-            dLat: motion.v_deg_per_min * m,
-            dLon: motion.u_deg_per_min * m,
+            dLat: nowcastMotion.v_deg_per_min * m,
+            dLon: nowcastMotion.u_deg_per_min * m,
           },
+          motionSource: nowcastMotion.source,
         });
       }
       nowcastEndMs = lastMs + NOWCAST_HORIZON_MIN * 60_000;
