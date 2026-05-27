@@ -44,7 +44,7 @@ function buildGrid() {
 
 export interface RadarFrame {
   t: string; // ISO UTC
-  source: "radar" | "icon-ch1" | "icon-ch2";
+  source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2";
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei `imageUrl`-Frames leer. */
   values: number[];
   /** Schnee-Wasser-Äquivalent mm/h pro Grid-Punkt (row-major). Leer = unbekannt. */
@@ -53,6 +53,18 @@ export interface RadarFrame {
   precipUrl?: string;
   /** Optionaler Hagel-Overlay (POH %) URL. */
   hailUrl?: string;
+  /** Nowcast: Verschiebung des PNG-Overlays gegenüber `imageBbox` in Grad. */
+  imageOffset?: { dLat: number; dLon: number };
+}
+
+export interface RadarMotion {
+  u_ms: number;
+  v_ms: number;
+  u_deg_per_min: number;
+  v_deg_per_min: number;
+  sourceTs: string;
+  confidence: number;
+  pairs?: number;
 }
 
 export interface RadarPayload {
@@ -67,6 +79,8 @@ export interface RadarPayload {
   hasRealRadar: boolean;
   /** True, wenn POH-Hagel-Layer verfügbar ist. */
   hasHail: boolean;
+  /** Echte Zellbewegung aus den letzten Radar-Frames (Phase-Correlation). */
+  motion?: RadarMotion;
   /** Hinweis, falls einzelne Datenquellen temporär nicht verfügbar sind. */
   warning?: string;
 }
@@ -101,6 +115,7 @@ type Manifest = {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   generatedAt: string;
   frames: ManifestFrame[];
+  motion?: RadarMotion;
 };
 
 async function fetchR2Manifest(): Promise<Manifest | null> {
@@ -206,6 +221,47 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     }
   }
 
+  // ---- Nowcast (Radar-Extrapolation, T+0…+60 min) ----
+  // Operationelles Verfahren wie MeteoSchweiz INCA / DWD RadVOR: das letzte
+  // gemessene Radarbild wird entlang des per Phase-Correlation aus den
+  // letzten 3 Radar-Frames bestimmten Bewegungsvektors verschoben. Im
+  // Browser passiert das als reines ImageOverlay-Bounds-Shift — kein
+  // Pixel-Resampling, kein Modell-Glättungs-Effekt.
+  const motion = manifest?.motion;
+  const MIN_CONF = 0.3;
+  const NOWCAST_HORIZON_MIN = 60;
+  const NOWCAST_STEP_MIN = 10;
+  let nowcastEndMs = -Infinity;
+  if (
+    hasRealRadar &&
+    motion &&
+    typeof motion.u_deg_per_min === "number" &&
+    typeof motion.v_deg_per_min === "number" &&
+    motion.confidence >= MIN_CONF
+  ) {
+    // Letztes Radar-Frame mit precipUrl finden.
+    const radarFrames = frames.filter((f) => f.source === "radar" && f.precipUrl);
+    const last = radarFrames[radarFrames.length - 1];
+    if (last && last.precipUrl) {
+      const lastMs = Date.parse(last.t);
+      for (let m = NOWCAST_STEP_MIN; m <= NOWCAST_HORIZON_MIN; m += NOWCAST_STEP_MIN) {
+        const tMs = lastMs + m * 60_000;
+        if (tMs > forecastCutoff) break;
+        frames.push({
+          t: new Date(tMs).toISOString(),
+          source: "nowcast",
+          values: [],
+          precipUrl: last.precipUrl,
+          imageOffset: {
+            dLat: motion.v_deg_per_min * m,
+            dLon: motion.u_deg_per_min * m,
+          },
+        });
+      }
+      nowcastEndMs = lastMs + NOWCAST_HORIZON_MIN * 60_000;
+    }
+  }
+
   // ---- Phase 1 (Open-Meteo): Fallback-Past + ICON-CH1-Future (bis +32h) ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
   if (ref1 && r1) {
@@ -214,6 +270,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
       if (tMs <= now && hasRealRadar) continue;
+      // ICON-CH1-Frames innerhalb des Nowcast-Fensters unterdrücken
+      if (tMs <= nowcastEndMs) continue;
       if (tMs > forecastCutoff) continue;
       const values: number[] = new Array(pts.length);
       const snowValues: number[] | undefined = hasSnow ? new Array(pts.length) : undefined;
@@ -416,6 +474,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     generatedAt: new Date().toISOString(),
     hasRealRadar,
     hasHail,
+    motion: manifest?.motion,
     warning: warnings.length > 0 ? warnings.join("; ") : undefined,
   };
   return payload;

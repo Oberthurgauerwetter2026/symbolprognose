@@ -378,6 +378,9 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "radar") {
     return { label: "Messung MeteoSchweiz", color: "#1f7a3a" };
   }
+  if (frame.source === "nowcast") {
+    return { label: "Nowcast Radar-Extrapolation", color: "#d97706" };
+  }
   if (frame.source === "icon-ch1") return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
   return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
 }
@@ -404,11 +407,15 @@ function fmtDayLong(d: Date): string {
   return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
 }
 
-function fmtBubble(d: Date, isForecast: boolean): string {
+function fmtBubble(d: Date, frame: RadarFrame | null): string {
+  const now = Date.now();
+  const isForecast = frame ? d.getTime() > now + 60000 : false;
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${isForecast ? "Prognose" : "Messung"}: ${wd}, ${hh}:${mm}`;
+  const kind =
+    frame?.source === "nowcast" ? "Nowcast" : isForecast ? "Prognose" : "Messung";
+  return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
 function MeteoTimeline({
@@ -509,8 +516,8 @@ function MeteoTimeline({
   const handlePct = pctForIdx(idx);
   const currentMs = times[idx] ?? now;
   const currentDate = new Date(currentMs);
-  const isForecast = currentMs > now + 60000;
-  const bubbleLabel = fmtBubble(currentDate, isForecast);
+  const currentFrame = frames[idx] ?? null;
+  const bubbleLabel = fmtBubble(currentDate, currentFrame);
 
   // Auf Mobile nur jede 3. Stunde labeln, damit's nicht überlappt.
   const labelStep = isMobile ? 3 : 1;
@@ -781,8 +788,14 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 key={`precip-${currentFrame.t}`}
                 url={currentFrame.precipUrl}
                 bounds={[
-                  [data.imageBbox.minLat, data.imageBbox.minLon],
-                  [data.imageBbox.maxLat, data.imageBbox.maxLon],
+                  [
+                    data.imageBbox.minLat + (currentFrame.imageOffset?.dLat ?? 0),
+                    data.imageBbox.minLon + (currentFrame.imageOffset?.dLon ?? 0),
+                  ],
+                  [
+                    data.imageBbox.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
+                    data.imageBbox.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
+                  ],
                 ]}
                 opacity={0.95}
                 className="mch-precip"
