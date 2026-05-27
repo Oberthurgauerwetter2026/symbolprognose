@@ -12,7 +12,7 @@ import { dispatchRadarIngest } from "@/lib/radar-dispatch.server";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, x-trigger-secret",
+  "Access-Control-Allow-Headers": "Content-Type, x-trigger-secret, apikey, authorization",
 } as const;
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -32,6 +32,7 @@ export const Route = createFileRoute("/api/public/radar/ingest-trigger")({
 
       POST: async ({ request }) => {
         const secret = process.env.RADAR_TRIGGER_SECRET;
+        const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
         if (!secret) {
           return Response.json(
             { ok: false, error: "Server misconfigured: missing RADAR_TRIGGER_SECRET" },
@@ -39,8 +40,18 @@ export const Route = createFileRoute("/api/public/radar/ingest-trigger")({
           );
         }
 
-        const provided = request.headers.get("x-trigger-secret") ?? "";
-        if (!timingSafeEqual(provided, secret)) {
+        const providedSecret = request.headers.get("x-trigger-secret") ?? "";
+        const providedApiKey =
+          request.headers.get("apikey") ??
+          (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+
+        const secretOk = timingSafeEqual(providedSecret, secret);
+        const apiKeyOk =
+          !!publishableKey &&
+          !!providedApiKey &&
+          timingSafeEqual(providedApiKey, publishableKey);
+
+        if (!secretOk && !apiKeyOk) {
           return Response.json(
             { ok: false, error: "Unauthorized" },
             { status: 401, headers: CORS_HEADERS },
