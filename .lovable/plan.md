@@ -1,53 +1,65 @@
-# Radar-Lücken beheben
+# Externer Cloudflare-Trigger für Radar-Ingest (Option b)
 
-## Diagnose
+Zusätzlich zum bestehenden GitHub-Cron baue ich einen externen Trigger, der den Radar-Ingest wirklich alle 5 Minuten anstößt — unabhängig vom GitHub-Actions-Scheduler-Jitter.
 
-Ich habe das Live-Manifest und R2 geprüft:
+## Architektur
 
-- **Manifest** (`radar/frames.json`, generatedAt `12:52:30Z`, jetzt ~13:32Z) listet 269 Frames für die letzten 24h.
-- **Ein großes Loch**: `03:30Z → 05:05Z` (95 min). Hier ist der Cron komplett ausgefallen.
-- **Viele kleine Mini-Lücken**: einzelne Frames haben nur `hailUrl`, aber kein `precipUrl` (Beispiel `12:45Z`: hail=200, precip=404). Im Animations-Loop erscheint dann ein leeres Bild → genau die "Unterbrechungen", die du siehst.
-- **Manifest ist 40 min alt** trotz `*/5 * * * *` Cron → GitHub Actions feuert nicht zuverlässig (bekanntes GH-Verhalten unter Last).
+```text
+Cloudflare Worker Cron (*/5)
+        │  fetch
+        ▼
+project--…lovable.app/api/public/radar/ingest-trigger
+        │  POST mit Shared-Secret-Header
+        ▼
+GitHub API: workflow_dispatch  →  Radar Ingest Workflow läuft
+```
 
-Es sind also **zwei** Ursachen, die zusammen wirken:
-1. Einzelne Produkt-Uploads (precip ODER hail) schlagen fehl, der andere geht durch → Frame ist halb-leer.
-2. Der GH Actions Cron läuft nicht stabil alle 5 min.
+Der bestehende GitHub-Doppel-Cron bleibt als Fallback aktiv. Wenn der externe Trigger ausfällt, läuft der Ingest trotzdem.
 
-## Was ich ändere
+## Was ich baue
 
-### 1. Ingest robuster pro Asset (`scripts/ingest_radar.py`)
+### 1. Neuer Endpoint `src/routes/api/public/radar/ingest-trigger.ts`
 
-- `process_asset()` in `try/except` einpacken: ein Fehler bei einem einzelnen Timestamp/Produkt darf den Rest des Laufs nicht abbrechen — wird geloggt und übersprungen.
-- Im Fehlerfall **keinen** „Leichen"-Key in R2 hinterlassen (heute kann `upload_png` nach erfolgreichem `put_object` durch eine spätere Exception passieren — kleine Reihenfolgen-Korrektur).
-- Pro Asset bis zu 2 Mal innerhalb desselben Laufs retryen (zusätzlich zu den bereits bestehenden HTTP-Retries in `http_get`), bevor übersprungen wird.
-- Am Ende eine **Lückenstatistik** loggen (`expected vs uploaded vs skipped`), damit man im Actions-Log sofort sieht ob etwas systematisch fehlt.
+- `POST` + `OPTIONS` (CORS).
+- Prüft Header `x-trigger-secret` gegen das Cloud-Secret `RADAR_TRIGGER_SECRET` (timing-safe compare).
+- Bei Erfolg: `POST https://api.github.com/repos/{owner}/{repo}/actions/workflows/radar-ingest.yml/dispatches` mit `Authorization: Bearer {GITHUB_DISPATCH_TOKEN}` und Body `{ "ref": "main" }`.
+- Antwortet `202 { ok: true, dispatched_at }` oder `4xx/5xx` mit Fehlertext.
+- Rate-Limit-Safety: zusätzlich ein simpler In-Memory-Throttle (max. 1 Dispatch alle 60s), damit eine Schleife nicht versehentlich GitHub-API-Limits sprengt.
 
-### 2. Client-seitiges Carry-Forward (`src/components/maps/radar-map.tsx` + `src/lib/radar.functions.ts`)
+### 2. Cloudflare Worker `cloudflare/radar-trigger-worker/`
 
-- In `radar.functions.ts` beim Mapping des Manifests: wenn `precipUrl` für einen Frame fehlt, **vom vorigen Frame übernehmen** (Forward-Fill, max. 3 Frames = 15 min, danach wirklich leer lassen). Gleiches für `hailUrl`.
-- Dadurch verschwinden die kurzzeitigen Aussetzer in der Animation komplett, ohne falsche Daten anzuzeigen (nur sehr kurze Persistenz des letzten gültigen Bildes).
-- Optional: kleines dezentes Badge „Zwischenbild" wenn ein Frame durch Carry-Forward gefüllt wurde — nur wenn du das willst, sage Bescheid.
+Kleines eigenes Worker-Projekt (separater `wrangler.toml`, separates Deploy — nicht Teil des Haupt-App-Builds):
 
-### 3. Cron-Zuverlässigkeit
+```text
+cloudflare/radar-trigger-worker/
+├── wrangler.toml        # cron: "*/5 * * * *"
+├── src/index.ts         # scheduled() handler → fetch trigger endpoint
+└── README.md            # Deploy-Anleitung
+```
 
-GitHub Actions garantiert keinen genauen 5-min-Takt. Zwei Optionen — bitte wählen:
+`scheduled()` ruft den Trigger-Endpoint mit `x-trigger-secret` auf. Loggt Status. Der Worker muss vom Nutzer einmal manuell mit `wrangler deploy` ausgerollt werden (Cloudflare-Account erforderlich) — ich liefere die Anleitung im README.
 
-- **(a) Doppelter GH-Cron mit Offset** (einfachster Schritt): zusätzlich `2,7,12,...` neben `*/5`. Reduziert Aussetzer, löst sie aber nicht ganz.
-- **(b) Externer Trigger** (empfohlen für „wirklich alle 5 min"): ein winziger Cloudflare Worker mit Cron Trigger (alle 5 min) pingt einen neuen Endpoint `/api/public/radar/ingest-trigger`, der via `workflow_dispatch` den GH-Job startet. Braucht einmalig einen GitHub PAT als Cloud-Secret.
+### 3. Secrets
 
-Im ersten Schritt würde ich **(a)** als Quick-Win machen und (b) nur einbauen, wenn du es willst.
+Drei neue Secrets via Lovable Cloud:
+- `RADAR_TRIGGER_SECRET` — Shared Secret zwischen Worker und Endpoint (ich generiere einen Vorschlag).
+- `GITHUB_DISPATCH_TOKEN` — GitHub Fine-Grained PAT mit Scope `Actions: Read and write` für genau dieses Repo.
+- `GITHUB_REPO` — z.B. `username/repo-name`, damit der Endpoint die richtige URL bildet.
 
-## Technische Details
+Der Worker bekommt `RADAR_TRIGGER_SECRET` und die Ziel-URL als eigene Wrangler-Secrets (vom Nutzer gesetzt).
 
-- `scripts/ingest_radar.py`: nur `process_asset` und die Schleife in `main()` anfassen, sowie ein neuer Log-Block am Ende. Version-Bump auf `v7-resilient`. `EXPECTED_RADAR_INGEST_VERSION` in `.github/workflows/radar-ingest.yml` mitziehen.
-- `src/lib/radar.functions.ts`: die Schleife `for (const mf of manifest!.frames)` (Zeilen ~164) bekommt einen kleinen Pre-Pass, der `precipUrl`/`hailUrl` per Carry-Forward mit Limit auffüllt.
-- `radar-map.tsx`: bleibt funktional unverändert; der bereits vorhandene `blendNext`-Fallback wird durch das Forward-Fill obsolet → kann später vereinfacht werden, aber nicht in dieser Runde.
+## Was sich NICHT ändert
 
-## Was ich NICHT ändere
+- `scripts/ingest_radar.py` bleibt wie im letzten Schritt (v7-resilient).
+- GitHub-Workflow-Cron bleibt aktiv als Backup.
+- Frontend, Map, R2-Struktur unverändert.
 
-- Keine Änderungen am Map-Rendering, an den Farbskalen oder am Layout.
-- Keine Änderung der R2-Struktur oder der Manifest-Schema.
+## Was der Nutzer einmalig tun muss
 
-## Frage an dich
+1. GitHub Fine-Grained PAT erstellen (Anleitung im README).
+2. `GITHUB_REPO`, `GITHUB_DISPATCH_TOKEN`, `RADAR_TRIGGER_SECRET` in Lovable Cloud setzen (ich frage danach, sobald der Code steht).
+3. Cloudflare Worker mit `wrangler deploy` ausrollen und dort `TRIGGER_SECRET` + `TRIGGER_URL` als Worker-Secrets setzen.
 
-Soll ich für Cron-Zuverlässigkeit **(a)** Quick-Win machen, oder direkt **(b)** mit Cloudflare-Trigger?
+## Frage
+
+Soll ich die Lovable-Cloud-Secrets jetzt schon mit `add_secret` anlegen (du bekommst dann das Eingabefenster), oder erst nachdem der Code committed ist?
