@@ -15,7 +15,7 @@ import {
 } from "@/lib/weather";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset } from "lucide-react";
+import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
 
 interface StoredLocation {
   name: string;
@@ -452,10 +452,10 @@ function Header({
       <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
         <a
           href="/karte"
-          className="h-10 px-3 inline-flex items-center gap-1.5 bg-zinc-100 border border-zinc-200 text-zinc-900 text-sm font-semibold rounded-md transition-colors hover:bg-zinc-200"
+          className="h-10 px-3 inline-flex items-center gap-1.5 bg-white border border-zinc-200 text-zinc-900 text-sm font-semibold rounded-md shadow-sm transition-all hover:bg-zinc-50 hover:border-zinc-300 hover:shadow"
           title="Wetterkarte der Region"
         >
-          <span aria-hidden>🗺</span>
+          <MapIcon className="w-4 h-4 text-accent" aria-hidden />
           <span>Karte</span>
         </a>
         <label className="flex items-center gap-2 cursor-pointer" title="Sonnenschein">
