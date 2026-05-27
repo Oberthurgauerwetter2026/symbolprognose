@@ -458,25 +458,21 @@ function Header({
           <span aria-hidden>🗺</span>
           <span>Karte</span>
         </a>
-        <label className="flex items-center gap-3 cursor-pointer">
+        <label className="flex items-center gap-2 cursor-pointer" title="Sonnenschein">
           <Switch
             checked={extended}
             onCheckedChange={onToggleExtended}
             aria-label="Sonnenschein"
           />
-          <span className="text-sm font-semibold text-zinc-900 select-none">
-            Sonnenschein
-          </span>
+          <Sun className="w-5 h-5 text-zinc-900" aria-hidden />
         </label>
-        <label className="flex items-center gap-3 cursor-pointer">
+        <label className="flex items-center gap-2 cursor-pointer" title="Schnee">
           <Switch
             checked={snow}
             onCheckedChange={onToggleSnow}
             aria-label="Schnee"
           />
-          <span className="text-sm font-semibold text-zinc-900 select-none">
-            Schnee
-          </span>
+          <Snowflake className="w-5 h-5 text-zinc-900" aria-hidden />
         </label>
       </div>
     </header>
