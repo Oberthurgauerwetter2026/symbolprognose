@@ -15,6 +15,7 @@ import {
 } from "@/lib/weather";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
+import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset } from "lucide-react";
 
 interface StoredLocation {
   name: string;
@@ -457,25 +458,21 @@ function Header({
           <span aria-hidden>🗺</span>
           <span>Karte</span>
         </a>
-        <label className="flex items-center gap-3 cursor-pointer">
+        <label className="flex items-center gap-2 cursor-pointer" title="Sonnenschein">
           <Switch
             checked={extended}
             onCheckedChange={onToggleExtended}
             aria-label="Sonnenschein"
           />
-          <span className="text-sm font-semibold text-zinc-900 select-none">
-            Sonnenschein
-          </span>
+          <Sun className="w-5 h-5 text-zinc-900" aria-hidden />
         </label>
-        <label className="flex items-center gap-3 cursor-pointer">
+        <label className="flex items-center gap-2 cursor-pointer" title="Schnee">
           <Switch
             checked={snow}
             onCheckedChange={onToggleSnow}
             aria-label="Schnee"
           />
-          <span className="text-sm font-semibold text-zinc-900 select-none">
-            Schnee
-          </span>
+          <Snowflake className="w-5 h-5 text-zinc-900" aria-hidden />
         </label>
       </div>
     </header>
@@ -553,7 +550,7 @@ function DayStrip({
               </div>
               <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-zinc-700 font-medium">
-                  <span>Wind</span>
+                  <Wind className="w-3.5 h-3.5" aria-label="Wind" />
                   <span className="text-zinc-900 font-bold tabular-nums flex items-center gap-1">
                     <WindArrow deg={d.winddirection_10m_dominant[i]} />
                     {Math.round(d.windspeed_10m_max[i])}
@@ -736,8 +733,8 @@ function DetailPanel({
               </div>
             ))}
           </div>
-          <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
-            Regen<br />mm/3h
+          <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
+            <CloudRain className="w-3.5 h-3.5" aria-label="Regen" /> mm/3h
           </div>
           {extended && (
             <>
@@ -760,8 +757,8 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
-                Sonne<br />min/h
+              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
+                <Sun className="w-3.5 h-3.5" aria-label="Sonne" /> min/h
               </div>
             </>
           )}
@@ -786,8 +783,8 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight">
-                Schnee<br />cm/3h
+              <div className="text-[10px] text-zinc-800 font-semibold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
+                <Snowflake className="w-3.5 h-3.5" aria-label="Schnee" /> cm/3h
               </div>
             </>
           )}
@@ -1095,14 +1092,14 @@ function DetailPanel({
           </div>
         </div>
       </div>
-      <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-700 font-semibold flex flex-wrap gap-x-4 gap-y-1">
-        <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] mr-1.5 align-middle" />Regenmenge in mm · Regenwahrscheinlichkeit in %</span>
-        <span>Wind / Böenspitzen in km/h</span>
+      <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-700 font-semibold flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-rain)] align-middle" /><CloudRain className="w-3.5 h-3.5" aria-label="Regen" /> mm · %</span>
+        <span className="inline-flex items-center gap-1.5"><Wind className="w-3.5 h-3.5" aria-label="Wind" /> km/h (Wind / Böen)</span>
         {extended && (
-          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] mr-1.5 align-middle" />Sonnenscheindauer in min/h · <span className="text-amber-700 font-semibold">↑</span> Sonnenaufgang · <span className="text-amber-700 font-semibold">↓</span> Sonnenuntergang</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] align-middle" /><Sun className="w-3.5 h-3.5" aria-label="Sonne" /> min/h · <Sunrise className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenaufgang" /> · <Sunset className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenuntergang" /></span>
         )}
         {snow && (
-          <span><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-snow-bar)] border border-sky-300 mr-1.5 align-middle" />Neuschnee in cm</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-snow-bar)] border border-sky-300 align-middle" /><Snowflake className="w-3.5 h-3.5" aria-label="Neuschnee" /> cm</span>
         )}
       </div>
     </section>
