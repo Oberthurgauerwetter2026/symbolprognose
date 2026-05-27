@@ -150,9 +150,8 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
       d="M 0 -5 C 2.2 -1.6 3 1 3 2.7 C 3 5 1.5 6.5 0 6.5 C -1.5 6.5 -3 5 -3 2.7 C -3 1 -2.2 -1.6 0 -5 Z"
       fill={C.rain}
       stroke={C.rainEdge}
-      strokeWidth="0.5"
+      strokeWidth="1"
       strokeLinejoin="round"
-      opacity="0.85"
     />
   );
 }
