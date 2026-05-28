@@ -401,6 +401,40 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   // ---- Phase 1 (Open-Meteo): Fallback-Past + ICON-CH1-Future (bis +32h) ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
+
+  // ---- ICON-CH1-Bias-Korrektur (radar-anker) ----
+  // Vergleich: mittlere ICON-CH1-Intensität im Fenster [now, now+30min] vs.
+  // gemessener Radar-Mittelwert der letzten 3 Frames (manifest.motion.recent_mean_mmh).
+  // Faktor = radar / icon, geklemmt auf [0.4, 2.5]. Wird linear über 120 min
+  // gegen 1.0 ausgeblendet — danach traut die UI dem ICON-CH1-Roh-Lauf.
+  let biasFactor = 1;
+  const BIAS_FADE_MIN = 120;
+  if (ref1 && r1 && manifest?.motion?.recent_mean_mmh && manifest.motion.recent_mean_mmh > 0.05) {
+    let iconSum = 0;
+    let iconN = 0;
+    for (let ti = 0; ti < ref1.time.length; ti++) {
+      const tMs = Date.parse(ref1.time[ti] + "Z");
+      if (tMs < now - 5 * 60_000 || tMs > now + 30 * 60_000) continue;
+      for (let pi = 0; pi < pts.length; pi++) {
+        const v = (r1[pi] as LocResponse | undefined)?.minutely_15?.precipitation?.[ti];
+        if (typeof v === "number" && v > 0.025) {
+          iconSum += v * 4; // mm/15min -> mm/h
+          iconN += 1;
+        }
+      }
+    }
+    const iconMean = iconN > 0 ? iconSum / iconN : 0;
+    if (iconMean > 0.05) {
+      const raw = manifest.motion.recent_mean_mmh / iconMean;
+      biasFactor = Math.max(0.4, Math.min(2.5, raw));
+      console.info(
+        `[radar] bias-correction: radar=${manifest.motion.recent_mean_mmh.toFixed(2)} ` +
+          `icon=${iconMean.toFixed(2)} -> factor ${biasFactor.toFixed(2)} ` +
+          `(fade ${BIAS_FADE_MIN}min)`,
+      );
+    }
+  }
+
   if (ref1 && r1) {
     const hasSnow = Array.isArray((r1[0] as LocResponse | undefined)?.minutely_15?.snowfall);
     for (let ti = 0; ti < ref1.time.length; ti++) {
@@ -410,21 +444,27 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       // ICON-CH1-Frames im Overlap-Fenster zulassen (mit Fade-In), erst danach voll.
       if (tMs <= overlapStartMs) continue;
       if (tMs > forecastCutoff) continue;
+
+      // Bias-Faktor zeitlich abklingen lassen: 1.0 = volle Korrektur, 0.0 = ICON pur.
+      const dtMin = Math.max(0, (tMs - now) / 60_000);
+      const biasWeight =
+        biasFactor === 1
+          ? 0
+          : Math.max(0, 1 - dtMin / BIAS_FADE_MIN);
+      const correction = 1 + (biasFactor - 1) * biasWeight;
+
       const values: number[] = new Array(pts.length);
       const snowValues: number[] | undefined = hasSnow ? new Array(pts.length) : undefined;
       for (let pi = 0; pi < pts.length; pi++) {
         const loc = r1[pi] as LocResponse | undefined;
         const v = loc?.minutely_15?.precipitation?.[ti];
-        values[pi] = typeof v === "number" ? v * 4 : 0;
+        values[pi] = typeof v === "number" ? v * 4 * correction : 0;
         if (snowValues) {
-          // Open-Meteo snowfall ist cm/15min; *10 → mm Schneetiefe, *(1mm Wasser/10mm Schnee) = 1
-          // Also: snowfall_cm * 4 → mm Wasser-Äquivalent/h (Faustregel 1cm Schnee ≈ 1mm Wasser).
           const s = loc?.minutely_15?.snowfall?.[ti];
-          snowValues[pi] = typeof s === "number" ? s * 4 : 0;
+          snowValues[pi] = typeof s === "number" ? s * 4 * correction : 0;
         }
       }
       const source: RadarFrame["source"] = tMs <= now ? "radar" : "icon-ch1";
-      // Im Overlap-Fenster: linear von 0 (bei overlapStartMs) → 1 (bei nowcastEndMs).
       let blendOpacity: number | undefined;
       if (
         source === "icon-ch1" &&
