@@ -109,8 +109,8 @@ export function LightningLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, windowMin]);
 
-  const redrawTriggerRef = useRef<(() => void) | null>(null);
   useEffect(() => {
+
     redrawTriggerRef.current?.();
   }, [strikes]);
 
