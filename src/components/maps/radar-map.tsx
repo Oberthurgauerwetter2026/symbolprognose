@@ -807,7 +807,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                     data.imageBbox.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
                   ],
                 ]}
-                opacity={1.0}
+                opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
                 className="mch-precip"
               />
             ) : (
@@ -816,6 +816,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 frame={currentFrame}
                 nextFrame={blendNext}
                 progress={progress}
+                opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
               />
             ))}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
