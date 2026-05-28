@@ -189,11 +189,13 @@ function PrecipOverlay({
   frame,
   nextFrame,
   progress,
+  opacity = 1,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
   nextFrame?: RadarFrame | null;
   progress?: number;
+  opacity?: number;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
