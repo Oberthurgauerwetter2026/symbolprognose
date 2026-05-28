@@ -57,6 +57,14 @@ export interface RadarFrame {
   imageOffset?: { dLat: number; dLon: number };
   /** Nur für `source==="nowcast"`: Herkunft des Bewegungsvektors. */
   motionSource?: "radar" | "wind";
+  /**
+   * Anzeige-Deckkraft 0..1. Genutzt für:
+   *   - Nowcast-Wachstum/Zerfall (Trend aus letzten 6 Radarmessungen).
+   *   - Soft-Blending im Übergangs-Fenster Nowcast → ICON-CH1
+   *     (60…90 min: Nowcast 1.0 → 0.0, ICON-CH1 0.0 → 1.0).
+   * Default 1.0, wenn nicht gesetzt.
+   */
+  blendOpacity?: number;
 }
 
 export interface RadarMotion {
@@ -67,6 +75,10 @@ export interface RadarMotion {
   sourceTs: string;
   confidence: number;
   pairs?: number;
+  /** Relative Intensitäts-Steigung pro Minute (z. B. +0.01 = +1%/min Wachstum). */
+  growth_per_min?: number;
+  /** Anzahl Radar-Frames im Trendfenster (typ. 6). */
+  frames?: number;
 }
 
 export interface RadarPayload {
