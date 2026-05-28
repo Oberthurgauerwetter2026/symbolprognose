@@ -235,21 +235,24 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     }
   }
 
-  // ---- Nowcast (Radar-Extrapolation, T+0…+60 min) ----
+  // ---- Nowcast (Radar-Extrapolation, T+0…+90 min) ----
   // Operationelles Verfahren wie MeteoSchweiz INCA / DWD RadVOR: das letzte
   // gemessene Radarbild wird entlang eines Bewegungsvektors verschoben. Im
   // Browser passiert das als reines ImageOverlay-Bounds-Shift — kein
   // Pixel-Resampling, kein Modell-Glättungs-Effekt.
   //
-  // Primär: Vektor aus FFT-Phase-Korrelation der letzten 3 Radar-Frames
-  // (im Manifest unter `motion`). Fallback: Steering-Wind aus ICON-CH1 (10 m
-  // hochskaliert auf ~700 hPa-Niveau via Faktor 1.8), wenn Radar-Motion
-  // fehlt oder degeneriert (≈ 0 m/s) ist.
+  // Erweiterungen ggü. V1:
+  //   • Bewegungsvektor aus letzten 6 (statt 3) Radar-Frames → stabiler.
+  //   • Wachstum/Zerfall: Trend `growth_per_min` aus Manifest wird als
+  //     Intensitäts-Decay angewendet (Frame-Opacity), analog INCA-Decay.
+  //   • Horizont 90 min, mit Soft-Fade in den letzten 30 min (1.0 → 0.0),
+  //     parallel rampt ICON-CH1 ab T+60 von 0.0 → 1.0 hoch (Soft-Blending).
   const motion = manifest?.motion;
   const MIN_CONF = 0.3;
   const MIN_RADAR_MS = 1.0; // < 1 m/s effektiv Stillstand → Fallback
-  const NOWCAST_HORIZON_MIN = 60;
+  const NOWCAST_HORIZON_MIN = 90;
   const NOWCAST_STEP_MIN = 10;
+  const NOWCAST_FADE_START_MIN = 60; // ab hier fadet der Nowcast aus
   let nowcastEndMs = -Infinity;
 
   const radarMotionUsable =
