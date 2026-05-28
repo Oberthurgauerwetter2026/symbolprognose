@@ -18,8 +18,10 @@ export function LightningLayer({
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const redrawTriggerRef = useRef<(() => void) | null>(null);
   const strikesRef = useRef<LightningStrike[]>(strikes);
   strikesRef.current = strikes;
+
 
   useEffect(() => {
     const redraw = () => {
