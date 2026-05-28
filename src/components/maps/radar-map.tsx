@@ -35,7 +35,8 @@ const LIGHTNING_BBOX = {
 } as const;
 const LIGHTNING_WINDOW_MIN = 60;
 
-import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { cn } from "@/lib/utils";
+
 
 const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
