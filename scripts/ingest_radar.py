@@ -633,6 +633,28 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         print(f"motion: growth trend error {exc!r}", flush=True)
         growth_per_min = None
 
+    # Mittlere Radar-Intensität der letzten 3 Frames (mm/h, nur "echte" Niederschlagsfläche).
+    # Wird vom Frontend als Bias-Anker für ICON-CH1 in den ersten +2 h genutzt.
+    recent_mean_mmh: float | None = None
+    recent_wet_frac: float | None = None
+    try:
+        tail = arrs[-3:] if len(arrs) >= 3 else arrs
+        wet_vals = []
+        wet_counts = []
+        total_counts = []
+        for _, a in tail:
+            mask = ~np.isnan(a) & (a > 0.1)
+            total_counts.append(int(np.size(a)))
+            wet_counts.append(int(mask.sum()))
+            if mask.any():
+                wet_vals.append(float(np.nanmean(a[mask])))
+        if wet_vals:
+            recent_mean_mmh = float(np.mean(wet_vals))
+        if total_counts:
+            recent_wet_frac = float(np.sum(wet_counts) / max(1, np.sum(total_counts)))
+    except Exception as exc:
+        print(f"motion: bias-anchor error {exc!r}", flush=True)
+
     motion: dict = {
         "u_ms": round(u_ms, 3),
         "v_ms": round(v_ms, 3),
@@ -643,6 +665,10 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         "pairs": len(pair_motions),
         "frames": len(arrs),
     }
+    if recent_mean_mmh is not None:
+        motion["recent_mean_mmh"] = round(recent_mean_mmh, 3)
+    if recent_wet_frac is not None:
+        motion["recent_wet_frac"] = round(recent_wet_frac, 4)
     if growth_per_min is not None:
         motion["growth_per_min"] = round(growth_per_min, 5)
     print(f"motion: {motion}", flush=True)
