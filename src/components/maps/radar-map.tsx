@@ -1053,7 +1053,24 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 Hagel
                 {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
               </button>
+
+              <button
+                type="button"
+                onClick={() => setShowLightning((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold transition",
+                  showLightning
+                    ? "border-transparent text-neutral-900 shadow-sm"
+                    : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50",
+                )}
+                style={showLightning ? { background: "#facc15" } : undefined}
+                title="Blitze (Echtzeit, Blitzortung.org-Community-Netz) ein-/ausblenden"
+              >
+                <Zap className="h-3 w-3" />
+                Blitze
+              </button>
             </div>
+
 
             <p className="mt-1.5 text-[10px] text-neutral-500">
               Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
