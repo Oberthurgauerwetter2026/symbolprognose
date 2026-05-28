@@ -722,6 +722,9 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1); // 1× ≈ 800ms pro 15-min-Frame
   const [showHail, setShowHail] = useState(true);
+  const [showLightning, setShowLightning] = useState(false);
+  const strikes = useLightning(showLightning, LIGHTNING_BBOX, LIGHTNING_WINDOW_MIN);
+
   const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
 
