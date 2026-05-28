@@ -22,7 +22,19 @@ import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
-import { cn } from "@/lib/utils";
+import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { useLightning } from "@/hooks/use-lightning";
+import { LightningLayer } from "@/components/maps/lightning-layer";
+
+// Bbox für Blitz-Filterung (etwas grösser als der Standard-Kartenausschnitt).
+const LIGHTNING_BBOX = {
+  minLat: 46.8,
+  maxLat: 48.35,
+  minLon: 8.1,
+  maxLon: 10.6,
+} as const;
+const LIGHTNING_WINDOW_MIN = 60;
+
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 
 const BRAND = "#2561a1";
