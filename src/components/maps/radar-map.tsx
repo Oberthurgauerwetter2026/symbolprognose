@@ -870,6 +870,11 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             />
           )}
 
+          {showLightning && (
+            <LightningLayer strikes={strikes} windowMin={LIGHTNING_WINDOW_MIN} />
+          )}
+
+
           {RADAR_CITIES.map((c) => (
             <Marker
               key={c.name}
