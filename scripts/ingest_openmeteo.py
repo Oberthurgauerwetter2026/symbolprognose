@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 import boto3
 import requests
 
-VERSION = "oberthurgau-openmeteo-cache-v2"
+VERSION = "oberthurgau-openmeteo-cache-v3-arome"
 API = "https://api.open-meteo.com/v1/forecast"
 
 
