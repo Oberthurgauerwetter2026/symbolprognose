@@ -79,6 +79,10 @@ export interface RadarMotion {
   growth_per_min?: number;
   /** Anzahl Radar-Frames im Trendfenster (typ. 6). */
   frames?: number;
+  /** Mittlere Niederschlagsintensität (mm/h) der nassen Pixel in den letzten 3 Frames. */
+  recent_mean_mmh?: number;
+  /** Anteil der "nassen" Pixel (> 0.1 mm/h) in den letzten 3 Frames, 0..1. */
+  recent_wet_frac?: number;
 }
 
 export interface RadarPayload {
