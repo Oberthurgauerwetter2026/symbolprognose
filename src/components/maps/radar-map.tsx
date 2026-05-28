@@ -345,6 +345,12 @@ function PrecipOverlay({
     redrawRef.current();
   }, [frame, nextFrame, progress, payload]);
 
+  // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (cv) cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+  }, [opacity]);
+
   return null;
 }
 
