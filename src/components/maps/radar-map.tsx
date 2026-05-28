@@ -358,6 +358,19 @@ function useNowFrameIndex(frames: RadarFrame[]): number {
   return useMemo(() => {
     if (frames.length === 0) return 0;
     const now = Date.now();
+    // 1. Letzter echter Radar-Messframe, dessen Zeit <= jetzt (+60s Toleranz) ist
+    let latestRadarIdx = -1;
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      if (f.source !== "radar") continue;
+      if (Date.parse(f.t) <= now + 60_000) latestRadarIdx = i;
+    }
+    if (latestRadarIdx >= 0) return latestRadarIdx;
+    // 2. Fallback: letzter Radar-Frame überhaupt
+    for (let i = frames.length - 1; i >= 0; i--) {
+      if (frames[i].source === "radar") return i;
+    }
+    // 3. Fallback: closest-to-now
     let bestIdx = 0;
     let bestDt = Infinity;
     for (let i = 0; i < frames.length; i++) {
