@@ -15,8 +15,8 @@ const RadarMapLazy = lazy(() =>
 const AMRISWIL = { lat: 47.5469, lon: 9.2986 };
 
 function buildRadarNoscript(
-  frames: Awaited<ReturnType<typeof getRadarFrames>>,
-  fc: Awaited<ReturnType<typeof getMultiModelForecast>>,
+  frames: Awaited<ReturnType<typeof getRadarFrames>> | null,
+  fc: Awaited<ReturnType<typeof getMultiModelForecast>> | null,
 ): RadarNoscriptData {
   // Jüngstes echtes Radarbild aus dem Manifest.
   let latestImageUrl: string | undefined;
