@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v7-resilient"
+RADAR_INGEST_VERSION = "v8-motion-sign-fix"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -482,8 +482,19 @@ def cleanup(s3, keep_since: datetime) -> None:
 
 def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float]:
     """FFT phase correlation. Returns (dx_px, dy_px, confidence) for motion
-    from a (older) to b (newer). dy_px > 0 = southward (numpy row+ = south).
-    Confidence in 0..1 (normalised correlation-peak SNR)."""
+    from a (older) to b (newer).
+
+    Convention:
+      • dx_px > 0  → feature moved to the right (col+) between a and b → eastward.
+      • dy_px > 0  → feature moved downward (row+) → southward.
+
+    Math: if b(x) = a(x − d) (b is a shifted by +d), the Fourier shift
+    theorem gives B = A · exp(−i·2π·k·d/N). Hence
+        conj(A) · B  =  |A|² · exp(−i·2π·k·d/N)
+    whose inverse FFT has its peak at +d. Using A · conj(B) instead would
+    place the peak at −d, which is the original bug that made nowcast
+    cells drift backwards. We therefore use conj(A) · B.
+    """
     a = np.nan_to_num(a, nan=0.0).astype(np.float32)
     b = np.nan_to_num(b, nan=0.0).astype(np.float32)
     a = a - a.mean()
@@ -492,7 +503,7 @@ def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, floa
     win = np.hanning(h)[:, None] * np.hanning(w)[None, :]
     A = np.fft.fft2(a * win)
     B = np.fft.fft2(b * win)
-    R = A * np.conj(B)
+    R = np.conj(A) * B
     R /= np.abs(R) + 1e-10
     c = np.fft.ifft2(R).real
     peak = np.unravel_index(int(np.argmax(c)), c.shape)
@@ -501,7 +512,6 @@ def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, floa
         py -= h
     if px > w // 2:
         px -= w
-    # phase-corr peak: a(x) ≈ b(x − shift) → motion a→b is +shift
     dx_px = float(px)
     dy_px = float(py)
     peak_v = float(c.max())
