@@ -14,7 +14,8 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, CloudHail } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, CloudHail, Zap } from "lucide-react";
+
 
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
