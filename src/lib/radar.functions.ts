@@ -350,9 +350,27 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     const last = radarFrames[radarFrames.length - 1];
     if (last && last.precipUrl) {
       const lastMs = Date.parse(last.t);
+      // Wachstums-/Zerfalls-Faktor pro Minute (z. B. -0.01 = -1 %/min Zerfall).
+      // Wird nur angewendet, wenn die Radar-Motion (nicht Wind-Fallback) genutzt
+      // wird — sonst kennen wir den realen Trend nicht zuverlässig.
+      const growthPerMin =
+        nowcastMotion.source === "radar" && typeof motion?.growth_per_min === "number"
+          ? motion.growth_per_min
+          : 0;
       for (let m = NOWCAST_STEP_MIN; m <= NOWCAST_HORIZON_MIN; m += NOWCAST_STEP_MIN) {
         const tMs = lastMs + m * 60_000;
         if (tMs > forecastCutoff) break;
+        // 1) Wachstums-/Zerfalls-Decay (clamped 0.25…1.6).
+        const growthFactor = Math.max(0.25, Math.min(1.6, 1 + growthPerMin * m));
+        // 2) Soft-Fade in den letzten 30 min des Horizonts (1.0 → 0.0).
+        const fadeFactor =
+          m <= NOWCAST_FADE_START_MIN
+            ? 1
+            : Math.max(
+                0,
+                1 - (m - NOWCAST_FADE_START_MIN) / (NOWCAST_HORIZON_MIN - NOWCAST_FADE_START_MIN),
+              );
+        const blendOpacity = Math.max(0, Math.min(1.6, growthFactor * fadeFactor));
         frames.push({
           t: new Date(tMs).toISOString(),
           source: "nowcast",
@@ -363,11 +381,19 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
             dLon: nowcastMotion.u_deg_per_min * m,
           },
           motionSource: nowcastMotion.source,
+          blendOpacity,
         });
       }
       nowcastEndMs = lastMs + NOWCAST_HORIZON_MIN * 60_000;
     }
   }
+
+  // Soft-Blending-Marker: ICON-CH1-Frames im Overlap-Fenster
+  // (radar.last + NOWCAST_FADE_START_MIN … nowcastEndMs) rampen 0 → 1 hoch.
+  const overlapStartMs =
+    Number.isFinite(nowcastEndMs) && hasRealRadar
+      ? nowcastEndMs - (NOWCAST_HORIZON_MIN - NOWCAST_FADE_START_MIN) * 60_000
+      : -Infinity;
 
   // ---- Phase 1 (Open-Meteo): Fallback-Past + ICON-CH1-Future (bis +32h) ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
@@ -377,8 +403,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
       if (tMs <= now && hasRealRadar) continue;
-      // ICON-CH1-Frames innerhalb des Nowcast-Fensters unterdrücken
-      if (tMs <= nowcastEndMs) continue;
+      // ICON-CH1-Frames im Overlap-Fenster zulassen (mit Fade-In), erst danach voll.
+      if (tMs <= overlapStartMs) continue;
       if (tMs > forecastCutoff) continue;
       const values: number[] = new Array(pts.length);
       const snowValues: number[] | undefined = hasSnow ? new Array(pts.length) : undefined;
@@ -394,9 +420,22 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         }
       }
       const source: RadarFrame["source"] = tMs <= now ? "radar" : "icon-ch1";
-      frames.push({ t: tIso, source, values, snowValues });
+      // Im Overlap-Fenster: linear von 0 (bei overlapStartMs) → 1 (bei nowcastEndMs).
+      let blendOpacity: number | undefined;
+      if (
+        source === "icon-ch1" &&
+        Number.isFinite(nowcastEndMs) &&
+        tMs > overlapStartMs &&
+        tMs < nowcastEndMs
+      ) {
+        const span = nowcastEndMs - overlapStartMs;
+        blendOpacity = Math.max(0, Math.min(1, (tMs - overlapStartMs) / Math.max(1, span)));
+      }
+      frames.push({ t: tIso, source, values, snowValues, blendOpacity });
     }
   }
+
+
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
