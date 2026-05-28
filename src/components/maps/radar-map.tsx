@@ -25,6 +25,7 @@ import thurgauData from "@/data/thurgau.json";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { useLightning } from "@/hooks/use-lightning";
 import { LightningLayer } from "@/components/maps/lightning-layer";
+import { cn } from "@/lib/utils";
 
 // Bbox für Blitz-Filterung (etwas grösser als der Standard-Kartenausschnitt).
 const LIGHTNING_BBOX = {
@@ -35,7 +36,6 @@ const LIGHTNING_BBOX = {
 } as const;
 const LIGHTNING_WINDOW_MIN = 60;
 
-import { cn } from "@/lib/utils";
 
 
 const BRAND = "#2561a1";
