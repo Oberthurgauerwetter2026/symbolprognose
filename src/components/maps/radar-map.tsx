@@ -1074,7 +1074,22 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
 
             <p className="mt-1.5 text-[10px] text-neutral-500">
               Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
+              {showLightning && (
+                <>
+                  {" · Blitze: "}
+                  <a
+                    href="https://www.blitzortung.org/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    Blitzortung.org
+                  </a>
+                  {" (Community-Netz, ohne Gewähr)"}
+                </>
+              )}
             </p>
+
           </>
         )}
       </div>
