@@ -513,8 +513,17 @@ def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, floa
 
 
 def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
-    """Mean precipitation-cell motion from the latest 3 precip frames."""
-    last = sorted(precip_assets, key=lambda a: a.ts)[-3:]
+    """Mean precipitation-cell motion + growth/decay trend.
+
+    Erweitert ggü. v7-Original:
+      • nutzt die letzten **6 Frames** (5 Paare) statt 3 → Median stabiler,
+        Null-Drift-Fehlalarme seltener.
+      • berechnet zusätzlich `growth_per_min`: lineare Steigung der mittleren
+        Intensität pro Minute, normiert auf den Mittelwert, in %/min.
+        > 0 = Zellen wachsen, < 0 = zerfallen. Frontend dimmt Nowcast-PNGs
+        entsprechend (analog MeteoSchweiz INCA-Exponential-Decay).
+    """
+    last = sorted(precip_assets, key=lambda a: a.ts)[-6:]
     if len(last) < 2:
         print("motion: <2 recent precip frames, skipping", flush=True)
         return None
@@ -544,9 +553,6 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         if abs(dx_px) > 60 or abs(dy_px) > 60:
             print(f"motion: pair {t_old}→{t_new} jump too large, skip", flush=True)
             continue
-        # Degenerierter Null-Peak: bei flachen/persistenten Szenen rastet die
-        # FFT-Phase-Korrelation auf (0, 0) ein und meldet hohe Confidence,
-        # obwohl real keine Drift erkennbar ist. Solche Paare verwerfen.
         if abs(dx_px) < 0.5 and abs(dy_px) < 0.5:
             print(
                 f"motion: pair {t_old.strftime('%H:%M')}→{t_new.strftime('%H:%M')} "
@@ -569,7 +575,6 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
     v_px_min = float(np.median([p[1] for p in pair_motions]))
     conf_med = float(np.median([p[2] for p in pair_motions]))
 
-    # Nach Median-Bildung erneut auf Null-Drift prüfen.
     if abs(u_px_min) < 0.5 and abs(v_px_min) < 0.5:
         print(
             f"motion: median zero shift u={u_px_min:+.2f}px/min v={v_px_min:+.2f}px/min → discarded",
@@ -580,7 +585,7 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
     deg_lon_per_px = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / OUT_W
     deg_lat_per_px = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / OUT_H
     u_deg_min = u_px_min * deg_lon_per_px
-    v_deg_min = -v_px_min * deg_lat_per_px  # south px → north deg negative
+    v_deg_min = -v_px_min * deg_lat_per_px
 
     mid_lat = (BBOX_WGS["maxLat"] + BBOX_WGS["minLat"]) / 2
     m_per_deg_lat = 111_000.0
@@ -588,7 +593,37 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
     u_ms = u_deg_min * m_per_deg_lon / 60.0
     v_ms = v_deg_min * m_per_deg_lat / 60.0
 
-    motion = {
+    # --- Growth/Decay-Trend ---
+    # Lineare Regression von mean(precip > 0.1) gegen Minuten. growth_per_min
+    # ist die relative Steigung (1/min). Wird in Frontend als Nowcast-Decay
+    # angewendet: opacity_minutes_ahead = clamp(1 + growth_per_min*m, 0.25, 1.6).
+    growth_per_min: float | None = None
+    try:
+        ts0 = arrs[0][0]
+        ts_min = np.array(
+            [(t - ts0).total_seconds() / 60.0 for t, _ in arrs], dtype=np.float64
+        )
+        means = np.array(
+            [float(np.nanmean(np.where(a > 0.05, a, 0.0))) for _, a in arrs],
+            dtype=np.float64,
+        )
+        # nur falls genug Signal
+        base = float(np.nanmean(means)) if means.size else 0.0
+        if base > 0.02 and len(arrs) >= 3:
+            slope = float(np.polyfit(ts_min, means, 1)[0])  # mm/h per min
+            growth_per_min = slope / base
+            # auf vernünftiges Band klemmen (±5 %/min)
+            growth_per_min = float(max(-0.05, min(0.05, growth_per_min)))
+            print(
+                f"motion: growth trend base={base:.3f} slope={slope:+.4f} "
+                f"→ {growth_per_min*100:+.2f}%/min",
+                flush=True,
+            )
+    except Exception as exc:
+        print(f"motion: growth trend error {exc!r}", flush=True)
+        growth_per_min = None
+
+    motion: dict = {
         "u_ms": round(u_ms, 3),
         "v_ms": round(v_ms, 3),
         "u_deg_per_min": round(u_deg_min, 6),
@@ -596,7 +631,10 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         "sourceTs": arrs[-1][0].strftime("%Y-%m-%dT%H:%M:00Z"),
         "confidence": round(conf_med, 3),
         "pairs": len(pair_motions),
+        "frames": len(arrs),
     }
+    if growth_per_min is not None:
+        motion["growth_per_min"] = round(growth_per_min, 5)
     print(f"motion: {motion}", flush=True)
     return motion
 

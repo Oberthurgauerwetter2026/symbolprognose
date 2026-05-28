@@ -189,11 +189,13 @@ function PrecipOverlay({
   frame,
   nextFrame,
   progress,
+  opacity = 1,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
   nextFrame?: RadarFrame | null;
   progress?: number;
+  opacity?: number;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -342,6 +344,12 @@ function PrecipOverlay({
   useEffect(() => {
     redrawRef.current();
   }, [frame, nextFrame, progress, payload]);
+
+  // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (cv) cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+  }, [opacity]);
 
   return null;
 }
@@ -807,7 +815,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                     data.imageBbox.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
                   ],
                 ]}
-                opacity={1.0}
+                opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
                 className="mch-precip"
               />
             ) : (
@@ -816,6 +824,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 frame={currentFrame}
                 nextFrame={blendNext}
                 progress={progress}
+                opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
               />
             ))}
           {data && currentFrame && showHail && currentFrame.hailUrl && (

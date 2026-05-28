@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 import boto3
 import requests
 
-VERSION = "oberthurgau-openmeteo-cache-v2"
+VERSION = "oberthurgau-openmeteo-cache-v3-arome"
 API = "https://api.open-meteo.com/v1/forecast"
 
 
@@ -216,7 +216,7 @@ def main() -> None:
         ]),
         "forecast_days": 7,
         "timezone": "Europe/Zurich",
-        "models": "meteoswiss_icon_ch2,icon_d2,arpege_europe,ecmwf_ifs025,gfs_global",
+        "models": "meteoswiss_icon_ch2,icon_d2,arpege_europe,meteofrance_arome_france_hd,ecmwf_ifs025,gfs_global",
     }
     # phaseC: Bias-Lookback (-7 d … +1 d) best_match
     pc = {

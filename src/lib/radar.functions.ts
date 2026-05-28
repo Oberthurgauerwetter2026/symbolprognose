@@ -57,6 +57,14 @@ export interface RadarFrame {
   imageOffset?: { dLat: number; dLon: number };
   /** Nur für `source==="nowcast"`: Herkunft des Bewegungsvektors. */
   motionSource?: "radar" | "wind";
+  /**
+   * Anzeige-Deckkraft 0..1. Genutzt für:
+   *   - Nowcast-Wachstum/Zerfall (Trend aus letzten 6 Radarmessungen).
+   *   - Soft-Blending im Übergangs-Fenster Nowcast → ICON-CH1
+   *     (60…90 min: Nowcast 1.0 → 0.0, ICON-CH1 0.0 → 1.0).
+   * Default 1.0, wenn nicht gesetzt.
+   */
+  blendOpacity?: number;
 }
 
 export interface RadarMotion {
@@ -67,6 +75,10 @@ export interface RadarMotion {
   sourceTs: string;
   confidence: number;
   pairs?: number;
+  /** Relative Intensitäts-Steigung pro Minute (z. B. +0.01 = +1%/min Wachstum). */
+  growth_per_min?: number;
+  /** Anzahl Radar-Frames im Trendfenster (typ. 6). */
+  frames?: number;
 }
 
 export interface RadarPayload {
@@ -223,21 +235,24 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     }
   }
 
-  // ---- Nowcast (Radar-Extrapolation, T+0…+60 min) ----
+  // ---- Nowcast (Radar-Extrapolation, T+0…+90 min) ----
   // Operationelles Verfahren wie MeteoSchweiz INCA / DWD RadVOR: das letzte
   // gemessene Radarbild wird entlang eines Bewegungsvektors verschoben. Im
   // Browser passiert das als reines ImageOverlay-Bounds-Shift — kein
   // Pixel-Resampling, kein Modell-Glättungs-Effekt.
   //
-  // Primär: Vektor aus FFT-Phase-Korrelation der letzten 3 Radar-Frames
-  // (im Manifest unter `motion`). Fallback: Steering-Wind aus ICON-CH1 (10 m
-  // hochskaliert auf ~700 hPa-Niveau via Faktor 1.8), wenn Radar-Motion
-  // fehlt oder degeneriert (≈ 0 m/s) ist.
+  // Erweiterungen ggü. V1:
+  //   • Bewegungsvektor aus letzten 6 (statt 3) Radar-Frames → stabiler.
+  //   • Wachstum/Zerfall: Trend `growth_per_min` aus Manifest wird als
+  //     Intensitäts-Decay angewendet (Frame-Opacity), analog INCA-Decay.
+  //   • Horizont 90 min, mit Soft-Fade in den letzten 30 min (1.0 → 0.0),
+  //     parallel rampt ICON-CH1 ab T+60 von 0.0 → 1.0 hoch (Soft-Blending).
   const motion = manifest?.motion;
   const MIN_CONF = 0.3;
   const MIN_RADAR_MS = 1.0; // < 1 m/s effektiv Stillstand → Fallback
-  const NOWCAST_HORIZON_MIN = 60;
+  const NOWCAST_HORIZON_MIN = 90;
   const NOWCAST_STEP_MIN = 10;
+  const NOWCAST_FADE_START_MIN = 60; // ab hier fadet der Nowcast aus
   let nowcastEndMs = -Infinity;
 
   const radarMotionUsable =
@@ -335,9 +350,27 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     const last = radarFrames[radarFrames.length - 1];
     if (last && last.precipUrl) {
       const lastMs = Date.parse(last.t);
+      // Wachstums-/Zerfalls-Faktor pro Minute (z. B. -0.01 = -1 %/min Zerfall).
+      // Wird nur angewendet, wenn die Radar-Motion (nicht Wind-Fallback) genutzt
+      // wird — sonst kennen wir den realen Trend nicht zuverlässig.
+      const growthPerMin =
+        nowcastMotion.source === "radar" && typeof motion?.growth_per_min === "number"
+          ? motion.growth_per_min
+          : 0;
       for (let m = NOWCAST_STEP_MIN; m <= NOWCAST_HORIZON_MIN; m += NOWCAST_STEP_MIN) {
         const tMs = lastMs + m * 60_000;
         if (tMs > forecastCutoff) break;
+        // 1) Wachstums-/Zerfalls-Decay (clamped 0.25…1.6).
+        const growthFactor = Math.max(0.25, Math.min(1.6, 1 + growthPerMin * m));
+        // 2) Soft-Fade in den letzten 30 min des Horizonts (1.0 → 0.0).
+        const fadeFactor =
+          m <= NOWCAST_FADE_START_MIN
+            ? 1
+            : Math.max(
+                0,
+                1 - (m - NOWCAST_FADE_START_MIN) / (NOWCAST_HORIZON_MIN - NOWCAST_FADE_START_MIN),
+              );
+        const blendOpacity = Math.max(0, Math.min(1.6, growthFactor * fadeFactor));
         frames.push({
           t: new Date(tMs).toISOString(),
           source: "nowcast",
@@ -348,11 +381,19 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
             dLon: nowcastMotion.u_deg_per_min * m,
           },
           motionSource: nowcastMotion.source,
+          blendOpacity,
         });
       }
       nowcastEndMs = lastMs + NOWCAST_HORIZON_MIN * 60_000;
     }
   }
+
+  // Soft-Blending-Marker: ICON-CH1-Frames im Overlap-Fenster
+  // (radar.last + NOWCAST_FADE_START_MIN … nowcastEndMs) rampen 0 → 1 hoch.
+  const overlapStartMs =
+    Number.isFinite(nowcastEndMs) && hasRealRadar
+      ? nowcastEndMs - (NOWCAST_HORIZON_MIN - NOWCAST_FADE_START_MIN) * 60_000
+      : -Infinity;
 
   // ---- Phase 1 (Open-Meteo): Fallback-Past + ICON-CH1-Future (bis +32h) ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
@@ -362,8 +403,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
       if (tMs <= now && hasRealRadar) continue;
-      // ICON-CH1-Frames innerhalb des Nowcast-Fensters unterdrücken
-      if (tMs <= nowcastEndMs) continue;
+      // ICON-CH1-Frames im Overlap-Fenster zulassen (mit Fade-In), erst danach voll.
+      if (tMs <= overlapStartMs) continue;
       if (tMs > forecastCutoff) continue;
       const values: number[] = new Array(pts.length);
       const snowValues: number[] | undefined = hasSnow ? new Array(pts.length) : undefined;
@@ -379,9 +420,22 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         }
       }
       const source: RadarFrame["source"] = tMs <= now ? "radar" : "icon-ch1";
-      frames.push({ t: tIso, source, values, snowValues });
+      // Im Overlap-Fenster: linear von 0 (bei overlapStartMs) → 1 (bei nowcastEndMs).
+      let blendOpacity: number | undefined;
+      if (
+        source === "icon-ch1" &&
+        Number.isFinite(nowcastEndMs) &&
+        tMs > overlapStartMs &&
+        tMs < nowcastEndMs
+      ) {
+        const span = nowcastEndMs - overlapStartMs;
+        blendOpacity = Math.max(0, Math.min(1, (tMs - overlapStartMs) / Math.max(1, span)));
+      }
+      frames.push({ t: tIso, source, values, snowValues, blendOpacity });
     }
   }
+
+
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
