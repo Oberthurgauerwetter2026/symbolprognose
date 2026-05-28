@@ -14,15 +14,29 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, CloudHail } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, CloudHail, Zap } from "lucide-react";
+
 
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
-import { cn } from "@/lib/utils";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { useLightning } from "@/hooks/use-lightning";
+import { LightningLayer } from "@/components/maps/lightning-layer";
+
+// Bbox für Blitz-Filterung (etwas grösser als der Standard-Kartenausschnitt).
+const LIGHTNING_BBOX = {
+  minLat: 46.8,
+  maxLat: 48.35,
+  minLon: 8.1,
+  maxLon: 10.6,
+} as const;
+const LIGHTNING_WINDOW_MIN = 60;
+
+import { cn } from "@/lib/utils";
+
 
 const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
@@ -708,6 +722,9 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1); // 1× ≈ 800ms pro 15-min-Frame
   const [showHail, setShowHail] = useState(true);
+  const [showLightning, setShowLightning] = useState(false);
+  const strikes = useLightning(showLightning, LIGHTNING_BBOX, LIGHTNING_WINDOW_MIN);
+
   const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
 
@@ -852,6 +869,11 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               className="hail-blackdots"
             />
           )}
+
+          {showLightning && (
+            <LightningLayer strikes={strikes} windowMin={LIGHTNING_WINDOW_MIN} />
+          )}
+
 
           {RADAR_CITIES.map((c) => (
             <Marker
@@ -1031,11 +1053,43 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 Hagel
                 {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
               </button>
+
+              <button
+                type="button"
+                onClick={() => setShowLightning((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold transition",
+                  showLightning
+                    ? "border-transparent text-neutral-900 shadow-sm"
+                    : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50",
+                )}
+                style={showLightning ? { background: "#facc15" } : undefined}
+                title="Blitze (Echtzeit, Blitzortung.org-Community-Netz) ein-/ausblenden"
+              >
+                <Zap className="h-3 w-3" />
+                Blitze
+              </button>
             </div>
+
 
             <p className="mt-1.5 text-[10px] text-neutral-500">
               Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
+              {showLightning && (
+                <>
+                  {" · Blitze: "}
+                  <a
+                    href="https://www.blitzortung.org/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    Blitzortung.org
+                  </a>
+                  {" (Community-Netz, ohne Gewähr)"}
+                </>
+              )}
             </p>
+
           </>
         )}
       </div>
