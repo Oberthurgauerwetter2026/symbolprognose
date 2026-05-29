@@ -405,8 +405,17 @@ def _load_horizontal_grid(model: str) -> tuple[np.ndarray, np.ndarray] | None:
     return _GRID_CACHE[model]
 
 
-def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Return list of (values, lats, lons) for every message in a GRIB2 file.
+def _open_grib_messages(
+    buf: bytes,
+    model: str | None = None,
+    is_ctrl: bool = False,
+) -> list[tuple[int, np.ndarray, np.ndarray, np.ndarray]]:
+    """Return list of (member_key, values, lats, lons) for every message in a GRIB2 file.
+
+    `member_key` is `-1` for the control run and `int(perturbationNumber)` for
+    perturbed members. The caller relies on this key to keep the member axis
+    deterministic across horizons (otherwise the de-accumulation `cur - prev`
+    silently subtracts the wrong members).
 
     For regular grids we use `msg.latlons()`. For ICON's native
     `unstructured_grid`, lat/lon are typically NOT embedded in the GRIB —
