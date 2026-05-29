@@ -1,26 +1,40 @@
 ## Befund
 
-Der Ingest findet STAC-Items und lädt die GRIBs korrekt, aber der neue `unstructured_grid`-Pfad greift auf `msg["latitudes"]` / `msg["longitudes"]` zu. Bei den MeteoSchweiz ICON-EPS-Dateien sind diese ecCodes-Keys offenbar nicht verfügbar, deshalb wird jede GRIB-Message mit `RuntimeError('Key/value not found')` verworfen und es entstehen keine Member.
+Die ICON-CH1/CH2-EPS-GRIBs sind auf dem nativen Dreiecksgitter (`unstructured_grid`) und enthalten **keine** eingebetteten Koordinaten — nur Werte. MeteoSchweiz liefert die Gitterkoordinaten separat als Collection-Asset:
+
+- `ch.meteoschweiz.ogd-forecasting-icon-ch1` → Asset `horizontal_constants_icon-ch1-eps.grib2` (CLAT/CLON für 1'147'980 Punkte)
+- `ch.meteoschweiz.ogd-forecasting-icon-ch2` → Asset `horizontal_constants_icon-ch2-eps.grib2` (für 283'876 Punkte)
+
+Die Asset-URLs sind signiert (`Expires=...`), müssen also pro Lauf frisch aus dem STAC-Collection-Endpoint geholt werden.
 
 ## Plan
 
-1. **Diagnostik zuerst reparieren**
-   - Die Fehlerausgabe in `_open_grib_messages()` so ändern, dass sie nie selbst an fehlenden Keys scheitert.
-   - Statt `msg.shortName`/`getattr(...)` direkt zu lesen, sichere Helper verwenden, damit Logs künftig `gridType`, `numberOfDataPoints`, `NV`, `paramId`, `shortName` soweit verfügbar ausgeben.
+1. **Neue Funktion `_load_horizontal_grid(model)` in `scripts/ingest_icon_eps.py`**
+   - GET `https://data.geo.admin.ch/api/stac/v1/collections/ch.meteoschweiz.ogd-forecasting-icon-<model>`
+   - Asset `horizontal_constants_icon-<model>-eps.grib2` → signierte URL extrahieren
+   - GRIB herunterladen, mit pygrib öffnen, die zwei Messages `CLAT` (shortName `clat`, Einheit rad) und `CLON` (`clon`, rad) lesen
+   - In Grad umrechnen (`np.degrees`), als `np.float32`-1D-Arrays cachen
+   - Rückgabe `(lats, lons)`, Länge == `numberOfDataPoints` der Forecast-GRIBs
 
-2. **Unstructured-Lat/Lon robust laden**
-   - Einen Helper `_get_grib_array(msg, candidates)` einführen, der mehrere mögliche ecCodes-Key-Namen versucht und sauber `None` zurückgibt.
-   - Für `unstructured_grid` mehrere Koordinatenquellen probieren, z. B. `latitudes/longitudes`, `distinctLatitudes/distinctLongitudes`, `latitudeOfFirstGridPointInDegrees`-Varianten, falls verfügbar.
-   - Wenn keine Koordinaten im GRIB vorhanden sind, klar loggen: `unstructured grid has values but no coordinates`, statt hunderte identische Skip-Zeilen.
+2. **Prozess-Cache pro Modell**
+   - Modulvariable `_GRID_CACHE: dict[str, tuple[np.ndarray, np.ndarray]]`
+   - Nur einmal pro Ingest-Lauf laden, danach wiederverwenden
 
-3. **Falls Koordinaten fehlen: static grid cache vorbereiten**
-   - Für ICON-CH1/CH2 native grid braucht es wahrscheinlich ein externes/statisches Grid-Mapping über `uuidOfHGrid` oder `numberOfGridUsed`.
-   - Implementieren: einmalige Grid-Resolver-Funktion, die pro Modell/Grid-ID eine lokale/remote Koordinatentabelle laden kann und danach im Prozess cached.
-   - Wenn keine Grid-Datei im Repo vorhanden ist, bleibt der Ingest mit präziser Diagnose stehen; danach können wir die passende CH1/CH2-Griddatei gezielt hinzufügen oder herunterladen.
+3. **`_open_grib_messages` anpassen**
+   - Parameter `model: str` durchreichen
+   - Wenn `gridType == "unstructured_grid"` und keine eingebetteten Lat/Lon: `lats, lons = _load_horizontal_grid(model)`
+   - Längenprüfung gegen `values.size`; bei Mismatch klarer Fehler
+   - Den bisherigen Skip-Pfad (mit `[diag] need external grid file`) durch diesen erfolgreichen Pfad ersetzen
+   - `_LAT_KEYS`/`_LON_KEYS`-Versuche und das `_GRID_DIAG_SEEN`-Set können bleiben als Fallback für künftige Edge Cases
 
-4. **Resampling unverändert weiterverwenden**
-   - Sobald `values`, `lats`, `lons` gleiche Länge haben, läuft der vorhandene 1D-Resampler weiter.
-   - Keine Änderung an R2-Struktur, Manifest, Frontend oder Workflow-Timeout.
+4. **Aufrufer durchreichen**
+   - In `_read_member_field` / `_fetch_step` (oder wo auch immer `_open_grib_messages` aufgerufen wird) das `model`-Kürzel mitgeben
 
 5. **Validierung**
-   - Beim nächsten Workflow-Lauf sollten die Logs entweder `building resample index from (...)` und `members=21` zeigen, oder eine eindeutige Meldung, welche Grid-ID/UUID eine externe Koordinatendatei benötigt.
+   - Nächster Workflow-Lauf sollte `[grid] loaded ch1 grid: 1147980 points` zeigen, dann `members=21` pro Horizont und ein veröffentlichtes Manifest
+
+### Technische Notizen
+- CLAT/CLON liegen in Radiant vor → `np.degrees(...)` zwingend
+- Asset-URL ist signiert; nicht cachen über Läufe hinweg, sondern jedes Mal frisch aus STAC holen
+- Keine Änderungen an R2-Struktur, Manifest-Schema, Frontend, Workflow oder Timeouts
+- Resampler bleibt unverändert (verarbeitet 1D Lat/Lon/Values)

@@ -320,8 +320,85 @@ _LON_KEYS = ("longitudes", "distinctLongitudes", "longitudeOfFirstGridPointInDeg
 # Cache to avoid logging the same diagnostic for every message / file.
 _GRID_DIAG_SEEN: set[str] = set()
 
+# Per-process cache of (lats, lons) arrays per model, loaded from the
+# `horizontal_constants_icon-<model>-eps.grib2` collection asset.
+_GRID_CACHE: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
-def _open_grib_messages(buf: bytes) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
+
+def _load_horizontal_grid(model: str) -> tuple[np.ndarray, np.ndarray] | None:
+    """Fetch and decode the static horizontal grid (CLAT/CLON in radians)
+    for an ICON-CH<n>-EPS model. Returns (lats_deg, lons_deg) as 1D float32
+    arrays, or None on failure. Result is cached per-process per model.
+    """
+    if model in _GRID_CACHE:
+        return _GRID_CACHE[model]
+    collection_id = COLLECTIONS[model]
+    asset_name = f"horizontal_constants_icon-{model}-eps.grib2"
+    url = f"{STAC_BASE}/{collection_id}"
+    try:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        assets = r.json().get("assets", {})
+        asset = assets.get(asset_name)
+        if not asset or not asset.get("href"):
+            print(f"  [grid] {model}: asset {asset_name} not found in collection", flush=True)
+            return None
+        href = asset["href"]
+        gr = requests.get(href, timeout=120)
+        gr.raise_for_status()
+        buf = gr.content
+    except Exception as exc:
+        print(f"  [grid] {model}: fetch failed {exc!r}", flush=True)
+        return None
+
+    lats_rad = None
+    lons_rad = None
+    with tempfile.NamedTemporaryFile(suffix=".grib2", delete=True) as f:
+        f.write(buf)
+        f.flush()
+        try:
+            with pygrib.open(f.name) as gribs:
+                for msg in gribs:
+                    short = (_safe_attr(msg, "shortName") or "").lower()
+                    name = (_safe_attr(msg, "name") or "").lower()
+                    try:
+                        vals = np.asarray(msg.values, dtype=np.float64).reshape(-1)
+                    except Exception:
+                        continue
+                    if short == "clat" or "latitude" in name:
+                        lats_rad = vals
+                    elif short == "clon" or "longitude" in name:
+                        lons_rad = vals
+        except Exception as exc:
+            print(f"  [grid] {model}: grib decode failed {exc!r}", flush=True)
+            return None
+
+    if lats_rad is None or lons_rad is None:
+        print(f"  [grid] {model}: CLAT/CLON not found in {asset_name}", flush=True)
+        return None
+    if lats_rad.size != lons_rad.size:
+        print(f"  [grid] {model}: CLAT/CLON size mismatch "
+              f"{lats_rad.size} vs {lons_rad.size}", flush=True)
+        return None
+
+    # MeteoSwiss ICON horizontal constants store CLAT/CLON in radians.
+    # If values look like radians (|max| < ~7), convert to degrees.
+    if max(abs(float(lats_rad.min())), abs(float(lats_rad.max()))) < 7.0:
+        lats_deg = np.degrees(lats_rad).astype(np.float32)
+        lons_deg = np.degrees(lons_rad).astype(np.float32)
+    else:
+        lats_deg = lats_rad.astype(np.float32)
+        lons_deg = lons_rad.astype(np.float32)
+    lons_deg = np.where(lons_deg > 180.0, lons_deg - 360.0, lons_deg).astype(np.float32)
+    print(f"  [grid] loaded {model} grid: {lats_deg.size} points "
+          f"lat=[{float(lats_deg.min()):.3f},{float(lats_deg.max()):.3f}] "
+          f"lon=[{float(lons_deg.min()):.3f},{float(lons_deg.max()):.3f}]",
+          flush=True)
+    _GRID_CACHE[model] = (lats_deg, lons_deg)
+    return _GRID_CACHE[model]
+
+
+def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """Return list of (values, lats, lons) for every message in a GRIB2 file.
 
     For regular grids we use `msg.latlons()`. For ICON's native
@@ -374,6 +451,14 @@ def _open_grib_messages(buf: bytes) -> list[tuple[np.ndarray, np.ndarray, np.nda
                                 break
                             except Exception:
                                 lons_arr = None
+
+                    if lats_arr is None or lons_arr is None:
+                        # Fallback: load the static horizontal grid for this
+                        # model from the STAC collection asset (CLAT/CLON).
+                        if model is not None:
+                            grid = _load_horizontal_grid(model)
+                            if grid is not None:
+                                lats_arr, lons_arr = grid
 
                     if lats_arr is None or lons_arr is None:
                         n_unstructured_skipped += 1
@@ -606,7 +691,7 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         members: list[np.ndarray] = []
         for buf in buffers:
             try:
-                msgs = _open_grib_messages(buf)
+                msgs = _open_grib_messages(buf, model=model)
             except Exception as exc:
                 print(f"    ! grib decode fail h={h}: {exc!r}", flush=True)
                 continue
