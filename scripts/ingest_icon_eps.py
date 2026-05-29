@@ -611,6 +611,13 @@ def _build_resample_index(lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
                         bestD = float(d)
                         bestI = i
         idx_out[k] = bestI
+    n_unmapped = int((idx_out < 0).sum())
+    print(
+        f"  [resample-idx] {OUT_H}x{OUT_W} pixels mapped, unmapped={n_unmapped} "
+        f"native_pts={flat_lat.size} bbox_lat=[{BBOX_WGS['minLat']},{BBOX_WGS['maxLat']}] "
+        f"bbox_lon=[{BBOX_WGS['minLon']},{BBOX_WGS['maxLon']}]",
+        flush=True,
+    )
     return idx_out
 
 
