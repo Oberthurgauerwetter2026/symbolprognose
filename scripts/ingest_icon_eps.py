@@ -197,14 +197,21 @@ def _item_to_stac(feature: dict) -> StacItem | None:
         ref_time = datetime.fromisoformat(ref_iso.replace("Z", "+00:00")).astimezone(timezone.utc)
     except ValueError:
         return None
-    # forecast:horizon comes as ISO-8601 duration "PT5H" or as int hours.
+    # forecast:horizon comes as full ISO-8601 duration like "P0DT10H00M00S",
+    # short form "PT5H", or plain int hours.
     if isinstance(horizon, (int, float)):
         h_int = int(horizon)
     else:
-        m = re.match(r"^P(?:T)?(\d+)H", str(horizon))
+        m = re.match(
+            r"^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$",
+            str(horizon),
+        )
         if not m:
             return None
-        h_int = int(m.group(1))
+        days = int(m.group(1) or 0)
+        hours = int(m.group(2) or 0)
+        # Minutes/seconds ignored — EPS steps are hourly.
+        h_int = days * 24 + hours
     assets = feature.get("assets") or {}
     if not assets:
         return None
