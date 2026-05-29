@@ -197,14 +197,21 @@ def _item_to_stac(feature: dict) -> StacItem | None:
         ref_time = datetime.fromisoformat(ref_iso.replace("Z", "+00:00")).astimezone(timezone.utc)
     except ValueError:
         return None
-    # forecast:horizon comes as ISO-8601 duration "PT5H" or as int hours.
+    # forecast:horizon comes as full ISO-8601 duration like "P0DT10H00M00S",
+    # short form "PT5H", or plain int hours.
     if isinstance(horizon, (int, float)):
         h_int = int(horizon)
     else:
-        m = re.match(r"^P(?:T)?(\d+)H", str(horizon))
+        m = re.match(
+            r"^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$",
+            str(horizon),
+        )
         if not m:
             return None
-        h_int = int(m.group(1))
+        days = int(m.group(1) or 0)
+        hours = int(m.group(2) or 0)
+        # Minutes/seconds ignored — EPS steps are hourly.
+        h_int = days * 24 + hours
     assets = feature.get("assets") or {}
     if not assets:
         return None
@@ -233,8 +240,8 @@ def find_latest_run(model: str) -> tuple[datetime, list[StacItem]] | None:
     by `forecast:reference_datetime`.
     """
     coll = COLLECTIONS[model]
-    # The STAC API lets us filter by variable. Limit window: last 36h of runs.
-    since = (datetime.now(tz=timezone.utc) - timedelta(hours=36)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # An EPS run is published every 3h, so a 12h window covers ~4 runs — plenty.
+    since = (datetime.now(tz=timezone.utc) - timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
     until = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     params = {
         "datetime": f"{since}/{until}",
@@ -242,8 +249,11 @@ def find_latest_run(model: str) -> tuple[datetime, list[StacItem]] | None:
     }
     items: list[StacItem] = []
     n_features = 0
+    first_raw: dict | None = None
     for feat in _list_items_page(coll, params, limit=200):
         n_features += 1
+        if first_raw is None:
+            first_raw = feat
         si = _item_to_stac(feat)
         if si is None:
             continue
@@ -251,6 +261,17 @@ def find_latest_run(model: str) -> tuple[datetime, list[StacItem]] | None:
             continue
         items.append(si)
     print(f"  [{model}] STAC tot_prec items in window: features={n_features} parsed={len(items)}", flush=True)
+    if n_features > 0 and not items and first_raw is not None:
+        # Schema-drift diagnostic — dump the first feature so we see what changed.
+        try:
+            sample = {
+                "id": first_raw.get("id"),
+                "properties": first_raw.get("properties"),
+                "asset_keys": list((first_raw.get("assets") or {}).keys()),
+            }
+            print(f"  [{model}] schema sample: {json.dumps(sample)[:600]}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"  [{model}] schema sample dump failed: {e!r}", flush=True)
 
     if not items:
         return None
