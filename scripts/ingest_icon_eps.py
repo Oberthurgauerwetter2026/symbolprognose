@@ -745,8 +745,21 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         if not members:
             return None
         stack = np.stack(members, axis=0)
-        print(f"    h={h:>3} members={len(members)} mean_accum={float(np.nanmean(stack)):.3f}mm",
-              flush=True)
+        finite = stack[np.isfinite(stack)]
+        s_min = float(finite.min()) if finite.size else float("nan")
+        s_max = float(finite.max()) if finite.size else float("nan")
+        s_mean = float(finite.mean()) if finite.size else float("nan")
+        n_pos = int((finite > 0).sum())
+        first = members[0]
+        f_finite = first[np.isfinite(first)]
+        f_max = float(f_finite.max()) if f_finite.size else float("nan")
+        f_pos = int((f_finite > 0).sum())
+        print(
+            f"    h={h:>3} members={len(members)} mean_accum={s_mean:.3f}mm "
+            f"[stack min={s_min:.3f} max={s_max:.3f} n>0={n_pos} | "
+            f"member0 max={f_max:.3f} n>0={f_pos}/{first.size}]",
+            flush=True,
+        )
         return stack
 
     # Try horizon 0 as baseline (TOT_PREC at h=0 = 0 by definition, but if the
