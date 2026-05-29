@@ -498,6 +498,9 @@ function MeteoTimeline({
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setDragging(true);
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try { navigator.vibrate(8); } catch { /* ignore */ }
+    }
     onChange(idxFromClientX(e.clientX));
   };
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -598,11 +601,11 @@ function MeteoTimeline({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="relative flex h-4 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded"
+          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded sm:h-6"
           style={{ ['--tw-ring-color' as never]: BRAND }}
         >
           {/* Hintergrund-Track */}
-          <div className="relative h-[3px] w-full overflow-hidden rounded-full bg-neutral-200">
+          <div className="relative h-[4px] w-full overflow-hidden rounded-full bg-neutral-200">
             {/* Vorhersage-Range */}
             <div
               className="absolute inset-y-0"
@@ -635,7 +638,7 @@ function MeteoTimeline({
           {/* "Jetzt"-Marker */}
           {nowPct > 0 && nowPct < 100 && (
             <span
-              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white"
+              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-neutral-900 ring-2 ring-white"
               style={{ left: `${nowPct}%` }}
             />
           )}
@@ -645,11 +648,11 @@ function MeteoTimeline({
             className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${handlePct}%` }}
           >
-            <div className="h-4 w-0.5 rounded-sm bg-neutral-900" />
+            <div className="relative h-6 w-[3px] rounded-sm bg-neutral-900 shadow-md before:absolute before:-inset-x-3 before:-inset-y-2 before:content-['']" />
             {/* Bubble */}
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
               <span
-                className="whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                className="whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm"
                 style={{ background: BRAND }}
               >
                 {bubbleLabel}
@@ -938,11 +941,11 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               <button
                 type="button"
                 onClick={() => setPlaying((p) => !p)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2"
-                style={{ ['--tw-ring-color' as never]: BRAND }}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
+                style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
                 aria-label={playing ? "Pause" : "Play"}
               >
-                {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 translate-x-px" />}
+                {playing ? <Pause className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Play className="h-4 w-4 translate-x-px sm:h-3.5 sm:w-3.5" />}
               </button>
               {/* Prev */}
               <button
@@ -951,10 +954,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   setPlaying(false);
                   setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
                 }}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                 aria-label="Vorheriger Frame"
               >
-                <ChevronLeft className="h-3.5 w-3.5" />
+                <ChevronLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               </button>
 
               {/* Track */}
@@ -977,10 +980,10 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                   setPlaying(false);
                   setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
                 }}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                 aria-label="Nächster Frame"
               >
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronRight className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               </button>
             </div>
 
