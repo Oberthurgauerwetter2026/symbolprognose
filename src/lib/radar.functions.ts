@@ -637,7 +637,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     return out;
   }
 
-  const forecastFrames = frames.filter((f) => f.source === "icon-ch1");
+  const forecastFrames = frames.filter((f) => f.source === "icon-ch1" && !f.precipUrl);
   if (forecastFrames.length >= 2) {
     const anchorIdx: number[] = [];
     for (let i = 0; i < forecastFrames.length; i++) {
