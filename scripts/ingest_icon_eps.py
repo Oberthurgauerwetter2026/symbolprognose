@@ -327,6 +327,10 @@ _GRID_DIAG_SEEN: set[str] = set()
 # `horizontal_constants_icon-<model>-eps.grib2` collection asset.
 _GRID_CACHE: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
+# Limit per-message metadata diagnostics so we don't spam the log.
+_MSG_DIAG_SEEN: set[str] = set()
+_MSG_DIAG_LIMIT = 4
+
 
 def _load_horizontal_grid(model: str) -> tuple[np.ndarray, np.ndarray] | None:
     """Fetch and decode the static horizontal grid (CLAT/CLON in radians)
