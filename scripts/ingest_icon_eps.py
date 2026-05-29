@@ -449,7 +449,7 @@ def _open_grib_messages(
             f"native min={mn:.4f} max={mx:.4f} mean={me:.4f} n>0={n_pos}",
             flush=True,
         )
-    out: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+    out: list[tuple[int, np.ndarray, np.ndarray, np.ndarray]] = []
     n_msgs = 0
     n_unstructured_skipped = 0
     last_diag: str | None = None
