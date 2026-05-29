@@ -1,25 +1,26 @@
-## Ziel
+## Befund
 
-Der EPS-Ingest findet jetzt STAC-Items, scheitert aber beim GRIB-Decode, weil MeteoSchweiz ICON-EPS auf `unstructured_grid` liefert. `msg.latlons()`/`msg.values` reicht dafür nicht zuverlässig.
+Der Ingest findet STAC-Items und lädt die GRIBs korrekt, aber der neue `unstructured_grid`-Pfad greift auf `msg["latitudes"]` / `msg["longitudes"]` zu. Bei den MeteoSchweiz ICON-EPS-Dateien sind diese ecCodes-Keys offenbar nicht verfügbar, deshalb wird jede GRIB-Message mit `RuntimeError('Key/value not found')` verworfen und es entstehen keine Member.
 
 ## Plan
 
-1. **GRIB-Decoder robust machen**
-   - `scripts/ingest_icon_eps.py` so anpassen, dass `_open_grib_messages()` bei `gridType == "unstructured_grid"` nicht abbricht.
-   - Werte weiterhin aus dem GRIB lesen, aber Lat/Lon-Koordinaten über ecCodes-Keys (`latitudes`, `longitudes`) holen und als flache Arrays behandeln.
+1. **Diagnostik zuerst reparieren**
+   - Die Fehlerausgabe in `_open_grib_messages()` so ändern, dass sie nie selbst an fehlenden Keys scheitert.
+   - Statt `msg.shortName`/`getattr(...)` direkt zu lesen, sichere Helper verwenden, damit Logs künftig `gridType`, `numberOfDataPoints`, `NV`, `paramId`, `shortName` soweit verfügbar ausgeben.
 
-2. **Resampling für flache unstrukturierte Gitter unterstützen**
-   - `_build_resample_index()` und `resample()` so erweitern, dass sie sowohl 2D-Gitter als auch 1D/unstrukturierte Punkte verarbeiten.
-   - Ausgabe bleibt unverändert: 1024×768 PNG auf derselben WGS84-BBOX.
+2. **Unstructured-Lat/Lon robust laden**
+   - Einen Helper `_get_grib_array(msg, candidates)` einführen, der mehrere mögliche ecCodes-Key-Namen versucht und sauber `None` zurückgibt.
+   - Für `unstructured_grid` mehrere Koordinatenquellen probieren, z. B. `latitudes/longitudes`, `distinctLatitudes/distinctLongitudes`, `latitudeOfFirstGridPointInDegrees`-Varianten, falls verfügbar.
+   - Wenn keine Koordinaten im GRIB vorhanden sind, klar loggen: `unstructured grid has values but no coordinates`, statt hunderte identische Skip-Zeilen.
 
-3. **Diagnostik verbessern**
-   - Bei Decode-Fehlern zusätzlich relevante GRIB-Metadaten loggen (`gridType`, Anzahl Werte, verfügbare Lat/Lon-Keys), damit künftige Formatänderungen schneller sichtbar sind.
+3. **Falls Koordinaten fehlen: static grid cache vorbereiten**
+   - Für ICON-CH1/CH2 native grid braucht es wahrscheinlich ein externes/statisches Grid-Mapping über `uuidOfHGrid` oder `numberOfGridUsed`.
+   - Implementieren: einmalige Grid-Resolver-Funktion, die pro Modell/Grid-ID eine lokale/remote Koordinatentabelle laden kann und danach im Prozess cached.
+   - Wenn keine Grid-Datei im Repo vorhanden ist, bleibt der Ingest mit präziser Diagnose stehen; danach können wir die passende CH1/CH2-Griddatei gezielt hinzufügen oder herunterladen.
 
-4. **Nicht ändern**
-   - Kein Workflow-Timeout ändern.
-   - Kein R2-/Manifest-/Frontend-Umbau.
-   - Keine Änderung an STAC-Auswahl oder Upload-Struktur.
+4. **Resampling unverändert weiterverwenden**
+   - Sobald `values`, `lats`, `lons` gleiche Länge haben, läuft der vorhandene 1D-Resampler weiter.
+   - Keine Änderung an R2-Struktur, Manifest, Frontend oder Workflow-Timeout.
 
-## Erwartetes Ergebnis
-
-Beim nächsten manuellen Lauf sollten die Logs statt `unsupported grid unstructured_grid` etwa `building resample index from ... points` und danach `members=21` zeigen. Danach werden Mean-/Prob-PNGs erzeugt und `radar/eps/latest.json` geschrieben.
+5. **Validierung**
+   - Beim nächsten Workflow-Lauf sollten die Logs entweder `building resample index from (...)` und `members=21` zeigen, oder eine eindeutige Meldung, welche Grid-ID/UUID eine externe Koordinatendatei benötigt.
