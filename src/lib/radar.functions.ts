@@ -173,14 +173,46 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   const { lats, lons, pts } = buildGrid();
 
-  const [cacheRes, manifestRes] = await Promise.allSettled([
+  const [cacheRes, manifestRes, epsRes] = await Promise.allSettled([
     fetchOpenMeteoCache(),
     fetchR2Manifest(),
+    getIconEpsManifest(),
   ]);
 
   const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
   const r1 = cache?.phase1 ?? null;
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
+  const epsManifest = epsRes.status === "fulfilled" ? epsRes.value : null;
+
+  // EPS-Manifest nur nutzen, wenn jünger als 6 h.
+  const EPS_MAX_AGE_MS = 6 * 3600 * 1000;
+  const epsFresh =
+    !!epsManifest &&
+    Date.now() - Date.parse(epsManifest.generatedAt) < EPS_MAX_AGE_MS;
+
+  // Lookup ISO-t → EPS-Step. ch1 hat Vorrang innerhalb seines Horizonts,
+  // ch2 füllt den Rest bis +120 h. ch2 zuerst eintragen, ch1 überschreibt.
+  const epsByT = new Map<
+    string,
+    { step: EpsStep; model: "ch1" | "ch2"; bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number } }
+  >();
+  if (epsFresh && epsManifest) {
+    const ch2 = epsManifest.models.ch2;
+    const ch1 = epsManifest.models.ch1;
+    if (ch2) {
+      for (const s of ch2.steps) {
+        epsByT.set(s.t, { step: s, model: "ch2", bbox: ch2.bbox });
+      }
+    }
+    if (ch1) {
+      for (const s of ch1.steps) {
+        epsByT.set(s.t, { step: s, model: "ch1", bbox: ch1.bbox });
+      }
+    }
+  }
+  const epsHorizonMs = epsByT.size > 0
+    ? Math.max(...[...epsByT.keys()].map((t) => Date.parse(t)))
+    : -Infinity;
 
   const warnings: string[] = [];
   if (!cache) {
@@ -189,7 +221,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
 
   const now = Date.now();
-  const forecastCutoff = now + 32 * 3600 * 1000;
+  // Standard +32 h; mit EPS-ch2 bis +120 h ausdehnen.
+  const forecastCutoff = Math.max(now + 32 * 3600 * 1000, epsHorizonMs);
   const pastCutoff = now - 6 * 3600 * 1000;
   const frames: RadarFrame[] = [];
 
