@@ -524,6 +524,7 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
                         )
                         continue
                     lons_arr = np.where(lons_arr > 180.0, lons_arr - 360.0, lons_arr).astype(np.float32)
+                    _log_msg_diag(msg, values, model)
                     out.append((values, lats_arr, lons_arr))
                     continue
 
@@ -531,6 +532,7 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
                 try:
                     values = np.asarray(msg.values, dtype=np.float32)
                     lats, lons = msg.latlons()
+                    _log_msg_diag(msg, values, model)
                     out.append((values, lats.astype(np.float32), lons.astype(np.float32)))
                 except Exception as exc:
                     print(
