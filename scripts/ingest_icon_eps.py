@@ -299,67 +299,135 @@ def find_latest_run(model: str) -> tuple[datetime, list[StacItem]] | None:
 # ---------------------------------------------------------------------------
 
 
+def _safe_get(msg, key):
+    """Return msg[key] or None — never raises."""
+    try:
+        return msg[key]
+    except Exception:
+        return None
+
+
+def _safe_attr(msg, name):
+    try:
+        return getattr(msg, name)
+    except Exception:
+        return None
+
+
+_LAT_KEYS = ("latitudes", "distinctLatitudes", "latitudeOfFirstGridPointInDegrees")
+_LON_KEYS = ("longitudes", "distinctLongitudes", "longitudeOfFirstGridPointInDegrees")
+
+# Cache to avoid logging the same diagnostic for every message / file.
+_GRID_DIAG_SEEN: set[str] = set()
+
+
 def _open_grib_messages(buf: bytes) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """Return list of (values, lats, lons) for every message in a GRIB2 file.
 
-    A perturbed TOT_PREC file from MeteoSchweiz contains all 20 perturbed
-    members as separate messages; a ctrl file contains 1 message.
-    `pygrib` cannot read from a bytes buffer directly, so we spool to a
-    temp file.
-
-    MCH ICON-CH1/CH2-EPS is published on the native ICON triangular mesh
-    (`gridType == "unstructured_grid"`). pygrib's `.latlons()` raises
-    `ValueError('unsupported grid unstructured_grid')` for that case, so
-    we fall back to reading the raw `latitudes`/`longitudes` ecCodes keys
-    (flat 1D arrays). Values are read via `.values` for regular grids and
-    via the `values` key (also 1D) for unstructured grids.
+    For regular grids we use `msg.latlons()`. For ICON's native
+    `unstructured_grid`, lat/lon are typically NOT embedded in the GRIB —
+    only `values` and a `uuidOfHGrid` reference to an external grid file.
+    We try a small list of candidate ecCodes keys; if none are present we
+    log one diagnostic per UUID (instead of one error per message) and
+    skip those messages.
     """
     out: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+    n_msgs = 0
+    n_unstructured_skipped = 0
+    last_diag: str | None = None
     with tempfile.NamedTemporaryFile(suffix=".grib2", delete=True) as f:
         f.write(buf)
         f.flush()
         with pygrib.open(f.name) as gribs:
             for msg in gribs:
+                n_msgs += 1
                 grid_type = ""
                 try:
                     grid_type = str(msg.gridType)
                 except Exception:
                     pass
-                try:
-                    if grid_type == "unstructured_grid":
-                        # 1D arrays; same length as values.
-                        lats = np.asarray(msg["latitudes"], dtype=np.float32)
-                        lons = np.asarray(msg["longitudes"], dtype=np.float32)
-                        try:
-                            values = np.asarray(msg.values, dtype=np.float32).reshape(-1)
-                        except Exception:
-                            values = np.asarray(msg["values"], dtype=np.float32).reshape(-1)
-                        if values.size != lats.size or lats.size != lons.size:
-                            print(
-                                f"    ! grib size mismatch unstructured "
-                                f"values={values.size} lats={lats.size} lons={lons.size}",
-                                flush=True,
+
+                if grid_type == "unstructured_grid":
+                    uuid = (
+                        _safe_get(msg, "uuidOfHGrid")
+                        or _safe_get(msg, "numberOfGridUsed")
+                        or "?"
+                    )
+                    uuid_s = str(uuid)
+
+                    # Try to locate embedded coords.
+                    lats_arr = None
+                    lons_arr = None
+                    for k in _LAT_KEYS:
+                        v = _safe_get(msg, k)
+                        if v is not None:
+                            try:
+                                lats_arr = np.asarray(v, dtype=np.float32).reshape(-1)
+                                break
+                            except Exception:
+                                lats_arr = None
+                    for k in _LON_KEYS:
+                        v = _safe_get(msg, k)
+                        if v is not None:
+                            try:
+                                lons_arr = np.asarray(v, dtype=np.float32).reshape(-1)
+                                break
+                            except Exception:
+                                lons_arr = None
+
+                    if lats_arr is None or lons_arr is None:
+                        n_unstructured_skipped += 1
+                        if uuid_s not in _GRID_DIAG_SEEN:
+                            _GRID_DIAG_SEEN.add(uuid_s)
+                            ndp = _safe_get(msg, "numberOfDataPoints")
+                            short = _safe_attr(msg, "shortName")
+                            vals_size = None
+                            try:
+                                vals_size = int(np.asarray(msg.values).size)
+                            except Exception:
+                                pass
+                            last_diag = (
+                                f"unstructured_grid without embedded coords: "
+                                f"shortName={short} numberOfDataPoints={ndp} "
+                                f"values.size={vals_size} uuidOfHGrid={uuid_s}"
                             )
-                            continue
-                        # Normalize lons to [-180, 180] just in case.
-                        lons = np.where(lons > 180.0, lons - 360.0, lons).astype(np.float32)
-                        out.append((values, lats, lons))
-                    else:
-                        values = np.asarray(msg.values, dtype=np.float32)
-                        lats, lons = msg.latlons()
-                        out.append((values, lats.astype(np.float32), lons.astype(np.float32)))
-                except Exception as exc:
-                    keys_hint = ""
+                            print(f"    [diag] {last_diag}", flush=True)
+                        continue
+
                     try:
-                        keys_hint = (
-                            f" param={msg.shortName} gridType={grid_type} "
-                            f"Ni={getattr(msg, 'Ni', '?')} Nj={getattr(msg, 'Nj', '?')} "
-                            f"numberOfDataPoints={getattr(msg, 'numberOfDataPoints', '?')}"
+                        values = np.asarray(msg.values, dtype=np.float32).reshape(-1)
+                    except Exception as exc:
+                        print(f"    ! values read failed: {exc!r}", flush=True)
+                        continue
+                    if not (values.size == lats_arr.size == lons_arr.size):
+                        print(
+                            f"    ! unstructured size mismatch values={values.size} "
+                            f"lats={lats_arr.size} lons={lons_arr.size}",
+                            flush=True,
                         )
-                    except Exception:
-                        pass
-                    print(f"    ! grib message decode skipped: {exc!r}{keys_hint}", flush=True)
+                        continue
+                    lons_arr = np.where(lons_arr > 180.0, lons_arr - 360.0, lons_arr).astype(np.float32)
+                    out.append((values, lats_arr, lons_arr))
                     continue
+
+                # Regular grid path.
+                try:
+                    values = np.asarray(msg.values, dtype=np.float32)
+                    lats, lons = msg.latlons()
+                    out.append((values, lats.astype(np.float32), lons.astype(np.float32)))
+                except Exception as exc:
+                    print(
+                        f"    ! grib decode skipped gridType={grid_type} "
+                        f"shortName={_safe_attr(msg, 'shortName')} err={exc!r}",
+                        flush=True,
+                    )
+                    continue
+    if n_unstructured_skipped and not out:
+        print(
+            f"    [diag] {n_unstructured_skipped}/{n_msgs} messages skipped — "
+            f"need external ICON grid file to resolve coordinates. last={last_diag}",
+            flush=True,
+        )
     return out
 
 
