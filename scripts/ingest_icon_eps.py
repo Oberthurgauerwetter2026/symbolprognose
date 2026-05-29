@@ -67,6 +67,9 @@ from pyproj import Transformer
 
 EPS_INGEST_VERSION = "v1-mean-prob"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
+# Member counts per MeteoSchweiz spec:
+#   ch1: 11 members (1 control + 10 perturbed)
+#   ch2: 21 members (1 control + 20 perturbed)
 COLLECTIONS = {
     "ch1": "ch.meteoschweiz.ogd-forecasting-icon-ch1",
     "ch2": "ch.meteoschweiz.ogd-forecasting-icon-ch2",
