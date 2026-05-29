@@ -750,14 +750,16 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         s_max = float(finite.max()) if finite.size else float("nan")
         s_mean = float(finite.mean()) if finite.size else float("nan")
         n_pos = int((finite > 0).sum())
-        first = members[0]
-        f_finite = first[np.isfinite(first)]
-        f_max = float(f_finite.max()) if f_finite.size else float("nan")
-        f_pos = int((f_finite > 0).sum())
+        members_with_rain = 0
+        for m in members:
+            mf = m[np.isfinite(m)]
+            if mf.size and float(mf.max()) > 0.0:
+                members_with_rain += 1
         print(
-            f"    h={h:>3} members={len(members)} mean_accum={s_mean:.3f}mm "
-            f"[stack min={s_min:.3f} max={s_max:.3f} n>0={n_pos} | "
-            f"member0 max={f_max:.3f} n>0={f_pos}/{first.size}]",
+            f"    h={h:>3} members={len(members)} "
+            f"stack_accum_mean={s_mean:.4f}mm "
+            f"[stack min={s_min:.3f} max={s_max:.3f} n>0={n_pos} "
+            f"members_with_rain={members_with_rain}/{len(members)}]",
             flush=True,
         )
         return stack
