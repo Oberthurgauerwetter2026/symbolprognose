@@ -415,6 +415,31 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
     log one diagnostic per UUID (instead of one error per message) and
     skip those messages.
     """
+    def _log_msg_diag(msg, values: np.ndarray, model_key: str | None) -> None:
+        tag = f"{model_key or '?'}::{_safe_attr(msg, 'shortName')}"
+        if tag in _MSG_DIAG_SEEN or len(_MSG_DIAG_SEEN) >= _MSG_DIAG_LIMIT:
+            return
+        _MSG_DIAG_SEEN.add(tag)
+        try:
+            flat = np.asarray(values, dtype=np.float64).reshape(-1)
+            finite = flat[np.isfinite(flat)]
+            mn = float(finite.min()) if finite.size else float("nan")
+            mx = float(finite.max()) if finite.size else float("nan")
+            me = float(finite.mean()) if finite.size else float("nan")
+            n_pos = int((finite > 0).sum())
+        except Exception:
+            mn = mx = me = float("nan")
+            n_pos = -1
+        print(
+            f"    [msg-diag] model={model_key} "
+            f"shortName={_safe_attr(msg, 'shortName')} name={_safe_attr(msg, 'name')!r} "
+            f"units={_safe_get(msg, 'units')} paramId={_safe_get(msg, 'paramId')} "
+            f"typeOfLevel={_safe_get(msg, 'typeOfLevel')} level={_safe_get(msg, 'level')} "
+            f"pert#={_safe_get(msg, 'perturbationNumber')} "
+            f"stepRange={_safe_get(msg, 'stepRange')} "
+            f"native min={mn:.4f} max={mx:.4f} mean={me:.4f} n>0={n_pos}",
+            flush=True,
+        )
     out: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
     n_msgs = 0
     n_unstructured_skipped = 0
