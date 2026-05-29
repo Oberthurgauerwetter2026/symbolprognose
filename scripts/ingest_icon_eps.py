@@ -283,17 +283,45 @@ def find_latest_run(model: str) -> tuple[datetime, list[StacItem]] | None:
     by_run: dict[datetime, list[StacItem]] = {}
     for it in items:
         by_run.setdefault(it.ref_time, []).append(it)
-    # Pick newest run that has at least 1 perturbed + 1 ctrl item for horizons 1..3.
+
+    # Count distinct horizons (1..MAX) that have BOTH a ctrl and a perturbed
+    # item — that's how many forecast steps we could actually emit.
+    max_h = MAX_HORIZON[model]
+    threshold = max(1, int(max_h * 0.9))
+
+    def _usable_horizons(run_items: list[StacItem]) -> int:
+        ctrl_h = {it.horizon_h for it in run_items
+                  if (not it.perturbed) and 1 <= it.horizon_h <= max_h}
+        pert_h = {it.horizon_h for it in run_items
+                  if it.perturbed and 1 <= it.horizon_h <= max_h}
+        return len(ctrl_h & pert_h)
+
+    candidates: list[tuple[datetime, list[StacItem], int]] = []
     for ref_time in sorted(by_run.keys(), reverse=True):
         run_items = by_run[ref_time]
-        horizons = {it.horizon_h for it in run_items if 1 <= it.horizon_h <= 3}
-        has_ctrl = any((not it.perturbed) and 1 <= it.horizon_h <= 3 for it in run_items)
-        has_pert = any(it.perturbed and 1 <= it.horizon_h <= 3 for it in run_items)
-        if has_ctrl and has_pert and len(horizons) >= 1:
+        n = _usable_horizons(run_items)
+        candidates.append((ref_time, run_items, n))
+
+    # 1) Newest run that meets the completeness threshold.
+    for ref_time, run_items, n in candidates:
+        if n >= threshold:
             print(f"  [{model}] selected run {ref_time.isoformat()} "
-                  f"with {len(run_items)} tot_prec items", flush=True)
+                  f"with {len(run_items)} tot_prec items "
+                  f"({n}/{max_h} usable horizons, threshold={threshold})",
+                  flush=True)
             return ref_time, run_items
-    print(f"  [{model}] no run with both ctrl+perturbed for h1..3 found", flush=True)
+
+    # 2) Fallback: best (most horizons) of what we have, prefer newer on ties.
+    best = max(candidates, key=lambda c: (c[2], c[0]), default=None)
+    if best and best[2] >= 1:
+        ref_time, run_items, n = best
+        print(f"  [{model}] WARN no run reaches threshold {threshold}; "
+              f"falling back to {ref_time.isoformat()} "
+              f"with {n}/{max_h} usable horizons "
+              f"({len(run_items)} tot_prec items)", flush=True)
+        return ref_time, run_items
+
+    print(f"  [{model}] no run with both ctrl+perturbed for h1..{max_h} found", flush=True)
     return None
 
 
@@ -978,13 +1006,26 @@ def main() -> int:
             prev = prev_entries.get(model)
             run_iso = ref_time.strftime("%Y-%m-%dT%H:%M:%SZ")
             if prev and prev.get("run") == run_iso:
-                steps = prev.get("steps") or []
-                if len(steps) >= int(MAX_HORIZON[model] * 0.9):
+                prev_steps_n = len(prev.get("steps") or [])
+                if prev_steps_n >= int(MAX_HORIZON[model] * 0.9):
                     print(f"  [{model}] run {run_iso} already published "
-                          f"with {len(steps)} steps — skip", flush=True)
+                          f"with {prev_steps_n} steps — skip", flush=True)
+                    continue
+                # Count usable horizons in the freshly fetched items.
+                max_h = MAX_HORIZON[model]
+                ctrl_h = {it.horizon_h for it in items
+                          if (not it.perturbed) and 1 <= it.horizon_h <= max_h}
+                pert_h = {it.horizon_h for it in items
+                          if it.perturbed and 1 <= it.horizon_h <= max_h}
+                available = len(ctrl_h & pert_h)
+                if available <= prev_steps_n:
+                    print(f"  [{model}] run {run_iso} present "
+                          f"(prev={prev_steps_n} steps, available={available}) — skip",
+                          flush=True)
                     continue
                 print(f"  [{model}] run {run_iso} present but only "
-                      f"{len(steps)} steps — re-process", flush=True)
+                      f"{prev_steps_n} steps (available={available}) — re-process",
+                      flush=True)
             entry = process_model(s3, model, ref_time, items)
             if entry:
                 out_entries[model] = entry
