@@ -405,8 +405,17 @@ def _load_horizontal_grid(model: str) -> tuple[np.ndarray, np.ndarray] | None:
     return _GRID_CACHE[model]
 
 
-def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Return list of (values, lats, lons) for every message in a GRIB2 file.
+def _open_grib_messages(
+    buf: bytes,
+    model: str | None = None,
+    is_ctrl: bool = False,
+) -> list[tuple[int, np.ndarray, np.ndarray, np.ndarray]]:
+    """Return list of (member_key, values, lats, lons) for every message in a GRIB2 file.
+
+    `member_key` is `-1` for the control run and `int(perturbationNumber)` for
+    perturbed members. The caller relies on this key to keep the member axis
+    deterministic across horizons (otherwise the de-accumulation `cur - prev`
+    silently subtracts the wrong members).
 
     For regular grids we use `msg.latlons()`. For ICON's native
     `unstructured_grid`, lat/lon are typically NOT embedded in the GRIB —
@@ -440,7 +449,7 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
             f"native min={mn:.4f} max={mx:.4f} mean={me:.4f} n>0={n_pos}",
             flush=True,
         )
-    out: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+    out: list[tuple[int, np.ndarray, np.ndarray, np.ndarray]] = []
     n_msgs = 0
     n_unstructured_skipped = 0
     last_diag: str | None = None
@@ -525,7 +534,9 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
                         continue
                     lons_arr = np.where(lons_arr > 180.0, lons_arr - 360.0, lons_arr).astype(np.float32)
                     _log_msg_diag(msg, values, model)
-                    out.append((values, lats_arr, lons_arr))
+                    pn = _safe_get(msg, "perturbationNumber")
+                    mkey = -1 if is_ctrl else (int(pn) if pn is not None else -2)
+                    out.append((mkey, values, lats_arr, lons_arr))
                     continue
 
                 # Regular grid path.
@@ -533,7 +544,9 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
                     values = np.asarray(msg.values, dtype=np.float32)
                     lats, lons = msg.latlons()
                     _log_msg_diag(msg, values, model)
-                    out.append((values, lats.astype(np.float32), lons.astype(np.float32)))
+                    pn = _safe_get(msg, "perturbationNumber")
+                    mkey = -1 if is_ctrl else (int(pn) if pn is not None else -2)
+                    out.append((mkey, values, lats.astype(np.float32), lons.astype(np.float32)))
                 except Exception as exc:
                     print(
                         f"    ! grib decode skipped gridType={grid_type} "
@@ -713,6 +726,8 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
     prev_accum: np.ndarray | None = None  # shape (members, H, W), accumulated mm
     prev_h: int | None = None
     steps_meta: list[dict] = []
+    _last_member_keys: dict[int, tuple[int, ...]] = {}
+
 
     def decode_horizon(h: int) -> np.ndarray | None:
         """Return (members, H, W) accumulated TOT_PREC in mm for horizon h."""
@@ -723,27 +738,32 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         # Download ctrl + perturbed in parallel.
         with ThreadPoolExecutor(max_workers=CONCURRENCY) as ex:
             futs = {ex.submit(download_item, it): it for it in h_items}
-            buffers: list[bytes] = []
+            buffers: list[tuple[bool, bytes]] = []
             for fut in as_completed(futs):
+                it = futs[fut]
                 try:
-                    buffers.append(fut.result())
+                    buffers.append((not it.perturbed, fut.result()))
                 except Exception as exc:
                     print(f"    ! download fail h={h}: {exc!r}", flush=True)
-        members: list[np.ndarray] = []
-        for buf in buffers:
+        pairs: list[tuple[int, np.ndarray]] = []
+        for is_ctrl, buf in buffers:
             try:
-                msgs = _open_grib_messages(buf, model=model)
+                msgs = _open_grib_messages(buf, model=model, is_ctrl=is_ctrl)
             except Exception as exc:
                 print(f"    ! grib decode fail h={h}: {exc!r}", flush=True)
                 continue
-            for values, lats, lons in msgs:
+            for mkey, values, lats, lons in msgs:
                 if resample_idx is None:
                     print(f"    building resample index from {values.shape} grid", flush=True)
                     resample_idx = _build_resample_index(lats, lons)
                 cropped = resample(values, resample_idx)
-                members.append(cropped)
-        if not members:
+                pairs.append((mkey, cropped))
+        if not pairs:
             return None
+        # Stable member axis: sort by member_key so cur/prev align across horizons.
+        pairs.sort(key=lambda p: p[0])
+        member_keys = [p[0] for p in pairs]
+        members = [p[1] for p in pairs]
         stack = np.stack(members, axis=0)
         finite = stack[np.isfinite(stack)]
         s_min = float(finite.min()) if finite.size else float("nan")
@@ -755,14 +775,23 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
             mf = m[np.isfinite(m)]
             if mf.size and float(mf.max()) > 0.0:
                 members_with_rain += 1
+        if len(member_keys) <= 6:
+            keys_repr = str(member_keys)
+        else:
+            keys_repr = f"[{member_keys[0]},{member_keys[1]},{member_keys[2]},…,{member_keys[-2]},{member_keys[-1]}]"
         print(
             f"    h={h:>3} members={len(members)} "
             f"stack_accum_mean={s_mean:.4f}mm "
             f"[stack min={s_min:.3f} max={s_max:.3f} n>0={n_pos} "
-            f"members_with_rain={members_with_rain}/{len(members)}]",
+            f"members_with_rain={members_with_rain}/{len(members)} "
+            f"keys={keys_repr}]",
             flush=True,
         )
+        # Attach member_keys to the stack via a sentinel attribute on a wrapper
+        # is overkill; instead store in a closure dict for drift detection.
+        _last_member_keys[h] = tuple(member_keys)
         return stack
+
 
     # Try horizon 0 as baseline (TOT_PREC at h=0 = 0 by definition, but if the
     # item is missing we just synthesise zeros once we know member count).
@@ -793,6 +822,19 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         if prev_accum is None or prev_accum.shape != cur.shape:
             prev_accum = np.zeros_like(cur)
             prev_h = h - 1
+        # Member-set drift guard: if the member keys differ between cur and prev,
+        # the per-member subtraction would be garbage. Skip the emit instead.
+        cur_keys = _last_member_keys.get(h)
+        prev_keys = _last_member_keys.get(prev_h or -1)
+        if cur_keys is not None and prev_keys is not None and cur_keys != prev_keys:
+            print(
+                f"    ! member set drift at h={h}: prev={prev_keys[:3]}…{prev_keys[-3:]} "
+                f"cur={cur_keys[:3]}…{cur_keys[-3:]} — skipping emit",
+                flush=True,
+            )
+            prev_accum = cur
+            prev_h = h
+            continue
         interval = max(1, h - (prev_h or 0))
         _emit_step(s3, model, run_key_prefix, ref_time, h, cur, prev_accum,
                    interval_h=interval, steps_meta=steps_meta)

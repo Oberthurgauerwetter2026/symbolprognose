@@ -1,51 +1,61 @@
-## Befund (mit den neuen Diagnosen)
+## Diagnose
 
-Die Daten sind **da und nicht-null** — der Log ist nur missverständlich.
+Im neuen Lauf zeigt der Log endgültig den Bug:
 
-Konkret aus deinem Lauf:
-- `[msg-diag]` zeigt für h=0 native `max=0.000` — korrekt: akkumuliertes TOT_PREC ist bei Lead 0 per Definition 0.
-- Ab h=1 wächst `stack max` plausibel an (ch2: 0.6 → 1.7 → 1.8 → 4.6 mm akkumuliert), `n>0` steigt auf bis zu 18 515 Pixel pro Member-Stack. Es regnet also.
-- `member0 max=0.000` ist Zufall: in `as_completed`-Reihenfolge landet der Ctrl-Run (deterministisch trocken in der Bbox) zuerst in `members[0]`. Kein Bug.
-- `mean_accum=0.000mm` ist ein **Anzeige-Bug**: wir mitteln über *alle* Member × *alle* Pixel des Stacks (akkumuliert), und weil >99 % der Pixel trocken sind, rundet `:.3f` auf 0. Beispielrechnung h=4 ch2: 18 472 nasse Zellen × ~1 mm / (786 432 × 21) ≈ 0.001 mm — gerundet 0.000.
-- Die tatsächliche Veröffentlichungslogik (`_emit_step`) rechnet pixelweise `mean = nanmean(delta, axis=0)` und schreibt `maxMmh`/`meanWetFrac` ins Manifest — diese Werte sehen wir aber nirgends im Log.
+ch2 `stack max` bleibt bei h=4,5,6,7 konstant **4.602 mm** (akkumuliert) — d. h. zwischen h=4 und h=7 fällt im Modell **kein zusätzlicher Niederschlag** in der Bbox. Das Delta `cur_accum − prev_accum` müsste also ~0 sein und `max_mmh` ebenfalls 0. Tatsächlich emittiert `_emit_step` aber konstant **`max_mmh=0.219`**, was exakt `4.602 / 21` (Member-Anzahl) entspricht.
 
-Es gibt also nichts an der Datenpipeline zu reparieren. Was fehlt, ist eine ehrliche Diagnose, die zeigt, was wirklich im Manifest landet.
+Das ist kein Zufall: das Delta ist nicht null, sondern ein **Permutations-Artefakt**. Begründung:
 
-## Plan: Nur Logs nachschärfen
+- In `decode_horizon` (Z. 724-744) werden Member-Buffer per `as_completed(...)` eingesammelt — Reihenfolge ist nicht deterministisch.
+- `np.stack(members, axis=0)` legt damit pro Horizont **eine andere Permutation** der physischen Member auf Achse 0 ab.
+- In `_emit_step` (Z. 832) rechnet `delta = clip(cur_accum − prev_accum, 0, None)` member-weise. Wenn die Member-Achse zwischen `cur` und `prev` permutiert ist, subtrahiert man **Member A bei h=5 minus Member B bei h=4** statt A−A.
+- Bei identischen Stacks (h=5,6,7) sind die Werte als Menge gleich, aber pro Slot unterschiedlich → punktuelle positive Differenzen, danach `np.nanmean(mmh, axis=0)` ergibt einen Mittelwert in der Größenordnung von `max(accum) / members` = 4.602/21 ≈ 0.219.
+- Bei h=1 ch2 fällt der Bug nicht auf, weil `prev = zeros` ist; jede Permutation ergibt dasselbe Ergebnis.
 
-### Änderung 1 — `decode_horizon` (scripts/ingest_icon_eps.py, ~Z. 747-762)
+Folge: Mean-PNG und Probability-PNG sind systematisch falsch (zu wenig Regen, an falschen Stellen), nicht nur ein Anzeige-Problem.
 
-Die irreführende `mean_accum`-Zeile umformulieren bzw. ergänzen:
-- Statt "mean_accum" → "stack_accum": macht klar, dass es der akkumulierte Stack-Mittelwert über alle Pixel ist.
-- Zusätzlich loggen: Anzahl Member mit mindestens einem nassen Pixel (`members_with_rain`) — so sieht man auf einen Blick die Spread.
-- `member0` aus dem Log entfernen, weil die Reihenfolge nicht stabil ist und der Wert keine Aussagekraft hat.
+## Fix-Plan
 
-### Änderung 2 — `_emit_step` (~Z. 825-860)
+### Änderung 1 — `_open_grib_messages` (~Z. 408)
 
-Eine neue, kurze Zeile pro emittiertem Schritt — *nach* der Berechnung von `mean` / `prob`, *vor* dem Upload:
+Statt `list[tuple[values, lats, lons]]` zusätzlich `perturbationNumber` (und ob es ctrl ist) mitgeben:
 
 ```
-[emit h=  4 interval=1h max_mmh=0.219 wet_frac=0.0234 n_wet_px=18403 mean_max_member=4.60]
+list[tuple[int, np.ndarray, np.ndarray, np.ndarray]]
+        ^member_key
 ```
 
-Felder:
-- `max_mmh` = `float(np.nanmax(mean))` (das, was als `maxMmh` ins Manifest geht).
-- `wet_frac` = wie bisher.
-- `n_wet_px` = `int((mean > 0.1).sum())`.
-- `mean_max_member` = `float(np.nanmax(mmh))` (max über alle Member, vor dem Member-Mittel).
+`member_key` = `int(perturbationNumber)` falls vorhanden, sonst `-1` (für ctrl, dessen `perturbationNumber` oft 0 ist — Unterscheidung ctrl/pert erfolgt zusätzlich per Dateinamen-Suffix `-ctrl` / `-perturb`, den wir an `_open_grib_messages` als Hinweis durchreichen können, oder einfacher: alle Member identifizieren über `(is_ctrl, perturbationNumber)` und im Aufrufer in ein eindeutiges Int mappen).
 
-Damit ist auf einen Blick sichtbar: kommt im PNG tatsächlich Regen an oder nicht.
+Einfachster Schnitt: `member_key = -1 if is_ctrl else int(perturbationNumber)`, wobei `is_ctrl` aus dem STAC-Item (`it.asset`/URL enthält `-ctrl`) bestimmt und an `_open_grib_messages` durchgereicht wird.
+
+### Änderung 2 — `decode_horizon` (~Z. 717-765)
+
+- Buffer in `as_completed` weiterhin sammeln, aber zusammen mit dem `is_ctrl`-Flag des jeweiligen STAC-Items (kommt aus `futs[fut]`).
+- Pro decodierter Message ein Paar `(member_key, cropped)` ablegen.
+- Vor `np.stack`: `pairs.sort(key=lambda p: p[0])` → deterministische Member-Achse.
+- Optional: prüfen, dass `member_keys` zwischen Horizonten **identisch** sind; bei Abweichung warnen (`! member set drift at h=…`) und `_emit_step` überspringen, statt falsche Diffs zu emittieren.
+
+### Änderung 3 — Diagnose-Zeile in `decode_horizon`
+
+Ergänzen: `member_keys=[-1,1,2,…]` (gekürzt auf erste/letzte 3) — so sieht man im Log, dass die Reihenfolge stabil ist.
 
 ### Nicht angefasst
 
-- Kein Eingriff in Decode, Resample, Akkumulationsdiff, PNG-Render, Manifest, Frontend.
-- Keine Änderung an Workflow oder R2-Layout.
+- `_emit_step` selbst bleibt unverändert (Logik ist korrekt, sobald Member-Achse stabil ist).
+- Resample, PNG-Render, Manifest-Format, Frontend, Workflow — alles unverändert.
 
 ## Validierung
 
-Nächster Lauf zeigt für ch2 idealerweise so etwas wie:
+Nächster Lauf soll für ch2 zeigen:
+
 ```
-h=  4 members=21 stack_accum=… [stack max=4.602 n>0=18472 members_with_rain=15]
-[emit h=  4 interval=1h max_mmh=… wet_frac=… n_wet_px=… mean_max_member=4.60]
+h=  4 members=21 stack_accum_mean=… member_keys=[-1,1,2,…19,20]
+[emit h=  4 ... max_mmh≈0.22 ...]
+h=  5 members=21 ... member_keys=[-1,1,2,…19,20]   ← gleiche Reihenfolge
+[emit h=  5 ... max_mmh≈0.000 n_wet_px=0 ...]      ← weil stack identisch zu h=4
+h=  6 [emit ... max_mmh≈0.000 ...]
+h=  7 [emit ... max_mmh≈0.000 ...]
 ```
-Daraus können wir entscheiden, ob `_emit_step` das Erwartete schreibt oder ob doch noch etwas hakt (z. B. `nanmean` über NaN-haltige Member, falsche Achse o. ä.). Aktuelle Evidenz spricht dafür, dass alles funktioniert.
+
+Sobald `max_mmh` bei identischen Stacks wieder ~0 ist, ist die Pipeline korrekt; spätere Horizonte mit echtem Zuwachs liefern dann die korrekten mm/h.
