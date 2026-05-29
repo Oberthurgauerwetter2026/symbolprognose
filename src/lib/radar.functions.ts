@@ -54,6 +54,10 @@ export interface RadarFrame {
   precipUrl?: string;
   /** Optionaler Hagel-Overlay (POH %) URL. */
   hailUrl?: string;
+  /** Optional: Bbox des PNG-Overlays für diesen Frame. Wenn gesetzt, hat es
+   *  Vorrang vor `payload.imageBbox` (genutzt für EPS-Mean-PNGs, die mit
+   *  weiterer Bbox als die CPC-Radar-PNGs gerendert werden). */
+  imageBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   /** Nowcast: Verschiebung des PNG-Overlays gegenüber `imageBbox` in Grad. */
   imageOffset?: { dLat: number; dLon: number };
   /** Nur für `source==="nowcast"`: Herkunft des Bewegungsvektors. */
