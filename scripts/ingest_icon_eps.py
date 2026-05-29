@@ -726,6 +726,8 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
     prev_accum: np.ndarray | None = None  # shape (members, H, W), accumulated mm
     prev_h: int | None = None
     steps_meta: list[dict] = []
+    _last_member_keys: dict[int, tuple[int, ...]] = {}
+
 
     def decode_horizon(h: int) -> np.ndarray | None:
         """Return (members, H, W) accumulated TOT_PREC in mm for horizon h."""
