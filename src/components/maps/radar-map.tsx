@@ -498,6 +498,9 @@ function MeteoTimeline({
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setDragging(true);
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try { navigator.vibrate(8); } catch { /* ignore */ }
+    }
     onChange(idxFromClientX(e.clientX));
   };
   const handlePointerMove = (e: React.PointerEvent) => {
