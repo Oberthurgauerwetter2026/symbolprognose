@@ -1,40 +1,50 @@
 ## Befund
 
-Die ICON-CH1/CH2-EPS-GRIBs sind auf dem nativen Dreiecksgitter (`unstructured_grid`) und enthalten **keine** eingebetteten Koordinaten — nur Werte. MeteoSchweiz liefert die Gitterkoordinaten separat als Collection-Asset:
+- Ingest läuft erfolgreich, Grid wird geladen, Manifest wird geschrieben.
+- Aber: `mean_accum=0.000mm` an jedem Horizont (ch1 h=0..3, ch2 h=0..6). Bei akkumuliertem TOT_PREC sollte spätestens nach mehreren Stunden ein Wert > 0 erscheinen, wenn auch nur lokal — sofern es überhaupt regnet.
+- ch1 zeigt 11 Member (1 ctrl + 10 perturb) — laut MeteoSchweiz-Spec korrekt für ICON-CH1-EPS. ch2 zeigt erwartete 21.
 
-- `ch.meteoschweiz.ogd-forecasting-icon-ch1` → Asset `horizontal_constants_icon-ch1-eps.grib2` (CLAT/CLON für 1'147'980 Punkte)
-- `ch.meteoschweiz.ogd-forecasting-icon-ch2` → Asset `horizontal_constants_icon-ch2-eps.grib2` (für 283'876 Punkte)
+Mögliche Ursachen für `0.000mm`:
+1. **Echte trockene Wetterlage** in der Bbox 46.85–48.30 N / 8.15–10.55 E — durchaus plausibel Ende Mai.
+2. **Falsche GRIB-Message dekodiert** — z. B. ein Diagnose-Feld statt `tp` selbst.
+3. **Resample-Indizes danebengegriffen** — Bbox liegt zwar im Grid, aber Buckets könnten leer sein.
+4. **Einheit/Skalierung** — TOT_PREC kommt manchmal in kg/m² (= mm), manchmal in m. Bei m statt mm wären die Zahlen so klein, dass `:.3f` sie als 0.000 zeigt.
 
-Die Asset-URLs sind signiert (`Expires=...`), müssen also pro Lauf frisch aus dem STAC-Collection-Endpoint geholt werden.
+## Plan: Diagnose vor weiterem Refactor
 
-## Plan
+Nur zusätzliche Logs einbauen, nichts an der Veröffentlichungslogik ändern. Nach einem Lauf entscheiden wir, ob ein Fix nötig ist.
 
-1. **Neue Funktion `_load_horizontal_grid(model)` in `scripts/ingest_icon_eps.py`**
-   - GET `https://data.geo.admin.ch/api/stac/v1/collections/ch.meteoschweiz.ogd-forecasting-icon-<model>`
-   - Asset `horizontal_constants_icon-<model>-eps.grib2` → signierte URL extrahieren
-   - GRIB herunterladen, mit pygrib öffnen, die zwei Messages `CLAT` (shortName `clat`, Einheit rad) und `CLON` (`clon`, rad) lesen
-   - In Grad umrechnen (`np.degrees`), als `np.float32`-1D-Arrays cachen
-   - Rückgabe `(lats, lons)`, Länge == `numberOfDataPoints` der Forecast-GRIBs
+### Änderungen in `scripts/ingest_icon_eps.py`
 
-2. **Prozess-Cache pro Modell**
-   - Modulvariable `_GRID_CACHE: dict[str, tuple[np.ndarray, np.ndarray]]`
-   - Nur einmal pro Ingest-Lauf laden, danach wiederverwenden
+1. **In `_open_grib_messages`** — pro Message einmalig loggen:
+   - `shortName`, `name`, `units`, `paramId`, `typeOfLevel`, `level`
+   - `values.min()`, `values.max()`, `values.mean()` (vor Resample, über das ganze native Grid)
+   - Member-Zähler (perturbationNumber, falls vorhanden)
+   - Nur die ersten 2 Messages pro Modell ausgeben (Modul-Set `_MSG_DIAG_SEEN`), sonst spamt das Log.
 
-3. **`_open_grib_messages` anpassen**
-   - Parameter `model: str` durchreichen
-   - Wenn `gridType == "unstructured_grid"` und keine eingebetteten Lat/Lon: `lats, lons = _load_horizontal_grid(model)`
-   - Längenprüfung gegen `values.size`; bei Mismatch klarer Fehler
-   - Den bisherigen Skip-Pfad (mit `[diag] need external grid file`) durch diesen erfolgreichen Pfad ersetzen
-   - `_LAT_KEYS`/`_LON_KEYS`-Versuche und das `_GRID_DIAG_SEEN`-Set können bleiben als Fallback für künftige Edge Cases
+2. **In `decode_horizon`** — nach dem Resample loggen:
+   - `cropped.min()`, `cropped.max()`, `cropped.mean()` für die erste Member
+   - Anzahl Pixel > 0 (zeigt, ob das Feld in der Bbox wirklich überall null ist)
+   - Pro Horizont nur einmal (für h=0 und h=max im Lauf).
 
-4. **Aufrufer durchreichen**
-   - In `_read_member_field` / `_fetch_step` (oder wo auch immer `_open_grib_messages` aufgerufen wird) das `model`-Kürzel mitgeben
+3. **In `_build_resample_index`** — kurz loggen, wieviele der Output-Pixel auf einen leeren Bucket fallen (sollte 0 sein, sonst ist die Index-Konstruktion das Problem).
 
-5. **Validierung**
-   - Nächster Workflow-Lauf sollte `[grid] loaded ch1 grid: 1147980 points` zeigen, dann `members=21` pro Horizont und ein veröffentlichtes Manifest
+4. **Member-Konstante dokumentieren** — Kommentar bei `COLLECTIONS`:
+   - `ch1`: 11 Member (1 ctrl + 10 perturb)
+   - `ch2`: 21 Member (1 ctrl + 20 perturb)
+   So fällt künftig schneller auf, wenn ein Modell weniger Member liefert als erwartet.
 
-### Technische Notizen
-- CLAT/CLON liegen in Radiant vor → `np.degrees(...)` zwingend
-- Asset-URL ist signiert; nicht cachen über Läufe hinweg, sondern jedes Mal frisch aus STAC holen
-- Keine Änderungen an R2-Struktur, Manifest-Schema, Frontend, Workflow oder Timeouts
-- Resampler bleibt unverändert (verarbeitet 1D Lat/Lon/Values)
+### Nicht in diesem Schritt
+- Kein Eingriff am Manifest-Schema, an `_emit_step`, am Frontend oder am Workflow.
+- Kein Refactor des Resamplers — erst wenn Logs zeigen, dass er das Problem ist.
+
+## Validierung
+
+Nächster Workflow-Lauf zeigt für ch1 und ch2 jeweils:
+- Eine Diagnose-Zeile mit GRIB-Metadaten und nativem min/max/mean.
+- Pro erstem/letztem Horizont eine Resample-Diagnosezeile.
+
+Anhand der Werte entscheiden wir dann konkret:
+- min/max nativ > 0 aber cropped == 0 → Resample-Bug, neuer Plan für KD-Tree-Fix.
+- min/max nativ == 0 über alle Member → tatsächlich trockene Lage, kein Bug.
+- units == "m" statt "kg m**-2" → Skalierung × 1000 nachziehen.
