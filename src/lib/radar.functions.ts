@@ -521,7 +521,41 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     }
   }
 
+  // ---- EPS-Mean-PNG-Frames (ch1 bis +33h, ch2 bis +120h) ----
+  let epsCh1Count = 0;
+  let epsCh2Count = 0;
+  if (epsByT.size > 0) {
+    for (const [tIso, entry] of epsByT) {
+      const tMs = Date.parse(tIso);
+      if (tMs <= now) continue;
+      if (tMs <= overlapStartMs) continue;
+      if (tMs > forecastCutoff) continue;
+      let blendOpacity: number | undefined;
+      if (Number.isFinite(nowcastEndMs) && tMs > overlapStartMs && tMs < nowcastEndMs) {
+        const span = nowcastEndMs - overlapStartMs;
+        blendOpacity = Math.max(0, Math.min(1, (tMs - overlapStartMs) / Math.max(1, span)));
+      }
+      frames.push({
+        t: tIso,
+        source: entry.model === "ch1" ? "icon-ch1" : "icon-ch2",
+        values: [],
+        precipUrl: entry.step.meanUrl,
+        imageBbox: entry.bbox,
+        blendOpacity,
+      });
+      if (entry.model === "ch1") epsCh1Count++;
+      else epsCh2Count++;
+    }
+  }
 
+  // Diagnose: welcher Vorhersagepfad ist aktiv?
+  const detCount = frames.filter((f) => (f.source === "icon-ch1" || f.source === "icon-ch2") && !f.precipUrl).length;
+  if (epsCh1Count + epsCh2Count > 0) {
+    console.info(`[radar] forecast source: eps-mean (ch1=${epsCh1Count}, ch2=${epsCh2Count}, det=${detCount})`);
+  } else {
+    const reason = !epsManifest ? "no manifest" : !epsFresh ? "manifest stale" : "no steps";
+    console.info(`[radar] forecast source: deterministic (eps ${reason}, det=${detCount})`);
+  }
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
