@@ -1,127 +1,75 @@
 # Plan: Ensemble-basierte Radar-Prognose
 
-## Ziel
-
-Die Radar-Animation auf `/karten/radar` soll nicht mehr aus einzelnen deterministischen Läufen (heute: ICON-CH1 + ICON-CH2 + 1 Bewegungsvektor) entstehen, sondern aus einem **Ensemble**:
-
-- **Forecast**: ICON-CH1-EPS (21 Member, +33 h, 1 h) und ICON-CH2-EPS (21 Member, +120 h, 1 h) — selbst ingestiert als GRIB2 vom MeteoSchweiz-OGD-STAC.
-- **Nowcast** (T+0 … +90 min): k=8 Bewegungsvektoren pro Frame statt einem, plus Sampling von Wachstum/Zerfall → 8 Member-Extrapolationen.
-- **Vergangenheit**: bleibt deterministisch (echte MCH-CPC-Messung, unverändert).
-
-Visuell soll es **weiter wie ein einzelnes Radarbild aussehen, das über die Karte zieht** — der Ensemble-Charakter steckt im Bild selbst:
-
-- Pro Zeitschritt wird der **Ensemble-Mittelwert** der mm/h-Felder gerendert (gleiche Farbskala wie heutige CPC-PNGs).
-- Mit zunehmender Vorhersagezeit wirkt das Bild durch die Member-Streuung weicher / verwaschener (= sichtbare Unsicherheit, ohne separates Probability-Layer).
-- Optional unauffälliger Spread-Indikator (z. B. dünne Kontur P80) — kann später dazu, ist nicht Teil dieses Plans.
-
-## Konsequenzen vorweg
-
-- **Daten-Pipeline wird wesentlich grösser**: pro 6-h-EPS-Lauf grob 21 Member × ~120 h × Variable als GRIB2 vom MCH-STAC. Workflow-Laufzeit pro Lauf ~5–15 min, R2-Bedarf grob 0.5–2 GB pro Lauf (nach Crop + Resampling auf das BBox-Grid, vor Komprimierung deutlich weniger).
-- **EPS-Läufe sind 6-stündlich**, nicht 5-minütlich → der Forecast-Teil aktualisiert nur 4×/Tag. Nowcast bleibt 5-minütlich (Radar-Cadence).
-- **Latenz MCH-OGD**: ICON-CH1/CH2-EPS sind typ. 2–3 h nach Lauftermin auf STAC verfügbar. Plan deckt das ab (Lookback auf jüngsten kompletten Lauf).
-- Die heutige Open-Meteo-Schiene (ICON-CH1 minutely_15) wird im Radar **nicht mehr verwendet**, bleibt aber für andere Widgets (Lokalprognose etc.) bestehen.
+Status der Umsetzung — gestaffelt in zwei Iterationen, damit Daten in R2 liegen, bevor das Frontend darauf zugreift.
 
 ---
 
-## Schritte
+## Phase 1 — Ingest-Pipeline (FERTIG, in dieser Iteration ausgeliefert)
 
-### 1. EPS-Ingest (neuer Python-Workflow)
+Vollständig implementiert, aber **noch nicht im Frontend aktiv**. Der bestehende deterministische ICON-CH1-Pfad läuft unverändert weiter.
 
-Neue Datei `scripts/ingest_icon_eps.py`, getriggert von neuem Workflow `.github/workflows/icon-eps-ingest.yml`.
+- `scripts/requirements.txt` — `pygrib==2.1.6` ergänzt.
+- `scripts/ingest_icon_eps.py` — neuer GRIB2-Ingest:
+  - Quelle: STAC-Collections `ch.meteoschweiz.ogd-forecasting-icon-ch1` / `-ch2` (intern bereits ICON-CH1-EPS / CH2-EPS — `ctrl` + `perturbed` Items, 21 Member total).
+  - Variable: `tot_prec` (akkumuliert) → de-akkumuliert zu mm/h pro Intervall.
+  - Resampling auf BBox-Grid 1024×768 in WGS84 (gleiche Bbox wie CPC-PNGs).
+  - Pro Step: **Ensemble-Mean (mm/h) als farbiges PNG** (identische `PRECIP_SCALE` wie CPC, damit Mess- und Forecast-Bilder visuell deckungsgleich sind) + **P(>0.1 mm/h) als 8-bit Greyscale-PNG** (für spätere Unsicherheitsdarstellung).
+  - Upload nach `radar/eps/<model>/<runTag>/{step}_mean.png` + `_prob.png`, Per-Run `meta.json`, globales `radar/eps/latest.json`.
+  - Retention: aktueller + vorheriger Lauf pro Modell.
+- `.github/workflows/icon-eps-ingest.yml` — Cron alle 30 min (idempotent: skippt, wenn aktueller Lauf schon publiziert ist), installiert `libeccodes` als Systemabhängigkeit.
+- `src/lib/icon-eps-cache.server.ts` — typisierter R2-Reader (`getIconEpsManifest()`), 60 s in-Memory-Cache, robust gegen leeres/fehlendes Manifest. Wird in Phase 2 von `radar.functions.ts` konsumiert.
 
-- Cron alle 30 min (idempotent, lädt nur, wenn neuer kompletter Lauf da ist).
-- Quelle: MeteoSchweiz-OGD-STAC, Collections `ch.meteoschweiz.ogd-forecasting-icon-ch1-eps` und `…-icon-ch2-eps`.
-- Variablen (Minimum für „Radarbild"): `TOT_PREC` (akkumuliert, daraus stündliche Differenz = mm/h), `SNOW_GSP` + `SNOW_CON` (für Schnee/Regen-Trennung wie heute).
-- Pro Lauf:
-  - 21 Member herunterladen (parallel mit Backoff).
-  - GRIB2 → numpy via `cfgrib`/`xarray` (oder `pygrib`).
-  - Auf BBox-Grid resamplen (gleiches Grid wie heutige CPC-PNGs, EPSG:3857, 1024×768).
-  - Pro Forecast-Zeitschritt **Ensemble-Mean (mm/h)** und **P(>0.1 mm/h)** berechnen — beides separat speichern, auch wenn nur Mean gerendert wird (Spread für spätere Visualisierungen reserviert).
-  - Mean-Feld mit gleicher Farbskala wie CPC rendern → PNG.
-  - Upload nach R2 unter `radar/eps/<modelKey>/<runIso>/<stepIso>.png` und Metadaten `radar/eps/<modelKey>/<runIso>/meta.json` (enthält pro Step: mean-PNG, prob-Array komprimiert als Float16 oder als 8-bit-PNG-Probability-Layer, max mm/h, …).
-- Manifest `radar/eps/latest.json`:
-  ```json
-  { "ch1": { "run": "...", "steps": [...] }, "ch2": { "run": "...", "steps": [...] } }
-  ```
-- Retention: 2 Läufe pro Modell behalten (Rest löschen).
+**Was als Nächstes passieren muss, bevor Phase 2 beginnen kann:**
 
-### 2. Nowcast-Ensemble (Server-Seite, im Worker)
+1. GitHub-Secrets `R2_*` sind bereits gesetzt (Radar-Ingest nutzt sie). Workflow `ICON-EPS Ingest` manuell triggern.
+2. R2 prüfen: `radar/eps/latest.json` muss existieren und für `ch1` ≥30 Steps, für `ch2` ≥60 Steps enthalten.
+3. Ein Mean-PNG aus dem Browser/curl öffnen und sicherstellen, dass es plausibel aussieht (Bbox stimmt, Farben matchen CPC).
 
-In `src/lib/radar.functions.ts`:
+---
 
-- Phase-Correlation derzeit liefert **einen** Vektor. Ersetzen durch **k=8 Vektoren**:
-  - 4 Vektoren aus Phase-Correlation auf 4 Subregionen (Quadranten der Region-BBox).
-  - 4 Vektoren = obige ± kleine Störungen (Sampling aus Vektor-Kovarianz der letzten 6 Frames).
-- Wachstum/Zerfall pro Member: `growth_per_min` ± 1σ aus Trend-Verteilung.
-- Pro Nowcast-Zeitschritt (alle 10 min, +10 … +90 min):
-  - 8 verschobene Versionen des letzten CPC-PNG (jeweils `imageOffset` + `opacity`).
-  - Im Frontend (Leaflet) als **8 ImageOverlays mit Opacity = blendOpacity/8** stapeln → visuelle Mittelung im Browser, ohne Server-Rendering. Ergebnis sieht aus wie ein verwaschenes wanderndes Radarbild; je grösser die Streuung der Vektoren, desto weicher.
-- Soft-Blend Nowcast → ICON-CH1-EPS bleibt wie heute (60…90 min Crossfade).
+## Phase 2 — Frontend-Umstellung (OFFEN, nächste Iteration)
 
-### 3. Read-API umstellen
+Wird ausgeführt, sobald Phase 1 stabil Daten liefert.
 
-`getRadarFrames` (server function) liefert die `RadarFrame[]`-Sequenz:
+### 2a. Read-API umstellen
 
-- **Vergangenheit**: unverändert (CPC-PNGs aus `radar/frames.json`).
-- **Nowcast (now…+90 min)**: pro Zeitschritt jetzt `frames[].members: { precipUrl, imageOffset, opacity }[]` statt eines einzigen `precipUrl` + `imageOffset`. Backwards-kompatibles Feld: wenn `members.length === 1`, identisch zu heute.
-- **Forecast (+~60 min … +120 h)**: pro Step ein einziges `precipUrl` (das Mean-PNG aus EPS), Quelle `"icon-ch1-eps"` bzw. `"icon-ch2-eps"`. Crossfade CH1-EPS → CH2-EPS bei +33 h.
-- Bias-Korrektur (Radar vs. ICON in den ersten 30 min) bleibt sinngemäss erhalten, jetzt gegen den EPS-Mean.
+`src/lib/radar.functions.ts`:
 
-### 4. Frontend (`src/components/maps/radar-map.tsx`)
+- Forecast-Teil (alles `> now + ~60 min`):
+  - Statt `phase1.minutely_15.precipitation` → `getIconEpsManifest()` lesen.
+  - Pro Step ein `RadarFrame` mit Quelle `"icon-ch1-eps"` bzw. `"icon-ch2-eps"`, `precipUrl = meanUrl` (kein Canvas-Grid mehr — das EPS-Mean-PNG ist bereits ein "richtiges Radarbild").
+  - Crossfade CH1-EPS → CH2-EPS am +33 h-Übergang.
+- Bias-Korrektur (heute Radar vs ICON in den ersten 30 min) sinngemäss übernehmen: Vergleich gegen EPS-Mean statt minutely_15.
+- Fallback-Flag: wenn `latest.json` fehlt oder leer → heutiger deterministischer Pfad als Fallback.
 
-- Frame-Renderer erweitern: wenn `frame.members` gesetzt → mehrere `<ImageOverlay>` mit gestaffelter Opacity rendern, sonst wie bisher.
-- Legenden-/Tooltip-Text anpassen: „ICON-CH1-EPS (21 Member, Mean)" statt „ICON-CH1". Keine sonstigen UI-Änderungen (Slider, Play-Button, Layout bleiben).
-- Quellenhinweis in der Karte aktualisieren.
+### 2b. Multi-Vektor-Nowcast (k=8)
 
-### 5. Cleanup
+`src/lib/radar.functions.ts`, Nowcast-Block:
 
-- Alte Pfade in `radar.functions.ts` für deterministisches ICON-CH1/CH2 entfernen (`minutely_15.precipitation`-Branch, soweit nicht mehr referenziert).
-- Open-Meteo-Cache für Radar nicht mehr lesen (andere Widgets bleiben).
-- `.lovable/plan.md` aktualisieren.
+- Heute: 1 Bewegungsvektor → ein verschobenes PNG pro Zeitschritt.
+- Neu: k=8 Member-Vektoren:
+  - 4× Phase-Correlation auf 4 Subregionen (Quadranten der Region-BBox) — Vorbedingung: Ingest-Skript schreibt diese in `motion`.
+  - 4× perturbierte Versionen (Sampling aus Vektor-Kovarianz + `growth_per_min ± 1σ`).
+- Pro Nowcast-Step liefert die Server-FN `members: { precipUrl, imageOffset, opacity }[]` statt eines einzigen `precipUrl`+`imageOffset`. Backwards-kompatibel: wenn `members.length === 1`, identisch zum heutigen Verhalten.
+
+### 2c. Frontend Multi-Overlay
+
+`src/components/maps/radar-map.tsx`:
+
+- Wenn `frame.members` gesetzt → mehrere `<ImageOverlay>` mit Opacity = `blendOpacity / members.length` stapeln. Visuelles Mitteln im Browser, kein Server-Rendering.
+- Für EPS-Forecast-Frames (`source` ∈ `"icon-ch1-eps"`, `"icon-ch2-eps"`): `<ImageOverlay>` statt Canvas-`PrecipOverlay`. Das macht den Forecast-Layer auch deutlich schneller (kein per-Pixel-Sampling im Browser).
+- Legenden-/Tooltip-Text: „ICON-CH1-EPS (21 Member, Mean)" statt „ICON-CH1".
+
+### 2d. Cleanup
+
+- `phase1.minutely_15.precipitation`-Branch in `radar.functions.ts` entfernen, sobald EPS produktiv ist.
+- Open-Meteo-Ingest weiter laufen lassen (andere Widgets brauchen ihn).
 
 ---
 
 ## Risiken / offene Punkte
 
-- **GRIB2-Bibliotheken in GitHub-Actions**: `cfgrib` braucht `eccodes` (apt-Paket). Im Workflow vor `pip install` `apt-get install -y libeccodes0 libeccodes-dev`.
-- **R2-Volumen**: Wenn 2 Läufe × 2 Modelle × ~120 Steps × 2 Layer (mean+prob) je ~30 KB komprimiertes PNG ≈ 60–150 MB R2-Speicher dauerhaft. Vertretbar.
-- **MCH-OGD-Rate-Limits**: parallel 21 Member ziehen → Backoff/Concurrency-Limit (z. B. 4 parallel) im Skript.
-- **EPS-Verfügbarkeitslücke**: bis erster EPS-Lauf gecached ist, soll der Forecast-Teil graceful auf „—" gehen statt zu crashen. Erste Iteration darf ICON-CH1-deterministisch als Fallback behalten (Feature-Flag `EPS_ONLY=false` default), bis die EPS-Pipeline stabil läuft. Empfehlung: Flag in einer zweiten Iteration auf `true` schalten.
-
----
-
-## Technischer Anhang
-
-Neu / geändert:
-
-```text
-scripts/
-  ingest_icon_eps.py                    NEU — GRIB2-Ingest CH1-EPS + CH2-EPS
-  requirements.txt                      + cfgrib, xarray, eccodes-python
-
-.github/workflows/
-  icon-eps-ingest.yml                   NEU — Cron alle 30 min
-
-src/lib/
-  radar.functions.ts                    Nowcast: 1 → 8 Vektoren; Forecast: EPS-Manifest
-  icon-eps-cache.server.ts              NEU — R2-Reader für radar/eps/latest.json
-
-src/components/maps/
-  radar-map.tsx                         Multi-ImageOverlay-Rendering, Legenden-Text
-```
-
-Datenfluss:
-
-```text
-                       MCH-OGD STAC (GRIB2, 6h-Cadence)
-                                 │
-              GitHub Action (ingest_icon_eps.py, alle 30 min)
-                                 │
-                       resample + mean + prob
-                                 │
-                Cloudflare R2 (radar/eps/<model>/<run>/*.png + meta)
-                                 │
-                       Worker (getRadarFrames)
-                                 │
-                Leaflet (1 PNG Forecast, 8 PNGs Nowcast)
-```
+- **EPS-Latenz**: MCH publiziert die Member über ~30–90 min nach Lauftermin verteilt. Der Ingest schaut, dass mind. h=1..3 vorhanden sind, bevor er einen Lauf akzeptiert — der frische Lauf wird also evtl. erst 60–90 min nach Lauftermin sichtbar. In der Übergangszeit liefert das Manifest weiterhin den vorherigen Lauf.
+- **R2-Volumen**: pro Modell ≤2 Läufe × Mean+Prob × ~120 Steps × ~30 KB ≈ 30–60 MB pro Modell. Unproblematisch.
+- **GRIB-Lib-Build**: `pygrib` braucht `libeccodes-dev` als apt-Paket — im Workflow vor `pip install`. Falls Build-Probleme: Alternative `cfgrib`/`xarray` (selbe System-Dep).
+- **Resample-Index ist nearest-neighbour**: für die EPS-Auflösung CH1≈1 km, CH2≈2 km auf einer 1024×768-Output-Grid mit ~250 m Pixelgrösse ist das visuell sauber; für eine spätere Verfeinerung käme bilineare Interpolation in Frage.
