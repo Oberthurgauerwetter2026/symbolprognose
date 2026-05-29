@@ -544,7 +544,9 @@ def _open_grib_messages(
                     values = np.asarray(msg.values, dtype=np.float32)
                     lats, lons = msg.latlons()
                     _log_msg_diag(msg, values, model)
-                    out.append((values, lats.astype(np.float32), lons.astype(np.float32)))
+                    pn = _safe_get(msg, "perturbationNumber")
+                    mkey = -1 if is_ctrl else (int(pn) if pn is not None else -2)
+                    out.append((mkey, values, lats.astype(np.float32), lons.astype(np.float32)))
                 except Exception as exc:
                     print(
                         f"    ! grib decode skipped gridType={grid_type} "
