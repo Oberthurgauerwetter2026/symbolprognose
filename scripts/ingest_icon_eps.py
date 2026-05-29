@@ -736,27 +736,32 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         # Download ctrl + perturbed in parallel.
         with ThreadPoolExecutor(max_workers=CONCURRENCY) as ex:
             futs = {ex.submit(download_item, it): it for it in h_items}
-            buffers: list[bytes] = []
+            buffers: list[tuple[bool, bytes]] = []
             for fut in as_completed(futs):
+                it = futs[fut]
                 try:
-                    buffers.append(fut.result())
+                    buffers.append((not it.perturbed, fut.result()))
                 except Exception as exc:
                     print(f"    ! download fail h={h}: {exc!r}", flush=True)
-        members: list[np.ndarray] = []
-        for buf in buffers:
+        pairs: list[tuple[int, np.ndarray]] = []
+        for is_ctrl, buf in buffers:
             try:
-                msgs = _open_grib_messages(buf, model=model)
+                msgs = _open_grib_messages(buf, model=model, is_ctrl=is_ctrl)
             except Exception as exc:
                 print(f"    ! grib decode fail h={h}: {exc!r}", flush=True)
                 continue
-            for values, lats, lons in msgs:
+            for mkey, values, lats, lons in msgs:
                 if resample_idx is None:
                     print(f"    building resample index from {values.shape} grid", flush=True)
                     resample_idx = _build_resample_index(lats, lons)
                 cropped = resample(values, resample_idx)
-                members.append(cropped)
-        if not members:
+                pairs.append((mkey, cropped))
+        if not pairs:
             return None
+        # Stable member axis: sort by member_key so cur/prev align across horizons.
+        pairs.sort(key=lambda p: p[0])
+        member_keys = [p[0] for p in pairs]
+        members = [p[1] for p in pairs]
         stack = np.stack(members, axis=0)
         finite = stack[np.isfinite(stack)]
         s_min = float(finite.min()) if finite.size else float("nan")
@@ -768,14 +773,23 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
             mf = m[np.isfinite(m)]
             if mf.size and float(mf.max()) > 0.0:
                 members_with_rain += 1
+        if len(member_keys) <= 6:
+            keys_repr = str(member_keys)
+        else:
+            keys_repr = f"[{member_keys[0]},{member_keys[1]},{member_keys[2]},…,{member_keys[-2]},{member_keys[-1]}]"
         print(
             f"    h={h:>3} members={len(members)} "
             f"stack_accum_mean={s_mean:.4f}mm "
             f"[stack min={s_min:.3f} max={s_max:.3f} n>0={n_pos} "
-            f"members_with_rain={members_with_rain}/{len(members)}]",
+            f"members_with_rain={members_with_rain}/{len(members)} "
+            f"keys={keys_repr}]",
             flush=True,
         )
+        # Attach member_keys to the stack via a sentinel attribute on a wrapper
+        # is overkill; instead store in a closure dict for drift detection.
+        _last_member_keys[h] = tuple(member_keys)
         return stack
+
 
     # Try horizon 0 as baseline (TOT_PREC at h=0 = 0 by definition, but if the
     # item is missing we just synthesise zeros once we know member count).
