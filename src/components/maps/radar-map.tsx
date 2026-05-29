@@ -410,8 +410,10 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
         : "Nowcast Radar-Extrapolation";
     return { label, color: "#d97706" };
   }
-  if (frame.source === "icon-ch1") return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
-  return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
+  if (frame.source === "icon-ch1") {
+    return { label: frame.precipUrl ? "MeteoSchweiz ICON-CH1 EPS-Mean" : "MeteoSchweiz ICON-CH1", color: BRAND };
+  }
+  return { label: frame.precipUrl ? "MeteoSchweiz ICON-CH2 EPS-Mean" : "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
@@ -823,22 +825,27 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           {data &&
             currentFrame &&
             (currentFrame.precipUrl ? (
-              <ImageOverlay
-                key={`precip-${currentFrame.t}`}
-                url={currentFrame.precipUrl}
-                bounds={[
-                  [
-                    data.imageBbox.minLat + (currentFrame.imageOffset?.dLat ?? 0),
-                    data.imageBbox.minLon + (currentFrame.imageOffset?.dLon ?? 0),
-                  ],
-                  [
-                    data.imageBbox.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
-                    data.imageBbox.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
-                  ],
-                ]}
-                opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
-                className="mch-precip"
-              />
+              (() => {
+                const ib = currentFrame.imageBbox ?? data.imageBbox;
+                return (
+                  <ImageOverlay
+                    key={`precip-${currentFrame.t}`}
+                    url={currentFrame.precipUrl}
+                    bounds={[
+                      [
+                        ib.minLat + (currentFrame.imageOffset?.dLat ?? 0),
+                        ib.minLon + (currentFrame.imageOffset?.dLon ?? 0),
+                      ],
+                      [
+                        ib.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
+                        ib.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
+                      ],
+                    ]}
+                    opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
+                    className="mch-precip"
+                  />
+                );
+              })()
             ) : (
               <PrecipOverlay
                 payload={data}

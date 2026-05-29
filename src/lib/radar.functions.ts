@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache.server";
+import { getIconEpsManifest, type EpsStep } from "./icon-eps-cache.server";
 
 
 /**
@@ -53,6 +54,10 @@ export interface RadarFrame {
   precipUrl?: string;
   /** Optionaler Hagel-Overlay (POH %) URL. */
   hailUrl?: string;
+  /** Optional: Bbox des PNG-Overlays für diesen Frame. Wenn gesetzt, hat es
+   *  Vorrang vor `payload.imageBbox` (genutzt für EPS-Mean-PNGs, die mit
+   *  weiterer Bbox als die CPC-Radar-PNGs gerendert werden). */
+  imageBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   /** Nowcast: Verschiebung des PNG-Overlays gegenüber `imageBbox` in Grad. */
   imageOffset?: { dLat: number; dLon: number };
   /** Nur für `source==="nowcast"`: Herkunft des Bewegungsvektors. */
@@ -168,14 +173,46 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   const { lats, lons, pts } = buildGrid();
 
-  const [cacheRes, manifestRes] = await Promise.allSettled([
+  const [cacheRes, manifestRes, epsRes] = await Promise.allSettled([
     fetchOpenMeteoCache(),
     fetchR2Manifest(),
+    getIconEpsManifest(),
   ]);
 
   const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
   const r1 = cache?.phase1 ?? null;
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
+  const epsManifest = epsRes.status === "fulfilled" ? epsRes.value : null;
+
+  // EPS-Manifest nur nutzen, wenn jünger als 6 h.
+  const EPS_MAX_AGE_MS = 6 * 3600 * 1000;
+  const epsFresh =
+    !!epsManifest &&
+    Date.now() - Date.parse(epsManifest.generatedAt) < EPS_MAX_AGE_MS;
+
+  // Lookup ISO-t → EPS-Step. ch1 hat Vorrang innerhalb seines Horizonts,
+  // ch2 füllt den Rest bis +120 h. ch2 zuerst eintragen, ch1 überschreibt.
+  const epsByT = new Map<
+    string,
+    { step: EpsStep; model: "ch1" | "ch2"; bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number } }
+  >();
+  if (epsFresh && epsManifest) {
+    const ch2 = epsManifest.models.ch2;
+    const ch1 = epsManifest.models.ch1;
+    if (ch2) {
+      for (const s of ch2.steps) {
+        epsByT.set(s.t, { step: s, model: "ch2", bbox: ch2.bbox });
+      }
+    }
+    if (ch1) {
+      for (const s of ch1.steps) {
+        epsByT.set(s.t, { step: s, model: "ch1", bbox: ch1.bbox });
+      }
+    }
+  }
+  const epsHorizonMs = epsByT.size > 0
+    ? Math.max(...[...epsByT.keys()].map((t) => Date.parse(t)))
+    : -Infinity;
 
   const warnings: string[] = [];
   if (!cache) {
@@ -184,7 +221,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
 
   const now = Date.now();
-  const forecastCutoff = now + 32 * 3600 * 1000;
+  // Standard +32 h; mit EPS-ch2 bis +120 h ausdehnen.
+  const forecastCutoff = Math.max(now + 32 * 3600 * 1000, epsHorizonMs);
   const pastCutoff = now - 6 * 3600 * 1000;
   const frames: RadarFrame[] = [];
 
@@ -444,6 +482,10 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       // ICON-CH1-Frames im Overlap-Fenster zulassen (mit Fade-In), erst danach voll.
       if (tMs <= overlapStartMs) continue;
       if (tMs > forecastCutoff) continue;
+      // Wenn EPS-Mean-PNG für diesen Zeitstempel existiert oder die Stunde
+      // dazwischen liegt, deterministischen 15-min-Frame überspringen,
+      // damit kein Mischbild aus Canvas-Grid + PNG entsteht.
+      if (epsByT.size > 0 && tMs <= epsHorizonMs) continue;
 
       // Bias-Faktor zeitlich abklingen lassen: 1.0 = volle Korrektur, 0.0 = ICON pur.
       const dtMin = Math.max(0, (tMs - now) / 60_000);
@@ -479,7 +521,41 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     }
   }
 
+  // ---- EPS-Mean-PNG-Frames (ch1 bis +33h, ch2 bis +120h) ----
+  let epsCh1Count = 0;
+  let epsCh2Count = 0;
+  if (epsByT.size > 0) {
+    for (const [tIso, entry] of epsByT) {
+      const tMs = Date.parse(tIso);
+      if (tMs <= now) continue;
+      if (tMs <= overlapStartMs) continue;
+      if (tMs > forecastCutoff) continue;
+      let blendOpacity: number | undefined;
+      if (Number.isFinite(nowcastEndMs) && tMs > overlapStartMs && tMs < nowcastEndMs) {
+        const span = nowcastEndMs - overlapStartMs;
+        blendOpacity = Math.max(0, Math.min(1, (tMs - overlapStartMs) / Math.max(1, span)));
+      }
+      frames.push({
+        t: tIso,
+        source: entry.model === "ch1" ? "icon-ch1" : "icon-ch2",
+        values: [],
+        precipUrl: entry.step.meanUrl,
+        imageBbox: entry.bbox,
+        blendOpacity,
+      });
+      if (entry.model === "ch1") epsCh1Count++;
+      else epsCh2Count++;
+    }
+  }
 
+  // Diagnose: welcher Vorhersagepfad ist aktiv?
+  const detCount = frames.filter((f) => (f.source === "icon-ch1" || f.source === "icon-ch2") && !f.precipUrl).length;
+  if (epsCh1Count + epsCh2Count > 0) {
+    console.info(`[radar] forecast source: eps-mean (ch1=${epsCh1Count}, ch2=${epsCh2Count}, det=${detCount})`);
+  } else {
+    const reason = !epsManifest ? "no manifest" : !epsFresh ? "manifest stale" : "no steps";
+    console.info(`[radar] forecast source: deterministic (eps ${reason}, det=${detCount})`);
+  }
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
@@ -561,7 +637,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     return out;
   }
 
-  const forecastFrames = frames.filter((f) => f.source === "icon-ch1");
+  const forecastFrames = frames.filter((f) => f.source === "icon-ch1" && !f.precipUrl);
   if (forecastFrames.length >= 2) {
     const anchorIdx: number[] = [];
     for (let i = 0; i < forecastFrames.length; i++) {
