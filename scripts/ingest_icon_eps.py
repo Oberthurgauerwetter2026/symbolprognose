@@ -67,6 +67,9 @@ from pyproj import Transformer
 
 EPS_INGEST_VERSION = "v1-mean-prob"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
+# Member counts per MeteoSchweiz spec:
+#   ch1: 11 members (1 control + 10 perturbed)
+#   ch2: 21 members (1 control + 20 perturbed)
 COLLECTIONS = {
     "ch1": "ch.meteoschweiz.ogd-forecasting-icon-ch1",
     "ch2": "ch.meteoschweiz.ogd-forecasting-icon-ch2",
@@ -324,6 +327,10 @@ _GRID_DIAG_SEEN: set[str] = set()
 # `horizontal_constants_icon-<model>-eps.grib2` collection asset.
 _GRID_CACHE: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
+# Limit per-message metadata diagnostics so we don't spam the log.
+_MSG_DIAG_SEEN: set[str] = set()
+_MSG_DIAG_LIMIT = 4
+
 
 def _load_horizontal_grid(model: str) -> tuple[np.ndarray, np.ndarray] | None:
     """Fetch and decode the static horizontal grid (CLAT/CLON in radians)
@@ -408,6 +415,31 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
     log one diagnostic per UUID (instead of one error per message) and
     skip those messages.
     """
+    def _log_msg_diag(msg, values: np.ndarray, model_key: str | None) -> None:
+        tag = f"{model_key or '?'}::{_safe_attr(msg, 'shortName')}"
+        if tag in _MSG_DIAG_SEEN or len(_MSG_DIAG_SEEN) >= _MSG_DIAG_LIMIT:
+            return
+        _MSG_DIAG_SEEN.add(tag)
+        try:
+            flat = np.asarray(values, dtype=np.float64).reshape(-1)
+            finite = flat[np.isfinite(flat)]
+            mn = float(finite.min()) if finite.size else float("nan")
+            mx = float(finite.max()) if finite.size else float("nan")
+            me = float(finite.mean()) if finite.size else float("nan")
+            n_pos = int((finite > 0).sum())
+        except Exception:
+            mn = mx = me = float("nan")
+            n_pos = -1
+        print(
+            f"    [msg-diag] model={model_key} "
+            f"shortName={_safe_attr(msg, 'shortName')} name={_safe_attr(msg, 'name')!r} "
+            f"units={_safe_get(msg, 'units')} paramId={_safe_get(msg, 'paramId')} "
+            f"typeOfLevel={_safe_get(msg, 'typeOfLevel')} level={_safe_get(msg, 'level')} "
+            f"pert#={_safe_get(msg, 'perturbationNumber')} "
+            f"stepRange={_safe_get(msg, 'stepRange')} "
+            f"native min={mn:.4f} max={mx:.4f} mean={me:.4f} n>0={n_pos}",
+            flush=True,
+        )
     out: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
     n_msgs = 0
     n_unstructured_skipped = 0
@@ -492,6 +524,7 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
                         )
                         continue
                     lons_arr = np.where(lons_arr > 180.0, lons_arr - 360.0, lons_arr).astype(np.float32)
+                    _log_msg_diag(msg, values, model)
                     out.append((values, lats_arr, lons_arr))
                     continue
 
@@ -499,6 +532,7 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
                 try:
                     values = np.asarray(msg.values, dtype=np.float32)
                     lats, lons = msg.latlons()
+                    _log_msg_diag(msg, values, model)
                     out.append((values, lats.astype(np.float32), lons.astype(np.float32)))
                 except Exception as exc:
                     print(
@@ -577,6 +611,13 @@ def _build_resample_index(lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
                         bestD = float(d)
                         bestI = i
         idx_out[k] = bestI
+    n_unmapped = int((idx_out < 0).sum())
+    print(
+        f"  [resample-idx] {OUT_H}x{OUT_W} pixels mapped, unmapped={n_unmapped} "
+        f"native_pts={flat_lat.size} bbox_lat=[{BBOX_WGS['minLat']},{BBOX_WGS['maxLat']}] "
+        f"bbox_lon=[{BBOX_WGS['minLon']},{BBOX_WGS['maxLon']}]",
+        flush=True,
+    )
     return idx_out
 
 
@@ -704,8 +745,21 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         if not members:
             return None
         stack = np.stack(members, axis=0)
-        print(f"    h={h:>3} members={len(members)} mean_accum={float(np.nanmean(stack)):.3f}mm",
-              flush=True)
+        finite = stack[np.isfinite(stack)]
+        s_min = float(finite.min()) if finite.size else float("nan")
+        s_max = float(finite.max()) if finite.size else float("nan")
+        s_mean = float(finite.mean()) if finite.size else float("nan")
+        n_pos = int((finite > 0).sum())
+        first = members[0]
+        f_finite = first[np.isfinite(first)]
+        f_max = float(f_finite.max()) if f_finite.size else float("nan")
+        f_pos = int((f_finite > 0).sum())
+        print(
+            f"    h={h:>3} members={len(members)} mean_accum={s_mean:.3f}mm "
+            f"[stack min={s_min:.3f} max={s_max:.3f} n>0={n_pos} | "
+            f"member0 max={f_max:.3f} n>0={f_pos}/{first.size}]",
+            flush=True,
+        )
         return stack
 
     # Try horizon 0 as baseline (TOT_PREC at h=0 = 0 by definition, but if the
