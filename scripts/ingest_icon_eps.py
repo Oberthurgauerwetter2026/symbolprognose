@@ -306,6 +306,13 @@ def _open_grib_messages(buf: bytes) -> list[tuple[np.ndarray, np.ndarray, np.nda
     members as separate messages; a ctrl file contains 1 message.
     `pygrib` cannot read from a bytes buffer directly, so we spool to a
     temp file.
+
+    MCH ICON-CH1/CH2-EPS is published on the native ICON triangular mesh
+    (`gridType == "unstructured_grid"`). pygrib's `.latlons()` raises
+    `ValueError('unsupported grid unstructured_grid')` for that case, so
+    we fall back to reading the raw `latitudes`/`longitudes` ecCodes keys
+    (flat 1D arrays). Values are read via `.values` for regular grids and
+    via the `values` key (also 1D) for unstructured grids.
     """
     out: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
     with tempfile.NamedTemporaryFile(suffix=".grib2", delete=True) as f:
@@ -313,11 +320,46 @@ def _open_grib_messages(buf: bytes) -> list[tuple[np.ndarray, np.ndarray, np.nda
         f.flush()
         with pygrib.open(f.name) as gribs:
             for msg in gribs:
-                values = np.array(msg.values, dtype=np.float32)
-                # ICON grid in MCH-OGD is a rotated lat/lon — `latlons()`
-                # returns the geographic coords for each cell directly.
-                lats, lons = msg.latlons()
-                out.append((values, lats.astype(np.float32), lons.astype(np.float32)))
+                grid_type = ""
+                try:
+                    grid_type = str(msg.gridType)
+                except Exception:
+                    pass
+                try:
+                    if grid_type == "unstructured_grid":
+                        # 1D arrays; same length as values.
+                        lats = np.asarray(msg["latitudes"], dtype=np.float32)
+                        lons = np.asarray(msg["longitudes"], dtype=np.float32)
+                        try:
+                            values = np.asarray(msg.values, dtype=np.float32).reshape(-1)
+                        except Exception:
+                            values = np.asarray(msg["values"], dtype=np.float32).reshape(-1)
+                        if values.size != lats.size or lats.size != lons.size:
+                            print(
+                                f"    ! grib size mismatch unstructured "
+                                f"values={values.size} lats={lats.size} lons={lons.size}",
+                                flush=True,
+                            )
+                            continue
+                        # Normalize lons to [-180, 180] just in case.
+                        lons = np.where(lons > 180.0, lons - 360.0, lons).astype(np.float32)
+                        out.append((values, lats, lons))
+                    else:
+                        values = np.asarray(msg.values, dtype=np.float32)
+                        lats, lons = msg.latlons()
+                        out.append((values, lats.astype(np.float32), lons.astype(np.float32)))
+                except Exception as exc:
+                    keys_hint = ""
+                    try:
+                        keys_hint = (
+                            f" param={msg.shortName} gridType={grid_type} "
+                            f"Ni={getattr(msg, 'Ni', '?')} Nj={getattr(msg, 'Nj', '?')} "
+                            f"numberOfDataPoints={getattr(msg, 'numberOfDataPoints', '?')}"
+                        )
+                    except Exception:
+                        pass
+                    print(f"    ! grib message decode skipped: {exc!r}{keys_hint}", flush=True)
+                    continue
     return out
 
 
