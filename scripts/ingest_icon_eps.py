@@ -1006,13 +1006,26 @@ def main() -> int:
             prev = prev_entries.get(model)
             run_iso = ref_time.strftime("%Y-%m-%dT%H:%M:%SZ")
             if prev and prev.get("run") == run_iso:
-                steps = prev.get("steps") or []
-                if len(steps) >= int(MAX_HORIZON[model] * 0.9):
+                prev_steps_n = len(prev.get("steps") or [])
+                if prev_steps_n >= int(MAX_HORIZON[model] * 0.9):
                     print(f"  [{model}] run {run_iso} already published "
-                          f"with {len(steps)} steps — skip", flush=True)
+                          f"with {prev_steps_n} steps — skip", flush=True)
+                    continue
+                # Count usable horizons in the freshly fetched items.
+                max_h = MAX_HORIZON[model]
+                ctrl_h = {it.horizon_h for it in items
+                          if (not it.perturbed) and 1 <= it.horizon_h <= max_h}
+                pert_h = {it.horizon_h for it in items
+                          if it.perturbed and 1 <= it.horizon_h <= max_h}
+                available = len(ctrl_h & pert_h)
+                if available <= prev_steps_n:
+                    print(f"  [{model}] run {run_iso} present "
+                          f"(prev={prev_steps_n} steps, available={available}) — skip",
+                          flush=True)
                     continue
                 print(f"  [{model}] run {run_iso} present but only "
-                      f"{len(steps)} steps — re-process", flush=True)
+                      f"{prev_steps_n} steps (available={available}) — re-process",
+                      flush=True)
             entry = process_model(s3, model, ref_time, items)
             if entry:
                 out_entries[model] = entry
