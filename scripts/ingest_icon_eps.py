@@ -374,9 +374,8 @@ def _build_resample_index(lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
 
     Returns: int32 array of length OUT_H*OUT_W, value -1 = out of native domain.
     """
-    h, w = lats.shape
-    flat_lat = lats.reshape(-1)
-    flat_lon = lons.reshape(-1)
+    flat_lat = np.asarray(lats, dtype=np.float32).reshape(-1)
+    flat_lon = np.asarray(lons, dtype=np.float32).reshape(-1)
 
     # Native bbox sanity check — should comfortably cover BBOX_WGS.
     if (flat_lat.min() > BBOX_WGS["minLat"] or flat_lat.max() < BBOX_WGS["maxLat"]
