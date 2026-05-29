@@ -691,7 +691,7 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         members: list[np.ndarray] = []
         for buf in buffers:
             try:
-                msgs = _open_grib_messages(buf)
+                msgs = _open_grib_messages(buf, model=model)
             except Exception as exc:
                 print(f"    ! grib decode fail h={h}: {exc!r}", flush=True)
                 continue
