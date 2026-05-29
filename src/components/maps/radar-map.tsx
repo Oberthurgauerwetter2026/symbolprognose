@@ -601,11 +601,11 @@ function MeteoTimeline({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="relative flex h-4 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded"
+          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded sm:h-6"
           style={{ ['--tw-ring-color' as never]: BRAND }}
         >
           {/* Hintergrund-Track */}
-          <div className="relative h-[3px] w-full overflow-hidden rounded-full bg-neutral-200">
+          <div className="relative h-[4px] w-full overflow-hidden rounded-full bg-neutral-200">
             {/* Vorhersage-Range */}
             <div
               className="absolute inset-y-0"
@@ -638,7 +638,7 @@ function MeteoTimeline({
           {/* "Jetzt"-Marker */}
           {nowPct > 0 && nowPct < 100 && (
             <span
-              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white"
+              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-neutral-900 ring-2 ring-white"
               style={{ left: `${nowPct}%` }}
             />
           )}
@@ -648,11 +648,11 @@ function MeteoTimeline({
             className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${handlePct}%` }}
           >
-            <div className="h-4 w-0.5 rounded-sm bg-neutral-900" />
+            <div className="relative h-6 w-[3px] rounded-sm bg-neutral-900 shadow-md before:absolute before:-inset-x-3 before:-inset-y-2 before:content-['']" />
             {/* Bubble */}
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
               <span
-                className="whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                className="whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm"
                 style={{ background: BRAND }}
               >
                 {bubbleLabel}
