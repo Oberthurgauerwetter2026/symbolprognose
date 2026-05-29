@@ -453,6 +453,14 @@ def _open_grib_messages(buf: bytes, model: str | None = None) -> list[tuple[np.n
                                 lons_arr = None
 
                     if lats_arr is None or lons_arr is None:
+                        # Fallback: load the static horizontal grid for this
+                        # model from the STAC collection asset (CLAT/CLON).
+                        if model is not None:
+                            grid = _load_horizontal_grid(model)
+                            if grid is not None:
+                                lats_arr, lons_arr = grid
+
+                    if lats_arr is None or lons_arr is None:
                         n_unstructured_skipped += 1
                         if uuid_s not in _GRID_DIAG_SEEN:
                             _GRID_DIAG_SEEN.add(uuid_s)
