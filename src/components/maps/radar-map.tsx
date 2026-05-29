@@ -825,22 +825,27 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           {data &&
             currentFrame &&
             (currentFrame.precipUrl ? (
-              <ImageOverlay
-                key={`precip-${currentFrame.t}`}
-                url={currentFrame.precipUrl}
-                bounds={[
-                  [
-                    data.imageBbox.minLat + (currentFrame.imageOffset?.dLat ?? 0),
-                    data.imageBbox.minLon + (currentFrame.imageOffset?.dLon ?? 0),
-                  ],
-                  [
-                    data.imageBbox.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
-                    data.imageBbox.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
-                  ],
-                ]}
-                opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
-                className="mch-precip"
-              />
+              (() => {
+                const ib = currentFrame.imageBbox ?? data.imageBbox;
+                return (
+                  <ImageOverlay
+                    key={`precip-${currentFrame.t}`}
+                    url={currentFrame.precipUrl}
+                    bounds={[
+                      [
+                        ib.minLat + (currentFrame.imageOffset?.dLat ?? 0),
+                        ib.minLon + (currentFrame.imageOffset?.dLon ?? 0),
+                      ],
+                      [
+                        ib.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
+                        ib.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
+                      ],
+                    ]}
+                    opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
+                    className="mch-precip"
+                  />
+                );
+              })()
             ) : (
               <PrecipOverlay
                 payload={data}
