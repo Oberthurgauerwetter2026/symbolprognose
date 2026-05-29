@@ -62,7 +62,10 @@ export async function getIconEpsManifest(): Promise<EpsManifest | null> {
   if (cache && now - cache.ts < TTL_MS) return cache.data;
 
   const trimmed = base.replace(/\/+$/, "");
-  const url = `${trimmed.replace(/\/radar\/?$/i, "")}/radar/eps/latest.json`;
+  const origin = trimmed
+    .replace(/\/radar\/frames\.json$/i, "")
+    .replace(/\/radar\/?$/i, "");
+  const url = `${origin}/radar/eps/latest.json`;
   try {
     const res = await fetch(url, {
       cf: { cacheTtl: 30 } as unknown as undefined,

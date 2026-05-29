@@ -1,30 +1,50 @@
-## Schriftart auf San Francisco umstellen
+## Befund: EPS ist im Frontend verdrahtet, aber Manifest-URL ist falsch → Fallback auf Deterministisch
 
-### Hintergrund
-Aktuell nutzt das Projekt `Outfit` (Display) und `Figtree` (Body), definiert in `src/styles.css` via `--font-sans` / `--font-display`. "San Francisco" (SF Pro) ist Apples System-Font und nicht frei als Webfont verfügbar — Apple erlaubt kein Hotlinking/Self-Hosting von SF Pro auf beliebigen Websites.
+### Was die Logs sagen
 
-### Zwei realistische Optionen
-
-**A) System-Font-Stack (empfohlen, lizenzkonform)**
-Wir setzen den nativen System-Font-Stack. Auf Apple-Geräten (macOS/iOS/iPadOS) rendert das exakt als San Francisco; auf Windows/Android/Linux fällt es sauber auf den jeweiligen System-Font zurück (Segoe UI, Roboto, …).
-
-```css
---font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
---font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+```
+[radar] forecast source: deterministic (eps no manifest, det=125)
+[eps] manifest fetch https://pub-...r2.dev/radar/frames.json/radar/eps/latest.json -> 404
 ```
 
-- Keine externen Webfont-Requests mehr (Performance ↑).
-- `<link>` zu Google Fonts (Outfit/Figtree) in `src/routes/__root.tsx` wird entfernt.
-- Konsistentes Erscheinungsbild auf Apple-Devices; native Optik auf anderen OS.
+Phase 2 läuft also: `radar.functions.ts` ruft `getIconEpsManifest()` auf, sieht aber `null` und nutzt korrekt den deterministischen Pfad. Der User sieht aktuell **keine EPS-Mean-PNGs**, weil das Manifest nie geladen wird.
 
-**B) Inter als SF-Look-alike (cross-platform identisch)**
-Falls die Schrift auf ALLEN Geräten gleich aussehen muss, ersetzen wir durch `Inter` (sehr nahe an SF, frei lizenziert) — ist aber dann nicht "San Francisco", sondern nur optisch ähnlich.
+### Ursache
 
-### Empfohlener Umfang (Option A)
+`R2_PUBLIC_URL` ist im Projekt auf den **vollen Pfad zur Frames-Datei** gesetzt
+(`https://pub-...r2.dev/radar/frames.json`), nicht auf den R2-Origin. Der Radar-Loader behandelt das korrekt:
 
-1. **`src/styles.css`**: `--font-sans` und `--font-display` auf System-Stack mit `SF Pro Text` / `SF Pro Display` umstellen.
-2. **`src/routes/__root.tsx`**: Google-Fonts `<link>`-Tags für Outfit/Figtree entfernen (falls vorhanden).
-3. Sonst nichts — alle Komponenten nutzen bereits `var(--font-sans)` bzw. `font-[family-name:var(--font-display)]`.
+```ts
+// src/lib/radar.functions.ts (funktioniert)
+const url = /\/radar\/frames\.json$/i.test(trimmed)
+  ? trimmed
+  : `${trimmed.replace(/\/radar\/?$/i, "")}/radar/frames.json`;
+```
 
-### Offene Frage
-Bitte bestätige Option **A** (System-Font, echtes SF auf Apple-Geräten) oder **B** (Inter als Look-alike, überall identisch).
+`getIconEpsManifest` macht es jedoch falsch — es strippt nur `/radar` am Ende, nicht `/radar/frames.json`, und hängt dann `/radar/eps/latest.json` an. Resultat: doppelter Pfad → 404.
+
+### Fix (1 Datei, 1 Funktion)
+
+**`src/lib/icon-eps-cache.server.ts`** — Base-URL-Berechnung analog zu `fetchR2Manifest` korrigieren:
+
+```ts
+const trimmed = base.replace(/\/+$/, "");
+const origin = trimmed
+  .replace(/\/radar\/frames\.json$/i, "")
+  .replace(/\/radar\/?$/i, "");
+const url = `${origin}/radar/eps/latest.json`;
+```
+
+So funktioniert es sowohl mit `R2_PUBLIC_URL=https://pub-…r2.dev` als auch mit `R2_PUBLIC_URL=https://pub-…r2.dev/radar/frames.json` (aktueller Stand).
+
+### Validierung nach Fix
+
+1. Server-Log sollte zeigen: `[eps] manifest loaded: ch1=24 ch2=80` (statt 404).
+2. `[radar] forecast source: eps-mean (ch1=…, ch2=…, det=…)`.
+3. In `/karten/radar` werden Forecast-Frames als PNG-Overlay sichtbar — kontrastreicher, exakt im EPS-Bbox, statt der Canvas-Grid-Berechnung.
+
+### Nicht angefasst
+
+- `scripts/ingest_icon_eps.py` (Ingest läuft korrekt, Manifest existiert in R2).
+- `radar.functions.ts` (Konsument ist bereits richtig verdrahtet, Phase 2 vom letzten Turn).
+- Andere Karten (Lokal/Region/Wind/Pollen) — der Fix betrifft nur Radar-EPS.
