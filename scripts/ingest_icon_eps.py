@@ -534,7 +534,9 @@ def _open_grib_messages(
                         continue
                     lons_arr = np.where(lons_arr > 180.0, lons_arr - 360.0, lons_arr).astype(np.float32)
                     _log_msg_diag(msg, values, model)
-                    out.append((values, lats_arr, lons_arr))
+                    pn = _safe_get(msg, "perturbationNumber")
+                    mkey = -1 if is_ctrl else (int(pn) if pn is not None else -2)
+                    out.append((mkey, values, lats_arr, lons_arr))
                     continue
 
                 # Regular grid path.
