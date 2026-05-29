@@ -1,50 +1,51 @@
-## Befund
+## Befund (mit den neuen Diagnosen)
 
-- Ingest läuft erfolgreich, Grid wird geladen, Manifest wird geschrieben.
-- Aber: `mean_accum=0.000mm` an jedem Horizont (ch1 h=0..3, ch2 h=0..6). Bei akkumuliertem TOT_PREC sollte spätestens nach mehreren Stunden ein Wert > 0 erscheinen, wenn auch nur lokal — sofern es überhaupt regnet.
-- ch1 zeigt 11 Member (1 ctrl + 10 perturb) — laut MeteoSchweiz-Spec korrekt für ICON-CH1-EPS. ch2 zeigt erwartete 21.
+Die Daten sind **da und nicht-null** — der Log ist nur missverständlich.
 
-Mögliche Ursachen für `0.000mm`:
-1. **Echte trockene Wetterlage** in der Bbox 46.85–48.30 N / 8.15–10.55 E — durchaus plausibel Ende Mai.
-2. **Falsche GRIB-Message dekodiert** — z. B. ein Diagnose-Feld statt `tp` selbst.
-3. **Resample-Indizes danebengegriffen** — Bbox liegt zwar im Grid, aber Buckets könnten leer sein.
-4. **Einheit/Skalierung** — TOT_PREC kommt manchmal in kg/m² (= mm), manchmal in m. Bei m statt mm wären die Zahlen so klein, dass `:.3f` sie als 0.000 zeigt.
+Konkret aus deinem Lauf:
+- `[msg-diag]` zeigt für h=0 native `max=0.000` — korrekt: akkumuliertes TOT_PREC ist bei Lead 0 per Definition 0.
+- Ab h=1 wächst `stack max` plausibel an (ch2: 0.6 → 1.7 → 1.8 → 4.6 mm akkumuliert), `n>0` steigt auf bis zu 18 515 Pixel pro Member-Stack. Es regnet also.
+- `member0 max=0.000` ist Zufall: in `as_completed`-Reihenfolge landet der Ctrl-Run (deterministisch trocken in der Bbox) zuerst in `members[0]`. Kein Bug.
+- `mean_accum=0.000mm` ist ein **Anzeige-Bug**: wir mitteln über *alle* Member × *alle* Pixel des Stacks (akkumuliert), und weil >99 % der Pixel trocken sind, rundet `:.3f` auf 0. Beispielrechnung h=4 ch2: 18 472 nasse Zellen × ~1 mm / (786 432 × 21) ≈ 0.001 mm — gerundet 0.000.
+- Die tatsächliche Veröffentlichungslogik (`_emit_step`) rechnet pixelweise `mean = nanmean(delta, axis=0)` und schreibt `maxMmh`/`meanWetFrac` ins Manifest — diese Werte sehen wir aber nirgends im Log.
 
-## Plan: Diagnose vor weiterem Refactor
+Es gibt also nichts an der Datenpipeline zu reparieren. Was fehlt, ist eine ehrliche Diagnose, die zeigt, was wirklich im Manifest landet.
 
-Nur zusätzliche Logs einbauen, nichts an der Veröffentlichungslogik ändern. Nach einem Lauf entscheiden wir, ob ein Fix nötig ist.
+## Plan: Nur Logs nachschärfen
 
-### Änderungen in `scripts/ingest_icon_eps.py`
+### Änderung 1 — `decode_horizon` (scripts/ingest_icon_eps.py, ~Z. 747-762)
 
-1. **In `_open_grib_messages`** — pro Message einmalig loggen:
-   - `shortName`, `name`, `units`, `paramId`, `typeOfLevel`, `level`
-   - `values.min()`, `values.max()`, `values.mean()` (vor Resample, über das ganze native Grid)
-   - Member-Zähler (perturbationNumber, falls vorhanden)
-   - Nur die ersten 2 Messages pro Modell ausgeben (Modul-Set `_MSG_DIAG_SEEN`), sonst spamt das Log.
+Die irreführende `mean_accum`-Zeile umformulieren bzw. ergänzen:
+- Statt "mean_accum" → "stack_accum": macht klar, dass es der akkumulierte Stack-Mittelwert über alle Pixel ist.
+- Zusätzlich loggen: Anzahl Member mit mindestens einem nassen Pixel (`members_with_rain`) — so sieht man auf einen Blick die Spread.
+- `member0` aus dem Log entfernen, weil die Reihenfolge nicht stabil ist und der Wert keine Aussagekraft hat.
 
-2. **In `decode_horizon`** — nach dem Resample loggen:
-   - `cropped.min()`, `cropped.max()`, `cropped.mean()` für die erste Member
-   - Anzahl Pixel > 0 (zeigt, ob das Feld in der Bbox wirklich überall null ist)
-   - Pro Horizont nur einmal (für h=0 und h=max im Lauf).
+### Änderung 2 — `_emit_step` (~Z. 825-860)
 
-3. **In `_build_resample_index`** — kurz loggen, wieviele der Output-Pixel auf einen leeren Bucket fallen (sollte 0 sein, sonst ist die Index-Konstruktion das Problem).
+Eine neue, kurze Zeile pro emittiertem Schritt — *nach* der Berechnung von `mean` / `prob`, *vor* dem Upload:
 
-4. **Member-Konstante dokumentieren** — Kommentar bei `COLLECTIONS`:
-   - `ch1`: 11 Member (1 ctrl + 10 perturb)
-   - `ch2`: 21 Member (1 ctrl + 20 perturb)
-   So fällt künftig schneller auf, wenn ein Modell weniger Member liefert als erwartet.
+```
+[emit h=  4 interval=1h max_mmh=0.219 wet_frac=0.0234 n_wet_px=18403 mean_max_member=4.60]
+```
 
-### Nicht in diesem Schritt
-- Kein Eingriff am Manifest-Schema, an `_emit_step`, am Frontend oder am Workflow.
-- Kein Refactor des Resamplers — erst wenn Logs zeigen, dass er das Problem ist.
+Felder:
+- `max_mmh` = `float(np.nanmax(mean))` (das, was als `maxMmh` ins Manifest geht).
+- `wet_frac` = wie bisher.
+- `n_wet_px` = `int((mean > 0.1).sum())`.
+- `mean_max_member` = `float(np.nanmax(mmh))` (max über alle Member, vor dem Member-Mittel).
+
+Damit ist auf einen Blick sichtbar: kommt im PNG tatsächlich Regen an oder nicht.
+
+### Nicht angefasst
+
+- Kein Eingriff in Decode, Resample, Akkumulationsdiff, PNG-Render, Manifest, Frontend.
+- Keine Änderung an Workflow oder R2-Layout.
 
 ## Validierung
 
-Nächster Workflow-Lauf zeigt für ch1 und ch2 jeweils:
-- Eine Diagnose-Zeile mit GRIB-Metadaten und nativem min/max/mean.
-- Pro erstem/letztem Horizont eine Resample-Diagnosezeile.
-
-Anhand der Werte entscheiden wir dann konkret:
-- min/max nativ > 0 aber cropped == 0 → Resample-Bug, neuer Plan für KD-Tree-Fix.
-- min/max nativ == 0 über alle Member → tatsächlich trockene Lage, kein Bug.
-- units == "m" statt "kg m**-2" → Skalierung × 1000 nachziehen.
+Nächster Lauf zeigt für ch2 idealerweise so etwas wie:
+```
+h=  4 members=21 stack_accum=… [stack max=4.602 n>0=18472 members_with_rain=15]
+[emit h=  4 interval=1h max_mmh=… wet_frac=… n_wet_px=… mean_max_member=4.60]
+```
+Daraus können wir entscheiden, ob `_emit_step` das Erwartete schreibt oder ob doch noch etwas hakt (z. B. `nanmean` über NaN-haltige Member, falsche Achse o. ä.). Aktuelle Evidenz spricht dafür, dass alles funktioniert.
