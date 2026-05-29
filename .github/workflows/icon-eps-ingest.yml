@@ -1,0 +1,50 @@
+name: ICON-EPS Ingest
+
+on:
+  schedule:
+    # Every 30 min — MCH publishes ICON-CH1 every 3h, ICON-CH2 every 6h.
+    # The script no-ops if the latest run is already in R2.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: icon-eps-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EPS_MODELS: "ch1,ch2"
+      EPS_MAX_HORIZON_CH1: "33"
+      EPS_MAX_HORIZON_CH2: "120"
+      EPS_CONCURRENCY: "4"
+      EPS_KEEP_RUNS: "2"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install eccodes (system lib for pygrib)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeccodes0 libeccodes-dev
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install python deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r scripts/requirements.txt
+
+      - name: Run ingest
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+        run: python -u scripts/ingest_icon_eps.py
