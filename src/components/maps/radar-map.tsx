@@ -410,8 +410,10 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
         : "Nowcast Radar-Extrapolation";
     return { label, color: "#d97706" };
   }
-  if (frame.source === "icon-ch1") return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
-  return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
+  if (frame.source === "icon-ch1") {
+    return { label: frame.precipUrl ? "MeteoSchweiz ICON-CH1 EPS-Mean" : "MeteoSchweiz ICON-CH1", color: BRAND };
+  }
+  return { label: frame.precipUrl ? "MeteoSchweiz ICON-CH2 EPS-Mean" : "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
