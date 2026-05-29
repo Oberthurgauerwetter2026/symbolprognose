@@ -750,14 +750,16 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         s_max = float(finite.max()) if finite.size else float("nan")
         s_mean = float(finite.mean()) if finite.size else float("nan")
         n_pos = int((finite > 0).sum())
-        first = members[0]
-        f_finite = first[np.isfinite(first)]
-        f_max = float(f_finite.max()) if f_finite.size else float("nan")
-        f_pos = int((f_finite > 0).sum())
+        members_with_rain = 0
+        for m in members:
+            mf = m[np.isfinite(m)]
+            if mf.size and float(mf.max()) > 0.0:
+                members_with_rain += 1
         print(
-            f"    h={h:>3} members={len(members)} mean_accum={s_mean:.3f}mm "
-            f"[stack min={s_min:.3f} max={s_max:.3f} n>0={n_pos} | "
-            f"member0 max={f_max:.3f} n>0={f_pos}/{first.size}]",
+            f"    h={h:>3} members={len(members)} "
+            f"stack_accum_mean={s_mean:.4f}mm "
+            f"[stack min={s_min:.3f} max={s_max:.3f} n>0={n_pos} "
+            f"members_with_rain={members_with_rain}/{len(members)}]",
             flush=True,
         )
         return stack
@@ -834,6 +836,14 @@ def _emit_step(s3, model: str, run_key_prefix: str, ref_time: datetime,
     prob = (mmh > 0.1).mean(axis=0) * 100.0    # P(>0.1 mm/h) in %
     max_mmh = float(np.nanmax(mean)) if mean.size else 0.0
     wet_frac = float((mean > 0.1).mean())
+    n_wet_px = int((mean > 0.1).sum())
+    mean_max_member = float(np.nanmax(mmh)) if mmh.size else 0.0
+    print(
+        f"    [emit h={h:>3} interval={interval_h}h max_mmh={max_mmh:.3f} "
+        f"wet_frac={wet_frac:.4f} n_wet_px={n_wet_px} "
+        f"mean_max_member={mean_max_member:.3f}]",
+        flush=True,
+    )
 
     step_time = ref_time + timedelta(hours=h)
     step_iso = step_time.strftime("%Y-%m-%dT%H:%M:%SZ")
