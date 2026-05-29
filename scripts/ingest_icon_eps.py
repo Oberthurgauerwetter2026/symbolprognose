@@ -822,6 +822,19 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
         if prev_accum is None or prev_accum.shape != cur.shape:
             prev_accum = np.zeros_like(cur)
             prev_h = h - 1
+        # Member-set drift guard: if the member keys differ between cur and prev,
+        # the per-member subtraction would be garbage. Skip the emit instead.
+        cur_keys = _last_member_keys.get(h)
+        prev_keys = _last_member_keys.get(prev_h or -1)
+        if cur_keys is not None and prev_keys is not None and cur_keys != prev_keys:
+            print(
+                f"    ! member set drift at h={h}: prev={prev_keys[:3]}…{prev_keys[-3:]} "
+                f"cur={cur_keys[:3]}…{cur_keys[-3:]} — skipping emit",
+                flush=True,
+            )
+            prev_accum = cur
+            prev_h = h
+            continue
         interval = max(1, h - (prev_h or 0))
         _emit_step(s3, model, run_key_prefix, ref_time, h, cur, prev_accum,
                    interval_h=interval, steps_meta=steps_meta)
