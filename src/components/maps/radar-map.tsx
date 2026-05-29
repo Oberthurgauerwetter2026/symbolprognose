@@ -941,11 +941,11 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               <button
                 type="button"
                 onClick={() => setPlaying((p) => !p)}
-                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2"
-                style={{ ['--tw-ring-color' as never]: BRAND }}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
+                style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
                 aria-label={playing ? "Pause" : "Play"}
               >
-                {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 translate-x-px" />}
+                {playing ? <Pause className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Play className="h-4 w-4 translate-x-px sm:h-3.5 sm:w-3.5" />}
               </button>
               {/* Prev */}
               <button
