@@ -72,29 +72,19 @@ const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
+  // Quantisiert in flache Bänder — gibt glatte Iso-Konturen statt Verläufe.
   if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
-  if (mmh >= SCALE[SCALE.length - 1].mmh) {
-    const [r, g, b] = SCALE[SCALE.length - 1].rgb;
-    return [r, g, b, 0.95];
-  }
-  // Linear interpolation in log(mmh)-Raum für sanftere Farbübergänge.
-  for (let i = 0; i < SCALE.length - 1; i++) {
-    const a = SCALE[i];
-    const b = SCALE[i + 1];
-    if (mmh >= a.mmh && mmh < b.mmh) {
-      const t = (Math.log(mmh) - Math.log(a.mmh)) / (Math.log(b.mmh) - Math.log(a.mmh));
-      const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
-      const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
-      const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
-      // Markante Deckkraft wie auf der MeteoSchweiz-Messung; schwächste Stufe
-      // bewusst tiefer, damit starke Zellen keinen breiten Halo bekommen.
-      const alphaA = i === 0 ? 0.45 : 0.92;
-      const alphaB = 0.92;
-      const al = alphaA + (alphaB - alphaA) * t;
-      return [r, g, bl, al];
+  let band = SCALE[0];
+  let isTop = false;
+  for (let i = SCALE.length - 1; i >= 0; i--) {
+    if (mmh >= SCALE[i].mmh) {
+      band = SCALE[i];
+      isTop = i === SCALE.length - 1;
+      break;
     }
   }
-  return [0, 0, 0, 0];
+  const a = isTop ? 0.95 : 0.88;
+  return [band.rgb[0], band.rgb[1], band.rgb[2], a];
 }
 
 // Schnee-Farbskala (mm/h Wasser-Äquivalent) — MeteoSchweiz: leicht / stark.
