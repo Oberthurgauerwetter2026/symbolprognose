@@ -2,6 +2,7 @@ name = "symbolprognose-radar-cron"
 account_id = "7399d9323a9b244c0e4f5352c9cd8ead"
 main = "src/index.ts"
 compatibility_date = "2025-09-24"
+workers_dev = false
 
 [triggers]
 crons = ["*/5 * * * *"]
