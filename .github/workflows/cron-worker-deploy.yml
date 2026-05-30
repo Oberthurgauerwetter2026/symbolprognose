@@ -32,4 +32,5 @@ jobs:
         with:
           workingDirectory: cron-worker
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          wranglerVersion: "4"
           command: deploy --config wrangler.toml

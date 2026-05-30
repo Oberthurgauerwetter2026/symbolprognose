@@ -1,41 +1,13 @@
-## Problem
+Der Fehler kommt jetzt nicht mehr vom Upload, sondern vom Anlegen des Cron-Triggers: Cloudflare verlangt dafür trotzdem, dass im Account einmalig eine workers.dev-Subdomain initialisiert wurde. `workers_dev = false` verhindert nur die öffentliche Worker-URL, aber nicht diese Account-Voraussetzung für Cron-Schedules.
 
-Der Worker wird erfolgreich hochgeladen (`Uploaded symbolprognose-radar-cron`), aber das Deploy bricht ab, weil Cloudflare für das Konto keine workers.dev-Subdomain registriert hat und keine Route konfiguriert ist.
+Plan:
 
-Der Cron-Worker braucht aber gar keinen öffentlich erreichbaren HTTP-Endpoint — er läuft nur per Cron-Trigger (`*/5 * * * *`) und ruft selbst die Lovable-API auf. Die `fetch()`-Handler im Code (`/status`, `/run`) sind nur optional zum manuellen Testen, aber dafür reicht es, sie aus dem Cloudflare-Dashboard heraus aufzurufen — keine öffentliche URL nötig.
+1. `cron-worker/wrangler.toml` so anpassen, dass die bisherige falsche Annahme nicht stört, aber die Cron-Konfiguration sauber bleibt.
+2. `.github/workflows/cron-worker-deploy.yml` robuster machen:
+   - Wrangler 4 im Worker-Verzeichnis verwenden, statt der alten globalen Wrangler-3-Version.
+   - Optional vor dem Deploy klarere Logs ausgeben, damit bei Cloudflare-Account-Setup-Problemen sofort sichtbar ist, was fehlt.
+3. In der Antwort klar nennen, dass zusätzlich einmalig in Cloudflare die Workers-Seite geöffnet werden muss, damit Cloudflare die workers.dev-Subdomain erstellt. Das ist eine Cloudflare-Account-Voraussetzung und kann nicht per Repo-Code vollständig umgangen werden.
 
-## Fix
-
-In `cron-worker/wrangler.toml` die Zeile `workers_dev = false` ergänzen. Damit überspringt Wrangler die workers.dev-Veröffentlichung; Upload + Cron-Trigger bleiben aktiv.
-
-**Datei:** `cron-worker/wrangler.toml`
-
-```toml
-name = "symbolprognose-radar-cron"
-account_id = "7399d9323a9b244c0e4f5352c9cd8ead"
-main = "src/index.ts"
-compatibility_date = "2025-09-24"
-workers_dev = false
-
-[triggers]
-crons = ["*/5 * * * *"]
-
-[vars]
-TARGET_URL = "https://symbolprognose.lovable.app/api/public/radar/ingest-trigger"
-EPS_TARGET_URL = "https://symbolprognose.lovable.app/api/public/eps/ingest-trigger"
-
-[observability]
-enabled = true
-```
-
-## Verifikation
-
-Nach Commit auf `main`:
-1. GitHub → Actions → "Deploy cron-worker" → Run grün, Log endet mit `Uploaded symbolprognose-radar-cron` ohne den workers.dev-Fehler.
-2. Cloudflare → Workers & Pages → `symbolprognose-radar-cron` → in den Live-Logs erscheint innerhalb 5 Min `[cron:radar] … → 202` und `[cron:eps] … → 202`.
-
-## Alternative (falls die /status- und /run-Endpoints öffentlich erreichbar bleiben sollen)
-
-Stattdessen einmalig im Cloudflare-Dashboard die Subdomain registrieren:
-https://dash.cloudflare.com/7399d9323a9b244c0e4f5352c9cd8ead/workers/onboarding
-→ z. B. `dein-name.workers.dev` wählen, dann `workers_dev = true` setzen (oder weglassen, ist Default). Für den reinen Cron-Betrieb aber unnötig.
+Nach Umsetzung:
+- Commit/push auf `main` löst den Workflow erneut aus.
+- Wenn die workers.dev-Subdomain im Cloudflare-Account einmalig erstellt ist, sollte der Cron-Schedule danach erfolgreich gesetzt werden.
