@@ -86,8 +86,9 @@ function colorFor(mmh: number): [number, number, number, number] {
       const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
       const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
       const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
-      // Markante Deckkraft wie auf der MeteoSchweiz-Messung.
-      const alphaA = i === 0 ? 0.55 : 0.92;
+      // Markante Deckkraft wie auf der MeteoSchweiz-Messung; schwächste Stufe
+      // bewusst tiefer, damit starke Zellen keinen breiten Halo bekommen.
+      const alphaA = i === 0 ? 0.45 : 0.92;
       const alphaB = 0.92;
       const al = alphaA + (alphaB - alphaA) * t;
       return [r, g, bl, al];
