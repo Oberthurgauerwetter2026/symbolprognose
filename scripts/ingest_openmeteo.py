@@ -173,13 +173,14 @@ def main() -> None:
     print(f"grid points: {len(pts)}")
 
     # phase1: ICON-CH1 minutely_15 (-12h … +33h) — Radar/Nowcast
+    # + hourly.precipitation (-12h … +120h) als ICON-CH2-Deterministisch-Verlängerung
     p1 = {
         "minutely_15": "precipitation,snowfall",
         "past_minutely_15": 48,
         "forecast_minutely_15": 132,
-        "hourly": "wind_speed_700hPa,wind_direction_700hPa,wind_speed_10m,wind_direction_10m",
+        "hourly": "wind_speed_700hPa,wind_direction_700hPa,wind_speed_10m,wind_direction_10m,precipitation",
         "past_hours": 12,
-        "forecast_hours": 36,
+        "forecast_hours": 120,
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
