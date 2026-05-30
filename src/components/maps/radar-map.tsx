@@ -353,22 +353,10 @@ function PrecipOverlay({
     if (!offCtx) return;
     offCtx.putImageData(img, 0, 0);
 
-    // Clipping auf imageBbox (gleicher Ausschnitt wie Radar-PNGs).
-    const ibb = payload.imageBbox;
-    const nw = map.latLngToContainerPoint([ibb.maxLat, ibb.minLon]);
-    const ne = map.latLngToContainerPoint([ibb.maxLat, ibb.maxLon]);
-    const se = map.latLngToContainerPoint([ibb.minLat, ibb.maxLon]);
-    const sw = map.latLngToContainerPoint([ibb.minLat, ibb.minLon]);
-
+    // Kein Clip auf imageBbox — Prognose deckt das volle Daten-Grid ab,
+    // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.beginPath();
-    ctx.moveTo(nw.x, nw.y);
-    ctx.lineTo(ne.x, ne.y);
-    ctx.lineTo(se.x, se.y);
-    ctx.lineTo(sw.x, sw.y);
-    ctx.closePath();
-    ctx.clip();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
