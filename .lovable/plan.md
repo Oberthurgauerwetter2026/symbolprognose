@@ -1,13 +1,36 @@
-Der Fehler kommt jetzt nicht mehr vom Upload, sondern vom Anlegen des Cron-Triggers: Cloudflare verlangt dafür trotzdem, dass im Account einmalig eine workers.dev-Subdomain initialisiert wurde. `workers_dev = false` verhindert nur die öffentliche Worker-URL, aber nicht diese Account-Voraussetzung für Cron-Schedules.
+Der Cron feuert alle 5 Min korrekt (`*/5 * * * *`-Events im Log). Es scheitern aber **beide Pings**:
 
-Plan:
+## Diagnose
 
-1. `cron-worker/wrangler.toml` so anpassen, dass die bisherige falsche Annahme nicht stört, aber die Cron-Konfiguration sauber bleibt.
-2. `.github/workflows/cron-worker-deploy.yml` robuster machen:
-   - Wrangler 4 im Worker-Verzeichnis verwenden, statt der alten globalen Wrangler-3-Version.
-   - Optional vor dem Deploy klarere Logs ausgeben, damit bei Cloudflare-Account-Setup-Problemen sofort sichtbar ist, was fehlt.
-3. In der Antwort klar nennen, dass zusätzlich einmalig in Cloudflare die Workers-Seite geöffnet werden muss, damit Cloudflare die workers.dev-Subdomain erstellt. Das ist eine Cloudflare-Account-Voraussetzung und kann nicht per Repo-Code vollständig umgangen werden.
+**1. Radar → HTTP 401 `Unauthorized`**
+Der Endpoint vergleicht `x-trigger-secret`-Header gegen `RADAR_TRIGGER_SECRET` in Lovable Cloud. Beide Werte werden gelesen, aber sie stimmen nicht überein. Ursache: der Wert, den du via `wrangler secret put RADAR_TRIGGER_SECRET` im Cloudflare-Worker hinterlegt hast, ist nicht byte-identisch mit dem `RADAR_TRIGGER_SECRET` in Lovable Cloud (Tippfehler, zusätzliches Leerzeichen/Newline, oder unterschiedlicher Wert).
 
-Nach Umsetzung:
-- Commit/push auf `main` löst den Workflow erneut aus.
-- Wenn die workers.dev-Subdomain im Cloudflare-Account einmalig erstellt ist, sollte der Cron-Schedule danach erfolgreich gesetzt werden.
+**2. EPS → HTTP 404, Body ist HTML (`<!DOCTYPE html>…`)**
+Die Route `/api/public/eps/ingest-trigger.ts` existiert im Code, aber die **published** Version auf `symbolprognose.lovable.app` kennt sie nicht – darum liefert der Server den SPA-HTML-Fallback (= 404 für die Route). Das heisst: seit Hinzufügen des EPS-Endpoints wurde noch kein neuer Publish-Build deployed.
+
+## Was du tun musst (kein Code-Change nötig)
+
+**Schritt A – Radar-Secret synchron ziehen**
+
+In Lovable Cloud (Backend → Secrets) den exakten Wert von `RADAR_TRIGGER_SECRET` kopieren. Dann im Cloudflare-Worker-Verzeichnis lokal:
+
+```bash
+cd cron-worker
+wrangler secret put RADAR_TRIGGER_SECRET
+# Wert exakt einfügen – keine Anführungszeichen, kein Leerzeichen, kein Newline
+```
+
+Tipp: am sichersten neu generieren — einen frischen Zufalls-String in Lovable Cloud setzen UND mit `wrangler secret put` im Worker setzen. Damit ist sichergestellt, dass beide identisch sind.
+
+**Schritt B – Aktuelle Version publishen**
+
+Damit `/api/public/eps/ingest-trigger` live geht: in Lovable oben rechts auf **Publish** klicken. Danach liefert die Route 202/429 statt 404-HTML.
+
+## Verifikation
+
+Nach beiden Schritten ~5 Min warten und Cloudflare → Observability/Logs nochmals prüfen. Erwartet:
+
+- `[cron:radar] … → 202 dispatched: …` (oder 429 bei Throttle innerhalb 60 s)
+- `[cron:eps] … → 202 dispatched: …` (oder 429 innerhalb 10 min)
+
+Wenn nach Publish + Secret-Sync immer noch 401/404 kommen, melde dich mit dem neuen Log-Auszug.
