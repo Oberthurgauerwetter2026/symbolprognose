@@ -261,14 +261,64 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       }
       return { t: mf.t, precipUrl, hailUrl };
     });
+    // Open-Meteo `minutely_15` enthält dank `past_minutely_15` auch die
+    // letzten ~12 h. Wir bauen einen Time→Index-Lookup auf, um pro Messung-
+    // Frame zusätzlich Grid-Werte zu befüllen — damit der Canvas-Layer
+    // unter der MCH-PNG ausserhalb der Schweiz dieselbe Farbskala zeigt.
+    const ref1Past = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
+    const hasPastSnow = Array.isArray(
+      (r1?.[0] as LocResponse | undefined)?.minutely_15?.snowfall,
+    );
+    const pastTimeIdx = new Map<number, number>();
+    if (ref1Past?.time) {
+      for (let ti = 0; ti < ref1Past.time.length; ti++) {
+        pastTimeIdx.set(Date.parse(ref1Past.time[ti] + "Z"), ti);
+      }
+    }
+    const findPastIdx = (tMs: number): number => {
+      const exact = pastTimeIdx.get(tMs);
+      if (typeof exact === "number") return exact;
+      // Nearest-match innerhalb ±10 min.
+      let best = -1;
+      let bestDt = 10 * 60_000 + 1;
+      for (const [tm, idx] of pastTimeIdx) {
+        const dt = Math.abs(tm - tMs);
+        if (dt < bestDt) {
+          bestDt = dt;
+          best = idx;
+        }
+      }
+      return best;
+    };
     for (const mf of filled) {
       const tMs = Date.parse(mf.t);
       if (tMs > now) continue;
       if (tMs < pastCutoff) continue; // nur letzte 6 h MCH-Messung
+
+      let values: number[] = [];
+      let snowValues: number[] | undefined;
+      if (r1 && pastTimeIdx.size > 0) {
+        const ti = findPastIdx(tMs);
+        if (ti >= 0) {
+          values = new Array(pts.length);
+          if (hasPastSnow) snowValues = new Array(pts.length);
+          for (let pi = 0; pi < pts.length; pi++) {
+            const loc = r1[pi] as LocResponse | undefined;
+            const v = loc?.minutely_15?.precipitation?.[ti];
+            values[pi] = typeof v === "number" ? v * 4 : 0; // mm/15min → mm/h
+            if (snowValues) {
+              const s = loc?.minutely_15?.snowfall?.[ti];
+              snowValues[pi] = typeof s === "number" ? s * 4 : 0;
+            }
+          }
+        }
+      }
+
       frames.push({
         t: mf.t,
         source: "radar",
-        values: [],
+        values,
+        snowValues,
         precipUrl: mf.precipUrl,
         hailUrl: mf.hailUrl,
       });
