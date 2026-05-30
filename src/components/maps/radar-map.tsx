@@ -75,7 +75,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
   if (mmh >= SCALE[SCALE.length - 1].mmh) {
     const [r, g, b] = SCALE[SCALE.length - 1].rgb;
-    return [r, g, b, 0.65];
+    return [r, g, b, 0.95];
   }
   // Linear interpolation in log(mmh)-Raum für sanftere Farbübergänge.
   for (let i = 0; i < SCALE.length - 1; i++) {
@@ -86,9 +86,9 @@ function colorFor(mmh: number): [number, number, number, number] {
       const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
       const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
       const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
-      // Alpha rampt vom ersten Stop (0.30) auf 0.62 hoch.
-      const alphaA = i === 0 ? 0.30 : 0.62;
-      const alphaB = 0.62;
+      // Markante Deckkraft wie auf der MeteoSchweiz-Messung.
+      const alphaA = i === 0 ? 0.55 : 0.92;
+      const alphaB = 0.92;
       const al = alphaA + (alphaB - alphaA) * t;
       return [r, g, bl, al];
     }
