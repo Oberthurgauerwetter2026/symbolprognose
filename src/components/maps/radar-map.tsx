@@ -1078,11 +1078,30 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               </button>
             </div>
 
-
+            {showDryHint && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-[11px] text-neutral-600">
+                <span>
+                  Aktuell kein Niederschlag in der Region — Karte zeigt nur Hintergrund.
+                </span>
+                {nextWetIdx > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdx(nextWetIdx);
+                      setPlaying(false);
+                    }}
+                    className="rounded-full border border-neutral-300 bg-white px-2.5 py-0.5 font-semibold text-neutral-800 transition hover:border-neutral-400 hover:bg-neutral-100"
+                  >
+                    Zum nächsten Regen springen →
+                  </button>
+                )}
+              </div>
+            )}
 
             <p className="mt-1.5 text-[10px] text-neutral-500">
               Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
             </p>
+
 
 
           </>
