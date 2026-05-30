@@ -896,21 +896,29 @@ def process_model(s3, model: str, ref_time: datetime, items: list[StacItem]) -> 
 
 def _emit_step(s3, model: str, run_key_prefix: str, ref_time: datetime,
                h: int, cur_accum: np.ndarray, prev_accum: np.ndarray,
-               interval_h: int, steps_meta: list[dict]) -> None:
-    """De-accumulate, compute mean+prob, render and upload PNGs."""
+               interval_h: int, steps_meta: list[dict],
+               ctrl_index: int = 0) -> None:
+    """De-accumulate, compute mean+prob+det, render and upload PNGs.
+
+    `ctrl_index` is the position of the control member on the member axis.
+    Members are sorted by member_key in process_model(); control has mkey=-1
+    so it ends up at index 0.
+    """
     # mm in this interval per member, clipped to >=0 (handle MCH numerical noise).
     delta = np.clip(cur_accum - prev_accum, 0.0, None)
     mmh = delta / max(1.0, float(interval_h))   # mm/h equivalent
 
     mean = np.nanmean(mmh, axis=0)
     prob = (mmh > 0.1).mean(axis=0) * 100.0    # P(>0.1 mm/h) in %
+    det = mmh[ctrl_index] if 0 <= ctrl_index < mmh.shape[0] else mean
     max_mmh = float(np.nanmax(mean)) if mean.size else 0.0
+    det_max = float(np.nanmax(det)) if det.size else 0.0
     wet_frac = float((mean > 0.1).mean())
     n_wet_px = int((mean > 0.1).sum())
     mean_max_member = float(np.nanmax(mmh)) if mmh.size else 0.0
     print(
         f"    [emit h={h:>3} interval={interval_h}h max_mmh={max_mmh:.3f} "
-        f"wet_frac={wet_frac:.4f} n_wet_px={n_wet_px} "
+        f"det_max={det_max:.3f} wet_frac={wet_frac:.4f} n_wet_px={n_wet_px} "
         f"mean_max_member={mean_max_member:.3f}]",
         flush=True,
     )
@@ -920,12 +928,16 @@ def _emit_step(s3, model: str, run_key_prefix: str, ref_time: datetime,
     tag = step_time.strftime("%Y%m%dT%H%M")
     mean_key = f"{run_key_prefix}/{tag}_mean.png"
     prob_key = f"{run_key_prefix}/{tag}_prob.png"
+    det_key = f"{run_key_prefix}/{tag}_det.png"
 
     if not head_exists(s3, mean_key):
         upload(s3, mean_key, render_mean_png(mean), "image/png",
                "public, max-age=21600, immutable")
     if not head_exists(s3, prob_key):
         upload(s3, prob_key, render_prob_png(prob), "image/png",
+               "public, max-age=21600, immutable")
+    if not head_exists(s3, det_key):
+        upload(s3, det_key, render_mean_png(det), "image/png",
                "public, max-age=21600, immutable")
 
     steps_meta.append({
@@ -935,7 +947,9 @@ def _emit_step(s3, model: str, run_key_prefix: str, ref_time: datetime,
         "members": int(mmh.shape[0]),
         "meanUrl": f"{PUBLIC_URL}/{mean_key}",
         "probUrl": f"{PUBLIC_URL}/{prob_key}",
+        "detUrl": f"{PUBLIC_URL}/{det_key}",
         "maxMmh": round(max_mmh, 3),
+        "detMaxMmh": round(det_max, 3),
         "meanWetFrac": round(wet_frac, 4),
     })
 
