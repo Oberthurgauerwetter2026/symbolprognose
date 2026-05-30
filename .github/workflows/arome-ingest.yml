@@ -1,0 +1,45 @@
+name: AROME-HD Ingest
+
+on:
+  # Trigger via Cloudflare Worker Cron (cron-worker/) alle 15 min.
+  workflow_dispatch: {}
+
+concurrency:
+  group: arome-ingest
+  cancel-in-progress: true
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install boto3 requests numpy Pillow
+
+      - name: Run AROME ingest
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
+          BBOX_MIN_LAT: "47.20"
+          BBOX_MAX_LAT: "47.95"
+          BBOX_MIN_LON: "8.70"
+          BBOX_MAX_LON: "10.00"
+          GRID_LAT: "40"
+          GRID_LON: "60"
+          CHUNK_SIZE: "50"
+          BATCH_SLEEP_S: "3"
+          AROME_FORECAST_HOURS: "42"
+        run: python -u scripts/ingest_arome.py

@@ -22,7 +22,7 @@ import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
-import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { getRadarFrames, getAromeRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { cn } from "@/lib/utils";
 
 
@@ -413,6 +413,9 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "icon-ch1") {
     return { label: frame.precipUrl ? "MeteoSchweiz ICON-CH1 EPS-Mean" : "MeteoSchweiz ICON-CH1", color: BRAND };
   }
+  if (frame.source === "arome-hd") {
+    return { label: "Meteo-France AROME-HD (1.3 km)", color: "#0ea5a4" };
+  }
   return { label: frame.precipUrl ? "MeteoSchweiz ICON-CH2 EPS-Mean" : "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
 }
 
@@ -704,9 +707,10 @@ function MeteoTimeline({
 
 
 export function RadarMap({ bare = false }: { bare?: boolean }) {
+  const [model, setModel] = useState<"icon" | "arome">("icon");
   const { data, isLoading, error } = useQuery({
-    queryKey: ["radar-frames"],
-    queryFn: () => getRadarFrames(),
+    queryKey: ["radar-frames", model],
+    queryFn: () => (model === "arome" ? getAromeRadarFrames() : getRadarFrames()),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
   });
@@ -1021,7 +1025,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               </button>
             </div>
 
-            {/* Sekundär-Toolbar: Jetzt, Speed, Hagel */}
+            {/* Sekundär-Toolbar: Jetzt, Speed, Modell, Hagel */}
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
               <button
                 type="button"
@@ -1033,6 +1037,37 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               >
                 Jetzt
               </button>
+
+              <div className="inline-flex items-center rounded-full border border-neutral-200 bg-white p-0.5">
+                {(["icon", "arome"] as const).map((m) => {
+                  const active = model === m;
+                  const label = m === "icon" ? "ICON-CH1" : "AROME-HD";
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setModel(m);
+                        setIdx(null);
+                        setPlaying(false);
+                      }}
+                      className={cn(
+                        "rounded-full px-2 py-0.5 font-semibold transition",
+                        active ? "text-white shadow-sm" : "text-neutral-600 hover:text-neutral-900",
+                      )}
+                      style={active ? { background: m === "arome" ? "#0ea5a4" : BRAND } : undefined}
+                      title={
+                        m === "arome"
+                          ? "Meteo-France AROME-HD — 1.3 km, oft mehr konvektiver Niederschlag"
+                          : "MeteoSchweiz ICON-CH1 — Standardvorhersage"
+                      }
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
 
               <div className="inline-flex items-center rounded-full border border-neutral-200 bg-white p-0.5">
                 {[1, 2, 4].map((s) => {
