@@ -976,7 +976,15 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               const hasPng = !!currentFrame.precipUrl;
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
-              const opacityVal = Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1));
+              const FORECAST_OPACITY_MULT = 0.65; // Prognose halbtransparent → Relief sichtbar
+              const isForecast = currentFrame.source !== "radar";
+              const opacityVal = Math.max(
+                0,
+                Math.min(
+                  1,
+                  (currentFrame.blendOpacity ?? 1) * (isForecast ? FORECAST_OPACITY_MULT : 1),
+                ),
+              );
               return (
                 <>
                   {hasGrid && !hasPng && (
