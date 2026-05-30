@@ -25,7 +25,9 @@ import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
 import { Route as EmbedPollenRouteImport } from './routes/embed.pollen'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
+import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/public/symbol/ingest-trigger'
 import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
+import { Route as ApiPublicOpenmeteoIngestTriggerRouteImport } from './routes/api/public/openmeteo/ingest-trigger'
 import { Route as ApiPublicEpsIngestTriggerRouteImport } from './routes/api/public/eps/ingest-trigger'
 import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 
@@ -109,10 +111,22 @@ const EmbedAllRoute = EmbedAllRouteImport.update({
   path: '/embed/all',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSymbolIngestTriggerRoute =
+  ApiPublicSymbolIngestTriggerRouteImport.update({
+    id: '/api/public/symbol/ingest-trigger',
+    path: '/api/public/symbol/ingest-trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRadarIngestTriggerRoute =
   ApiPublicRadarIngestTriggerRouteImport.update({
     id: '/api/public/radar/ingest-trigger',
     path: '/api/public/radar/ingest-trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicOpenmeteoIngestTriggerRoute =
+  ApiPublicOpenmeteoIngestTriggerRouteImport.update({
+    id: '/api/public/openmeteo/ingest-trigger',
+    path: '/api/public/openmeteo/ingest-trigger',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicEpsIngestTriggerRoute =
@@ -146,7 +160,9 @@ export interface FileRoutesByFullPath {
   '/karten/wind': typeof KartenWindRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/eps/ingest-trigger': typeof ApiPublicEpsIngestTriggerRoute
+  '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
+  '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -167,7 +183,9 @@ export interface FileRoutesByTo {
   '/karten/wind': typeof KartenWindRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/eps/ingest-trigger': typeof ApiPublicEpsIngestTriggerRoute
+  '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
+  '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -189,7 +207,9 @@ export interface FileRoutesById {
   '/karten/wind': typeof KartenWindRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/eps/ingest-trigger': typeof ApiPublicEpsIngestTriggerRoute
+  '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
+  '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -212,7 +232,9 @@ export interface FileRouteTypes {
     | '/karten/wind'
     | '/api/public/debug/r2-cache'
     | '/api/public/eps/ingest-trigger'
+    | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
+    | '/api/public/symbol/ingest-trigger'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -233,7 +255,9 @@ export interface FileRouteTypes {
     | '/karten/wind'
     | '/api/public/debug/r2-cache'
     | '/api/public/eps/ingest-trigger'
+    | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
+    | '/api/public/symbol/ingest-trigger'
   id:
     | '__root__'
     | '/'
@@ -254,7 +278,9 @@ export interface FileRouteTypes {
     | '/karten/wind'
     | '/api/public/debug/r2-cache'
     | '/api/public/eps/ingest-trigger'
+    | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
+    | '/api/public/symbol/ingest-trigger'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -276,7 +302,9 @@ export interface RootRouteChildren {
   KartenWindRoute: typeof KartenWindRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
   ApiPublicEpsIngestTriggerRoute: typeof ApiPublicEpsIngestTriggerRoute
+  ApiPublicOpenmeteoIngestTriggerRoute: typeof ApiPublicOpenmeteoIngestTriggerRoute
   ApiPublicRadarIngestTriggerRoute: typeof ApiPublicRadarIngestTriggerRoute
+  ApiPublicSymbolIngestTriggerRoute: typeof ApiPublicSymbolIngestTriggerRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -393,11 +421,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedAllRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/symbol/ingest-trigger': {
+      id: '/api/public/symbol/ingest-trigger'
+      path: '/api/public/symbol/ingest-trigger'
+      fullPath: '/api/public/symbol/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicSymbolIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/radar/ingest-trigger': {
       id: '/api/public/radar/ingest-trigger'
       path: '/api/public/radar/ingest-trigger'
       fullPath: '/api/public/radar/ingest-trigger'
       preLoaderRoute: typeof ApiPublicRadarIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/openmeteo/ingest-trigger': {
+      id: '/api/public/openmeteo/ingest-trigger'
+      path: '/api/public/openmeteo/ingest-trigger'
+      fullPath: '/api/public/openmeteo/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicOpenmeteoIngestTriggerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/eps/ingest-trigger': {
@@ -436,8 +478,20 @@ const rootRouteChildren: RootRouteChildren = {
   KartenWindRoute: KartenWindRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
   ApiPublicEpsIngestTriggerRoute: ApiPublicEpsIngestTriggerRoute,
+  ApiPublicOpenmeteoIngestTriggerRoute: ApiPublicOpenmeteoIngestTriggerRoute,
   ApiPublicRadarIngestTriggerRoute: ApiPublicRadarIngestTriggerRoute,
+  ApiPublicSymbolIngestTriggerRoute: ApiPublicSymbolIngestTriggerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
