@@ -220,7 +220,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = "blur(0.6px) saturate(1.25) contrast(1.15)";
+        cv.style.filter = "saturate(1.3) contrast(1.2)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
