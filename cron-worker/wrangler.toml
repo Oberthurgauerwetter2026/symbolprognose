@@ -7,6 +7,7 @@ crons = ["*/5 * * * *"]
 
 [vars]
 TARGET_URL = "https://symbolprognose.lovable.app/api/public/radar/ingest-trigger"
+EPS_TARGET_URL = "https://symbolprognose.lovable.app/api/public/eps/ingest-trigger"
 
 [observability]
 enabled = true
