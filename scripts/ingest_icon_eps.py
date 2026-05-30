@@ -65,7 +65,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-EPS_INGEST_VERSION = "v1-mean-prob"
+EPS_INGEST_VERSION = "v2-mean-prob-det"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 # Member counts per MeteoSchweiz spec:
 #   ch1: 11 members (1 control + 10 perturbed)
