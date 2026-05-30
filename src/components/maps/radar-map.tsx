@@ -704,10 +704,9 @@ function MeteoTimeline({
 
 
 export function RadarMap({ bare = false }: { bare?: boolean }) {
-  const [model, setModel] = useState<"icon" | "arome">("icon");
   const { data, isLoading, error } = useQuery({
-    queryKey: ["radar-frames", model],
-    queryFn: () => (model === "arome" ? getAromeRadarFrames() : getRadarFrames()),
+    queryKey: ["radar-frames"],
+    queryFn: () => getRadarFrames(),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
   });
