@@ -864,12 +864,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               const opacityVal = Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1));
               return (
                 <>
-                  {hasGrid && (
+                  {hasGrid && !hasPng && (
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
-                      nextFrame={hasPng ? null : blendNext}
-                      progress={hasPng ? 0 : progress}
+                      nextFrame={blendNext}
+                      progress={progress}
                       opacity={opacityVal}
                     />
                   )}
