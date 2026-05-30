@@ -1,31 +1,34 @@
-## Ziel
-Die Niederschlags-Prognose soll sichtbar über den angeforderten Radius reichen: Schaffhausen, Zürich, Süddeutschland, St. Gallen, Appenzell und Vorarlberg — nicht nur als kleiner Block um den Oberthurgau.
+## Problem
 
-## Befund
-- Die gewünschte BBOX ist im Ingest und Server bereits eingetragen.
-- Der Screenshot zeigt aber weiterhin ein kleines Rechteck, was sehr wahrscheinlich daran liegt, dass die App noch das alte R2/Open-Meteo-Cache-Grid verwendet.
-- Zusätzlich fällt die interne Advektions-/Smoothing-Logik noch auf die statische BBOX-Konstante zurück; wenn Cache-Grid und Konstante auseinanderlaufen, kann das die Darstellung weiter inkonsistent machen.
-- Der separate `openmeteo-symbol.yml` Workflow kann beim Aktualisieren von `forecast.json` wieder ein altes, kleines Grid in denselben Cache schreiben.
+Der GitHub-Workflow `openmeteo-ingest.yml` wurde nach ~20 min vom Runner gecancelt (`timeout-minutes: 25`). Der Lauf war eigentlich erfolgreich unterwegs (phase1 komplett, phaseC bei Batch 10/14), wurde aber wegen mehrerer 120 s-Read-Timeouts gegen `api.open-meteo.com` zu langsam.
 
-## Umsetzung
-1. **Cache-Grid erzwingen**
-   - In `src/lib/radar.functions.ts` nicht mehr blind das Grid aus altem Cache übernehmen, wenn es die angeforderte Abdeckung nicht erfüllt.
-   - Cache-Grid nur akzeptieren, wenn es mindestens die Ziel-BBOX abdeckt und die erwartete Punktzahl/Geometrie plausibel ist.
-   - Bei altem Cache klare Warnung zurückgeben, statt das alte kleine Grid weiter als Wahrheit zu verwenden.
+Das erweiterte Grid (22×36 = 792 Punkte) verdoppelt die Batch-Anzahl gegenüber vorher und verträgt sich nicht mehr mit den aktuellen Defaults.
 
-2. **Advektionslogik an aktives Grid koppeln**
-   - `dLat`, `dLon` und `midLat` aus `lats/lons` des aktiven Grids berechnen, nicht aus der statischen BBOX.
-   - Dadurch bleibt Smoothing korrekt, egal ob Grid aus Cache oder Fallback kommt.
+## Massnahmen
 
-3. **Workflow-Konflikt beheben**
-   - `.github/workflows/openmeteo-symbol.yml` so anpassen, dass er nicht mehr mit der alten kleinen BBOX in `openmeteo/forecast.json` schreibt.
-   - Entweder dieselbe erweiterte BBOX/Grid-Geometrie verwenden oder einen separaten Output-Key für Symbolprognose nutzen, damit Radar-Cache nicht überschrieben wird.
+1. **Workflow-Budget erhöhen**
+   - `.github/workflows/openmeteo-ingest.yml`: `timeout-minutes: 25` → `timeout-minutes: 45`. Nur Schutz vor Hängern, kein normales Limit.
 
-4. **Frontend-Absicherung**
-   - In `radar-map.tsx` die Karten-Bounds/Startansicht mit der erwarteten erweiterten Region konsistent halten.
-   - Optional: keine Änderung an Farben/Legende/Timeline; nur die Abdeckung.
+2. **Schnelleres Fail-Fast bei Timeouts**
+   - In `scripts/ingest_openmeteo.py` `requests.get(..., timeout=120)` auf `timeout=(15, 45)` (connect, read) ändern.
+   - Effekt: ein hängender Request kostet 45 s statt 120 s, der Retry kommt früher dran.
+
+3. **Mehr Batches parallel**
+   - In `chunk_fetch` einen kleinen `ThreadPoolExecutor` (z. B. 3 Worker) für die Batches einer Phase verwenden, mit weiterhin sequentiellem Logging.
+   - Ergebnisse strikt nach Batch-Index sortiert zurückgeben, damit die Reihenfolge der Punkte stabil bleibt (`phase1[i]` muss weiter zu `pts[i]` passen).
+   - `BATCH_SLEEP_S` wird damit obsolet; stattdessen begrenzt der Pool die Parallelität.
+
+4. **PhaseC entlasten**
+   - `phaseC` (Bias-Lookback, `optional=True`) ist nicht zeitkritisch für Radar/Nowcast.
+   - Falls die Gesamtzeit weiterhin knapp wird: phaseC im 5-min-Workflow nur jeden N-ten Lauf ausführen (z. B. via `phaseC` skip-Flag analog `SKIP_PHASEA`) oder in einen eigenen Workflow auslagern. Erst umsetzen, falls 1.–3. nicht reichen.
 
 5. **Validierung**
-   - Prüfen, dass die gelieferten `gridLat/gridLon` den Zielbereich tatsächlich abdecken.
-   - Sicherstellen, dass Prognose-Frames `values.length === gridLat.length * gridLon.length` haben.
-   - Danach sollte die farbige Prognose nicht mehr als kleiner Block erscheinen, sondern über die gesamte angeforderte Region rendern.
+   - Workflow manuell triggern.
+   - Erwartung: Lauf bleibt deutlich unter 25 min, phase1 + phaseC werden geschrieben, R2-Objekt `openmeteo/forecast.json` enthält 792 Punkte.
+   - Frontend (`/karten/radar`) zeigt weiterhin die erweiterte Prognose-Abdeckung.
+
+## Nicht betroffen
+
+- `scripts/ingest_openmeteo.py`-Logik für phaseA (bleibt durch `SKIP_PHASEA=1` aus diesem Workflow ausgespart).
+- `openmeteo-symbol.yml` (eigener Key `openmeteo/symbol.json`).
+- Grid-Geometrie, BBOX, Cache-Format, Server-Funktionen, UI.
