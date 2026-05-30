@@ -22,7 +22,7 @@ import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
-import { getRadarFrames, getAromeRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { cn } from "@/lib/utils";
 
 
