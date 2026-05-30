@@ -46,7 +46,7 @@ function buildGrid() {
 
 export interface RadarFrame {
   t: string; // ISO UTC
-  source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2" | "arome-hd";
+  source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2";
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei `imageUrl`-Frames leer. */
   values: number[];
   /** Schnee-Wasser-Äquivalent mm/h pro Grid-Punkt (row-major). Leer = unbekannt. */
