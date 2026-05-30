@@ -63,12 +63,12 @@ def make_s3():
 
 
 def build_grid():
-    min_lat = envf("BBOX_MIN_LAT", 47.30)
-    max_lat = envf("BBOX_MAX_LAT", 47.85)
-    min_lon = envf("BBOX_MIN_LON", 8.85)
-    max_lon = envf("BBOX_MAX_LON", 9.85)
-    n_lat = envi("GRID_LAT", 12)
-    n_lon = envi("GRID_LON", 20)
+    min_lat = envf("BBOX_MIN_LAT", 46.85)
+    max_lat = envf("BBOX_MAX_LAT", 48.30)
+    min_lon = envf("BBOX_MIN_LON", 8.15)
+    max_lon = envf("BBOX_MAX_LON", 10.55)
+    n_lat = envi("GRID_LAT", 22)
+    n_lon = envi("GRID_LON", 36)
     lats = [min_lat + (max_lat - min_lat) * i / (n_lat - 1) for i in range(n_lat)]
     lons = [min_lon + (max_lon - min_lon) * j / (n_lon - 1) for j in range(n_lon)]
     return [(la, lo) for la in lats for lo in lons]
