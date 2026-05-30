@@ -63,10 +63,22 @@ function gridFromCachePoints(
   const lats = [...latSet].sort((a, b) => a - b);
   const lons = [...lonSet].sort((a, b) => a - b);
   if (lats.length * lons.length !== points.length) return null;
+  if (lats.length !== GRID_LAT || lons.length !== GRID_LON) return null;
+  const coversTarget =
+    lats[0] <= BBOX.minLat + 0.001 &&
+    lats[lats.length - 1] >= BBOX.maxLat - 0.001 &&
+    lons[0] <= BBOX.minLon + 0.001 &&
+    lons[lons.length - 1] >= BBOX.maxLon - 0.001;
+  if (!coversTarget) return null;
   // Reihenfolge: ingest schreibt outer=lat, inner=lon (siehe buildGrid).
   const pts: { lat: number; lon: number }[] = [];
   for (const la of lats) for (const lo of lons) pts.push({ lat: la, lon: lo });
   return { lats, lons, pts };
+}
+
+function cacheGridLooksStale(points: { lat: number; lon: number }[] | undefined): boolean {
+  if (!points || points.length === 0) return false;
+  return gridFromCachePoints(points) === null;
 }
 
 
@@ -204,17 +216,26 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   ]);
 
   const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
-  const r1 = cache?.phase1 ?? null;
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
 
   // Bevorzugt das Grid aus dem Cache (verhindert Index-Drift, wenn die
   // Ingest-Geometrie umgestellt wird, der R2-Cache aber noch alt ist).
   const cacheGrid = gridFromCachePoints(cache?.grid?.points);
+  const cacheGridStale = cacheGridLooksStale(cache?.grid?.points);
   const { lats, lons, pts } = cacheGrid ?? buildGrid();
+  const r1Candidate = cache ? (cache.phase1 ?? cache.phaseB ?? null) : null;
+  const r1 =
+    !cacheGridStale && Array.isArray(r1Candidate) && r1Candidate.length === pts.length
+      ? r1Candidate
+      : null;
 
   const warnings: string[] = [];
   if (!cache) {
     warnings.push("Open-Meteo-Cache temporär nicht verfügbar");
+  } else if (cacheGridStale) {
+    warnings.push("Open-Meteo-Cache nutzt noch die alte kleine Radar-Abdeckung; Prognose wird nach dem nächsten Ingest erweitert");
+  } else if (Array.isArray(r1Candidate) && r1Candidate.length !== pts.length) {
+    warnings.push("Open-Meteo-Cache enthält noch alte Prognosepunkte; Prognose wird nach dem nächsten Ingest erweitert");
   }
 
 
@@ -610,9 +631,9 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   // crossfade-mäßig zu überblenden.
   const NCOLS = lons.length; // = GRID_LON
   const NROWS = lats.length; // = GRID_LAT
-  const dLat = (BBOX.maxLat - BBOX.minLat) / Math.max(1, NROWS - 1);
-  const dLon = (BBOX.maxLon - BBOX.minLon) / Math.max(1, NCOLS - 1);
-  const midLat = (BBOX.maxLat + BBOX.minLat) / 2;
+  const dLat = (lats[lats.length - 1] - lats[0]) / Math.max(1, NROWS - 1);
+  const dLon = (lons[lons.length - 1] - lons[0]) / Math.max(1, NCOLS - 1);
+  const midLat = (lats[0] + lats[lats.length - 1]) / 2;
   const M_PER_DEG_LAT = 111_000;
   const M_PER_DEG_LON = 111_000 * Math.cos((midLat * Math.PI) / 180);
 

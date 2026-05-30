@@ -42,5 +42,6 @@ jobs:
           BBOX_MAX_LON: "9.85"
           GRID_LAT: "12"
           GRID_LON: "20"
+          OPENMETEO_OUT_KEY: "openmeteo/symbol.json"
           ONLY_PHASEA: "1"
         run: python -u scripts/ingest_openmeteo.py
