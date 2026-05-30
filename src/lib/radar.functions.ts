@@ -24,10 +24,12 @@ import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache
  */
 
 
-// Bounding-Box passend zur Region (auch im Python-Ingest verwendet).
-const BBOX = { minLat: 47.30, maxLat: 47.85, minLon: 8.85, maxLon: 9.85 } as const;
-const GRID_LON = 20;
-const GRID_LAT = 12;
+// Bounding-Box passend zur CombiPrecip-Region (auch im Python-Ingest verwendet).
+// Deckt Zürich, Schaffhausen, Bodensee, St. Gallen, Appenzell, Vorarlberg
+// und angrenzendes Süddeutschland ab.
+const BBOX = { minLat: 46.85, maxLat: 48.30, minLon: 8.15, maxLon: 10.55 } as const;
+const GRID_LON = 36;
+const GRID_LAT = 22;
 
 function buildGrid() {
   const lats: number[] = [];
@@ -42,6 +44,31 @@ function buildGrid() {
   for (const la of lats) for (const lo of lons) pts.push({ lat: la, lon: lo });
   return { lats, lons, pts };
 }
+
+/**
+ * Leitet das Lese-Grid direkt aus den im R2-Cache gespeicherten Punkten ab.
+ * Notwendig, weil Ingest und Frontend nach Punkt-Index lesen — wenn der Cache
+ * noch eine ältere Geometrie hat, würden die Konstanten falsch zeigen.
+ */
+function gridFromCachePoints(
+  points: { lat: number; lon: number }[] | undefined,
+): { lats: number[]; lons: number[]; pts: { lat: number; lon: number }[] } | null {
+  if (!points || points.length === 0) return null;
+  const latSet = new Set<number>();
+  const lonSet = new Set<number>();
+  for (const p of points) {
+    latSet.add(p.lat);
+    lonSet.add(p.lon);
+  }
+  const lats = [...latSet].sort((a, b) => a - b);
+  const lons = [...lonSet].sort((a, b) => a - b);
+  if (lats.length * lons.length !== points.length) return null;
+  // Reihenfolge: ingest schreibt outer=lat, inner=lon (siehe buildGrid).
+  const pts: { lat: number; lon: number }[] = [];
+  for (const la of lats) for (const lo of lons) pts.push({ lat: la, lon: lo });
+  return { lats, lons, pts };
+}
+
 
 export interface RadarFrame {
   t: string; // ISO UTC
