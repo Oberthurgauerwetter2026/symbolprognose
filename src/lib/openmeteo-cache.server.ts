@@ -34,15 +34,7 @@ function r2BaseUrl(): string | null {
   }
 }
 
-export async function getOpenMeteoCache(): Promise<OpenMeteoCachePayload | null> {
-  if (memo && Date.now() - memo.at < MEMO_TTL_MS) return memo.data;
-
-  const base = r2BaseUrl();
-  if (!base) {
-    console.warn("[openmeteo-cache] R2_PUBLIC_URL not set");
-    return null;
-  }
-  const url = `${base}/openmeteo/forecast.json`;
+async function fetchCacheUrl(url: string): Promise<OpenMeteoCachePayload | null> {
   try {
     const res = await fetch(url, {
       cf: { cacheTtl: 30, cacheEverything: true } as unknown as undefined,
@@ -51,11 +43,32 @@ export async function getOpenMeteoCache(): Promise<OpenMeteoCachePayload | null>
       console.warn(`[openmeteo-cache] ${url} -> ${res.status}`);
       return null;
     }
-    const json = (await res.json()) as OpenMeteoCachePayload;
-    memo = { at: Date.now(), data: json };
-    return json;
+    return (await res.json()) as OpenMeteoCachePayload;
   } catch (e) {
     console.warn(`[openmeteo-cache] fetch error: ${(e as Error).message}`);
     return null;
   }
+}
+
+export async function getOpenMeteoCache(): Promise<OpenMeteoCachePayload | null> {
+  if (memo && Date.now() - memo.at < MEMO_TTL_MS) return memo.data;
+
+  const base = r2BaseUrl();
+  if (!base) {
+    console.warn("[openmeteo-cache] R2_PUBLIC_URL not set");
+    return null;
+  }
+
+  const [radarCache, symbolCache] = await Promise.all([
+    fetchCacheUrl(`${base}/openmeteo/forecast.json`),
+    fetchCacheUrl(`${base}/openmeteo/symbol.json`),
+  ]);
+  if (!radarCache && !symbolCache) return null;
+
+  const merged: OpenMeteoCachePayload = {
+    ...(radarCache ?? symbolCache!),
+    phaseA: symbolCache?.phaseA?.length ? symbolCache.phaseA : radarCache?.phaseA,
+  };
+  memo = { at: Date.now(), data: merged };
+  return merged;
 }
