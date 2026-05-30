@@ -84,7 +84,7 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     for attempt in range(5):
         last_was_429 = False
         try:
-            r = requests.get(API, params=params, timeout=120)
+            r = requests.get(API, params=params, timeout=(15, 45))
             if not r.ok:
                 if r.status_code == 429:
                     last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
