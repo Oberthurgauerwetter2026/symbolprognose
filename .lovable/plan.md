@@ -1,48 +1,49 @@
 ## Problem
 
-Der GitHub-Schedule für `openmeteo-symbol.yml` (Symbolprognose, 4×/Tag) ist seit gestern 23:19 MESZ ausgesetzt — GitHub verwirft `schedule:`-Trigger bei Last ohne Warnung. Resultat: Die Symbolprognose im UI endet bei Sonntag 11 Uhr (Horizont vom letzten 20-UTC-Lauf).
+Die Radar-Animation auf `/karten/radar` endet aktuell bei Sonntag 11 Uhr (≈ +24 h), obwohl der Code in `src/lib/radar.functions.ts` (Z. 241) bis zu +120 h erlaubt. Ursache: der Open-Meteo-Cache `phase1` (Quelle für ICON-CH1 minutely_15, normal +33 h) wird vom Workflow `openmeteo-ingest.yml` befüllt, der **nur** am GitHub-`schedule:`-Trigger hängt. GitHub verwirft diesen Trigger regelmässig (gleiche Pathologie wie heute Nacht bei `openmeteo-symbol`). Ergebnis: die Cache-Datei ist mehrere Stunden alt, der minutely_15-Horizont rutscht entsprechend zurück.
 
-Radar (alle 5 min) und ICON-EPS (alle 30 min) werden bereits zuverlässig vom Cloudflare-Cron-Worker `symbolprognose-radar-cron` per `workflow_dispatch` getriggert. Wir erweitern den Worker analog um die Symbolprognose.
+Die schon im letzten Schritt umgesetzte Worker-Erweiterung für `openmeteo-symbol` ist gut und bleibt — sie löst das verwandte Problem mit der Symbolprognose, nicht aber die Radar-Zeitleiste.
 
-## Änderungen
+## Änderungen — gleiches Muster wie für eps/symbol
 
 ### 1. Neuer HTTP-Endpoint in Lovable
 
-`src/routes/api/public/symbol/ingest-trigger.ts` (analog zu `radar/ingest-trigger.ts` und `eps/ingest-trigger.ts`):
-- Prüft `x-trigger-secret`-Header gegen `RADAR_TRIGGER_SECRET` (gleiches Secret wiederverwenden — ein Secret für alle drei Trigger).
-- Ruft neuen Helper `dispatchSymbolIngest()` auf.
+`src/routes/api/public/openmeteo/ingest-trigger.ts` (Copy-Edit von `symbol/ingest-trigger.ts`):
+- Header-Check `x-trigger-secret` gegen `RADAR_TRIGGER_SECRET` (wieder gleiches Secret).
+- Ruft neuen Helper `dispatchOpenmeteoIngest()`.
 
 ### 2. Neuer Dispatch-Helper
 
-`src/lib/symbol-dispatch.server.ts` (Kopie von `eps-dispatch.server.ts`):
-- Throttle: 30 min (Symbolprognose ändert sich frühestens 4×/Tag).
-- Triggert Workflow-File `openmeteo-symbol.yml`.
+`src/lib/openmeteo-dispatch.server.ts`:
+- Triggert Workflow-File `openmeteo-ingest.yml`.
+- Throttle **60 s** (gleich wie Radar — Workflow läuft alle 5 min, kurzer Schutz reicht).
 
 ### 3. Cloudflare-Worker erweitern
 
 `cron-worker/src/index.ts`:
-- Zusätzlicher Cron-Trigger `0 2,8,14,20 * * *` (UTC, gleich wie bisheriger GitHub-Schedule, ~2 h nach den Modellläufen).
-- Bei jedem Tick zusätzlich `POST /api/public/symbol/ingest-trigger` an `symbolprognose.lovable.app` mit `x-trigger-secret`-Header.
-- Bestehende `*/5`-Cron-Logik (radar+eps) bleibt unverändert.
+- Im bestehenden `*/5`-Tick zusätzlich `/api/public/openmeteo/ingest-trigger` aufrufen (drittes Parallel-Target neben radar + eps).
+- Neuer `RunRecord lastOpenmeteo` für `/status`.
+- Neuer Debug-Endpoint `POST /run/openmeteo`.
 
 `cron-worker/wrangler.toml`:
-- `crons` um den 6-Stunden-Trigger erweitern → `crons = ["*/5 * * * *", "0 2,8,14,20 * * *"]`.
+- Neue var `OPENMETEO_TARGET_URL = "https://symbolprognose.lovable.app/api/public/openmeteo/ingest-trigger"`.
+- Crons bleiben unverändert (`*/5`, `0 2,8,14,20`).
 
 ### 4. GitHub-Schedule entfernen
 
-`.github/workflows/openmeteo-symbol.yml`:
-- `schedule:`-Block entfernen, nur noch `workflow_dispatch: {}` lassen. Verhindert doppelte Läufe und macht den Cloudflare-Worker zur einzigen Trigger-Quelle. (Analog ist auch sinnvoll für `radar-ingest.yml` und `icon-eps-ingest.yml`, falls noch nicht geschehen — bestätigen wir vor Implementierung.)
+`.github/workflows/openmeteo-ingest.yml`:
+- `schedule:`-Block entfernen, nur `workflow_dispatch: {}` lassen. Worker wird einzige Trigger-Quelle.
 
-### 5. Nach Deploy: einmalig manuell triggern
+## Nach Deploy
 
-Damit die Prognose sofort wieder bis Mittwoch reicht (statt auf den nächsten 14-UTC-Slot zu warten), Workflow einmal manuell via GitHub "Run workflow" anstossen — oder durch einmaliges `POST /run` am Worker.
+Damit der Radar-Forecast **sofort** wieder bis +33 h reicht (statt auf den nächsten erfolgreichen ingest zu warten): `POST` auf den Worker-Endpoint `/run/openmeteo` (oder im GitHub-UI "Run workflow" auf `openmeteo-ingest.yml`). In ~3–5 min ist die R2-Cache-Datei `openmeteo/forecast.json` neu, und die Zeitleiste reicht wieder weit in die Zukunft.
 
 ## Verifikation
 
-- Cloudflare-Worker-Logs: alle 6 h zusätzlich `[cron:symbol] … → 202 dispatched`.
-- GitHub Actions: Workflow läuft pünktlich 02/08/14/20 UTC.
-- UI: Symbolprognose reicht wieder mehrere Tage in die Zukunft.
+- Cloudflare-Worker-Logs zeigen alle 5 min zusätzlich `[cron:openmeteo] … → 202 dispatched`.
+- GitHub Actions: `openmeteo-ingest` läuft pünktlich alle 5 min als `workflow_dispatch`.
+- UI: Radar-Zeitleiste reicht wieder mehrere Tage in die Zukunft (bis +120 h, wenn EPS frisch; sonst +33 h aus ICON-CH1).
 
 ## Offene Frage
 
-Soll ich auch den `schedule:`-Block in `radar-ingest.yml` und `icon-eps-ingest.yml` entfernen? Du hattest sie ursprünglich als Backup parallel laufen lassen, aber jetzt wo der Worker stabil läuft, vermeidet das doppelte Runs und API-Last.
+Soll ich beim Aufräumen auch die `schedule:`-Blöcke in `radar-ingest.yml` und `icon-eps-ingest.yml` entfernen (Worker ist dort ohnehin der primäre Trigger)? Sie laufen aktuell als Backup parallel — was bei 5-Min-Cron doppelte API-Calls bedeutet.

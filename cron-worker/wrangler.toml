@@ -11,6 +11,7 @@ crons = ["*/5 * * * *", "0 2,8,14,20 * * *"]
 TARGET_URL = "https://symbolprognose.lovable.app/api/public/radar/ingest-trigger"
 EPS_TARGET_URL = "https://symbolprognose.lovable.app/api/public/eps/ingest-trigger"
 SYMBOL_TARGET_URL = "https://symbolprognose.lovable.app/api/public/symbol/ingest-trigger"
+OPENMETEO_TARGET_URL = "https://symbolprognose.lovable.app/api/public/openmeteo/ingest-trigger"
 
 [observability]
 enabled = true
