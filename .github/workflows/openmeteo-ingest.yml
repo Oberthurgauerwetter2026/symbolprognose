@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: openmeteo-ingest
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   ingest:
@@ -34,15 +34,15 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          CHUNK_PHASE1: "30"
+          CHUNK_PHASE1: "50"
           CHUNK_PHASEC: "60"
           BATCH_SLEEP_S: "3"
-          BBOX_MIN_LAT: "46.85"
-          BBOX_MAX_LAT: "48.30"
-          BBOX_MIN_LON: "8.15"
-          BBOX_MAX_LON: "10.55"
-          GRID_LAT: "18"
-          GRID_LON: "28"
+          BBOX_MIN_LAT: "47.30"
+          BBOX_MAX_LAT: "47.85"
+          BBOX_MIN_LON: "8.85"
+          BBOX_MAX_LON: "9.85"
+          GRID_LAT: "12"
+          GRID_LON: "20"
           # phaseA (Symbolprognose) läuft nur 4× täglich via openmeteo-symbol.yml
           SKIP_PHASEA: "1"
         run: python -u scripts/ingest_openmeteo.py

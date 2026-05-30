@@ -1,33 +1,43 @@
-## Ziel
+## Warum es hängt
 
-Doppelte Trigger entfernen, damit jeder Ingest nur noch vom Cloudflare Worker (alle 5 min) gestartet wird — keine parallelen GitHub `schedule:`-Läufe mehr, weniger Open-Meteo / MCH Last, einfachere Fehlersuche.
+Der Screenshot zeigt: `Open-Meteo Cache Ingest` wartet auf Lauf #30. Weil der Workflow `concurrency.cancel-in-progress: false` nutzt und der Cloudflare-Cron alle 5 Minuten weiter dispatcht, entsteht eine Warteschlange. Das erklärt Open-Meteo direkt.
 
-## Änderungen
+Der Radar hängt wahrscheinlich nicht wegen derselben GitHub-Concurrency-Gruppe, sondern weil entweder:
+- der Radar-Ingest seit 19:45 nicht mehr erfolgreich `radar/frames.json` schreibt,
+- ein alter Workflow/Run die R2-Dateien überschreibt,
+- oder die App/R2-URL noch gecachte alte Frames liefert.
 
-### 1. `.github/workflows/radar-ingest.yml`
-- `schedule:` Block (`*/15 * * * *`) entfernen.
-- `on:` enthält nur noch `workflow_dispatch: {}`.
-- Kommentar oben aktualisieren: Trigger ausschliesslich via Cloudflare Worker (`cron-worker/`) alle 5 min.
+## Plan
 
-### 2. `.github/workflows/icon-eps-ingest.yml`
-- `schedule:` Block (`*/30 * * * *`) entfernen.
-- `on:` enthält nur noch `workflow_dispatch: {}`.
-- Kommentar ergänzen: Trigger via Cloudflare Worker (`cron-worker/`) alle 5 min; Script no-opt wenn neuester Run schon in R2.
+1. **Open-Meteo-Queue entschärfen**
+   - In `.github/workflows/openmeteo-ingest.yml` `cancel-in-progress: true` setzen, damit neue 5-Minuten-Runs alte wartende/laufende Open-Meteo-Runs abbrechen statt eine Schlange zu bilden.
+   - BBox/Grid wie zuvor vorgeschlagen verkleinern: 504 → 240 Punkte.
+   - `CHUNK_PHASE1` erhöhen, damit der Lauf kürzer wird.
 
-### 3. Keine Änderungen an
-- `openmeteo-ingest.yml` / `openmeteo-symbol.yml` (haben bereits nur `workflow_dispatch`).
-- `cron-worker/` (triggert weiterhin alle 4 Workflows).
-- Ingest-Scripts selbst.
+2. **Symbol-Open-Meteo konsistent halten**
+   - In `.github/workflows/openmeteo-symbol.yml` dieselbe BBox/Grid verwenden, damit phaseA und Forecast-Cache dieselbe Region abdecken.
 
-## Resultat
+3. **Radar gegen Stau absichern**
+   - In `.github/workflows/radar-ingest.yml` ebenfalls `cancel-in-progress: true` setzen. Radar ist ein 5-Minuten-Feed; alte Runs sind wertlos, sobald ein neuer Tick kommt.
+   - Optional `RADAR_LOOKBACK_HOURS` bei 6 lassen, damit nach einem Ausfall genügend Frames nachgezogen werden.
 
-| Workflow | Trigger vorher | Trigger nachher |
-|---|---|---|
-| radar-ingest | Worker 5 min + GitHub 15 min | Worker 5 min |
-| icon-eps-ingest | Worker 5 min + GitHub 30 min | Worker 5 min |
-| openmeteo-ingest | Worker 5 min | Worker 5 min (unverändert) |
-| openmeteo-symbol | Worker 4×/Tag | Worker 4×/Tag (unverändert) |
+4. **Cloudflare-Worker-Trigger trennen/entlasten**
+   - Open-Meteo nicht mehr bei jedem 5-Minuten-Tick parallel mit Radar/EPS triggern, sondern auf einen langsameren Rhythmus oder nur jeden zweiten Tick reduzieren, falls nötig.
+   - Radar bleibt alle 5 Minuten.
 
-## Risiko / Rollback
+5. **Nach Umsetzung prüfen**
+   - GitHub Actions: Es darf nur noch der neueste Open-Meteo-Run laufen; keine wachsende Warteschlange.
+   - Radar-Workflow: neuer Run muss `radar/frames.json` mit aktuellem Timestamp schreiben.
+   - Falls published Endpoint noch 404/HTML liefert: App erneut publishen, weil der Worker die veröffentlichte Domain trifft.
 
-Fällt der Cloudflare Worker aus, läuft kein Ingest mehr automatisch. Rollback = `schedule:` Blöcke wieder einfügen (1 Commit). Worker-Health ist in Cloudflare Observability sichtbar; bei längerem Ausfall manuell `workflow_dispatch` triggern.
+## Technische Änderung
+
+Die kleinste sichere Änderung ist:
+
+```yaml
+concurrency:
+  group: openmeteo-ingest
+  cancel-in-progress: true
+```
+
+und analog für Radar. Für Echtzeitdaten ist `cancel-in-progress: false` falsch, weil alte Läufe die Pipeline blockieren und keine brauchbareren Daten liefern als der neueste Lauf.
