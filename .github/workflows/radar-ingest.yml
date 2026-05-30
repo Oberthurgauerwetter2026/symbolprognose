@@ -1,11 +1,9 @@
 name: Radar Ingest
 
 on:
-  schedule:
-    # Backup-Schedule (alle 15 min), falls der externe Cloudflare-Worker ausfällt.
-    # Primärer Trigger ist der eigene Cloudflare Worker (cloudflare/radar-trigger-worker/)
-    # via workflow_dispatch alle 5 min.
-    - cron: "*/15 * * * *"
+  # Trigger ausschliesslich via Cloudflare Worker (cron-worker/) alle 5 min.
+  # GitHub `schedule:` entfernt — wurde wiederholt von GitHub verworfen
+  # und verursachte parallele Läufe / unnötige MCH-Calls.
   workflow_dispatch: {}
 
 

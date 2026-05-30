@@ -1,10 +1,8 @@
 name: ICON-EPS Ingest
 
 on:
-  schedule:
-    # Every 30 min — MCH publishes ICON-CH1 every 3h, ICON-CH2 every 6h.
-    # The script no-ops if the latest run is already in R2.
-    - cron: "*/30 * * * *"
+  # Trigger ausschliesslich via Cloudflare Worker (cron-worker/) alle 5 min.
+  # Script ist idempotent: no-op, wenn der neueste MCH-Run bereits in R2 liegt.
   workflow_dispatch: {}
 
 concurrency:
