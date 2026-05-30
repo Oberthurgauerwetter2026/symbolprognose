@@ -810,7 +810,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
       >
         <MapContainer
           center={[47.575, 9.35]}
-          zoom={8.5}
+          zoom={9}
           zoomSnap={0.25}
           maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
