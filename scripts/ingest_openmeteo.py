@@ -120,28 +120,44 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
 
 
 def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optional: bool = False) -> list | None:
-    """Open-Meteo Bulk-Requests in Batches, um 502 vom Upstream-nginx zu vermeiden."""
-    out: list = []
+    """Open-Meteo Bulk-Requests in Batches, parallelisiert mit kleinem ThreadPool.
+
+    Reihenfolge der Ergebnisse entspricht strikt der Eingabe-Punktliste,
+    damit phaseX[i] weiter zu pts[i] passt.
+    """
     total = len(pts)
     n_batches = (total + chunk_size - 1) // chunk_size
     try:
-        batch_sleep = float(os.environ.get("BATCH_SLEEP_S", "6.0"))
+        workers = max(1, int(os.environ.get("FETCH_WORKERS", "3")))
     except ValueError:
-        batch_sleep = 6.0
-    for bi in range(n_batches):
+        workers = 3
+
+    results: list[list | None] = [None] * n_batches
+
+    def run(bi: int):
         batch = pts[bi * chunk_size : (bi + 1) * chunk_size]
         params = dict(base_params)
         params["latitude"] = ",".join(f"{p[0]:.4f}" for p in batch)
         params["longitude"] = ",".join(f"{p[1]:.4f}" for p in batch)
         sub_label = f"{label} batch {bi + 1}/{n_batches} ({len(batch)} pts)"
         res = fetch(sub_label, params, optional=optional)
-        if res is None:
-            print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
+        return bi, sub_label, res
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = [ex.submit(run, bi) for bi in range(n_batches)]
+        for fut in futures:
+            bi, sub_label, res = fut.result()
+            if res is None:
+                print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
+                return None
+            results[bi] = res
+            print(f"  {sub_label} ok")
+
+    out: list = []
+    for r in results:
+        if r is None:
             return None
-        out.extend(res)
-        print(f"  {sub_label} ok")
-        if bi + 1 < n_batches:
-            time.sleep(batch_sleep)
+        out.extend(r)
     return out
 
 
