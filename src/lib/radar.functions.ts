@@ -198,8 +198,6 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
 export const getRadarFrames = createServerFn({ method: "GET" }).handler(async () => {
   setResponseHeader("Cache-Control", "public, max-age=60, s-maxage=120");
 
-  const { lats, lons, pts } = buildGrid();
-
   const [cacheRes, manifestRes] = await Promise.allSettled([
     fetchOpenMeteoCache(),
     fetchR2Manifest(),
@@ -208,6 +206,11 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
   const r1 = cache?.phase1 ?? null;
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
+
+  // Bevorzugt das Grid aus dem Cache (verhindert Index-Drift, wenn die
+  // Ingest-Geometrie umgestellt wird, der R2-Cache aber noch alt ist).
+  const cacheGrid = gridFromCachePoints(cache?.grid?.points);
+  const { lats, lons, pts } = cacheGrid ?? buildGrid();
 
   const warnings: string[] = [];
   if (!cache) {
