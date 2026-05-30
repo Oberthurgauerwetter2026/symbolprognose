@@ -765,6 +765,33 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
+  // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
+  // (true=trocken nur bei genau 0 values und keiner URL — wird hier vorsichtig
+  // als unbekannt behandelt, damit echte Radar-PNGs nie fälschlich als trocken
+  // gemeldet werden).
+  const frameMaxMmh = (f: RadarFrame | null): number | null => {
+    if (!f) return null;
+    if (f.precipUrl) return null; // unbekannt
+    if (!f.values || f.values.length === 0) return 0;
+    let m = 0;
+    for (let i = 0; i < f.values.length; i++) if (f.values[i] > m) m = f.values[i];
+    return m;
+  };
+  const currentMax = frameMaxMmh(currentFrame);
+  // Index des nächsten Frames mit sichtbarem Niederschlag (Canvas > 0.1 mm/h
+  // ODER PNG, weil dort der Server nur "wet" Schritte ausliefert).
+  const nextWetIdx = useMemo(() => {
+    if (idx === null) return -1;
+    for (let i = idx + 1; i < frames.length; i++) {
+      const f = frames[i];
+      if (f.precipUrl) return i;
+      const m = frameMaxMmh(f);
+      if (m !== null && m > 0.1) return i;
+    }
+    return -1;
+  }, [idx, frames]);
+  const showDryHint = currentMax !== null && currentMax < 0.05;
+
   return (
     <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
       <div
