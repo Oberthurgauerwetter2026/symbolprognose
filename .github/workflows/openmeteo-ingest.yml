@@ -1,8 +1,9 @@
 name: Open-Meteo Cache Ingest
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
+  # Schedule entfernt — der Cloudflare-Worker (cron-worker/) triggert
+  # diesen Workflow alle 5 min zuverlässig via workflow_dispatch.
+  # GitHub `schedule:` wurde wiederholt von GitHub verworfen.
   workflow_dispatch: {}
 
 concurrency:
