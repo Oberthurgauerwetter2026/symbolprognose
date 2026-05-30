@@ -107,7 +107,7 @@ function snowColorFor(mmh: number): [number, number, number, number] {
   for (let i = SNOW_SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SNOW_SCALE[i].mmh) {
       const [r, g, b] = SNOW_SCALE[i].rgb;
-      const a = 0.60;
+      const a = 0.85;
       return [r, g, b, a];
     }
   }
