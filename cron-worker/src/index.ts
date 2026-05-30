@@ -1,54 +1,81 @@
 /**
- * Cloudflare Worker — zuverlässiger 5-Min-Trigger für den Radar-Ingest.
+ * Cloudflare Worker — zuverlässiger 5-Min-Trigger für Radar- und EPS-Ingest.
  *
- * Pingt alle 5 Minuten den Lovable-Endpoint /api/public/radar/ingest-trigger,
- * der seinerseits den GitHub-Actions-Workflow `radar-ingest.yml` dispatched.
+ * Pingt alle 5 Minuten zwei Lovable-Endpoints:
+ *   - /api/public/radar/ingest-trigger  → dispatched radar-ingest.yml
+ *   - /api/public/eps/ingest-trigger    → dispatched icon-eps-ingest.yml
  *
- * GitHub-Actions `schedule:` läuft weiter als Backup; der 60-s-Throttle im
- * Server verhindert Doppel-Runs.
+ * Beide Server-Endpoints haben eigene Throttles (Radar 60s, EPS 10min),
+ * sodass das gleichzeitige 5-Min-Pingen unproblematisch ist.
+ *
+ * GitHub-Actions `schedule:` läuft als Backup.
  */
 
 export interface Env {
   TARGET_URL: string;
+  EPS_TARGET_URL?: string;
   RADAR_TRIGGER_SECRET: string;
 }
 
-let lastRunAt: string | null = null;
-let lastStatus: number | null = null;
-let lastBody: string | null = null;
+interface RunRecord {
+  at: string | null;
+  status: number | null;
+  body: string | null;
+}
 
-async function triggerIngest(env: Env): Promise<void> {
+const lastRadar: RunRecord = { at: null, status: null, body: null };
+const lastEps: RunRecord = { at: null, status: null, body: null };
+
+async function triggerEndpoint(
+  url: string,
+  secret: string,
+  label: string,
+  record: RunRecord,
+): Promise<void> {
   const startedAt = new Date().toISOString();
   try {
-    const res = await fetch(env.TARGET_URL, {
+    const res = await fetch(url, {
       method: "POST",
       headers: {
-        "x-trigger-secret": env.RADAR_TRIGGER_SECRET,
+        "x-trigger-secret": secret,
         "Content-Type": "application/json",
-        "User-Agent": "symbolprognose-radar-cron/1.0",
+        "User-Agent": `symbolprognose-cron/${label}`,
       },
       body: "{}",
     });
     const text = await res.text();
-    lastRunAt = startedAt;
-    lastStatus = res.status;
-    lastBody = text.slice(0, 300);
+    record.at = startedAt;
+    record.status = res.status;
+    record.body = text.slice(0, 300);
 
     if (res.status === 202) {
-      console.log(`[cron] ${startedAt} → 202 dispatched: ${lastBody}`);
+      console.log(`[cron:${label}] ${startedAt} → 202 dispatched: ${record.body}`);
     } else if (res.status === 429) {
-      console.log(`[cron] ${startedAt} → 429 throttled: ${lastBody}`);
+      console.log(`[cron:${label}] ${startedAt} → 429 throttled: ${record.body}`);
     } else {
       console.error(
-        `[cron] ${startedAt} → ${res.status} unexpected: ${lastBody}`,
+        `[cron:${label}] ${startedAt} → ${res.status} unexpected: ${record.body}`,
       );
     }
   } catch (err) {
-    lastRunAt = startedAt;
-    lastStatus = -1;
-    lastBody = (err as Error).message;
-    console.error(`[cron] ${startedAt} → fetch error: ${lastBody}`);
+    record.at = startedAt;
+    record.status = -1;
+    record.body = (err as Error).message;
+    console.error(`[cron:${label}] ${startedAt} → fetch error: ${record.body}`);
   }
+}
+
+async function triggerAll(env: Env): Promise<void> {
+  const tasks: Promise<void>[] = [];
+  tasks.push(
+    triggerEndpoint(env.TARGET_URL, env.RADAR_TRIGGER_SECRET, "radar", lastRadar),
+  );
+  if (env.EPS_TARGET_URL) {
+    tasks.push(
+      triggerEndpoint(env.EPS_TARGET_URL, env.RADAR_TRIGGER_SECRET, "eps", lastEps),
+    );
+  }
+  await Promise.all(tasks);
 }
 
 export default {
@@ -57,7 +84,7 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<void> {
-    ctx.waitUntil(triggerIngest(env));
+    ctx.waitUntil(triggerAll(env));
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -65,22 +92,4 @@ export default {
 
     if (url.pathname === "/" || url.pathname === "/status") {
       return Response.json({
-        worker: "symbolprognose-radar-cron",
-        target: env.TARGET_URL,
-        cron: "*/5 * * * *",
-        lastRunAt,
-        lastStatus,
-        lastBody,
-      });
-    }
-
-    if (url.pathname === "/run" && request.method === "POST") {
-      // Manueller Test-Trigger (kein Auth — Worker ist anonym erreichbar,
-      // der Endpoint dahinter ist via Secret geschützt).
-      await triggerIngest(env);
-      return Response.json({ ok: true, lastRunAt, lastStatus, lastBody });
-    }
-
-    return new Response("Not found", { status: 404 });
-  },
-};
+        wor

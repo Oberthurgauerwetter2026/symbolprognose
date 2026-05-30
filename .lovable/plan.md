@@ -1,24 +1,37 @@
-**Befund**
-- Die Radar-PNGs werden geladen, sind aber aktuell vollständig transparent: das geprüfte Bild `20260530T0400.png` hat `0` sichtbare Pixel.
-- Die EPS-Manifestdaten sind vorhanden, werden aber nicht genutzt, weil sie zu alt sind (`generatedAt 2026-05-29T22:26Z`, älter als 6h). Deshalb fällt die App auf deterministische Open-Meteo-Prognose zurück.
-- Zusätzlich ist der EPS-Lookup zeitlich zu strikt: EPS liefert nur volle Stunden, die 15-Minuten-Prognose wird aber komplett bis zum EPS-Horizont übersprungen. Dadurch kann bei alten/leeren EPS-Daten viel Prognosefläche unsichtbar bleiben.
+## Problem
 
-**Plan**
-1. **EPS-Freshness robuster machen**
-   - Nicht nur `generatedAt`, sondern auch die Step-Zeiten prüfen.
-   - EPS nur verwenden, wenn Forecast-Steps wirklich in der Zukunft liegen und ausreichend aktuell sind.
+`icon-eps-ingest.yml` läuft aktuell ausschliesslich über GitHub Actions `schedule:` (`*/30 * * * *`). GitHub-Cron ist bekanntlich unzuverlässig (Verzögerungen, übersprungene Runs bei Last, Auto-Deaktivierung bei Repo-Inaktivität). Der Radar-Ingest umgeht das bereits über einen Cloudflare-Worker, der alle 5 Min `/api/public/radar/ingest-trigger` aufruft, welcher dann GitHub Actions per `workflow_dispatch` startet. Für EPS fehlt dieser Pfad.
 
-2. **Deterministischen Fallback nicht komplett wegschalten**
-   - 15-Minuten-Open-Meteo-Frames nur dann durch EPS ersetzen, wenn für genau diese Stunde ein EPS-PNG existiert.
-   - Zwischen EPS-Stunden bzw. bei stale/leerem EPS weiter Open-Meteo anzeigen.
+## Lösung
 
-3. **Leere EPS-Bilder ignorieren**
-   - EPS-Steps mit `maxMmh <= 0` und `meanWetFrac <= 0` nicht als sichtbare Regenbilder behandeln.
-   - So blockiert ein trockenes/kaputtes EPS-Manifest nicht die normale Prognose.
+Gleiches Muster für EPS aufbauen:
 
-4. **UI-Hinweis verbessern**
-   - Wenn das aktuelle Radarbild wirklich trocken ist, aber Prognose/Fallback aktiv ist, soll die Karte weiter sinnvoll steuerbar bleiben.
-   - Optional kleine Warnung ausgeben, wenn echte Radar-PNGs geladen sind, aber im aktuellen Frame kein Niederschlag sichtbar ist.
+1. **Dispatch-Helper** `src/lib/eps-dispatch.server.ts` analog `radar-dispatch.server.ts`
+   - Throttle z.B. 10 Min (EPS-Runs alle 3–6 h, kein Bedarf für engere Frequenz)
+   - Dispatched `icon-eps-ingest.yml`
+   - Nutzt vorhandene Secrets `GITHUB_DISPATCH_TOKEN`, `GITHUB_REPO`, `GITHUB_REF`
 
-**Ziel**
-Die Karte zeigt wieder Regenbilder, sobald Radar oder Prognose Niederschlag enthält; leere Radar-/EPS-PNGs blockieren die Fallback-Prognose nicht mehr.
+2. **Trigger-Endpoint** `src/routes/api/public/eps/ingest-trigger.ts` analog `radar/ingest-trigger.ts`
+   - Akzeptiert POST mit `x-trigger-secret` (gleiches `RADAR_TRIGGER_SECRET` wiederverwenden, oder eigenes `EPS_TRIGGER_SECRET` — Empfehlung: gleiches, vereinfacht Worker)
+   - CORS + Auth-Pattern 1:1 übernehmen
+
+3. **Cron-Worker erweitern** `cron-worker/src/index.ts` + `wrangler.toml`
+   - Zweiten Cron-Trigger hinzufügen, z.B. `*/15 * * * *` für EPS (oder gleicher 5-Min-Tick — Throttle im Server schützt)
+   - Im `scheduled`-Handler beide URLs anpingen; cron event `cron` property unterscheidet die Zeitpläne
+   - Neue Var `EPS_TARGET_URL` in `wrangler.toml`
+
+4. **GitHub-Schedule als Backup behalten**
+   - `*/30 * * * *` in `icon-eps-ingest.yml` bleibt unverändert; der Skript-No-Op bei bereits gerendertem Run verhindert Doppel-Arbeit
+
+## Technische Details
+
+- Throttle EPS-Dispatch: 10 Min (kürzer als MCH-Run-Frequenz, lang genug um Worker-Spam zu vermeiden)
+- Im Worker: `event.cron === "*/15 * * * *"` → EPS, andere → Radar. Alternativ: beide bei jedem Tick triggern, da Server-Throttle ohnehin schützt (einfacher, robuster)
+- Empfehlung: gleicher 5-Min-Tick für beide, EPS-Server-Throttle auf 10 Min → max. 6 Dispatches/h, GitHub-Quota unkritisch
+- Keine Änderungen an `ingest_icon_eps.py`, `icon-eps-cache.server.ts`, oder Frontend
+
+## Nicht im Plan
+
+- Keine Frontend-Änderungen
+- Kein Migrieren weg von GitHub Actions (eccodes/pygrib braucht Linux-Runtime, nicht im Worker machbar)
+- Kein Anfassen des Radar-Pfads
