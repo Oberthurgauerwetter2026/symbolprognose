@@ -763,3 +763,99 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   return payload;
 });
 
+/**
+ * AROME-HD-Variante: rein server-gerenderte PNG-Frames aus Meteo-France
+ * AROME-France-HD (1.3 km nativ, bicubic-upsampled). Stündliche Frames
+ * von T+0 bis ~T+42h, plus die letzten 6 h echte MeteoSchweiz-CPC-Messung
+ * als Vergangenheits-Kontext.
+ *
+ * Im Gegensatz zu `getRadarFrames` (ICON-CH1) gibt es hier:
+ *   - keine Canvas-Interpolation (alles ImageOverlay)
+ *   - keinen Nowcast / Bias-Korrektur (AROME ist eigenständig)
+ *   - kein 15-min-Smoothing (AROME ist nur stündlich)
+ */
+export const getAromeRadarFrames = createServerFn({ method: "GET" }).handler(async () => {
+  setResponseHeader("Cache-Control", "public, max-age=60, s-maxage=120");
+
+  const { lats, lons } = buildGrid();
+
+  const [manifestRes, aromeRes] = await Promise.allSettled([
+    fetchR2Manifest(),
+    getAromeManifest(),
+  ]);
+  const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
+  const arome = aromeRes.status === "fulfilled" ? aromeRes.value : null;
+
+  const warnings: string[] = [];
+  if (!arome) warnings.push("AROME-HD-Cache temporär nicht verfügbar");
+
+  const now = Date.now();
+  const pastCutoff = now - 6 * 3600 * 1000;
+  const frames: RadarFrame[] = [];
+
+  const hasRealRadar = !!manifest && manifest.frames.length > 0;
+  const hasHail = hasRealRadar && manifest!.frames.some((f) => f.hailUrl);
+  const radarBbox = manifest?.bbox ?? BBOX;
+  const aromeBbox = arome?.imageBbox ?? BBOX;
+
+  // ---- Vergangenheit: MeteoSchweiz-CPC-PNGs (letzte 6 h) ----
+  if (hasRealRadar) {
+    const sortedMf = [...manifest!.frames].sort(
+      (a, b) => Date.parse(a.t) - Date.parse(b.t),
+    );
+    for (const mf of sortedMf) {
+      const tMs = Date.parse(mf.t);
+      if (tMs > now) continue;
+      if (tMs < pastCutoff) continue;
+      if (!mf.precipUrl) continue;
+      frames.push({
+        t: mf.t,
+        source: "radar",
+        values: [],
+        precipUrl: mf.precipUrl,
+        hailUrl: mf.hailUrl,
+      });
+    }
+  }
+
+  // ---- Zukunft: AROME-HD-PNGs (stündlich) ----
+  if (arome) {
+    for (const f of arome.frames) {
+      const tMs = Date.parse(f.t);
+      if (tMs <= now - 30 * 60_000) continue; // alte Stunden überspringen
+      frames.push({
+        t: f.t,
+        source: "arome-hd",
+        values: [],
+        precipUrl: f.url,
+        imageBbox: aromeBbox,
+      });
+    }
+  }
+
+  frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
+
+  if (frames.length === 0) {
+    throw new Error(
+      warnings.length > 0
+        ? `AROME-HD-Daten nicht verfügbar: ${warnings.join("; ")}`
+        : "AROME-HD-Daten nicht verfügbar",
+    );
+  }
+
+  const payload: RadarPayload = {
+    bbox: BBOX,
+    imageBbox: radarBbox, // Vergangenheits-Bbox bleibt CPC-Bbox; AROME-Frames tragen eigene `imageBbox`
+    gridLat: lats,
+    gridLon: lons,
+    frames,
+    generatedAt: arome?.generatedAt ?? new Date().toISOString(),
+    hasRealRadar,
+    hasHail,
+    motion: manifest?.motion,
+    warning: warnings.length > 0 ? warnings.join("; ") : undefined,
+  };
+  return payload;
+});
+
+
