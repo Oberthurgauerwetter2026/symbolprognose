@@ -1,55 +1,41 @@
-Do I know what the issue is? Ja.
+# Radar-Verbesserungen
 
-Der weiße Bildschirm kommt weiterhin aus dem TanStack-Router-Hydration-Pfad, nicht aus ICON-EPS. Die aktuellen Logs zeigen zwei passende Fehler:
+## 1. Prognosezeitraum auf 48 h reduzieren
 
-- `AwaitInner` ruft intern React `use()` auf und landet in `Invalid hook call`.
-- Zusätzlich gibt es den bekannten TanStack-SPA-Hydration-Fehler `Expected to find a match below the root match in SPA mode`.
+**Datei:** `src/lib/radar.functions.ts`
 
-Die Codebasis hat aktuell nicht zusammengezogene TanStack-Versionen:
+- `forecastCutoff = now + 48 * 3600 * 1000` (statt `120 * 3600 * 1000`).
+- ICON-CH1 (minutely_15) bleibt bis +33 h, ICON-CH2 (hourly) füllt nur noch +33…+48 h auf — die Begrenzung greift automatisch über `forecastCutoff`.
+- Quellen-Footer in `src/components/maps/radar-map.tsx` von „Vorhersage bis +32 h / +120 h" auf „Vorhersage bis +48 h" anpassen.
 
-- `@tanstack/react-start` ist auf `1.168.10`
-- `@tanstack/react-router` ist auf `1.170.7`
-- `@tanstack/router-plugin` ist auf `1.168.10`
-- der Lockfile zieht `@tanstack/router-core@1.171.5`
+## 2. Prognose-Abdeckung wie Messung
 
-Die offiziellen aktuellen Patch-Versionen sind kompatibler zueinander und ziehen `router-core@1.171.8`, wo genau dieser SPA-Hydration-Fall entschärft wurde. Deshalb muss der Fix jetzt nicht mehr nur im App-Code passieren, sondern über saubere TanStack-Patch-Versionen plus frischen Vite-Dependency-Cache.
+Aktuell rendert die Messung als PNG mit `imageBbox` (echter MeteoSchweiz-Radar-Ausschnitt, ca. Oberthurgau-Quadrat). Die Prognose rendert dagegen auf dem ganzen Daten-Grid (BBOX 47.30–47.85 / 8.85–9.85) und ragt deutlich über den Radar-Kasten hinaus — sichtbar im Screenshot als grosse grüne Fläche weit ausserhalb des blauen Rahmens.
 
-Plan zur Umsetzung:
+**Lösung in `PrecipOverlay`** (`src/components/maps/radar-map.tsx`):
 
-1. **TanStack-Versionen synchronisieren**
-   - `@tanstack/react-start` auf `1.168.18`
-   - `@tanstack/react-router` auf `1.170.10`
-   - `@tanstack/router-plugin` auf `1.168.13`
-   - Lockfile aktualisieren, damit `@tanstack/router-core@1.171.8` verwendet wird.
+- Vor dem Zeichnen den Canvas auf `payload.imageBbox` clippen (Polygon-Pfad in Container-Pixeln, `ctx.clip()`), nicht auf das volle Daten-Grid.
+- Damit füllt das Prognose-Canvas genau denselben Rahmen wie die Radar-PNGs.
 
-2. **Alte Persist-Pakete entfernen**
-   - `@tanstack/react-query-persist-client` und `@tanstack/query-sync-storage-persister` entfernen, weil der Code sie nicht mehr nutzt.
-   - Dadurch kann der alte Query-Persist-Hydration-Pfad nicht versehentlich wieder in den Bundle kommen.
+## 3. Niederschlagsfelder „schöner" rendern
 
-3. **Root-Cleanup sauber machen**
-   - Das Entfernen von `wx-rq-cache-v1` aus `localStorage` aus dem Render-Pfad in einen `useEffect` verschieben.
-   - Damit bleibt `RootComponent` rein und hydration-sicher.
+Aktuelles Bild ist blockig/körnig (1-px-Sampling + `blur(1px) saturate(2.0) contrast(1.5)`). Ziel: weiche, organische Blobs wie auf echten Radarbildern.
 
-4. **Start-Middleware vervollständigen**
-   - CSRF-Middleware ergänzen, damit die aktuelle TanStack-Start-Warnung verschwindet.
-   - `attachSupabaseAuth` als `functionMiddleware` registrieren, damit Server Functions zuverlässig Auth-Header bekommen.
+**In `PrecipOverlay.redrawRef`:**
 
-5. **Preview hart neu laden**
-   - Dev-Server neu starten, damit Vite die optimierten `node_modules/.vite/deps/*` neu erzeugt.
-   - Danach `/` im Browser öffnen und prüfen, dass keine `AwaitInner`-/`Invalid hook call`-Fehler mehr auftauchen.
+1. **Sanftere Farbabstufung:** in `colorFor` zwischen den 9 SCALE-Stops linear interpolieren (RGB + Alpha), statt nur den nächstniedrigeren Stop zu nehmen. Gibt fliessende Übergänge statt harter Stufen.
+2. **Niedrigere Pixel-Auflösung mit Upsampling:** Sampling auf STEP=2 (statt 1), Canvas in halber Auflösung füllen und dann mit `ctx.imageSmoothingEnabled = true` + `imageSmoothingQuality = "high"` hochskalieren. Erzeugt natürliche Weichzeichnung ohne Performance-Verlust.
+3. **CSS-Filter glätten:** `blur(2px) saturate(1.4) contrast(1.1)` (statt `blur(1px) saturate(2.0) contrast(1.5)`) — weniger künstlich, näher an MeteoSchweiz-Optik.
+4. **Niedriger Threshold-Cutoff** auf 0.1 mm/h (statt 0.05) für sauberere Ränder ohne Rauschen.
 
-6. **Falls dein Browser noch weiß bleibt**
-   - Zusätzlich eine einmalige, app-seitige Cache-Cleanup-Strategie prüfen, aber erst nach dem Versionsfix — der Versionsmix ist der primäre Fehler.
+## Technische Details
 
-Unverändert bleibt:
+- Keine API-Änderungen, kein neuer Server-Endpoint, kein neuer Ingest.
+- Keine DB-Migrationen.
+- Nur Frontend-Render-Pfad + ein Konstanten-Change im Server-Fn.
 
-- Kein ICON-EPS wird wieder eingeführt.
-- Die ICON-CH1/ICON-CH2-Logik bleibt wie gewünscht bestehen.
+## Nicht Teil dieser Änderung
 
-<presentation-actions>
-  <presentation-open-history>View History</presentation-open-history>
-</presentation-actions>
-
-<presentation-actions>
-<presentation-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</presentation-link>
-</presentation-actions>
+- Radar-Manifest / R2 / Ingest-Skripte bleiben unangetastet.
+- Snow-Overlay-Logik bleibt gleich.
+- Timeline-UI bleibt strukturell gleich (nur Endzeitpunkt rückt nach +48 h).
