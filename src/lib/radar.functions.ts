@@ -184,35 +184,51 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
   const epsManifest = epsRes.status === "fulfilled" ? epsRes.value : null;
 
-  // EPS-Manifest nur nutzen, wenn jünger als 6 h.
+  // EPS-Manifest nur nutzen, wenn jünger als 6 h UND noch zukünftige Steps enthält.
   const EPS_MAX_AGE_MS = 6 * 3600 * 1000;
-  const epsFresh =
+  const nowForEps = Date.now();
+  const generatedFresh =
     !!epsManifest &&
-    Date.now() - Date.parse(epsManifest.generatedAt) < EPS_MAX_AGE_MS;
+    nowForEps - Date.parse(epsManifest.generatedAt) < EPS_MAX_AGE_MS;
 
   // Lookup ISO-t → EPS-Step. ch1 hat Vorrang innerhalb seines Horizonts,
   // ch2 füllt den Rest bis +120 h. ch2 zuerst eintragen, ch1 überschreibt.
+  // Leere EPS-Bilder (maxMmh ≤ 0 und wetFrac ≤ 0) werden NICHT als sichtbare
+  // Regenbilder behandelt — sie blockieren sonst den deterministischen
+  // Open-Meteo-Fallback für diese Stunde, ohne selbst etwas zu zeigen.
   const epsByT = new Map<
     string,
     { step: EpsStep; model: "ch1" | "ch2"; bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number } }
   >();
-  if (epsFresh && epsManifest) {
+  const isStepUsable = (s: EpsStep): boolean => {
+    if (Date.parse(s.t) <= nowForEps) return false;
+    const wet = (typeof s.maxMmh === "number" && s.maxMmh > 0.05) ||
+                (typeof s.meanWetFrac === "number" && s.meanWetFrac > 0);
+    return wet;
+  };
+  if (generatedFresh && epsManifest) {
     const ch2 = epsManifest.models.ch2;
     const ch1 = epsManifest.models.ch1;
     if (ch2) {
       for (const s of ch2.steps) {
+        if (!isStepUsable(s)) continue;
         epsByT.set(s.t, { step: s, model: "ch2", bbox: ch2.bbox });
       }
     }
     if (ch1) {
       for (const s of ch1.steps) {
+        if (!isStepUsable(s)) continue;
         epsByT.set(s.t, { step: s, model: "ch1", bbox: ch1.bbox });
       }
     }
   }
+  const epsFresh = epsByT.size > 0;
   const epsHorizonMs = epsByT.size > 0
     ? Math.max(...[...epsByT.keys()].map((t) => Date.parse(t)))
     : -Infinity;
+  if (generatedFresh && !epsFresh) {
+    console.info("[radar] EPS manifest present but no usable future/wet steps — falling back to deterministic forecast");
+  }
 
   const warnings: string[] = [];
   if (!cache) {
