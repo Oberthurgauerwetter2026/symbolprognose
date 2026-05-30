@@ -222,14 +222,20 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   // Ingest-Geometrie umgestellt wird, der R2-Cache aber noch alt ist).
   const cacheGrid = gridFromCachePoints(cache?.grid?.points);
   const cacheGridStale = cacheGridLooksStale(cache?.grid?.points);
-  const r1 = cache && !cacheGridStale ? cache.phase1 ?? null : null;
   const { lats, lons, pts } = cacheGrid ?? buildGrid();
+  const r1Candidate = cache ? (cache.phase1 ?? cache.phaseB ?? null) : null;
+  const r1 =
+    !cacheGridStale && Array.isArray(r1Candidate) && r1Candidate.length === pts.length
+      ? r1Candidate
+      : null;
 
   const warnings: string[] = [];
   if (!cache) {
     warnings.push("Open-Meteo-Cache temporär nicht verfügbar");
   } else if (cacheGridStale) {
     warnings.push("Open-Meteo-Cache nutzt noch die alte kleine Radar-Abdeckung; Prognose wird nach dem nächsten Ingest erweitert");
+  } else if (Array.isArray(r1Candidate) && r1Candidate.length !== pts.length) {
+    warnings.push("Open-Meteo-Cache enthält noch alte Prognosepunkte; Prognose wird nach dem nächsten Ingest erweitert");
   }
 
 
