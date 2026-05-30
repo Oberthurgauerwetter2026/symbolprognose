@@ -231,7 +231,7 @@ def render_png(values: np.ndarray) -> bytes:
     # 1) Bicubic-Upsampling auf OUT_W × OUT_H mit Pillow (float-Modus "F")
     src = Image.fromarray(values.astype(np.float32), mode="F")
     up = src.resize((OUT_W, OUT_H), resample=Image.BICUBIC)
-    smooth = np.asarray(up, dtype=np.float32)
+    smooth = np.array(up, dtype=np.float32)  # np.array kopiert → writable für np.clip(out=)
     # Negative Werte (Bicubic-Overshoot) abschneiden
     np.clip(smooth, 0, None, out=smooth)
 
