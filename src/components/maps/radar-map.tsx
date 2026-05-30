@@ -187,6 +187,26 @@ function InvalidateOnResize() {
   return null;
 }
 
+function useMapZoom(): number {
+  const map = useMap();
+  const [z, setZ] = useState<number>(() => map.getZoom());
+  useEffect(() => {
+    const update = () => setZ(map.getZoom());
+    map.on("zoomend zoom", update);
+    update();
+    return () => {
+      map.off("zoomend zoom", update);
+    };
+  }, [map]);
+  return z;
+}
+
+function ZoomGate({ minZoom, children }: { minZoom: number; children: React.ReactNode }) {
+  const z = useMapZoom();
+  if (z < minZoom) return null;
+  return <>{children}</>;
+}
+
 
 /**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
@@ -220,7 +240,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = "blur(0.6px) saturate(1.25) contrast(1.15)";
+        cv.style.filter = "saturate(1.3) contrast(1.2)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
@@ -354,8 +374,7 @@ function PrecipOverlay({
     // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
@@ -865,6 +884,11 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
             interactive={false}
           />
+          <GeoJSON
+            data={REGION}
+            style={() => ({ color: "#1a1a1a", weight: 1.8, opacity: 0.75, fill: false })}
+            interactive={false}
+          />
           {data &&
             currentFrame &&
             (() => {
@@ -921,15 +945,17 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
 
 
 
-          {RADAR_CITIES.map((c) => (
-            <Marker
-              key={c.name}
-              position={[c.lat, c.lon]}
-              icon={cityIcon(c.name)}
-              interactive={false}
-              keyboard={false}
-            />
-          ))}
+          <ZoomGate minZoom={10.5}>
+            {RADAR_CITIES.map((c) => (
+              <Marker
+                key={c.name}
+                position={[c.lat, c.lon]}
+                icon={cityIcon(c.name)}
+                interactive={false}
+                keyboard={false}
+              />
+            ))}
+          </ZoomGate>
           <ZoomControl position="topright" />
         </MapContainer>
 
