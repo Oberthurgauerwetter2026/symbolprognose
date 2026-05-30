@@ -23,8 +23,13 @@ export interface EpsStep {
   meanUrl: string;
   /** URL zum 8-bit-Probability-PNG (0..255 → 0..100 %, P(>0.1 mm/h)). */
   probUrl: string;
+  /** URL zum deterministischen Control-Run-PNG (Member 0). Optional bis alle
+   *  Runs im R2 mit ingestVersion ≥ v2 geschrieben sind. */
+  detUrl?: string;
   /** Max-Wert im Mean-Feld (mm/h). */
   maxMmh: number;
+  /** Max-Wert im deterministischen Feld (mm/h). Optional bis v2. */
+  detMaxMmh?: number;
   /** Anteil "nasser" Pixel im Mean (> 0.1 mm/h), 0..1. */
   meanWetFrac: number;
 }
