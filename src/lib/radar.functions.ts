@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache.server";
-import { getIconEpsManifest, type EpsStep } from "./icon-eps-cache.server";
 
 
 
