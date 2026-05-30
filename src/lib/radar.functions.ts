@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache.server";
 import { getIconEpsManifest, type EpsStep } from "./icon-eps-cache.server";
+import { getAromeManifest } from "./arome-cache.server";
 
 
 /**
@@ -45,7 +46,7 @@ function buildGrid() {
 
 export interface RadarFrame {
   t: string; // ISO UTC
-  source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2";
+  source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2" | "arome-hd";
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei `imageUrl`-Frames leer. */
   values: number[];
   /** Schnee-Wasser-Äquivalent mm/h pro Grid-Punkt (row-major). Leer = unbekannt. */
