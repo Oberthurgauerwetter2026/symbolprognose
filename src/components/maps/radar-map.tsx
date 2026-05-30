@@ -1034,35 +1034,6 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 Jetzt
               </button>
 
-              <div className="inline-flex items-center rounded-full border border-neutral-200 bg-white p-0.5">
-                {(["icon", "arome"] as const).map((m) => {
-                  const active = model === m;
-                  const label = m === "icon" ? "ICON-CH1" : "AROME-HD";
-                  return (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => {
-                        setModel(m);
-                        setIdx(null);
-                        setPlaying(false);
-                      }}
-                      className={cn(
-                        "rounded-full px-2 py-0.5 font-semibold transition",
-                        active ? "text-white shadow-sm" : "text-neutral-600 hover:text-neutral-900",
-                      )}
-                      style={active ? { background: m === "arome" ? "#0ea5a4" : BRAND } : undefined}
-                      title={
-                        m === "arome"
-                          ? "Meteo-France AROME-HD — 1.3 km, oft mehr konvektiver Niederschlag"
-                          : "MeteoSchweiz ICON-CH1 — Standardvorhersage"
-                      }
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
 
 
               <div className="inline-flex items-center rounded-full border border-neutral-200 bg-white p-0.5">
