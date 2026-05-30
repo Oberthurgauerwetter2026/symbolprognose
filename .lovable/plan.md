@@ -1,35 +1,30 @@
-## Ziel
-GitHub-Action-Deploy von `cron-worker/` schlägt fehl, weil Wrangler den Cloudflare-Account nicht eindeutig auflösen kann. Fix: Account ID hardcoden.
+## Problem
 
-## Änderung
+Die GitHub-Action `cloudflare/wrangler-action@v3` deployt nicht den Cron-Worker, sondern versucht das Hauptprojekt zu bundeln (`src/server.ts`, `error-capture.ts` …). Ursache: Im Repo-Root liegt eine `wrangler.jsonc` (`name: "tanstack-start-app"`, `main: "src/server.ts"`). Wrangler v3 sucht beim Deploy nach Config — und bevorzugt in diesem Setup die Root-`wrangler.jsonc` über die `cron-worker/wrangler.toml`, obwohl `workingDirectory: cron-worker` gesetzt ist. Ergebnis: `Could not resolve "@tanstack/react-start/server-entry"` → Action rot.
 
-**`cron-worker/wrangler.toml`** — direkt unter `name`-Zeile ergänzen:
+## Fix
 
-```toml
-account_id = "7399d9323a9b244c0e4f5352c9cd8ead"
+Den Wrangler-Aufruf explizit an `cron-worker/wrangler.toml` binden, damit die Root-`wrangler.jsonc` ignoriert wird.
+
+**Datei:** `.github/workflows/cron-worker-deploy.yml`
+
+Im Step "Deploy to Cloudflare" einen `command`-Input ergänzen:
+
+```yaml
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          workingDirectory: cron-worker
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy --config wrangler.toml
 ```
 
-Endresultat:
+Damit ruft die Action `wrangler deploy --config wrangler.toml` im Ordner `cron-worker` auf — Wrangler kann nicht mehr in den Root-Ordner hochklettern und nimmt garantiert die richtige Config (`name: symbolprognose-radar-cron`, `main: src/index.ts`).
 
-```toml
-name = "symbolprognose-radar-cron"
-account_id = "7399d9323a9b244c0e4f5352c9cd8ead"
-main = "src/index.ts"
-compatibility_date = "2025-09-24"
-...
-```
+## Verifikation
 
-## Was danach passiert
+Nach Commit auf `main`:
+1. GitHub → Actions → "Deploy cron-worker" → letzter Run grün, Log zeigt `Uploaded symbolprognose-radar-cron`.
+2. Cloudflare Dashboard → Workers & Pages → `symbolprognose-radar-cron` → Live-Logs zeigen innerhalb 5 Min `[cron:radar] … → 202` und `[cron:eps] … → 202`.
 
-1. Commit auf `main` → GitHub-Action "Deploy cron-worker" läuft automatisch.
-2. Erwartung im Log: `Successfully deployed`.
-3. Innerhalb 5 Min: erster `[cron:eps]`-Eintrag in den Cloudflare-Worker-Logs.
-
-## Falls es trotzdem fehlschlägt
-
-Dann ist es ein Token-Problem (falsche Permissions oder Tippfehler beim Einfügen ins GitHub-Secret). In dem Fall: Zeile aus `🚀 Running Wrangler Commands` im Action-Log posten.
-
-## Nicht im Plan
-- Keine Code-Änderung am Worker
-- Kein Anfassen des Workflows
-- Keine neuen Secrets
+Keine weiteren Änderungen am Cron-Worker-Code oder am Hauptprojekt nötig.
