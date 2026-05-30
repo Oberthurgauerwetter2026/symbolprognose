@@ -450,10 +450,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       // ICON-CH1-Frames im Overlap-Fenster zulassen (mit Fade-In), erst danach voll.
       if (tMs <= overlapStartMs) continue;
       if (tMs > forecastCutoff) continue;
-      // Deterministischen 15-min-Frame nur dann überspringen, wenn für genau
-      // diesen Zeitstempel ein EPS-PNG existiert (sonst klafft eine Lücke
-      // zwischen den stündlichen EPS-Bildern).
-      if (epsByT.has(tIso)) continue;
+      // (kein EPS mehr — keine Lücken-Aussparung)
 
       // Bias-Faktor zeitlich abklingen lassen: 1.0 = volle Korrektur, 0.0 = ICON pur.
       const dtMin = Math.max(0, (tMs - now) / 60_000);
