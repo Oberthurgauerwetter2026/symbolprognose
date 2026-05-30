@@ -945,15 +945,17 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
 
 
 
-          {RADAR_CITIES.map((c) => (
-            <Marker
-              key={c.name}
-              position={[c.lat, c.lon]}
-              icon={cityIcon(c.name)}
-              interactive={false}
-              keyboard={false}
-            />
-          ))}
+          <ZoomGate minZoom={10.5}>
+            {RADAR_CITIES.map((c) => (
+              <Marker
+                key={c.name}
+                position={[c.lat, c.lon]}
+                icon={cityIcon(c.name)}
+                interactive={false}
+                keyboard={false}
+              />
+            ))}
+          </ZoomGate>
           <ZoomControl position="topright" />
         </MapContainer>
 
