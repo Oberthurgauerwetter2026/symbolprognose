@@ -1,30 +1,41 @@
 ## Problem
 
-Die GitHub-Action `cloudflare/wrangler-action@v3` deployt nicht den Cron-Worker, sondern versucht das Hauptprojekt zu bundeln (`src/server.ts`, `error-capture.ts` …). Ursache: Im Repo-Root liegt eine `wrangler.jsonc` (`name: "tanstack-start-app"`, `main: "src/server.ts"`). Wrangler v3 sucht beim Deploy nach Config — und bevorzugt in diesem Setup die Root-`wrangler.jsonc` über die `cron-worker/wrangler.toml`, obwohl `workingDirectory: cron-worker` gesetzt ist. Ergebnis: `Could not resolve "@tanstack/react-start/server-entry"` → Action rot.
+Der Worker wird erfolgreich hochgeladen (`Uploaded symbolprognose-radar-cron`), aber das Deploy bricht ab, weil Cloudflare für das Konto keine workers.dev-Subdomain registriert hat und keine Route konfiguriert ist.
+
+Der Cron-Worker braucht aber gar keinen öffentlich erreichbaren HTTP-Endpoint — er läuft nur per Cron-Trigger (`*/5 * * * *`) und ruft selbst die Lovable-API auf. Die `fetch()`-Handler im Code (`/status`, `/run`) sind nur optional zum manuellen Testen, aber dafür reicht es, sie aus dem Cloudflare-Dashboard heraus aufzurufen — keine öffentliche URL nötig.
 
 ## Fix
 
-Den Wrangler-Aufruf explizit an `cron-worker/wrangler.toml` binden, damit die Root-`wrangler.jsonc` ignoriert wird.
+In `cron-worker/wrangler.toml` die Zeile `workers_dev = false` ergänzen. Damit überspringt Wrangler die workers.dev-Veröffentlichung; Upload + Cron-Trigger bleiben aktiv.
 
-**Datei:** `.github/workflows/cron-worker-deploy.yml`
+**Datei:** `cron-worker/wrangler.toml`
 
-Im Step "Deploy to Cloudflare" einen `command`-Input ergänzen:
+```toml
+name = "symbolprognose-radar-cron"
+account_id = "7399d9323a9b244c0e4f5352c9cd8ead"
+main = "src/index.ts"
+compatibility_date = "2025-09-24"
+workers_dev = false
 
-```yaml
-      - name: Deploy to Cloudflare
-        uses: cloudflare/wrangler-action@v3
-        with:
-          workingDirectory: cron-worker
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: deploy --config wrangler.toml
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+TARGET_URL = "https://symbolprognose.lovable.app/api/public/radar/ingest-trigger"
+EPS_TARGET_URL = "https://symbolprognose.lovable.app/api/public/eps/ingest-trigger"
+
+[observability]
+enabled = true
 ```
-
-Damit ruft die Action `wrangler deploy --config wrangler.toml` im Ordner `cron-worker` auf — Wrangler kann nicht mehr in den Root-Ordner hochklettern und nimmt garantiert die richtige Config (`name: symbolprognose-radar-cron`, `main: src/index.ts`).
 
 ## Verifikation
 
 Nach Commit auf `main`:
-1. GitHub → Actions → "Deploy cron-worker" → letzter Run grün, Log zeigt `Uploaded symbolprognose-radar-cron`.
-2. Cloudflare Dashboard → Workers & Pages → `symbolprognose-radar-cron` → Live-Logs zeigen innerhalb 5 Min `[cron:radar] … → 202` und `[cron:eps] … → 202`.
+1. GitHub → Actions → "Deploy cron-worker" → Run grün, Log endet mit `Uploaded symbolprognose-radar-cron` ohne den workers.dev-Fehler.
+2. Cloudflare → Workers & Pages → `symbolprognose-radar-cron` → in den Live-Logs erscheint innerhalb 5 Min `[cron:radar] … → 202` und `[cron:eps] … → 202`.
 
-Keine weiteren Änderungen am Cron-Worker-Code oder am Hauptprojekt nötig.
+## Alternative (falls die /status- und /run-Endpoints öffentlich erreichbar bleiben sollen)
+
+Stattdessen einmalig im Cloudflare-Dashboard die Subdomain registrieren:
+https://dash.cloudflare.com/7399d9323a9b244c0e4f5352c9cd8ead/workers/onboarding
+→ z. B. `dein-name.workers.dev` wählen, dann `workers_dev = true` setzen (oder weglassen, ist Default). Für den reinen Cron-Betrieb aber unnötig.
