@@ -14,6 +14,7 @@ export interface Env {
   EPS_TARGET_URL?: string;
   SYMBOL_TARGET_URL?: string;
   OPENMETEO_TARGET_URL?: string;
+  AROME_TARGET_URL?: string;
   RADAR_TRIGGER_SECRET: string;
 }
 
@@ -27,6 +28,7 @@ const lastRadar: RunRecord = { at: null, status: null, body: null };
 const lastEps: RunRecord = { at: null, status: null, body: null };
 const lastSymbol: RunRecord = { at: null, status: null, body: null };
 const lastOpenmeteo: RunRecord = { at: null, status: null, body: null };
+const lastArome: RunRecord = { at: null, status: null, body: null };
 
 async function triggerEndpoint(
   url: string,
@@ -67,7 +69,10 @@ async function triggerEndpoint(
   }
 }
 
-async function triggerFiveMin(env: Env, opts: { includeOpenmeteo: boolean }): Promise<void> {
+async function triggerFiveMin(
+  env: Env,
+  opts: { includeOpenmeteo: boolean; includeArome: boolean },
+): Promise<void> {
   const tasks: Promise<void>[] = [];
   tasks.push(
     triggerEndpoint(env.TARGET_URL, env.RADAR_TRIGGER_SECRET, "radar", lastRadar),
@@ -84,6 +89,16 @@ async function triggerFiveMin(env: Env, opts: { includeOpenmeteo: boolean }): Pr
         env.RADAR_TRIGGER_SECRET,
         "openmeteo",
         lastOpenmeteo,
+      ),
+    );
+  }
+  if (opts.includeArome && env.AROME_TARGET_URL) {
+    tasks.push(
+      triggerEndpoint(
+        env.AROME_TARGET_URL,
+        env.RADAR_TRIGGER_SECRET,
+        "arome",
+        lastArome,
       ),
     );
   }
