@@ -884,6 +884,11 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
             interactive={false}
           />
+          <GeoJSON
+            data={REGION}
+            style={() => ({ color: "#1a1a1a", weight: 1.8, opacity: 0.75, fill: false })}
+            interactive={false}
+          />
           {data &&
             currentFrame &&
             (() => {
