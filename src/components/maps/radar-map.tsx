@@ -345,8 +345,7 @@ function PrecipOverlay({
     // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
