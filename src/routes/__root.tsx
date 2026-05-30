@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+
 import {
   Outlet,
   Link,
@@ -114,41 +113,25 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-let cachedPersister: ReturnType<typeof createSyncStoragePersister> | null = null;
-function getPersister() {
-  if (typeof window === "undefined") return null;
-  if (!cachedPersister) {
-    cachedPersister = createSyncStoragePersister({
-      storage: window.localStorage,
-      key: "wx-rq-cache-v1",
-    });
-  }
-  return cachedPersister;
-}
+
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const persister = getPersister();
 
-  // SSR or no localStorage: in-memory provider only.
-  if (!persister) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <Outlet />
-      </QueryClientProvider>
-    );
+  // Clear any old persisted query cache from previous PersistQueryClient setup
+  // that could trigger AwaitInner/React.use() hook errors on hydration.
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem("wx-rq-cache-v1");
+    } catch {
+      // ignore
+    }
   }
 
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{
-        persister,
-        maxAge: 1000 * 60 * 60, // 1h — show last forecast instantly on reload
-        buster: "v2-mosmix",
-      }}
-    >
+    <QueryClientProvider client={queryClient}>
       <Outlet />
-    </PersistQueryClientProvider>
+    </QueryClientProvider>
   );
 }
+
