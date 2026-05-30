@@ -73,11 +73,24 @@ const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
 
 function colorFor(mmh: number): [number, number, number, number] {
   if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
-  for (let i = SCALE.length - 1; i >= 0; i--) {
-    if (mmh >= SCALE[i].mmh) {
-      const [r, g, b] = SCALE[i].rgb;
-      const a = i === 0 ? 0.35 : 0.60;
-      return [r, g, b, a];
+  if (mmh >= SCALE[SCALE.length - 1].mmh) {
+    const [r, g, b] = SCALE[SCALE.length - 1].rgb;
+    return [r, g, b, 0.65];
+  }
+  // Linear interpolation in log(mmh)-Raum für sanftere Farbübergänge.
+  for (let i = 0; i < SCALE.length - 1; i++) {
+    const a = SCALE[i];
+    const b = SCALE[i + 1];
+    if (mmh >= a.mmh && mmh < b.mmh) {
+      const t = (Math.log(mmh) - Math.log(a.mmh)) / (Math.log(b.mmh) - Math.log(a.mmh));
+      const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
+      const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
+      const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
+      // Alpha rampt vom ersten Stop (0.30) auf 0.62 hoch.
+      const alphaA = i === 0 ? 0.30 : 0.62;
+      const alphaB = 0.62;
+      const al = alphaA + (alphaB - alphaA) * t;
+      return [r, g, bl, al];
     }
   }
   return [0, 0, 0, 0];
@@ -216,7 +229,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "450";
-        cv.style.filter = "blur(1px) saturate(2.0) contrast(1.5)";
+        cv.style.filter = "blur(2.5px) saturate(1.35) contrast(1.08)";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -271,29 +284,24 @@ function PrecipOverlay({
     const nextSnowVals = nextFrame?.snowValues;
     const t = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
     const lerp = (a: number, b: number) => a + (b - a) * t;
-    const minX = 0;
-    const maxX = size.x;
-    const minY = 0;
-    const maxY = size.y;
-    if (maxX <= minX || maxY <= minY) return;
 
-    const w = maxX - minX;
-    const h = maxY - minY;
-    const STEP = 1;
-    const img = ctx.createImageData(w * dpr, h * dpr);
+    // Low-res Buffer (STEP=2 in CSS-Pixeln). Smooth-Upscale erzeugt weiche Blobs.
+    const STEP = 2;
+    const lowW = Math.max(1, Math.ceil(size.x / STEP));
+    const lowH = Math.max(1, Math.ceil(size.y / STEP));
+    const img = ctx.createImageData(lowW, lowH);
     const data = img.data;
-    const stride = w * dpr * 4;
 
-    for (let py = 0; py < h; py += STEP) {
-      for (let px = 0; px < w; px += STEP) {
-        const ll = map.containerPointToLatLng([minX + px, minY + py]);
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const px = lx * STEP;
+        const py = ly * STEP;
+        const ll = map.containerPointToLatLng([px, py]);
         const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
         const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
         const BUFFER = 3;
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
-        // Zero-padded bilinear sampling: ausserhalb des Grids gilt 0 →
-        // natürlicher Blob-Falloff statt Streifen längs der Grid-Kanten.
         const x0 = Math.floor(fxRaw);
         const y0 = Math.floor(fyRaw);
         const x1 = x0 + 1;
@@ -318,7 +326,7 @@ function PrecipOverlay({
         };
         const vCur = sample(vals);
         const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
-        if (v < 0.05) continue;
+        if (v < 0.1) continue;
         let snowFrac = 0;
         if (snowVals) {
           const svCur = sample(snowVals);
@@ -329,19 +337,42 @@ function PrecipOverlay({
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
-        for (let sy = 0; sy < dpr; sy++) {
-          const row = (py * dpr + sy) * stride;
-          for (let sx = 0; sx < dpr; sx++) {
-            const idx = row + (px * dpr + sx) * 4;
-            data[idx] = r;
-            data[idx + 1] = g;
-            data[idx + 2] = b;
-            data[idx + 3] = alpha;
-          }
-        }
+        const idx = (ly * lowW + lx) * 4;
+        data[idx] = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = alpha;
       }
     }
-    ctx.putImageData(img, minX * dpr, minY * dpr);
+
+    // Off-screen Buffer für putImageData (ignoriert Transformationen/Clip).
+    const off = document.createElement("canvas");
+    off.width = lowW;
+    off.height = lowH;
+    const offCtx = off.getContext("2d");
+    if (!offCtx) return;
+    offCtx.putImageData(img, 0, 0);
+
+    // Clipping auf imageBbox (gleicher Ausschnitt wie Radar-PNGs).
+    const ibb = payload.imageBbox;
+    const nw = map.latLngToContainerPoint([ibb.maxLat, ibb.minLon]);
+    const ne = map.latLngToContainerPoint([ibb.maxLat, ibb.maxLon]);
+    const se = map.latLngToContainerPoint([ibb.minLat, ibb.maxLon]);
+    const sw = map.latLngToContainerPoint([ibb.minLat, ibb.minLon]);
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.beginPath();
+    ctx.moveTo(nw.x, nw.y);
+    ctx.lineTo(ne.x, ne.y);
+    ctx.lineTo(se.x, se.y);
+    ctx.lineTo(sw.x, sw.y);
+    ctx.closePath();
+    ctx.clip();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+    ctx.restore();
   };
 
   // Bei Frame-/Progress-Wechsel neu zeichnen.
@@ -1101,7 +1132,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             )}
 
             <p className="mt-1.5 text-[10px] text-neutral-500">
-              Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
+              Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
             </p>
 
 

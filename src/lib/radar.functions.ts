@@ -189,8 +189,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
 
   const now = Date.now();
-  // ICON-CH1 deterministisch (minutely_15) bis +33 h, ICON-CH2 (hourly) bis +120 h.
-  const forecastCutoff = now + 120 * 3600 * 1000;
+  // ICON-CH1 deterministisch (minutely_15) bis +33 h, ICON-CH2 (hourly) füllt +33…+48 h.
+  const forecastCutoff = now + 48 * 3600 * 1000;
   const pastCutoff = now - 6 * 3600 * 1000;
   const frames: RadarFrame[] = [];
 
