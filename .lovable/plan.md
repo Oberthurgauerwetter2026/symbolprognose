@@ -1,37 +1,46 @@
-## Problem
+## Ziel
 
-`icon-eps-ingest.yml` läuft aktuell ausschliesslich über GitHub Actions `schedule:` (`*/30 * * * *`). GitHub-Cron ist bekanntlich unzuverlässig (Verzögerungen, übersprungene Runs bei Last, Auto-Deaktivierung bei Repo-Inaktivität). Der Radar-Ingest umgeht das bereits über einen Cloudflare-Worker, der alle 5 Min `/api/public/radar/ingest-trigger` aufruft, welcher dann GitHub Actions per `workflow_dispatch` startet. Für EPS fehlt dieser Pfad.
+GitHub-Action, die `cron-worker/` automatisch zu Cloudflare deployed, sobald sich dort etwas ändert (oder manuell per "Run workflow"-Button). Damit muss der User nie selbst `wrangler` ausführen.
 
-## Lösung
+## Was ich anlege
 
-Gleiches Muster für EPS aufbauen:
+**`.github/workflows/cron-worker-deploy.yml`** — Workflow mit:
 
-1. **Dispatch-Helper** `src/lib/eps-dispatch.server.ts` analog `radar-dispatch.server.ts`
-   - Throttle z.B. 10 Min (EPS-Runs alle 3–6 h, kein Bedarf für engere Frequenz)
-   - Dispatched `icon-eps-ingest.yml`
-   - Nutzt vorhandene Secrets `GITHUB_DISPATCH_TOKEN`, `GITHUB_REPO`, `GITHUB_REF`
+- Trigger:
+  - `push` auf `main`, gefiltert auf `cron-worker/**` und die Workflow-Datei selbst
+  - `workflow_dispatch` (manueller Knopf in GitHub Actions UI)
+- Steps:
+  1. `actions/checkout@v4`
+  2. `oven-sh/setup-bun@v2` (für `bun install` im `cron-worker/`-Ordner)
+  3. `bun install` im `cron-worker/`
+  4. `cloudflare/wrangler-action@v3` mit `workingDirectory: cron-worker` und dem API-Token aus `secrets.CLOUDFLARE_API_TOKEN`
+- Concurrency-Gruppe `cron-worker-deploy`, damit parallele Pushes sich nicht ins Gehege kommen
 
-2. **Trigger-Endpoint** `src/routes/api/public/eps/ingest-trigger.ts` analog `radar/ingest-trigger.ts`
-   - Akzeptiert POST mit `x-trigger-secret` (gleiches `RADAR_TRIGGER_SECRET` wiederverwenden, oder eigenes `EPS_TRIGGER_SECRET` — Empfehlung: gleiches, vereinfacht Worker)
-   - CORS + Auth-Pattern 1:1 übernehmen
+**`cron-worker/package.json`** — falls noch keine `wrangler`-devDependency drin steht, ergänzen, damit der CI-Lauf reproduzierbar ist. (Ich prüfe das beim Implementieren.)
 
-3. **Cron-Worker erweitern** `cron-worker/src/index.ts` + `wrangler.toml`
-   - Zweiten Cron-Trigger hinzufügen, z.B. `*/15 * * * *` für EPS (oder gleicher 5-Min-Tick — Throttle im Server schützt)
-   - Im `scheduled`-Handler beide URLs anpingen; cron event `cron` property unterscheidet die Zeitpläne
-   - Neue Var `EPS_TARGET_URL` in `wrangler.toml`
+## Was der User danach einmalig tun muss
 
-4. **GitHub-Schedule als Backup behalten**
-   - `*/30 * * * *` in `icon-eps-ingest.yml` bleibt unverändert; der Skript-No-Op bei bereits gerendertem Run verhindert Doppel-Arbeit
+Das kann ich nicht für ihn machen — nur er hat Zugriff auf Cloudflare + GitHub-Repo-Settings:
 
-## Technische Details
+1. **Cloudflare-API-Token erstellen**
+   - cloudflare.com → My Profile → API Tokens → Create Token → Template "Edit Cloudflare Workers"
+   - Account auswählen, Token erstellen, Wert kopieren
+2. **Token in GitHub als Secret hinterlegen**
+   - GitHub-Repo → Settings → Secrets and variables → Actions → New repository secret
+   - Name: `CLOUDFLARE_API_TOKEN`, Value: der kopierte Token
+3. **Workflow manuell einmal anstossen**
+   - GitHub-Repo → Actions → "Deploy cron-worker" → Run workflow
+   - Damit wird die aktuelle Version (mit EPS-Trigger) auf Cloudflare scharf geschaltet
+   - Ab dann passiert das automatisch bei jeder Änderung in `cron-worker/`
 
-- Throttle EPS-Dispatch: 10 Min (kürzer als MCH-Run-Frequenz, lang genug um Worker-Spam zu vermeiden)
-- Im Worker: `event.cron === "*/15 * * * *"` → EPS, andere → Radar. Alternativ: beide bei jedem Tick triggern, da Server-Throttle ohnehin schützt (einfacher, robuster)
-- Empfehlung: gleicher 5-Min-Tick für beide, EPS-Server-Throttle auf 10 Min → max. 6 Dispatches/h, GitHub-Quota unkritisch
-- Keine Änderungen an `ingest_icon_eps.py`, `icon-eps-cache.server.ts`, oder Frontend
+## Verifikation nach Deploy
+
+- GitHub-Action-Log zeigt "Successfully deployed"
+- Cloudflare-Dashboard → Workers → `symbolprognose-radar-cron` → Logs zeigen innerhalb 5 Min einen `[cron:eps]`-Eintrag
+- Nach ~10 Min: `eps/latest.json` in R2 hat ein frisches `generatedAt`
 
 ## Nicht im Plan
 
-- Keine Frontend-Änderungen
-- Kein Migrieren weg von GitHub Actions (eccodes/pygrib braucht Linux-Runtime, nicht im Worker machbar)
-- Kein Anfassen des Radar-Pfads
+- Keine Änderung am Worker-Code selbst (ist schon korrekt)
+- Keine Änderung an den Lovable-Cloud-Secrets (alle nötigen Werte existieren bereits)
+- Kein Anfassen des Radar-Ingest-Pfads

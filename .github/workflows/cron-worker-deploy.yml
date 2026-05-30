@@ -1,0 +1,34 @@
+name: Deploy cron-worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cron-worker/**"
+      - ".github/workflows/cron-worker-deploy.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: cron-worker-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install deps
+        working-directory: cron-worker
+        run: bun install
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          workingDirectory: cron-worker
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
