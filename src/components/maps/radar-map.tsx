@@ -411,12 +411,9 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
     return { label, color: "#d97706" };
   }
   if (frame.source === "icon-ch1") {
-    return { label: frame.precipUrl ? "MeteoSchweiz ICON-CH1 EPS-Mean" : "MeteoSchweiz ICON-CH1", color: BRAND };
+    return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
   }
-  if (frame.source === "arome-hd") {
-    return { label: "Meteo-France AROME-HD (1.3 km)", color: "#0ea5a4" };
-  }
-  return { label: frame.precipUrl ? "MeteoSchweiz ICON-CH2 EPS-Mean" : "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
+  return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
