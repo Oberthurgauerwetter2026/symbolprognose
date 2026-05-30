@@ -67,7 +67,7 @@ async function triggerEndpoint(
   }
 }
 
-async function triggerFiveMin(env: Env): Promise<void> {
+async function triggerFiveMin(env: Env, opts: { includeOpenmeteo: boolean }): Promise<void> {
   const tasks: Promise<void>[] = [];
   tasks.push(
     triggerEndpoint(env.TARGET_URL, env.RADAR_TRIGGER_SECRET, "radar", lastRadar),
@@ -77,7 +77,7 @@ async function triggerFiveMin(env: Env): Promise<void> {
       triggerEndpoint(env.EPS_TARGET_URL, env.RADAR_TRIGGER_SECRET, "eps", lastEps),
     );
   }
-  if (env.OPENMETEO_TARGET_URL) {
+  if (opts.includeOpenmeteo && env.OPENMETEO_TARGET_URL) {
     tasks.push(
       triggerEndpoint(
         env.OPENMETEO_TARGET_URL,
@@ -104,7 +104,10 @@ async function triggerSymbol(env: Env): Promise<void> {
 }
 
 async function triggerAll(env: Env): Promise<void> {
-  await Promise.all([triggerFiveMin(env), triggerSymbol(env)]);
+  await Promise.all([
+    triggerFiveMin(env, { includeOpenmeteo: true }),
+    triggerSymbol(env),
+  ]);
 }
 
 export default {
@@ -116,7 +119,10 @@ export default {
     if (event.cron === "0 2,8,14,20 * * *") {
       ctx.waitUntil(triggerSymbol(env));
     } else {
-      ctx.waitUntil(triggerFiveMin(env));
+      // Open-Meteo nur alle 10 min (gerade Minute), Radar/EPS alle 5 min.
+      const minute = new Date(event.scheduledTime).getUTCMinutes();
+      const includeOpenmeteo = minute % 10 === 0;
+      ctx.waitUntil(triggerFiveMin(env, { includeOpenmeteo }));
     }
   },
 
