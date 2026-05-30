@@ -1,8 +1,8 @@
 /**
  * Cloudflare Worker — zuverlässige Trigger für Ingest-Workflows.
  *
- *   - */5 * * * *       → radar + eps + openmeteo
- *   - 0 2,8,14,20 * * * → symbol (phaseA, ~2 h nach Modellläufen 00/06/12/18 UTC)
+ *   - "*\/5 * * * *"       → radar + eps + openmeteo
+ *   - "0 2,8,14,20 * * *"  → symbol (phaseA, ~2 h nach Modellläufen 00/06/12/18 UTC)
  *
  * Alle Server-Endpoints haben eigene Throttles, gleichzeitiges Pingen ist
  * also unproblematisch. GitHub-Actions `schedule:` ist NICHT mehr aktiv
