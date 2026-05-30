@@ -227,6 +227,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   const warnings: string[] = [];
   if (!cache) {
     warnings.push("Open-Meteo-Cache temporär nicht verfügbar");
+  } else if (cacheGridLooksStale(cache.grid?.points)) {
+    warnings.push("Open-Meteo-Cache nutzt noch die alte kleine Radar-Abdeckung; Prognose wird nach dem nächsten Ingest erweitert");
   }
 
 
@@ -622,9 +624,9 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   // crossfade-mäßig zu überblenden.
   const NCOLS = lons.length; // = GRID_LON
   const NROWS = lats.length; // = GRID_LAT
-  const dLat = (BBOX.maxLat - BBOX.minLat) / Math.max(1, NROWS - 1);
-  const dLon = (BBOX.maxLon - BBOX.minLon) / Math.max(1, NCOLS - 1);
-  const midLat = (BBOX.maxLat + BBOX.minLat) / 2;
+  const dLat = (lats[lats.length - 1] - lats[0]) / Math.max(1, NROWS - 1);
+  const dLon = (lons[lons.length - 1] - lons[0]) / Math.max(1, NCOLS - 1);
+  const midLat = (lats[0] + lats[lats.length - 1]) / 2;
   const M_PER_DEG_LAT = 111_000;
   const M_PER_DEG_LON = 111_000 * Math.cos((midLat * Math.PI) / 180);
 
