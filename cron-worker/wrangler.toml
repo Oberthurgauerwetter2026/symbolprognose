@@ -5,11 +5,12 @@ compatibility_date = "2025-09-24"
 workers_dev = false
 
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/5 * * * *", "0 2,8,14,20 * * *"]
 
 [vars]
 TARGET_URL = "https://symbolprognose.lovable.app/api/public/radar/ingest-trigger"
 EPS_TARGET_URL = "https://symbolprognose.lovable.app/api/public/eps/ingest-trigger"
+SYMBOL_TARGET_URL = "https://symbolprognose.lovable.app/api/public/symbol/ingest-trigger"
 
 [observability]
 enabled = true
