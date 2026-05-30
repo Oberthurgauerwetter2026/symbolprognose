@@ -73,11 +73,24 @@ const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
 
 function colorFor(mmh: number): [number, number, number, number] {
   if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
-  for (let i = SCALE.length - 1; i >= 0; i--) {
-    if (mmh >= SCALE[i].mmh) {
-      const [r, g, b] = SCALE[i].rgb;
-      const a = i === 0 ? 0.35 : 0.60;
-      return [r, g, b, a];
+  if (mmh >= SCALE[SCALE.length - 1].mmh) {
+    const [r, g, b] = SCALE[SCALE.length - 1].rgb;
+    return [r, g, b, 0.65];
+  }
+  // Linear interpolation in log(mmh)-Raum für sanftere Farbübergänge.
+  for (let i = 0; i < SCALE.length - 1; i++) {
+    const a = SCALE[i];
+    const b = SCALE[i + 1];
+    if (mmh >= a.mmh && mmh < b.mmh) {
+      const t = (Math.log(mmh) - Math.log(a.mmh)) / (Math.log(b.mmh) - Math.log(a.mmh));
+      const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
+      const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
+      const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
+      // Alpha rampt vom ersten Stop (0.30) auf 0.62 hoch.
+      const alphaA = i === 0 ? 0.30 : 0.62;
+      const alphaB = 0.62;
+      const al = alphaA + (alphaB - alphaA) * t;
+      return [r, g, bl, al];
     }
   }
   return [0, 0, 0, 0];
