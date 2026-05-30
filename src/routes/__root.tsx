@@ -107,6 +107,12 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{localStorage.removeItem('wx-rq-cache-v1');sessionStorage.removeItem('wx-rq-cache-v1')}catch(e){}",
+          }}
+        />
         {children}
         <Scripts />
       </body>
