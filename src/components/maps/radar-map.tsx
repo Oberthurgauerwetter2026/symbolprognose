@@ -228,7 +228,7 @@ function PrecipOverlay({
         cv.style.pointerEvents = "none";
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
-        cv.style.zIndex = "450";
+        cv.style.zIndex = "440";
         cv.style.filter = "blur(0.8px) saturate(1.6) contrast(1.25)";
         pane.appendChild(cv);
         this._canvas = cv;
@@ -870,37 +870,44 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           />
           {data &&
             currentFrame &&
-            (currentFrame.precipUrl ? (
-              (() => {
-                const ib = currentFrame.imageBbox ?? data.imageBbox;
-                return (
-                  <ImageOverlay
-                    key={`precip-${currentFrame.t}`}
-                    url={currentFrame.precipUrl}
-                    bounds={[
-                      [
-                        ib.minLat + (currentFrame.imageOffset?.dLat ?? 0),
-                        ib.minLon + (currentFrame.imageOffset?.dLon ?? 0),
-                      ],
-                      [
-                        ib.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
-                        ib.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
-                      ],
-                    ]}
-                    opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
-                    className="mch-precip"
-                  />
-                );
-              })()
-            ) : (
-              <PrecipOverlay
-                payload={data}
-                frame={currentFrame}
-                nextFrame={blendNext}
-                progress={progress}
-                opacity={Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1))}
-              />
-            ))}
+            (() => {
+              const hasPng = !!currentFrame.precipUrl;
+              const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
+              const ib = currentFrame.imageBbox ?? data.imageBbox;
+              const opacityVal = Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1));
+              return (
+                <>
+                  {hasGrid && (
+                    <PrecipOverlay
+                      payload={data}
+                      frame={currentFrame}
+                      nextFrame={hasPng ? null : blendNext}
+                      progress={hasPng ? 0 : progress}
+                      opacity={opacityVal}
+                    />
+                  )}
+                  {hasPng && (
+                    <ImageOverlay
+                      key={`precip-${currentFrame.t}`}
+                      url={currentFrame.precipUrl!}
+                      bounds={[
+                        [
+                          ib.minLat + (currentFrame.imageOffset?.dLat ?? 0),
+                          ib.minLon + (currentFrame.imageOffset?.dLon ?? 0),
+                        ],
+                        [
+                          ib.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
+                          ib.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
+                        ],
+                      ]}
+                      opacity={opacityVal}
+                      zIndex={460}
+                      className="mch-precip"
+                    />
+                  )}
+                </>
+              );
+            })()}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
             <ImageOverlay
               key={`hail-${currentFrame.t}`}

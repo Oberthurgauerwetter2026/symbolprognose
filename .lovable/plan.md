@@ -1,42 +1,55 @@
-# Radar-Abdeckung erweitern auf Bodensee-Region (CH + S-D + Vorarlberg)
 
-Aktuell deckt der Prognose-Grid nur Oberthurgau ab (BBOX 47.30–47.85 / 8.85–9.85, 20×12 = 240 Punkte). Die Messung kommt zwar schon mit der grösseren CombiPrecip-BBOX 46.85–48.30 / 8.15–10.55, ist aber durch den engen Map-Initial-Zoom (center 47.575/9.35, zoom 9.75) nicht sichtbar.
+# Messung: gleiche Farbgebung ausserhalb der Schweiz wie Prognose
 
-Ziel: Beide Layer decken die ganze CombiPrecip-Region ab — Schaffhausen, Zürich, St. Gallen, Appenzell, Vorarlberg, Bodensee + Süddeutschland — und der Standard-Map-View zeigt sie auch.
+## Status quo
 
-## 1. Prognose-Grid erweitern
+- Forecast-Frames (`icon-ch1`, `icon-ch2`) werden vom Canvas-Layer (`PrecipOverlay`) über die ganze erweiterte BBOX (Bodensee + Süddeutschland + Vorarlberg) mit der MeteoSchweiz-Farbskala (`colorFor`) gerendert.
+- Messung-Frames (`source: "radar"`) liefern nur die MeteoSchweiz-CombiPrecip-PNG als `ImageOverlay`. Diese PNG ist ausserhalb der Schweiz transparent → grau, keine Farbe.
+- Beide Datenquellen sind technisch vorhanden: Der Open-Meteo-Ingest holt bereits `past_minutely_15: 48` (= 12 h Vergangenheit), nur werden die Werte für `tMs <= now` aktuell verworfen (`radar.functions.ts` Zeile 479: `if (tMs <= now && hasRealRadar) continue;`).
 
-**`scripts/ingest_openmeteo.py`** (Defaults `build_grid()`):
-- `BBOX_MIN_LAT 47.30 → 46.85`, `BBOX_MAX_LAT 47.85 → 48.30`
-- `BBOX_MIN_LON 8.85 → 8.15`, `BBOX_MAX_LON 9.85 → 10.55`
-- `GRID_LAT 12 → 22`, `GRID_LON 20 → 36` (≈ 0.067° Spacing, 792 Punkte statt 240)
+## Änderungen
 
-**`.github/workflows/openmeteo-ingest.yml`**: gleiche Env-Werte setzen, damit der nächste Cron-Run die neue Geometrie schreibt.
+### 1. `src/lib/radar.functions.ts` — Werte auch für Messung-Frames belegen
 
-**`src/lib/radar.functions.ts`**: `BBOX`, `GRID_LAT`, `GRID_LON` identisch aktualisieren — Lese-Grid muss exakt mit Ingest-Grid übereinstimmen, weil Werte über Index abgegriffen werden.
+Beim Aufbau der Radar-Frames (Block ab Zeile ~245, `for (const mf of filled)`):
+- Aus `r1` (Open-Meteo-Antwort) für jeden Gridpunkt den `past_minutely_15.precipitation`-Wert zum Frame-Timestamp `mf.t` sampeln (Lookup über `time`-Array).
+- Falls vorhanden, `values` (und `snowValues` analog) wie bei den ICON-CH1-Frames befüllen (mm/15min × 4 → mm/h).
+- `precipUrl` und `hailUrl` bleiben unverändert → MCH-PNG wird weiterhin angezeigt.
+- Zusatzfeld `blendOpacity` für Messung-Frames bei 1 belassen.
+- Zeile 479 bleibt unverändert: ICON-CH1-Frames in der Vergangenheit weiterhin überspringen, weil wir die Werte schon in den Messung-Frames eingebaut haben.
 
-## 2. Map-Initial-View zoomen out
+Falls für einen Messung-Timestamp kein passender Open-Meteo-Slot existiert (Toleranz ±10 min für nearest-Match), bleibt `values: []` — Verhalten wie heute.
 
-**`src/components/maps/radar-map.tsx`** (Zeile ~825):
-- `center=[47.575, 9.35]` → `center=[47.575, 9.35]` bleibt (gute Mitte für Bodensee)
-- `zoom=9.75` → `zoom=8.5` (zeigt von Zürich/Schaffhausen bis Vorarlberg, Bodensee komplett)
-- `maxBounds` bleibt unverändert (46.80–48.35 / 8.10–10.60 — schon korrekt dimensioniert).
+### 2. `src/components/maps/radar-map.tsx` — Canvas + PNG übereinander für Messung
 
-## 3. Lifecycle / Übergang
+Render-Block (Zeile ~871–903) so umbauen, dass bei einem Messung-Frame mit `precipUrl` UND nichtleerem `values`-Array BEIDE Layer gerendert werden:
 
-- Bis der nächste Ingest läuft, hat der R2-Cache (`openmeteo/forecast.json`) noch das alte 240-Punkte-Grid. Die Frontend-`BBOX`/`GRID_*`-Konstanten würden dann falsche Indizes lesen.
-- Lösung: Frontend liest, falls vorhanden, `grid.points` aus dem Cache-Payload und leitet `BBOX`/`GRID_LAT`/`GRID_LON` daraus ab (Min/Max + Unique-Counts). Bestehende `BBOX`/`GRID_*`-Konstanten bleiben nur als Fallback für leeren Cache.
-- Damit kein Render-Bruch nach Deploy + vor erstem neuen Cron-Lauf.
+```text
+- PrecipOverlay (Canvas, deckt die ganze BBOX ab — z-index niedriger)
+- ImageOverlay (MCH-PNG, transparent ausserhalb CH — z-index höher)
+```
 
-## 4. Nicht Teil dieser Änderung
+Konkret:
+- Canvas-Layer (`PrecipOverlay`) bekommt `zIndex: 440` (statt 450).
+- MCH-`ImageOverlay` bekommt explizit `zIndex={460}` Prop (Leaflet `ImageOverlay` unterstützt das).
 
-- Messung (CombiPrecip-PNG-Overlay) bleibt — bereits korrekte BBOX, nur jetzt sichtbar dank Zoom-out.
-- Radar-Ingest (`scripts/ingest_radar.py`) bleibt unverändert.
-- Farben/Alpha/Filter/Clip-Logik aus den letzten Runden bleiben.
-- 48-h-Prognosehorizont bleibt.
+Effekt:
+- Innerhalb der Schweiz: MCH-PNG dominiert (volle Auflösung, scharfe Radar-Echos).
+- Ausserhalb (Bodensee D-Seite, Süddeutschland, Vorarlberg): Open-Meteo-Grid mit identischer `colorFor`-Skala leuchtet durch.
 
-## Technische Details
+Forecast-Frames (`precipUrl` undefined) verhalten sich exakt wie heute — nur Canvas, kein PNG.
 
-- Mehr Grid-Punkte = ~3,3× Open-Meteo-API-Last pro Ingest. Bei einem 5-min-Cron weiterhin im freien Kontingent.
-- Auto-Detection aus `grid.points`: O(n) Min/Max + Set für unique lats/lons. Validierung: Wenn Punktzahl ≠ nLat × nLon, Fallback auf Konstanten.
-- Keine DB-, Auth- oder Server-Fn-Signaturänderungen.
+### 3. Filter/Blur auf dem Canvas
+
+Der bestehende `cv.style.filter = "blur(0.8px) saturate(1.6) contrast(1.25)"` bleibt für Forecast-Frames erhalten. Für Messung-Frames wirkt er nur ausserhalb CH (innerhalb wird er von der PNG überdeckt) — kein optischer Bruch erwartet, aber kurz im Preview verifizieren. Falls auffällig, alternative: Filter beibehalten (keine Sonderlogik nötig).
+
+## Nicht Teil dieser Änderung
+
+- Keine Änderung an Ingest-Skripten, Grid-Geometrie, Radar-Bounds, Nowcast-Logik, ICON-CH2, Snow-Skala oder Bias-Korrektur.
+- Keine DB-, Auth-, Server-Fn-Signatur-Änderungen.
+- Hail-Overlay, Legende, Timeline, Steuerung bleiben unverändert.
+
+## Lifecycle
+
+- Sofort wirksam nach Deploy: Der R2-Cache enthält bereits `past_minutely_15`-Daten; es muss kein neuer Cron-Lauf abgewartet werden.
+- Falls `past_minutely_15` im Cache leer ist (sehr alter Snapshot), bleiben Messung-Frames bei leeren `values` → degradiert sauber auf den aktuellen Zustand (graue Fläche ausserhalb CH).
