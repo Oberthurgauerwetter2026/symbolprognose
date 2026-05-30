@@ -12,6 +12,7 @@ TARGET_URL = "https://symbolprognose.lovable.app/api/public/radar/ingest-trigger
 EPS_TARGET_URL = "https://symbolprognose.lovable.app/api/public/eps/ingest-trigger"
 SYMBOL_TARGET_URL = "https://symbolprognose.lovable.app/api/public/symbol/ingest-trigger"
 OPENMETEO_TARGET_URL = "https://symbolprognose.lovable.app/api/public/openmeteo/ingest-trigger"
+AROME_TARGET_URL = "https://symbolprognose.lovable.app/api/public/arome/ingest-trigger"
 
 [observability]
 enabled = true

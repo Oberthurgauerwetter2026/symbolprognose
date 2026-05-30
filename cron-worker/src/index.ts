@@ -120,7 +120,7 @@ async function triggerSymbol(env: Env): Promise<void> {
 
 async function triggerAll(env: Env): Promise<void> {
   await Promise.all([
-    triggerFiveMin(env, { includeOpenmeteo: true }),
+    triggerFiveMin(env, { includeOpenmeteo: true, includeArome: true }),
     triggerSymbol(env),
   ]);
 }
@@ -134,10 +134,11 @@ export default {
     if (event.cron === "0 2,8,14,20 * * *") {
       ctx.waitUntil(triggerSymbol(env));
     } else {
-      // Open-Meteo nur alle 10 min (gerade Minute), Radar/EPS alle 5 min.
+      // Open-Meteo nur alle 10 min, AROME-HD nur alle 15 min, Radar/EPS alle 5 min.
       const minute = new Date(event.scheduledTime).getUTCMinutes();
       const includeOpenmeteo = minute % 10 === 0;
-      ctx.waitUntil(triggerFiveMin(env, { includeOpenmeteo }));
+      const includeArome = minute % 15 === 0;
+      ctx.waitUntil(triggerFiveMin(env, { includeOpenmeteo, includeArome }));
     }
   },
 
@@ -153,17 +154,19 @@ export default {
           eps: env.EPS_TARGET_URL ?? null,
           symbol: env.SYMBOL_TARGET_URL ?? null,
           openmeteo: env.OPENMETEO_TARGET_URL ?? null,
+          arome: env.AROME_TARGET_URL ?? null,
         },
         lastRadar,
         lastEps,
         lastSymbol,
         lastOpenmeteo,
+        lastArome,
       });
     }
 
     if (url.pathname === "/run" && request.method === "POST") {
       await triggerAll(env);
-      return Response.json({ ok: true, lastRadar, lastEps, lastSymbol, lastOpenmeteo });
+      return Response.json({ ok: true, lastRadar, lastEps, lastSymbol, lastOpenmeteo, lastArome });
     }
 
     if (url.pathname === "/run/eps" && request.method === "POST") {
@@ -193,6 +196,14 @@ export default {
       }
       await triggerEndpoint(env.OPENMETEO_TARGET_URL, env.RADAR_TRIGGER_SECRET, "openmeteo", lastOpenmeteo);
       return Response.json({ ok: true, lastOpenmeteo });
+    }
+
+    if (url.pathname === "/run/arome" && request.method === "POST") {
+      if (!env.AROME_TARGET_URL) {
+        return Response.json({ ok: false, error: "AROME_TARGET_URL not configured" }, { status: 500 });
+      }
+      await triggerEndpoint(env.AROME_TARGET_URL, env.RADAR_TRIGGER_SECRET, "arome", lastArome);
+      return Response.json({ ok: true, lastArome });
     }
 
     return new Response("Not found", { status: 404 });
