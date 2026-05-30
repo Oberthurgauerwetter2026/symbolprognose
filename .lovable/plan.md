@@ -1,33 +1,55 @@
-## Problem
-Der weiße Bildschirm kommt weiterhin vom bekannten Client-Fehler:
+Do I know what the issue is? Ja.
 
-```text
-Invalid hook call
-AwaitInner -> React.use(...)
-```
+Der weiße Bildschirm kommt weiterhin aus dem TanStack-Router-Hydration-Pfad, nicht aus ICON-EPS. Die aktuellen Logs zeigen zwei passende Fehler:
 
-Ich konnte die Seite in meiner frischen Browser-Session sehen, aber deine Session hängt offenbar weiter an genau diesem Fehlerpfad. Im Code ist noch `PersistQueryClientProvider` aktiv; dieser kann beim Hydratisieren eines alten lokalen Query-Caches Router-`Await`/React-`use()` triggern und in der bestehenden Preview-Session wieder weiß rendern.
+- `AwaitInner` ruft intern React `use()` auf und landet in `Invalid hook call`.
+- Zusätzlich gibt es den bekannten TanStack-SPA-Hydration-Fehler `Expected to find a match below the root match in SPA mode`.
 
-## Plan
-1. **Persistenten Query-Cache abschalten**
-   - In `src/routes/__root.tsx` `PersistQueryClientProvider`, `createSyncStoragePersister` und den `wx-rq-cache-v1`-Persister entfernen.
-   - Root nur noch mit stabilem `QueryClientProvider` rendern.
-   - Damit kann ein kaputter/alter Browser-Cache die App nicht mehr beim Start crashen.
+Die Codebasis hat aktuell nicht zusammengezogene TanStack-Versionen:
 
-2. **Router-/Query-Versionen konsistent machen**
-   - `package.json` so anpassen, dass TanStack Query, Router, Start und Router-Plugin auf kompatiblen Versionen bleiben und nicht durch gemischte Minor-Versionen auseinanderlaufen.
-   - Falls nötig Lockfile durch Installation aktualisieren.
+- `@tanstack/react-start` ist auf `1.168.10`
+- `@tanstack/react-router` ist auf `1.170.7`
+- `@tanstack/router-plugin` ist auf `1.168.10`
+- der Lockfile zieht `@tanstack/router-core@1.171.5`
 
-3. **Start-Middleware vervollständigen**
-   - `src/start.ts` prüfen/anpassen, damit bestehende Server-Function-Auth-Middleware korrekt registriert ist, falls Server Functions Auth brauchen.
-   - Nur falls im Projekt vorhanden und nötig; keine Backend-Logik ändern.
+Die offiziellen aktuellen Patch-Versionen sind kompatibler zueinander und ziehen `router-core@1.171.8`, wo genau dieser SPA-Hydration-Fall entschärft wurde. Deshalb muss der Fix jetzt nicht mehr nur im App-Code passieren, sondern über saubere TanStack-Patch-Versionen plus frischen Vite-Dependency-Cache.
 
-4. **Preview gezielt validieren**
-   - Dev-Server neu starten, damit alte Vite/HMR-Bundles verschwinden.
-   - `/` im Browser prüfen: sichtbarer Inhalt statt Weißbildschirm.
-   - Console auf `AwaitInner`/`Invalid hook call` prüfen.
+Plan zur Umsetzung:
 
-## Nicht Teil dieses Fixes
-- Keine Rückkehr zu ICON-EPS.
-- Keine Änderung an Radar-/Forecast-Logik.
-- Keine Datenbank- oder Backend-Migration.
+1. **TanStack-Versionen synchronisieren**
+   - `@tanstack/react-start` auf `1.168.18`
+   - `@tanstack/react-router` auf `1.170.10`
+   - `@tanstack/router-plugin` auf `1.168.13`
+   - Lockfile aktualisieren, damit `@tanstack/router-core@1.171.8` verwendet wird.
+
+2. **Alte Persist-Pakete entfernen**
+   - `@tanstack/react-query-persist-client` und `@tanstack/query-sync-storage-persister` entfernen, weil der Code sie nicht mehr nutzt.
+   - Dadurch kann der alte Query-Persist-Hydration-Pfad nicht versehentlich wieder in den Bundle kommen.
+
+3. **Root-Cleanup sauber machen**
+   - Das Entfernen von `wx-rq-cache-v1` aus `localStorage` aus dem Render-Pfad in einen `useEffect` verschieben.
+   - Damit bleibt `RootComponent` rein und hydration-sicher.
+
+4. **Start-Middleware vervollständigen**
+   - CSRF-Middleware ergänzen, damit die aktuelle TanStack-Start-Warnung verschwindet.
+   - `attachSupabaseAuth` als `functionMiddleware` registrieren, damit Server Functions zuverlässig Auth-Header bekommen.
+
+5. **Preview hart neu laden**
+   - Dev-Server neu starten, damit Vite die optimierten `node_modules/.vite/deps/*` neu erzeugt.
+   - Danach `/` im Browser öffnen und prüfen, dass keine `AwaitInner`-/`Invalid hook call`-Fehler mehr auftauchen.
+
+6. **Falls dein Browser noch weiß bleibt**
+   - Zusätzlich eine einmalige, app-seitige Cache-Cleanup-Strategie prüfen, aber erst nach dem Versionsfix — der Versionsmix ist der primäre Fehler.
+
+Unverändert bleibt:
+
+- Kein ICON-EPS wird wieder eingeführt.
+- Die ICON-CH1/ICON-CH2-Logik bleibt wie gewünscht bestehen.
+
+<presentation-actions>
+  <presentation-open-history>View History</presentation-open-history>
+</presentation-actions>
+
+<presentation-actions>
+<presentation-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</presentation-link>
+</presentation-actions>

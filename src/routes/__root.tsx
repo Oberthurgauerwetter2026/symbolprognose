@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import {
   Outlet,
@@ -120,13 +121,13 @@ function RootComponent() {
 
   // Clear any old persisted query cache from previous PersistQueryClient setup
   // that could trigger AwaitInner/React.use() hook errors on hydration.
-  if (typeof window !== "undefined") {
+  useEffect(() => {
     try {
       window.localStorage.removeItem("wx-rq-cache-v1");
     } catch {
       // ignore
     }
-  }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -134,4 +135,5 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
 
