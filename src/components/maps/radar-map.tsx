@@ -187,6 +187,26 @@ function InvalidateOnResize() {
   return null;
 }
 
+function useMapZoom(): number {
+  const map = useMap();
+  const [z, setZ] = useState<number>(() => map.getZoom());
+  useEffect(() => {
+    const update = () => setZ(map.getZoom());
+    map.on("zoomend zoom", update);
+    update();
+    return () => {
+      map.off("zoomend zoom", update);
+    };
+  }, [map]);
+  return z;
+}
+
+function ZoomGate({ minZoom, children }: { minZoom: number; children: React.ReactNode }) {
+  const z = useMapZoom();
+  if (z < minZoom) return null;
+  return <>{children}</>;
+}
+
 
 /**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
