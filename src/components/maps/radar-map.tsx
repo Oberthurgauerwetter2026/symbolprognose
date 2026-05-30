@@ -75,7 +75,7 @@ function colorFor(mmh: number): [number, number, number, number] {
   if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
   if (mmh >= SCALE[SCALE.length - 1].mmh) {
     const [r, g, b] = SCALE[SCALE.length - 1].rgb;
-    return [r, g, b, 0.65];
+    return [r, g, b, 0.95];
   }
   // Linear interpolation in log(mmh)-Raum für sanftere Farbübergänge.
   for (let i = 0; i < SCALE.length - 1; i++) {
@@ -86,9 +86,9 @@ function colorFor(mmh: number): [number, number, number, number] {
       const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
       const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
       const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
-      // Alpha rampt vom ersten Stop (0.30) auf 0.62 hoch.
-      const alphaA = i === 0 ? 0.30 : 0.62;
-      const alphaB = 0.62;
+      // Markante Deckkraft wie auf der MeteoSchweiz-Messung.
+      const alphaA = i === 0 ? 0.55 : 0.92;
+      const alphaB = 0.92;
       const al = alphaA + (alphaB - alphaA) * t;
       return [r, g, bl, al];
     }
@@ -107,7 +107,7 @@ function snowColorFor(mmh: number): [number, number, number, number] {
   for (let i = SNOW_SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SNOW_SCALE[i].mmh) {
       const [r, g, b] = SNOW_SCALE[i].rgb;
-      const a = 0.60;
+      const a = 0.85;
       return [r, g, b, a];
     }
   }
@@ -229,7 +229,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "450";
-        cv.style.filter = "blur(2.5px) saturate(1.35) contrast(1.08)";
+        cv.style.filter = "blur(0.8px) saturate(1.6) contrast(1.25)";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -285,8 +285,8 @@ function PrecipOverlay({
     const t = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Low-res Buffer (STEP=2 in CSS-Pixeln). Smooth-Upscale erzeugt weiche Blobs.
-    const STEP = 2;
+    // Volle Container-Auflösung für scharfe Kanten wie auf der Messung.
+    const STEP = 1;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
     const img = ctx.createImageData(lowW, lowH);
@@ -353,22 +353,10 @@ function PrecipOverlay({
     if (!offCtx) return;
     offCtx.putImageData(img, 0, 0);
 
-    // Clipping auf imageBbox (gleicher Ausschnitt wie Radar-PNGs).
-    const ibb = payload.imageBbox;
-    const nw = map.latLngToContainerPoint([ibb.maxLat, ibb.minLon]);
-    const ne = map.latLngToContainerPoint([ibb.maxLat, ibb.maxLon]);
-    const se = map.latLngToContainerPoint([ibb.minLat, ibb.maxLon]);
-    const sw = map.latLngToContainerPoint([ibb.minLat, ibb.minLon]);
-
+    // Kein Clip auf imageBbox — Prognose deckt das volle Daten-Grid ab,
+    // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.beginPath();
-    ctx.moveTo(nw.x, nw.y);
-    ctx.lineTo(ne.x, ne.y);
-    ctx.lineTo(se.x, se.y);
-    ctx.lineTo(sw.x, sw.y);
-    ctx.closePath();
-    ctx.clip();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
