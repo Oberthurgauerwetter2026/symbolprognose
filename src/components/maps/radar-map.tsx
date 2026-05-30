@@ -285,8 +285,8 @@ function PrecipOverlay({
     const t = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Low-res Buffer (STEP=2 in CSS-Pixeln). Smooth-Upscale erzeugt weiche Blobs.
-    const STEP = 2;
+    // Volle Container-Auflösung für scharfe Kanten wie auf der Messung.
+    const STEP = 1;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
     const img = ctx.createImageData(lowW, lowH);
