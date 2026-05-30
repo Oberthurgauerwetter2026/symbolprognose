@@ -92,4 +92,36 @@ export default {
 
     if (url.pathname === "/" || url.pathname === "/status") {
       return Response.json({
-        wor
+        worker: "symbolprognose-radar-cron",
+        cron: "*/5 * * * *",
+        targets: {
+          radar: env.TARGET_URL,
+          eps: env.EPS_TARGET_URL ?? null,
+        },
+        lastRadar,
+        lastEps,
+      });
+    }
+
+    if (url.pathname === "/run" && request.method === "POST") {
+      // Manueller Test-Trigger — pingt beide Endpoints.
+      await triggerAll(env);
+      return Response.json({ ok: true, lastRadar, lastEps });
+    }
+
+    if (url.pathname === "/run/eps" && request.method === "POST") {
+      if (!env.EPS_TARGET_URL) {
+        return Response.json({ ok: false, error: "EPS_TARGET_URL not configured" }, { status: 500 });
+      }
+      await triggerEndpoint(env.EPS_TARGET_URL, env.RADAR_TRIGGER_SECRET, "eps", lastEps);
+      return Response.json({ ok: true, lastEps });
+    }
+
+    if (url.pathname === "/run/radar" && request.method === "POST") {
+      await triggerEndpoint(env.TARGET_URL, env.RADAR_TRIGGER_SECRET, "radar", lastRadar);
+      return Response.json({ ok: true, lastRadar });
+    }
+
+    return new Response("Not found", { status: 404 });
+  },
+};
