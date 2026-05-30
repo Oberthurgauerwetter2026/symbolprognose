@@ -569,7 +569,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   if (epsCh1Count + epsCh2Count > 0) {
     console.info(`[radar] forecast source: eps-mean (ch1=${epsCh1Count}, ch2=${epsCh2Count}, det=${detCount})`);
   } else {
-    const reason = !epsManifest ? "no manifest" : !epsFresh ? "manifest stale" : "no steps";
+    const reason = !epsManifest ? "no manifest" : !generatedFresh ? "manifest stale" : !epsFresh ? "no usable steps" : "no steps";
     console.info(`[radar] forecast source: deterministic (eps ${reason}, det=${detCount})`);
   }
 
