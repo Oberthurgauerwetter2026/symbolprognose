@@ -1,41 +1,34 @@
-# Radar-Verbesserungen
+# Radar-Prognose: Abdeckung erweitern + Felder so markant wie Messung
 
-## 1. Prognosezeitraum auf 48 h reduzieren
+Die letzte Runde hat den weichen, niedrig-deckenden Look erzeugt (Alpha 0.30→0.62, blur 2.5 px, STEP=2, Clip auf Messrahmen). Das Bild im Screenshot zeigt genau diesen Zustand. Jetzt umkehren in Richtung „so markant wie die MeteoSchweiz-Messung" und über den Messrahmen hinaus zeichnen.
 
-**Datei:** `src/lib/radar.functions.ts`
+Alle Änderungen ausschliesslich in `src/components/maps/radar-map.tsx`. Keine Server-, API-, DB- oder Manifest-Änderungen.
 
-- `forecastCutoff = now + 48 * 3600 * 1000` (statt `120 * 3600 * 1000`).
-- ICON-CH1 (minutely_15) bleibt bis +33 h, ICON-CH2 (hourly) füllt nur noch +33…+48 h auf — die Begrenzung greift automatisch über `forecastCutoff`.
-- Quellen-Footer in `src/components/maps/radar-map.tsx` von „Vorhersage bis +32 h / +120 h" auf „Vorhersage bis +48 h" anpassen.
+## 1. Abdeckung über Messrahmen hinaus
 
-## 2. Prognose-Abdeckung wie Messung
+In `PrecipOverlay.redrawRef`:
 
-Aktuell rendert die Messung als PNG mit `imageBbox` (echter MeteoSchweiz-Radar-Ausschnitt, ca. Oberthurgau-Quadrat). Die Prognose rendert dagegen auf dem ganzen Daten-Grid (BBOX 47.30–47.85 / 8.85–9.85) und ragt deutlich über den Radar-Kasten hinaus — sichtbar im Screenshot als grosse grüne Fläche weit ausserhalb des blauen Rahmens.
+- `ctx.save() / ctx.clip()` auf `payload.imageBbox` entfernen.
+- Stattdessen über das volle Daten-Grid zeichnen (`gridLat[0..n-1]` × `gridLon[0..n-1]`, also die volle ICON-Bbox ~46.85–48.30 / 8.15–10.55).
+- Bestehender BUFFER-/Threshold-Test bleibt; ausserhalb des Datenbereichs wird ohnehin nichts gezeichnet.
 
-**Lösung in `PrecipOverlay`** (`src/components/maps/radar-map.tsx`):
+## 2. Prognose-Felder so markant wie Messung
 
-- Vor dem Zeichnen den Canvas auf `payload.imageBbox` clippen (Polygon-Pfad in Container-Pixeln, `ctx.clip()`), nicht auf das volle Daten-Grid.
-- Damit füllt das Prognose-Canvas genau denselben Rahmen wie die Radar-PNGs.
+In derselben Datei:
 
-## 3. Niederschlagsfelder „schöner" rendern
+- **CSS-Filter** (`cv.style.filter`): `blur(2.5px) saturate(1.35) contrast(1.08)` → `blur(0.8px) saturate(1.6) contrast(1.25)`.
+- **`colorFor()` Alpha-Ramp**: `alphaA = 0.30 / 0.62` und `alphaB = 0.62` → `alphaA = 0.55 / 0.92`, `alphaB = 0.92`. Tail-Alpha (≥ 60 mm/h) `0.65` → `0.95`.
+- **`snowColorFor()` Alpha**: `0.60` → `0.85`.
+- **`STEP`**: `2` → `1` (volle Container-Auflösung, schärfere Kanten). `imageSmoothingQuality = "high"` bleibt.
+- Threshold-Cutoff (0.1 mm/h) bleibt.
 
-Aktuelles Bild ist blockig/körnig (1-px-Sampling + `blur(1px) saturate(2.0) contrast(1.5)`). Ziel: weiche, organische Blobs wie auf echten Radarbildern.
+## 3. Unverändert
 
-**In `PrecipOverlay.redrawRef`:**
-
-1. **Sanftere Farbabstufung:** in `colorFor` zwischen den 9 SCALE-Stops linear interpolieren (RGB + Alpha), statt nur den nächstniedrigeren Stop zu nehmen. Gibt fliessende Übergänge statt harter Stufen.
-2. **Niedrigere Pixel-Auflösung mit Upsampling:** Sampling auf STEP=2 (statt 1), Canvas in halber Auflösung füllen und dann mit `ctx.imageSmoothingEnabled = true` + `imageSmoothingQuality = "high"` hochskalieren. Erzeugt natürliche Weichzeichnung ohne Performance-Verlust.
-3. **CSS-Filter glätten:** `blur(2px) saturate(1.4) contrast(1.1)` (statt `blur(1px) saturate(2.0) contrast(1.5)`) — weniger künstlich, näher an MeteoSchweiz-Optik.
-4. **Niedriger Threshold-Cutoff** auf 0.1 mm/h (statt 0.05) für sauberere Ränder ohne Rauschen.
+- 48-h-Prognosehorizont (Punkt 1 der vorigen Runde) bleibt.
+- Footer-Text „Vorhersage bis +48 h" bleibt.
+- Snow-Scale, Legende, Timeline-UI, Manifest, R2, Ingest, Server-Fns bleiben.
 
 ## Technische Details
 
-- Keine API-Änderungen, kein neuer Server-Endpoint, kein neuer Ingest.
-- Keine DB-Migrationen.
-- Nur Frontend-Render-Pfad + ein Konstanten-Change im Server-Fn.
-
-## Nicht Teil dieser Änderung
-
-- Radar-Manifest / R2 / Ingest-Skripte bleiben unangetastet.
-- Snow-Overlay-Logik bleibt gleich.
-- Timeline-UI bleibt strukturell gleich (nur Endzeitpunkt rückt nach +48 h).
+- Nur Frontend-Render-Pfad: zwei Konstanten-Blöcke (`colorFor`, `snowColorFor`), eine CSS-Filter-Zeile, ein `STEP`-Wert, ein `save/clip/restore`-Block entfernen.
+- Performance: STEP=1 vervierfacht Pixel-Sample-Count; bei ~600×500 px ist das auf modernen Rechnern weiterhin <10 ms pro Frame.
