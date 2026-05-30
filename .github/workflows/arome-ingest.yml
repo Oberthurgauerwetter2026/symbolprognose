@@ -6,7 +6,7 @@ on:
 
 concurrency:
   group: arome-ingest
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   ingest:
@@ -37,9 +37,9 @@ jobs:
           BBOX_MAX_LAT: "47.95"
           BBOX_MIN_LON: "8.70"
           BBOX_MAX_LON: "10.00"
-          GRID_LAT: "40"
-          GRID_LON: "60"
-          CHUNK_SIZE: "50"
-          BATCH_SLEEP_S: "3"
+          GRID_LAT: "32"
+          GRID_LON: "48"
+          CHUNK_SIZE: "100"
+          BATCH_SLEEP_S: "2"
           AROME_FORECAST_HOURS: "42"
         run: python -u scripts/ingest_arome.py
