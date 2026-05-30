@@ -294,14 +294,33 @@ function PrecipOverlay({
         const BUFFER = 3;
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
-        // Nearest-Neighbor-Sampling für scharfe Zellen-Kanten wie auf der
-        // MeteoSchweiz-Messung (statt bilinearer Verlauf).
-        const xi = Math.round(fxRaw);
-        const yi = Math.round(fyRaw);
-        const inX = xi >= 0 && xi < nLon;
-        const inY = yi >= 0 && yi < nLat;
-        if (!inX || !inY) continue;
-        const sample = (arr: number[]) => arr[yi * nLon + xi] ?? 0;
+        // Bilineare Interpolation der 4 Nachbarzellen — liefert ein glattes
+        // Skalarfeld. In Kombination mit quantisierter Farbe in colorFor()
+        // ergeben sich die "Bubble"-förmigen Iso-Bänder.
+        const x0 = Math.floor(fxRaw);
+        const y0 = Math.floor(fyRaw);
+        const x1 = x0 + 1;
+        const y1 = y0 + 1;
+        const tx = fxRaw - x0;
+        const ty = fyRaw - y0;
+        const inX0 = x0 >= 0 && x0 < nLon;
+        const inX1 = x1 >= 0 && x1 < nLon;
+        const inY0 = y0 >= 0 && y0 < nLat;
+        const inY1 = y1 >= 0 && y1 < nLat;
+        if (!inX0 && !inX1) continue;
+        if (!inY0 && !inY1) continue;
+        const sample = (arr: number[]) => {
+          const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+          const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+          const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+          const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+          return (
+            v00 * (1 - tx) * (1 - ty) +
+            v01 * tx * (1 - ty) +
+            v10 * (1 - tx) * ty +
+            v11 * tx * ty
+          );
+        };
         const vCur = sample(vals);
         const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
         if (v < 0.1) continue;
