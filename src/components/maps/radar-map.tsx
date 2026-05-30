@@ -86,8 +86,9 @@ function colorFor(mmh: number): [number, number, number, number] {
       const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
       const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
       const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
-      // Markante Deckkraft wie auf der MeteoSchweiz-Messung.
-      const alphaA = i === 0 ? 0.55 : 0.92;
+      // Markante Deckkraft wie auf der MeteoSchweiz-Messung; schwächste Stufe
+      // bewusst tiefer, damit starke Zellen keinen breiten Halo bekommen.
+      const alphaA = i === 0 ? 0.45 : 0.92;
       const alphaB = 0.92;
       const al = alphaA + (alphaB - alphaA) * t;
       return [r, g, bl, al];
@@ -229,7 +230,8 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = "blur(0.8px) saturate(1.6) contrast(1.25)";
+        cv.style.filter = "saturate(1.3) contrast(1.15)";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "pixelated";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -302,28 +304,14 @@ function PrecipOverlay({
         const BUFFER = 3;
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
-        const x0 = Math.floor(fxRaw);
-        const y0 = Math.floor(fyRaw);
-        const x1 = x0 + 1;
-        const y1 = y0 + 1;
-        const tx = fxRaw - x0;
-        const ty = fyRaw - y0;
-        const inX0 = x0 >= 0 && x0 < nLon;
-        const inX1 = x1 >= 0 && x1 < nLon;
-        const inY0 = y0 >= 0 && y0 < nLat;
-        const inY1 = y1 >= 0 && y1 < nLat;
-        const sample = (arr: number[]) => {
-          const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-          const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-          const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-          const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-          return (
-            v00 * (1 - tx) * (1 - ty) +
-            v01 * tx * (1 - ty) +
-            v10 * (1 - tx) * ty +
-            v11 * tx * ty
-          );
-        };
+        // Nearest-Neighbor-Sampling für scharfe Zellen-Kanten wie auf der
+        // MeteoSchweiz-Messung (statt bilinearer Verlauf).
+        const xi = Math.round(fxRaw);
+        const yi = Math.round(fyRaw);
+        const inX = xi >= 0 && xi < nLon;
+        const inY = yi >= 0 && yi < nLat;
+        if (!inX || !inY) continue;
+        const sample = (arr: number[]) => arr[yi * nLon + xi] ?? 0;
         const vCur = sample(vals);
         const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
         if (v < 0.1) continue;
@@ -357,8 +345,7 @@ function PrecipOverlay({
     // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
@@ -823,7 +810,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
       >
         <MapContainer
           center={[47.575, 9.35]}
-          zoom={8.5}
+          zoom={9}
           zoomSnap={0.25}
           maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
@@ -877,12 +864,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               const opacityVal = Math.max(0, Math.min(1, currentFrame.blendOpacity ?? 1));
               return (
                 <>
-                  {hasGrid && (
+                  {hasGrid && !hasPng && (
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
-                      nextFrame={hasPng ? null : blendNext}
-                      progress={hasPng ? 0 : progress}
+                      nextFrame={blendNext}
+                      progress={progress}
                       opacity={opacityVal}
                     />
                   )}
