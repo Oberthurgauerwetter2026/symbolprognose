@@ -765,6 +765,33 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
+  // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
+  // (true=trocken nur bei genau 0 values und keiner URL — wird hier vorsichtig
+  // als unbekannt behandelt, damit echte Radar-PNGs nie fälschlich als trocken
+  // gemeldet werden).
+  const frameMaxMmh = (f: RadarFrame | null): number | null => {
+    if (!f) return null;
+    if (f.precipUrl) return null; // unbekannt
+    if (!f.values || f.values.length === 0) return 0;
+    let m = 0;
+    for (let i = 0; i < f.values.length; i++) if (f.values[i] > m) m = f.values[i];
+    return m;
+  };
+  const currentMax = frameMaxMmh(currentFrame);
+  // Index des nächsten Frames mit sichtbarem Niederschlag (Canvas > 0.1 mm/h
+  // ODER PNG, weil dort der Server nur "wet" Schritte ausliefert).
+  const nextWetIdx = useMemo(() => {
+    if (idx === null) return -1;
+    for (let i = idx + 1; i < frames.length; i++) {
+      const f = frames[i];
+      if (f.precipUrl) return i;
+      const m = frameMaxMmh(f);
+      if (m !== null && m > 0.1) return i;
+    }
+    return -1;
+  }, [idx, frames]);
+  const showDryHint = currentMax !== null && currentMax < 0.05;
+
   return (
     <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
       <div
@@ -1051,11 +1078,30 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               </button>
             </div>
 
-
+            {showDryHint && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-[11px] text-neutral-600">
+                <span>
+                  Aktuell kein Niederschlag in der Region — Karte zeigt nur Hintergrund.
+                </span>
+                {nextWetIdx > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdx(nextWetIdx);
+                      setPlaying(false);
+                    }}
+                    className="rounded-full border border-neutral-300 bg-white px-2.5 py-0.5 font-semibold text-neutral-800 transition hover:border-neutral-400 hover:bg-neutral-100"
+                  >
+                    Zum nächsten Regen springen →
+                  </button>
+                )}
+              </div>
+            )}
 
             <p className="mt-1.5 text-[10px] text-neutral-500">
               Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1 (Vorhersage bis +32 h)
             </p>
+
 
 
           </>
