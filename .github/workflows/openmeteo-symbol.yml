@@ -1,9 +1,9 @@
 name: Open-Meteo Symbolprognose (phaseA)
 
 on:
-  schedule:
-    # 4× täglich, ~2 h nach den Modell-Läufen 00/06/12/18 UTC
-    - cron: "0 2,8,14,20 * * *"
+  # Schedule entfernt — der Cloudflare-Worker (cron-worker/) triggert
+  # diesen Workflow zuverlässig 4× täglich via workflow_dispatch.
+  # GitHub `schedule:` wurde wiederholt von GitHub verworfen.
   workflow_dispatch: {}
 
 concurrency:
