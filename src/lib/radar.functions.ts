@@ -556,7 +556,9 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         t: tIso,
         source: entry.model === "ch1" ? "icon-ch1" : "icon-ch2",
         values: [],
-        precipUrl: entry.step.meanUrl,
+        // Bevorzugt deterministisches Control-Member-PNG (schärfer, wie
+        // MeteoSchweiz-App). Fallback auf EPS-Mean für alte Runs ohne _det.png.
+        precipUrl: entry.step.detUrl ?? entry.step.meanUrl,
         imageBbox: entry.bbox,
         blendOpacity,
       });
