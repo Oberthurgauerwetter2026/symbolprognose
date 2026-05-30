@@ -216,18 +216,19 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   ]);
 
   const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
-  const r1 = cache?.phase1 ?? null;
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
 
   // Bevorzugt das Grid aus dem Cache (verhindert Index-Drift, wenn die
   // Ingest-Geometrie umgestellt wird, der R2-Cache aber noch alt ist).
   const cacheGrid = gridFromCachePoints(cache?.grid?.points);
+  const cacheGridStale = cacheGridLooksStale(cache?.grid?.points);
+  const r1 = cache && !cacheGridStale ? cache.phase1 ?? null : null;
   const { lats, lons, pts } = cacheGrid ?? buildGrid();
 
   const warnings: string[] = [];
   if (!cache) {
     warnings.push("Open-Meteo-Cache temporär nicht verfügbar");
-  } else if (cacheGridLooksStale(cache.grid?.points)) {
+  } else if (cacheGridStale) {
     warnings.push("Open-Meteo-Cache nutzt noch die alte kleine Radar-Abdeckung; Prognose wird nach dem nächsten Ingest erweitert");
   }
 
