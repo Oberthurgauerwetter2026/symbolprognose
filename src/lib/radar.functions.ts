@@ -63,10 +63,22 @@ function gridFromCachePoints(
   const lats = [...latSet].sort((a, b) => a - b);
   const lons = [...lonSet].sort((a, b) => a - b);
   if (lats.length * lons.length !== points.length) return null;
+  if (lats.length !== GRID_LAT || lons.length !== GRID_LON) return null;
+  const coversTarget =
+    lats[0] <= BBOX.minLat + 0.001 &&
+    lats[lats.length - 1] >= BBOX.maxLat - 0.001 &&
+    lons[0] <= BBOX.minLon + 0.001 &&
+    lons[lons.length - 1] >= BBOX.maxLon - 0.001;
+  if (!coversTarget) return null;
   // Reihenfolge: ingest schreibt outer=lat, inner=lon (siehe buildGrid).
   const pts: { lat: number; lon: number }[] = [];
   for (const la of lats) for (const lo of lons) pts.push({ lat: la, lon: lo });
   return { lats, lons, pts };
+}
+
+function cacheGridLooksStale(points: { lat: number; lon: number }[] | undefined): boolean {
+  if (!points || points.length === 0) return false;
+  return gridFromCachePoints(points) === null;
 }
 
 
