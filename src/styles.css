@@ -185,7 +185,9 @@
   filter: brightness(0) saturate(100%);
 }
 
-/* Radar: MeteoSchweiz-PNG markanter (mehr Sättigung & Kontrast) */
+/* Radar: MeteoSchweiz-PNG unverändert ausgeben — Palette ist bereits
+   identisch zur Prognose-Canvas (kein zusätzlicher Filter). */
 .mch-precip {
-  filter: saturate(1.5) contrast(1.25);
+  filter: none;
 }
+
