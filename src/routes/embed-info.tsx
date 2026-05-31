@@ -12,62 +12,91 @@ export const Route = createFileRoute("/embed-info")({
   }),
 });
 
-function buildSnippet(url: string, path: string, idSuffix: string, fallbackHeight = 600) {
+/**
+ * Embed-Snippet mit zweistufigem Fallback:
+ *   1. <img> mit serverseitig gerendertem SVG-Snapshot (immer sichtbar — auch
+ *      ohne JavaScript, in In-App-Browsern, mit Tracking-Blockern).
+ *   2. <iframe> mit der interaktiven Karte: legt sich beim erfolgreichen Laden
+ *      über das Bild. Schlägt das Laden fehl, bleibt das Bild sichtbar und
+ *      der eingebettete Link öffnet die volle Karte.
+ */
+function buildSnippet(
+  url: string,
+  path: string,
+  idSuffix: string,
+  snapshotId: string,
+  fullPath: string,
+  fallbackHeight = 600,
+) {
   const full = `${url}${path}`;
-  return `<iframe
-  id="wx-${idSuffix}"
-  src="${full}"
-  width="100%"
-  height="${fallbackHeight}"
-  loading="eager"
-  referrerpolicy="no-referrer-when-downgrade"
-  allow="geolocation; fullscreen"
-  scrolling="no"
-  style="width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;display:block;box-sizing:border-box"
-  title="Wetter-Karte"
-></iframe>
-<noscript><div style="padding:8px;font:13px/1.4 system-ui">Bitte aktiviere JavaScript oder <a href="${full}" target="_blank" rel="noopener">öffne die Karte in einem neuen Tab</a>.</div></noscript>
-<div id="wx-${idSuffix}-fb" style="display:none;padding:8px;font:13px/1.4 system-ui;background:#f3f4f6;border-radius:6px;margin-top:4px">
-  Die Karte konnte hier nicht geladen werden (oft ein Tracking-/Werbeblocker). <a href="${full}" target="_blank" rel="noopener" style="color:#2561a1;font-weight:600">In neuem Tab öffnen ↗</a>
+  const fullLink = `${url}${fullPath}`;
+  const snapshot = `${url}/api/public/snapshot/${snapshotId}.svg`;
+  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden">
+  <a href="${fullLink}" target="_blank" rel="noopener" style="display:block;position:absolute;inset:0;text-decoration:none">
+    <img src="${snapshot}" alt="Wetterkarte — interaktive Version: ${fullLink}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"/>
+  </a>
+  <iframe
+    id="wx-${idSuffix}"
+    src="${full}"
+    loading="lazy"
+    referrerpolicy="no-referrer-when-downgrade"
+    allow="geolocation; fullscreen"
+    scrolling="no"
+    onload="this.style.opacity=1"
+    style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .2s"
+    title="Wetter-Karte"
+  ></iframe>
 </div>
 <script>
   (function () {
+    var wrap = document.getElementById("wx-${idSuffix}-wrap");
     var f = document.getElementById("wx-${idSuffix}");
-    if (!f) return;
+    if (!wrap || !f) return;
     window.addEventListener("message", function (e) {
       if (e.data && e.data.type === "lovable-weather:height" && e.source === f.contentWindow) {
-        f.style.height = e.data.height + "px";
+        wrap.style.height = e.data.height + "px";
       }
     });
+    // Wenn das iframe nach 6 s nicht geladen ist (Adblocker, In-App-Browser,
+    // alter Browser), iframe entfernen — das Snapshot-Bild bleibt sichtbar.
     setTimeout(function () {
       try {
         var doc = f.contentDocument;
-        var ok = (doc && doc.body && doc.body.children.length > 0) || f.offsetHeight > 80;
-        if (!ok) {
-          var fb = document.getElementById("wx-${idSuffix}-fb");
-          if (fb) fb.style.display = "block";
-        }
-      } catch (_) { /* cross-origin: ignore */ }
-    }, 5000);
+        var ok = (doc && doc.body && doc.body.children.length > 0) || (f.offsetHeight > 80 && f.style.opacity === "1");
+        if (!ok) { f.parentNode && f.parentNode.removeChild(f); }
+      } catch (_) { /* cross-origin = iframe lädt erfolgreich */ }
+    }, 6000);
   })();
 </script>`;
 }
 
-function buildViewportSnippet(url: string, path: string, idSuffix: string) {
+function buildViewportSnippet(
+  url: string,
+  path: string,
+  idSuffix: string,
+  snapshotId: string,
+  fullPath: string,
+) {
   const full = `${url}${path}`;
-  return `<iframe
-  id="wx-${idSuffix}"
-  src="${full}"
-  width="100%"
-  loading="eager"
-  referrerpolicy="no-referrer-when-downgrade"
-  allow="geolocation; fullscreen"
-  scrolling="no"
-  style="width:100%;max-width:100%;min-width:0;height:100vh;min-height:70vh;max-height:100vh;border:0;display:block;box-sizing:border-box"
-  title="Wetter-Karte"
-></iframe>
-<noscript><div style="padding:8px;font:13px/1.4 system-ui">Bitte aktiviere JavaScript oder <a href="${full}" target="_blank" rel="noopener">öffne die Karte in einem neuen Tab</a>.</div></noscript>
-<style>@supports (height: 100dvh) { #wx-${idSuffix} { height: 100dvh !important; max-height: 100dvh !important; } }</style>`;
+  const fullLink = `${url}${fullPath}`;
+  const snapshot = `${url}/api/public/snapshot/${snapshotId}.svg`;
+  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;height:100vh;min-height:70vh;max-height:100vh;border:0;box-sizing:border-box;background:#eaf2fb;overflow:hidden">
+  <a href="${fullLink}" target="_blank" rel="noopener" style="display:block;position:absolute;inset:0;text-decoration:none">
+    <img src="${snapshot}" alt="Wetterkarte — interaktive Version: ${fullLink}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"/>
+  </a>
+  <iframe
+    id="wx-${idSuffix}"
+    src="${full}"
+    loading="lazy"
+    referrerpolicy="no-referrer-when-downgrade"
+    allow="geolocation; fullscreen"
+    scrolling="no"
+    onload="this.style.opacity=1"
+    style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .2s"
+    title="Wetter-Karte"
+  ></iframe>
+</div>
+<style>@supports (height: 100dvh) { #wx-${idSuffix}-wrap { height: 100dvh !important; max-height: 100dvh !important; } }</style>`;
 }
 
 function SnippetBlock({ snippet }: { snippet: string }) {
