@@ -116,8 +116,14 @@ function cacheGridLooksStale(points: { lat: number; lon: number }[] | undefined)
 
 
 export interface RadarFrame {
-  t: string; // ISO UTC
+  t: string; // ISO UTC — Zeitpunkt, der auf der Timeline angezeigt wird
   source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2";
+  /** Tatsächlicher Zeitstempel des PNG-Bildes (kann bei Forward-Fill/Nowcast
+   *  vom Anzeigezeit `t` abweichen). */
+  sourceT?: string;
+  /** True, wenn der Frame per Forward-Fill aus einem älteren Messbild
+   *  gefüllt wurde (echte Messung fehlte). */
+  isFilled?: boolean;
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei `imageUrl`-Frames leer. */
   values: number[];
   /** Schnee-Wasser-Äquivalent mm/h pro Grid-Punkt (row-major). Leer = unbekannt. */
@@ -320,17 +326,24 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       (a, b) => Date.parse(a.t) - Date.parse(b.t),
     );
     let lastPrecip: string | undefined;
+    let lastPrecipSourceT: string | undefined;
     let lastPrecipAge = 0;
     let lastHail: string | undefined;
     let lastHailAge = 0;
     const filled = sortedMf.map((mf) => {
       let precipUrl = mf.precipUrl;
       let hailUrl = mf.hailUrl;
+      let sourceT: string | undefined;
+      let isFilled = false;
       if (precipUrl) {
         lastPrecip = precipUrl;
+        lastPrecipSourceT = mf.t;
         lastPrecipAge = 0;
+        sourceT = mf.t;
       } else if (lastPrecip && lastPrecipAge < FILL_LIMIT) {
         precipUrl = lastPrecip;
+        sourceT = lastPrecipSourceT;
+        isFilled = true;
         lastPrecipAge += 1;
       }
       if (hailUrl) {
@@ -340,7 +353,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         hailUrl = lastHail;
         lastHailAge += 1;
       }
-      return { t: mf.t, precipUrl, hailUrl };
+      return { t: mf.t, precipUrl, hailUrl, sourceT, isFilled };
     });
     // Open-Meteo `minutely_15` enthält dank `past_minutely_15` auch die
     // letzten ~12 h. Wir bauen einen Time→Index-Lookup auf, um pro Messung-
@@ -398,6 +411,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       frames.push({
         t: mf.t,
         source: "radar",
+        sourceT: mf.sourceT ?? mf.t,
+        isFilled: mf.isFilled,
         values,
         snowValues,
         precipUrl: mf.precipUrl,
@@ -625,6 +640,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         frames.push({
           t: new Date(tMs).toISOString(),
           source: "nowcast",
+          sourceT: last.sourceT ?? last.t,
           values: [],
           precipUrl: last.precipUrl,
           imageOffset: {

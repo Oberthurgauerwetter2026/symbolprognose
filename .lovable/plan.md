@@ -1,84 +1,65 @@
 ## Befund
 
-Zwei separate Probleme, beide in `scripts/ingest_radar.py` bzw. `src/components/maps/radar-map.tsx`:
+Die Zeit passt aktuell aus zwei Gründen nicht zuverlässig:
 
-### A) Intensitäts-Unterschätzung (Faktor ~3–12×)
+1. **Debug-Endpoint liest die falsche Manifest-URL**  
+   `R2_PUBLIC_URL` ist bereits `.../radar/frames.json`, aber `/api/public/debug/r2-cache` hängt nochmals `/radar/frames.json` an. Dadurch zeigt die Diagnose `manifest fetch 404`, obwohl das echte Manifest existiert.
 
-Quelle: MeteoSchweiz-STAC `ch.meteoschweiz.ogd-radar-precip` (CPC). Im Ingest wird der h5-Datensatz so dekodiert:
+2. **Frontend vermischt Messung, Nowcast und Prognose auf einer durchgehenden Timeline**  
+   Nach dem letzten echten Radarbild werden Nowcast-Frames erzeugt, die weiterhin dasselbe letzte Radar-PNG verschoben anzeigen. Für spätere Uhrzeiten sieht es deshalb so aus, als sei das Radarbild zeitlich falsch, weil z. B. 18:20 angezeigt wird, aber visuell noch das 17:55-Radarbild als Grundlage verwendet wird.
 
-```python
-arr = data.astype(np.float32)
-arr = arr * gain + offset       # Z. 346–349 in ingest_radar.py
-```
-
-und das Ergebnis **direkt als mm/h** in die PNG-Palette gefüttert. Die CPC-Produkte von MeteoSchweiz haben aber je nach Variante drei mögliche `what.quantity`-Werte:
-
-| `quantity` | Bedeutung | Korrekte Umrechnung in mm/h |
-|------------|-----------|------------------------------|
-| `RATE` | mm/h | identisch (×1) |
-| `ACRR` | mm pro 5-min-Intervall | **×12** |
-| `dBR` / `dBZ` | logarithmisch | `10**(value/10)` (+ Z-R-Relation für dBZ) |
-
-`what.quantity` wird im Code **nicht gelesen**. Wenn das aktuelle Asset z. B. `ACRR` (5-min-Akkumulation in mm) ist, sehen 4 mm Niederschlag (= 48 mm/h) im Frontend wie 4 mm/h aus → genau das beobachtete Muster (eigene Karte: orange ≈ 10–20 mm/h, Kachelmann/MeteoSchweiz-Web: rot 40–60 mm/h für dieselbe Zelle).
-
-### B) Frame-Latenz im UI (~30 min)
-
-Manifest hat aktuell:
-- `generatedAt`: 15:51 UTC
-- Neuestes `precipUrl`-Frame: 15:40 UTC (= 17:40 CEST)
-
-Das App-UI zeigte zum Aufnahmezeitpunkt aber `Messung: So, 17:10` (= 15:10 UTC). Das Frontend springt also nicht auf das jüngste verfügbare Messframe, sondern bleibt 30 min dahinter. Wahrscheinlichste Ursache: Initial-Selektion im Timeline-Slider rechnet `now − fixerOffset` statt `last(frames)`.
+3. **Manifest enthält nur den Zeitstempel des Frames, nicht die tatsächliche Bildquelle nach Forward-Fill/Nowcast**  
+   Wenn ein Frame eine weiterverwendete `precipUrl` bekommt, ist im UI nicht klar sichtbar, ob das Bild exakt zu dieser Uhrzeit gemessen wurde oder nur von einem früheren Messbild stammt.
 
 ## Plan
 
-### Schritt 1 — Quantity-aware CPC-Dekodierung (löst Intensität)
+### 1. R2-Debug-Endpoint reparieren
 
-In `scripts/ingest_radar.py` → `read_h5_grid()`:
+In `src/routes/api/public/debug/r2-cache.ts` dieselbe robuste URL-Normalisierung wie in `src/lib/radar.functions.ts` verwenden:
 
-- `quantity` aus `what`-Attrs auslesen (fallback `top_what`): String, häufig `b"RATE"` / `b"ACRR"` / `b"DBZH"`.
-- Im Meta-Dict zurückgeben.
-- In `process_asset()` nach `sample_to_bbox()` die Werte konvertieren:
-  - `RATE` → unverändert
-  - `ACRR` mit `interval=5min` (aus `what.startdate`/`enddate` ablesen, sonst 5 annehmen) → `mm_per_h = value * 60 / interval_min`
-  - `dBR` → `10 ** (value / 10)`
-  - `DBZH` / `dBZ` → Marshall–Palmer `R = (10**(dBZ/10) / 200) ** (1/1.6)` 
-- Ergebnis als mm/h in die bestehende `PRECIP_SCALE` einspeisen — keine Palette-Änderung nötig.
-- Log: `print(f"  cpc quantity={q} → mm/h conversion applied (factor={factor})")` pro Frame.
-- `RADAR_INGEST_VERSION` auf `v10-cpc-quantity-fix` bumpen.
-- `.github/workflows/radar-ingest.yml` → `EXPECTED_RADAR_INGEST_VERSION` mit-bumpen.
+- Wenn `R2_PUBLIC_URL` schon auf `radar/frames.json` zeigt, exakt diese URL abrufen.
+- Wenn `R2_PUBLIC_URL` nur die Basis-URL ist, `/radar/frames.json` anhängen.
+- Zusätzlich `latestFrameTs`, `latestPrecipTs`, `latestPrecipUrl` und deren Alter ausgeben.
 
-Sanity-Check im Ingest: nach Konvertierung `print` der Max- und 99-Perzentil-Werte; wenn Max > 200 mm/h → Warnung loggen (Dekodierung falsch).
+Damit kann sofort geprüft werden, ob die Datenquelle aktuell ist.
 
-### Schritt 2 — Timeline springt auf neuestes Frame (löst Latenz im UI)
+### 2. Frame-Herkunft im Payload explizit machen
+
+In `src/lib/radar.functions.ts` die Radar-Frames erweitern um:
+
+- `displayT`: Zeit, die auf der Timeline steht.
+- `sourceT`: tatsächlicher Zeitstempel des verwendeten Radar-PNGs.
+- `isFilled`: true, wenn ein fehlender Frame per Forward-Fill aus älterem Bild gefüllt wurde.
+- Für Nowcast: `sourceT` bleibt der letzte echte Radar-Messzeitpunkt, `displayT` ist die Nowcast-Zielzeit.
+
+So kann die UI unterscheiden zwischen „Messung 17:55“ und „Nowcast für 18:20 aus Messung 17:55“.
+
+### 3. Timeline und Labels entwirren
 
 In `src/components/maps/radar-map.tsx`:
 
-- Initial-Index der Timeline auf `frames.length - 1` setzen (das letzte echte Mess-Frame, *vor* den Nowcast-Frames).
-- Wenn der User pausiert hat, jüngsten Frame bei manifest-Refresh **nicht** überschreiben; wenn er auf "Live"-Knopf ist (oder das erste Mal lädt), auf `lastMeasured` springen.
-- Header-Label `Messung: …` zusätzlich um `(vor N min)` ergänzen, damit Latenz sichtbar ist.
+- Den „Jetzt“-Button standardmässig auf das **letzte echte Radar-Messbild** setzen, nicht auf einen verschobenen Nowcast-Frame, wenn der Nutzer explizit Messung/Radar kontrollieren will.
+- Labels klar formulieren:
+  - Echte Messung: `Messung: 17:55 (vor N min)`
+  - Gefüllter Messframe: `Messung fehlt · Bild von 17:50`
+  - Nowcast: `Nowcast: 18:20 · Basis 17:55`
+  - Modell: `Prognose: 19:00`
+- Im Badge oben links ebenfalls `Bildbasis ...` anzeigen, sobald `sourceT !== t`.
 
-### Schritt 3 — Diagnose im Debug-Endpoint
+### 4. Optionalen Schutz gegen falsche alte R2-Frames einbauen
 
-`src/routes/api/public/debug/r2-cache.ts` zusätzlich pro Manifest ausgeben:
-- `latestPrecipTs`, `latestPrecipAgeMin`
-- bereits vorhandene `version` zeigt, ob v10 läuft.
+Im Server-Payload Frames verwerfen oder warnen, wenn:
 
-### Schritt 4 — Verifikation
+- `precipUrl`-Zeitstempel und Frame-`t` mehr als 5 Minuten auseinanderliegen, ausser es ist explizit Forward-Fill/Nowcast.
+- Das neueste echte Radarbild älter als z. B. 20 Minuten ist.
 
-1. Publish + Workflow-Trigger.
-2. `/api/public/debug/r2-cache` → `radar.version = "v10-cpc-quantity-fix"`, `latestPrecipAgeMin < 15`.
-3. `/karten/radar`: Karte muss bei aktiver Konvektion rote/violette Bereiche (40–60+ mm/h) zeigen, identisch zu MeteoSchweiz-Web bei identischem Zeitstempel.
-4. Timeline öffnet auf jüngstem Messframe (nicht 30 min alt).
-5. Wenn weiterhin Unterschätzung: Workflow-Log auf `cpc quantity=…` prüfen — der dort geloggte `quantity`-Wert sagt, welcher Konvertierungspfad nötig war.
+Dann zeigt die UI eine sichtbare Warnung statt scheinbar aktuellem Radar.
 
-## Was nicht angefasst wird
+## Verifikation
 
-- Bbox, Palette, R2-Layout.
-- Nowcast / motion.field (separater Plan).
-- Hail-Produkt (POH ist in %, kein mm/h).
-- Snow-Overlay-Logik.
+Nach Umsetzung:
 
-## Risiken
-
-- Wenn `quantity` zwischen Frames wechselt (z. B. neues Asset hat dBZ statt RATE), greift der Konverter automatisch — Voraussetzung: jeder Frame wird einzeln konvertiert (kein Cache der alten Werte).
-- Alte PNGs in R2 sind mit alter Skala gerendert; sie bleiben falsch bis die Cleanup-Retention sie überschreibt. Optional: `cleanup()` einmalig auf 0 h setzen für sofortige Neuerzeugung — sonst dauert es ~24 h bis alles korrekt ist.
+1. `/api/public/debug/r2-cache` muss das Manifest ohne 404 lesen.
+2. `/karten/radar` muss bei „Jetzt“ das letzte echte Messbild zeigen.
+3. Bei Nowcast-Zeiten muss klar sichtbar sein, welches Messbild als Basis genutzt wird.
+4. Wenn das Radar-Manifest hinterherhinkt, muss die UI das Alter statt einer falschen Aktualität anzeigen.
