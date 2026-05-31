@@ -231,8 +231,9 @@ function renderMap(
         v01 * tx * (1 - ty) +
         v10 * (1 - tx) * ty +
         v11 * tx * ty;
-      if (v < ACCUM_SCALE[0].mm) continue;
-      const [r, g, b, a] = colorForAccumSmooth(v);
+      if (v < ACCUM_CLASSES[0].min) continue;
+      const [r, g, b, a] = colorForAccum(v);
+      if (a === 0) continue;
       const idx = (py * innerW + px) * 4;
       data[idx] = r;
       data[idx + 1] = g;
@@ -245,11 +246,8 @@ function renderMap(
   off.width = innerW;
   off.height = innerH;
   off.getContext("2d")!.putImageData(img, 0, 0);
-  // sehr leichter Blur für weichere Optik
-  ctx.save();
-  ctx.filter = "blur(0.6px)";
+  // Kein Blur – harte Klassen-Übergänge bewusst sichtbar.
   ctx.drawImage(off, PAD.left, PAD.top);
-  ctx.restore();
 
   // See
   drawGeoJson(ctx, LAKE, project, { fill: "#cfe4f5", stroke: "#7aa9c8", lineWidth: 0.8 });
