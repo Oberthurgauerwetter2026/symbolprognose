@@ -426,7 +426,6 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
 
   const download = () => {
     try {
-      // Frisches Export-Canvas in 1× rendern → kleine, saubere PNG, robust.
       const exportCanvas = document.createElement("canvas");
       renderMap(exportCanvas, payload, { dpr: 1, w: BASE_W, h: BASE_H });
       const fileName = `niederschlag-${hours}h-${new Date()
@@ -434,54 +433,49 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         .slice(0, 16)
         .replace(/[-:T]/g, "")}.png`;
 
-      const triggerBlobDownload = () => {
-        exportCanvas.toBlob((blob) => {
-          if (!blob) {
-            openDataUrlFallback();
-            return;
-          }
-          try {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            a.rel = "noopener";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 2000);
-            toast.success("PNG-Download gestartet", { description: fileName });
-          } catch {
-            openDataUrlFallback();
-          }
-        }, "image/png");
-      };
+      const dataUrl = exportCanvas.toDataURL("image/png");
 
-      const openDataUrlFallback = () => {
-        try {
-          const dataUrl = exportCanvas.toDataURL("image/png");
-          const win = window.open();
-          if (win) {
-            win.document.write(
-              `<title>${fileName}</title><body style="margin:0;background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${dataUrl}" style="max-width:100%;height:auto" alt="Niederschlag"></body>`,
-            );
-            toast.info("PNG im neuen Tab geöffnet", {
-              description: "Rechtsklick → Bild speichern unter …",
-            });
-          } else {
-            // Letzter Fallback: direkter Link in Toast.
-            toast.error("Download blockiert", {
-              description: "Bitte Popups erlauben oder Seite in neuem Tab öffnen.",
-            });
-          }
-        } catch (e) {
+      // Primärweg: neuer Tab mit Bild + sichtbarem Speichern-Link.
+      // Funktioniert auch in Preview-Iframes mit Sandbox-Beschränkungen.
+      const win = window.open("", "_blank");
+      if (win && win.document) {
+        win.document.open();
+        win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${fileName}</title>
+<style>
+  body{margin:0;background:#0f172a;color:#e2e8f0;font-family:ui-sans-serif,system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px}
+  .bar{display:flex;gap:8px;align-items:center}
+  a.btn{display:inline-block;background:#22c55e;color:#0b1220;font-weight:600;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:14px}
+  a.btn:hover{background:#16a34a;color:#fff}
+  img{max-width:100%;height:auto;border:1px solid #1e293b;border-radius:8px;background:#fff}
+  .hint{font-size:12px;color:#94a3b8}
+</style></head><body>
+<div class="bar"><a class="btn" href="${dataUrl}" download="${fileName}">PNG speichern</a><span class="hint">oder Rechtsklick aufs Bild → „Bild speichern unter …“</span></div>
+<img src="${dataUrl}" alt="${fileName}">
+</body></html>`);
+        win.document.close();
+        toast.success("PNG geöffnet", { description: "Im neuen Tab speichern." });
+        return;
+      }
+
+      // Fallback: direkter Blob-Download (klassisch, wenn Popups erlaubt sind).
+      exportCanvas.toBlob((blob) => {
+        if (!blob) {
           toast.error("Export fehlgeschlagen", {
-            description: (e as Error).message,
+            description: "Browser hat das Bild nicht erzeugt. Bitte Popups erlauben.",
           });
+          return;
         }
-      };
-
-      triggerBlobDownload();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        toast.success("PNG-Download gestartet", { description: fileName });
+      }, "image/png");
     } catch (e) {
       toast.error("Export fehlgeschlagen", { description: (e as Error).message });
     }
