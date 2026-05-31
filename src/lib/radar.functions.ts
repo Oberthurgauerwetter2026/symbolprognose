@@ -326,17 +326,24 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       (a, b) => Date.parse(a.t) - Date.parse(b.t),
     );
     let lastPrecip: string | undefined;
+    let lastPrecipSourceT: string | undefined;
     let lastPrecipAge = 0;
     let lastHail: string | undefined;
     let lastHailAge = 0;
     const filled = sortedMf.map((mf) => {
       let precipUrl = mf.precipUrl;
       let hailUrl = mf.hailUrl;
+      let sourceT: string | undefined;
+      let isFilled = false;
       if (precipUrl) {
         lastPrecip = precipUrl;
+        lastPrecipSourceT = mf.t;
         lastPrecipAge = 0;
+        sourceT = mf.t;
       } else if (lastPrecip && lastPrecipAge < FILL_LIMIT) {
         precipUrl = lastPrecip;
+        sourceT = lastPrecipSourceT;
+        isFilled = true;
         lastPrecipAge += 1;
       }
       if (hailUrl) {
@@ -346,7 +353,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         hailUrl = lastHail;
         lastHailAge += 1;
       }
-      return { t: mf.t, precipUrl, hailUrl };
+      return { t: mf.t, precipUrl, hailUrl, sourceT, isFilled };
     });
     // Open-Meteo `minutely_15` enthält dank `past_minutely_15` auch die
     // letzten ~12 h. Wir bauen einen Time→Index-Lookup auf, um pro Messung-
