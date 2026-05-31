@@ -185,7 +185,7 @@ function EmbedInfo() {
             </p>
           </div>
 
-          {MAPS.map((m) => {
+          {MAPS.filter((m) => !m.internal && m.embedPath).map((m) => {
             const Icon = m.icon;
             return (
               <div key={m.id} className="space-y-2 rounded-2xl border border-border bg-card p-4">
@@ -206,7 +206,7 @@ function EmbedInfo() {
                     </span>
                   )}
                 </div>
-                <SnippetBlock snippet={buildSnippet(url, m.embedPath, m.id, m.id, m.routePath)} />
+                <SnippetBlock snippet={buildSnippet(url, m.embedPath!, m.id, m.id, m.routePath)} />
               </div>
             );
           })}

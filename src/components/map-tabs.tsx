@@ -7,7 +7,7 @@ const BRAND = "#2561a1";
 export function MapTabs({ active }: { active: MapId }) {
   return (
     <div className="no-scrollbar -mx-1 mb-5 flex gap-1 overflow-x-auto rounded-full bg-muted p-1">
-      {MAPS.map((m) => {
+      {MAPS.filter((m) => !m.internal).map((m) => {
         const Icon = m.icon;
         const isActive = m.id === active;
         return (
