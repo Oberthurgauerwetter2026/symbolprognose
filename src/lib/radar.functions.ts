@@ -257,7 +257,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     }
   }
 
-  // ---- Prognose: ICON-CH1 (minutely_15, bis ~+33 h) ----
+  // ---- Prognose: ICON-CH1 (minutely_15, bis +24 h) ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
 
   // Bias-Korrektur Messung↔Prognose: Mittel der letzten 3 Messungen vs. ICON-CH1
