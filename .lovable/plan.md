@@ -1,79 +1,86 @@
-## Ziel
+## Befund
 
-Statt einem einzelnen globalen Bewegungsvektor pro Frame ein **Bewegungsfeld** aus der Kreuzkorrelation der letzten Radarbilder berechnen, mit dem 700-hPa-Wind als physikalischem Prior gewichten, und nur fallen lassen wenn weder Radar noch Wind brauchbar sind. Damit verschwindet die Wind-Fallback-Vorzeichen-Falle als Hauptursache, und die Zugbahn richtet sich nach dem, was *im Bild* passiert.
+Live-Manifest `https://pub-2273…r2.dev/radar/frames.json`:
+- `frames: 288` ✓ (Ingest läuft)
+- `motion: {}` ✗ (leer — weder globaler Vektor noch `field`)
+- kein `version`-Feld
 
-## Was sich ändert
+Das Label **"Radar-Feld · N Kacheln"** in `src/components/maps/radar-map.tsx:1084` erscheint also nie, weil `currentFrame.motionSource` nicht `"radar-field"` wird. Der Frontend-Pfad in `src/lib/radar.functions.ts:480` setzt diese Quelle nur, wenn `manifest.motion.field` mit ≥4 validen Kacheln vorhanden ist — und das Feld ist `null`.
 
-### 1. `scripts/ingest_radar.py` — tiled phase correlation + Wind-Prior
+Da `motion` komplett leer ist (nicht nur `field`), ist die Wurzel auf der **Python-Ingest-Seite**: `compute_motion()` / `compute_motion_field()` in `scripts/ingest_radar.py` schreibt aktuell nichts ins Manifest. Mögliche Ursachen:
 
-Statt `_phase_correlation(a, b)` über das ganze 1024×768-Bild:
+1. Workflow läuft seit v9-Bump noch nicht (manueller Trigger fehlt nach Publish).
+2. `compute_motion_field()` wirft eine Exception, die abgefangen wird und nur ein leeres Dict zurückgibt.
+3. Frame-Auswahl liefert <2 brauchbare Paare → Funktion gibt früh `{}` zurück.
+4. Wind-Prior-Fetch schlägt fehl und der Code bricht ab statt zu degradieren.
 
-- Bild in **8×6 Kacheln à 128 px** mit 50 % Überlappung schneiden (Hanning-Fenster pro Kachel).
-- Pro Kachel `_phase_correlation` rechnen → `(dx_px, dy_px, conf, wet_frac)`.
-- Kacheln verwerfen, wenn `wet_frac < 0.05` (kein Niederschlag drin) oder `conf < 0.15`.
-- 3×3-Median-Filter über das Kachelfeld (räumliche Glättung gegen Ausreisser).
-- 700-hPa-Wind (aus Open-Meteo, **im Ingest** mitgeladen für Bbox-Mitte) als **Bayes-Prior** mit Gewicht `1 − conf` in jede Kachel mischen. Dadurch driften datenarme Ecken Richtung Wind, datenreiche Zentren bleiben beim Radarbild.
-- Persistieren als `motion.field: { rows, cols, u_deg_per_min[], v_deg_per_min[], conf[] }` im Manifest, **plus** weiterhin globaler Median `u_ms/v_ms/u_deg_per_min/v_deg_per_min` als Rückfall fürs Frontend.
-- `RADAR_INGEST_VERSION` auf `v9-optical-flow`.
+## Plan
 
-### 2. Wachstum/Zerfall pro Kachel
+### Schritt 1 — Workflow-Logs prüfen (Read-only, keine Codeänderung)
 
-Aktuell ist `growth_per_min` ein einziger Skalar fürs ganze Bild. Erweitern auf `motion.growth_field` (gleiches Grid) per linearer Regression der mittleren Intensität pro Kachel über die letzten 6 Frames. Clampen auf ±5 %/min.
+Den letzten erfolgreichen GitHub-Actions-Run von `radar-ingest.yml` ansehen und nach Zeilen `RADAR INGEST START version=…`, `compute_motion`, `motion field`, `tile` greifen. Damit ist sofort klar, ob v9 überhaupt gelaufen ist und was `compute_motion_field()` gemeldet hat.
 
-### 3. `src/lib/radar.functions.ts` — Feld lesen, Median verwenden, Wind-Fallback fixen
+→ Erwartete Ausgabe vom Nutzer: Link/Auszug des letzten Runs, oder Bestätigung "noch nicht getriggert".
 
-- Wenn `manifest.motion.field` existiert: für jedes Nowcast-Frame den **gewichteten Median** der Kachel-Vektoren über den aktuellen Bbox-Ausschnitt berechnen (nicht den naiven Median über alle Kacheln — Kacheln ohne Niederschlag werden bereits im Ingest verworfen, deshalb ist das Feld bereits gefiltert). `nowcastMotion.source = "radar-field"`.
-- Wenn das Feld <4 valide Kacheln hat: zurück zum globalen `u_deg_per_min/v_deg_per_min`. `source = "radar"`.
-- Erst dann der Wind-Fallback (`source = "wind"`). Die Vorzeichen in Z. 488–489 sind mathematisch korrekt (NW-Wind 315° → `uMs = +5.8`, `vMs = −5.8` → bearing 135° = SE). Aktuell liefert das Browser-Bild trotzdem NW-Drift — also als Sicherung **einen Unit-Test in `assertWindMotionSign()` erweitern**, der zusätzlich die *Bbox-Shift-Konsequenz* prüft (`dLon > 0 → Ostverschiebung`), und einen sichtbaren `[radar/nowcast/wind]`-Log um `expected: cells move SE for NW-wind` ergänzen. Damit lässt sich beim nächsten Auftreten in einer Logzeile sofort sehen, welche Stufe (Open-Meteo-Daten vs. Trig vs. Bbox-Anwendung) lügt.
-- Wachstumsfaktor: wenn `growth_field` vorhanden, Median über genutzte Kacheln; sonst skalarer Wert wie bisher.
+### Schritt 2 — Diagnose-Endpoint erweitern
 
-### 4. `src/components/maps/radar-map.tsx` — Pfeil-Overlay erweitern
+`src/routes/api/public/debug/r2-cache.ts` zusätzlich das Radar-Manifest spiegeln:
 
-- Pfeil zeigt weiterhin die **angewandte** Zugbahn (`imageOffset`).
-- Label um `source` ergänzen: `"Zugbahn 135° SE · radar-field (7 Kacheln)"` vs. `"… · wind-fallback"`. Damit ist beim nächsten Wahrnehmungs-vs-Code-Konflikt sofort klar, welcher Pfad aktiv ist.
-- Wenn `motion.field` und Debug-Query `?debugFlow=1`: kleine Pfeile pro Kachel als SVG-Overlay (nur Debug, kein Default).
-
-### 5. Was *nicht* angefasst wird
-
-- Bbox, Auflösung, R2-Upload-Logik, Palette.
-- ICON-CH1-Übergang ab T+60, Snow-Overlay, Pollen, Wind-Karten.
-- Bestehende `assertWindMotionSign()`-Erwartungen (nur erweitert, nicht umgedreht).
-
-## Technische Details
-
-**Tile-Layout:** 8 Spalten × 6 Reihen, Kacheln 128 px (50 % Stride 64 px) → 16×12 Anker-Punkte, jede Kachel auf 128 px gefenstert. Pro Frame-Paar ~192 FFTs à 128² = günstig in numpy. Laufzeit-Schätzung: +~400 ms pro Ingest-Lauf (alle 5 min via GitHub Actions, unkritisch).
-
-**Wind-Prior-Gewichtung:** `u_final = conf·u_radar + (1−conf)·u_wind` pro Kachel, mit `u_wind` aus Bbox-Mittel-Punkt (eine Open-Meteo-Abfrage pro Ingest, 5-min-Cache via R2). Verhindert NaN-Drift in regenfreien Ecken und macht den globalen Median robuster.
-
-**Manifest-Erweiterung** (rückwärtskompatibel):
-```text
-motion: {
-  u_ms, v_ms, u_deg_per_min, v_deg_per_min,    // wie bisher (Median)
-  confidence, growth_per_min, ...,
-  field: {                                      // NEU
-    rows: 12, cols: 16,
-    u_deg_per_min: [192 floats],
-    v_deg_per_min: [192 floats],
-    conf:          [192 floats],
-    growth_per_min:[192 floats]
-  }
-}
+```ts
+const radarRes = await fetch(`${base}/radar/frames.json`);
+const radar = await radarRes.json();
+return Response.json({
+  ...,
+  radar: {
+    generatedAt: radar.generatedAt,
+    version: radar.version ?? null,
+    frameCount: radar.frames?.length ?? 0,
+    motionKeys: Object.keys(radar.motion ?? {}),
+    fieldSize: radar.motion?.field
+      ? { rows: radar.motion.field.rows, cols: radar.motion.field.cols,
+          validTiles: radar.motion.field.conf?.filter(c => c > 0.15).length }
+      : null,
+  },
+});
 ```
 
-Frontend liest `field` defensiv (`if (motion.field && motion.field.u_deg_per_min?.length === rows*cols)`), sonst alter Pfad.
+Damit lässt sich nach jedem Cron-Run in einer Sekunde sehen, ob `field` geschrieben wurde.
 
-**Edge-Runtime-Verträglichkeit:** Keine neuen Server-Abhängigkeiten im Worker — nur Array-Median über bereits geladenes JSON. Python-Seite bekommt nur `numpy` (schon da), kein OpenCV.
+### Schritt 3 — Ingest-Logging härten
 
-## Reihenfolge der Umsetzung
+In `scripts/ingest_radar.py` rund um `compute_motion()` / `compute_motion_field()`:
 
-1. `scripts/ingest_radar.py`: `compute_motion_field()` neu, alter `compute_motion()` ruft sie und aggregiert → globaler Median bleibt erhalten.
-2. `src/lib/radar.functions.ts`: Feld-Reader + Median-über-aktive-Kacheln, Log-Erweiterung, `assertWindMotionSign()` ergänzen.
-3. `src/components/maps/radar-map.tsx`: Label-Erweiterung, optional Debug-Overlay.
-4. `RADAR_INGEST_VERSION` bump → manueller Workflow-Trigger zum Erstellen des ersten `field`-Manifests.
-5. Verifikation: Pfeil-Overlay + Console-Log auf `/karten/radar` checken, dass `source = radar-field` kommt und Pfeil mit Zellbewegung übereinstimmt.
+- `try/except` Block: bei Fehler `print("[motion] ERROR …", traceback)` statt stilles `return {}`.
+- Vor dem `return` der `motion`-Dict: einen `print(f"[motion] result keys={list(motion)} field_tiles={…}")` ausgeben.
+- Wenn weniger als 2 Frame-Paare verfügbar: explizit loggen, warum.
+- `RADAR_INGEST_VERSION` zusätzlich ins Manifest schreiben (`manifest["version"] = RADAR_INGEST_VERSION`), damit die Diagnose aus Schritt 2 sieht, welcher Code lief.
 
-## Was das löst und was nicht
+### Schritt 4 — Frontend-Label-Fallback
 
-**Gelöst:** Bei ausreichendem Radarsignal (Normalfall) ist die Zugbahn datengetrieben, nicht modellgetrieben — exakt das Verfahren, das du beschrieben hast (Cross-Correlation pro Bereich + Wind als Bias + Wachstums-Trend).
+In `src/components/maps/radar-map.tsx:1079-1090` das Label so erweitern, dass **immer** sichtbar ist, welche Quelle aktiv ist — auch wenn kein Feld vorliegt:
 
-**Nicht gelöst:** In Stillstands-/Trockenphasen bleibt der Wind-Fallback. Mit dem zusätzlichen Log + `assertWindMotionSign()`-Erweiterung wird ein Re-Auftreten des Vorzeichen-Bugs aber sofort sichtbar statt monatelang unbemerkt.
+```text
+Zugbahn 135° SE · Wind-Fallback (kein Radar-Feld verfügbar)
+Zugbahn 135° SE · Radar global (Feld leer)
+Zugbahn 135° SE · Radar-Feld · 7 Kacheln
+```
+
+Damit ist beim nächsten Wahrnehmungs-vs-Code-Konflikt sofort im UI klar, welcher Pfad läuft — ohne in die Console schauen zu müssen.
+
+### Schritt 5 — Verifikation
+
+1. Nach Schritt 2+3+4 publishen.
+2. Workflow "Radar Ingest" manuell triggern.
+3. `/api/public/debug/r2-cache` öffnen → `radar.fieldSize` prüfen.
+4. `/karten/radar` öffnen → Label sollte `Radar-Feld · N Kacheln` zeigen.
+5. Wenn nicht: Action-Log liefert dank Schritt 3 die genaue Abbruchursache.
+
+## Was nicht angefasst wird
+
+- `compute_motion_field()`-Algorithmus selbst (erst nach Diagnose).
+- Bbox, Frame-Auflösung, R2-Upload-Pfade.
+- Wind-Fallback-Trigonometrie.
+
+## Nächster Schritt nach Approval
+
+Schritt 2+3+4 sind kleine, sichere Edits — diese kann ich in einem Build-Durchgang umsetzen. Schritt 1 (Workflow-Logs) brauchst du nicht zwingend zuerst zu liefern; die neuen Logs aus Schritt 3 ersetzen das beim nächsten Run.
