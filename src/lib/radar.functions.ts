@@ -31,6 +31,39 @@ const BBOX = { minLat: 46.85, maxLat: 48.30, minLon: 8.15, maxLon: 10.55 } as co
 const GRID_LON = 36;
 const GRID_LAT = 22;
 
+// ─── Self-test: meteo-Wind → Bewegungsvektor (einmal pro Worker-Lifetime) ───
+// Verhindert, dass eine spätere Bearbeitung das Vorzeichen unbemerkt kippt.
+let _windSignCheckDone = false;
+function assertWindMotionSign(): void {
+  if (_windSignCheckDone) return;
+  _windSignCheckDone = true;
+  const cases: { dir: number; label: string; expectU: number; expectV: number }[] = [
+    { dir: 0, label: "N-Wind → S-Drift", expectU: 0, expectV: -1 },
+    { dir: 90, label: "E-Wind → W-Drift", expectU: -1, expectV: 0 },
+    { dir: 180, label: "S-Wind → N-Drift", expectU: 0, expectV: 1 },
+    { dir: 270, label: "W-Wind → E-Drift", expectU: 1, expectV: 0 },
+    { dir: 315, label: "NW-Wind → SE-Drift", expectU: 1, expectV: -1 },
+  ];
+  const speed = 10;
+  const fails: string[] = [];
+  for (const c of cases) {
+    const rad = (c.dir * Math.PI) / 180;
+    const u = -speed * Math.sin(rad);
+    const v = -speed * Math.cos(rad);
+    const okU = Math.sign(Math.round(u * 1000) / 1000) === Math.sign(c.expectU) || c.expectU === 0;
+    const okV = Math.sign(Math.round(v * 1000) / 1000) === Math.sign(c.expectV) || c.expectV === 0;
+    if (!okU || !okV) {
+      fails.push(`${c.label}: u=${u.toFixed(2)} v=${v.toFixed(2)}`);
+    }
+  }
+  if (fails.length) {
+    console.error("[radar/nowcast/wind] SIGN-TEST FAILED:\n  " + fails.join("\n  "));
+  } else {
+    console.info("[radar/nowcast/wind] sign-test ok (N→S, E→W, S→N, W→E, NW→SE)");
+  }
+}
+
+
 function buildGrid() {
   const lats: number[] = [];
   const lons: number[] = [];
@@ -208,6 +241,8 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
 }
 
 export const getRadarFrames = createServerFn({ method: "GET" }).handler(async () => {
+  assertWindMotionSign();
+
   setResponseHeader("Cache-Control", "public, max-age=60, s-maxage=120");
 
   const [cacheRes, manifestRes] = await Promise.allSettled([
@@ -385,7 +420,16 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       v_deg_per_min: motion.v_deg_per_min,
       source: "radar",
     };
+    const bearing =
+      ((Math.atan2(motion.u_deg_per_min, motion.v_deg_per_min) * 180) / Math.PI + 360) % 360;
+    console.info(
+      `[radar/nowcast/radar] u_deg/min=${motion.u_deg_per_min.toExponential(2)} ` +
+        `v_deg/min=${motion.v_deg_per_min.toExponential(2)} ` +
+        `bearing_to=${bearing.toFixed(0)}° conf=${motion.confidence.toFixed(2)} ` +
+        `growth/min=${(motion.growth_per_min ?? 0).toFixed(4)}`,
+    );
   } else if (hasRealRadar && r1) {
+
     // Wind-Fallback: Punkt aus phase1, der dem Bbox-Mittelpunkt am nächsten
     // liegt; Stunde, die `lastRadarT` enthält.
     const radarFramesForT = frames.filter(
@@ -445,9 +489,18 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
             const vMs = -speedMs * Math.cos(rad);
             const mPerDegLat = 111_000;
             const mPerDegLon = 111_000 * Math.cos((midLat * Math.PI) / 180);
+            const uDegMin = (uMs * 60) / mPerDegLon;
+            const vDegMin = (vMs * 60) / mPerDegLat;
+            const bearing = ((Math.atan2(uMs, vMs) * 180) / Math.PI + 360) % 360;
+            console.info(
+              `[radar/nowcast/wind] dir_from=${dirDeg.toFixed(0)}° speed=${speedMs.toFixed(1)}m/s ` +
+                `→ uMs=${uMs.toFixed(2)} vMs=${vMs.toFixed(2)} ` +
+                `bearing_to=${bearing.toFixed(0)}° ` +
+                `dLon/min=${uDegMin.toExponential(2)} dLat/min=${vDegMin.toExponential(2)}`,
+            );
             nowcastMotion = {
-              u_deg_per_min: (uMs * 60) / mPerDegLon,
-              v_deg_per_min: (vMs * 60) / mPerDegLat,
+              u_deg_per_min: uDegMin,
+              v_deg_per_min: vDegMin,
               source: "wind",
             };
           }
@@ -455,6 +508,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       }
     }
   }
+
 
   if (hasRealRadar && nowcastMotion) {
     const radarFrames = frames.filter((f) => f.source === "radar" && f.precipUrl);
