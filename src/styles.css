@@ -185,11 +185,11 @@
   filter: brightness(0) saturate(100%);
 }
 
-/* Radar: MeteoSchweiz-PNG unverändert ausgeben — Palette ist bereits
-   identisch zur Prognose-Canvas und in scripts/ingest_radar.py sauber
-   quantisiert. Kein zusätzlicher Blur/Contrast-Filter, da sonst die
-   Intensitäts-Bänder verschoben werden. */
+/* Radar: MeteoSchweiz-PNG mit identischem Filter wie das Forecast-Canvas,
+   damit Messung und Prognose dieselbe visuelle Intensität haben. */
 .mch-precip {
   image-rendering: auto;
+  filter: blur(0.8px) contrast(2.2);
+  will-change: filter;
 }
 
