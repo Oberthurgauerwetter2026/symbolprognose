@@ -61,7 +61,7 @@ function cityIcon(name: string): L.DivIcon {
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz-CombiPrecip-Legende.
 // Gleiche Stufen für Messung (PNG) und Prognose (Canvas).
 const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1, rgb: [165, 215, 245], a: 80 / 255 },
+  { mmh: 0.1, rgb: [165, 215, 245], a: 40 / 255 },
   { mmh: 0.3, rgb: [90, 165, 230], a: 230 / 255 },
   { mmh: 1, rgb: [30, 80, 200], a: 230 / 255 },
   { mmh: 3, rgb: [40, 170, 70], a: 230 / 255 },
@@ -318,7 +318,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = "blur(1.2px) contrast(2.2)";
+        cv.style.filter = "blur(0.8px) contrast(2.2)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
@@ -413,17 +413,38 @@ function PrecipOverlay({
         const inY1 = y1 >= 0 && y1 < nLat;
         if (!inX0 && !inX1) continue;
         if (!inY0 && !inY1) continue;
+        // 9-Tap Gauss-Sampling über 3×3 Grid-Nachbarschaft → glättet das
+        // grobe ICON-CH1-Grid räumlich, vermeidet quadratische Iso-Konturen.
+        const GAUSS = [
+          [1 / 16, 2 / 16, 1 / 16],
+          [2 / 16, 4 / 16, 2 / 16],
+          [1 / 16, 2 / 16, 1 / 16],
+        ];
         const sample = (arr: number[]) => {
-          const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-          const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-          const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-          const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-          return (
-            v00 * (1 - tx) * (1 - ty) +
-            v01 * tx * (1 - ty) +
-            v10 * (1 - tx) * ty +
-            v11 * tx * ty
-          );
+          let acc = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const sx = x0 + dx;
+              const sy = y0 + dy;
+              const sx1 = sx + 1;
+              const sy1 = sy + 1;
+              const iX0 = sx >= 0 && sx < nLon;
+              const iX1 = sx1 >= 0 && sx1 < nLon;
+              const iY0 = sy >= 0 && sy < nLat;
+              const iY1 = sy1 >= 0 && sy1 < nLat;
+              const v00 = iX0 && iY0 ? arr[sy * nLon + sx] : 0;
+              const v01 = iX1 && iY0 ? arr[sy * nLon + sx1] : 0;
+              const v10 = iX0 && iY1 ? arr[sy1 * nLon + sx] : 0;
+              const v11 = iX1 && iY1 ? arr[sy1 * nLon + sx1] : 0;
+              const bil =
+                v00 * (1 - tx) * (1 - ty) +
+                v01 * tx * (1 - ty) +
+                v10 * (1 - tx) * ty +
+                v11 * tx * ty;
+              acc += bil * GAUSS[dy + 1][dx + 1];
+            }
+          }
+          return acc;
         };
         const vCur = sample(vals);
         const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;

@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v15-mch-faint-01"
+RADAR_INGEST_VERSION = "v16-mch-faint-02"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -69,7 +69,7 @@ RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 # identisch zur Prognose-Palette (`SCALE` / `colorFor` in
 # src/components/maps/radar-map.tsx). < 0.1 mm/h = transparent.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.1, (165, 215, 245, 80)),
+    (0.1, (165, 215, 245, 40)),
     (0.3, (90, 165, 230, 230)),
     (1.0, (30, 80, 200, 230)),
     (3.0, (40, 170, 70, 230)),
