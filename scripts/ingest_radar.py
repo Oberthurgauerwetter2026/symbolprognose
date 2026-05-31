@@ -49,7 +49,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v11-cpc-tz-fix"
+RADAR_INGEST_VERSION = "v12-h5-metadata-time"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -358,6 +358,7 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         quantity = _decode_str(what.get("quantity") or top_what.get("quantity") or "")
         # Akkumulations-Intervall in Minuten aus startdate/enddate ableiten (für ACRR).
         interval_min: float | None = None
+        image_time: datetime | None = None
         try:
             sd = _decode_str(what.get("startdate") or top_what.get("startdate"))
             st = _decode_str(what.get("starttime") or top_what.get("starttime"))
@@ -367,8 +368,22 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
                 t0 = datetime.strptime(sd + st, "%Y%m%d%H%M%S")
                 t1 = datetime.strptime(ed + et, "%Y%m%d%H%M%S")
                 interval_min = max(1.0, (t1 - t0).total_seconds() / 60.0)
+                # ODIM-Konvention: enddate/endtime = Ende des Akkumulations-Intervalls
+                # = nominaler Bildzeitpunkt. Immer UTC.
+                image_time = t1.replace(tzinfo=timezone.utc)
+            elif ed and et:
+                image_time = datetime.strptime(ed + et, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
         except Exception:
             interval_min = None
+        if image_time is None:
+            # Fallback auf /what date/time (nominaler Bild-Zeitpunkt in ODIM).
+            try:
+                dd = _decode_str(top_what.get("date") or what.get("date"))
+                tt = _decode_str(top_what.get("time") or what.get("time"))
+                if dd and tt:
+                    image_time = datetime.strptime(dd + tt, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+            except Exception:
+                image_time = None
 
         arr = data.astype(np.float32)
         mask = (arr == nodata) | (arr == undetect)
@@ -393,6 +408,7 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
             "LR_lat": float(top_where.get("LR_lat", 0.0)),
             "quantity": quantity,
             "interval_min": interval_min,
+            "image_time": image_time,
         }
         return arr, meta
 
@@ -525,15 +541,30 @@ def _to_mmh(values: np.ndarray, meta: dict, product: str) -> tuple[np.ndarray, s
 
 
 def process_asset(s3, asset: AssetRef) -> str | None:
-    """Download → reproject → render → upload. Returns object key or None."""
-    ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
-    key = f"radar/{asset.product}/{ts_iso}.png"
-    if head_exists(s3, key):
-        return key
+    """Download → reproject → render → upload. Returns object key or None.
+
+    WICHTIG: Der Bildzeitpunkt wird NICHT aus dem Dateinamen abgeleitet
+    (MCH-Filename-Schema ist nicht zuverlässig), sondern aus den H5-Metadaten
+    (`/dataset*/what` enddate/endtime bzw. `/what` date/time). Erst danach
+    wird der R2-Key gebildet. `asset.ts` (aus dem Filename) dient nur als
+    grobe Lookback-Heuristik beim STAC-Filtern.
+    """
     print(f"  fetching {asset.href}", flush=True)
     r = http_get(asset.href, timeout=60)
     r.raise_for_status()
     values, meta = read_h5_grid(r.content)
+    img_ts = meta.get("image_time")
+    if isinstance(img_ts, datetime):
+        if img_ts != asset.ts:
+            print(
+                f"  ts-correct: filename={asset.ts.isoformat()} → h5={img_ts.isoformat()}",
+                flush=True,
+            )
+        asset.ts = img_ts  # update so motion + manifest use the real time
+    ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
+    key = f"radar/{asset.product}/{ts_iso}.png"
+    if head_exists(s3, key):
+        return key
     converted, _applied = _to_mmh(values, meta, asset.product)
     cropped = sample_to_bbox(converted, meta)
     scale = PRECIP_SCALE if asset.product == "precip" else HAIL_SCALE
@@ -1131,6 +1162,32 @@ def main() -> int:
     s3 = make_s3()
     now = datetime.now(tz=timezone.utc)
     since = now - timedelta(hours=LOOKBACK)
+
+    # Versions-Migration: wenn das bestehende Manifest eine alte INGEST-Version
+    # hat, sind alle bisherigen PNGs möglicherweise unter falsch abgeleiteten
+    # Dateinamens-Zeitstempeln gespeichert. Einmaliges Purge, damit der neue
+    # Run direkt mit sauberen, aus H5-Metadaten abgeleiteten Zeiten startet.
+    try:
+        existing = s3.get_object(Bucket=BUCKET, Key="radar/frames.json")
+        existing_body = json.loads(existing["Body"].read().decode("utf-8"))
+        existing_version = existing_body.get("version")
+        if existing_version != RADAR_INGEST_VERSION:
+            print(
+                f"version migration: {existing_version!r} → {RADAR_INGEST_VERSION!r}; "
+                f"purging old radar/*.png objects",
+                flush=True,
+            )
+            paginator = s3.get_paginator("list_objects_v2")
+            purged = 0
+            for product in COLLECTIONS:
+                for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
+                    for obj in page.get("Contents", []) or []:
+                        s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
+                        purged += 1
+            print(f"  purged {purged} old radar PNG objects", flush=True)
+    except Exception as exc:
+        print(f"version migration: no existing manifest or purge failed ({exc!r})", flush=True)
+
 
     processed = 0
     skipped_existing = 0
