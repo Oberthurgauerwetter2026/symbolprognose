@@ -337,8 +337,11 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         if ds_path is None:
             raise RuntimeError("no /datasetN/data1 found")
 
-        data = f[ds_path]["data"][:]
-        what = dict(f[ds_path]["what"].attrs) if "what" in f[ds_path] else {}
+        data_group = f[ds_path]
+        dataset_group_path = "/".join(ds_path.split("/")[:2])
+        data = data_group["data"][:]
+        what = dict(data_group["what"].attrs) if "what" in data_group else {}
+        dataset_what = dict(f[f"/{dataset_group_path}/what"].attrs) if f"/{dataset_group_path}/what" in f else {}
         # Top-level /what gives nodata; /where gives projection.
         top_what = dict(f["/what"].attrs) if "/what" in f else {}
         top_where = dict(f["/where"].attrs) if "/where" in f else {}
@@ -358,10 +361,10 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         interval_min: float | None = None
         image_time: datetime | None = None
         try:
-            sd = _decode_str(what.get("startdate") or top_what.get("startdate"))
-            st = _decode_str(what.get("starttime") or top_what.get("starttime"))
-            ed = _decode_str(what.get("enddate") or top_what.get("enddate"))
-            et = _decode_str(what.get("endtime") or top_what.get("endtime"))
+            sd = _decode_str(what.get("startdate") or dataset_what.get("startdate") or top_what.get("startdate"))
+            st = _decode_str(what.get("starttime") or dataset_what.get("starttime") or top_what.get("starttime"))
+            ed = _decode_str(what.get("enddate") or dataset_what.get("enddate") or top_what.get("enddate"))
+            et = _decode_str(what.get("endtime") or dataset_what.get("endtime") or top_what.get("endtime"))
             if sd and st and ed and et:
                 t0 = datetime.strptime(sd + st, "%Y%m%d%H%M%S")
                 t1 = datetime.strptime(ed + et, "%Y%m%d%H%M%S")
