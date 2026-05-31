@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { EmbedShell } from "@/components/embed-shell";
+import { EmbedFallbackBar } from "@/components/embeds/embed-fallback-bar";
 import { WeatherWidget } from "@/components/weather-widget";
 import { LokalNoscript, type LokalNoscriptData } from "@/components/embeds/lokal-noscript";
 import { getMultiModelForecast } from "@/lib/forecast.functions";
@@ -113,6 +114,10 @@ function EmbedLokal() {
         <LokalNoscript data={noscript} />
       </noscript>
       <EmbedShell>
+        <EmbedFallbackBar
+          title="Lokalprognose Amriswil"
+          href="https://symbolprognose.lovable.app/karten/lokal"
+        />
         <WeatherWidget initialDayIdx={day} />
       </EmbedShell>
     </>
