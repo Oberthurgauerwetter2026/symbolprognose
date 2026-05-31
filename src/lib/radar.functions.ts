@@ -144,6 +144,25 @@ export interface RadarFrame {
   blendOpacity?: number;
 }
 
+export interface RadarMotionField {
+  rows: number;
+  cols: number;
+  tile_px: number;
+  stride_px: number;
+  image_w: number;
+  image_h: number;
+  cx_px: number[];
+  cy_px: number[];
+  /** Bewegungsvektoren pro Kachel (row-major, rows*cols Einträge). */
+  u_deg_per_min: number[];
+  v_deg_per_min: number[];
+  conf: number[];
+  wet: number[];
+  growth_per_min: number[];
+  active_tiles?: number;
+  wind_prior_used?: boolean;
+}
+
 export interface RadarMotion {
   u_ms: number;
   v_ms: number;
@@ -160,7 +179,10 @@ export interface RadarMotion {
   recent_mean_mmh?: number;
   /** Anteil der "nassen" Pixel (> 0.1 mm/h) in den letzten 3 Frames, 0..1. */
   recent_wet_frac?: number;
+  /** Tile-basiertes Optical-Flow-Feld (Ingest v9+). */
+  field?: RadarMotionField;
 }
+
 
 export interface RadarPayload {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
