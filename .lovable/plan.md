@@ -1,55 +1,86 @@
-# Blanke Embed-iframes auf manchen Geräten
+# Karten auf wirklich allen Geräten sichtbar machen
 
-## Analyse
+## Kurzantwort
 
-Host: `oberthurgauerwetter.ch` (WordPress, HTTPS, kein AMP). Iframe-Ziel: `https://symbolprognose.lovable.app/embed/...` läuft über Cloudflare (HTTP 200, keine `X-Frame-Options`/`frame-ancestors` — Einbettung ist also generell erlaubt).
+Ja — aber nur, wenn die Karte als **Bild** ausgeliefert wird statt als interaktive JS-Karte. Leaflet, MapLibre & Co. brauchen zwingend JavaScript und einen modernen Browser. Wo JS blockiert ist (Adblocker, In-App-Browser, alte Geräte, Reader-Mode, RSS-Reader, Mail-Vorschau), bleibt die JS-Karte zwangsläufig leer.
 
-Wenn das iframe trotzdem auf einzelnen Geräten **komplett weiss** bleibt, sind das die wahrscheinlichen Ursachen — in dieser Reihenfolge:
+Die Lösung ist ein **zweigleisiger Embed**: zuerst ein statisches PNG/Snapshot, der per JS gegen die interaktive Karte ausgetauscht wird, sobald sie geladen ist. Funktioniert auch dort, wo JS komplett aus ist.
 
-1. **Content-/Tracking-Blocker** (Brave, Firefox Strict, iOS-Content-Blocker, AdGuard, uBlock): blockieren `lovable.app` als Drittpartei → iframe lädt nicht.
-2. **In-App-Browser** (Facebook, Instagram, LinkedIn): Cloudflares Bot-Challenge (`__cf_bm`-Cookie) wird im iframe nicht interaktiv lösbar → Interstitial.
-3. **WordPress „Visual"-Editor** statt „Code"-Editor: `<script>` wird entfernt → Höhe bleibt auf Fallback (sichtbar, aber wirkt „leer", wenn der Fallback z.B. 600 px ist und die Karte erst weiter unten Inhalt zeigt).
-4. **iOS Safari `100vh`-Quirk** beim `/embed/region-lokal`-Snippet: zählt Browser-UI mit → manchmal 0 px nutzbare Höhe in bestimmten Modi (PWA, Lesemodus).
-5. **Sehr alte Browser** (Safari < 15): Leaflet/Map-Layer crashen still.
+## Was ich umsetze
 
-Da die genauen Geräte unbekannt sind, härte ich Snippet **und** Embed-Route so, dass auch im Worst Case (kein JS, blockierter iframe, in-App-Browser) ein nutzbarer Link sichtbar bleibt — und entferne die häufigsten Stolperfallen.
+### 1) Snapshot-Endpoint pro Karte
 
-## Was ich ändere
+Neue Public-Routes unter `src/routes/api/public/snapshot/`:
+- `/api/public/snapshot/radar.png`
+- `/api/public/snapshot/region.png`
+- `/api/public/snapshot/lokal.png`
+- `/api/public/snapshot/wind.png` / `pollen.png` (sobald Daten da sind)
 
-### 1) `src/routes/embed-info.tsx` — robusterer Snippet-Code
+Implementierung im Worker (ohne Headless-Browser, der läuft auf Cloudflare nicht):
+- **Radar**: aktuellen Radar-Frame aus R2-Cache nehmen, mit einem vorgerenderten Schweizer/TG-Basemap-PNG zusammensetzen (`@cf-wasm/photon` oder reine Canvas-API über `@napi-rs/canvas`-WASM-Build). Output: PNG, `Cache-Control: public, max-age=300`.
+- **Region/Lokal**: SVG der Region (`thurgau.json` ist schon im Repo) + Wettersymbole pro Spot serverseitig zu SVG zusammensetzen, als SVG ausliefern (kleiner, scharf, kein Canvas nötig). Browser rendert SVG nativ — auch ohne JS.
+- **Wind/Pollen**: solange "Coming soon", einfaches Platzhalter-PNG.
 
-Pro Snippet:
-- HTML-Attribute zusätzlich zu CSS: `width="100%"` + `height="600"` (Legacy-Themes/AMP-ähnliche Sanitizer respektieren teils nur Attribute).
-- `loading="eager"`, `referrerpolicy="no-referrer-when-downgrade"`, `allow="geolocation; fullscreen"`, `scrolling="no"`.
-- Direkt **unter** dem iframe ein sichtbarer Fallback-Link (`<noscript>` + zusätzlich ein „Karte in neuem Tab öffnen"-Link, der nur erscheint, wenn das iframe 0 px hoch bleibt — per kleinem Inline-Snippet im Script-Block: nach 4 s prüfen, ob `f.offsetHeight < 50`, dann Hinweis-Div einblenden).
-- `100vh`-Variante: zusätzlich `height:100dvh` (per `@supports`) + sauberer Fallback `min-height: 70vh`.
-- Kurzer Hinweis-Block in `/embed-info`: „Im WordPress-Editor **Custom HTML** (nicht Visual) verwenden — sonst wird `<script>` entfernt. Falls Karte in In-App-Browsern (Facebook/Instagram) leer bleibt, in externem Browser öffnen."
+Cache-Strategie: Snapshot wird beim Ingest (Radar alle 5 min, OpenMeteo alle Stunde) mitgeneriert und in R2 abgelegt — der Endpoint streamt nur aus R2. Keine Render-Last pro Request.
 
-### 2) `src/components/embed-shell.tsx` — sichtbarer Mindest-Inhalt
+### 2) Embed-HTML mit Picture-Fallback
 
-- Bei `fillViewport=false`: setze `min-height: 320px` auf den Wrapper, damit selbst ohne Inhalt etwas Platz reserviert ist.
-- Bei `fillViewport=true`: ersetze `h-[100dvh]` durch `h-[100svh] supports-[height:100dvh]:h-[100dvh]` + `min-h-[360px]`, plus `-webkit-fill-available`-Fallback für ältere iOS-Safaris.
+`src/routes/embed-info.tsx` — neue Snippet-Struktur pro Karte:
 
-### 3) `/embed/*`-Routen — generischer Fallback-Streifen
+```html
+<div style="position:relative;width:100%;aspect-ratio:16/10;">
+  <!-- Immer sichtbar, auch ohne JS -->
+  <a href="https://symbolprognose.lovable.app/karten/region" target="_blank">
+    <img src="https://symbolprognose.lovable.app/api/public/snapshot/region.png"
+         alt="Wetterkarte Region Ostschweiz — aktuelle Prognose"
+         loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+  </a>
+  <!-- Wird per JS gegen interaktives iframe ersetzt -->
+  <iframe src="https://symbolprognose.lovable.app/embed/region"
+          style="position:absolute;inset:0;width:100%;height:100%;border:0;"
+          loading="lazy" onload="this.previousElementSibling.style.display='none'">
+  </iframe>
+</div>
+<noscript>
+  <!-- Bild bleibt sichtbar, iframe wird vom Browser ignoriert wenn JS aus -->
+</noscript>
+```
 
-Direkt vor dem jeweiligen `<ClientOnly>` einen dezenten, immer-sichtbaren Header-Streifen ergänzen (1 Zeile, Hintergrundfarbe Brand, weisser Text + Direktlink zur vollen Karte). Sobald die Karte gerendert hat, bleibt der Streifen einfach oben stehen. Effekt: selbst wenn die JS-Karte auf einem alten Gerät crasht oder Leaflet-Tiles blockiert sind, sieht der Besucher **etwas** und einen klickbaren Ausweg statt einer weissen Fläche.
+Effekt:
+- **JS an, iframe lädt**: interaktive Karte, Bild verschwindet.
+- **JS aus / Adblocker blockt iframe**: das `<img>` bleibt sichtbar, Klick öffnet die volle Karte.
+- **In-App-Browser / Cloudflare-Challenge**: dito — Bild bleibt, Link funktioniert.
+- **RSS-Reader / Mail-Vorschau**: zeigt das Bild.
 
-Betroffene Routen: `embed.all.tsx`, `embed.lokal.tsx`, `embed.radar.tsx`, `embed.region.tsx`, `embed.region-lokal.tsx`, `embed.wind.tsx`, `embed.pollen.tsx`.
+### 3) Embed-Info-Seite
 
-### 4) Keine Logik-Änderungen
+`/embed-info` erklärt die zwei Varianten:
+- **Empfohlen (mit Fallback-Bild)**: das neue Picture+iframe-Snippet — funktioniert überall.
+- **Nur interaktiv**: das bisherige iframe-only Snippet, falls jemand bewusst kein Bild will.
 
-- Radar-Frames, Forecast-Loader, Karten-Komponenten bleiben unverändert.
-- Keine API-Änderungen, kein neuer Build/Cron-Code.
+Plus Hinweis, dass das Fallback-Bild alle 5 min aktualisiert wird (Radar) bzw. stündlich (Region/Lokal).
 
-## Was es **nicht** löst (ehrlich)
+### 4) Was unverändert bleibt
 
-- Aktive Adblocker, die `lovable.app` ganz blocken — dagegen hilft nur ein eigener (Sub-)Domain-Reverse-Proxy auf deine Domain. Sag Bescheid, wenn du das einrichten willst.
-- Cloudflare-Bot-Challenge in Facebook/Instagram-In-App-Browsern: hier wirkt der Fallback-Link, der den Besucher in den externen Browser schickt.
+- Interaktive Karten, Radar-Timeline, Forecast, Daten-Ingest, Routen `/karten/*` und `/embed/*` — alles bleibt.
+- Kein neuer Cron-Job: Snapshot-Generierung hängt sich an den bestehenden Ingest-Workflow.
 
-## Validierung nach der Implementierung
+## Was es kostet
 
-1. `/embed-info` neu publishen, neues Snippet in WordPress austauschen.
-2. Test auf dem betroffenen Gerät (idealerweise mit aktivem Tracking-Schutz) — selbst wenn das iframe blockiert ist, muss der Fallback-Link sichtbar sein.
-3. Desktop-Regression: alle Embeds rendern weiterhin wie bisher in voller Höhe.
+- Einmal Aufwand: Snapshot-Renderer pro Karten-Typ (Radar = Canvas-Composite, Region/Lokal = SVG-Template).
+- Etwas mehr R2-Speicher (vernachlässigbar, ein paar hundert KB pro Karte).
+- Kein zusätzlicher Worker-Traffic für Besucher — Bilder werden CDN-gecached.
 
-Sag mir, ob ich so loslegen soll — oder ob du zuerst noch das genaue Gerät/den Browser von einem Betroffenen besorgen kannst (dann könnte ich gezielter fixen).
+## Ehrliche Grenzen
+
+- Das Snapshot-Bild ist nicht interaktiv (kein Zoom, kein Timeline-Slider). Wer die volle Karte will, klickt den Link.
+- Sehr aggressive Blocker, die `*.lovable.app` komplett blocken, blockieren auch das Bild. Dagegen hilft nur ein Reverse-Proxy auf deiner eigenen Domain (`karten.oberthurgauerwetter.ch` → `symbolprognose.lovable.app`). Sag Bescheid, wenn du das willst — separates Thema.
+
+## Reihenfolge der Umsetzung
+
+1. SVG-Snapshot für `region` und `lokal` (schnellster Win, kein Canvas/WASM nötig).
+2. Embed-Info-Snippets auf Picture+iframe umstellen.
+3. Radar-PNG-Snapshot via Canvas-WASM (Schritt 2 — etwas aufwändiger).
+4. Wind/Pollen-Platzhalter.
+
+Soll ich mit Schritt 1+2 starten? Das deckt schon Region und Lokal-Karte ab — die beiden Karten, die du am häufigsten einbettest.
