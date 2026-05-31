@@ -114,11 +114,12 @@ function EmbedLokal() {
         <LokalNoscript data={noscript} />
       </noscript>
       <EmbedShell>
-        <EmbedFallbackBar
-          title="Lokalprognose Amriswil"
-          href="https://symbolprognose.lovable.app/karten/lokal"
+        <WeatherWidget
+          initialDayIdx={day}
+          detailOnly
+          compact
+          lockedLocation={{ name: AMRISWIL.name, latitude: AMRISWIL.lat, longitude: AMRISWIL.lon }}
         />
-        <WeatherWidget initialDayIdx={day} />
       </EmbedShell>
     </>
   );
