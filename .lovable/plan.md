@@ -1,81 +1,41 @@
-## Drei Aufräum-Arbeiten in einem Schritt
+# Fix Workflow + Prognose-Optik
 
-Aktueller Stand vs. Soll:
+## 1. GitHub-Workflow Versionscheck (Hotfix)
 
-1. **Messung „alte Frames":** Python-Ingest rendert MCH-PNGs noch mit der **alten** Palette (9 Stufen: 0.2/1/2/4/6/10/20/40/60 mm/h), das TS-Frontend wurde aber auf MCH-CombiPrecip umgestellt (0.1/0.3/1/3/10/30/60/100). Beide Seiten zeigen unterschiedliche Farben für dieselbe Intensität — der gleiche Zeitstempel sieht plötzlich anders aus, weil Messung-PNG und Prognose-Canvas verschiedene Skalen sprechen. Zusätzlich liegen in R2 noch PNGs aus alten Ingest-Versionen herum.
-2. **Prognose-Bubble-Form:** `PrecipOverlay` benutzt einen **Sigmoid-Sharpening-Faktor SHARP=7** auf der bilinearen Interpolation → erzeugt unnatürlich kantige, „geometrische" Bubbles statt der weichen, gerundeten Iso-Konturen, wie sie Wetterdienste (MCH, DWD, ECMWF-Forecast-Maps) zeigen.
-3. **Toter Nowcast-Code** im Python-Ingest und in der TS-Pipeline:
-  - `scripts/ingest_radar.py`: `compute_motion`, `_phase_correlation`, `_phase_correlation_tiles`, `_load_wind_prior`, `_aggregate_motion_field`, `TILE_*`-Konstanten und das `motion`-Feld im Manifest — alles unbenutzt.
-  - `src/lib/radar.functions.ts`: das `motion?: unknown` im `Manifest`-Type.
+`.github/workflows/radar-ingest.yml`:
 
-## Änderungen
+- `EXPECTED_RADAR_INGEST_VERSION` von `v13-safe-cpc-rebuild` → `v14-mch-palette`.
 
-### 1. `scripts/ingest_radar.py` — Palette synchronisieren + Nowcast-Code raus
+Damit greift der Versions-Guard wieder und der Ingest läuft durch.
 
-- `**PRECIP_SCALE` auf MCH-CombiPrecip-Palette** (identisch zu TS `SCALE`):
-  ```python
-  PRECIP_SCALE = [
-      (0.1, (165, 215, 245, 230)),
-      (0.3, (90, 165, 230, 230)),
-      (1.0, (30, 80, 200, 230)),
-      (3.0, (40, 170, 70, 230)),
-      (10.0, (245, 220, 40, 230)),
-      (30.0, (240, 140, 30, 230)),
-      (60.0, (220, 30, 30, 230)),
-      (100.0, (160, 30, 180, 242)),
-  ]
-  ```
-  Alpha einheitlich 230 (≈0.9), Top-Band 242 (≈0.95) — passt zur `colorFor`-Logik im Frontend.
-- `**RADAR_INGEST_VERSION**` auf `"v14-mch-palette"` heben → bestehender Versions-Migration-Code in `main()` purged automatisch alle alten radar/*.png-Objekte im R2. Nach dem nächsten Run liegen nur noch frische PNGs mit der neuen Palette im Bucket. Damit verschwinden die „alten Frames".
-- **Komplett entfernen** (dead code):
-  - Funktionen: `_phase_correlation`, `_phase_correlation_tiles`, `_load_wind_prior`, `compute_motion`, `_aggregate_motion_field`.
-  - Konstanten: `TILE_PX`, `TILE_STRIDE`, `TILE_MIN_WET`, `TILE_MIN_CONF`, `TILE_MAX_SHIFT_PX`.
-  - In `main()`: der `try/except` um `compute_motion(...)` und die `motion`-Variable.
-  - `write_manifest()`: Parameter `motion` weg, `body["motion"]`-Zweig weg.
-  - Kommentar-Blöcke über den entfernten Funktionen.
+## 2. Prognose-Bubbles: schärfere Konturen wie im Referenzbild
 
-### 2. `src/lib/radar.functions.ts` — Type aufräumen
+Im Referenzbild sieht man harte, deutlich abgesetzte Iso-Bänder ohne Weichzeichnung. Aktuell:
 
-- `Manifest`-Type: `motion?: unknown` entfernen (Manifest hat das Feld ab v14 nicht mehr).
+- `cv.style.filter = "saturate(1.3) contrast(1.2)"` zieht subtile Halos.
+- `ctx.imageSmoothingEnabled = false` ist gut, aber der Canvas-Filter wirkt trotzdem.
+- Bandfarben-Alpha 0.9/0.95 ok. Farbenskala Messung und prognose muss identisch sein
 
-### 3. `src/components/maps/radar-map.tsx` — Bubble-Form natürlicher. siehe: [https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/niederschlag.html](https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/niederschlag.html)
+Änderungen in `src/components/maps/radar-map.tsx` → `PrecipOverlay`:
 
-In `PrecipOverlay.redrawRef.current`:
+- Canvas-Filter entfernen (`cv.style.filter = "none"`) — Farben kommen direkt aus `SCALE`, das matcht bereits MCH-CombiPrecip/Messung.
+- `SCALE`-Alpha auf konstant `0.92` (alle Bänder gleich opak → klare Kanten, kein „Glow" am Top-Band).
 
-- **Sigmoid-Sharpening entfernen**: die 4 Zeilen
-  ```ts
-  const SHARP = 7;
-  const sharpen = (u) => 1 / (1 + Math.exp(-SHARP * (u - 0.5)));
-  const tx = sharpen(txRaw);
-  const ty = sharpen(tyRaw);
-  ```
-  ersetzen durch reine bilineare Gewichte:
-  ```ts
-  const tx = txRaw;
-  const ty = tyRaw;
-  ```
-  → glatte Bilinear-Interpolation. In Kombination mit der quantisierten `colorFor` ergeben sich genau die runden, weichkantigen Iso-Konturbänder, wie sie übliche Wetterdienst-Vorhersagekarten zeigen.
-- Canvas-Filter `filter: "saturate(1.3) contrast(1.2)"` bleibt, hebt die quantisierten Farbbänder ohne Streifenartefakte hervor.
+Optional zur Kantenschärfe: leichtes Snap der Interpolation in der Nähe von Bandgrenzen — **nicht** umgesetzt, da Bilinear + quantisierte Farbe bereits die gewünschten Iso-Bänder produziert, sobald der Filter weg ist.
 
-## Nicht angefasst
+## 3. Flüssigere Animation
 
-- `SCALE` / `colorFor` im Frontend (bereits MCH-konform).
-- Bias-Korrektur, Forecast-Cutoff, R2-Manifest-Format-Felder ausser `motion`.
-- Hagel-Layer (POH-PNGs, `HAIL_SCALE`).
-- Workflow `.github/workflows/radar-ingest.yml`, Cron-Worker.
+In `src/components/maps/radar-map.tsx` Playback-Loop (~Zeile 817/834):
 
-## Verifikation
+- Default-Speed bleibt 1×, aber `FRAME_MS` von `800/speed` auf `600/speed` reduzieren → kürzere Frame-Distanz, mehr Lerp-Schritte pro Sekunde wirken flüssiger. Die bilineare Werte-Interpolation per `progress` ist bereits aktiv und reicht für weichen Übergang zwischen 15-min-Frames.
 
-- Nach dem nächsten Ingest-Run:
-  - R2 enthält nur noch v14-PNGs (alte sind durch Versions-Migration weg).
-  - `radar/frames.json` hat kein `motion`-Feld mehr.
-- `/karten/radar`:
-  - Messung-PNG und Prognose-Canvas zeigen für gleiche mm/h die **gleichen Farben** beim Übergang Messung→Prognose.
-  - Prognose-Bubbles haben runde, weiche Iso-Konturbänder (keine eckigen/„geometrischen" Ränder mehr).
-- `scripts/ingest_radar.py` ist deutlich kürzer (~700 Zeilen statt 1279).
+## Nicht geändert
+
+- `colorFor`-Bänder (matchen bereits Messungs-Palette).
+- `scripts/ingest_radar.py` (Palette bereits MCH-konform aus letztem Turn).
+- Frontend-Filterlogik, Bias-Korrektur, Schnee-Layer, Hagel-Layer.
 
 ## Dateien
 
-- `scripts/ingest_radar.py`
-- `src/lib/radar.functions.ts`
+- `.github/workflows/radar-ingest.yml`
 - `src/components/maps/radar-map.tsx`

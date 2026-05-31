@@ -75,15 +75,14 @@ function colorFor(mmh: number): [number, number, number, number] {
   // Quantisierte harte Bänder — gibt scharfe Iso-Konturen wie auf MCH-CombiPrecip.
   if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
   let band = SCALE[0];
-  let isTop = false;
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       band = SCALE[i];
-      isTop = i === SCALE.length - 1;
       break;
     }
   }
-  return [band.rgb[0], band.rgb[1], band.rgb[2], isTop ? 0.95 : 0.9];
+  // Konstantes Alpha über alle Bänder → klare Kanten, kein Glow am Top-Band.
+  return [band.rgb[0], band.rgb[1], band.rgb[2], 0.92];
 }
 
 
@@ -317,7 +316,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = "saturate(1.3) contrast(1.2)";
+        cv.style.filter = "none";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
@@ -831,7 +830,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
       setProgress(0);
       return;
     }
-    const FRAME_MS = 800 / speed;
+    const FRAME_MS = 600 / speed;
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
