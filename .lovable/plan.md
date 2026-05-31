@@ -1,21 +1,18 @@
-# Metaball-Filter für scharfe Blob-Kanten
+# Klarere Bänder + leicht transparent für Relief-Sichtbarkeit
 
 ## Änderungen
 
 ### 1) `src/styles.css` — `.mch-precip`
 ```css
 .mch-precip {
-  filter: blur(3px) contrast(1.8) saturate(1.05);
+  filter: blur(1.5px) contrast(2.4) saturate(1.05);
 }
 ```
+Blur runter, Contrast hoch → scharfe Iso-Band-Kanten. Kein `opacity` hier (wird zentral in radar-map.tsx gesetzt).
 
-### 2) `src/components/maps/radar-map.tsx`, Zeile 321
-```ts
-cv.style.filter = "blur(2.5px) contrast(1.7)";
-```
-
-## Wirkung
-Blur verschmilzt Pixel zu organischen Blobs; hoher Contrast zieht die quantisierten Farbbänder wieder zu scharfen Kanten zusammen (Metaball-Effekt). Bilineare Canvas-Skalierung bleibt.
+### 2) `src/components/maps/radar-map.tsx`
+- Zeile 321: `cv.style.filter = "blur(1.2px) contrast(2.2)";`
+- Zeile 955: `const opacityVal = 0.78;` (statt `1`) — wirkt einheitlich auf Canvas und ImageOverlay, Reliefschattierung scheint durch.
 
 ## Nicht geändert
-Palette, SCALE, Animation, Opacity.
+Palette, SCALE, Animation, bilineare Canvas-Skalierung.

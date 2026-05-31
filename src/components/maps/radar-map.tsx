@@ -318,7 +318,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = "blur(2.5px) contrast(1.7)";
+        cv.style.filter = "blur(1.2px) contrast(2.2)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
@@ -953,7 +953,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               const hasPng = !!currentFrame.precipUrl;
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
-              const opacityVal = 1;
+              const opacityVal = 0.78;
 
               return (
                 <>
