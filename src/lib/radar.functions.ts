@@ -116,8 +116,14 @@ function cacheGridLooksStale(points: { lat: number; lon: number }[] | undefined)
 
 
 export interface RadarFrame {
-  t: string; // ISO UTC
+  t: string; // ISO UTC — Zeitpunkt, der auf der Timeline angezeigt wird
   source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2";
+  /** Tatsächlicher Zeitstempel des PNG-Bildes (kann bei Forward-Fill/Nowcast
+   *  vom Anzeigezeit `t` abweichen). */
+  sourceT?: string;
+  /** True, wenn der Frame per Forward-Fill aus einem älteren Messbild
+   *  gefüllt wurde (echte Messung fehlte). */
+  isFilled?: boolean;
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei `imageUrl`-Frames leer. */
   values: number[];
   /** Schnee-Wasser-Äquivalent mm/h pro Grid-Punkt (row-major). Leer = unbekannt. */
