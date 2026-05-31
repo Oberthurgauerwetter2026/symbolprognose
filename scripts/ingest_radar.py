@@ -65,19 +65,18 @@ OUT_W, OUT_H = 1024, 768
 LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 
-# Niederschlags-Farbskala (mm/h → RGBA). Identisch zur Prognose-Palette
-# (`SCALE` / `colorFor` in src/components/maps/radar-map.tsx), damit Messung
-# und Prognose bei gleichen mm/h-Werten gleich aussehen. < 0.2 mm/h = transparent.
+# Niederschlags-Farbskala (mm/h → RGBA). MCH-CombiPrecip-konform und
+# identisch zur Prognose-Palette (`SCALE` / `colorFor` in
+# src/components/maps/radar-map.tsx). < 0.1 mm/h = transparent.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.2, (167, 174, 211, 89)),    # a≈0.35
-    (1.0, (30, 60, 230, 153)),     # a≈0.60
-    (2.0, (30, 120, 50, 153)),
-    (4.0, (70, 200, 70, 153)),
-    (6.0, (240, 235, 50, 153)),
-    (10.0, (240, 200, 120, 153)),
-    (20.0, (240, 140, 30, 153)),
-    (40.0, (225, 30, 30, 153)),
-    (60.0, (150, 30, 200, 153)),
+    (0.1, (165, 215, 245, 230)),
+    (0.3, (90, 165, 230, 230)),
+    (1.0, (30, 80, 200, 230)),
+    (3.0, (40, 170, 70, 230)),
+    (10.0, (245, 220, 40, 230)),
+    (30.0, (240, 140, 30, 230)),
+    (60.0, (220, 30, 30, 230)),
+    (100.0, (160, 30, 180, 242)),
 ]
 
 # POH (hail probability %) colour scale. 0-30 transparent.
