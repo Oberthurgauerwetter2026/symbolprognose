@@ -75,24 +75,37 @@ function InternPrecipPage() {
 }
 
 function PrecipDashboard() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["radar-frames-accum"],
     queryFn: () => getRadarFrames(),
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
   });
 
+  const updatedAgo = dataUpdatedAt
+    ? Math.max(0, Math.round((Date.now() - dataUpdatedAt) / 60000))
+    : null;
+
   return (
-    <div className="min-h-screen bg-zinc-50 py-10 px-4">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100/60 py-10 px-4">
       <div className="max-w-6xl mx-auto space-y-8">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold uppercase tracking-tight">
-            Niederschlagssummen (intern)
+        <header className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Intern · Live
+            {updatedAgo !== null && (
+              <span className="text-zinc-400 normal-case tracking-normal">
+                · aktualisiert vor {updatedAgo} min
+              </span>
+            )}
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900">
+            Niederschlagssummen
           </h1>
-          <p className="text-sm text-zinc-600">
-            Akkumulierte Vorhersage für die nächsten 12, 24 und 48 Stunden.
-            Daten: ICON-CH1 (bis +33 h, 1 km) und ICON-CH2 (bis +120 h, 2 km)
-            via Open-Meteo. Aktualisierung alle 5 Minuten.
+          <p className="text-sm text-zinc-600 max-w-2xl">
+            Akkumulierte Vorhersage für die nächsten 12, 24 und 48 Stunden auf Basis von
+            ICON-CH1 (bis +33 h, 1 km) und ICON-CH2 (bis +120 h, 2 km) via Open-Meteo.
+            Auto-Refresh alle 5 Minuten.
           </p>
         </header>
 
@@ -106,7 +119,7 @@ function PrecipDashboard() {
         )}
 
         {data && data.frames.length > 0 && (
-          <div className="space-y-10">
+          <div className="space-y-6">
             {[12, 24, 48].map((h) => (
               <PrecipAccumMap
                 key={h}
@@ -121,7 +134,7 @@ function PrecipDashboard() {
 
         {data && (
           <p className="text-xs text-zinc-400">
-            Modell-Run-Daten generiert: {new Date(data.generatedAt).toLocaleString("de-CH")} ·
+            Modell-Run generiert: {new Date(data.generatedAt).toLocaleString("de-CH")} ·
             {" "}{data.frames.length} Frames im Cache
           </p>
         )}
@@ -129,3 +142,4 @@ function PrecipDashboard() {
     </div>
   );
 }
+
