@@ -166,8 +166,16 @@ function EmbedInfo() {
           })}
         </section>
 
-        <div className="space-y-1 text-[11px] text-muted-foreground">
+        <div className="space-y-1 rounded-md border border-border bg-muted/40 p-3 text-[11px] text-muted-foreground">
           <p>
+            <strong>Bleibt die Karte bei einzelnen Besuchern leer?</strong>
+          </p>
+          <ul className="ml-4 list-disc space-y-0.5">
+            <li>Im WordPress-Editor den Block <strong>„Custom HTML"</strong> verwenden (nicht den Visual-Editor – sonst wird <code>&lt;script&gt;</code> entfernt und die Höhe bleibt auf dem Fallback stehen).</li>
+            <li>Tracking-/Werbeblocker (Brave, Firefox Strict, iOS-Content-Blocker, uBlock) können <code>lovable.app</code> blockieren. Das Snippet zeigt in diesem Fall automatisch nach ~5 s einen Hinweis mit Direktlink.</li>
+            <li>In-App-Browser von Facebook/Instagram zeigen das iframe gelegentlich leer – der Direktlink öffnet die Karte dann im richtigen Browser.</li>
+          </ul>
+          <p className="pt-1">
             <strong>Tipp:</strong> Auf Smartphones bietet die Lokalprognose einen „Ortung"-Knopf für den eigenen Standort.
           </p>
           <p>
