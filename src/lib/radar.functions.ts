@@ -411,6 +411,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       frames.push({
         t: mf.t,
         source: "radar",
+        sourceT: mf.sourceT ?? mf.t,
+        isFilled: mf.isFilled,
         values,
         snowValues,
         precipUrl: mf.precipUrl,
