@@ -974,7 +974,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               const hasPng = !!currentFrame.precipUrl;
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
-              const opacityVal = 0.78;
+              const opacityVal = 0.65;
 
               return (
                 <>
