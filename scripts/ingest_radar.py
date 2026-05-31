@@ -682,6 +682,9 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         return None
 
     pair_motions: list[tuple[float, float, float]] = []
+    # Per-tile motion über alle Paare. Layout entspricht
+    # _phase_correlation_tiles() → stabile Reihenfolge zwischen Paaren.
+    pair_tiles: list[list[tuple[int, int, float, float, float, float]]] = []
     for i in range(len(arrs) - 1):
         t_old, a_old = arrs[i]
         t_new, a_new = arrs[i + 1]
@@ -701,11 +704,23 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
             )
             continue
         pair_motions.append((dx_px / dt_min, dy_px / dt_min, conf))
+        try:
+            tiles = _phase_correlation_tiles(a_old, a_new)
+            # In px/min normalisieren, damit Aggregation über Paare mit
+            # ungleichen Zeitabständen sauber bleibt.
+            normalised = [
+                (cx, cy, dx / dt_min, dy / dt_min, c, wet)
+                for (cx, cy, dx, dy, c, wet) in tiles
+            ]
+            pair_tiles.append(normalised)
+        except Exception as exc:
+            print(f"motion: tile pair {t_old}→{t_new} error {exc!r}", flush=True)
         print(
             f"motion: pair {t_old.strftime('%H:%M')}→{t_new.strftime('%H:%M')} "
             f"dx={dx_px:+.1f}px dy={dy_px:+.1f}px conf={conf:.2f} dt={dt_min:.0f}min",
             flush=True,
         )
+
 
     if not pair_motions:
         print("motion: no usable pairs → discarded", flush=True)
