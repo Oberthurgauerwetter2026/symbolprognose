@@ -1,39 +1,24 @@
 ## Ziel
 
-In der Radar-Karte sollen die **Prognose-Frames** (ICON-CH1/CH2, nicht das echte MeteoSchweiz-Radar) deutlich transparenter dargestellt werden, damit die Reliefschattierung darunter besser sichtbar bleibt. Echte Radar-Frames (Vergangenheit/Jetzt) bleiben unverändert kräftig.
+In `src/components/maps/radar-map.tsx`:
 
-## Änderung in `src/components/maps/radar-map.tsx`
+1. **Hinweis-Block entfernen** ("Aktuell kein Niederschlag …" inkl. "Zum nächsten Regen springen"). Komplettes `{showDryHint && (...)}` Element (Zeilen ~1221–1239) wird gelöscht. Die Hilfsvariablen `showDryHint` / `nextWetIdx` werden ebenfalls entfernt, falls nur noch hier verwendet (vorab prüfen — sonst stehen lassen).
 
-Im Block ab Zeile ~973 (`{data && currentFrame && (() => { ... })()` ):
+2. **Farblegende auf Smartphone sichtbar machen.** Aktuell hat der Legenden-Container (Zeile 1069) die Klassen `hidden ... sm:flex` → unter 640 px komplett ausgeblendet.
 
-- Neue Konstante direkt vor `return`:
-  ```ts
-  const FORECAST_OPACITY_MULT = 0.65; // Prognose halbtransparent → Relief sichtbar
-  const isForecast = currentFrame.source !== "radar";
-  const opacityVal = Math.max(0, Math.min(1,
-    (currentFrame.blendOpacity ?? 1) * (isForecast ? FORECAST_OPACITY_MULT : 1)
-  ));
-  ```
-- `opacityVal` wird unverändert weiter an `PrecipOverlay` und `ImageOverlay` durchgereicht.
+   Änderung: `hidden ... sm:flex` → `flex` (immer sichtbar). Damit die Legende auf schmalen Viewports nicht zu viel Karte überdeckt, wird sie auf Mobile kompakter:
+   - Container: `right-3 top-24` bleibt; Padding `p-1.5 sm:p-2`.
+   - Farbfelder: `h-2.5 w-3 sm:h-3 sm:w-4`.
+   - Zeilenabstand `gap-0.5`, Textgrösse `text-[9px] sm:text-[10px]`.
 
-Effekt:
-- **Radar-Frames** (`source === "radar"`, PNG via ImageOverlay): unverändert (Faktor 1).
-- **Prognose-Frames** (`source === "icon-ch1"`/`"icon-ch2"`, Canvas via PrecipOverlay): Opazität ×0.65, sodass die swisstopo-Reliefschattierung (Layer-Opacity 0.55) klar durchscheint.
-- Soft-Blending zwischen Nowcast und Prognose (`blendOpacity` aus Cross-Fade) bleibt erhalten, weil der Faktor multiplikativ ist.
+   Inhalte (mm/h-Skala + Schnee-Skala) unverändert.
 
 ## Nicht angefasst
 
-- Farbskala (`colorFor`/`snowColorFor`), Sharpening (SHARP=7), Grid-Sampling.
-- Reliefschattierungs-Layer (bleibt bei opacity 0.55).
-- Masken, Seen, THURGAU/SWITZERLAND/REGION_OUTLINE-Layer.
-- Zoom-Defaults (9.5 / snap 0.5), Timeline, Hagel, Schnee.
+Radar-Logik, Frames, Opazität, Overlays, Timeline, Hagel-Button, Steuerung, Farbskalen-Werte.
 
 ## Validierung
 
-- Im Prognosezeitraum: Reliefkonturen (Alpenkamm, Bodensee-Umfeld) durch die Niederschlagsbänder klar erkennbar; Bänder behalten Farbe und scharfe Kanten, wirken aber „weicher".
-- Im Radarzeitraum (Vergangenheit/Jetzt): keine sichtbare Veränderung gegenüber jetzt.
-- Beim Cross-Fade Nowcast↔Prognose kein Sprung in der Opazität (Multiplikation greift kontinuierlich).
-
-## Optional (falls 0.65 zu schwach/zu stark wirkt)
-
-Wert `FORECAST_OPACITY_MULT` zwischen `0.55` (sehr transparent, Relief dominant) und `0.8` (Niederschlag dominant) feinjustieren — eine Zahl, sofort tunbar.
+- Mobile (≤640 px): kleine Niederschlags- und Schnee-Legende sichtbar oben rechts.
+- Desktop: Legende sieht aus wie bisher.
+- Kein "Aktuell kein Niederschlag"-Hinweis mehr unter der Toolbar.
