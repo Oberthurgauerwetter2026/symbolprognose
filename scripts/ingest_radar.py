@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v9-optical-flow"
+RADAR_INGEST_VERSION = "v10-cpc-quantity-fix"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -343,6 +343,26 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         nodata = float(what.get("nodata", top_what.get("nodata", 255)))
         undetect = float(what.get("undetect", top_what.get("undetect", 0)))
 
+        def _decode_str(v) -> str:
+            if isinstance(v, (bytes, bytearray)):
+                return v.decode("ascii", "ignore").strip()
+            return str(v or "").strip()
+
+        quantity = _decode_str(what.get("quantity") or top_what.get("quantity") or "")
+        # Akkumulations-Intervall in Minuten aus startdate/enddate ableiten (für ACRR).
+        interval_min: float | None = None
+        try:
+            sd = _decode_str(what.get("startdate") or top_what.get("startdate"))
+            st = _decode_str(what.get("starttime") or top_what.get("starttime"))
+            ed = _decode_str(what.get("enddate") or top_what.get("enddate"))
+            et = _decode_str(what.get("endtime") or top_what.get("endtime"))
+            if sd and st and ed and et:
+                t0 = datetime.strptime(sd + st, "%Y%m%d%H%M%S")
+                t1 = datetime.strptime(ed + et, "%Y%m%d%H%M%S")
+                interval_min = max(1.0, (t1 - t0).total_seconds() / 60.0)
+        except Exception:
+            interval_min = None
+
         arr = data.astype(np.float32)
         mask = (arr == nodata) | (arr == undetect)
         arr = arr * gain + offset
@@ -364,6 +384,8 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
             "UL_lat": float(top_where.get("UL_lat", 0.0)),
             "LR_lon": float(top_where.get("LR_lon", 0.0)),
             "LR_lat": float(top_where.get("LR_lat", 0.0)),
+            "quantity": quantity,
+            "interval_min": interval_min,
         }
         return arr, meta
 
@@ -441,6 +463,60 @@ def upload_png(s3, key: str, data: bytes) -> None:
     )
 
 
+def _to_mmh(values: np.ndarray, meta: dict, product: str) -> tuple[np.ndarray, str]:
+    """Konvertiert dekodierte H5-Werte je nach `what.quantity` in mm/h.
+
+    Bekannte MeteoSchweiz/ODIM-Quantities:
+      RATE        → bereits mm/h
+      ACRR        → mm pro Intervall (typ. 5 min) → ×(60/intervall_min)
+      DBZH / dBZ  → Marshall-Palmer Z=200·R^1.6  →  R = (10^(dBZ/10)/200)^(1/1.6)
+      DBR  / dBR  → 10^(dBR/10)  (logarithmische Rate)
+
+    Hail/POH (BZC) ist eine Wahrscheinlichkeit in % und wird unverändert
+    durchgereicht — die `HAIL_SCALE` erwartet Prozent.
+    """
+    if product != "precip":
+        return values, meta.get("quantity") or "RAW"
+    q = (meta.get("quantity") or "").upper()
+    arr = values
+    factor_note = "x1"
+    if q in ("RATE", "RR", ""):  # leer = Annahme RATE (alter Code lief so)
+        out = arr
+        applied = "RATE"
+    elif q in ("ACRR", "ACC", "RACC"):
+        interval = float(meta.get("interval_min") or 5.0)
+        out = arr * (60.0 / interval)
+        factor_note = f"x{60.0/interval:.2f}"
+        applied = f"ACRR(interval={interval:.0f}min)"
+    elif q in ("DBZH", "DBZ", "TH"):
+        with np.errstate(invalid="ignore"):
+            out = np.where(np.isnan(arr), np.nan, (np.power(10.0, arr / 10.0) / 200.0) ** (1.0 / 1.6))
+        applied = "DBZ→MP"
+    elif q in ("DBR",):
+        with np.errstate(invalid="ignore"):
+            out = np.where(np.isnan(arr), np.nan, np.power(10.0, arr / 10.0))
+        applied = "DBR→exp"
+    else:
+        out = arr
+        applied = f"unknown({q})→raw"
+    # Negative Werte abschneiden (Artefakte aus dBZ-Konvertierung).
+    out = np.where(np.isfinite(out), np.maximum(out, 0.0), np.nan)
+    try:
+        finite = out[np.isfinite(out)]
+        if finite.size:
+            mx = float(np.nanmax(finite))
+            p99 = float(np.nanpercentile(finite, 99))
+            warn = " ⚠OVERFLOW" if mx > 200.0 else ""
+            print(
+                f"  cpc quantity={q or '∅'} → {applied} {factor_note} "
+                f"max={mx:.1f}mm/h p99={p99:.1f}mm/h{warn}",
+                flush=True,
+            )
+    except Exception:
+        pass
+    return out, applied
+
+
 def process_asset(s3, asset: AssetRef) -> str | None:
     """Download → reproject → render → upload. Returns object key or None."""
     ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
@@ -451,7 +527,8 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     r = http_get(asset.href, timeout=60)
     r.raise_for_status()
     values, meta = read_h5_grid(r.content)
-    cropped = sample_to_bbox(values, meta)
+    converted, _applied = _to_mmh(values, meta, asset.product)
+    cropped = sample_to_bbox(converted, meta)
     scale = PRECIP_SCALE if asset.product == "precip" else HAIL_SCALE
     png = render_png(cropped, scale)
     upload_png(s3, key, png)

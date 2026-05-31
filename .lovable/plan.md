@@ -1,86 +1,84 @@
 ## Befund
 
-Live-Manifest `https://pub-2273…r2.dev/radar/frames.json`:
-- `frames: 288` ✓ (Ingest läuft)
-- `motion: {}` ✗ (leer — weder globaler Vektor noch `field`)
-- kein `version`-Feld
+Zwei separate Probleme, beide in `scripts/ingest_radar.py` bzw. `src/components/maps/radar-map.tsx`:
 
-Das Label **"Radar-Feld · N Kacheln"** in `src/components/maps/radar-map.tsx:1084` erscheint also nie, weil `currentFrame.motionSource` nicht `"radar-field"` wird. Der Frontend-Pfad in `src/lib/radar.functions.ts:480` setzt diese Quelle nur, wenn `manifest.motion.field` mit ≥4 validen Kacheln vorhanden ist — und das Feld ist `null`.
+### A) Intensitäts-Unterschätzung (Faktor ~3–12×)
 
-Da `motion` komplett leer ist (nicht nur `field`), ist die Wurzel auf der **Python-Ingest-Seite**: `compute_motion()` / `compute_motion_field()` in `scripts/ingest_radar.py` schreibt aktuell nichts ins Manifest. Mögliche Ursachen:
+Quelle: MeteoSchweiz-STAC `ch.meteoschweiz.ogd-radar-precip` (CPC). Im Ingest wird der h5-Datensatz so dekodiert:
 
-1. Workflow läuft seit v9-Bump noch nicht (manueller Trigger fehlt nach Publish).
-2. `compute_motion_field()` wirft eine Exception, die abgefangen wird und nur ein leeres Dict zurückgibt.
-3. Frame-Auswahl liefert <2 brauchbare Paare → Funktion gibt früh `{}` zurück.
-4. Wind-Prior-Fetch schlägt fehl und der Code bricht ab statt zu degradieren.
+```python
+arr = data.astype(np.float32)
+arr = arr * gain + offset       # Z. 346–349 in ingest_radar.py
+```
+
+und das Ergebnis **direkt als mm/h** in die PNG-Palette gefüttert. Die CPC-Produkte von MeteoSchweiz haben aber je nach Variante drei mögliche `what.quantity`-Werte:
+
+| `quantity` | Bedeutung | Korrekte Umrechnung in mm/h |
+|------------|-----------|------------------------------|
+| `RATE` | mm/h | identisch (×1) |
+| `ACRR` | mm pro 5-min-Intervall | **×12** |
+| `dBR` / `dBZ` | logarithmisch | `10**(value/10)` (+ Z-R-Relation für dBZ) |
+
+`what.quantity` wird im Code **nicht gelesen**. Wenn das aktuelle Asset z. B. `ACRR` (5-min-Akkumulation in mm) ist, sehen 4 mm Niederschlag (= 48 mm/h) im Frontend wie 4 mm/h aus → genau das beobachtete Muster (eigene Karte: orange ≈ 10–20 mm/h, Kachelmann/MeteoSchweiz-Web: rot 40–60 mm/h für dieselbe Zelle).
+
+### B) Frame-Latenz im UI (~30 min)
+
+Manifest hat aktuell:
+- `generatedAt`: 15:51 UTC
+- Neuestes `precipUrl`-Frame: 15:40 UTC (= 17:40 CEST)
+
+Das App-UI zeigte zum Aufnahmezeitpunkt aber `Messung: So, 17:10` (= 15:10 UTC). Das Frontend springt also nicht auf das jüngste verfügbare Messframe, sondern bleibt 30 min dahinter. Wahrscheinlichste Ursache: Initial-Selektion im Timeline-Slider rechnet `now − fixerOffset` statt `last(frames)`.
 
 ## Plan
 
-### Schritt 1 — Workflow-Logs prüfen (Read-only, keine Codeänderung)
+### Schritt 1 — Quantity-aware CPC-Dekodierung (löst Intensität)
 
-Den letzten erfolgreichen GitHub-Actions-Run von `radar-ingest.yml` ansehen und nach Zeilen `RADAR INGEST START version=…`, `compute_motion`, `motion field`, `tile` greifen. Damit ist sofort klar, ob v9 überhaupt gelaufen ist und was `compute_motion_field()` gemeldet hat.
+In `scripts/ingest_radar.py` → `read_h5_grid()`:
 
-→ Erwartete Ausgabe vom Nutzer: Link/Auszug des letzten Runs, oder Bestätigung "noch nicht getriggert".
+- `quantity` aus `what`-Attrs auslesen (fallback `top_what`): String, häufig `b"RATE"` / `b"ACRR"` / `b"DBZH"`.
+- Im Meta-Dict zurückgeben.
+- In `process_asset()` nach `sample_to_bbox()` die Werte konvertieren:
+  - `RATE` → unverändert
+  - `ACRR` mit `interval=5min` (aus `what.startdate`/`enddate` ablesen, sonst 5 annehmen) → `mm_per_h = value * 60 / interval_min`
+  - `dBR` → `10 ** (value / 10)`
+  - `DBZH` / `dBZ` → Marshall–Palmer `R = (10**(dBZ/10) / 200) ** (1/1.6)` 
+- Ergebnis als mm/h in die bestehende `PRECIP_SCALE` einspeisen — keine Palette-Änderung nötig.
+- Log: `print(f"  cpc quantity={q} → mm/h conversion applied (factor={factor})")` pro Frame.
+- `RADAR_INGEST_VERSION` auf `v10-cpc-quantity-fix` bumpen.
+- `.github/workflows/radar-ingest.yml` → `EXPECTED_RADAR_INGEST_VERSION` mit-bumpen.
 
-### Schritt 2 — Diagnose-Endpoint erweitern
+Sanity-Check im Ingest: nach Konvertierung `print` der Max- und 99-Perzentil-Werte; wenn Max > 200 mm/h → Warnung loggen (Dekodierung falsch).
 
-`src/routes/api/public/debug/r2-cache.ts` zusätzlich das Radar-Manifest spiegeln:
+### Schritt 2 — Timeline springt auf neuestes Frame (löst Latenz im UI)
 
-```ts
-const radarRes = await fetch(`${base}/radar/frames.json`);
-const radar = await radarRes.json();
-return Response.json({
-  ...,
-  radar: {
-    generatedAt: radar.generatedAt,
-    version: radar.version ?? null,
-    frameCount: radar.frames?.length ?? 0,
-    motionKeys: Object.keys(radar.motion ?? {}),
-    fieldSize: radar.motion?.field
-      ? { rows: radar.motion.field.rows, cols: radar.motion.field.cols,
-          validTiles: radar.motion.field.conf?.filter(c => c > 0.15).length }
-      : null,
-  },
-});
-```
+In `src/components/maps/radar-map.tsx`:
 
-Damit lässt sich nach jedem Cron-Run in einer Sekunde sehen, ob `field` geschrieben wurde.
+- Initial-Index der Timeline auf `frames.length - 1` setzen (das letzte echte Mess-Frame, *vor* den Nowcast-Frames).
+- Wenn der User pausiert hat, jüngsten Frame bei manifest-Refresh **nicht** überschreiben; wenn er auf "Live"-Knopf ist (oder das erste Mal lädt), auf `lastMeasured` springen.
+- Header-Label `Messung: …` zusätzlich um `(vor N min)` ergänzen, damit Latenz sichtbar ist.
 
-### Schritt 3 — Ingest-Logging härten
+### Schritt 3 — Diagnose im Debug-Endpoint
 
-In `scripts/ingest_radar.py` rund um `compute_motion()` / `compute_motion_field()`:
+`src/routes/api/public/debug/r2-cache.ts` zusätzlich pro Manifest ausgeben:
+- `latestPrecipTs`, `latestPrecipAgeMin`
+- bereits vorhandene `version` zeigt, ob v10 läuft.
 
-- `try/except` Block: bei Fehler `print("[motion] ERROR …", traceback)` statt stilles `return {}`.
-- Vor dem `return` der `motion`-Dict: einen `print(f"[motion] result keys={list(motion)} field_tiles={…}")` ausgeben.
-- Wenn weniger als 2 Frame-Paare verfügbar: explizit loggen, warum.
-- `RADAR_INGEST_VERSION` zusätzlich ins Manifest schreiben (`manifest["version"] = RADAR_INGEST_VERSION`), damit die Diagnose aus Schritt 2 sieht, welcher Code lief.
+### Schritt 4 — Verifikation
 
-### Schritt 4 — Frontend-Label-Fallback
-
-In `src/components/maps/radar-map.tsx:1079-1090` das Label so erweitern, dass **immer** sichtbar ist, welche Quelle aktiv ist — auch wenn kein Feld vorliegt:
-
-```text
-Zugbahn 135° SE · Wind-Fallback (kein Radar-Feld verfügbar)
-Zugbahn 135° SE · Radar global (Feld leer)
-Zugbahn 135° SE · Radar-Feld · 7 Kacheln
-```
-
-Damit ist beim nächsten Wahrnehmungs-vs-Code-Konflikt sofort im UI klar, welcher Pfad läuft — ohne in die Console schauen zu müssen.
-
-### Schritt 5 — Verifikation
-
-1. Nach Schritt 2+3+4 publishen.
-2. Workflow "Radar Ingest" manuell triggern.
-3. `/api/public/debug/r2-cache` öffnen → `radar.fieldSize` prüfen.
-4. `/karten/radar` öffnen → Label sollte `Radar-Feld · N Kacheln` zeigen.
-5. Wenn nicht: Action-Log liefert dank Schritt 3 die genaue Abbruchursache.
+1. Publish + Workflow-Trigger.
+2. `/api/public/debug/r2-cache` → `radar.version = "v10-cpc-quantity-fix"`, `latestPrecipAgeMin < 15`.
+3. `/karten/radar`: Karte muss bei aktiver Konvektion rote/violette Bereiche (40–60+ mm/h) zeigen, identisch zu MeteoSchweiz-Web bei identischem Zeitstempel.
+4. Timeline öffnet auf jüngstem Messframe (nicht 30 min alt).
+5. Wenn weiterhin Unterschätzung: Workflow-Log auf `cpc quantity=…` prüfen — der dort geloggte `quantity`-Wert sagt, welcher Konvertierungspfad nötig war.
 
 ## Was nicht angefasst wird
 
-- `compute_motion_field()`-Algorithmus selbst (erst nach Diagnose).
-- Bbox, Frame-Auflösung, R2-Upload-Pfade.
-- Wind-Fallback-Trigonometrie.
+- Bbox, Palette, R2-Layout.
+- Nowcast / motion.field (separater Plan).
+- Hail-Produkt (POH ist in %, kein mm/h).
+- Snow-Overlay-Logik.
 
-## Nächster Schritt nach Approval
+## Risiken
 
-Schritt 2+3+4 sind kleine, sichere Edits — diese kann ich in einem Build-Durchgang umsetzen. Schritt 1 (Workflow-Logs) brauchst du nicht zwingend zuerst zu liefern; die neuen Logs aus Schritt 3 ersetzen das beim nächsten Run.
+- Wenn `quantity` zwischen Frames wechselt (z. B. neues Asset hat dBZ statt RATE), greift der Konverter automatisch — Voraussetzung: jeder Frame wird einzeln konvertiert (kein Cache der alten Werte).
+- Alte PNGs in R2 sind mit alter Skala gerendert; sie bleiben falsch bis die Cleanup-Retention sie überschreibt. Optional: `cleanup()` einmalig auf 0 h setzen für sofortige Neuerzeugung — sonst dauert es ~24 h bis alles korrekt ist.

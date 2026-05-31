@@ -24,6 +24,8 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               frameCount?: number;
               withPrecip?: number;
               withHail?: number;
+              latestPrecipTs?: string | null;
+              latestPrecipAgeMin?: number | null;
               motionKeys?: string[];
               motionEmpty?: unknown;
               field?: {
@@ -46,7 +48,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               const m = (await res.json()) as {
                 generatedAt?: string;
                 version?: string;
-                frames?: Array<{ precipUrl?: string; hailUrl?: string }>;
+                frames?: Array<{ t?: string; precipUrl?: string; hailUrl?: string }>;
                 motion?: Record<string, unknown> & {
                   field?: {
                     rows?: number;
@@ -60,6 +62,8 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               const frames = m.frames ?? [];
               const f = m.motion?.field;
               const conf = f?.conf ?? [];
+              const precipFrames = frames.filter((x) => x.precipUrl && x.t);
+              const latestPrecip = precipFrames[precipFrames.length - 1]?.t ?? null;
               radar = {
                 generatedAt: m.generatedAt,
                 version: m.version ?? null,
@@ -67,8 +71,12 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
                   ? Math.round((Date.now() - Date.parse(m.generatedAt)) / 1000)
                   : null,
                 frameCount: frames.length,
-                withPrecip: frames.filter((x) => x.precipUrl).length,
+                withPrecip: precipFrames.length,
                 withHail: frames.filter((x) => x.hailUrl).length,
+                latestPrecipTs: latestPrecip,
+                latestPrecipAgeMin: latestPrecip
+                  ? Math.round((Date.now() - Date.parse(latestPrecip)) / 60000)
+                  : null,
                 motionKeys: Object.keys(m.motion ?? {}),
                 motionEmpty: (m.motion as { _empty?: unknown } | undefined)?._empty,
                 field: f
