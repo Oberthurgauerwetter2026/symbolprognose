@@ -15,40 +15,26 @@ const THURGAU = thurgauData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
-const VIEW_BBOX = { minLat: 47.30, maxLat: 47.85, minLon: 8.80, maxLon: 9.80 } as const;
+const VIEW_BBOX = { minLat: 47.40, maxLat: 47.75, minLon: 8.95, maxLon: 9.65 } as const;
 
-// mm-Stufen (MeteoSchweiz-ähnlich) – Übergänge werden linear interpoliert.
-const ACCUM_SCALE: { mm: number; rgb: [number, number, number] }[] = [
-  { mm: 0.3, rgb: [220, 232, 245] },
-  { mm: 1, rgb: [160, 200, 240] },
-  { mm: 2, rgb: [100, 160, 230] },
-  { mm: 5, rgb: [40, 100, 210] },
-  { mm: 10, rgb: [30, 160, 70] },
-  { mm: 20, rgb: [240, 220, 50] },
-  { mm: 30, rgb: [240, 160, 40] },
-  { mm: 50, rgb: [230, 60, 40] },
-  { mm: 75, rgb: [170, 30, 140] },
-  { mm: 100, rgb: [110, 20, 110] },
+// Klassierte mm-Stufen (radar-ähnlich) – KEINE weiche Interpolation, harte Übergänge für markante Lesbarkeit.
+const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; label: string }[] = [
+  { min: 0.3, max: 1,    rgb: [180, 215, 245], label: "0.3" },
+  { min: 1,   max: 2,    rgb: [110, 175, 235], label: "1" },
+  { min: 2,   max: 5,    rgb: [40, 120, 220],  label: "2" },
+  { min: 5,   max: 10,   rgb: [20, 70, 180],   label: "5" },
+  { min: 10,  max: 20,   rgb: [30, 170, 70],   label: "10" },
+  { min: 20,  max: 30,   rgb: [250, 220, 40],  label: "20" },
+  { min: 30,  max: 50,   rgb: [245, 150, 30],  label: "30" },
+  { min: 50,  max: 75,   rgb: [230, 50, 35],   label: "50" },
+  { min: 75,  max: 100,  rgb: [170, 25, 130],  label: "75" },
+  { min: 100, max: 9999, rgb: [90, 10, 100],   label: "100+" },
 ];
 
-function colorForAccumSmooth(mm: number): [number, number, number, number] {
-  if (mm < ACCUM_SCALE[0].mm) return [0, 0, 0, 0];
-  if (mm >= ACCUM_SCALE[ACCUM_SCALE.length - 1].mm) {
-    const c = ACCUM_SCALE[ACCUM_SCALE.length - 1].rgb;
-    return [c[0], c[1], c[2], 0.92];
-  }
-  for (let i = 0; i < ACCUM_SCALE.length - 1; i++) {
-    const a = ACCUM_SCALE[i];
-    const b = ACCUM_SCALE[i + 1];
-    if (mm >= a.mm && mm < b.mm) {
-      const t = (mm - a.mm) / (b.mm - a.mm);
-      const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
-      const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
-      const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
-      // sanft einblendende Opazität bei kleinen Werten
-      const alpha = Math.min(0.92, 0.55 + Math.min(1, mm / 10) * 0.37);
-      return [r, g, bl, alpha];
-    }
+function colorForAccum(mm: number): [number, number, number, number] {
+  if (mm < ACCUM_CLASSES[0].min) return [0, 0, 0, 0];
+  for (const c of ACCUM_CLASSES) {
+    if (mm >= c.min && mm < c.max) return [c.rgb[0], c.rgb[1], c.rgb[2], 0.94];
   }
   return [0, 0, 0, 0];
 }
