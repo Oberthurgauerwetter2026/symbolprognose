@@ -358,6 +358,7 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         quantity = _decode_str(what.get("quantity") or top_what.get("quantity") or "")
         # Akkumulations-Intervall in Minuten aus startdate/enddate ableiten (für ACRR).
         interval_min: float | None = None
+        image_time: datetime | None = None
         try:
             sd = _decode_str(what.get("startdate") or top_what.get("startdate"))
             st = _decode_str(what.get("starttime") or top_what.get("starttime"))
@@ -367,8 +368,22 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
                 t0 = datetime.strptime(sd + st, "%Y%m%d%H%M%S")
                 t1 = datetime.strptime(ed + et, "%Y%m%d%H%M%S")
                 interval_min = max(1.0, (t1 - t0).total_seconds() / 60.0)
+                # ODIM-Konvention: enddate/endtime = Ende des Akkumulations-Intervalls
+                # = nominaler Bildzeitpunkt. Immer UTC.
+                image_time = t1.replace(tzinfo=timezone.utc)
+            elif ed and et:
+                image_time = datetime.strptime(ed + et, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
         except Exception:
             interval_min = None
+        if image_time is None:
+            # Fallback auf /what date/time (nominaler Bild-Zeitpunkt in ODIM).
+            try:
+                dd = _decode_str(top_what.get("date") or what.get("date"))
+                tt = _decode_str(top_what.get("time") or what.get("time"))
+                if dd and tt:
+                    image_time = datetime.strptime(dd + tt, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+            except Exception:
+                image_time = None
 
         arr = data.astype(np.float32)
         mask = (arr == nodata) | (arr == undetect)
@@ -393,6 +408,7 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
             "LR_lat": float(top_where.get("LR_lat", 0.0)),
             "quantity": quantity,
             "interval_min": interval_min,
+            "image_time": image_time,
         }
         return arr, meta
 
