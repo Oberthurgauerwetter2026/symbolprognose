@@ -387,9 +387,9 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
                 image_time = None
 
         arr = data.astype(np.float32)
-        mask = (arr == nodata) | (arr == undetect)
+        mask = (arr == nodata) | (arr == undetect) | ~np.isfinite(arr)
         arr = arr * gain + offset
-        arr[mask] = np.nan
+        arr[mask | ~np.isfinite(arr)] = np.nan
 
         meta = {
             "projdef": (top_where.get("projdef") or b"").decode("ascii", "ignore")
@@ -544,11 +544,9 @@ def _to_mmh(values: np.ndarray, meta: dict, product: str) -> tuple[np.ndarray, s
 def process_asset(s3, asset: AssetRef) -> str | None:
     """Download → reproject → render → upload. Returns object key or None.
 
-    WICHTIG: Der Bildzeitpunkt wird NICHT aus dem Dateinamen abgeleitet
-    (MCH-Filename-Schema ist nicht zuverlässig), sondern aus den H5-Metadaten
-    (`/dataset*/what` enddate/endtime bzw. `/what` date/time). Erst danach
-    wird der R2-Key gebildet. `asset.ts` (aus dem Filename) dient nur als
-    grobe Lookback-Heuristik beim STAC-Filtern.
+    WICHTIG: Der STAC-Dateiname bleibt die primäre Zeitquelle. Die H5-Zeit
+    wird nur akzeptiert, wenn sie plausibel nahe daran liegt; so verhindern
+    wir sowohl Sommerzeit-Fehler als auch alte/falsch gelabelte Frames.
     """
     print(f"  fetching {asset.href}", flush=True)
     r = http_get(asset.href, timeout=60)
@@ -556,12 +554,18 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     values, meta = read_h5_grid(r.content)
     img_ts = meta.get("image_time")
     if isinstance(img_ts, datetime):
-        if img_ts != asset.ts:
+        delta_min = abs((img_ts - asset.ts).total_seconds()) / 60.0
+        if delta_min <= 10 and img_ts != asset.ts:
             print(
                 f"  ts-correct: filename={asset.ts.isoformat()} → h5={img_ts.isoformat()}",
                 flush=True,
             )
-        asset.ts = img_ts  # update so motion + manifest use the real time
+            asset.ts = img_ts
+        elif delta_min > 10:
+            print(
+                f"  ts-h5 ignored: filename={asset.ts.isoformat()} h5={img_ts.isoformat()} Δ={delta_min:.0f}min",
+                flush=True,
+            )
     ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
     key = f"radar/{asset.product}/{ts_iso}.png"
     if head_exists(s3, key):
