@@ -69,7 +69,7 @@ RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 # identisch zur Prognose-Palette (`SCALE` / `colorFor` in
 # src/components/maps/radar-map.tsx). < 0.1 mm/h = transparent.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.1, (165, 215, 245, 230)),
+    (0.1, (165, 215, 245, 80)),
     (0.3, (90, 165, 230, 230)),
     (1.0, (30, 80, 200, 230)),
     (3.0, (40, 170, 70, 230)),
