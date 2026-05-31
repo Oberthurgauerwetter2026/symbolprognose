@@ -170,9 +170,9 @@ function EmbedInfo() {
             Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Die Höhe passt sich automatisch dem Inhalt an (per <code>postMessage</code>). Der Wert <code>height:480px</code> im Snippet ist nur ein Fallback und kann beliebig verändert werden; zusätzlich lässt sich der Rahmen über die untere rechte Ecke per Maus vergrößern (<code>resize:vertical</code>).
+            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Ohne Vorschaubild: beim Laden ist nur ein dezenter blauer Hintergrund sichtbar, bis die Prognose erscheint. Die Höhe passt sich automatisch dem Inhalt an (per <code>postMessage</code>). Der Wert <code>height:480px</code> im Snippet ist nur ein Fallback und kann beliebig verändert werden; zusätzlich lässt sich der Rahmen über die untere rechte Ecke per Maus vergrößern (<code>resize:vertical</code>).
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal", "region", "/karten/region", 480)} />
+          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal", null, "/karten/region", 480)} />
         </section>
 
         <section className="space-y-6">
