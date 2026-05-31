@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { EmbedShell } from "@/components/embed-shell";
+import { EmbedFallbackBar } from "@/components/embeds/embed-fallback-bar";
 import { WeatherWidget } from "@/components/weather-widget";
 import {
   RegionLokalNoscript,
@@ -143,6 +144,10 @@ function EmbedRegionLokal() {
       </noscript>
       <EmbedShell>
         <div className="@container flex w-full flex-col gap-2">
+          <EmbedFallbackBar
+            title="Wetterkarte + Lokal Amriswil"
+            href="https://symbolprognose.lovable.app/karten/region"
+          />
           <ClientOnly
             fallback={
               <div className="h-[400px] w-full animate-pulse rounded-lg bg-muted" />

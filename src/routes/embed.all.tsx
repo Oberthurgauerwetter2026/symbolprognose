@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { EmbedShell } from "@/components/embed-shell";
+import { EmbedFallbackBar } from "@/components/embeds/embed-fallback-bar";
 import { MAPS, type MapId } from "@/lib/maps-config";
 import { RegionMap } from "@/components/region-map";
 import { WeatherWidget } from "@/components/weather-widget";
@@ -25,6 +26,10 @@ function EmbedAll() {
 
   return (
     <EmbedShell>
+      <EmbedFallbackBar
+        title="Wetter-Karten Oberthurgau"
+        href="https://symbolprognose.lovable.app/karten/region"
+      />
       <div className="no-scrollbar -mx-1 mb-4 flex gap-1 overflow-x-auto rounded-full bg-muted p-1">
         {MAPS.map((m) => {
           const Icon = m.icon;
