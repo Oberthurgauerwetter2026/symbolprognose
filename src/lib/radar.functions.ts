@@ -600,9 +600,14 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       // Wird nur angewendet, wenn die Radar-Motion (nicht Wind-Fallback) genutzt
       // wird — sonst kennen wir den realen Trend nicht zuverlässig.
       const growthPerMin =
-        nowcastMotion.source === "radar" && typeof motion?.growth_per_min === "number"
-          ? motion.growth_per_min
-          : 0;
+        nowcastMotion.source === "wind"
+          ? 0
+          : typeof nowcastMotion.growth_per_min === "number"
+            ? nowcastMotion.growth_per_min
+            : typeof motion?.growth_per_min === "number"
+              ? motion.growth_per_min
+              : 0;
+
       for (let m = NOWCAST_STEP_MIN; m <= NOWCAST_HORIZON_MIN; m += NOWCAST_STEP_MIN) {
         const tMs = lastMs + m * 60_000;
         if (tMs > forecastCutoff) break;
