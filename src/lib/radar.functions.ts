@@ -133,7 +133,10 @@ export interface RadarFrame {
   /** Nowcast: Verschiebung des PNG-Overlays gegenüber `imageBbox` in Grad. */
   imageOffset?: { dLat: number; dLon: number };
   /** Nur für `source==="nowcast"`: Herkunft des Bewegungsvektors. */
-  motionSource?: "radar" | "wind";
+  motionSource?: "radar-field" | "radar" | "wind";
+  /** Anzahl aktiver Kacheln, falls aus Motion-Field aggregiert. */
+  motionTiles?: number;
+
   /**
    * Anzeige-Deckkraft 0..1. Genutzt für:
    *   - Nowcast-Wachstum/Zerfall (Trend aus letzten 6 Radarmessungen).
