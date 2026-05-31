@@ -1075,9 +1075,14 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               <span>
                 Zugbahn {compass} · {bearingTo.toFixed(0)}°
                 <span className="ml-1 text-muted-foreground">
-                  ({currentFrame.motionSource === "wind" ? "Wind" : "Radar"})
+                  ({currentFrame.motionSource === "wind"
+                    ? "Wind"
+                    : currentFrame.motionSource === "radar-field"
+                      ? `Radar-Feld${currentFrame.motionTiles ? ` · ${currentFrame.motionTiles} Kacheln` : ""}`
+                      : "Radar"})
                 </span>
               </span>
+
             </div>
           );
         })()}
