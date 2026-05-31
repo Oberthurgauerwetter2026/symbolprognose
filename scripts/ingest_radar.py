@@ -463,6 +463,60 @@ def upload_png(s3, key: str, data: bytes) -> None:
     )
 
 
+def _to_mmh(values: np.ndarray, meta: dict, product: str) -> tuple[np.ndarray, str]:
+    """Konvertiert dekodierte H5-Werte je nach `what.quantity` in mm/h.
+
+    Bekannte MeteoSchweiz/ODIM-Quantities:
+      RATE        → bereits mm/h
+      ACRR        → mm pro Intervall (typ. 5 min) → ×(60/intervall_min)
+      DBZH / dBZ  → Marshall-Palmer Z=200·R^1.6  →  R = (10^(dBZ/10)/200)^(1/1.6)
+      DBR  / dBR  → 10^(dBR/10)  (logarithmische Rate)
+
+    Hail/POH (BZC) ist eine Wahrscheinlichkeit in % und wird unverändert
+    durchgereicht — die `HAIL_SCALE` erwartet Prozent.
+    """
+    if product != "precip":
+        return values, meta.get("quantity") or "RAW"
+    q = (meta.get("quantity") or "").upper()
+    arr = values
+    factor_note = "x1"
+    if q in ("RATE", "RR", ""):  # leer = Annahme RATE (alter Code lief so)
+        out = arr
+        applied = "RATE"
+    elif q in ("ACRR", "ACC", "RACC"):
+        interval = float(meta.get("interval_min") or 5.0)
+        out = arr * (60.0 / interval)
+        factor_note = f"x{60.0/interval:.2f}"
+        applied = f"ACRR(interval={interval:.0f}min)"
+    elif q in ("DBZH", "DBZ", "TH"):
+        with np.errstate(invalid="ignore"):
+            out = np.where(np.isnan(arr), np.nan, (np.power(10.0, arr / 10.0) / 200.0) ** (1.0 / 1.6))
+        applied = "DBZ→MP"
+    elif q in ("DBR",):
+        with np.errstate(invalid="ignore"):
+            out = np.where(np.isnan(arr), np.nan, np.power(10.0, arr / 10.0))
+        applied = "DBR→exp"
+    else:
+        out = arr
+        applied = f"unknown({q})→raw"
+    # Negative Werte abschneiden (Artefakte aus dBZ-Konvertierung).
+    out = np.where(np.isfinite(out), np.maximum(out, 0.0), np.nan)
+    try:
+        finite = out[np.isfinite(out)]
+        if finite.size:
+            mx = float(np.nanmax(finite))
+            p99 = float(np.nanpercentile(finite, 99))
+            warn = " ⚠OVERFLOW" if mx > 200.0 else ""
+            print(
+                f"  cpc quantity={q or '∅'} → {applied} {factor_note} "
+                f"max={mx:.1f}mm/h p99={p99:.1f}mm/h{warn}",
+                flush=True,
+            )
+    except Exception:
+        pass
+    return out, applied
+
+
 def process_asset(s3, asset: AssetRef) -> str | None:
     """Download → reproject → render → upload. Returns object key or None."""
     ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
@@ -473,7 +527,8 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     r = http_get(asset.href, timeout=60)
     r.raise_for_status()
     values, meta = read_h5_grid(r.content)
-    cropped = sample_to_bbox(values, meta)
+    converted, _applied = _to_mmh(values, meta, asset.product)
+    cropped = sample_to_bbox(converted, meta)
     scale = PRECIP_SCALE if asset.product == "precip" else HAIL_SCALE
     png = render_png(cropped, scale)
     upload_png(s3, key, png)
