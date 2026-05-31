@@ -640,6 +640,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         frames.push({
           t: new Date(tMs).toISOString(),
           source: "nowcast",
+          sourceT: last.sourceT ?? last.t,
           values: [],
           precipUrl: last.precipUrl,
           imageOffset: {
