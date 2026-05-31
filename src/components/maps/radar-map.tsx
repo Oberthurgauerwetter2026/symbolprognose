@@ -860,7 +860,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
       setProgress(0);
       return;
     }
-    const FRAME_MS = 600 / speed;
+    const FRAME_MS = 750 / speed;
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
