@@ -632,6 +632,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
             dLon: nowcastMotion.u_deg_per_min * m,
           },
           motionSource: nowcastMotion.source,
+          motionTiles: nowcastMotion.activeTiles,
+
           blendOpacity,
         });
       }
