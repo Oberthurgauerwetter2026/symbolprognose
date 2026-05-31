@@ -78,8 +78,8 @@ function PrecipDashboard() {
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["radar-frames-accum"],
     queryFn: () => getRadarFrames(),
-    staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
+    staleTime: 30 * 60_000,
+    refetchInterval: 60 * 60_000,
   });
 
   const updatedAgo = dataUpdatedAt
@@ -105,7 +105,7 @@ function PrecipDashboard() {
           <p className="text-sm text-zinc-600 max-w-2xl">
             Akkumulierte Vorhersage für die nächsten 12, 24 und 48 Stunden auf Basis von
             ICON-CH1 (bis +33 h, 1 km) und ICON-CH2 (bis +120 h, 2 km) via Open-Meteo.
-            Auto-Refresh alle 5 Minuten.
+            Auto-Refresh stündlich.
           </p>
         </header>
 
