@@ -1,28 +1,25 @@
 ## Ziel
-Die Niederschlags-Klassen sollen als **klare, geschwungene Konturen** dargestellt werden (wie Radar/MeteoSchweiz-Akkumulationskarten) — keine sichtbaren Pixelblöcke des Rohgitters mehr, aber weiterhin **harte Farbübergänge** zwischen den Klassen.
 
-## Ursache des Pixel-Looks
-`renderHeatmapDataUrl` macht aktuell **Nearest-Neighbor-Upsampling** (Faktor 4): jede Gridzelle wird als Block aus 4×4 identischen Pixeln gezeichnet → sichtbares Schachbrett. Die Klassengrenzen folgen den Zellkanten, nicht den Iso-mm-Linien.
+Die interne Seite `/intern/niederschlag` (akkumulierter Niederschlag) vom Wetter-Board (Startseite) aus erreichbar machen, damit alle Karten zentral griffbereit sind.
 
-## Lösung
-Pro Ausgabepixel den **mm-Wert bilinear** aus den vier umliegenden Gitterpunkten interpolieren und **erst danach** die Klasse (`colorForAccum`) bestimmen. Ergebnis: weiche, kurvige Klassengrenzen — innerhalb einer Klasse aber weiterhin Volltonfarbe (keine Farbinterpolation, keine Verwaschung).
+## Umsetzung
 
-### Änderungen in `src/components/maps/precip-accum-map.tsx`
+**`src/lib/maps-config.ts`**
+- Neuen Eintrag `niederschlag` zu `MAPS` hinzufügen:
+  - `id: "niederschlag"`, `label: "Niederschlagssummen (intern)"`, `shortLabel: "Niederschlag"`
+  - `description: "Akkumulierter Niederschlag der letzten Stunden – stündliche Aktualisierung."`
+  - `icon: CloudRainWind` (oder `Droplets`) aus lucide-react
+  - `routePath: "/intern/niederschlag"`, `embedPath` entfällt
+  - `status: "live"`
+- `MapId` Typ und Embed-Pfade so erweitern, dass der intern-Eintrag ohne Embed funktioniert (entweder `embedPath` optional machen oder Dummy-Wert mit Sonderbehandlung).
 
-1. **`renderHeatmapDataUrl` neu schreiben**
-   - Upsampling auf 8× (statt 4×) für glatte Bandkanten.
-   - Pro Pixel `(px, py)` Float-Index `fx, fy` in Lat/Lon-Grid berechnen.
-   - Bilineare Interpolation der vier Nachbarwerte → `mm`.
-   - `colorForAccum(mm)` liefert die diskrete Klassenfarbe (volle Deckkraft 0.86).
-   - Bounds-Berechnung (Halbzellen-Padding) bleibt.
+**`src/routes/index.tsx`**
+- Bei der `MAPS.map(...)`-Kachelliste eine kleine "Intern"-Markierung anzeigen (z. B. Badge statt "Live"), wenn `routePath` mit `/intern` startet.
+- Link führt direkt auf `/intern/niederschlag` (Passwortabfrage bleibt dort bestehen).
 
-2. **`renderExportCanvas` analog anpassen**
-   - Gleiche bilineare Interpolation auf der Export-Innenfläche, damit das PNG dieselben weichen Konturen zeigt.
+**Sidebar/Tabs (optional, falls sie ebenfalls `MAPS` benutzen)**
+- Prüfen, ob `src/components/app-sidebar.tsx` und `src/components/map-tabs.tsx` den neuen Eintrag automatisch zeigen. Wenn ja: interne Einträge dort herausfiltern, damit sie nur auf dem Board erscheinen (kein Embed-Snippet, keine öffentliche Tab-Leiste).
 
-3. Klassengrenzen (`ACCUM_CLASSES`), Farben, Leaflet-Setup, Legende, Download-Flow, Refresh-Intervall: **unverändert**.
-
-## Nicht betroffen
-- Datenquelle, Akkumulationslogik, Routen, Auth, UI/Header, Legende.
-
-## Erwartetes Ergebnis
-Statt sichtbarer Rasterquadrate erscheinen die Niederschlagsklassen als zusammenhängende, organisch geformte Flächen mit scharfen Farbsprüngen zwischen den Stufen — sowohl auf der Karte als auch im PNG-Export.
+## Nicht enthalten
+- Keine Änderung an der Karte selbst, an der Aktualisierungslogik oder am Login.
+- Kein öffentliches Embed für die interne Karte.
