@@ -13,13 +13,23 @@ export const Route = createFileRoute("/embed-info")({
 });
 
 function buildSnippet(url: string, path: string, idSuffix: string, fallbackHeight = 600) {
+  const full = `${url}${path}`;
   return `<iframe
   id="wx-${idSuffix}"
-  src="${url}${path}"
+  src="${full}"
+  width="100%"
+  height="${fallbackHeight}"
+  loading="eager"
+  referrerpolicy="no-referrer-when-downgrade"
+  allow="geolocation; fullscreen"
+  scrolling="no"
   style="width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;display:block;box-sizing:border-box"
   title="Wetter-Karte"
 ></iframe>
-<noscript><style>#wx-${idSuffix}{height:${fallbackHeight}px}</style></noscript>
+<noscript><div style="padding:8px;font:13px/1.4 system-ui">Bitte aktiviere JavaScript oder <a href="${full}" target="_blank" rel="noopener">öffne die Karte in einem neuen Tab</a>.</div></noscript>
+<div id="wx-${idSuffix}-fb" style="display:none;padding:8px;font:13px/1.4 system-ui;background:#f3f4f6;border-radius:6px;margin-top:4px">
+  Die Karte konnte hier nicht geladen werden (oft ein Tracking-/Werbeblocker). <a href="${full}" target="_blank" rel="noopener" style="color:#2561a1;font-weight:600">In neuem Tab öffnen ↗</a>
+</div>
 <script>
   (function () {
     var f = document.getElementById("wx-${idSuffix}");
@@ -29,17 +39,35 @@ function buildSnippet(url: string, path: string, idSuffix: string, fallbackHeigh
         f.style.height = e.data.height + "px";
       }
     });
+    setTimeout(function () {
+      try {
+        var doc = f.contentDocument;
+        var ok = (doc && doc.body && doc.body.children.length > 0) || f.offsetHeight > 80;
+        if (!ok) {
+          var fb = document.getElementById("wx-${idSuffix}-fb");
+          if (fb) fb.style.display = "block";
+        }
+      } catch (_) { /* cross-origin: ignore */ }
+    }, 5000);
   })();
 </script>`;
 }
 
 function buildViewportSnippet(url: string, path: string, idSuffix: string) {
+  const full = `${url}${path}`;
   return `<iframe
   id="wx-${idSuffix}"
-  src="${url}${path}"
-  style="width:100%;max-width:100%;min-width:0;height:100vh;max-height:100vh;min-height:360px;border:0;display:block;box-sizing:border-box"
+  src="${full}"
+  width="100%"
+  loading="eager"
+  referrerpolicy="no-referrer-when-downgrade"
+  allow="geolocation; fullscreen"
+  scrolling="no"
+  style="width:100%;max-width:100%;min-width:0;height:100vh;min-height:70vh;max-height:100vh;border:0;display:block;box-sizing:border-box"
   title="Wetter-Karte"
-></iframe>`;
+></iframe>
+<noscript><div style="padding:8px;font:13px/1.4 system-ui">Bitte aktiviere JavaScript oder <a href="${full}" target="_blank" rel="noopener">öffne die Karte in einem neuen Tab</a>.</div></noscript>
+<style>@supports (height: 100dvh) { #wx-${idSuffix} { height: 100dvh !important; max-height: 100dvh !important; } }</style>`;
 }
 
 function SnippetBlock({ snippet }: { snippet: string }) {
