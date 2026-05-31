@@ -60,15 +60,15 @@ function cityIcon(name: string): L.DivIcon {
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz-CombiPrecip-Legende.
 // Gleiche Stufen für Messung (PNG) und Prognose (Canvas).
-const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [165, 215, 245] }, // sehr leicht (hellblau)
-  { mmh: 0.3, rgb: [90, 165, 230] },  // leicht (blau)
-  { mmh: 1, rgb: [30, 80, 200] },     // mässig leicht (dunkelblau)
-  { mmh: 3, rgb: [40, 170, 70] },     // mässig (grün)
-  { mmh: 10, rgb: [245, 220, 40] },   // mässig stark (gelb)
-  { mmh: 30, rgb: [240, 140, 30] },   // stark (orange)
-  { mmh: 60, rgb: [220, 30, 30] },    // sehr stark (rot)
-  { mmh: 100, rgb: [160, 30, 180] },  // extrem (magenta)
+const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
+  { mmh: 0.1, rgb: [165, 215, 245], a: 230 / 255 },
+  { mmh: 0.3, rgb: [90, 165, 230], a: 230 / 255 },
+  { mmh: 1, rgb: [30, 80, 200], a: 230 / 255 },
+  { mmh: 3, rgb: [40, 170, 70], a: 230 / 255 },
+  { mmh: 10, rgb: [245, 220, 40], a: 230 / 255 },
+  { mmh: 30, rgb: [240, 140, 30], a: 230 / 255 },
+  { mmh: 60, rgb: [220, 30, 30], a: 230 / 255 },
+  { mmh: 100, rgb: [160, 30, 180], a: 242 / 255 },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -81,9 +81,11 @@ function colorFor(mmh: number): [number, number, number, number] {
       break;
     }
   }
-  // Konstantes Alpha über alle Bänder → klare Kanten, kein Glow am Top-Band.
-  return [band.rgb[0], band.rgb[1], band.rgb[2], 0.92];
+  // Alpha exakt wie in scripts/ingest_radar.py PRECIP_SCALE → identische Optik
+  // zwischen Messungs-PNG und Forecast-Canvas.
+  return [band.rgb[0], band.rgb[1], band.rgb[2], band.a];
 }
+
 
 
 

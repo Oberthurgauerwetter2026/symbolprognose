@@ -1,41 +1,47 @@
-# Fix Workflow + Prognose-Optik
+# Identische Palette + flüssigere Prognose-Animation
 
-## 1. GitHub-Workflow Versionscheck (Hotfix)
+## Status
 
-`.github/workflows/radar-ingest.yml`:
+- RGB-Werte der MCH-PNG-Palette (`PRECIP_SCALE` in `scripts/ingest_radar.py`) und der Frontend-Skala (`SCALE` in `radar-map.tsx`) sind bereits **identisch**.
+- Unterschied nur im Alpha: Messung 230/255 (≈0.902), Top-Band 242/255 (≈0.95). Prognose: konstant 0.92.
+- Animation: `FRAME_MS = 600/speed`, `STEP = 1` (volle Pixelauflösung) → der bilineare Sample-Loop läuft pro rAF-Tick über ~1.4 Mio Pixel × 4 Nachbarsamples. Das limitiert die effektive Framerate auf ~20-30fps und wirkt ruckelig trotz `progress`-Lerp.
 
-- `EXPECTED_RADAR_INGEST_VERSION` von `v13-safe-cpc-rebuild` → `v14-mch-palette`.
+## 1. Palette exakt angleichen (`src/components/maps/radar-map.tsx`)
 
-Damit greift der Versions-Guard wieder und der Ingest läuft durch.
+`SCALE` um Alpha-Feld erweitern, 1:1 wie in `PRECIP_SCALE`:
 
-## 2. Prognose-Bubbles: schärfere Konturen wie im Referenzbild
+```ts
+const SCALE: { mmh: number; rgb: [number,number,number]; a: number }[] = [
+  { mmh: 0.1, rgb: [165,215,245], a: 230/255 },
+  { mmh: 0.3, rgb: [90,165,230],  a: 230/255 },
+  { mmh: 1,   rgb: [30,80,200],   a: 230/255 },
+  { mmh: 3,   rgb: [40,170,70],   a: 230/255 },
+  { mmh: 10,  rgb: [245,220,40],  a: 230/255 },
+  { mmh: 30,  rgb: [240,140,30],  a: 230/255 },
+  { mmh: 60,  rgb: [220,30,30],   a: 230/255 },
+  { mmh: 100, rgb: [160,30,180],  a: 242/255 },
+];
+```
 
-Im Referenzbild sieht man harte, deutlich abgesetzte Iso-Bänder ohne Weichzeichnung. Aktuell:
+`colorFor()` nutzt `band.a` statt fix `0.92`. → Forecast-Bubbles haben exakt dieselbe Deckkraft pro Band wie die MCH-PNG-Messung.
 
-- `cv.style.filter = "saturate(1.3) contrast(1.2)"` zieht subtile Halos.
-- `ctx.imageSmoothingEnabled = false` ist gut, aber der Canvas-Filter wirkt trotzdem.
-- Bandfarben-Alpha 0.9/0.95 ok. Farbenskala Messung und prognose muss identisch sein
+## 2. Animation deutlich flüssiger
 
-Änderungen in `src/components/maps/radar-map.tsx` → `PrecipOverlay`:
+Bottleneck ist der CPU-Sample-Loop pro rAF. Zwei Hebel kombiniert:
 
-- Canvas-Filter entfernen (`cv.style.filter = "none"`) — Farben kommen direkt aus `SCALE`, das matcht bereits MCH-CombiPrecip/Messung.
-- `SCALE`-Alpha auf konstant `0.92` (alle Bänder gleich opak → klare Kanten, kein „Glow" am Top-Band).
+**a) Sample-Schritt erhöhen** (`PrecipOverlay.redrawRef`):
+- `STEP = 1` → `STEP = 2`. Off-screen-Buffer hat 1/4 der Pixel, `drawImage` skaliert linear auf volle Canvas-Grösse. Bilinear-Sampling am Daten-Grid ist eh die Glättung — der zusätzliche Upscale ist visuell kaum sichtbar (Bänder sind ohnehin breit), aber die Redraw-Zeit halbiert/viertelt sich → stabil 60fps möglich.
 
-Optional zur Kantenschärfe: leichtes Snap der Interpolation in der Nähe von Bandgrenzen — **nicht** umgesetzt, da Bilinear + quantisierte Farbe bereits die gewünschten Iso-Bänder produziert, sobald der Filter weg ist.
-
-## 3. Flüssigere Animation
-
-In `src/components/maps/radar-map.tsx` Playback-Loop (~Zeile 817/834):
-
-- Default-Speed bleibt 1×, aber `FRAME_MS` von `800/speed` auf `600/speed` reduzieren → kürzere Frame-Distanz, mehr Lerp-Schritte pro Sekunde wirken flüssiger. Die bilineare Werte-Interpolation per `progress` ist bereits aktiv und reicht für weichen Übergang zwischen 15-min-Frames.
+**b) Easing auf `progress`** (`RadarMap`-Play-Loop):
+- Statt linear `np = p + dt/FRAME_MS` an `PrecipOverlay` weitergeben, einen smoothstep auf `progress` anwenden bevor er nach unten gereicht wird: `eased = progress*progress*(3-2*progress)`. Übergänge zwischen 15-min-Frames werden in der Mitte schneller, an den Enden weicher → wirkt fliessender ohne Frame-Tempo zu ändern.
+- `FRAME_MS` bleibt bei `600/speed` (Tempo unverändert, nur Glättung verbessert).
 
 ## Nicht geändert
 
-- `colorFor`-Bänder (matchen bereits Messungs-Palette).
-- `scripts/ingest_radar.py` (Palette bereits MCH-konform aus letztem Turn).
-- Frontend-Filterlogik, Bias-Korrektur, Schnee-Layer, Hagel-Layer.
+- `scripts/ingest_radar.py` (Palette schon korrekt).
+- `colorFor`-Quantisierung, Bilinear-Sampling-Logik, Schnee-/Hagel-Layer.
+- Frame-Geschwindigkeit / `speed`-Steuerung.
 
 ## Dateien
 
-- `.github/workflows/radar-ingest.yml`
-- `src/components/maps/radar-map.tsx`
+- `src/components/maps/radar-map.tsx` (Punkt 1 + 2a + 2b)
