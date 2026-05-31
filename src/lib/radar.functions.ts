@@ -119,7 +119,6 @@ type Manifest = {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   generatedAt: string;
   frames: ManifestFrame[];
-  motion?: unknown; // ignoriert
 };
 
 async function fetchR2Manifest(): Promise<Manifest | null> {
