@@ -61,7 +61,7 @@ function cityIcon(name: string): L.DivIcon {
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz-CombiPrecip-Legende.
 // Gleiche Stufen für Messung (PNG) und Prognose (Canvas).
 const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1, rgb: [165, 215, 245], a: 230 / 255 },
+  { mmh: 0.1, rgb: [165, 215, 245], a: 80 / 255 },
   { mmh: 0.3, rgb: [90, 165, 230], a: 230 / 255 },
   { mmh: 1, rgb: [30, 80, 200], a: 230 / 255 },
   { mmh: 3, rgb: [40, 170, 70], a: 230 / 255 },

@@ -1,18 +1,27 @@
-# Klarere Bänder + leicht transparent für Relief-Sichtbarkeit
+# 0.1 mm-Band sehr schwach
 
 ## Änderungen
 
-### 1) `src/styles.css` — `.mch-precip`
-```css
-.mch-precip {
-  filter: blur(1.5px) contrast(2.4) saturate(1.05);
-}
+### 1) `src/components/maps/radar-map.tsx`, Zeile 64
+```ts
+{ mmh: 0.1, rgb: [165, 215, 245], a: 80 / 255 },
 ```
-Blur runter, Contrast hoch → scharfe Iso-Band-Kanten. Kein `opacity` hier (wird zentral in radar-map.tsx gesetzt).
+(Alpha 230/255 → 80/255 ≈ 31%)
 
-### 2) `src/components/maps/radar-map.tsx`
-- Zeile 321: `cv.style.filter = "blur(1.2px) contrast(2.2)";`
-- Zeile 955: `const opacityVal = 0.78;` (statt `1`) — wirkt einheitlich auf Canvas und ImageOverlay, Reliefschattierung scheint durch.
+### 2) `scripts/ingest_radar.py`, Zeile 72
+```python
+(0.1, (165, 215, 245, 80)),
+```
 
-## Nicht geändert
-Palette, SCALE, Animation, bilineare Canvas-Skalierung.
+### 3) Version-Bump
+- `scripts/ingest_radar.py`, Zeile 46: `RADAR_INGEST_VERSION = "v15-mch-faint-01"`
+- `.github/workflows/radar-ingest.yml`, Zeile 21: `EXPECTED_RADAR_INGEST_VERSION: "v15-mch-faint-01"`
+
+Damit der Ingest-Versions-Check im Workflow passt und gecachte R2-PNGs durch die Versions-Migration ersetzt werden.
+
+## Wirkung
+- Prognose-Canvas: sofort.
+- Messung-PNG: ab nächstem Ingest-Lauf (5-min-Cron).
+
+## Nicht angefasst
+0.3 / 1 / 3 / 10 / 30 / 60 / 100 mm-Bänder.
