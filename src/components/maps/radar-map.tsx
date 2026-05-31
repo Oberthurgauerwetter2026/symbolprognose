@@ -556,11 +556,6 @@ function fmtDayLong(d: Date): string {
   return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
 }
 
-function fmtHM(d: Date): string {
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
 
 function fmtBubble(d: Date, frame: RadarFrame | null): string {
   const now = Date.now();
