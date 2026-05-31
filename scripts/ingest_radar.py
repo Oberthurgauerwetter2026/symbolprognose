@@ -612,8 +612,7 @@ def purge_all_radar_pngs(s3) -> int:
     return purged
 
 
-def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float]:
-def write_manifest(s3, motion: dict | None = None) -> None:
+def write_manifest(s3) -> None:
     """List all current radar/*.png keys and build frames.json."""
     paginator = s3.get_paginator("list_objects_v2")
     frames: dict[str, dict] = {}  # ts_iso → {ts, precipUrl?, hailUrl?}
