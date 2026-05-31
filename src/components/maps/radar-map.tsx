@@ -1053,12 +1053,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         )}
 
         {/* Legende oben rechts (unter Zoom) */}
-        <div className="pointer-events-none absolute right-3 top-24 z-[400] hidden flex-col gap-0.5 rounded-md bg-card/95 p-2 text-[10px] shadow-md sm:flex">
+        <div className="pointer-events-none absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
           <span className="mb-1 font-semibold text-foreground">mm/h</span>
           {[...SCALE].reverse().map((s) => (
             <div key={s.mmh} className="flex items-center gap-1.5">
               <span
-                className="inline-block h-3 w-4 rounded-sm"
+                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
                 style={{ background: `rgb(${s.rgb.join(",")})` }}
               />
               <span className="tabular-nums text-muted-foreground">{s.mmh}</span>
@@ -1068,7 +1068,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           {SNOW_SCALE.map((s) => (
             <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
               <span
-                className="inline-block h-3 w-4 rounded-sm"
+                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
                 style={{ background: `rgb(${s.rgb.join(",")})` }}
               />
               <span className="text-muted-foreground">{s.label}</span>
