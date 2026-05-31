@@ -892,20 +892,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
     for (let i = 0; i < f.values.length; i++) if (f.values[i] > m) m = f.values[i];
     return m;
   };
-  const currentMax = frameMaxMmh(currentFrame);
-  // Index des nächsten Frames mit sichtbarem Niederschlag (Canvas > 0.1 mm/h
-  // ODER PNG, weil dort der Server nur "wet" Schritte ausliefert).
-  const nextWetIdx = useMemo(() => {
-    if (idx === null) return -1;
-    for (let i = idx + 1; i < frames.length; i++) {
-      const f = frames[i];
-      if (f.precipUrl) return i;
-      const m = frameMaxMmh(f);
-      if (m !== null && m > 0.1) return i;
-    }
-    return -1;
-  }, [idx, frames]);
-  const showDryHint = currentMax !== null && currentMax < 0.05;
+  void frameMaxMmh;
 
   return (
     <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
@@ -1066,12 +1053,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
         )}
 
         {/* Legende oben rechts (unter Zoom) */}
-        <div className="pointer-events-none absolute right-3 top-24 z-[400] hidden flex-col gap-0.5 rounded-md bg-card/95 p-2 text-[10px] shadow-md sm:flex">
+        <div className="pointer-events-none absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
           <span className="mb-1 font-semibold text-foreground">mm/h</span>
           {[...SCALE].reverse().map((s) => (
             <div key={s.mmh} className="flex items-center gap-1.5">
               <span
-                className="inline-block h-3 w-4 rounded-sm"
+                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
                 style={{ background: `rgb(${s.rgb.join(",")})` }}
               />
               <span className="tabular-nums text-muted-foreground">{s.mmh}</span>
@@ -1081,7 +1068,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           {SNOW_SCALE.map((s) => (
             <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
               <span
-                className="inline-block h-3 w-4 rounded-sm"
+                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
                 style={{ background: `rgb(${s.rgb.join(",")})` }}
               />
               <span className="text-muted-foreground">{s.label}</span>
@@ -1218,25 +1205,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               </button>
             </div>
 
-            {showDryHint && (
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-[11px] text-neutral-600">
-                <span>
-                  Aktuell kein Niederschlag in der Region — Karte zeigt nur Hintergrund.
-                </span>
-                {nextWetIdx > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdx(nextWetIdx);
-                      setPlaying(false);
-                    }}
-                    className="rounded-full border border-neutral-300 bg-white px-2.5 py-0.5 font-semibold text-neutral-800 transition hover:border-neutral-400 hover:bg-neutral-100"
-                  >
-                    Zum nächsten Regen springen →
-                  </button>
-                )}
-              </div>
-            )}
+
+
 
             <p className="mt-1.5 text-[10px] text-neutral-500">
               Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
