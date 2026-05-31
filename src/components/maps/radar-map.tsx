@@ -58,17 +58,16 @@ function cityIcon(name: string): L.DivIcon {
 }
 
 
-// Niederschlags-Farbskala (mm/h) — MeteoSchweiz-Legende.
+// Niederschlags-Farbskala (mm/h) — Standard-NS-Stufen (MeteoSchweiz / DWD).
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.2, rgb: [167, 174, 211] },
-  { mmh: 1, rgb: [30, 60, 230] },
-  { mmh: 2, rgb: [30, 120, 50] },
-  { mmh: 4, rgb: [70, 200, 70] },
-  { mmh: 6, rgb: [240, 235, 50] },
-  { mmh: 10, rgb: [240, 200, 120] },
-  { mmh: 20, rgb: [240, 140, 30] },
-  { mmh: 40, rgb: [225, 30, 30] },
-  { mmh: 60, rgb: [150, 30, 200] },
+  { mmh: 0.1, rgb: [170, 215, 245] }, // sehr leicht (hellblau)
+  { mmh: 0.3, rgb: [90, 160, 230] },  // leicht (blau)
+  { mmh: 1.0, rgb: [30, 80, 200] },   // mässig leicht (dunkelblau)
+  { mmh: 3.0, rgb: [40, 170, 70] },   // mässig (grün)
+  { mmh: 10, rgb: [245, 220, 40] },   // mässig stark (gelb)
+  { mmh: 30, rgb: [240, 140, 30] },   // stark (orange)
+  { mmh: 50, rgb: [220, 30, 30] },    // sehr stark (rot)
+  { mmh: 100, rgb: [160, 30, 180] },  // extrem (magenta)
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -518,20 +517,10 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "radar") {
     return { label: "Messung MeteoSchweiz", color: "#1f7a3a" };
   }
-  if (frame.source === "nowcast") {
-    const label =
-      frame.motionSource === "wind"
-        ? "Nowcast (Wind-Fallback)"
-        : frame.motionSource === "radar-field"
-          ? "Nowcast Optical-Flow"
-          : "Nowcast Radar-Extrapolation";
-    return { label, color: "#d97706" };
-  }
-
   if (frame.source === "icon-ch1") {
-    return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
+    return { label: "Prognose ICON-CH1", color: BRAND };
   }
-  return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
+  return { label: "Prognose ICON-CH2", color: "#7a4ca0" };
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
@@ -558,15 +547,10 @@ function fmtDayLong(d: Date): string {
 
 
 function fmtBubble(d: Date, frame: RadarFrame | null): string {
-  const now = Date.now();
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  const isForecast = frame ? d.getTime() > now + 60000 : false;
-
-  if (frame?.source === "nowcast") return `Nowcast: ${wd}, ${hh}:${mm}`;
-  if (frame?.source === "radar") return `Messung: ${wd}, ${hh}:${mm}`;
-  const kind = isForecast ? "Prognose" : "Messung";
+  const kind = frame?.source === "radar" ? "Messung" : "Prognose";
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
