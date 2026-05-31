@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v16-mch-faint-02"
+RADAR_INGEST_VERSION = "v17-mch-reset"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -65,18 +65,23 @@ OUT_W, OUT_H = 1024, 768
 LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 
-# Niederschlags-Farbskala (mm/h → RGBA). MCH-CombiPrecip-konform und
-# identisch zur Prognose-Palette (`SCALE` / `colorFor` in
-# src/components/maps/radar-map.tsx). < 0.1 mm/h = transparent.
+# Niederschlags-Farbskala (mm/h → RGBA), MeteoSchweiz-CombiPrecip-Reset.
+# Quelle der Wahrheit für Messung-PNG UND Forecast-Canvas; identische
+# Schwellen + RGBA müssen in `SCALE` in src/components/maps/radar-map.tsx
+# gespiegelt sein. < 0.1 mm/h → transparent.
+#
+# Volle Alpha (255) ab 0.3 mm/h, damit die Bänder so kräftig wirken wie
+# auf meteoschweiz.ch; die finale Deckkraft wird per Leaflet-`opacity`
+# einmalig im Frontend gesetzt.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.1, (165, 215, 245, 40)),
-    (0.3, (90, 165, 230, 230)),
-    (1.0, (30, 80, 200, 230)),
-    (3.0, (40, 170, 70, 230)),
-    (10.0, (245, 220, 40, 230)),
-    (30.0, (240, 140, 30, 230)),
-    (60.0, (220, 30, 30, 230)),
-    (100.0, (160, 30, 180, 242)),
+    (0.1,   (200, 220, 245,  90)),   # sehr leicht — bewusst halbtransparent
+    (0.3,   (140, 185, 230, 255)),   # hell blau
+    (1.0,   ( 60, 110, 200, 255)),   # blau
+    (3.0,   ( 50, 165,  80, 255)),   # grün
+    (10.0,  (245, 220,  55, 255)),   # gelb
+    (30.0,  (240, 140,  35, 255)),   # orange
+    (60.0,  (220,  40,  40, 255)),   # rot
+    (100.0, (170,  40, 180, 255)),   # magenta
 ]
 
 # POH (hail probability %) colour scale. 0-30 transparent.
