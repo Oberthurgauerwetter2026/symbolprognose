@@ -18,6 +18,7 @@ import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
 import { Route as KartenPollenRouteImport } from './routes/karten.pollen'
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
+import { Route as InternNiederschlagRouteImport } from './routes/intern.niederschlag'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedRegionRouteImport } from './routes/embed.region'
@@ -75,6 +76,11 @@ const KartenPollenRoute = KartenPollenRouteImport.update({
 const KartenLokalRoute = KartenLokalRouteImport.update({
   id: '/karten/lokal',
   path: '/karten/lokal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InternNiederschlagRoute = InternNiederschlagRouteImport.update({
+  id: '/intern/niederschlag',
+  path: '/intern/niederschlag',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedWindRoute = EmbedWindRouteImport.update({
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
+  '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/pollen': typeof KartenPollenRoute
   '/karten/radar': typeof KartenRadarRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
+  '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/pollen': typeof KartenPollenRoute
   '/karten/radar': typeof KartenRadarRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
+  '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/pollen': typeof KartenPollenRoute
   '/karten/radar': typeof KartenRadarRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/embed/region'
     | '/embed/region-lokal'
     | '/embed/wind'
+    | '/intern/niederschlag'
     | '/karten/lokal'
     | '/karten/pollen'
     | '/karten/radar'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/embed/region'
     | '/embed/region-lokal'
     | '/embed/wind'
+    | '/intern/niederschlag'
     | '/karten/lokal'
     | '/karten/pollen'
     | '/karten/radar'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/embed/region'
     | '/embed/region-lokal'
     | '/embed/wind'
+    | '/intern/niederschlag'
     | '/karten/lokal'
     | '/karten/pollen'
     | '/karten/radar'
@@ -307,6 +319,7 @@ export interface RootRouteChildren {
   EmbedRegionRoute: typeof EmbedRegionRoute
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
   EmbedWindRoute: typeof EmbedWindRoute
+  InternNiederschlagRoute: typeof InternNiederschlagRoute
   KartenLokalRoute: typeof KartenLokalRoute
   KartenPollenRoute: typeof KartenPollenRoute
   KartenRadarRoute: typeof KartenRadarRoute
@@ -383,6 +396,13 @@ declare module '@tanstack/react-router' {
       path: '/karten/lokal'
       fullPath: '/karten/lokal'
       preLoaderRoute: typeof KartenLokalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/intern/niederschlag': {
+      id: '/intern/niederschlag'
+      path: '/intern/niederschlag'
+      fullPath: '/intern/niederschlag'
+      preLoaderRoute: typeof InternNiederschlagRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/wind': {
@@ -491,6 +511,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedRegionRoute: EmbedRegionRoute,
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
   EmbedWindRoute: EmbedWindRoute,
+  InternNiederschlagRoute: InternNiederschlagRoute,
   KartenLokalRoute: KartenLokalRoute,
   KartenPollenRoute: KartenPollenRoute,
   KartenRadarRoute: KartenRadarRoute,
