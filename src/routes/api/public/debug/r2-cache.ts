@@ -48,7 +48,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               const m = (await res.json()) as {
                 generatedAt?: string;
                 version?: string;
-                frames?: Array<{ precipUrl?: string; hailUrl?: string }>;
+                frames?: Array<{ t?: string; precipUrl?: string; hailUrl?: string }>;
                 motion?: Record<string, unknown> & {
                   field?: {
                     rows?: number;
