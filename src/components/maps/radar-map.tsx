@@ -372,13 +372,17 @@ function PrecipOverlay({
     const snowVals = frame.snowValues;
     const nextVals = nextFrame?.values;
     const nextSnowVals = nextFrame?.snowValues;
-    const t = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
+    const tRaw = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
+    // Smoothstep-Easing → weichere Übergänge zwischen 15-min-Frames.
+    const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Volle Container-Auflösung für scharfe Kanten wie auf der Messung.
-    const STEP = 1;
+    // STEP=2: Off-screen-Buffer auf halber Auflösung pro Achse (1/4 Pixel)
+    // → deutlich schnellere Redraws, stabile 60fps Animation.
+    const STEP = 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
+
     const img = ctx.createImageData(lowW, lowH);
     const data = img.data;
 
