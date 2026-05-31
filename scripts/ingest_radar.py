@@ -755,17 +755,8 @@ def main() -> int:
     except Exception as exc:
         print(f"  R2 inventory error: {exc!r}", flush=True)
 
-    # Nowcast-Motion aus den letzten 3 echten Radar-Frames per FFT-Phasen-
-    # korrelation. Wird in frames.json geschrieben und vom Server-FN zur
-    # Erzeugung von Nowcast-Frames (T+0…+60min) genutzt.
-    motion: dict | None = None
-    try:
-        motion = compute_motion(precip_assets_all)
-    except Exception as exc:
-        print(f"motion: error {exc!r}", flush=True)
-
     cleanup(s3, now - timedelta(hours=RETENTION))
-    write_manifest(s3, motion=motion)
+    write_manifest(s3)
     print(f"done: processed {processed} new frames", flush=True)
     return 0
 
