@@ -892,20 +892,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
     for (let i = 0; i < f.values.length; i++) if (f.values[i] > m) m = f.values[i];
     return m;
   };
-  const currentMax = frameMaxMmh(currentFrame);
-  // Index des nächsten Frames mit sichtbarem Niederschlag (Canvas > 0.1 mm/h
-  // ODER PNG, weil dort der Server nur "wet" Schritte ausliefert).
-  const nextWetIdx = useMemo(() => {
-    if (idx === null) return -1;
-    for (let i = idx + 1; i < frames.length; i++) {
-      const f = frames[i];
-      if (f.precipUrl) return i;
-      const m = frameMaxMmh(f);
-      if (m !== null && m > 0.1) return i;
-    }
-    return -1;
-  }, [idx, frames]);
-  const showDryHint = currentMax !== null && currentMax < 0.05;
+  void frameMaxMmh;
 
   return (
     <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
