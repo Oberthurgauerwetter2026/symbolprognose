@@ -1,22 +1,8 @@
-import { lazy, Suspense } from "react";
-import { createFileRoute, ClientOnly } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { EmbedShell } from "@/components/embed-shell";
-import { EmbedFallbackBar } from "@/components/embeds/embed-fallback-bar";
 import { WeatherWidget } from "@/components/weather-widget";
-import {
-  RegionLokalNoscript,
-  type RegionLokalNoscriptData,
-} from "@/components/embeds/region-lokal-noscript";
-import { type LokalNoscriptData } from "@/components/embeds/lokal-noscript";
-import { getRadarFrames } from "@/lib/radar.functions";
+import { LokalNoscript, type LokalNoscriptData } from "@/components/embeds/lokal-noscript";
 import { getMultiModelForecast } from "@/lib/forecast.functions";
-
-// RegionMap importiert Leaflet auf Modul-Ebene (window-Zugriff). Daher
-// dynamisch + nur clientseitig laden, damit die Route SSR-fähig bleibt
-// und der <noscript>-Fallback im initialen HTML landet.
-const RegionMapLazy = lazy(() =>
-  import("@/components/region-map").then((m) => ({ default: m.RegionMap })),
-);
 
 const AMRISWIL = { name: "Amriswil", latitude: 47.5469, longitude: 9.2986 };
 
@@ -84,52 +70,23 @@ function buildForecastNoscript(
   };
 }
 
-function buildNoscript(
-  frames: Awaited<ReturnType<typeof getRadarFrames>> | null,
-  fc: Awaited<ReturnType<typeof getMultiModelForecast>> | null,
-): RegionLokalNoscriptData {
-  let mapImageUrl: string | undefined;
-  let mapImageTime: string | undefined;
-  if (frames?.frames?.length) {
-    for (let i = frames.frames.length - 1; i >= 0; i--) {
-      const f = frames.frames[i];
-      if (f.source === "radar" && f.precipUrl) {
-        mapImageUrl = f.precipUrl;
-        mapImageTime = f.t;
-        break;
-      }
-    }
-  }
-
-  return {
-    mapImageUrl,
-    mapImageTime,
-    forecast: buildForecastNoscript(fc),
-  };
-}
-
 export const Route = createFileRoute("/embed/region-lokal")({
   component: EmbedRegionLokal,
   loader: async () => {
     try {
-      const [frames, fc] = await Promise.all([
-        getRadarFrames().catch(() => null),
-        getMultiModelForecast({
-          data: { lat: AMRISWIL.latitude, lon: AMRISWIL.longitude },
-        }).catch(() => null),
-      ]);
-      return { noscript: buildNoscript(frames, fc) };
+      const fc = await getMultiModelForecast({
+        data: { lat: AMRISWIL.latitude, lon: AMRISWIL.longitude },
+      }).catch(() => null);
+      return { noscript: buildForecastNoscript(fc) };
     } catch {
       return {
-        noscript: {
-          forecast: { locationName: AMRISWIL.name, hourly: [], daily: [] },
-        } satisfies RegionLokalNoscriptData,
+        noscript: { locationName: AMRISWIL.name, hourly: [], daily: [] } satisfies LokalNoscriptData,
       };
     }
   },
   head: () => ({
     meta: [
-      { title: "Wetterkarte + Lokalprognose Amriswil (Embed)" },
+      { title: "Lokalprognose Amriswil (Embed)" },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -140,29 +97,10 @@ function EmbedRegionLokal() {
   return (
     <>
       <noscript>
-        <RegionLokalNoscript data={noscript} />
+        <LokalNoscript data={noscript} />
       </noscript>
       <EmbedShell>
-        <div className="@container flex w-full flex-col gap-2">
-          <EmbedFallbackBar
-            title="Wetterkarte + Lokal Amriswil"
-            href="https://symbolprognose.lovable.app/karten/region"
-          />
-          <ClientOnly
-            fallback={
-              <div className="h-[400px] w-full animate-pulse rounded-lg bg-muted" />
-            }
-          >
-            <Suspense
-              fallback={
-                <div className="h-[400px] w-full animate-pulse rounded-lg bg-muted" />
-              }
-            >
-              <RegionMapLazy bare />
-            </Suspense>
-          </ClientOnly>
-          <WeatherWidget detailOnly compact lockedLocation={AMRISWIL} />
-        </div>
+        <WeatherWidget detailOnly compact lockedLocation={AMRISWIL} />
       </EmbedShell>
     </>
   );
