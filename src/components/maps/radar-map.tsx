@@ -58,17 +58,16 @@ function cityIcon(name: string): L.DivIcon {
 }
 
 
-// Niederschlags-Farbskala (mm/h) — MeteoSchweiz-Legende.
+// Niederschlags-Farbskala (mm/h) — Standard-NS-Stufen (MeteoSchweiz / DWD).
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.2, rgb: [167, 174, 211] },
-  { mmh: 1, rgb: [30, 60, 230] },
-  { mmh: 2, rgb: [30, 120, 50] },
-  { mmh: 4, rgb: [70, 200, 70] },
-  { mmh: 6, rgb: [240, 235, 50] },
-  { mmh: 10, rgb: [240, 200, 120] },
-  { mmh: 20, rgb: [240, 140, 30] },
-  { mmh: 40, rgb: [225, 30, 30] },
-  { mmh: 60, rgb: [150, 30, 200] },
+  { mmh: 0.1, rgb: [170, 215, 245] }, // sehr leicht (hellblau)
+  { mmh: 0.3, rgb: [90, 160, 230] },  // leicht (blau)
+  { mmh: 1.0, rgb: [30, 80, 200] },   // mässig leicht (dunkelblau)
+  { mmh: 3.0, rgb: [40, 170, 70] },   // mässig (grün)
+  { mmh: 10, rgb: [245, 220, 40] },   // mässig stark (gelb)
+  { mmh: 30, rgb: [240, 140, 30] },   // stark (orange)
+  { mmh: 50, rgb: [220, 30, 30] },    // sehr stark (rot)
+  { mmh: 100, rgb: [160, 30, 180] },  // extrem (magenta)
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -518,20 +517,10 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "radar") {
     return { label: "Messung MeteoSchweiz", color: "#1f7a3a" };
   }
-  if (frame.source === "nowcast") {
-    const label =
-      frame.motionSource === "wind"
-        ? "Nowcast (Wind-Fallback)"
-        : frame.motionSource === "radar-field"
-          ? "Nowcast Optical-Flow"
-          : "Nowcast Radar-Extrapolation";
-    return { label, color: "#d97706" };
-  }
-
   if (frame.source === "icon-ch1") {
-    return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
+    return { label: "Prognose ICON-CH1", color: BRAND };
   }
-  return { label: "MeteoSchweiz ICON-CH2", color: "#7a4ca0" };
+  return { label: "Prognose ICON-CH2", color: "#7a4ca0" };
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
@@ -558,15 +547,10 @@ function fmtDayLong(d: Date): string {
 
 
 function fmtBubble(d: Date, frame: RadarFrame | null): string {
-  const now = Date.now();
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  const isForecast = frame ? d.getTime() > now + 60000 : false;
-
-  if (frame?.source === "nowcast") return `Nowcast: ${wd}, ${hh}:${mm}`;
-  if (frame?.source === "radar") return `Messung: ${wd}, ${hh}:${mm}`;
-  const kind = isForecast ? "Prognose" : "Messung";
+  const kind = frame?.source === "radar" ? "Messung" : "Prognose";
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
@@ -963,15 +947,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               const hasPng = !!currentFrame.precipUrl;
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
-              const FORECAST_OPACITY_MULT = 0.65; // Prognose halbtransparent → Relief sichtbar
               const isForecast = currentFrame.source !== "radar";
-              const opacityVal = Math.max(
-                0,
-                Math.min(
-                  1,
-                  (currentFrame.blendOpacity ?? 1) * (isForecast ? FORECAST_OPACITY_MULT : 1),
-                ),
-              );
+              const opacityVal = isForecast ? 0.75 : 1;
               return (
                 <>
                   {hasGrid && !hasPng && (
@@ -988,14 +965,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                       key={`precip-${currentFrame.t}`}
                       url={currentFrame.precipUrl!}
                       bounds={[
-                        [
-                          ib.minLat + (currentFrame.imageOffset?.dLat ?? 0),
-                          ib.minLon + (currentFrame.imageOffset?.dLon ?? 0),
-                        ],
-                        [
-                          ib.maxLat + (currentFrame.imageOffset?.dLat ?? 0),
-                          ib.maxLon + (currentFrame.imageOffset?.dLon ?? 0),
-                        ],
+                        [ib.minLat, ib.minLon],
+                        [ib.maxLat, ib.maxLon],
                       ]}
                       opacity={opacityVal}
                       zIndex={460}
@@ -1052,42 +1023,8 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           </div>
         )}
 
-        {/* Diagnose: Nowcast-Zugbahn-Pfeil (visuelle Verifikation Wind-Fallback) */}
-        {currentFrame?.source === "nowcast" && currentFrame.imageOffset && (() => {
-          const dLat = currentFrame.imageOffset.dLat;
-          const dLon = currentFrame.imageOffset.dLon;
-          if (Math.abs(dLat) < 1e-9 && Math.abs(dLon) < 1e-9) return null;
-          // Bearing „wohin": 0° = N, 90° = E. Y-Achse in SVG zeigt nach unten,
-          // deshalb für die Darstellung Y invertieren (Norden = nach oben).
-          const bearingTo = ((Math.atan2(dLon, dLat) * 180) / Math.PI + 360) % 360;
-          const compass = (() => {
-            const dirs = ["N","NE","E","SE","S","SW","W","NW"];
-            return dirs[Math.round(bearingTo / 45) % 8];
-          })();
-          return (
-            <div className="pointer-events-none absolute left-3 bottom-3 z-[400] flex items-center gap-2 rounded-md bg-card/95 px-2.5 py-1.5 text-[11px] font-medium text-foreground shadow-md">
-              <svg width="22" height="22" viewBox="-12 -12 24 24" aria-hidden>
-                <g transform={`rotate(${bearingTo})`}>
-                  <line x1="0" y1="8" x2="0" y2="-7" stroke="#d97706" strokeWidth="2" strokeLinecap="round" />
-                  <polygon points="0,-10 -4,-4 4,-4" fill="#d97706" />
-                </g>
-              </svg>
-              <span>
-                Zugbahn {compass} · {bearingTo.toFixed(0)}°
-                <span className="ml-1 text-muted-foreground">
-                  ({currentFrame.motionSource === "wind"
-                    ? "Wind-Fallback (kein Radar-Feld)"
-                    : currentFrame.motionSource === "radar-field"
-                      ? `Radar-Feld${currentFrame.motionTiles ? ` · ${currentFrame.motionTiles} Kacheln` : ""}`
-                      : currentFrame.motionSource === "radar"
-                        ? "Radar global (Feld leer)"
-                        : "unbekannt"})
-                </span>
-              </span>
 
-            </div>
-          );
-        })()}
+
 
 
         {/* Legende oben rechts (unter Zoom) */}
