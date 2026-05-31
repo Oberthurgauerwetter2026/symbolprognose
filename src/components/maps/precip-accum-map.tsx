@@ -15,40 +15,26 @@ const THURGAU = thurgauData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
-const VIEW_BBOX = { minLat: 47.30, maxLat: 47.85, minLon: 8.80, maxLon: 9.80 } as const;
+const VIEW_BBOX = { minLat: 47.40, maxLat: 47.75, minLon: 8.95, maxLon: 9.65 } as const;
 
-// mm-Stufen (MeteoSchweiz-ähnlich) – Übergänge werden linear interpoliert.
-const ACCUM_SCALE: { mm: number; rgb: [number, number, number] }[] = [
-  { mm: 0.3, rgb: [220, 232, 245] },
-  { mm: 1, rgb: [160, 200, 240] },
-  { mm: 2, rgb: [100, 160, 230] },
-  { mm: 5, rgb: [40, 100, 210] },
-  { mm: 10, rgb: [30, 160, 70] },
-  { mm: 20, rgb: [240, 220, 50] },
-  { mm: 30, rgb: [240, 160, 40] },
-  { mm: 50, rgb: [230, 60, 40] },
-  { mm: 75, rgb: [170, 30, 140] },
-  { mm: 100, rgb: [110, 20, 110] },
+// Klassierte mm-Stufen (radar-ähnlich) – KEINE weiche Interpolation, harte Übergänge für markante Lesbarkeit.
+const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; label: string }[] = [
+  { min: 0.3, max: 1,    rgb: [180, 215, 245], label: "0.3" },
+  { min: 1,   max: 2,    rgb: [110, 175, 235], label: "1" },
+  { min: 2,   max: 5,    rgb: [40, 120, 220],  label: "2" },
+  { min: 5,   max: 10,   rgb: [20, 70, 180],   label: "5" },
+  { min: 10,  max: 20,   rgb: [30, 170, 70],   label: "10" },
+  { min: 20,  max: 30,   rgb: [250, 220, 40],  label: "20" },
+  { min: 30,  max: 50,   rgb: [245, 150, 30],  label: "30" },
+  { min: 50,  max: 75,   rgb: [230, 50, 35],   label: "50" },
+  { min: 75,  max: 100,  rgb: [170, 25, 130],  label: "75" },
+  { min: 100, max: 9999, rgb: [90, 10, 100],   label: "100+" },
 ];
 
-function colorForAccumSmooth(mm: number): [number, number, number, number] {
-  if (mm < ACCUM_SCALE[0].mm) return [0, 0, 0, 0];
-  if (mm >= ACCUM_SCALE[ACCUM_SCALE.length - 1].mm) {
-    const c = ACCUM_SCALE[ACCUM_SCALE.length - 1].rgb;
-    return [c[0], c[1], c[2], 0.92];
-  }
-  for (let i = 0; i < ACCUM_SCALE.length - 1; i++) {
-    const a = ACCUM_SCALE[i];
-    const b = ACCUM_SCALE[i + 1];
-    if (mm >= a.mm && mm < b.mm) {
-      const t = (mm - a.mm) / (b.mm - a.mm);
-      const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
-      const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
-      const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
-      // sanft einblendende Opazität bei kleinen Werten
-      const alpha = Math.min(0.92, 0.55 + Math.min(1, mm / 10) * 0.37);
-      return [r, g, bl, alpha];
-    }
+function colorForAccum(mm: number): [number, number, number, number] {
+  if (mm < ACCUM_CLASSES[0].min) return [0, 0, 0, 0];
+  for (const c of ACCUM_CLASSES) {
+    if (mm >= c.min && mm < c.max) return [c.rgb[0], c.rgb[1], c.rgb[2], 0.94];
   }
   return [0, 0, 0, 0];
 }
@@ -245,8 +231,9 @@ function renderMap(
         v01 * tx * (1 - ty) +
         v10 * (1 - tx) * ty +
         v11 * tx * ty;
-      if (v < ACCUM_SCALE[0].mm) continue;
-      const [r, g, b, a] = colorForAccumSmooth(v);
+      if (v < ACCUM_CLASSES[0].min) continue;
+      const [r, g, b, a] = colorForAccum(v);
+      if (a === 0) continue;
       const idx = (py * innerW + px) * 4;
       data[idx] = r;
       data[idx + 1] = g;
@@ -259,11 +246,8 @@ function renderMap(
   off.width = innerW;
   off.height = innerH;
   off.getContext("2d")!.putImageData(img, 0, 0);
-  // sehr leichter Blur für weichere Optik
-  ctx.save();
-  ctx.filter = "blur(0.6px)";
+  // Kein Blur – harte Klassen-Übergänge bewusst sichtbar.
   ctx.drawImage(off, PAD.left, PAD.top);
-  ctx.restore();
 
   // See
   drawGeoJson(ctx, LAKE, project, { fill: "#cfe4f5", stroke: "#7aa9c8", lineWidth: 0.8 });
@@ -368,48 +352,33 @@ function renderMap(
   ctx.fillStyle = "#ffffff";
   ctx.fillText(chipText, chipX + 10, chipY + 17);
 
-  // Legende: kontinuierlicher Gradient
+  // Legende: diskrete Farbbänder pro Klasse
   const legY = h - PAD.bottom + 36;
   const legX = PAD.left;
   const legW = w - PAD.left - PAD.right;
-  const legH = 14;
-  const grad = ctx.createLinearGradient(legX, 0, legX + legW, 0);
-  const minMm = ACCUM_SCALE[0].mm;
-  const maxScale = ACCUM_SCALE[ACCUM_SCALE.length - 1].mm;
-  for (const stop of ACCUM_SCALE) {
-    const t = (Math.log(stop.mm) - Math.log(minMm)) / (Math.log(maxScale) - Math.log(minMm));
-    const [r, g, b] = stop.rgb;
-    grad.addColorStop(Math.max(0, Math.min(1, t)), `rgb(${r},${g},${b})`);
+  const legH = 16;
+  const n = ACCUM_CLASSES.length;
+  const bw = legW / n;
+  for (let i = 0; i < n; i++) {
+    const c = ACCUM_CLASSES[i];
+    ctx.fillStyle = `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+    ctx.fillRect(legX + i * bw, legY, bw, legH);
   }
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  const lr = 7;
-  ctx.moveTo(legX + lr, legY);
-  ctx.lineTo(legX + legW - lr, legY);
-  ctx.quadraticCurveTo(legX + legW, legY, legX + legW, legY + lr);
-  ctx.lineTo(legX + legW, legY + legH - lr);
-  ctx.quadraticCurveTo(legX + legW, legY + legH, legX + legW - lr, legY + legH);
-  ctx.lineTo(legX + lr, legY + legH);
-  ctx.quadraticCurveTo(legX, legY + legH, legX, legY + legH - lr);
-  ctx.lineTo(legX, legY + lr);
-  ctx.quadraticCurveTo(legX, legY, legX + lr, legY);
-  ctx.closePath();
-  ctx.fill();
+  ctx.strokeStyle = "rgba(15,23,42,0.25)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(legX + 0.5, legY + 0.5, legW - 1, legH - 1);
 
-  // Legenden-Ticks
   ctx.fillStyle = "#475569";
-  ctx.font = "500 11px ui-sans-serif, system-ui, sans-serif";
-  const tickValues = [0.3, 1, 2, 5, 10, 20, 50, 100];
-  for (const v of tickValues) {
-    const t = (Math.log(v) - Math.log(minMm)) / (Math.log(maxScale) - Math.log(minMm));
-    const tx = legX + Math.max(0, Math.min(1, t)) * legW;
-    ctx.fillStyle = "#94a3b8";
-    ctx.fillRect(tx, legY + legH, 1, 4);
-    const label = `${v} mm`;
+  ctx.font = "600 11px ui-sans-serif, system-ui, sans-serif";
+  for (let i = 0; i < n; i++) {
+    const label = ACCUM_CLASSES[i].label;
+    const tx = legX + i * bw;
     const lw = ctx.measureText(label).width;
-    ctx.fillStyle = "#475569";
-    ctx.fillText(label, Math.max(legX, Math.min(legX + legW - lw, tx - lw / 2)), legY + legH + 18);
+    ctx.fillText(label, tx + bw / 2 - lw / 2, legY + legH + 14);
   }
+  ctx.font = "500 10px ui-sans-serif, system-ui, sans-serif";
+  ctx.fillStyle = "#94a3b8";
+  ctx.fillText("mm Niederschlag (Klassen)", legX, legY + legH + 30);
 
   // Footer
   ctx.font = "500 11px ui-sans-serif, system-ui, sans-serif";
@@ -457,7 +426,6 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
 
   const download = () => {
     try {
-      // Frisches Export-Canvas in 1× rendern → kleine, saubere PNG, robust.
       const exportCanvas = document.createElement("canvas");
       renderMap(exportCanvas, payload, { dpr: 1, w: BASE_W, h: BASE_H });
       const fileName = `niederschlag-${hours}h-${new Date()
@@ -465,54 +433,49 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         .slice(0, 16)
         .replace(/[-:T]/g, "")}.png`;
 
-      const triggerBlobDownload = () => {
-        exportCanvas.toBlob((blob) => {
-          if (!blob) {
-            openDataUrlFallback();
-            return;
-          }
-          try {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            a.rel = "noopener";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 2000);
-            toast.success("PNG-Download gestartet", { description: fileName });
-          } catch {
-            openDataUrlFallback();
-          }
-        }, "image/png");
-      };
+      const dataUrl = exportCanvas.toDataURL("image/png");
 
-      const openDataUrlFallback = () => {
-        try {
-          const dataUrl = exportCanvas.toDataURL("image/png");
-          const win = window.open();
-          if (win) {
-            win.document.write(
-              `<title>${fileName}</title><body style="margin:0;background:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${dataUrl}" style="max-width:100%;height:auto" alt="Niederschlag"></body>`,
-            );
-            toast.info("PNG im neuen Tab geöffnet", {
-              description: "Rechtsklick → Bild speichern unter …",
-            });
-          } else {
-            // Letzter Fallback: direkter Link in Toast.
-            toast.error("Download blockiert", {
-              description: "Bitte Popups erlauben oder Seite in neuem Tab öffnen.",
-            });
-          }
-        } catch (e) {
+      // Primärweg: neuer Tab mit Bild + sichtbarem Speichern-Link.
+      // Funktioniert auch in Preview-Iframes mit Sandbox-Beschränkungen.
+      const win = window.open("", "_blank");
+      if (win && win.document) {
+        win.document.open();
+        win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${fileName}</title>
+<style>
+  body{margin:0;background:#0f172a;color:#e2e8f0;font-family:ui-sans-serif,system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px}
+  .bar{display:flex;gap:8px;align-items:center}
+  a.btn{display:inline-block;background:#22c55e;color:#0b1220;font-weight:600;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:14px}
+  a.btn:hover{background:#16a34a;color:#fff}
+  img{max-width:100%;height:auto;border:1px solid #1e293b;border-radius:8px;background:#fff}
+  .hint{font-size:12px;color:#94a3b8}
+</style></head><body>
+<div class="bar"><a class="btn" href="${dataUrl}" download="${fileName}">PNG speichern</a><span class="hint">oder Rechtsklick aufs Bild → „Bild speichern unter …“</span></div>
+<img src="${dataUrl}" alt="${fileName}">
+</body></html>`);
+        win.document.close();
+        toast.success("PNG geöffnet", { description: "Im neuen Tab speichern." });
+        return;
+      }
+
+      // Fallback: direkter Blob-Download (klassisch, wenn Popups erlaubt sind).
+      exportCanvas.toBlob((blob) => {
+        if (!blob) {
           toast.error("Export fehlgeschlagen", {
-            description: (e as Error).message,
+            description: "Browser hat das Bild nicht erzeugt. Bitte Popups erlauben.",
           });
+          return;
         }
-      };
-
-      triggerBlobDownload();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        toast.success("PNG-Download gestartet", { description: fileName });
+      }, "image/png");
     } catch (e) {
       toast.error("Export fehlgeschlagen", { description: (e as Error).message });
     }
@@ -545,7 +508,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
             PNG herunterladen
           </Button>
           <span className="text-[10px] text-zinc-400">
-            Falls Preview blockiert: öffnet sich im neuen Tab.
+            Öffnet PNG in neuem Tab inkl. „Speichern“-Button.
           </span>
         </div>
       </div>
