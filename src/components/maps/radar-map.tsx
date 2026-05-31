@@ -58,33 +58,45 @@ function cityIcon(name: string): L.DivIcon {
 }
 
 
-// Niederschlags-Farbskala (mm/h) — Standard-NS-Stufen (MeteoSchweiz / DWD).
+// Niederschlags-Farbskala (mm/h) — MeteoSchweiz-Legende.
 const SCALE: { mmh: number; rgb: [number, number, number] }[] = [
-  { mmh: 0.1, rgb: [170, 215, 245] }, // sehr leicht (hellblau)
-  { mmh: 0.3, rgb: [90, 160, 230] },  // leicht (blau)
-  { mmh: 1.0, rgb: [30, 80, 200] },   // mässig leicht (dunkelblau)
-  { mmh: 3.0, rgb: [40, 170, 70] },   // mässig (grün)
-  { mmh: 10, rgb: [245, 220, 40] },   // mässig stark (gelb)
-  { mmh: 30, rgb: [240, 140, 30] },   // stark (orange)
-  { mmh: 50, rgb: [220, 30, 30] },    // sehr stark (rot)
-  { mmh: 100, rgb: [160, 30, 180] },  // extrem (magenta)
+  { mmh: 0.2, rgb: [167, 174, 211] },
+  { mmh: 1, rgb: [30, 60, 230] },
+  { mmh: 2, rgb: [30, 120, 50] },
+  { mmh: 4, rgb: [70, 200, 70] },
+  { mmh: 6, rgb: [240, 235, 50] },
+  { mmh: 10, rgb: [240, 200, 120] },
+  { mmh: 20, rgb: [240, 140, 30] },
+  { mmh: 40, rgb: [225, 30, 30] },
+  { mmh: 60, rgb: [150, 30, 200] },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
-  // Quantisiert in flache Bänder — gibt glatte Iso-Konturen statt Verläufe.
   if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
-  let band = SCALE[0];
-  let isTop = false;
-  for (let i = SCALE.length - 1; i >= 0; i--) {
-    if (mmh >= SCALE[i].mmh) {
-      band = SCALE[i];
-      isTop = i === SCALE.length - 1;
-      break;
+  if (mmh >= SCALE[SCALE.length - 1].mmh) {
+    const [r, g, b] = SCALE[SCALE.length - 1].rgb;
+    return [r, g, b, 0.95];
+  }
+  // Linear interpolation in log(mmh)-Raum für sanftere Farbübergänge.
+  for (let i = 0; i < SCALE.length - 1; i++) {
+    const a = SCALE[i];
+    const b = SCALE[i + 1];
+    if (mmh >= a.mmh && mmh < b.mmh) {
+      const t = (Math.log(mmh) - Math.log(a.mmh)) / (Math.log(b.mmh) - Math.log(a.mmh));
+      const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
+      const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
+      const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
+      // Markante Deckkraft wie auf der MeteoSchweiz-Messung; schwächste Stufe
+      // bewusst tiefer, damit starke Zellen keinen breiten Halo bekommen.
+      const alphaA = i === 0 ? 0.45 : 0.92;
+      const alphaB = 0.92;
+      const al = alphaA + (alphaB - alphaA) * t;
+      return [r, g, bl, al];
     }
   }
-  const a = isTop ? 0.95 : 0.88;
-  return [band.rgb[0], band.rgb[1], band.rgb[2], a];
+  return [0, 0, 0, 0];
 }
+
 
 // Schnee-Farbskala (mm/h Wasser-Äquivalent) — MeteoSchweiz: leicht / stark.
 const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [

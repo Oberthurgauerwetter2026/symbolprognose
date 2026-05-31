@@ -1,80 +1,54 @@
 ## Ziel
 
-Die Radarkarte zeigt nur noch zwei klar getrennte Quellen — wie bei MeteoSchweiz / DWD:
+Die letzte Änderung an der Niederschlags-Farbskala (`SCALE` + `colorFor`) hat zwei Nebenwirkungen verursacht:
 
-1. **Messung** = echte MeteoSchweiz-CombiPrecip-PNGs aus R2 (Vergangenheit, bis „jetzt").
-2. **Prognose** = ICON-CH1 (15-min, +0…+33 h) und ICON-CH2 (stündlich, +33…+48 h), direkt aus dem ICON-Lauf, ohne Re-Sampling, ohne Wind-Advection-Glättung.
+1. **Prognose** (ICON-CH1/CH2): Formen und Farben sind nicht mehr wie ursprünglich geplant — die quantisierten Bänder erzeugen harte Iso-Konturen statt der weichen MeteoSchweiz-typischen Verläufe.
+2. **Messung**: Im Canvas-gerenderten Ring um den MeteoSchweiz-PNG-Ausschnitt (ICON-CH1 `past_minutely_15`) springen Pixel von Frame zu Frame zwischen den harten Bändern hin und her — sichtbarer Flicker.
 
-Die ganze „Zellverlagerung" / Nowcast-Pipeline fliegt komplett raus.
+Beides hat die gleiche Ursache: `colorFor` wurde von **log-Interpolation zwischen Stützpunkten** auf **harte Bänder** umgestellt, und die `SCALE`-Tabelle wurde gleichzeitig auf eine andere mm/h-Stufung umgestellt.
+
+→ Rückgängig machen. Nur `src/components/maps/radar-map.tsx`, sehr punktuell.
 
 ## Änderungen
 
-### 1. `src/lib/radar.functions.ts` — Nowcast & Wind-Advection löschen
+### `src/components/maps/radar-map.tsx`
 
-Folgende Blöcke ersatzlos entfernen:
-
-- **Nowcast-Block** (`---- Nowcast (Radar-Extrapolation, T+0…+90 min) ----`, ca. Zeilen 424–659): alle Berechnungen rund um `motion`, `nowcastMotion`, Optical-Flow-Feld, Wind-Fallback und das Pushen von `source: "nowcast"`-Frames.
-- **Soft-Blending-Marker** für ICON-CH1 (`overlapStartMs`, `blendOpacity`-Berechnung in der CH1-Schleife, ca. Zeilen 660–746) — ICON-CH1-Frames werden ab `now` direkt mit voller Opazität geliefert.
-- **15-min-Smoothing via Wind-Advection** (`meanWindAt`, `sample`, `shiftField`, `advectPair`, ca. Zeilen 786–944).
-- **Self-Test** `assertWindMotionSign()` (Zeilen 36–64) — wird ohne Nowcast nicht mehr gebraucht.
-- Aus `RadarFrame`: `imageOffset`, `motionSource`, `motionTiles`, `blendOpacity` entfernen (nicht mehr genutzt).
-- Aus `RadarPayload`: `motion` entfernen.
-- `getRadarFrames` liefert nur: gemessene Radar-Frames (PNG-Overlays) + ICON-CH1 + ICON-CH2.
-
-**Bias-Korrektur** (Zeilen 671–702): bleibt drin, ist seriös — bringt Messung und Prognose intensitätsmässig zusammen, ohne Geometrie zu verschieben. Fade-Fenster: 120 min (unverändert).
-
-**Zeit-Konsistenz Messung:** Im Radar-Frame-Push (Zeile 411–421) garantieren, dass `t` immer dem echten `sourceT` entspricht. `FILL_LIMIT` steht schon auf 0; `isFilled` wird damit nie gesetzt — Feld kann aus dem Interface verschwinden. Damit zeigt die Bubble in der Timeline („Messung: Mo, 14:35") exakt den Zeitstempel des dargestellten PNG, ohne stille Forward-Fills.
-
-### 2. `src/components/maps/radar-map.tsx` — Nowcast-UI entfernen
-
-- `sourceLabel`: Zweig `frame.source === "nowcast"` löschen.
-- `fmtBubble`: Sonderfall `nowcast` löschen.
-- **Zugbahn-Pfeil-Overlay** (Zeilen 1056–1090) komplett entfernen.
-- Im `currentFrame`/`ImageOverlay`-Block: `imageOffset`-Verschiebung der Bounds entfernen — Overlay liegt immer auf der nominalen `imageBbox`.
-- `blendOpacity`-Logik im Overlay-Opacity-Berechnung entfernen. Statt einer Multiplikator-Akrobatik:
-  - Messung (`source === "radar"`): `opacity = 1`.
-  - Prognose (`icon-ch1` / `icon-ch2`): `opacity = 0.75` (statisch, damit Relief sichtbar bleibt — wie MeteoSchweiz „Voraussage").
-- `frameMaxMmh`-Toter-Code & `void frameMaxMmh` entfernen.
-
-**Quellen-Badge / Footer-Text:** „MeteoSchweiz Radar (Messung) · ICON-CH1/CH2 (Vorhersage bis +48 h)" — bleibt, nur ohne Nowcast-Erwähnung.
-
-### 3. Farbskala — Standard-NS-Stufen
-
-`SCALE` in `radar-map.tsx` ersetzen durch die übliche MeteoSchweiz-/DWD-Stufung mit zugehörigen Intensitäts-Bändern (mm/h, Farbcode wie auf den offiziellen Karten):
+**`SCALE` zurück auf ursprüngliche MeteoSchweiz-Stützpunkte:**
 
 ```text
- 0.1  hellblau    (sehr leichter Niederschlag)
- 0.3  blau        (leichter Niederschlag)
- 1.0  dunkelblau
- 3.0  grün
-10.0  gelb        (mässiger Niederschlag)
-30.0  orange      (starker Niederschlag)
-50.0  rot         (sehr starker Niederschlag)
-100   magenta     (extrem)
+ 0.2  hellblaugrau   [167,174,211]
+ 1    blau           [ 30, 60,230]
+ 2    dunkelgrün     [ 30,120, 50]
+ 4    grün           [ 70,200, 70]
+ 6    gelb           [240,235, 50]
+10    hellorange     [240,200,120]
+20    orange         [240,140, 30]
+40    rot            [225, 30, 30]
+60    violett        [150, 30,200]
 ```
 
-Hex-Werte werden so gewählt, dass sie der MeteoSchweiz-Legende auf <https://www.meteoschweiz.admin.ch/wetter/wetter-und-klima-aktuell/niederschlagsradar.html> entsprechen. Die Funktion `colorFor` bleibt strukturell gleich (quantisierte Bänder, keine Verläufe), nur die Tabelle ändert sich. Die Legende rechts oben übernimmt die neuen Stufen automatisch.
+Kommentar oben: „Niederschlags-Farbskala (mm/h) — MeteoSchweiz-Legende."
 
-Schnee-Skala (`SNOW_SCALE`, „leicht / stark", lila) bleibt.
+**`colorFor` zurück auf log-Interpolation** zwischen benachbarten Stützpunkten (statt quantisierte Bänder). Alpha:
+- unterster Übergang (`i === 0`): von 0.45 → 0.92 (schwächste Stufe niedriger, damit starke Zellen keinen breiten Halo bekommen)
+- alle übrigen Übergänge: 0.92
+- oberhalb des höchsten Stützpunkts: 0.95
 
-### 4. Zeit-Konsistenz Prognose
+Damit verschwindet sowohl der Flicker im Messring als auch die zu kantige Prognose-Optik.
 
-ICON-CH1 / CH2 werden ohne Advection-Smoothing 1:1 als 15-min-/Stunden-Frames durchgereicht. Der Zeitstempel jedes Frames entspricht damit exakt dem ICON-Validzeitpunkt. Übergang Messung → Prognose ist hart bei `now`: bis und mit letztem MCH-Frame Messung, danach ICON-CH1.
+### Nicht angefasst
 
-## Nicht Teil dieses Plans
-
-- Workflow `Radar Ingest` und Cron-Worker bleiben unverändert.
-- `scripts/ingest_radar.py` und das R2-Manifest bleiben unverändert; das `motion`-Feld im Manifest wird einfach ignoriert. Aufräumen im Python-Code kann später nachgezogen werden.
-- Keine Änderung an Hagel-Layer (POH), Embed, Region-/Karten-Mask.
+- `SNOW_SCALE` / `snowColorFor` — war nicht Teil der Regression.
+- `src/lib/radar.functions.ts` — Messung→Prognose-Pipeline, Bias-Korrektur, Forecast-Cutoff bleiben unverändert (die Nowcast-Entfernung aus dem vorherigen Schritt steht).
+- Legende rechts oben — übernimmt die neue SCALE automatisch.
 
 ## Verifikation
 
-- `/karten/radar` öffnen: Timeline endet bei echtem letztem MCH-Frame; ab dort beginnen ICON-CH1-Frames. Kein „Nowcast"-Label, kein Zugbahn-Pfeil mehr.
-- Bubble-Zeit über dem Handle stimmt mit dem Quellen-Badge-Zeitstempel überein.
-- Legende rechts oben zeigt die neuen mm/h-Stufen.
-- Übergang Messung → Prognose ohne sprunghafte Intensitäts-Verfärbung (Bias-Korrektur greift die ersten ~2 h).
+- `/karten/radar` öffnen, Animation laufen lassen:
+  - Messung: Canvas-Ring um den MCH-Ausschnitt zeigt sanfte Farbübergänge, kein Springen zwischen Bändern mehr.
+  - Prognose: ICON-CH1/CH2-Frames zeigen wieder weiche, „wettertypische" Verläufe statt harter Iso-Linien.
+- Legende oben rechts listet die Stufen 0.2 / 1 / 2 / 4 / 6 / 10 / 20 / 40 / 60 mm/h.
 
 ## Dateien
 
-- `src/lib/radar.functions.ts`
 - `src/components/maps/radar-map.tsx`
