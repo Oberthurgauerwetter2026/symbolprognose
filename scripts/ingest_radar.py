@@ -49,7 +49,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v11-cpc-tz-fix"
+RADAR_INGEST_VERSION = "v12-h5-metadata-time"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
