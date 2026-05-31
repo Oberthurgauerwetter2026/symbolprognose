@@ -178,7 +178,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   }
 
   const now = Date.now();
-  const forecastCutoff = now + 48 * 3600 * 1000;
+  const forecastCutoff = now + 24 * 3600 * 1000;
   const pastCutoff = now - 6 * 3600 * 1000;
   const frames: RadarFrame[] = [];
 
