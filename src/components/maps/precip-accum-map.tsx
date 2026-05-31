@@ -108,8 +108,8 @@ export function accumulatePrecip(
 }
 
 // ---------- Heatmap → DataURL (für Leaflet ImageOverlay) ----------
-// Grid-Ausrichtung: Pixel (px,py) entspricht Lon/Lat interpoliert. Pixel = 1 Gridzelle hochskaliert.
-// Wir rendern pixelweise mit Nearest-Neighbor — saubere harte Klassen-Kanten.
+// Bilineare Interpolation des mm-Wertes pro Pixel, danach Klassenfarbe.
+// → weiche, geschwungene Bandkonturen, aber harte Farbsprünge zwischen Klassen.
 function renderHeatmapDataUrl(
   values: number[],
   gridLat: number[],
@@ -119,10 +119,9 @@ function renderHeatmapDataUrl(
   const nLon = gridLon.length;
   if (!nLat || !nLon || values.length !== nLat * nLon) return null;
 
-  // 4× Upsampling pro Gridzelle für glatte Bandkonturen ohne zu interpolieren.
-  const UP = 4;
-  const w = nLon * UP;
-  const h = nLat * UP;
+  const UP = 8;
+  const w = (nLon - 1) * UP;
+  const h = (nLat - 1) * UP;
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
@@ -131,15 +130,31 @@ function renderHeatmapDataUrl(
   const img = ctx.createImageData(w, h);
   const data = img.data;
 
-  // gridLat aufsteigend? Typischerweise ja. Wir mappen y so, dass größere lat oben ist.
   const latAsc = gridLat[nLat - 1] > gridLat[0];
 
   for (let py = 0; py < h; py++) {
-    const gy = Math.min(nLat - 1, Math.floor(py / UP));
-    const latIdx = latAsc ? nLat - 1 - gy : gy;
+    // py=0 → oberer Bildrand → größter lat
+    const fyTop = py / UP;
+    const fyGrid = latAsc ? nLat - 1 - fyTop : fyTop;
+    const y0 = Math.max(0, Math.min(nLat - 2, Math.floor(fyGrid)));
+    const y1 = y0 + 1;
+    const ty = fyGrid - y0;
     for (let px = 0; px < w; px++) {
-      const gx = Math.min(nLon - 1, Math.floor(px / UP));
-      const v = values[latIdx * nLon + gx];
+      const fx = px / UP;
+      const x0 = Math.max(0, Math.min(nLon - 2, Math.floor(fx)));
+      const x1 = x0 + 1;
+      const tx = fx - x0;
+
+      const v00 = values[y0 * nLon + x0];
+      const v10 = values[y0 * nLon + x1];
+      const v01 = values[y1 * nLon + x0];
+      const v11 = values[y1 * nLon + x1];
+      const v =
+        v00 * (1 - tx) * (1 - ty) +
+        v10 * tx * (1 - ty) +
+        v01 * (1 - tx) * ty +
+        v11 * tx * ty;
+
       if (v < ACCUM_CLASSES[0].min) continue;
       const [r, g, b, a] = colorForAccum(v);
       if (a === 0) continue;
@@ -153,13 +168,11 @@ function renderHeatmapDataUrl(
 
   ctx.putImageData(img, 0, 0);
 
-  // Halbzellen-Padding, damit Pixelzentren mit Lat/Lon-Punkten übereinstimmen.
-  const dLat = (gridLat[nLat - 1] - gridLat[0]) / (nLat - 1);
-  const dLon = (gridLon[nLon - 1] - gridLon[0]) / (nLon - 1);
-  const minLat = Math.min(gridLat[0], gridLat[nLat - 1]) - dLat / 2;
-  const maxLat = Math.max(gridLat[0], gridLat[nLat - 1]) + dLat / 2;
-  const minLon = gridLon[0] - dLon / 2;
-  const maxLon = gridLon[nLon - 1] + dLon / 2;
+  // Bounds: Gitterpunkt-zu-Gitterpunkt (Pixel liegen direkt auf Gitterpunkten).
+  const minLat = Math.min(gridLat[0], gridLat[nLat - 1]);
+  const maxLat = Math.max(gridLat[0], gridLat[nLat - 1]);
+  const minLon = gridLon[0];
+  const maxLon = gridLon[nLon - 1];
 
   return {
     url: canvas.toDataURL("image/png"),
