@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v13-safe-cpc-rebuild"
+RADAR_INGEST_VERSION = "v14-mch-palette"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -65,19 +65,18 @@ OUT_W, OUT_H = 1024, 768
 LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 
-# Niederschlags-Farbskala (mm/h → RGBA). Identisch zur Prognose-Palette
-# (`SCALE` / `colorFor` in src/components/maps/radar-map.tsx), damit Messung
-# und Prognose bei gleichen mm/h-Werten gleich aussehen. < 0.2 mm/h = transparent.
+# Niederschlags-Farbskala (mm/h → RGBA). MCH-CombiPrecip-konform und
+# identisch zur Prognose-Palette (`SCALE` / `colorFor` in
+# src/components/maps/radar-map.tsx). < 0.1 mm/h = transparent.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.2, (167, 174, 211, 89)),    # a≈0.35
-    (1.0, (30, 60, 230, 153)),     # a≈0.60
-    (2.0, (30, 120, 50, 153)),
-    (4.0, (70, 200, 70, 153)),
-    (6.0, (240, 235, 50, 153)),
-    (10.0, (240, 200, 120, 153)),
-    (20.0, (240, 140, 30, 153)),
-    (40.0, (225, 30, 30, 153)),
-    (60.0, (150, 30, 200, 153)),
+    (0.1, (165, 215, 245, 230)),
+    (0.3, (90, 165, 230, 230)),
+    (1.0, (30, 80, 200, 230)),
+    (3.0, (40, 170, 70, 230)),
+    (10.0, (245, 220, 40, 230)),
+    (30.0, (240, 140, 30, 230)),
+    (60.0, (220, 30, 30, 230)),
+    (100.0, (160, 30, 180, 242)),
 ]
 
 # POH (hail probability %) colour scale. 0-30 transparent.
@@ -613,503 +612,7 @@ def purge_all_radar_pngs(s3) -> int:
     return purged
 
 
-def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float]:
-    """FFT phase correlation. Returns (dx_px, dy_px, confidence) for motion
-    from a (older) to b (newer).
-
-    Convention:
-      • dx_px > 0  → feature moved to the right (col+) between a and b → eastward.
-      • dy_px > 0  → feature moved downward (row+) → southward.
-
-    Math: if b(x) = a(x − d) (b is a shifted by +d), the Fourier shift
-    theorem gives B = A · exp(−i·2π·k·d/N). Hence
-        conj(A) · B  =  |A|² · exp(−i·2π·k·d/N)
-    whose inverse FFT has its peak at +d. Using A · conj(B) instead would
-    place the peak at −d, which is the original bug that made nowcast
-    cells drift backwards. We therefore use conj(A) · B.
-    """
-    a = np.nan_to_num(a, nan=0.0).astype(np.float32)
-    b = np.nan_to_num(b, nan=0.0).astype(np.float32)
-    a = a - a.mean()
-    b = b - b.mean()
-    h, w = a.shape
-    win = np.hanning(h)[:, None] * np.hanning(w)[None, :]
-    A = np.fft.fft2(a * win)
-    B = np.fft.fft2(b * win)
-    R = np.conj(A) * B
-    R /= np.abs(R) + 1e-10
-    c = np.fft.ifft2(R).real
-    peak = np.unravel_index(int(np.argmax(c)), c.shape)
-    py, px = int(peak[0]), int(peak[1])
-    if py > h // 2:
-        py -= h
-    if px > w // 2:
-        px -= w
-    dx_px = float(px)
-    dy_px = float(py)
-    peak_v = float(c.max())
-    mean_v = float(c.mean())
-    std_v = float(c.std()) + 1e-10
-    snr = (peak_v - mean_v) / std_v
-    conf = float(max(0.0, min(1.0, snr / 60.0)))
-    return dx_px, dy_px, conf
-
-
-# --- Optical-Flow: tile-based phase correlation ---------------------------
-# Liefert ein Bewegungsfeld statt eines einzelnen globalen Vektors. Pro
-# Kachel wird die Phasenkorrelation eigenständig ausgewertet; Kacheln ohne
-# Niederschlag oder mit zu niedriger SNR werden verworfen.
-
-TILE_PX = 128
-TILE_STRIDE = 64
-TILE_MIN_WET = 0.05      # Anteil "nasser" Pixel in der Kachel
-TILE_MIN_CONF = 0.15
-TILE_MAX_SHIFT_PX = 32   # plausibler Maximum-Shift pro Frame-Paar
-
-
-def _phase_correlation_tiles(
-    a: np.ndarray, b: np.ndarray
-) -> list[tuple[int, int, float, float, float, float]]:
-    """Returns list of (cx_px, cy_px, dx_px, dy_px, conf, wet_frac) per tile.
-
-    cx/cy = Kachelmittelpunkt in Bildpixeln (Web-Mercator-Raster OUT_W×OUT_H).
-    dx_px > 0 → Ost-Bewegung, dy_px > 0 → Süd-Bewegung (Y-Achse nach unten).
-    """
-    a = np.nan_to_num(a, nan=0.0).astype(np.float32)
-    b = np.nan_to_num(b, nan=0.0).astype(np.float32)
-    h, w = a.shape
-    if h < TILE_PX or w < TILE_PX:
-        return []
-    win = np.hanning(TILE_PX)[:, None] * np.hanning(TILE_PX)[None, :]
-    out: list[tuple[int, int, float, float, float, float]] = []
-    for y in range(0, h - TILE_PX + 1, TILE_STRIDE):
-        for x in range(0, w - TILE_PX + 1, TILE_STRIDE):
-            ta = a[y : y + TILE_PX, x : x + TILE_PX]
-            tb = b[y : y + TILE_PX, x : x + TILE_PX]
-            cx = x + TILE_PX // 2
-            cy = y + TILE_PX // 2
-            wet = float(np.mean((ta > 0.1) | (tb > 0.1)))
-            if wet < TILE_MIN_WET:
-                out.append((cx, cy, 0.0, 0.0, 0.0, wet))
-                continue
-            ta_d = ta - ta.mean()
-            tb_d = tb - tb.mean()
-            A = np.fft.fft2(ta_d * win)
-            B = np.fft.fft2(tb_d * win)
-            R = np.conj(A) * B
-            R /= np.abs(R) + 1e-10
-            c = np.fft.ifft2(R).real
-            peak = np.unravel_index(int(np.argmax(c)), c.shape)
-            py, px_ = int(peak[0]), int(peak[1])
-            if py > TILE_PX // 2:
-                py -= TILE_PX
-            if px_ > TILE_PX // 2:
-                px_ -= TILE_PX
-            if abs(px_) > TILE_MAX_SHIFT_PX or abs(py) > TILE_MAX_SHIFT_PX:
-                out.append((cx, cy, 0.0, 0.0, 0.0, wet))
-                continue
-            peak_v = float(c.max())
-            mean_v = float(c.mean())
-            std_v = float(c.std()) + 1e-10
-            snr = (peak_v - mean_v) / std_v
-            conf = float(max(0.0, min(1.0, snr / 60.0)))
-            out.append((cx, cy, float(px_), float(py), conf, wet))
-    return out
-
-
-def _load_wind_prior(now: datetime) -> tuple[float, float] | None:
-    """700-hPa-Wind aus openmeteo/forecast.json (R2-Cache), in m/s als (u, v).
-
-    Konvention: u > 0 → Strömung nach Osten, v > 0 → Strömung nach Norden.
-    Wird im Tile-Feld als Prior eingemischt — datenarme Kacheln driften so
-    Richtung Wind, statt 0 zu bleiben.
-    """
-    if not BUCKET:
-        return None
-    try:
-        s3 = make_s3()
-        obj = s3.get_object(Bucket=BUCKET, Key="openmeteo/forecast.json")
-        payload = json.loads(obj["Body"].read().decode("utf-8"))
-    except Exception as exc:
-        print(f"wind-prior: cache fetch failed: {exc!r}", flush=True)
-        return None
-    grid = payload.get("grid", {}).get("points") or []
-    locs = payload.get("locations") or payload.get("forecasts") or []
-    if not grid or not locs:
-        return None
-    mid_lat = (BBOX_WGS["minLat"] + BBOX_WGS["maxLat"]) / 2
-    mid_lon = (BBOX_WGS["minLon"] + BBOX_WGS["maxLon"]) / 2
-    best_i = -1
-    best_d = float("inf")
-    for i, p in enumerate(grid):
-        try:
-            d = (p["lat"] - mid_lat) ** 2 + (p["lon"] - mid_lon) ** 2
-        except Exception:
-            continue
-        if d < best_d:
-            best_d = d
-            best_i = i
-    if best_i < 0 or best_i >= len(locs):
-        return None
-    hourly = (locs[best_i] or {}).get("hourly") or {}
-    times = hourly.get("time") or []
-    sp = hourly.get("wind_speed_700hPa") or []
-    di = hourly.get("wind_direction_700hPa") or []
-    if not times or not sp or not di:
-        return None
-    target_ms = now.timestamp() * 1000.0
-    hi = -1
-    for i, t in enumerate(times):
-        try:
-            tms = datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp() * 1000.0
-        except Exception:
-            continue
-        if tms <= target_ms:
-            hi = i
-        else:
-            break
-    if hi < 0:
-        return None
-    try:
-        speed_kmh = float(sp[hi])
-        direction = float(di[hi])  # meteorologisch: woher der Wind kommt
-    except Exception:
-        return None
-    speed_ms = speed_kmh * 1000.0 / 3600.0
-    rad = np.radians(direction)
-    # Wind weht von dir → Strömung in Gegenrichtung. u/v positiv = Ost/Nord.
-    u_ms = -speed_ms * float(np.sin(rad))
-    v_ms = -speed_ms * float(np.cos(rad))  # +Nord; SVG-Y invertiert wird im Feld behandelt
-    # Pixel-Konvention: dx_px > 0 → Ost, dy_px > 0 → Süd. Daher Y-Achse flippen.
-    return u_ms, -v_ms  # zweiter Wert ist „v in Pixel-Y-Richtung" = nach Süden positiv
-
-
-
-def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
-    """Mean precipitation-cell motion + growth/decay trend.
-
-    Erweitert ggü. v7-Original:
-      • nutzt die letzten **6 Frames** (5 Paare) statt 3 → Median stabiler,
-        Null-Drift-Fehlalarme seltener.
-      • berechnet zusätzlich `growth_per_min`: lineare Steigung der mittleren
-        Intensität pro Minute, normiert auf den Mittelwert, in %/min.
-        > 0 = Zellen wachsen, < 0 = zerfallen. Frontend dimmt Nowcast-PNGs
-        entsprechend (analog MeteoSchweiz INCA-Exponential-Decay).
-    """
-    last = sorted(precip_assets, key=lambda a: a.ts)[-6:]
-    if len(last) < 2:
-        print("motion: <2 recent precip frames, skipping", flush=True)
-        return None
-    arrs: list[tuple[datetime, np.ndarray]] = []
-    for a in last:
-        try:
-            r = http_get(a.href, timeout=60)
-            r.raise_for_status()
-            values, meta = read_h5_grid(r.content)
-            cropped = sample_to_bbox(values, meta)
-            arrs.append((a.ts, cropped))
-        except Exception as exc:
-            print(f"motion: decode {a.key} failed: {exc!r}", flush=True)
-    if len(arrs) < 2:
-        print("motion: <2 decoded frames, skipping", flush=True)
-        return None
-
-    pair_motions: list[tuple[float, float, float]] = []
-    # Per-tile motion über alle Paare. Layout entspricht
-    # _phase_correlation_tiles() → stabile Reihenfolge zwischen Paaren.
-    pair_tiles: list[list[tuple[int, int, float, float, float, float]]] = []
-    for i in range(len(arrs) - 1):
-        t_old, a_old = arrs[i]
-        t_new, a_new = arrs[i + 1]
-        dt_min = max(1.0, (t_new - t_old).total_seconds() / 60.0)
-        if np.nansum(a_old > 0.1) < 50 or np.nansum(a_new > 0.1) < 50:
-            print(f"motion: pair {t_old}→{t_new} too sparse, skip", flush=True)
-            continue
-        dx_px, dy_px, conf = _phase_correlation(a_old, a_new)
-        if abs(dx_px) > 60 or abs(dy_px) > 60:
-            print(f"motion: pair {t_old}→{t_new} jump too large, skip", flush=True)
-            continue
-        if abs(dx_px) < 0.5 and abs(dy_px) < 0.5:
-            print(
-                f"motion: pair {t_old.strftime('%H:%M')}→{t_new.strftime('%H:%M')} "
-                f"zero shift dx={dx_px:+.2f}px dy={dy_px:+.2f}px → discard",
-                flush=True,
-            )
-            continue
-        pair_motions.append((dx_px / dt_min, dy_px / dt_min, conf))
-        try:
-            tiles = _phase_correlation_tiles(a_old, a_new)
-            # In px/min normalisieren, damit Aggregation über Paare mit
-            # ungleichen Zeitabständen sauber bleibt.
-            normalised = [
-                (cx, cy, dx / dt_min, dy / dt_min, c, wet)
-                for (cx, cy, dx, dy, c, wet) in tiles
-            ]
-            pair_tiles.append(normalised)
-        except Exception as exc:
-            print(f"motion: tile pair {t_old}→{t_new} error {exc!r}", flush=True)
-        print(
-            f"motion: pair {t_old.strftime('%H:%M')}→{t_new.strftime('%H:%M')} "
-            f"dx={dx_px:+.1f}px dy={dy_px:+.1f}px conf={conf:.2f} dt={dt_min:.0f}min",
-            flush=True,
-        )
-
-
-    if not pair_motions:
-        print("motion: no usable pairs → discarded", flush=True)
-        return None
-
-    u_px_min = float(np.median([p[0] for p in pair_motions]))
-    v_px_min = float(np.median([p[1] for p in pair_motions]))
-    conf_med = float(np.median([p[2] for p in pair_motions]))
-
-    if abs(u_px_min) < 0.5 and abs(v_px_min) < 0.5:
-        print(
-            f"motion: median zero shift u={u_px_min:+.2f}px/min v={v_px_min:+.2f}px/min → discarded",
-            flush=True,
-        )
-        return None
-
-    deg_lon_per_px = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / OUT_W
-    deg_lat_per_px = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / OUT_H
-    u_deg_min = u_px_min * deg_lon_per_px
-    v_deg_min = -v_px_min * deg_lat_per_px
-
-    mid_lat = (BBOX_WGS["maxLat"] + BBOX_WGS["minLat"]) / 2
-    m_per_deg_lat = 111_000.0
-    m_per_deg_lon = 111_000.0 * float(np.cos(np.radians(mid_lat)))
-    u_ms = u_deg_min * m_per_deg_lon / 60.0
-    v_ms = v_deg_min * m_per_deg_lat / 60.0
-
-    # --- Growth/Decay-Trend ---
-    # Lineare Regression von mean(precip > 0.1) gegen Minuten. growth_per_min
-    # ist die relative Steigung (1/min). Wird in Frontend als Nowcast-Decay
-    # angewendet: opacity_minutes_ahead = clamp(1 + growth_per_min*m, 0.25, 1.6).
-    growth_per_min: float | None = None
-    try:
-        ts0 = arrs[0][0]
-        ts_min = np.array(
-            [(t - ts0).total_seconds() / 60.0 for t, _ in arrs], dtype=np.float64
-        )
-        means = np.array(
-            [float(np.nanmean(np.where(a > 0.05, a, 0.0))) for _, a in arrs],
-            dtype=np.float64,
-        )
-        # nur falls genug Signal
-        base = float(np.nanmean(means)) if means.size else 0.0
-        if base > 0.02 and len(arrs) >= 3:
-            slope = float(np.polyfit(ts_min, means, 1)[0])  # mm/h per min
-            growth_per_min = slope / base
-            # auf vernünftiges Band klemmen (±5 %/min)
-            growth_per_min = float(max(-0.05, min(0.05, growth_per_min)))
-            print(
-                f"motion: growth trend base={base:.3f} slope={slope:+.4f} "
-                f"→ {growth_per_min*100:+.2f}%/min",
-                flush=True,
-            )
-    except Exception as exc:
-        print(f"motion: growth trend error {exc!r}", flush=True)
-        growth_per_min = None
-
-    # Mittlere Radar-Intensität der letzten 3 Frames (mm/h, nur "echte" Niederschlagsfläche).
-    # Wird vom Frontend als Bias-Anker für ICON-CH1 in den ersten +2 h genutzt.
-    recent_mean_mmh: float | None = None
-    recent_wet_frac: float | None = None
-    try:
-        tail = arrs[-3:] if len(arrs) >= 3 else arrs
-        wet_vals = []
-        wet_counts = []
-        total_counts = []
-        for _, a in tail:
-            mask = ~np.isnan(a) & (a > 0.1)
-            total_counts.append(int(np.size(a)))
-            wet_counts.append(int(mask.sum()))
-            if mask.any():
-                wet_vals.append(float(np.nanmean(a[mask])))
-        if wet_vals:
-            recent_mean_mmh = float(np.mean(wet_vals))
-        if total_counts:
-            recent_wet_frac = float(np.sum(wet_counts) / max(1, np.sum(total_counts)))
-    except Exception as exc:
-        print(f"motion: bias-anchor error {exc!r}", flush=True)
-
-    motion: dict = {
-        "u_ms": round(u_ms, 3),
-        "v_ms": round(v_ms, 3),
-        "u_deg_per_min": round(u_deg_min, 6),
-        "v_deg_per_min": round(v_deg_min, 6),
-        "sourceTs": arrs[-1][0].strftime("%Y-%m-%dT%H:%M:00Z"),
-        "confidence": round(conf_med, 3),
-        "pairs": len(pair_motions),
-        "frames": len(arrs),
-    }
-    if recent_mean_mmh is not None:
-        motion["recent_mean_mmh"] = round(recent_mean_mmh, 3)
-    if recent_wet_frac is not None:
-        motion["recent_wet_frac"] = round(recent_wet_frac, 4)
-    if growth_per_min is not None:
-        motion["growth_per_min"] = round(growth_per_min, 5)
-
-    # --- Motion-Field (tile-basierte Optical-Flow-Aggregation) ---
-    # Aggregiert die Per-Pair-Kachelvektoren (px/min) zu einem stabilen Feld
-    # und mischt 700-hPa-Wind als Prior für datenarme Kacheln ein. Frontend
-    # nutzt das Feld als gewichteten Median statt eines globalen Vektors.
-    try:
-        field = _aggregate_motion_field(
-            pair_tiles,
-            arrs,
-            wind_prior=_load_wind_prior(arrs[-1][0]),
-        )
-        if field is not None:
-            motion["field"] = field
-            print(
-                f"motion: field rows={field['rows']} cols={field['cols']} "
-                f"active_tiles={field.get('active_tiles')} "
-                f"wind_prior={'yes' if field.get('wind_prior_used') else 'no'}",
-                flush=True,
-            )
-    except Exception as exc:
-        print(f"motion: field error {exc!r}", flush=True)
-
-    print(f"motion: {motion}", flush=True)
-    return motion
-
-
-def _aggregate_motion_field(
-    pair_tiles: list[list[tuple[int, int, float, float, float, float]]],
-    arrs: list[tuple[datetime, np.ndarray]],
-    wind_prior: tuple[float, float] | None = None,
-) -> dict | None:
-    """Aggregiert Per-Pair-Kachelvektoren zu einem Bewegungsfeld.
-
-    Output (alle Arrays row-major über rows×cols, flach):
-      rows, cols, cx_px[], cy_px[],
-      u_deg_per_min[], v_deg_per_min[], conf[], wet[], growth_per_min[]
-    """
-    if not pair_tiles:
-        return None
-    # Anzahl Kacheln muss zwischen Paaren konsistent sein.
-    n_tiles = len(pair_tiles[0])
-    if not all(len(p) == n_tiles for p in pair_tiles) or n_tiles == 0:
-        return None
-    # Anker (cx, cy) aus erstem Paar; identisch in allen.
-    cxs = [t[0] for t in pair_tiles[0]]
-    cys = [t[1] for t in pair_tiles[0]]
-    unique_cy = sorted(set(cys))
-    unique_cx = sorted(set(cxs))
-    rows = len(unique_cy)
-    cols = len(unique_cx)
-    if rows * cols != n_tiles:
-        return None
-
-    deg_lon_per_px = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / OUT_W
-    deg_lat_per_px = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / OUT_H
-    mid_lat = (BBOX_WGS["maxLat"] + BBOX_WGS["minLat"]) / 2
-    m_per_deg_lat = 111_000.0
-    m_per_deg_lon = 111_000.0 * float(np.cos(np.radians(mid_lat)))
-
-    # Wind-Prior in px/min (dx_px > 0 → Ost, dy_px > 0 → Süd).
-    wind_dx_pm = None
-    wind_dy_pm = None
-    if wind_prior is not None:
-        u_ms_w, v_pixY_ms_w = wind_prior  # v_pixY_ms_w bereits Y-Pixel-Richtung (südwärts +)
-        # m/s → deg/min → px/min
-        u_deg_min_w = u_ms_w * 60.0 / m_per_deg_lon
-        v_deg_min_w = v_pixY_ms_w * 60.0 / m_per_deg_lat
-        wind_dx_pm = u_deg_min_w / deg_lon_per_px
-        wind_dy_pm = v_deg_min_w / deg_lat_per_px
-
-    u_deg = [0.0] * n_tiles
-    v_deg = [0.0] * n_tiles
-    confs = [0.0] * n_tiles
-    wets = [0.0] * n_tiles
-    growth = [0.0] * n_tiles
-    active = 0
-
-    for ti in range(n_tiles):
-        dxs, dys, cs = [], [], []
-        wet_seen = 0.0
-        for pt in pair_tiles:
-            _, _, dx, dy, c, wet = pt[ti]
-            wet_seen = max(wet_seen, wet)
-            if c >= TILE_MIN_CONF:
-                dxs.append(dx)
-                dys.append(dy)
-                cs.append(c)
-        wets[ti] = round(wet_seen, 3)
-        if dxs:
-            dx_med = float(np.median(dxs))
-            dy_med = float(np.median(dys))
-            conf_med = float(np.median(cs))
-        elif wind_dx_pm is not None:
-            # Keine Radar-Evidenz: reiner Wind-Prior mit niedrigem Confidence.
-            dx_med = wind_dx_pm
-            dy_med = wind_dy_pm if wind_dy_pm is not None else 0.0
-            conf_med = 0.05
-        else:
-            continue
-        # Wind-Prior blenden: u = c·radar + (1−c)·wind (clamped).
-        if wind_dx_pm is not None and conf_med < 0.9:
-            w = conf_med
-            dx_med = w * dx_med + (1 - w) * wind_dx_pm
-            dy_med = w * dy_med + (1 - w) * (wind_dy_pm or 0.0)
-        u_deg[ti] = round(dx_med * deg_lon_per_px, 6)
-        v_deg[ti] = round(-dy_med * deg_lat_per_px, 6)  # Y-flip → +Norden
-        confs[ti] = round(conf_med, 3)
-        if dxs:
-            active += 1
-
-    # Per-Kachel Wachstums-/Zerfalls-Trend (relative Steigung pro Minute).
-    try:
-        ts0 = arrs[0][0]
-        ts_min = np.array(
-            [(t - ts0).total_seconds() / 60.0 for t, _ in arrs], dtype=np.float64
-        )
-        for r in range(rows):
-            for c in range(cols):
-                ti = r * cols + c
-                cx = cxs[ti]
-                cy = cys[ti]
-                y0 = max(0, cy - TILE_PX // 2)
-                y1 = min(arrs[0][1].shape[0], cy + TILE_PX // 2)
-                x0 = max(0, cx - TILE_PX // 2)
-                x1 = min(arrs[0][1].shape[1], cx + TILE_PX // 2)
-                means = np.array(
-                    [
-                        float(np.nanmean(np.where(a[y0:y1, x0:x1] > 0.05, a[y0:y1, x0:x1], 0.0)))
-                        for _, a in arrs
-                    ],
-                    dtype=np.float64,
-                )
-                base = float(np.nanmean(means)) if means.size else 0.0
-                if base > 0.02 and len(arrs) >= 3:
-                    slope = float(np.polyfit(ts_min, means, 1)[0])
-                    g = slope / base
-                    growth[ti] = round(float(max(-0.05, min(0.05, g))), 5)
-    except Exception as exc:
-        print(f"motion: field growth error {exc!r}", flush=True)
-
-    return {
-        "rows": rows,
-        "cols": cols,
-        "tile_px": TILE_PX,
-        "stride_px": TILE_STRIDE,
-        "image_w": OUT_W,
-        "image_h": OUT_H,
-        "cx_px": cxs,
-        "cy_px": cys,
-        "u_deg_per_min": u_deg,
-        "v_deg_per_min": v_deg,
-        "conf": confs,
-        "wet": wets,
-        "growth_per_min": growth,
-        "active_tiles": active,
-        "wind_prior_used": wind_dx_pm is not None,
-    }
-
-
-
-def write_manifest(s3, motion: dict | None = None) -> None:
+def write_manifest(s3) -> None:
     """List all current radar/*.png keys and build frames.json."""
     paginator = s3.get_paginator("list_objects_v2")
     frames: dict[str, dict] = {}  # ts_iso → {ts, precipUrl?, hailUrl?}
@@ -1136,11 +639,6 @@ def write_manifest(s3, motion: dict | None = None) -> None:
         "version": RADAR_INGEST_VERSION,
         "frames": sorted_frames,
     }
-    if motion is not None:
-        body["motion"] = motion
-    else:
-        # Sichtbar machen, dass dieser Run kein Motion-Result hatte (statt Key wegzulassen).
-        body["motion"] = {"_empty": True, "reason": "compute_motion returned None"}
     if not sorted_frames:
         body["warning"] = "current ingest produced no usable radar PNG frames"
     s3.put_object(
@@ -1150,10 +648,7 @@ def write_manifest(s3, motion: dict | None = None) -> None:
         ContentType="application/json",
         CacheControl="public, max-age=30",
     )
-    print(
-        f"manifest: {len(sorted_frames)} frames, motion={'yes' if motion else 'no'}",
-        flush=True,
-    )
+    print(f"manifest: {len(sorted_frames)} frames", flush=True)
 
 
 def main() -> int:
@@ -1260,17 +755,8 @@ def main() -> int:
     except Exception as exc:
         print(f"  R2 inventory error: {exc!r}", flush=True)
 
-    # Nowcast-Motion aus den letzten 3 echten Radar-Frames per FFT-Phasen-
-    # korrelation. Wird in frames.json geschrieben und vom Server-FN zur
-    # Erzeugung von Nowcast-Frames (T+0…+60min) genutzt.
-    motion: dict | None = None
-    try:
-        motion = compute_motion(precip_assets_all)
-    except Exception as exc:
-        print(f"motion: error {exc!r}", flush=True)
-
     cleanup(s3, now - timedelta(hours=RETENTION))
-    write_manifest(s3, motion=motion)
+    write_manifest(s3)
     print(f"done: processed {processed} new frames", flush=True)
     return 0
 

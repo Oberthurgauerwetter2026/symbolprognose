@@ -398,12 +398,10 @@ function PrecipOverlay({
         const y0 = Math.floor(fyRaw);
         const x1 = x0 + 1;
         const y1 = y0 + 1;
-        const txRaw = fxRaw - x0;
-        const tyRaw = fyRaw - y0;
-        const SHARP = 7;
-        const sharpen = (u: number) => 1 / (1 + Math.exp(-SHARP * (u - 0.5)));
-        const tx = sharpen(txRaw);
-        const ty = sharpen(tyRaw);
+        // Reine bilineare Gewichte → weiche, runde Iso-Konturbänder
+        // wie übliche Wetterdienst-Vorhersagekarten (MCH/DWD).
+        const tx = fxRaw - x0;
+        const ty = fyRaw - y0;
         const inX0 = x0 >= 0 && x0 < nLon;
         const inX1 = x1 >= 0 && x1 < nLon;
         const inY0 = y0 >= 0 && y0 < nLat;
