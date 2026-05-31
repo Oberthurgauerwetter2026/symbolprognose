@@ -343,6 +343,26 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         nodata = float(what.get("nodata", top_what.get("nodata", 255)))
         undetect = float(what.get("undetect", top_what.get("undetect", 0)))
 
+        def _decode_str(v) -> str:
+            if isinstance(v, (bytes, bytearray)):
+                return v.decode("ascii", "ignore").strip()
+            return str(v or "").strip()
+
+        quantity = _decode_str(what.get("quantity") or top_what.get("quantity") or "")
+        # Akkumulations-Intervall in Minuten aus startdate/enddate ableiten (für ACRR).
+        interval_min: float | None = None
+        try:
+            sd = _decode_str(what.get("startdate") or top_what.get("startdate"))
+            st = _decode_str(what.get("starttime") or top_what.get("starttime"))
+            ed = _decode_str(what.get("enddate") or top_what.get("enddate"))
+            et = _decode_str(what.get("endtime") or top_what.get("endtime"))
+            if sd and st and ed and et:
+                t0 = datetime.strptime(sd + st, "%Y%m%d%H%M%S")
+                t1 = datetime.strptime(ed + et, "%Y%m%d%H%M%S")
+                interval_min = max(1.0, (t1 - t0).total_seconds() / 60.0)
+        except Exception:
+            interval_min = None
+
         arr = data.astype(np.float32)
         mask = (arr == nodata) | (arr == undetect)
         arr = arr * gain + offset
@@ -364,6 +384,8 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
             "UL_lat": float(top_where.get("UL_lat", 0.0)),
             "LR_lon": float(top_where.get("LR_lon", 0.0)),
             "LR_lat": float(top_where.get("LR_lat", 0.0)),
+            "quantity": quantity,
+            "interval_min": interval_min,
         }
         return arr, meta
 
