@@ -31,7 +31,7 @@ function buildSnippet(
   const full = `${url}${path}`;
   const fullLink = `${url}${fullPath}`;
   const snapshot = `${url}/api/public/snapshot/${snapshotId}.svg`;
-  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden">
+  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden;resize:vertical">
   <a href="${fullLink}" target="_blank" rel="noopener" style="display:block;position:absolute;inset:0;text-decoration:none">
     <img src="${snapshot}" alt="Wetterkarte — interaktive Version: ${fullLink}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"/>
   </a>
@@ -153,9 +153,9 @@ function EmbedInfo() {
             Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Das iframe füllt die volle sichtbare Höhe (100vh).
+            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Die Höhe passt sich automatisch dem Inhalt an (per <code>postMessage</code>). Der Wert <code>height:480px</code> im Snippet ist nur ein Fallback und kann beliebig verändert werden; zusätzlich lässt sich der Rahmen über die untere rechte Ecke per Maus vergrößern (<code>resize:vertical</code>).
           </p>
-          <SnippetBlock snippet={buildViewportSnippet(url, "/embed/region-lokal", "region-lokal", "region", "/karten/region")} />
+          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal", "region", "/karten/region", 480)} />
         </section>
 
         <section className="space-y-6">
