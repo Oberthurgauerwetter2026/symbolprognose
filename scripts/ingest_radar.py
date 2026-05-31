@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v8-motion-sign-fix"
+RADAR_INGEST_VERSION = "v9-optical-flow"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -522,6 +522,136 @@ def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, floa
     return dx_px, dy_px, conf
 
 
+# --- Optical-Flow: tile-based phase correlation ---------------------------
+# Liefert ein Bewegungsfeld statt eines einzelnen globalen Vektors. Pro
+# Kachel wird die Phasenkorrelation eigenständig ausgewertet; Kacheln ohne
+# Niederschlag oder mit zu niedriger SNR werden verworfen.
+
+TILE_PX = 128
+TILE_STRIDE = 64
+TILE_MIN_WET = 0.05      # Anteil "nasser" Pixel in der Kachel
+TILE_MIN_CONF = 0.15
+TILE_MAX_SHIFT_PX = 32   # plausibler Maximum-Shift pro Frame-Paar
+
+
+def _phase_correlation_tiles(
+    a: np.ndarray, b: np.ndarray
+) -> list[tuple[int, int, float, float, float, float]]:
+    """Returns list of (cx_px, cy_px, dx_px, dy_px, conf, wet_frac) per tile.
+
+    cx/cy = Kachelmittelpunkt in Bildpixeln (Web-Mercator-Raster OUT_W×OUT_H).
+    dx_px > 0 → Ost-Bewegung, dy_px > 0 → Süd-Bewegung (Y-Achse nach unten).
+    """
+    a = np.nan_to_num(a, nan=0.0).astype(np.float32)
+    b = np.nan_to_num(b, nan=0.0).astype(np.float32)
+    h, w = a.shape
+    if h < TILE_PX or w < TILE_PX:
+        return []
+    win = np.hanning(TILE_PX)[:, None] * np.hanning(TILE_PX)[None, :]
+    out: list[tuple[int, int, float, float, float, float]] = []
+    for y in range(0, h - TILE_PX + 1, TILE_STRIDE):
+        for x in range(0, w - TILE_PX + 1, TILE_STRIDE):
+            ta = a[y : y + TILE_PX, x : x + TILE_PX]
+            tb = b[y : y + TILE_PX, x : x + TILE_PX]
+            cx = x + TILE_PX // 2
+            cy = y + TILE_PX // 2
+            wet = float(np.mean((ta > 0.1) | (tb > 0.1)))
+            if wet < TILE_MIN_WET:
+                out.append((cx, cy, 0.0, 0.0, 0.0, wet))
+                continue
+            ta_d = ta - ta.mean()
+            tb_d = tb - tb.mean()
+            A = np.fft.fft2(ta_d * win)
+            B = np.fft.fft2(tb_d * win)
+            R = np.conj(A) * B
+            R /= np.abs(R) + 1e-10
+            c = np.fft.ifft2(R).real
+            peak = np.unravel_index(int(np.argmax(c)), c.shape)
+            py, px_ = int(peak[0]), int(peak[1])
+            if py > TILE_PX // 2:
+                py -= TILE_PX
+            if px_ > TILE_PX // 2:
+                px_ -= TILE_PX
+            if abs(px_) > TILE_MAX_SHIFT_PX or abs(py) > TILE_MAX_SHIFT_PX:
+                out.append((cx, cy, 0.0, 0.0, 0.0, wet))
+                continue
+            peak_v = float(c.max())
+            mean_v = float(c.mean())
+            std_v = float(c.std()) + 1e-10
+            snr = (peak_v - mean_v) / std_v
+            conf = float(max(0.0, min(1.0, snr / 60.0)))
+            out.append((cx, cy, float(px_), float(py), conf, wet))
+    return out
+
+
+def _load_wind_prior(now: datetime) -> tuple[float, float] | None:
+    """700-hPa-Wind aus openmeteo/forecast.json (R2-Cache), in m/s als (u, v).
+
+    Konvention: u > 0 → Strömung nach Osten, v > 0 → Strömung nach Norden.
+    Wird im Tile-Feld als Prior eingemischt — datenarme Kacheln driften so
+    Richtung Wind, statt 0 zu bleiben.
+    """
+    if not BUCKET:
+        return None
+    try:
+        s3 = make_s3()
+        obj = s3.get_object(Bucket=BUCKET, Key="openmeteo/forecast.json")
+        payload = json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception as exc:
+        print(f"wind-prior: cache fetch failed: {exc!r}", flush=True)
+        return None
+    grid = payload.get("grid", {}).get("points") or []
+    locs = payload.get("locations") or payload.get("forecasts") or []
+    if not grid or not locs:
+        return None
+    mid_lat = (BBOX_WGS["minLat"] + BBOX_WGS["maxLat"]) / 2
+    mid_lon = (BBOX_WGS["minLon"] + BBOX_WGS["maxLon"]) / 2
+    best_i = -1
+    best_d = float("inf")
+    for i, p in enumerate(grid):
+        try:
+            d = (p["lat"] - mid_lat) ** 2 + (p["lon"] - mid_lon) ** 2
+        except Exception:
+            continue
+        if d < best_d:
+            best_d = d
+            best_i = i
+    if best_i < 0 or best_i >= len(locs):
+        return None
+    hourly = (locs[best_i] or {}).get("hourly") or {}
+    times = hourly.get("time") or []
+    sp = hourly.get("wind_speed_700hPa") or []
+    di = hourly.get("wind_direction_700hPa") or []
+    if not times or not sp or not di:
+        return None
+    target_ms = now.timestamp() * 1000.0
+    hi = -1
+    for i, t in enumerate(times):
+        try:
+            tms = datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp() * 1000.0
+        except Exception:
+            continue
+        if tms <= target_ms:
+            hi = i
+        else:
+            break
+    if hi < 0:
+        return None
+    try:
+        speed_kmh = float(sp[hi])
+        direction = float(di[hi])  # meteorologisch: woher der Wind kommt
+    except Exception:
+        return None
+    speed_ms = speed_kmh * 1000.0 / 3600.0
+    rad = np.radians(direction)
+    # Wind weht von dir → Strömung in Gegenrichtung. u/v positiv = Ost/Nord.
+    u_ms = -speed_ms * float(np.sin(rad))
+    v_ms = -speed_ms * float(np.cos(rad))  # +Nord; SVG-Y invertiert wird im Feld behandelt
+    # Pixel-Konvention: dx_px > 0 → Ost, dy_px > 0 → Süd. Daher Y-Achse flippen.
+    return u_ms, -v_ms  # zweiter Wert ist „v in Pixel-Y-Richtung" = nach Süden positiv
+
+
+
 def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
     """Mean precipitation-cell motion + growth/decay trend.
 
@@ -552,6 +682,9 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         return None
 
     pair_motions: list[tuple[float, float, float]] = []
+    # Per-tile motion über alle Paare. Layout entspricht
+    # _phase_correlation_tiles() → stabile Reihenfolge zwischen Paaren.
+    pair_tiles: list[list[tuple[int, int, float, float, float, float]]] = []
     for i in range(len(arrs) - 1):
         t_old, a_old = arrs[i]
         t_new, a_new = arrs[i + 1]
@@ -571,11 +704,23 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
             )
             continue
         pair_motions.append((dx_px / dt_min, dy_px / dt_min, conf))
+        try:
+            tiles = _phase_correlation_tiles(a_old, a_new)
+            # In px/min normalisieren, damit Aggregation über Paare mit
+            # ungleichen Zeitabständen sauber bleibt.
+            normalised = [
+                (cx, cy, dx / dt_min, dy / dt_min, c, wet)
+                for (cx, cy, dx, dy, c, wet) in tiles
+            ]
+            pair_tiles.append(normalised)
+        except Exception as exc:
+            print(f"motion: tile pair {t_old}→{t_new} error {exc!r}", flush=True)
         print(
             f"motion: pair {t_old.strftime('%H:%M')}→{t_new.strftime('%H:%M')} "
             f"dx={dx_px:+.1f}px dy={dy_px:+.1f}px conf={conf:.2f} dt={dt_min:.0f}min",
             flush=True,
         )
+
 
     if not pair_motions:
         print("motion: no usable pairs → discarded", flush=True)
@@ -671,8 +816,164 @@ def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
         motion["recent_wet_frac"] = round(recent_wet_frac, 4)
     if growth_per_min is not None:
         motion["growth_per_min"] = round(growth_per_min, 5)
+
+    # --- Motion-Field (tile-basierte Optical-Flow-Aggregation) ---
+    # Aggregiert die Per-Pair-Kachelvektoren (px/min) zu einem stabilen Feld
+    # und mischt 700-hPa-Wind als Prior für datenarme Kacheln ein. Frontend
+    # nutzt das Feld als gewichteten Median statt eines globalen Vektors.
+    try:
+        field = _aggregate_motion_field(
+            pair_tiles,
+            arrs,
+            wind_prior=_load_wind_prior(arrs[-1][0]),
+        )
+        if field is not None:
+            motion["field"] = field
+            print(
+                f"motion: field rows={field['rows']} cols={field['cols']} "
+                f"active_tiles={field.get('active_tiles')} "
+                f"wind_prior={'yes' if field.get('wind_prior_used') else 'no'}",
+                flush=True,
+            )
+    except Exception as exc:
+        print(f"motion: field error {exc!r}", flush=True)
+
     print(f"motion: {motion}", flush=True)
     return motion
+
+
+def _aggregate_motion_field(
+    pair_tiles: list[list[tuple[int, int, float, float, float, float]]],
+    arrs: list[tuple[datetime, np.ndarray]],
+    wind_prior: tuple[float, float] | None = None,
+) -> dict | None:
+    """Aggregiert Per-Pair-Kachelvektoren zu einem Bewegungsfeld.
+
+    Output (alle Arrays row-major über rows×cols, flach):
+      rows, cols, cx_px[], cy_px[],
+      u_deg_per_min[], v_deg_per_min[], conf[], wet[], growth_per_min[]
+    """
+    if not pair_tiles:
+        return None
+    # Anzahl Kacheln muss zwischen Paaren konsistent sein.
+    n_tiles = len(pair_tiles[0])
+    if not all(len(p) == n_tiles for p in pair_tiles) or n_tiles == 0:
+        return None
+    # Anker (cx, cy) aus erstem Paar; identisch in allen.
+    cxs = [t[0] for t in pair_tiles[0]]
+    cys = [t[1] for t in pair_tiles[0]]
+    unique_cy = sorted(set(cys))
+    unique_cx = sorted(set(cxs))
+    rows = len(unique_cy)
+    cols = len(unique_cx)
+    if rows * cols != n_tiles:
+        return None
+
+    deg_lon_per_px = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / OUT_W
+    deg_lat_per_px = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / OUT_H
+    mid_lat = (BBOX_WGS["maxLat"] + BBOX_WGS["minLat"]) / 2
+    m_per_deg_lat = 111_000.0
+    m_per_deg_lon = 111_000.0 * float(np.cos(np.radians(mid_lat)))
+
+    # Wind-Prior in px/min (dx_px > 0 → Ost, dy_px > 0 → Süd).
+    wind_dx_pm = None
+    wind_dy_pm = None
+    if wind_prior is not None:
+        u_ms_w, v_pixY_ms_w = wind_prior  # v_pixY_ms_w bereits Y-Pixel-Richtung (südwärts +)
+        # m/s → deg/min → px/min
+        u_deg_min_w = u_ms_w * 60.0 / m_per_deg_lon
+        v_deg_min_w = v_pixY_ms_w * 60.0 / m_per_deg_lat
+        wind_dx_pm = u_deg_min_w / deg_lon_per_px
+        wind_dy_pm = v_deg_min_w / deg_lat_per_px
+
+    u_deg = [0.0] * n_tiles
+    v_deg = [0.0] * n_tiles
+    confs = [0.0] * n_tiles
+    wets = [0.0] * n_tiles
+    growth = [0.0] * n_tiles
+    active = 0
+
+    for ti in range(n_tiles):
+        dxs, dys, cs = [], [], []
+        wet_seen = 0.0
+        for pt in pair_tiles:
+            _, _, dx, dy, c, wet = pt[ti]
+            wet_seen = max(wet_seen, wet)
+            if c >= TILE_MIN_CONF:
+                dxs.append(dx)
+                dys.append(dy)
+                cs.append(c)
+        wets[ti] = round(wet_seen, 3)
+        if dxs:
+            dx_med = float(np.median(dxs))
+            dy_med = float(np.median(dys))
+            conf_med = float(np.median(cs))
+        elif wind_dx_pm is not None:
+            # Keine Radar-Evidenz: reiner Wind-Prior mit niedrigem Confidence.
+            dx_med = wind_dx_pm
+            dy_med = wind_dy_pm if wind_dy_pm is not None else 0.0
+            conf_med = 0.05
+        else:
+            continue
+        # Wind-Prior blenden: u = c·radar + (1−c)·wind (clamped).
+        if wind_dx_pm is not None and conf_med < 0.9:
+            w = conf_med
+            dx_med = w * dx_med + (1 - w) * wind_dx_pm
+            dy_med = w * dy_med + (1 - w) * (wind_dy_pm or 0.0)
+        u_deg[ti] = round(dx_med * deg_lon_per_px, 6)
+        v_deg[ti] = round(-dy_med * deg_lat_per_px, 6)  # Y-flip → +Norden
+        confs[ti] = round(conf_med, 3)
+        if dxs:
+            active += 1
+
+    # Per-Kachel Wachstums-/Zerfalls-Trend (relative Steigung pro Minute).
+    try:
+        ts0 = arrs[0][0]
+        ts_min = np.array(
+            [(t - ts0).total_seconds() / 60.0 for t, _ in arrs], dtype=np.float64
+        )
+        for r in range(rows):
+            for c in range(cols):
+                ti = r * cols + c
+                cx = cxs[ti]
+                cy = cys[ti]
+                y0 = max(0, cy - TILE_PX // 2)
+                y1 = min(arrs[0][1].shape[0], cy + TILE_PX // 2)
+                x0 = max(0, cx - TILE_PX // 2)
+                x1 = min(arrs[0][1].shape[1], cx + TILE_PX // 2)
+                means = np.array(
+                    [
+                        float(np.nanmean(np.where(a[y0:y1, x0:x1] > 0.05, a[y0:y1, x0:x1], 0.0)))
+                        for _, a in arrs
+                    ],
+                    dtype=np.float64,
+                )
+                base = float(np.nanmean(means)) if means.size else 0.0
+                if base > 0.02 and len(arrs) >= 3:
+                    slope = float(np.polyfit(ts_min, means, 1)[0])
+                    g = slope / base
+                    growth[ti] = round(float(max(-0.05, min(0.05, g))), 5)
+    except Exception as exc:
+        print(f"motion: field growth error {exc!r}", flush=True)
+
+    return {
+        "rows": rows,
+        "cols": cols,
+        "tile_px": TILE_PX,
+        "stride_px": TILE_STRIDE,
+        "image_w": OUT_W,
+        "image_h": OUT_H,
+        "cx_px": cxs,
+        "cy_px": cys,
+        "u_deg_per_min": u_deg,
+        "v_deg_per_min": v_deg,
+        "conf": confs,
+        "wet": wets,
+        "growth_per_min": growth,
+        "active_tiles": active,
+        "wind_prior_used": wind_dx_pm is not None,
+    }
+
 
 
 def write_manifest(s3, motion: dict | None = None) -> None:

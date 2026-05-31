@@ -1,43 +1,79 @@
-## Problem
+## Ziel
 
-Nowcast „Wind-Fallback" zieht Niederschlag entgegen dem Wind. Bei NW-Wind (315°) wandern die Zellen nach NW statt – wie meteorologisch korrekt – nach SE. Auf dem Papier ist die Formel in `src/lib/radar.functions.ts` Z. 443–445 (`uMs = -speed·sin(dir)`, `vMs = -speed·cos(dir)`) richtig. Trotzdem stimmt es im Browser nicht. Frühere Hin-und-Her-Korrekturen am Vorzeichen (siehe #1290/#1292/#1316/#1318) zeigen: ohne harte Verifikation drehen wir nur das nächste falsche Schräubchen.
+Statt einem einzelnen globalen Bewegungsvektor pro Frame ein **Bewegungsfeld** aus der Kreuzkorrelation der letzten Radarbilder berechnen, mit dem 700-hPa-Wind als physikalischem Prior gewichten, und nur fallen lassen wenn weder Radar noch Wind brauchbar sind. Damit verschwindet die Wind-Fallback-Vorzeichen-Falle als Hauptursache, und die Zugbahn richtet sich nach dem, was *im Bild* passiert.
 
-## Vorgehen: erst diagnostizieren, dann gezielt fixen
+## Was sich ändert
 
-### 1. Sichtbare Wind-Pfeil-Overlay (visuelle Verifikation)
+### 1. `scripts/ingest_radar.py` — tiled phase correlation + Wind-Prior
 
-`src/components/maps/radar-map.tsx`:
-- Wenn `currentFrame.source === "nowcast"`, kleines Pfeil-Overlay (SVG/HTMLOverlay) in der oberen rechten Karten-Ecke einblenden, das exakt den Vektor `(imageOffset.dLon, imageOffset.dLat)` zeigt (auf Einheitslänge normiert). Beschriftung: `"Berechnete Zugbahn: <bearing>° (<Wind|Radar>)"`.
-- Damit lässt sich auf einen Blick prüfen: zeigt der Pfeil in dieselbe Richtung wie die sichtbare Zellbewegung? Wenn ja → Vorzeichen stimmt im Code, Wahrnehmung war täuschend. Wenn entgegengesetzt → Bug-Stelle eindeutig zwischen Vektorberechnung und Bbox-Shift.
+Statt `_phase_correlation(a, b)` über das ganze 1024×768-Bild:
 
-### 2. Runtime-Log einbauen
+- Bild in **8×6 Kacheln à 128 px** mit 50 % Überlappung schneiden (Hanning-Fenster pro Kachel).
+- Pro Kachel `_phase_correlation` rechnen → `(dx_px, dy_px, conf, wet_frac)`.
+- Kacheln verwerfen, wenn `wet_frac < 0.05` (kein Niederschlag drin) oder `conf < 0.15`.
+- 3×3-Median-Filter über das Kachelfeld (räumliche Glättung gegen Ausreisser).
+- 700-hPa-Wind (aus Open-Meteo, **im Ingest** mitgeladen für Bbox-Mitte) als **Bayes-Prior** mit Gewicht `1 − conf` in jede Kachel mischen. Dadurch driften datenarme Ecken Richtung Wind, datenreiche Zentren bleiben beim Radarbild.
+- Persistieren als `motion.field: { rows, cols, u_deg_per_min[], v_deg_per_min[], conf[] }` im Manifest, **plus** weiterhin globaler Median `u_ms/v_ms/u_deg_per_min/v_deg_per_min` als Rückfall fürs Frontend.
+- `RADAR_INGEST_VERSION` auf `v9-optical-flow`.
 
-`src/lib/radar.functions.ts` im Wind-Fallback-Block:
-- Einmaliger `console.info` pro Request: `[radar/nowcast/wind] dir=315° speed=8.2m/s → uMs=+5.8 vMs=-5.8 → dLon/min=+0.000077 dLat/min=-0.000052 (NW-Wind → erwartet SE-Drift)`.
-- Analog für Radar-Motion-Pfad: `[radar/nowcast/radar] u=… v=… growth=…`.
+### 2. Wachstum/Zerfall pro Kachel
 
-Damit sehen wir live im Browser-Konsolen-Output (preview console), welche Zahlen tatsächlich ankommen.
+Aktuell ist `growth_per_min` ein einziger Skalar fürs ganze Bild. Erweitern auf `motion.growth_field` (gleiches Grid) per linearer Regression der mittleren Intensität pro Kachel über die letzten 6 Frames. Clampen auf ±5 %/min.
 
-### 3. Unit-artiger Selbsttest gegen Aufruf-Fehler
+### 3. `src/lib/radar.functions.ts` — Feld lesen, Median verwenden, Wind-Fallback fixen
 
-Im selben File eine kleine, parameterlose Funktion `assertWindMotionSign()`:
-- Prüft 4 Stichproben (dir = 0/90/180/270, speed = 10 m/s) und vergleicht das resultierende Vorzeichen von uMs/vMs gegen die Erwartung (N-Wind → v<0, E-Wind → u<0 usw.).
-- Wirft `console.error` mit klarer Tabelle, falls Vorzeichen kippen. Wird einmal beim ersten `getRadarFrames`-Aufruf auf dem Server ausgeführt.
-- Damit ist ein versehentliches Re-Flippen durch eine künftige Bearbeitung sofort sichtbar.
+- Wenn `manifest.motion.field` existiert: für jedes Nowcast-Frame den **gewichteten Median** der Kachel-Vektoren über den aktuellen Bbox-Ausschnitt berechnen (nicht den naiven Median über alle Kacheln — Kacheln ohne Niederschlag werden bereits im Ingest verworfen, deshalb ist das Feld bereits gefiltert). `nowcastMotion.source = "radar-field"`.
+- Wenn das Feld <4 valide Kacheln hat: zurück zum globalen `u_deg_per_min/v_deg_per_min`. `source = "radar"`.
+- Erst dann der Wind-Fallback (`source = "wind"`). Die Vorzeichen in Z. 488–489 sind mathematisch korrekt (NW-Wind 315° → `uMs = +5.8`, `vMs = −5.8` → bearing 135° = SE). Aktuell liefert das Browser-Bild trotzdem NW-Drift — also als Sicherung **einen Unit-Test in `assertWindMotionSign()` erweitern**, der zusätzlich die *Bbox-Shift-Konsequenz* prüft (`dLon > 0 → Ostverschiebung`), und einen sichtbaren `[radar/nowcast/wind]`-Log um `expected: cells move SE for NW-wind` ergänzen. Damit lässt sich beim nächsten Auftreten in einer Logzeile sofort sehen, welche Stufe (Open-Meteo-Daten vs. Trig vs. Bbox-Anwendung) lügt.
+- Wachstumsfaktor: wenn `growth_field` vorhanden, Median über genutzte Kacheln; sonst skalarer Wert wie bisher.
 
-### 4. Fix erst nach Verifikation
+### 4. `src/components/maps/radar-map.tsx` — Pfeil-Overlay erweitern
 
-Nachdem Punkt 1–3 deployed sind, schauen wir gemeinsam (Browser-Console + Pfeil-Overlay) was wirklich passiert. Drei mögliche Befunde:
+- Pfeil zeigt weiterhin die **angewandte** Zugbahn (`imageOffset`).
+- Label um `source` ergänzen: `"Zugbahn 135° SE · radar-field (7 Kacheln)"` vs. `"… · wind-fallback"`. Damit ist beim nächsten Wahrnehmungs-vs-Code-Konflikt sofort klar, welcher Pfad aktiv ist.
+- Wenn `motion.field` und Debug-Query `?debugFlow=1`: kleine Pfeile pro Kachel als SVG-Overlay (nur Debug, kein Default).
 
-| Befund | Ursache | Fix |
-|---|---|---|
-| Pfeil = Zellrichtung, beide NW → SE wie erwartet | nur Wahrnehmungsfehler | kein Code-Fix |
-| Pfeil = NW, Zellen = SE | Bbox-Shift in `radar-map.tsx` Z. 992–997 invertiert | dort `−` statt `+` |
-| Pfeil = Zellen, beide nach NW (= mit Wind) | Open-Meteo `wind_direction_700hPa` ist „to"-Richtung an dieser Stelle oder Code-Pfad-Fehler | Vorzeichen in Z. 444–445 + Kommentar präzisieren |
+### 5. Was *nicht* angefasst wird
 
-## Nicht enthalten
+- Bbox, Auflösung, R2-Upload-Logik, Palette.
+- ICON-CH1-Übergang ab T+60, Snow-Overlay, Pollen, Wind-Karten.
+- Bestehende `assertWindMotionSign()`-Erwartungen (nur erweitert, nicht umgedreht).
 
-- Radar-Motion-FFT (`scripts/ingest_radar.py` v8) bleibt unangetastet.
-- Keine Änderung am `meanWindAt` (ICON-CH1-Advektion).
-- Keine Verschiebung der Update-Frequenz oder Karten-Stile.
-- Kein blindes Sign-Flip im Wind-Fallback ohne vorherige Verifikation per Pfeil + Log.
+## Technische Details
+
+**Tile-Layout:** 8 Spalten × 6 Reihen, Kacheln 128 px (50 % Stride 64 px) → 16×12 Anker-Punkte, jede Kachel auf 128 px gefenstert. Pro Frame-Paar ~192 FFTs à 128² = günstig in numpy. Laufzeit-Schätzung: +~400 ms pro Ingest-Lauf (alle 5 min via GitHub Actions, unkritisch).
+
+**Wind-Prior-Gewichtung:** `u_final = conf·u_radar + (1−conf)·u_wind` pro Kachel, mit `u_wind` aus Bbox-Mittel-Punkt (eine Open-Meteo-Abfrage pro Ingest, 5-min-Cache via R2). Verhindert NaN-Drift in regenfreien Ecken und macht den globalen Median robuster.
+
+**Manifest-Erweiterung** (rückwärtskompatibel):
+```text
+motion: {
+  u_ms, v_ms, u_deg_per_min, v_deg_per_min,    // wie bisher (Median)
+  confidence, growth_per_min, ...,
+  field: {                                      // NEU
+    rows: 12, cols: 16,
+    u_deg_per_min: [192 floats],
+    v_deg_per_min: [192 floats],
+    conf:          [192 floats],
+    growth_per_min:[192 floats]
+  }
+}
+```
+
+Frontend liest `field` defensiv (`if (motion.field && motion.field.u_deg_per_min?.length === rows*cols)`), sonst alter Pfad.
+
+**Edge-Runtime-Verträglichkeit:** Keine neuen Server-Abhängigkeiten im Worker — nur Array-Median über bereits geladenes JSON. Python-Seite bekommt nur `numpy` (schon da), kein OpenCV.
+
+## Reihenfolge der Umsetzung
+
+1. `scripts/ingest_radar.py`: `compute_motion_field()` neu, alter `compute_motion()` ruft sie und aggregiert → globaler Median bleibt erhalten.
+2. `src/lib/radar.functions.ts`: Feld-Reader + Median-über-aktive-Kacheln, Log-Erweiterung, `assertWindMotionSign()` ergänzen.
+3. `src/components/maps/radar-map.tsx`: Label-Erweiterung, optional Debug-Overlay.
+4. `RADAR_INGEST_VERSION` bump → manueller Workflow-Trigger zum Erstellen des ersten `field`-Manifests.
+5. Verifikation: Pfeil-Overlay + Console-Log auf `/karten/radar` checken, dass `source = radar-field` kommt und Pfeil mit Zellbewegung übereinstimmt.
+
+## Was das löst und was nicht
+
+**Gelöst:** Bei ausreichendem Radarsignal (Normalfall) ist die Zugbahn datengetrieben, nicht modellgetrieben — exakt das Verfahren, das du beschrieben hast (Cross-Correlation pro Bereich + Wind als Bias + Wachstums-Trend).
+
+**Nicht gelöst:** In Stillstands-/Trockenphasen bleibt der Wind-Fallback. Mit dem zusätzlichen Log + `assertWindMotionSign()`-Erweiterung wird ein Re-Auftreten des Vorzeichen-Bugs aber sofort sichtbar statt monatelang unbemerkt.

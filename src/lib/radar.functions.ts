@@ -133,7 +133,10 @@ export interface RadarFrame {
   /** Nowcast: Verschiebung des PNG-Overlays gegenüber `imageBbox` in Grad. */
   imageOffset?: { dLat: number; dLon: number };
   /** Nur für `source==="nowcast"`: Herkunft des Bewegungsvektors. */
-  motionSource?: "radar" | "wind";
+  motionSource?: "radar-field" | "radar" | "wind";
+  /** Anzahl aktiver Kacheln, falls aus Motion-Field aggregiert. */
+  motionTiles?: number;
+
   /**
    * Anzeige-Deckkraft 0..1. Genutzt für:
    *   - Nowcast-Wachstum/Zerfall (Trend aus letzten 6 Radarmessungen).
@@ -142,6 +145,25 @@ export interface RadarFrame {
    * Default 1.0, wenn nicht gesetzt.
    */
   blendOpacity?: number;
+}
+
+export interface RadarMotionField {
+  rows: number;
+  cols: number;
+  tile_px: number;
+  stride_px: number;
+  image_w: number;
+  image_h: number;
+  cx_px: number[];
+  cy_px: number[];
+  /** Bewegungsvektoren pro Kachel (row-major, rows*cols Einträge). */
+  u_deg_per_min: number[];
+  v_deg_per_min: number[];
+  conf: number[];
+  wet: number[];
+  growth_per_min: number[];
+  active_tiles?: number;
+  wind_prior_used?: boolean;
 }
 
 export interface RadarMotion {
@@ -160,7 +182,10 @@ export interface RadarMotion {
   recent_mean_mmh?: number;
   /** Anteil der "nassen" Pixel (> 0.1 mm/h) in den letzten 3 Frames, 0..1. */
   recent_wet_frac?: number;
+  /** Tile-basiertes Optical-Flow-Feld (Ingest v9+). */
+  field?: RadarMotionField;
 }
+
 
 export interface RadarPayload {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
@@ -411,14 +436,68 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   let nowcastMotion: {
     u_deg_per_min: number;
     v_deg_per_min: number;
-    source: "radar" | "wind";
+    source: "radar-field" | "radar" | "wind";
+    activeTiles?: number;
+    growth_per_min?: number;
   } | null = null;
 
-  if (radarMotionUsable && motion) {
+  // ─── 1) Optical-Flow-Feld (bevorzugt, Ingest v9+) ─────────────────────
+  // Aggregiert den Median über alle Kacheln mit conf >= MIN_TILE_CONF.
+  const FIELD_MIN_TILES = 4;
+  const FIELD_MIN_TILE_CONF = 0.2;
+  const field = motion?.field;
+  if (
+    field &&
+    Array.isArray(field.u_deg_per_min) &&
+    Array.isArray(field.v_deg_per_min) &&
+    Array.isArray(field.conf) &&
+    field.u_deg_per_min.length === field.rows * field.cols
+  ) {
+    const us: number[] = [];
+    const vs: number[] = [];
+    const gs: number[] = [];
+    for (let i = 0; i < field.conf.length; i++) {
+      if (field.conf[i] >= FIELD_MIN_TILE_CONF) {
+        us.push(field.u_deg_per_min[i]);
+        vs.push(field.v_deg_per_min[i]);
+        const g = field.growth_per_min?.[i];
+        if (typeof g === "number") gs.push(g);
+      }
+    }
+    if (us.length >= FIELD_MIN_TILES) {
+      const med = (a: number[]) => {
+        const s = [...a].sort((x, y) => x - y);
+        const m = Math.floor(s.length / 2);
+        return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+      };
+      const uMed = med(us);
+      const vMed = med(vs);
+      const speedDegMin = Math.hypot(uMed, vMed);
+      if (speedDegMin > 0) {
+        nowcastMotion = {
+          u_deg_per_min: uMed,
+          v_deg_per_min: vMed,
+          source: "radar-field",
+          activeTiles: us.length,
+          growth_per_min: gs.length ? med(gs) : motion?.growth_per_min,
+        };
+        const bearing =
+          ((Math.atan2(uMed, vMed) * 180) / Math.PI + 360) % 360;
+        console.info(
+          `[radar/nowcast/radar-field] tiles=${us.length}/${field.conf.length} ` +
+            `u_deg/min=${uMed.toExponential(2)} v_deg/min=${vMed.toExponential(2)} ` +
+            `bearing_to=${bearing.toFixed(0)}° wind_prior=${field.wind_prior_used ? "yes" : "no"}`,
+        );
+      }
+    }
+  }
+
+  if (!nowcastMotion && radarMotionUsable && motion) {
     nowcastMotion = {
       u_deg_per_min: motion.u_deg_per_min,
       v_deg_per_min: motion.v_deg_per_min,
       source: "radar",
+      growth_per_min: motion.growth_per_min,
     };
     const bearing =
       ((Math.atan2(motion.u_deg_per_min, motion.v_deg_per_min) * 180) / Math.PI + 360) % 360;
@@ -428,7 +507,9 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         `bearing_to=${bearing.toFixed(0)}° conf=${motion.confidence.toFixed(2)} ` +
         `growth/min=${(motion.growth_per_min ?? 0).toFixed(4)}`,
     );
-  } else if (hasRealRadar && r1) {
+  }
+  if (!nowcastMotion && hasRealRadar && r1) {
+
 
     // Wind-Fallback: Punkt aus phase1, der dem Bbox-Mittelpunkt am nächsten
     // liegt; Stunde, die `lastRadarT` enthält.
@@ -519,9 +600,14 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       // Wird nur angewendet, wenn die Radar-Motion (nicht Wind-Fallback) genutzt
       // wird — sonst kennen wir den realen Trend nicht zuverlässig.
       const growthPerMin =
-        nowcastMotion.source === "radar" && typeof motion?.growth_per_min === "number"
-          ? motion.growth_per_min
-          : 0;
+        nowcastMotion.source === "wind"
+          ? 0
+          : typeof nowcastMotion.growth_per_min === "number"
+            ? nowcastMotion.growth_per_min
+            : typeof motion?.growth_per_min === "number"
+              ? motion.growth_per_min
+              : 0;
+
       for (let m = NOWCAST_STEP_MIN; m <= NOWCAST_HORIZON_MIN; m += NOWCAST_STEP_MIN) {
         const tMs = lastMs + m * 60_000;
         if (tMs > forecastCutoff) break;
@@ -546,6 +632,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
             dLon: nowcastMotion.u_deg_per_min * m,
           },
           motionSource: nowcastMotion.source,
+          motionTiles: nowcastMotion.activeTiles,
+
           blendOpacity,
         });
       }
