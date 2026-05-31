@@ -241,6 +241,8 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
 }
 
 export const getRadarFrames = createServerFn({ method: "GET" }).handler(async () => {
+  assertWindMotionSign();
+
   setResponseHeader("Cache-Control", "public, max-age=60, s-maxage=120");
 
   const [cacheRes, manifestRes] = await Promise.allSettled([
