@@ -1,8 +1,13 @@
-# Messung: runde + klare Kanten (Metaball stärker)
+# Messung klarer + transparenter
 
-`src/styles.css`, `.mch-precip`:
+## 1) `src/styles.css`
 ```css
 .mch-precip {
-  filter: blur(2.2px) contrast(2.8) saturate(1.05);
+  filter: blur(1.8px) contrast(3.2) saturate(1.05);
 }
+```
+
+## 2) `src/components/maps/radar-map.tsx` Z.955
+```ts
+const opacityVal = 0.65;
 ```
