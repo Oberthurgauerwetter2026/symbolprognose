@@ -145,7 +145,7 @@ function EmbedInfo() {
           <p className="text-sm text-muted-foreground">
             Region, Lokalprognose, Wind, Radar und Pollen in einer einzigen Einbettung. Besucher wechseln im iframe selbst.
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/all", "all", 760)} />
+          <SnippetBlock snippet={buildSnippet(url, "/embed/all", "all", "all", "/karten/region", 760)} />
         </section>
 
         <section className="space-y-3">
@@ -155,7 +155,7 @@ function EmbedInfo() {
           <p className="text-sm text-muted-foreground">
             Wetterkarte (nur Karte, ohne Tabs/Slider) und direkt darunter die Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste. Das iframe füllt die volle sichtbare Höhe (100vh) und komprimiert den Inhalt – kein Seiten-Scroll.
           </p>
-          <SnippetBlock snippet={buildViewportSnippet(url, "/embed/region-lokal", "region-lokal")} />
+          <SnippetBlock snippet={buildViewportSnippet(url, "/embed/region-lokal", "region-lokal", "region", "/karten/region")} />
         </section>
 
         <section className="space-y-6">
@@ -189,7 +189,7 @@ function EmbedInfo() {
                     </span>
                   )}
                 </div>
-                <SnippetBlock snippet={buildSnippet(url, m.embedPath, m.id)} />
+                <SnippetBlock snippet={buildSnippet(url, m.embedPath, m.id, m.id, m.routePath)} />
               </div>
             );
           })}
