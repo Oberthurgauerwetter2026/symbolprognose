@@ -153,7 +153,7 @@ function EmbedInfo() {
             Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Detailprognose für Amriswil – ohne Suche, Ortsname oder Tagesleiste. Das iframe füllt die volle sichtbare Höhe (100vh).
+            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Das iframe füllt die volle sichtbare Höhe (100vh).
           </p>
           <SnippetBlock snippet={buildViewportSnippet(url, "/embed/region-lokal", "region-lokal", "region", "/karten/region")} />
         </section>
