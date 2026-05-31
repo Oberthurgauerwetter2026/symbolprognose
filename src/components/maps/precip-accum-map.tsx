@@ -508,7 +508,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
             PNG herunterladen
           </Button>
           <span className="text-[10px] text-zinc-400">
-            Falls Preview blockiert: öffnet sich im neuen Tab.
+            Öffnet PNG in neuem Tab inkl. „Speichern“-Button.
           </span>
         </div>
       </div>
