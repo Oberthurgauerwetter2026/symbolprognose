@@ -65,12 +65,14 @@ function Dashboard() {
                   </div>
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                      m.status === "live"
+                      m.internal
+                        ? "bg-amber-50 text-amber-700"
+                        : m.status === "live"
                         ? "bg-emerald-50 text-emerald-700"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {m.status === "live" ? "Live" : "Bald"}
+                    {m.internal ? "Intern" : m.status === "live" ? "Live" : "Bald"}
                   </span>
                 </div>
                 <div className="flex-1">
