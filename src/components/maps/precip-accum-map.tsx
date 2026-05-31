@@ -258,14 +258,28 @@ function renderExportCanvas(
   for (let py = 0; py < innerH; py++) {
     const lat = bbox.maxLat - (py / innerH) * (bbox.maxLat - bbox.minLat);
     const fy = ((lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-    const yi = Math.round(fy);
-    if (yi < 0 || yi >= nLat) continue;
+    if (fy < 0 || fy > nLat - 1) continue;
+    const y0 = Math.max(0, Math.min(nLat - 2, Math.floor(fy)));
+    const y1 = y0 + 1;
+    const ty = fy - y0;
     for (let px = 0; px < innerW; px++) {
       const lon = bbox.minLon + (px / innerW) * (bbox.maxLon - bbox.minLon);
       const fx = ((lon - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
-      const xi = Math.round(fx);
-      if (xi < 0 || xi >= nLon) continue;
-      const v = values[yi * nLon + xi];
+      if (fx < 0 || fx > nLon - 1) continue;
+      const x0 = Math.max(0, Math.min(nLon - 2, Math.floor(fx)));
+      const x1 = x0 + 1;
+      const tx = fx - x0;
+
+      const v00 = values[y0 * nLon + x0];
+      const v10 = values[y0 * nLon + x1];
+      const v01 = values[y1 * nLon + x0];
+      const v11 = values[y1 * nLon + x1];
+      const v =
+        v00 * (1 - tx) * (1 - ty) +
+        v10 * tx * (1 - ty) +
+        v01 * (1 - tx) * ty +
+        v11 * tx * ty;
+
       if (v < ACCUM_CLASSES[0].min) continue;
       const [r, g, b, a] = colorForAccum(v);
       if (a === 0) continue;
