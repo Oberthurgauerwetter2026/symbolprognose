@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
           try {
             const trimmed = base.replace(/\/+$/, "");
             const url = `${trimmed.replace(/\/radar\/?$/i, "")}/radar/frames.json`;
-            const res = await fetch(url, { cf: { cacheTtl: 5 } as never });
+            const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
             if (res.ok) {
               const m = (await res.json()) as {
                 generatedAt?: string;
