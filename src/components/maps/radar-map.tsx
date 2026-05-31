@@ -1052,6 +1052,37 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
           </div>
         )}
 
+        {/* Diagnose: Nowcast-Zugbahn-Pfeil (visuelle Verifikation Wind-Fallback) */}
+        {currentFrame?.source === "nowcast" && currentFrame.imageOffset && (() => {
+          const dLat = currentFrame.imageOffset.dLat;
+          const dLon = currentFrame.imageOffset.dLon;
+          if (Math.abs(dLat) < 1e-9 && Math.abs(dLon) < 1e-9) return null;
+          // Bearing „wohin": 0° = N, 90° = E. Y-Achse in SVG zeigt nach unten,
+          // deshalb für die Darstellung Y invertieren (Norden = nach oben).
+          const bearingTo = ((Math.atan2(dLon, dLat) * 180) / Math.PI + 360) % 360;
+          const compass = (() => {
+            const dirs = ["N","NE","E","SE","S","SW","W","NW"];
+            return dirs[Math.round(bearingTo / 45) % 8];
+          })();
+          return (
+            <div className="pointer-events-none absolute left-3 bottom-3 z-[400] flex items-center gap-2 rounded-md bg-card/95 px-2.5 py-1.5 text-[11px] font-medium text-foreground shadow-md">
+              <svg width="22" height="22" viewBox="-12 -12 24 24" aria-hidden>
+                <g transform={`rotate(${bearingTo})`}>
+                  <line x1="0" y1="8" x2="0" y2="-7" stroke="#d97706" strokeWidth="2" strokeLinecap="round" />
+                  <polygon points="0,-10 -4,-4 4,-4" fill="#d97706" />
+                </g>
+              </svg>
+              <span>
+                Zugbahn {compass} · {bearingTo.toFixed(0)}°
+                <span className="ml-1 text-muted-foreground">
+                  ({currentFrame.motionSource === "wind" ? "Wind" : "Radar"})
+                </span>
+              </span>
+            </div>
+          );
+        })()}
+
+
         {/* Legende oben rechts (unter Zoom) */}
         <div className="pointer-events-none absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
           <span className="mb-1 font-semibold text-foreground">mm/h</span>
