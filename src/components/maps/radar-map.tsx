@@ -64,14 +64,14 @@ function cityIcon(name: string): L.DivIcon {
 // identisch aussehen. Alpha hier 0..1; die finale Deckkraft setzt die
 // einheitliche ImageOverlay-/Canvas-`opacity` im Frontend.
 const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1,   rgb: [170, 205, 240], a: 220 / 255 },
-  { mmh: 0.3,   rgb: [140, 185, 230], a: 255 / 255 },
-  { mmh: 1,     rgb: [ 60, 110, 200], a: 255 / 255 },
-  { mmh: 3,     rgb: [ 50, 165,  80], a: 255 / 255 },
-  { mmh: 10,    rgb: [245, 220,  55], a: 255 / 255 },
-  { mmh: 30,    rgb: [240, 140,  35], a: 255 / 255 },
-  { mmh: 60,    rgb: [220,  40,  40], a: 255 / 255 },
-  { mmh: 100,   rgb: [170,  40, 180], a: 255 / 255 },
+  { mmh: 0.1,   rgb: [150, 195, 235], a: 235 / 255 },
+  { mmh: 0.3,   rgb: [ 95, 155, 220], a: 255 / 255 },
+  { mmh: 0.8,   rgb: [ 40,  90, 195], a: 255 / 255 },
+  { mmh: 2,     rgb: [ 55, 170,  75], a: 255 / 255 },
+  { mmh: 5,     rgb: [245, 220,  55], a: 255 / 255 },
+  { mmh: 15,    rgb: [240, 140,  35], a: 255 / 255 },
+  { mmh: 40,    rgb: [220,  40,  40], a: 255 / 255 },
+  { mmh: 80,    rgb: [170,  40, 180], a: 255 / 255 },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -977,7 +977,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               const hasPng = !!currentFrame.precipUrl;
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
-              const opacityVal = 0.85;
+              const opacityVal = 0.95;
 
               return (
                 <>
