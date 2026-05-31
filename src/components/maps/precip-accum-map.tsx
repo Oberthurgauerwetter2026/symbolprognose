@@ -352,48 +352,33 @@ function renderMap(
   ctx.fillStyle = "#ffffff";
   ctx.fillText(chipText, chipX + 10, chipY + 17);
 
-  // Legende: kontinuierlicher Gradient
+  // Legende: diskrete Farbbänder pro Klasse
   const legY = h - PAD.bottom + 36;
   const legX = PAD.left;
   const legW = w - PAD.left - PAD.right;
-  const legH = 14;
-  const grad = ctx.createLinearGradient(legX, 0, legX + legW, 0);
-  const minMm = ACCUM_SCALE[0].mm;
-  const maxScale = ACCUM_SCALE[ACCUM_SCALE.length - 1].mm;
-  for (const stop of ACCUM_SCALE) {
-    const t = (Math.log(stop.mm) - Math.log(minMm)) / (Math.log(maxScale) - Math.log(minMm));
-    const [r, g, b] = stop.rgb;
-    grad.addColorStop(Math.max(0, Math.min(1, t)), `rgb(${r},${g},${b})`);
+  const legH = 16;
+  const n = ACCUM_CLASSES.length;
+  const bw = legW / n;
+  for (let i = 0; i < n; i++) {
+    const c = ACCUM_CLASSES[i];
+    ctx.fillStyle = `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
+    ctx.fillRect(legX + i * bw, legY, bw, legH);
   }
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  const lr = 7;
-  ctx.moveTo(legX + lr, legY);
-  ctx.lineTo(legX + legW - lr, legY);
-  ctx.quadraticCurveTo(legX + legW, legY, legX + legW, legY + lr);
-  ctx.lineTo(legX + legW, legY + legH - lr);
-  ctx.quadraticCurveTo(legX + legW, legY + legH, legX + legW - lr, legY + legH);
-  ctx.lineTo(legX + lr, legY + legH);
-  ctx.quadraticCurveTo(legX, legY + legH, legX, legY + legH - lr);
-  ctx.lineTo(legX, legY + lr);
-  ctx.quadraticCurveTo(legX, legY, legX + lr, legY);
-  ctx.closePath();
-  ctx.fill();
+  ctx.strokeStyle = "rgba(15,23,42,0.25)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(legX + 0.5, legY + 0.5, legW - 1, legH - 1);
 
-  // Legenden-Ticks
   ctx.fillStyle = "#475569";
-  ctx.font = "500 11px ui-sans-serif, system-ui, sans-serif";
-  const tickValues = [0.3, 1, 2, 5, 10, 20, 50, 100];
-  for (const v of tickValues) {
-    const t = (Math.log(v) - Math.log(minMm)) / (Math.log(maxScale) - Math.log(minMm));
-    const tx = legX + Math.max(0, Math.min(1, t)) * legW;
-    ctx.fillStyle = "#94a3b8";
-    ctx.fillRect(tx, legY + legH, 1, 4);
-    const label = `${v} mm`;
+  ctx.font = "600 11px ui-sans-serif, system-ui, sans-serif";
+  for (let i = 0; i < n; i++) {
+    const label = ACCUM_CLASSES[i].label;
+    const tx = legX + i * bw;
     const lw = ctx.measureText(label).width;
-    ctx.fillStyle = "#475569";
-    ctx.fillText(label, Math.max(legX, Math.min(legX + legW - lw, tx - lw / 2)), legY + legH + 18);
+    ctx.fillText(label, tx + bw / 2 - lw / 2, legY + legH + 14);
   }
+  ctx.font = "500 10px ui-sans-serif, system-ui, sans-serif";
+  ctx.fillStyle = "#94a3b8";
+  ctx.fillText("mm Niederschlag (Klassen)", legX, legY + legH + 30);
 
   // Footer
   ctx.font = "500 11px ui-sans-serif, system-ui, sans-serif";
