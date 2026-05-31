@@ -338,10 +338,11 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
             raise RuntimeError("no /datasetN/data1 found")
 
         data_group = f[ds_path]
-        dataset_group_path = "/".join(ds_path.split("/")[:2])
+        dataset_group_path = "/" + ds_path.strip("/").split("/")[0]
         data = data_group["data"][:]
         what = dict(data_group["what"].attrs) if "what" in data_group else {}
-        dataset_what = dict(f[f"/{dataset_group_path}/what"].attrs) if f"/{dataset_group_path}/what" in f else {}
+        dataset_what_path = f"{dataset_group_path}/what"
+        dataset_what = dict(f[dataset_what_path].attrs) if dataset_what_path in f else {}
         # Top-level /what gives nodata; /where gives projection.
         top_what = dict(f["/what"].attrs) if "/what" in f else {}
         top_where = dict(f["/where"].attrs) if "/where" in f else {}
