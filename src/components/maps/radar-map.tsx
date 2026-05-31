@@ -569,18 +569,8 @@ function fmtBubble(d: Date, frame: RadarFrame | null): string {
   const mm = String(d.getMinutes()).padStart(2, "0");
   const isForecast = frame ? d.getTime() > now + 60000 : false;
 
-  if (frame?.source === "nowcast") {
-    const base = frame.sourceT ? ` · Basis ${fmtHM(new Date(frame.sourceT))}` : "";
-    return `Nowcast: ${wd}, ${hh}:${mm}${base}`;
-  }
-  if (frame?.source === "radar") {
-    const ageMin = Math.round((now - d.getTime()) / 60000);
-    const ageSuffix = ageMin >= 2 ? ` (vor ${ageMin} min)` : "";
-    if (frame.isFilled && frame.sourceT) {
-      return `Messung fehlt · Bild ${fmtHM(new Date(frame.sourceT))}${ageSuffix}`;
-    }
-    return `Messung: ${wd}, ${hh}:${mm}${ageSuffix}`;
-  }
+  if (frame?.source === "nowcast") return `Nowcast: ${wd}, ${hh}:${mm}`;
+  if (frame?.source === "radar") return `Messung: ${wd}, ${hh}:${mm}`;
   const kind = isForecast ? "Prognose" : "Messung";
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
