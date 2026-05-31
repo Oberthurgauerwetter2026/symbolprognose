@@ -1000,10 +1000,14 @@ def write_manifest(s3, motion: dict | None = None) -> None:
     body: dict = {
         "bbox": BBOX_WGS,
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "version": RADAR_INGEST_VERSION,
         "frames": sorted_frames,
     }
     if motion is not None:
         body["motion"] = motion
+    else:
+        # Sichtbar machen, dass dieser Run kein Motion-Result hatte (statt Key wegzulassen).
+        body["motion"] = {"_empty": True, "reason": "compute_motion returned None"}
     if not sorted_frames:
         try:
             existing = s3.get_object(Bucket=BUCKET, Key="radar/frames.json")
