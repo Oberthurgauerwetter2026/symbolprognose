@@ -31,6 +31,12 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
+from zoneinfo import ZoneInfo
+
+# MeteoSchweiz CPC/POH STAC-Dateinamen sind in Europe/Zurich Lokalzeit
+# (DST-aware) angegeben, nicht in UTC. Ohne diese Umrechnung ergibt sich
+# im Sommer ein 1-h-Versatz gegenüber der MCH-Niederschlagskarte.
+MCH_FILENAME_TZ = ZoneInfo("Europe/Zurich")
 
 import boto3
 import h5py
@@ -43,7 +49,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v10-cpc-quantity-fix"
+RADAR_INGEST_VERSION = "v11-cpc-tz-fix"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -172,9 +178,10 @@ def parse_ts_from_filename(name: str) -> datetime | None:
         h, mi = int(hh), int(mm)
         if not (0 <= h < 24 and 0 <= mi < 60 and 1 <= int(doy) <= 366):
             return None
-        return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(
+        naive_local = datetime(year, 1, 1) + timedelta(
             days=int(doy) - 1, hours=h, minutes=mi
         )
+        return naive_local.replace(tzinfo=MCH_FILENAME_TZ).astimezone(timezone.utc)
     except ValueError:
         return None
 

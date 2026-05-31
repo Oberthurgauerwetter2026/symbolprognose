@@ -556,11 +556,6 @@ function fmtDayLong(d: Date): string {
   return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
 }
 
-function fmtHM(d: Date): string {
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
 
 function fmtBubble(d: Date, frame: RadarFrame | null): string {
   const now = Date.now();
@@ -569,18 +564,8 @@ function fmtBubble(d: Date, frame: RadarFrame | null): string {
   const mm = String(d.getMinutes()).padStart(2, "0");
   const isForecast = frame ? d.getTime() > now + 60000 : false;
 
-  if (frame?.source === "nowcast") {
-    const base = frame.sourceT ? ` · Basis ${fmtHM(new Date(frame.sourceT))}` : "";
-    return `Nowcast: ${wd}, ${hh}:${mm}${base}`;
-  }
-  if (frame?.source === "radar") {
-    const ageMin = Math.round((now - d.getTime()) / 60000);
-    const ageSuffix = ageMin >= 2 ? ` (vor ${ageMin} min)` : "";
-    if (frame.isFilled && frame.sourceT) {
-      return `Messung fehlt · Bild ${fmtHM(new Date(frame.sourceT))}${ageSuffix}`;
-    }
-    return `Messung: ${wd}, ${hh}:${mm}${ageSuffix}`;
-  }
+  if (frame?.source === "nowcast") return `Nowcast: ${wd}, ${hh}:${mm}`;
+  if (frame?.source === "radar") return `Messung: ${wd}, ${hh}:${mm}`;
   const kind = isForecast ? "Prognose" : "Messung";
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
@@ -1062,11 +1047,6 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
             {currentFrame && (
               <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
                 {fmtTime(currentFrame.t)}
-              </span>
-            )}
-            {currentFrame?.sourceT && currentFrame.sourceT !== currentFrame.t && (
-              <span className="rounded-md bg-card/95 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-md">
-                Bildbasis: {fmtTime(currentFrame.sourceT)}
               </span>
             )}
           </div>
