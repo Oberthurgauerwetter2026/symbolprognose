@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v18-mch-faint-fix"
+RADAR_INGEST_VERSION = "v19-mch-intensity-boost"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -74,14 +74,14 @@ RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 # auf meteoschweiz.ch; die finale Deckkraft wird per Leaflet-`opacity`
 # einmalig im Frontend gesetzt.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.1,   (170, 205, 240, 220)),   # sehr leicht — klar sichtbar wie bei MCH/SRF
-    (0.3,   (140, 185, 230, 255)),   # hell blau
-    (1.0,   ( 60, 110, 200, 255)),   # blau
-    (3.0,   ( 50, 165,  80, 255)),   # grün
-    (10.0,  (245, 220,  55, 255)),   # gelb
-    (30.0,  (240, 140,  35, 255)),   # orange
-    (60.0,  (220,  40,  40, 255)),   # rot
-    (100.0, (170,  40, 180, 255)),   # magenta
+    (0.1,   (150, 195, 235, 235)),   # sehr leicht — klar sichtbar
+    (0.3,   ( 95, 155, 220, 255)),   # blau
+    (0.8,   ( 40,  90, 195, 255)),   # tiefes blau
+    (2.0,   ( 55, 170,  75, 255)),   # grün (SRF: bereits ab ~1–2 mm/h)
+    (5.0,   (245, 220,  55, 255)),   # gelb
+    (15.0,  (240, 140,  35, 255)),   # orange
+    (40.0,  (220,  40,  40, 255)),   # rot
+    (80.0,  (170,  40, 180, 255)),   # magenta
 ]
 
 # POH (hail probability %) colour scale. 0-30 transparent.
