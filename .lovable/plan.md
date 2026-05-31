@@ -1,51 +1,47 @@
 ## Befund
 
-Die neue Version ist zwar live (`v11-cpc-tz-fix`), aber der Ansatz war falsch: Ich habe den Zeitstempel aus dem Dateinamen erneut umgerechnet. Die aktuellen MCH-Dateinamen enthalten aber offenbar nicht den Anzeige-Zeitpunkt im Format, das wir angenommen haben.
+Die aktuelle Live-Ausgabe zeigt `v12-h5-metadata-time`, aber der neueste Niederschlags-Frame ist `2026-05-31T14:55:00Z` und damit ca. 134 Minuten alt, obwohl im offiziellen Katalog bereits Dateien bis etwa `17:00Z` vorhanden sind. Zusätzlich gibt es zwei konkrete Fehlerquellen im Code:
 
-Beispiel aus dem aktuellen offiziellen STAC-Katalog:
-
-```text
-cpc2615116159_00060.001.h5
-```
-
-Das wurde bisher als `2026-05-31 16:15` interpretiert. Tatsächlich steckt im Suffix sehr wahrscheinlich die relevante Minuten-/Produktinformation (`...6159_00060...`), und der zuverlässigere Weg ist: nicht mehr aus dem Dateinamen raten, sondern den offiziellen Zeitstempel direkt aus der HDF5-Datei lesen.
+1. **Falscher Skip vor dem HDF5-Decode:** Der Main-Loop prüft vor `process_asset()` mit dem aus dem Dateinamen geratenen Zeitstempel, ob ein PNG existiert. Dadurch werden Dateien übersprungen, bevor der echte HDF5-Zeitstempel gelesen wird.
+2. **Falsche Intensität möglich:** Die Niederschlagswerte werden zuerst dekodiert und erst danach anhand `quantity` konvertiert. Wenn das Produkt bereits `RATE` ist, kann die aktuelle Logik je nach HDF5-Metadaten überhöhte/verfälschte Werte erzeugen. Sicherer ist: CPC-Rohprodukt explizit als Akkumulationsprodukt behandeln bzw. anhand Plausibilitätsgrenzen konservativ skalieren.
 
 ## Plan
 
-1. **Zeitstempel-Quelle korrigieren**
-   - `parse_ts_from_filename()` nicht mehr als alleinige Wahrheit verwenden.
-   - Beim Download der HDF5-Datei die internen ODIM-/MCH-Metadaten lesen (`/what`, `/dataset*/what`, `/dataset*/data*/what`), insbesondere `date`, `time`, `startdate`, `starttime`, `enddate`, `endtime`.
-   - Den Bild-Zeitpunkt aus `enddate/endtime` oder `date/time` ableiten und erst dann als UTC ins Manifest schreiben.
+1. **Radar-Ingest auf einen sicheren Modus zurücksetzen**
+   - Version auf `v13-safe-cpc-rebuild` erhöhen.
+   - `parse_ts_from_filename()` wieder als robuste Zeitquelle für CPC/BZC nutzen: `YY + DOY + HHMM` ist UTC, nicht Europe/Zurich.
+   - HDF5-Metadaten nur noch als Diagnose/Fallback verwenden, nicht als alleinige Wahrheit, solange sie offensichtlich nicht zur STAC-Aktualität passt.
 
-2. **R2-Key und Manifest auf den echten Bild-Zeitpunkt umstellen**
-   - PNG-Dateinamen (`radar/precip/YYYYMMDDTHHMM.png`) mit dem aus der Datei gelesenen Zeitstempel erzeugen.
-   - `frames.json` damit automatisch mit der korrekten Zeit befüllen.
-   - Version auf `v12-h5-metadata-time` bumpen und Workflow-Prüfung entsprechend aktualisieren.
+2. **Skip-Fehler entfernen**
+   - Vor dem HDF5-Download nicht mehr anhand des alten/geratenen Keys skippen.
+   - `process_asset()` entscheidet erst nach der finalen Zeit- und Produktlogik, ob der Ziel-Key existiert.
+   - Damit können neue Frames nicht mehr durch falsch gelabelte Alt-Keys blockiert werden.
 
-3. **Alt-/Fehlframes bereinigen**
-   - Alte `v11`-Frames mit falsch geratenem Zeitstempel dürfen nicht weiter im Manifest bleiben.
-   - Im `v12`-Run das Manifest nur aus neu verarbeiteten oder korrekt benannten Frames aufbauen bzw. falsch gelabelte Altframes aus der relevanten Retention entfernen.
+3. **Alte/verfälschte Frames konsequent bereinigen**
+   - Bei Version-Wechsel alle alten `radar/precip/*.png` und `radar/hail/*.png` purgen.
+   - `write_manifest()` auf die letzten Stunden begrenzen und nicht mehr alte Restbestände übernehmen.
+   - Wenn ein Run 0 brauchbare Frames produziert, nicht still alte Frames weiteranzeigen, sondern Manifest mit klarer Fehler-/Leerdiagnose schreiben.
 
-4. **UI unverändert lassen**
-   - Keine zusätzlichen Zeitinfos wieder einbauen.
-   - Keine Farbskala ändern, bis die Zeit wirklich synchron ist.
+4. **Intensität konservativ korrigieren**
+   - CPC-Werte so skalieren, dass normale Niederschlagsraten plausibel bleiben und nicht künstlich aufgeblasen werden.
+   - Bei extremen Maxima/P99-Werten eine automatische Schutzskalierung anwenden und im Log sichtbar machen.
+   - Farbskala im Frontend unverändert lassen, bis Datenbasis wieder sauber ist.
 
-5. **Verifikation**
-   - Nach Umsetzung prüfen:
-     - Manifest-Version ist `v12-h5-metadata-time`.
-     - Neueste `latestPrecipTs` passt zur offiziellen MeteoSchweiz-Anzeige.
-     - Slider und Karten-Badge zeigen dieselbe lokale Zeit wie MeteoSchweiz.
+5. **Nowcast/Forward-Fill entschärfen**
+   - Forward-Fill alter Messbilder deaktivieren oder stark begrenzen, damit keine alten Frames als neue Messung erscheinen.
+   - Nowcast erst wieder nutzen, wenn mindestens zwei bis drei echte, zeitlich plausible Radarframes vorhanden sind.
 
-## Technischer Kern
+6. **Verifikation nach Umsetzung**
+   - Syntaxcheck des Scripts.
+   - Offizielle STAC-Tail-Zeit gegen erwartete Manifest-Zeit vergleichen.
+   - Debug-Endpunkt muss danach zeigen:
+     - Version `v13-safe-cpc-rebuild`
+     - `latestPrecipTs` nahe am neuesten offiziellen CPC-Dateinamen
+     - keine stundenalten Frames im Messbereich
+     - keine unerklärlichen Intensitäts-Überläufe
 
-Die robuste Lösung ist, den `AssetRef.ts` nach dem HDF5-Download zu überschreiben:
+## Dateien
 
-```text
-STAC asset gefunden
-→ HDF5 laden
-→ internen Bildzeitpunkt aus HDF5-Metadaten lesen
-→ PNG unter echtem UTC-Zeitstempel speichern
-→ Manifest aus diesen echten Zeitstempeln schreiben
-```
-
-Damit vermeiden wir Sommerzeit-/Dateinamen-Fehler vollständig.
+- `scripts/ingest_radar.py`
+- `.github/workflows/radar-ingest.yml`
+- optional klein in `src/lib/radar.functions.ts`, falls Forward-Fill/Nowcast serverseitig deaktiviert oder begrenzt werden muss

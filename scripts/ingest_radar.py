@@ -31,12 +31,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
-from zoneinfo import ZoneInfo
-
-# MeteoSchweiz CPC/POH STAC-Dateinamen sind in Europe/Zurich Lokalzeit
-# (DST-aware) angegeben, nicht in UTC. Ohne diese Umrechnung ergibt sich
-# im Sommer ein 1-h-Versatz gegenüber der MCH-Niederschlagskarte.
-MCH_FILENAME_TZ = ZoneInfo("Europe/Zurich")
 
 import boto3
 import h5py
@@ -49,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v12-h5-metadata-time"
+RADAR_INGEST_VERSION = "v13-safe-cpc-rebuild"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -168,6 +162,10 @@ def parse_ts_from_filename(name: str) -> datetime | None:
     Examples:
       cpc2614500000_00060.001.h5  -> 2026-05-25 00:00 UTC
       bzc261451245vl.845.h5       -> 2026-05-25 12:45 UTC
+
+    Wichtig: STAC-Dateinamen sind die aktuelle, operationelle Zeitquelle.
+    Sie werden als UTC behandelt. HDF5-/ODIM-Zeiten sind je nach Produkt
+    Start-/Intervall-Metadaten und dürfen die STAC-Aktualität nicht bremsen.
     """
     m = CPC_RE.match(name)
     if not m:
@@ -178,10 +176,10 @@ def parse_ts_from_filename(name: str) -> datetime | None:
         h, mi = int(hh), int(mm)
         if not (0 <= h < 24 and 0 <= mi < 60 and 1 <= int(doy) <= 366):
             return None
-        naive_local = datetime(year, 1, 1) + timedelta(
+        naive_utc = datetime(year, 1, 1) + timedelta(
             days=int(doy) - 1, hours=h, minutes=mi
         )
-        return naive_local.replace(tzinfo=MCH_FILENAME_TZ).astimezone(timezone.utc)
+        return naive_utc.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
 
@@ -339,8 +337,12 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         if ds_path is None:
             raise RuntimeError("no /datasetN/data1 found")
 
-        data = f[ds_path]["data"][:]
-        what = dict(f[ds_path]["what"].attrs) if "what" in f[ds_path] else {}
+        data_group = f[ds_path]
+        dataset_group_path = "/" + ds_path.strip("/").split("/")[0]
+        data = data_group["data"][:]
+        what = dict(data_group["what"].attrs) if "what" in data_group else {}
+        dataset_what_path = f"{dataset_group_path}/what"
+        dataset_what = dict(f[dataset_what_path].attrs) if dataset_what_path in f else {}
         # Top-level /what gives nodata; /where gives projection.
         top_what = dict(f["/what"].attrs) if "/what" in f else {}
         top_where = dict(f["/where"].attrs) if "/where" in f else {}
@@ -360,10 +362,10 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         interval_min: float | None = None
         image_time: datetime | None = None
         try:
-            sd = _decode_str(what.get("startdate") or top_what.get("startdate"))
-            st = _decode_str(what.get("starttime") or top_what.get("starttime"))
-            ed = _decode_str(what.get("enddate") or top_what.get("enddate"))
-            et = _decode_str(what.get("endtime") or top_what.get("endtime"))
+            sd = _decode_str(what.get("startdate") or dataset_what.get("startdate") or top_what.get("startdate"))
+            st = _decode_str(what.get("starttime") or dataset_what.get("starttime") or top_what.get("starttime"))
+            ed = _decode_str(what.get("enddate") or dataset_what.get("enddate") or top_what.get("enddate"))
+            et = _decode_str(what.get("endtime") or dataset_what.get("endtime") or top_what.get("endtime"))
             if sd and st and ed and et:
                 t0 = datetime.strptime(sd + st, "%Y%m%d%H%M%S")
                 t1 = datetime.strptime(ed + et, "%Y%m%d%H%M%S")
@@ -386,9 +388,9 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
                 image_time = None
 
         arr = data.astype(np.float32)
-        mask = (arr == nodata) | (arr == undetect)
+        mask = (arr == nodata) | (arr == undetect) | ~np.isfinite(arr)
         arr = arr * gain + offset
-        arr[mask] = np.nan
+        arr[mask | ~np.isfinite(arr)] = np.nan
 
         meta = {
             "projdef": (top_where.get("projdef") or b"").decode("ascii", "ignore")
@@ -543,11 +545,9 @@ def _to_mmh(values: np.ndarray, meta: dict, product: str) -> tuple[np.ndarray, s
 def process_asset(s3, asset: AssetRef) -> str | None:
     """Download → reproject → render → upload. Returns object key or None.
 
-    WICHTIG: Der Bildzeitpunkt wird NICHT aus dem Dateinamen abgeleitet
-    (MCH-Filename-Schema ist nicht zuverlässig), sondern aus den H5-Metadaten
-    (`/dataset*/what` enddate/endtime bzw. `/what` date/time). Erst danach
-    wird der R2-Key gebildet. `asset.ts` (aus dem Filename) dient nur als
-    grobe Lookback-Heuristik beim STAC-Filtern.
+    WICHTIG: Der STAC-Dateiname bleibt die primäre Zeitquelle. Die H5-Zeit
+    wird nur akzeptiert, wenn sie plausibel nahe daran liegt; so verhindern
+    wir sowohl Sommerzeit-Fehler als auch alte/falsch gelabelte Frames.
     """
     print(f"  fetching {asset.href}", flush=True)
     r = http_get(asset.href, timeout=60)
@@ -555,12 +555,18 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     values, meta = read_h5_grid(r.content)
     img_ts = meta.get("image_time")
     if isinstance(img_ts, datetime):
-        if img_ts != asset.ts:
+        delta_min = abs((img_ts - asset.ts).total_seconds()) / 60.0
+        if delta_min <= 10 and img_ts != asset.ts:
             print(
                 f"  ts-correct: filename={asset.ts.isoformat()} → h5={img_ts.isoformat()}",
                 flush=True,
             )
-        asset.ts = img_ts  # update so motion + manifest use the real time
+            asset.ts = img_ts
+        elif delta_min > 10:
+            print(
+                f"  ts-h5 ignored: filename={asset.ts.isoformat()} h5={img_ts.isoformat()} Δ={delta_min:.0f}min",
+                flush=True,
+            )
     ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
     key = f"radar/{asset.product}/{ts_iso}.png"
     if head_exists(s3, key):
@@ -593,6 +599,18 @@ def cleanup(s3, keep_since: datetime) -> None:
                     deleted += 1
     if deleted:
         print(f"cleanup: deleted {deleted} old frames", flush=True)
+
+
+def purge_all_radar_pngs(s3) -> int:
+    """Delete all generated radar PNGs so a version rebuild cannot mix frames."""
+    paginator = s3.get_paginator("list_objects_v2")
+    purged = 0
+    for product in COLLECTIONS:
+        for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
+            for obj in page.get("Contents", []) or []:
+                s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
+                purged += 1
+    return purged
 
 
 def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float]:
@@ -1124,18 +1142,7 @@ def write_manifest(s3, motion: dict | None = None) -> None:
         # Sichtbar machen, dass dieser Run kein Motion-Result hatte (statt Key wegzulassen).
         body["motion"] = {"_empty": True, "reason": "compute_motion returned None"}
     if not sorted_frames:
-        try:
-            existing = s3.get_object(Bucket=BUCKET, Key="radar/frames.json")
-            existing_body = json.loads(existing["Body"].read().decode("utf-8"))
-            existing_count = len(existing_body.get("frames") or [])
-            if existing_count:
-                print(
-                    f"manifest: keeping existing {existing_count} frames; current run found 0 frames",
-                    flush=True,
-                )
-                return
-        except Exception as exc:
-            print(f"manifest: no existing manifest to keep ({exc!r})", flush=True)
+        body["warning"] = "current ingest produced no usable radar PNG frames"
     s3.put_object(
         Bucket=BUCKET,
         Key="radar/frames.json",
@@ -1177,13 +1184,7 @@ def main() -> int:
                 f"purging old radar/*.png objects",
                 flush=True,
             )
-            paginator = s3.get_paginator("list_objects_v2")
-            purged = 0
-            for product in COLLECTIONS:
-                for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
-                    for obj in page.get("Contents", []) or []:
-                        s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
-                        purged += 1
+            purged = purge_all_radar_pngs(s3)
             print(f"  purged {purged} old radar PNG objects", flush=True)
     except Exception as exc:
         print(f"version migration: no existing manifest or purge failed ({exc!r})", flush=True)
@@ -1206,10 +1207,6 @@ def main() -> int:
         if product == "precip":
             precip_assets_all = list(assets)
         for a in assets:
-            key = f"radar/{a.product}/{a.ts.strftime('%Y%m%dT%H%M')}.png"
-            if head_exists(s3, key):
-                skipped_existing += 1
-                continue
             # Per-Asset Retry: ein Fehler bei einem einzelnen Frame darf
             # weder den Rest des Produkts noch das andere Produkt abbrechen.
             ok = False

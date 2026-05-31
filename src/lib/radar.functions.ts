@@ -321,7 +321,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     // Frame übernehmen (max. 3 Frames = 15 min), damit Mini-Lücken
     // (z. B. wenn ein Asset-Upload im Ingest fehlgeschlagen ist)
     // keine leeren Bilder in der Animation produzieren.
-    const FILL_LIMIT = 3;
+    const FILL_LIMIT = 0;
     const sortedMf = [...manifest!.frames].sort(
       (a, b) => Date.parse(a.t) - Date.parse(b.t),
     );
@@ -340,7 +340,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         lastPrecipSourceT = mf.t;
         lastPrecipAge = 0;
         sourceT = mf.t;
-      } else if (lastPrecip && lastPrecipAge < FILL_LIMIT) {
+      } else if (FILL_LIMIT > 0 && lastPrecip && lastPrecipAge < FILL_LIMIT) {
         precipUrl = lastPrecip;
         sourceT = lastPrecipSourceT;
         isFilled = true;
@@ -349,7 +349,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       if (hailUrl) {
         lastHail = hailUrl;
         lastHailAge = 0;
-      } else if (lastHail && lastHailAge < FILL_LIMIT) {
+      } else if (FILL_LIMIT > 0 && lastHail && lastHailAge < FILL_LIMIT) {
         hailUrl = lastHail;
         lastHailAge += 1;
       }
@@ -609,7 +609,8 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
   if (hasRealRadar && nowcastMotion) {
     const radarFrames = frames.filter((f) => f.source === "radar" && f.precipUrl);
     const last = radarFrames[radarFrames.length - 1];
-    if (last && last.precipUrl) {
+    const lastAgeMin = last ? (now - Date.parse(last.t)) / 60_000 : Infinity;
+    if (last && last.precipUrl && radarFrames.length >= 3 && lastAgeMin <= 25) {
       const lastMs = Date.parse(last.t);
       // Wachstums-/Zerfalls-Faktor pro Minute (z. B. -0.01 = -1 %/min Zerfall).
       // Wird nur angewendet, wenn die Radar-Motion (nicht Wind-Fallback) genutzt
