@@ -24,6 +24,8 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               frameCount?: number;
               withPrecip?: number;
               withHail?: number;
+              latestPrecipTs?: string | null;
+              latestPrecipAgeMin?: number | null;
               motionKeys?: string[];
               motionEmpty?: unknown;
               field?: {
