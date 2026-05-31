@@ -1,78 +1,52 @@
 ## Ziel
 
-Eine interne Karte, die akkumulierte Niederschlagsmengen für die nächsten **12h, 24h und 48h** über der Region Oberthurgau zeigt — als Heatmap (gleicher Stil wie die bestehende Radarkarte), mit **PNG-Download pro Zeitfenster**. Zugang nur für eingeloggte Nutzer.
+1. Niederschlags-Karten (`/intern/niederschlag`) optisch modernisieren.
+2. PNG-Download zuverlässig zum Laufen bringen.
 
-## Datenquelle
+---
 
-ICON-CH1/CH2 GRIB-Daten aus dem bestehenden R2-Cache (`scripts/ingest_arome.py` / `radar-ingest`). Diese liefern stündliche Niederschlagsprognosen bis +120 h und sind bereits ingestiert.
+## 1) Download reparieren
 
-- Akkumulation: Summe der stündlichen `tp` (total precipitation) Werte über das jeweilige Zeitfenster ab `now()`.
-- 12 h → ICON-CH1 (höhere Auflösung, 1 km, bis +33 h)
-- 24 h → ICON-CH1
-- 48 h → ICON-CH2 (Wechsel ab +33 h auf 2 km)
+**Vermutete Ursache:** Im Lovable-Preview-Iframe sind Downloads via `<a download>` häufig blockiert (iframe ohne `allow-downloads`-Sandbox). `canvas.toBlob()` + Object-URL kann zusätzlich an Grösse / DPR scheitern (Canvas wird mit `dpr` skaliert → bei dpr=2 ist das interne Canvas 2400×1440).
 
-## Architektur
+**Fix in `src/components/maps/precip-accum-map.tsx`:**
+- Für den Export ein **separates 1200×720 Offscreen-Canvas** rendern (ohne DPR-Skalierung) → kleinere, vorhersagbare PNG-Grösse, kein Tainting-Risiko.
+- Primär `canvas.toBlob` → `URL.createObjectURL` + Anchor-Klick.
+- **Fallback:** wenn Blob null oder Klick in Sandbox blockiert → `toDataURL("image/png")` in neuem Tab öffnen (`window.open(dataUrl, "_blank")`), damit der User per Rechtsklick → Speichern laden kann.
+- Toast (`sonner`) für Erfolg / Fehler.
+- Hinweis-Text unter Button: „Falls Download im Vorschau-Fenster blockiert wird, öffnet sich das Bild in einem neuen Tab."
 
-```text
-src/routes/_authenticated/
-  intern.niederschlag.tsx        ← neue, geschützte Seite (3 Karten + Download-Buttons)
+## 2) Darstellung modernisieren
 
-src/lib/
-  precip-accum.functions.ts      ← createServerFn: gibt akkumuliertes mm-Grid zurück
-  precip-accum.server.ts         ← liest R2-GRIB-Cache, summiert tp pro Pixel
+Beibehalten: Datenquelle, Akkumulationslogik, Farbskala-Bedeutung (mm-Stufen).
 
-src/components/maps/
-  precip-accum-map.tsx           ← Heatmap-Renderer (Canvas) + PNG-Export-Hook
-```
+Visuell überarbeiten:
+- **Karten-Kacheln:** weisser Card-Container mit weichem Schatten, abgerundete Ecken (`rounded-xl`), klare Section-Header statt nackter `h2`. Drei Karten als responsive Grid statt vertikale Liste (auf grossen Screens 1 Spalte, da Karte breit ist; Header-Block mit Stats + Button rechts).
+- **Canvas-Hintergrund:** statt grau-blass `#f5f7fa` → sauberes Weiss mit subtilem Rahmen. Schweiz als hellgraue Fläche, Nachbarländer leicht abgesetzt.
+- **Typografie im Canvas:** modernere Hierarchie — grosser, fetter Titel („+12 h Niederschlag"), darunter kleinerer Untertitel mit Zeitfenster. Tabular-nums für Zahlen.
+- **Heatmap:** Farbskala beibehalten, aber Übergänge **weicher (linear interpoliert zwischen Stufen)** statt harter Bänder → modernere, MeteoSchweiz-ähnliche Optik. Optional sehr leichter Blur (1 px) auf der Heatmap-Ebene.
+- **Thurgau-Outline:** kräftiger, mit leichtem Schatten/Halo, damit es auf weissem Hintergrund pop't.
+- **Spots/Labels:** Pill-förmige Labels mit weissem Hintergrund + 1 px Border statt Text mit Halo → bessere Lesbarkeit.
+- **Legende:** horizontales Farbband mit kontinuierlichem Gradient (statt diskreter Blöcke), darunter mm-Werte mittig ausgerichtet. Max-Wert + Modell-Mix als kleine „Chips" links.
+- **HTML-Header der Seite:** echter Page-Header mit Untertitel, kleiner Live-Indikator (grüner Punkt + „aktualisiert vor X min"), Auto-Refresh-Anzeige.
 
-Login-Schutz nutzt die bestehende `_authenticated`-Layout-Route (Supabase-Auth muss aktiv sein — siehe „Voraussetzung" unten).
+## Technische Details
 
-## Komponenten-Details
+Geänderte Dateien:
+- `src/components/maps/precip-accum-map.tsx`
+  - Render-Pipeline trennen: `renderMapToCanvas(ctx, size, ...)` mit Parameter statt fester Konstanten; Display-Canvas nutzt DPR, Export-Canvas nutzt 1×.
+  - Neue Hilfsfunktion `colorForAccumSmooth(mm)` mit linearer Interpolation zwischen `ACCUM_SCALE`-Stufen.
+  - Legenden-Rendering auf Gradient (`createLinearGradient`) umstellen.
+  - Card-Wrapper im JSX (shadcn `Card` aus `@/components/ui/card`).
+  - Toast via `sonner` (bereits im Projekt).
+- `src/routes/intern.niederschlag.tsx`
+  - Header-Sektion modernisieren (Titel, Untertitel, Live-Indikator basierend auf `dataUpdatedAt`).
+  - Karten in `space-y-6`-Stack mit Cards.
 
-**`PrecipAccumMap`** — wiederverwendbar, eine Instanz pro Zeitfenster:
-- Props: `hours: 12 | 24 | 48`, `title: string`
-- Rendert Canvas mit gleicher mm-Farbskala wie Radar (`src/components/maps/radar-map.tsx`)
-- Overlay: Thurgau-Grenze (`src/data/thurgau.json`) + Bodensee (`src/data/lake.json`) + Ortspunkte (`src/data/spots.ts`)
-- Legende: Farbskala mit mm-Werten (z.B. 0.1 / 1 / 5 / 10 / 20 / 50 mm)
-- Button „PNG herunterladen" → `canvas.toBlob()` → Download mit Dateiname `niederschlag-{hours}h-{ISO-Datum}.png`. Die Legende wird ins PNG eingebrannt (Canvas zeichnet Legend on top).
+Keine Änderungen an: Server-Funktionen, Datenquellen, Auth-Flow, Routing.
 
-**`/_authenticated/intern/niederschlag`** Seite:
-- 3 Karten untereinander (responsive: bei Desktop 2-3 spaltig möglich, aber gestapelt ist klarer für PNG-Vergleich)
-- Header mit Lauf-Zeitstempel (ICON-Run + „akkumuliert ab HH:MM Uhr")
-- Pro Karte: max mm, Pixel über 1 mm, kurze Statistik
-- Kein Sidebar-Eintrag, nicht in `MAPS`-Konfig — nur via Direktlink `/intern/niederschlag`
+## Out of scope
 
-## Server-Funktion
-
-```ts
-// precip-accum.functions.ts
-getPrecipAccum({ hours: 12 | 24 | 48 })
-  → { generatedAt, runReference, grid: { lats, lons }, values: number[][], maxMm, unit: "mm" }
-```
-
-- Memo 60 s im Worker-Isolate (wie `openmeteo-cache.server.ts`)
-- Edge-Cache 60 s
-- Fehler-Fallback: `{ values: [], error: "..." }` statt Throw
-
-## Voraussetzung: Authentifizierung
-
-Aktuell ist im Projekt **keine Supabase-Auth-Route** vorhanden (`/login` etc. fehlen). Für die „nur intern"-Anforderung braucht es:
-
-1. **Profiles-Tabelle?** → Da nur du Zugriff brauchst, reicht **kein** Profiles-Setup. Einfacher Email/Password-Login genügt.
-2. Neue Routen: `/login` (Login-Form) und `/_authenticated.tsx` (Layout-Guard via `beforeLoad` + Supabase `getUser()`)
-3. Migration nicht nötig (auth.users genügt)
-4. Nach erstem Deploy: Du legst dir manuell einen Account in Lovable Cloud → Users an
-
-**Alternative (einfacher, wenn du keinen Login willst):** Schutz via HTTP-Basic-Auth-Header in einem Server-Route-Middleware ODER simpler Passwort-Gate-Cookie (kein User-Account). Sag bitte, was du bevorzugst — Standard-Empfehlung: Email/Password-Login.
-
-## Build-Reihenfolge
-
-1. Auth-Setup (falls noch nicht vorhanden): `_authenticated.tsx` Layout + `/login`
-2. `precip-accum.server.ts` + `.functions.ts` (R2-Read + Akkumulation)
-3. `PrecipAccumMap` Komponente mit Canvas-Rendering + PNG-Export
-4. Route `/_authenticated/intern.niederschlag.tsx` mit 3 Karten
-5. Test: Live-Daten, PNG-Download, Login-Flow
-
-## Offene Frage
-
-Welche Auth-Variante möchtest du — **(a) Email/Password-Login** (sauber, Standard), **(b) einfacher Passwort-Gate-Cookie** (1 Passwort für alle, kein Account), oder **(c) IP/Token-Schutz via URL-Param** (`?token=xyz`)?
+- Keine Public-Route, kein Sidebar-Eintrag.
+- Keine Änderung an ICON-Cache / R2.
+- Keine Server-side PNG-Generierung (Client-Canvas reicht).
