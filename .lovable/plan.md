@@ -1,25 +1,24 @@
-## Ziel
+## Problem
 
-Das Snippet für `/embed/region-lokal` soll keinen fix-hohen 100vh-Rahmen mehr nutzen, sondern sich auf den tatsächlichen Inhalt zuschneiden und vom WordPress-Redakteur in der Höhe anpassbar sein.
-
-## Aktueller Stand
-
-In `src/routes/embed-info.tsx` wird für „Lokalprognose Amriswil" `buildViewportSnippet(...)` verwendet → der Wrapper ist auf `height:100vh / 100dvh` fixiert. Da die Lokalprognose (`detailOnly compact`) nur wenige hundert Pixel hoch ist, entsteht ein riesiger leerer Rahmen.
-
-Die `EmbedShell` (ohne `fillViewport`) sendet bereits `lovable-weather:height` per `postMessage` — das übliche `buildSnippet(...)` nutzt das schon, um die Höhe automatisch nachzuführen.
+Auf `https://www.oberthurgauerwetter.ch/tagesprognose-post-obt/` ist das Snippet `/embed/region-lokal` eingebettet. Beim Öffnen erscheint kurz eine **Oberthurgau-Karte** (Münsterlingen / Bischofszell etc.), bevor das iframe geladen ist. Diese Karte kommt vom Fallback-`<img>` mit `snapshotId="region"` (siehe `buildSnippet` in `src/routes/embed-info.tsx`, Zeile 36 → `/api/public/snapshot/region.svg`). Da der Embed inhaltlich aber nur die Lokalprognose ohne Karte zeigt, ist dieses Vorschaubild irreführend und soll weg.
 
 ## Änderung (nur `src/routes/embed-info.tsx`)
 
-1. Region-lokal-Section auf `buildSnippet(url, "/embed/region-lokal", "region-lokal", "region", "/karten/region", 480)` umstellen (Fallback-Starthöhe 480 px, danach Auto-Anpassung per postMessage).
-2. Beschreibungstext aktualisieren: „Höhe passt sich automatisch dem Inhalt an. Falls gewünscht, kann der Startwert (`height:480px`) im Snippet beliebig verändert werden — er dient nur als Fallback, solange das iframe lädt oder blockiert wird."
-3. Im `buildSnippet`-Wrapper-Style zusätzlich `resize:vertical` ergänzen, damit der Besucher den Rahmen bei Bedarf auch im Browser direkt vergrößern kann (betrifft alle Snippets, ist aber rein additiv und ohne Nebenwirkung; falls unerwünscht, nur für region-lokal über einen optionalen Parameter setzen — Default-Wahl: für alle aktivieren, da harmlos).
+1. `buildSnippet(...)` um einen optionalen Parameter `snapshotId: string | null` erweitern. Wenn `null`, wird das `<a><img></a>`-Fallback komplett weggelassen — der Wrapper bleibt einfach mit hellblauem Hintergrund (`#eaf2fb`) leer, bis das iframe lädt. Das iframe-Fade-In (`opacity 0→1`) bleibt unverändert; der 6-Sekunden-Adblocker-Watchdog wird ebenfalls weggelassen (ohne Snapshot ergibt das Entfernen des iframes keinen Sinn — dann wäre nichts mehr da).
+2. Aufruf für „Lokalprognose Amriswil" auf `buildSnippet(url, "/embed/region-lokal", "region-lokal", null, "/karten/region", 480)` umstellen.
+3. Alle anderen Snippets (Komplett-Widget, einzelne Karten) bleiben unverändert mit ihrem jeweiligen Karten-Snapshot — dort passt das Vorschaubild.
+
+## Hinweistext
+
+Den Beschreibungstext der Sektion ergänzen: „Ohne Vorschaubild — beim Laden ist nur ein dezenter blauer Hintergrund sichtbar, bis die Prognose erscheint."
+
+## Wichtig für den Nutzer
+
+Damit die Änderung auf der WordPress-Seite sichtbar wird, muss
+- das Projekt neu **publiziert** werden (das Snippet zeigt auf `symbolprognose.lovable.app`), und
+- der Custom-HTML-Block auf der WordPress-Seite mit dem neuen Snippet ersetzt werden (das alte enthält noch die `<img>`-Zeile, die das Bild zeigt).
 
 ## Unverändert
 
-- Route `/embed/region-lokal` selbst (zeigt weiterhin nur `WeatherWidget detailOnly compact` für Amriswil).
-- Alle anderen Embeds, Karten, Snapshots.
-- `buildViewportSnippet` bleibt im Code (z. B. falls später wieder gebraucht), wird aber nicht mehr aufgerufen.
-
-## Frage
-
-Soll `resize:vertical` nur für das region-lokal-Snippet aktiviert werden, oder global für alle Snippets? Default im Plan: global, da unschädlich.
+- Route `/embed/region-lokal` selbst.
+- Alle anderen Snippets, Snapshots, Karten und Embeds.
