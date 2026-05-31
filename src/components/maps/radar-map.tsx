@@ -998,8 +998,21 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                         [ib.minLat, ib.minLon],
                         [ib.maxLat, ib.maxLon],
                       ]}
-                      opacity={opacityVal}
+                      opacity={blendNextPng ? opacityVal * (1 - progress) : opacityVal}
                       zIndex={460}
+                      className="mch-precip"
+                    />
+                  )}
+                  {hasPng && blendNextPng && (
+                    <ImageOverlay
+                      key={`precip-next-${blendNextPng.t}`}
+                      url={blendNextPng.precipUrl!}
+                      bounds={[
+                        [ib.minLat, ib.minLon],
+                        [ib.maxLat, ib.maxLon],
+                      ]}
+                      opacity={opacityVal * progress}
+                      zIndex={461}
                       className="mch-precip"
                     />
                   )}
