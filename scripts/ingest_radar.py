@@ -601,6 +601,18 @@ def cleanup(s3, keep_since: datetime) -> None:
         print(f"cleanup: deleted {deleted} old frames", flush=True)
 
 
+def purge_all_radar_pngs(s3) -> int:
+    """Delete all generated radar PNGs so a version rebuild cannot mix frames."""
+    paginator = s3.get_paginator("list_objects_v2")
+    purged = 0
+    for product in COLLECTIONS:
+        for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
+            for obj in page.get("Contents", []) or []:
+                s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
+                purged += 1
+    return purged
+
+
 def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float]:
     """FFT phase correlation. Returns (dx_px, dy_px, confidence) for motion
     from a (older) to b (newer).
@@ -1130,18 +1142,7 @@ def write_manifest(s3, motion: dict | None = None) -> None:
         # Sichtbar machen, dass dieser Run kein Motion-Result hatte (statt Key wegzulassen).
         body["motion"] = {"_empty": True, "reason": "compute_motion returned None"}
     if not sorted_frames:
-        try:
-            existing = s3.get_object(Bucket=BUCKET, Key="radar/frames.json")
-            existing_body = json.loads(existing["Body"].read().decode("utf-8"))
-            existing_count = len(existing_body.get("frames") or [])
-            if existing_count:
-                print(
-                    f"manifest: keeping existing {existing_count} frames; current run found 0 frames",
-                    flush=True,
-                )
-                return
-        except Exception as exc:
-            print(f"manifest: no existing manifest to keep ({exc!r})", flush=True)
+        body["warning"] = "current ingest produced no usable radar PNG frames"
     s3.put_object(
         Bucket=BUCKET,
         Key="radar/frames.json",
