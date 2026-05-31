@@ -1184,13 +1184,7 @@ def main() -> int:
                 f"purging old radar/*.png objects",
                 flush=True,
             )
-            paginator = s3.get_paginator("list_objects_v2")
-            purged = 0
-            for product in COLLECTIONS:
-                for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
-                    for obj in page.get("Contents", []) or []:
-                        s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
-                        purged += 1
+            purged = purge_all_radar_pngs(s3)
             print(f"  purged {purged} old radar PNG objects", flush=True)
     except Exception as exc:
         print(f"version migration: no existing manifest or purge failed ({exc!r})", flush=True)
@@ -1213,10 +1207,6 @@ def main() -> int:
         if product == "precip":
             precip_assets_all = list(assets)
         for a in assets:
-            key = f"radar/{a.product}/{a.ts.strftime('%Y%m%dT%H%M')}.png"
-            if head_exists(s3, key):
-                skipped_existing += 1
-                continue
             # Per-Asset Retry: ein Fehler bei einem einzelnen Frame darf
             # weder den Rest des Produkts noch das andere Produkt abbrechen.
             ok = False
