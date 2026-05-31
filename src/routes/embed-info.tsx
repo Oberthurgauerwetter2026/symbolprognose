@@ -24,30 +24,21 @@ function buildSnippet(
   url: string,
   path: string,
   idSuffix: string,
-  snapshotId: string,
+  snapshotId: string | null,
   fullPath: string,
   fallbackHeight = 600,
 ) {
   const full = `${url}${path}`;
   const fullLink = `${url}${fullPath}`;
-  const snapshot = `${url}/api/public/snapshot/${snapshotId}.svg`;
-  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden;resize:vertical">
-  <a href="${fullLink}" target="_blank" rel="noopener" style="display:block;position:absolute;inset:0;text-decoration:none">
+  const snapshot = snapshotId ? `${url}/api/public/snapshot/${snapshotId}.svg` : null;
+  const fallbackImg = snapshot
+    ? `<a href="${fullLink}" target="_blank" rel="noopener" style="display:block;position:absolute;inset:0;text-decoration:none">
     <img src="${snapshot}" alt="Wetterkarte — interaktive Version: ${fullLink}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"/>
   </a>
-  <iframe
-    id="wx-${idSuffix}"
-    src="${full}"
-    loading="lazy"
-    referrerpolicy="no-referrer-when-downgrade"
-    allow="geolocation; fullscreen"
-    scrolling="no"
-    onload="this.style.opacity=1"
-    style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .2s"
-    title="Wetter-Karte"
-  ></iframe>
-</div>
-<script>
+  `
+    : "";
+  const watchdog = snapshot
+    ? `
   (function () {
     var wrap = document.getElementById("wx-${idSuffix}-wrap");
     var f = document.getElementById("wx-${idSuffix}");
@@ -66,9 +57,35 @@ function buildSnippet(
         if (!ok) { f.parentNode && f.parentNode.removeChild(f); }
       } catch (_) { /* cross-origin = iframe lädt erfolgreich */ }
     }, 6000);
-  })();
+  })();`
+    : `
+  (function () {
+    var wrap = document.getElementById("wx-${idSuffix}-wrap");
+    var f = document.getElementById("wx-${idSuffix}");
+    if (!wrap || !f) return;
+    window.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "lovable-weather:height" && e.source === f.contentWindow) {
+        wrap.style.height = e.data.height + "px";
+      }
+    });
+  })();`;
+  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden;resize:vertical">
+  ${fallbackImg}<iframe
+    id="wx-${idSuffix}"
+    src="${full}"
+    loading="lazy"
+    referrerpolicy="no-referrer-when-downgrade"
+    allow="geolocation; fullscreen"
+    scrolling="no"
+    onload="this.style.opacity=1"
+    style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .2s"
+    title="Wetter-Karte"
+  ></iframe>
+</div>
+<script>${watchdog}
 </script>`;
 }
+
 
 function buildViewportSnippet(
   url: string,
@@ -153,9 +170,9 @@ function EmbedInfo() {
             Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Die Höhe passt sich automatisch dem Inhalt an (per <code>postMessage</code>). Der Wert <code>height:480px</code> im Snippet ist nur ein Fallback und kann beliebig verändert werden; zusätzlich lässt sich der Rahmen über die untere rechte Ecke per Maus vergrößern (<code>resize:vertical</code>).
+            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Ohne Vorschaubild: beim Laden ist nur ein dezenter blauer Hintergrund sichtbar, bis die Prognose erscheint. Die Höhe passt sich automatisch dem Inhalt an (per <code>postMessage</code>). Der Wert <code>height:480px</code> im Snippet ist nur ein Fallback und kann beliebig verändert werden; zusätzlich lässt sich der Rahmen über die untere rechte Ecke per Maus vergrößern (<code>resize:vertical</code>).
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal", "region", "/karten/region", 480)} />
+          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal", null, "/karten/region", 480)} />
         </section>
 
         <section className="space-y-6">
