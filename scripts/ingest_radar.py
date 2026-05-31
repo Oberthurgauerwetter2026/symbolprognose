@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v17-mch-reset"
+RADAR_INGEST_VERSION = "v18-mch-faint-fix"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -74,7 +74,7 @@ RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 # auf meteoschweiz.ch; die finale Deckkraft wird per Leaflet-`opacity`
 # einmalig im Frontend gesetzt.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.1,   (200, 220, 245,  90)),   # sehr leicht — bewusst halbtransparent
+    (0.1,   (170, 205, 240, 220)),   # sehr leicht — klar sichtbar wie bei MCH/SRF
     (0.3,   (140, 185, 230, 255)),   # hell blau
     (1.0,   ( 60, 110, 200, 255)),   # blau
     (3.0,   ( 50, 165,  80, 255)),   # grün

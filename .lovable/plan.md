@@ -1,46 +1,40 @@
-# Prognose +24 h & flüssigere Animation
+# Leichten Niederschlag sichtbar wie bei MCH/SRF
 
-## 1. Prognosezeitraum auf 24 h reduzieren
+## Ursache (kurz)
 
-`src/lib/radar.functions.ts`
+Unterstes Band `0.1–0.3 mm/h` ist mit Alpha 90/255 fast unsichtbar. Multipliziert mit Overlay-Opacity `0.85` bleibt effektive Deckkraft ~30 %. Resultat: leichter Regen verschwindet, obwohl Daten identisch zu MCH/SRF sind. Gilt für Messung (PNG) und Prognose (Canvas), weil beide dieselbe Skala nutzen.
 
-- `forecastCutoff = now + 24 * 3600 * 1000` (statt 48 h).
-- ICON-CH1 (minutely_15) deckt 0…+24 h vollständig ab → liefert wie gehabt alle 15-min-Frames bis zum Cutoff.
-- ICON-CH2-Block (hourly, +33…+48 h) komplett entfernen — wird durch den 24-h-Cutoff überflüssig und vereinfacht den Übergang Messung → Prognose.
-- Doc-Kommentar oben (Zeile 11–20) anpassen: nur noch ICON-CH1, Horizon +24 h.
-- `RadarFrame.source`-Type: `"icon-ch2"` darf bleiben (keine Breaking-Change im Typ), wird aber faktisch nicht mehr erzeugt. `sourceLabel` in `radar-map.tsx` bleibt unverändert.
-- Logging anpassen: `[radar] forecast: ch1=…` (kein `ch2` mehr).
+## Änderungen
 
-Ergebnis: Timeline reicht ab Beginn der Messungs-Lookback (~−6 h) bis +24 h, kein Sprung mehr zwischen Minutely- und Hourly-Prognose.
+### 1. `scripts/ingest_radar.py` — Messung (PNG)
 
-## 2. Flüssigere Playback-Animation
+`PRECIP_SCALE` unterstes Band kräftiger:
+```
+0.1–0.3   (170, 205, 240, 220)   # statt (200,220,245, 90)
+```
+Alle anderen Bänder unverändert (RGB + alpha=255). Version-Tag auf `v18-mch-faint-fix` → triggert Purge der alten v17-PNGs beim nächsten Run.
 
-`src/components/maps/radar-map.tsx`
+### 2. `.github/workflows/radar-ingest.yml`
 
-### a) Cross-Fade auch für Messungs-PNGs
+`EXPECTED_RADAR_INGEST_VERSION: "v18-mch-faint-fix"`.
 
-Aktuell wird nur zwischen Canvas-Forecast-Frames weichgeblendet (`blendNext`); PNG-Frames (echte MCH-Messung) wechseln hart. Für die Playback-Glättung:
+### 3. `src/components/maps/radar-map.tsx` — Prognose (Canvas)
 
-- Zweites `<ImageOverlay>` für `nextFrame.precipUrl` mit `opacity = opacityVal * progress` über das aktuelle legen.
-- Aktuelles Overlay opacity entsprechend von `opacityVal` auf `opacityVal * (1 - progress)` herunterfahren.
-- Wirkt für Messung **und** Forecast — kein hartes Springen mehr beim Frame-Wechsel.
+`SCALE` 1:1 synchron:
+```ts
+{ mmh: 0.1, rgb: [170, 205, 240], a: 220/255 }
+```
+Da `colorFor()` von Messung und Forecast geteilt wird, ist damit auch der Canvas-Forecast bei leichtem Regen so kräftig wie bei MCH/SRF — kein zusätzlicher Codepfad nötig.
 
-### b) Playback-Tempo angleichen
+Overlay-Opacity bleibt `0.85` (Reliefkontrast erhalten).
 
-- `FRAME_MS` von `600/speed` auf `750/speed` (15-min-Frame langsamer = weniger ruckelig in der Wahrnehmung; Cross-Fade hat mehr Zeit zu wirken).
-- Speed-Default bleibt `1×`.
+### Verifikation
 
-### c) Slider/Bubble-Update entkoppeln (optional, gering)
+- Nächsten Ingest-Lauf (5 Min via Cron) abwarten.
+- Frame mit leichtem Regen gegen `meteoschweiz.admin.ch` und `srf.ch/meteo/radar` vergleichen → das hellblaue Band muss klar zu sehen sein.
 
-- Slider-Position folgt schon `progress` glatt; nichts zu tun.
+### Nicht im Umfang
 
-## Nicht im Umfang
+- Schwellen (0.1 / 0.3 / 1 / 3 / 10 / 30 / 60 / 100), Schnee, Hagel, Timeline, Cross-Fade — alle unverändert.
 
-- Farbskala, Ingest, MCH-Sync bleiben wie nach dem v17-Reset.
-- Schnee/Hagel-Layer unverändert.
-- Keine Änderung an Cron, R2, Ingest-Workflow.
-
-## Dateien
-
-- `src/lib/radar.functions.ts` — `forecastCutoff`, ICON-CH2-Block entfernen, Doc.
-- `src/components/maps/radar-map.tsx` — `FRAME_MS`, PNG-Cross-Fade über zweites `ImageOverlay`.
+**Dateien:** `scripts/ingest_radar.py`, `.github/workflows/radar-ingest.yml`, `src/components/maps/radar-map.tsx`.

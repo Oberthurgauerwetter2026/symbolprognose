@@ -64,7 +64,7 @@ function cityIcon(name: string): L.DivIcon {
 // identisch aussehen. Alpha hier 0..1; die finale Deckkraft setzt die
 // einheitliche ImageOverlay-/Canvas-`opacity` im Frontend.
 const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1,   rgb: [200, 220, 245], a:  90 / 255 },
+  { mmh: 0.1,   rgb: [170, 205, 240], a: 220 / 255 },
   { mmh: 0.3,   rgb: [140, 185, 230], a: 255 / 255 },
   { mmh: 1,     rgb: [ 60, 110, 200], a: 255 / 255 },
   { mmh: 3,     rgb: [ 50, 165,  80], a: 255 / 255 },
