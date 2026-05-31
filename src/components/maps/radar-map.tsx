@@ -83,7 +83,8 @@ function colorFor(mmh: number): [number, number, number, number] {
       break;
     }
   }
-  return [band.rgb[0], band.rgb[1], band.rgb[2], isTop ? 0.95 : 0.9];
+  return [band.rgb[0], band.rgb[1], band.rgb[2], 0.92];
+  void isTop;
 }
 
 
