@@ -1,6 +1,6 @@
-import { Map as MapIcon, MapPin, Wind, CloudRain, Flower2, type LucideIcon } from "lucide-react";
+import { Map as MapIcon, MapPin, Wind, CloudRain, Flower2, Droplets, type LucideIcon } from "lucide-react";
 
-export type MapId = "region" | "lokal" | "wind" | "radar" | "pollen";
+export type MapId = "region" | "lokal" | "wind" | "radar" | "pollen" | "niederschlag";
 
 export interface MapDefinition {
   id: MapId;
@@ -8,9 +8,16 @@ export interface MapDefinition {
   shortLabel: string;
   description: string;
   icon: LucideIcon;
-  routePath: "/karten/region" | "/karten/lokal" | "/karten/wind" | "/karten/radar" | "/karten/pollen";
-  embedPath: "/embed/region" | "/embed/lokal" | "/embed/wind" | "/embed/radar" | "/embed/pollen";
+  routePath:
+    | "/karten/region"
+    | "/karten/lokal"
+    | "/karten/wind"
+    | "/karten/radar"
+    | "/karten/pollen"
+    | "/intern/niederschlag";
+  embedPath?: "/embed/region" | "/embed/lokal" | "/embed/wind" | "/embed/radar" | "/embed/pollen";
   status: "live" | "coming-soon";
+  internal?: boolean;
 }
 
 export const MAPS: MapDefinition[] = [
@@ -63,6 +70,16 @@ export const MAPS: MapDefinition[] = [
     routePath: "/karten/pollen",
     embedPath: "/embed/pollen",
     status: "coming-soon",
+  },
+  {
+    id: "niederschlag",
+    label: "Niederschlagssummen",
+    shortLabel: "Niederschlag",
+    description: "Akkumulierter Niederschlag der letzten Stunden – stündliche Aktualisierung. Passwortgeschützt.",
+    icon: Droplets,
+    routePath: "/intern/niederschlag",
+    status: "live",
+    internal: true,
   },
 ];
 

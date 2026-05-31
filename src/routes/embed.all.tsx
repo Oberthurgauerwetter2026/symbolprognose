@@ -31,7 +31,7 @@ function EmbedAll() {
         href="https://symbolprognose.lovable.app/karten/region"
       />
       <div className="no-scrollbar -mx-1 mb-4 flex gap-1 overflow-x-auto rounded-full bg-muted p-1">
-        {MAPS.map((m) => {
+        {MAPS.filter((m) => !m.internal).map((m) => {
           const Icon = m.icon;
           const isActive = m.id === active;
           return (
