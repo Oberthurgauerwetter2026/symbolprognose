@@ -860,7 +860,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
       setProgress(0);
       return;
     }
-    const FRAME_MS = 600 / speed;
+    const FRAME_MS = 750 / speed;
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
@@ -886,11 +886,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
   const nextFrame =
-    idx !== null && playing && currentFrame && !currentFrame.precipUrl
+    idx !== null && playing && currentFrame
       ? frames[(idx + 1) % frames.length] ?? null
       : null;
-  // Nur zwischen gleichartigen Canvas-Frames cross-faden (nicht zwischen PNG-Frames).
-  const blendNext = nextFrame && !nextFrame.precipUrl ? nextFrame : null;
+  // Cross-Fade Canvas↔Canvas (Forecast) bzw. PNG↔PNG (Messung).
+  const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
+  const blendNextPng = nextFrame && nextFrame.precipUrl && currentFrame?.precipUrl ? nextFrame : null;
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
@@ -997,8 +998,21 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                         [ib.minLat, ib.minLon],
                         [ib.maxLat, ib.maxLon],
                       ]}
-                      opacity={opacityVal}
+                      opacity={blendNextPng ? opacityVal * (1 - progress) : opacityVal}
                       zIndex={460}
+                      className="mch-precip"
+                    />
+                  )}
+                  {hasPng && blendNextPng && (
+                    <ImageOverlay
+                      key={`precip-next-${blendNextPng.t}`}
+                      url={blendNextPng.precipUrl!}
+                      bounds={[
+                        [ib.minLat, ib.minLon],
+                        [ib.maxLat, ib.maxLon],
+                      ]}
+                      opacity={opacityVal * progress}
+                      zIndex={461}
                       className="mch-precip"
                     />
                   )}
