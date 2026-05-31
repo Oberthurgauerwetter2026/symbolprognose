@@ -414,38 +414,21 @@ function PrecipOverlay({
         const inY1 = y1 >= 0 && y1 < nLat;
         if (!inX0 && !inX1) continue;
         if (!inY0 && !inY1) continue;
-        // 9-Tap Gauss-Sampling über 3×3 Grid-Nachbarschaft → glättet das
-        // grobe ICON-CH1-Grid räumlich, vermeidet quadratische Iso-Konturen.
-        const GAUSS = [
-          [1 / 16, 2 / 16, 1 / 16],
-          [2 / 16, 4 / 16, 2 / 16],
-          [1 / 16, 2 / 16, 1 / 16],
-        ];
+        // Reine bilineare Interpolation — kein zusätzliches Gauss-Blur,
+        // damit lokale Niederschlagsspitzen kräftig erhalten bleiben (näher an
+        // MeteoSchweiz/SRF-Optik). Räumliche Glättung kommt allein aus dem
+        // einmaligen ctx.imageSmoothing beim Upscale des Off-Screen-Buffers.
         const sample = (arr: number[]) => {
-          let acc = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const sx = x0 + dx;
-              const sy = y0 + dy;
-              const sx1 = sx + 1;
-              const sy1 = sy + 1;
-              const iX0 = sx >= 0 && sx < nLon;
-              const iX1 = sx1 >= 0 && sx1 < nLon;
-              const iY0 = sy >= 0 && sy < nLat;
-              const iY1 = sy1 >= 0 && sy1 < nLat;
-              const v00 = iX0 && iY0 ? arr[sy * nLon + sx] : 0;
-              const v01 = iX1 && iY0 ? arr[sy * nLon + sx1] : 0;
-              const v10 = iX0 && iY1 ? arr[sy1 * nLon + sx] : 0;
-              const v11 = iX1 && iY1 ? arr[sy1 * nLon + sx1] : 0;
-              const bil =
-                v00 * (1 - tx) * (1 - ty) +
-                v01 * tx * (1 - ty) +
-                v10 * (1 - tx) * ty +
-                v11 * tx * ty;
-              acc += bil * GAUSS[dy + 1][dx + 1];
-            }
-          }
-          return acc;
+          const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+          const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+          const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+          const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+          return (
+            v00 * (1 - tx) * (1 - ty) +
+            v01 * tx * (1 - ty) +
+            v10 * (1 - tx) * ty +
+            v11 * tx * ty
+          );
         };
         const vCur = sample(vals);
         const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
