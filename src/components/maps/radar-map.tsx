@@ -1054,11 +1054,6 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 {fmtTime(currentFrame.t)}
               </span>
             )}
-            {currentFrame?.sourceT && currentFrame.sourceT !== currentFrame.t && (
-              <span className="rounded-md bg-card/95 px-2.5 py-1 text-[11px] font-medium text-muted-foreground shadow-md">
-                Bildbasis: {fmtTime(currentFrame.sourceT)}
-              </span>
-            )}
           </div>
         )}
 
