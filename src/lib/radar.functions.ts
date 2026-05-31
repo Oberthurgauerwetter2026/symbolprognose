@@ -336,35 +336,10 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     }
   }
 
-  // ---- Prognose: ICON-CH2 (hourly, +33…+48 h) ----
-  const ref1Hourly = r1 ? (r1[0] as LocResponse | undefined)?.hourly : undefined;
-  let ch1LastMs = -Infinity;
-  for (const f of frames) {
-    if (f.source === "icon-ch1") {
-      const ms = Date.parse(f.t);
-      if (ms > ch1LastMs) ch1LastMs = ms;
-    }
-  }
-  let ch2Count = 0;
-  if (ref1Hourly && r1 && Array.isArray(ref1Hourly.precipitation)) {
-    for (let ti = 0; ti < ref1Hourly.time.length; ti++) {
-      const tIso = ref1Hourly.time[ti] + "Z";
-      const tMs = Date.parse(tIso);
-      if (tMs <= now) continue;
-      if (tMs <= ch1LastMs) continue;
-      if (tMs > forecastCutoff) continue;
-      const values: number[] = new Array(pts.length);
-      for (let pi = 0; pi < pts.length; pi++) {
-        const v = (r1[pi] as LocResponse | undefined)?.hourly?.precipitation?.[ti];
-        values[pi] = typeof v === "number" ? v : 0;
-      }
-      frames.push({ t: tIso, source: "icon-ch2", values });
-      ch2Count++;
-    }
-  }
+  // ICON-CH2 (hourly, +33…+48 h) wurde mit Cutoff-Reduktion auf +24 h entfernt.
 
   const ch1Count = frames.filter((f) => f.source === "icon-ch1").length;
-  console.info(`[radar] forecast: ch1=${ch1Count}, ch2=${ch2Count}`);
+  console.info(`[radar] forecast: ch1=${ch1Count}`);
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
