@@ -639,11 +639,6 @@ def write_manifest(s3) -> None:
         "version": RADAR_INGEST_VERSION,
         "frames": sorted_frames,
     }
-    if motion is not None:
-        body["motion"] = motion
-    else:
-        # Sichtbar machen, dass dieser Run kein Motion-Result hatte (statt Key wegzulassen).
-        body["motion"] = {"_empty": True, "reason": "compute_motion returned None"}
     if not sorted_frames:
         body["warning"] = "current ingest produced no usable radar PNG frames"
     s3.put_object(
@@ -653,10 +648,7 @@ def write_manifest(s3) -> None:
         ContentType="application/json",
         CacheControl="public, max-age=30",
     )
-    print(
-        f"manifest: {len(sorted_frames)} frames, motion={'yes' if motion else 'no'}",
-        flush=True,
-    )
+    print(f"manifest: {len(sorted_frames)} frames", flush=True)
 
 
 def main() -> int:
