@@ -522,9 +522,12 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
     const label =
       frame.motionSource === "wind"
         ? "Nowcast (Wind-Fallback)"
-        : "Nowcast Radar-Extrapolation";
+        : frame.motionSource === "radar-field"
+          ? "Nowcast Optical-Flow"
+          : "Nowcast Radar-Extrapolation";
     return { label, color: "#d97706" };
   }
+
   if (frame.source === "icon-ch1") {
     return { label: "MeteoSchweiz ICON-CH1", color: BRAND };
   }
