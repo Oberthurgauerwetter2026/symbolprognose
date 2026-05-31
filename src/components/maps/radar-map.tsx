@@ -58,17 +58,20 @@ function cityIcon(name: string): L.DivIcon {
 }
 
 
-// Niederschlags-Farbskala (mm/h) — MeteoSchweiz-CombiPrecip-Legende.
-// Gleiche Stufen für Messung (PNG) und Prognose (Canvas).
+// Niederschlags-Farbskala (mm/h) — MeteoSchweiz-CombiPrecip-Reset.
+// MUSS exakt zu PRECIP_SCALE in scripts/ingest_radar.py passen
+// (gleiche Schwellen + RGBA), damit Messung-PNG und Forecast-Canvas
+// identisch aussehen. Alpha hier 0..1; die finale Deckkraft setzt die
+// einheitliche ImageOverlay-/Canvas-`opacity` im Frontend.
 const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1, rgb: [165, 215, 245], a: 40 / 255 },
-  { mmh: 0.3, rgb: [90, 165, 230], a: 230 / 255 },
-  { mmh: 1, rgb: [30, 80, 200], a: 230 / 255 },
-  { mmh: 3, rgb: [40, 170, 70], a: 230 / 255 },
-  { mmh: 10, rgb: [245, 220, 40], a: 230 / 255 },
-  { mmh: 30, rgb: [240, 140, 30], a: 230 / 255 },
-  { mmh: 60, rgb: [220, 30, 30], a: 230 / 255 },
-  { mmh: 100, rgb: [160, 30, 180], a: 242 / 255 },
+  { mmh: 0.1,   rgb: [200, 220, 245], a:  90 / 255 },
+  { mmh: 0.3,   rgb: [140, 185, 230], a: 255 / 255 },
+  { mmh: 1,     rgb: [ 60, 110, 200], a: 255 / 255 },
+  { mmh: 3,     rgb: [ 50, 165,  80], a: 255 / 255 },
+  { mmh: 10,    rgb: [245, 220,  55], a: 255 / 255 },
+  { mmh: 30,    rgb: [240, 140,  35], a: 255 / 255 },
+  { mmh: 60,    rgb: [220,  40,  40], a: 255 / 255 },
+  { mmh: 100,   rgb: [170,  40, 180], a: 255 / 255 },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -81,8 +84,6 @@ function colorFor(mmh: number): [number, number, number, number] {
       break;
     }
   }
-  // Alpha exakt wie in scripts/ingest_radar.py PRECIP_SCALE → identische Optik
-  // zwischen Messungs-PNG und Forecast-Canvas.
   return [band.rgb[0], band.rgb[1], band.rgb[2], band.a];
 }
 
