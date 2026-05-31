@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      EXPECTED_RADAR_INGEST_VERSION: "v10-cpc-quantity-fix"
+      EXPECTED_RADAR_INGEST_VERSION: "v11-cpc-tz-fix"
       RADAR_LOOKBACK_HOURS: "6"
     steps:
       - uses: actions/checkout@v4
