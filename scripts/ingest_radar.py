@@ -1163,6 +1163,32 @@ def main() -> int:
     now = datetime.now(tz=timezone.utc)
     since = now - timedelta(hours=LOOKBACK)
 
+    # Versions-Migration: wenn das bestehende Manifest eine alte INGEST-Version
+    # hat, sind alle bisherigen PNGs möglicherweise unter falsch abgeleiteten
+    # Dateinamens-Zeitstempeln gespeichert. Einmaliges Purge, damit der neue
+    # Run direkt mit sauberen, aus H5-Metadaten abgeleiteten Zeiten startet.
+    try:
+        existing = s3.get_object(Bucket=BUCKET, Key="radar/frames.json")
+        existing_body = json.loads(existing["Body"].read().decode("utf-8"))
+        existing_version = existing_body.get("version")
+        if existing_version != RADAR_INGEST_VERSION:
+            print(
+                f"version migration: {existing_version!r} → {RADAR_INGEST_VERSION!r}; "
+                f"purging old radar/*.png objects",
+                flush=True,
+            )
+            paginator = s3.get_paginator("list_objects_v2")
+            purged = 0
+            for product in COLLECTIONS:
+                for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
+                    for obj in page.get("Contents", []) or []:
+                        s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
+                        purged += 1
+            print(f"  purged {purged} old radar PNG objects", flush=True)
+    except Exception as exc:
+        print(f"version migration: no existing manifest or purge failed ({exc!r})", flush=True)
+
+
     processed = 0
     skipped_existing = 0
     failed: dict[str, list[str]] = {p: [] for p in COLLECTIONS}
