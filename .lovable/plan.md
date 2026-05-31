@@ -1,40 +1,33 @@
-# Messung & Prognose visuell angleichen
+# Blob-Rendering für Messung & Prognose
 
-## Ursache
+Umsetzung von Variante A + B (ohne Blur auf der Prognose-Canvas).
 
-Die RGBA-Werte in `SCALE` (Forecast) und `PRECIP_SCALE` (Messungs-PNG) sind seit dem letzten Turn exakt gleich. Die sichtbare Differenz kommt **nicht** aus der Palette, sondern aus zwei nachgelagerten Frontend-Effekten:
+## Änderungen
 
-1. **CSS-Filter nur auf der Messung** (`src/styles.css`):
-   ```css
-   .mch-precip { filter: saturate(1.5) contrast(1.25); }
-   ```
-   Die MCH-PNGs werden im Browser noch um +50% Sättigung und +25% Kontrast verschoben → kräftigere, dunklere Farben. Die Prognose-Canvas hat `filter: none` und bleibt bei den Rohpalettenwerten → wirkt blasser.
+### 1) `src/components/maps/radar-map.tsx`, Zeile 461
 
-2. **Opacity-Unterschied** (`src/components/maps/radar-map.tsx`, ~Zeile 956):
-   ```ts
-   const opacityVal = isForecast ? 0.75 : 1;
-   ```
-   Forecast wird zusätzlich mit 0.75 multipliziert, Messung mit 1.0. Schon allein das macht die Forecast-Farben ~25% transparenter und damit heller über dem Basemap.
+```ts
+ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = "high";
+ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+```
 
-## Fix
+Statt Nearest-Neighbor wird der low-res Buffer bilinear hochskaliert → runde, weiche Iso-Bänder bei der Prognose.
 
-Damit Messung und Prognose visuell identisch erscheinen, beide Effekte entfernen:
+### 2) `src/styles.css`, `.mch-precip`
 
-### A) `src/styles.css`
-- `.mch-precip { filter: saturate(1.5) contrast(1.25); }` → Regel entfernen (oder `filter: none`).
+```css
+.mch-precip {
+  filter: blur(2.5px) saturate(1.05);
+}
+```
 
-### B) `src/components/maps/radar-map.tsx`
-- `const opacityVal = isForecast ? 0.75 : 1;` → `const opacityVal = 1;`.
-
-Beides zusammen: gleiche Palette × gleiches Alpha × gleiche Opacity × kein Filter → Messung und Prognose zeigen identische Farbe pro mm/h-Band.
+Leichter Blur verschmilzt die 1-km-Pixel der MCH-PNGs zu Blobs; `saturate(1.05)` kompensiert minimalen Kontrastverlust.
 
 ## Nicht geändert
-
-- `SCALE` / `colorFor` (bereits exakt).
-- `PRECIP_SCALE` in `scripts/ingest_radar.py` (bereits exakt).
-- Animation / Smoothstep / STEP=2 aus letztem Turn.
+- `SCALE` / `PRECIP_SCALE` / `colorFor` → Farbskala bleibt identisch zwischen Messung und Prognose.
+- Animation, Smoothstep, STEP=2, `opacityVal = 1`.
 
 ## Dateien
-
-- `src/styles.css`
 - `src/components/maps/radar-map.tsx`
+- `src/styles.css`
