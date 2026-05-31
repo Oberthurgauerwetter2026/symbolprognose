@@ -31,6 +31,12 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
+from zoneinfo import ZoneInfo
+
+# MeteoSchweiz CPC/POH STAC-Dateinamen sind in Europe/Zurich Lokalzeit
+# (DST-aware) angegeben, nicht in UTC. Ohne diese Umrechnung ergibt sich
+# im Sommer ein 1-h-Versatz gegenüber der MCH-Niederschlagskarte.
+MCH_FILENAME_TZ = ZoneInfo("Europe/Zurich")
 
 import boto3
 import h5py
