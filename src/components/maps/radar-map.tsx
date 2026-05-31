@@ -570,7 +570,13 @@ function fmtBubble(d: Date, frame: RadarFrame | null): string {
       : isForecast
         ? "Prognose"
         : "Messung";
-  return `${kind}: ${wd}, ${hh}:${mm}`;
+  // Bei aktueller Messung: Alter sichtbar machen, damit Latenz nicht verschleiert wird.
+  let suffix = "";
+  if (frame?.source === "radar") {
+    const ageMin = Math.round((now - d.getTime()) / 60000);
+    if (ageMin >= 2) suffix = ` (vor ${ageMin} min)`;
+  }
+  return `${kind}: ${wd}, ${hh}:${mm}${suffix}`;
 }
 
 function MeteoTimeline({
