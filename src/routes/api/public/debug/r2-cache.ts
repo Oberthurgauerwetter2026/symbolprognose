@@ -42,7 +42,11 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
         if (base) {
           try {
             const trimmed = base.replace(/\/+$/, "");
-            const url = `${trimmed.replace(/\/radar\/?$/i, "")}/radar/frames.json`;
+            // R2_PUBLIC_URL kann entweder Basis-URL oder bereits die volle
+            // .../radar/frames.json sein — beide Varianten korrekt behandeln.
+            const url = /\/radar\/frames\.json$/i.test(trimmed)
+              ? trimmed
+              : `${trimmed.replace(/\/radar\/?$/i, "")}/radar/frames.json`;
             const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
             if (res.ok) {
               const m = (await res.json()) as {
@@ -64,7 +68,9 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               const conf = f?.conf ?? [];
               const precipFrames = frames.filter((x) => x.precipUrl && x.t);
               const latestPrecip = precipFrames[precipFrames.length - 1]?.t ?? null;
+              const latestPrecipUrl = precipFrames[precipFrames.length - 1]?.precipUrl ?? null;
               radar = {
+                manifestUrl: url,
                 generatedAt: m.generatedAt,
                 version: m.version ?? null,
                 ageSeconds: m.generatedAt
@@ -74,6 +80,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
                 withPrecip: precipFrames.length,
                 withHail: frames.filter((x) => x.hailUrl).length,
                 latestPrecipTs: latestPrecip,
+                latestPrecipUrl,
                 latestPrecipAgeMin: latestPrecip
                   ? Math.round((Date.now() - Date.parse(latestPrecip)) / 60000)
                   : null,
@@ -91,7 +98,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
                   : null,
               };
             } else {
-              radar = { error: `manifest fetch ${res.status}` };
+              radar = { error: `manifest fetch ${url} -> ${res.status}` };
             }
           } catch (e) {
             radar = { error: (e as Error).message };
