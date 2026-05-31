@@ -522,6 +522,136 @@ def _phase_correlation(a: np.ndarray, b: np.ndarray) -> tuple[float, float, floa
     return dx_px, dy_px, conf
 
 
+# --- Optical-Flow: tile-based phase correlation ---------------------------
+# Liefert ein Bewegungsfeld statt eines einzelnen globalen Vektors. Pro
+# Kachel wird die Phasenkorrelation eigenständig ausgewertet; Kacheln ohne
+# Niederschlag oder mit zu niedriger SNR werden verworfen.
+
+TILE_PX = 128
+TILE_STRIDE = 64
+TILE_MIN_WET = 0.05      # Anteil "nasser" Pixel in der Kachel
+TILE_MIN_CONF = 0.15
+TILE_MAX_SHIFT_PX = 32   # plausibler Maximum-Shift pro Frame-Paar
+
+
+def _phase_correlation_tiles(
+    a: np.ndarray, b: np.ndarray
+) -> list[tuple[int, int, float, float, float, float]]:
+    """Returns list of (cx_px, cy_px, dx_px, dy_px, conf, wet_frac) per tile.
+
+    cx/cy = Kachelmittelpunkt in Bildpixeln (Web-Mercator-Raster OUT_W×OUT_H).
+    dx_px > 0 → Ost-Bewegung, dy_px > 0 → Süd-Bewegung (Y-Achse nach unten).
+    """
+    a = np.nan_to_num(a, nan=0.0).astype(np.float32)
+    b = np.nan_to_num(b, nan=0.0).astype(np.float32)
+    h, w = a.shape
+    if h < TILE_PX or w < TILE_PX:
+        return []
+    win = np.hanning(TILE_PX)[:, None] * np.hanning(TILE_PX)[None, :]
+    out: list[tuple[int, int, float, float, float, float]] = []
+    for y in range(0, h - TILE_PX + 1, TILE_STRIDE):
+        for x in range(0, w - TILE_PX + 1, TILE_STRIDE):
+            ta = a[y : y + TILE_PX, x : x + TILE_PX]
+            tb = b[y : y + TILE_PX, x : x + TILE_PX]
+            cx = x + TILE_PX // 2
+            cy = y + TILE_PX // 2
+            wet = float(np.mean((ta > 0.1) | (tb > 0.1)))
+            if wet < TILE_MIN_WET:
+                out.append((cx, cy, 0.0, 0.0, 0.0, wet))
+                continue
+            ta_d = ta - ta.mean()
+            tb_d = tb - tb.mean()
+            A = np.fft.fft2(ta_d * win)
+            B = np.fft.fft2(tb_d * win)
+            R = np.conj(A) * B
+            R /= np.abs(R) + 1e-10
+            c = np.fft.ifft2(R).real
+            peak = np.unravel_index(int(np.argmax(c)), c.shape)
+            py, px_ = int(peak[0]), int(peak[1])
+            if py > TILE_PX // 2:
+                py -= TILE_PX
+            if px_ > TILE_PX // 2:
+                px_ -= TILE_PX
+            if abs(px_) > TILE_MAX_SHIFT_PX or abs(py) > TILE_MAX_SHIFT_PX:
+                out.append((cx, cy, 0.0, 0.0, 0.0, wet))
+                continue
+            peak_v = float(c.max())
+            mean_v = float(c.mean())
+            std_v = float(c.std()) + 1e-10
+            snr = (peak_v - mean_v) / std_v
+            conf = float(max(0.0, min(1.0, snr / 60.0)))
+            out.append((cx, cy, float(px_), float(py), conf, wet))
+    return out
+
+
+def _load_wind_prior(now: datetime) -> tuple[float, float] | None:
+    """700-hPa-Wind aus openmeteo/forecast.json (R2-Cache), in m/s als (u, v).
+
+    Konvention: u > 0 → Strömung nach Osten, v > 0 → Strömung nach Norden.
+    Wird im Tile-Feld als Prior eingemischt — datenarme Kacheln driften so
+    Richtung Wind, statt 0 zu bleiben.
+    """
+    if not BUCKET:
+        return None
+    try:
+        s3 = make_s3()
+        obj = s3.get_object(Bucket=BUCKET, Key="openmeteo/forecast.json")
+        payload = json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception as exc:
+        print(f"wind-prior: cache fetch failed: {exc!r}", flush=True)
+        return None
+    grid = payload.get("grid", {}).get("points") or []
+    locs = payload.get("locations") or payload.get("forecasts") or []
+    if not grid or not locs:
+        return None
+    mid_lat = (BBOX_WGS["minLat"] + BBOX_WGS["maxLat"]) / 2
+    mid_lon = (BBOX_WGS["minLon"] + BBOX_WGS["maxLon"]) / 2
+    best_i = -1
+    best_d = float("inf")
+    for i, p in enumerate(grid):
+        try:
+            d = (p["lat"] - mid_lat) ** 2 + (p["lon"] - mid_lon) ** 2
+        except Exception:
+            continue
+        if d < best_d:
+            best_d = d
+            best_i = i
+    if best_i < 0 or best_i >= len(locs):
+        return None
+    hourly = (locs[best_i] or {}).get("hourly") or {}
+    times = hourly.get("time") or []
+    sp = hourly.get("wind_speed_700hPa") or []
+    di = hourly.get("wind_direction_700hPa") or []
+    if not times or not sp or not di:
+        return None
+    target_ms = now.timestamp() * 1000.0
+    hi = -1
+    for i, t in enumerate(times):
+        try:
+            tms = datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp() * 1000.0
+        except Exception:
+            continue
+        if tms <= target_ms:
+            hi = i
+        else:
+            break
+    if hi < 0:
+        return None
+    try:
+        speed_kmh = float(sp[hi])
+        direction = float(di[hi])  # meteorologisch: woher der Wind kommt
+    except Exception:
+        return None
+    speed_ms = speed_kmh * 1000.0 / 3600.0
+    rad = np.radians(direction)
+    # Wind weht von dir → Strömung in Gegenrichtung. u/v positiv = Ost/Nord.
+    u_ms = -speed_ms * float(np.sin(rad))
+    v_ms = -speed_ms * float(np.cos(rad))  # +Nord; SVG-Y invertiert wird im Feld behandelt
+    # Pixel-Konvention: dx_px > 0 → Ost, dy_px > 0 → Süd. Daher Y-Achse flippen.
+    return u_ms, -v_ms  # zweiter Wert ist „v in Pixel-Y-Richtung" = nach Süden positiv
+
+
+
 def compute_motion(precip_assets: list[AssetRef]) -> dict | None:
     """Mean precipitation-cell motion + growth/decay trend.
 
