@@ -18,6 +18,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
         // Radar-Manifest spiegeln, damit motion.field-Status sofort sichtbar ist.
         let radar:
           | {
+              manifestUrl?: string;
               generatedAt?: string;
               version?: string | null;
               ageSeconds?: number | null;
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               withPrecip?: number;
               withHail?: number;
               latestPrecipTs?: string | null;
+              latestPrecipUrl?: string | null;
               latestPrecipAgeMin?: number | null;
               motionKeys?: string[];
               motionEmpty?: unknown;
