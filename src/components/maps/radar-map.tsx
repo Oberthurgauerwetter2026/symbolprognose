@@ -75,16 +75,14 @@ function colorFor(mmh: number): [number, number, number, number] {
   // Quantisierte harte Bänder — gibt scharfe Iso-Konturen wie auf MCH-CombiPrecip.
   if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
   let band = SCALE[0];
-  let isTop = false;
   for (let i = SCALE.length - 1; i >= 0; i--) {
     if (mmh >= SCALE[i].mmh) {
       band = SCALE[i];
-      isTop = i === SCALE.length - 1;
       break;
     }
   }
+  // Konstantes Alpha über alle Bänder → klare Kanten, kein Glow am Top-Band.
   return [band.rgb[0], band.rgb[1], band.rgb[2], 0.92];
-  void isTop;
 }
 
 
