@@ -541,15 +541,30 @@ def _to_mmh(values: np.ndarray, meta: dict, product: str) -> tuple[np.ndarray, s
 
 
 def process_asset(s3, asset: AssetRef) -> str | None:
-    """Download → reproject → render → upload. Returns object key or None."""
-    ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
-    key = f"radar/{asset.product}/{ts_iso}.png"
-    if head_exists(s3, key):
-        return key
+    """Download → reproject → render → upload. Returns object key or None.
+
+    WICHTIG: Der Bildzeitpunkt wird NICHT aus dem Dateinamen abgeleitet
+    (MCH-Filename-Schema ist nicht zuverlässig), sondern aus den H5-Metadaten
+    (`/dataset*/what` enddate/endtime bzw. `/what` date/time). Erst danach
+    wird der R2-Key gebildet. `asset.ts` (aus dem Filename) dient nur als
+    grobe Lookback-Heuristik beim STAC-Filtern.
+    """
     print(f"  fetching {asset.href}", flush=True)
     r = http_get(asset.href, timeout=60)
     r.raise_for_status()
     values, meta = read_h5_grid(r.content)
+    img_ts = meta.get("image_time")
+    if isinstance(img_ts, datetime):
+        if img_ts != asset.ts:
+            print(
+                f"  ts-correct: filename={asset.ts.isoformat()} → h5={img_ts.isoformat()}",
+                flush=True,
+            )
+        asset.ts = img_ts  # update so motion + manifest use the real time
+    ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
+    key = f"radar/{asset.product}/{ts_iso}.png"
+    if head_exists(s3, key):
+        return key
     converted, _applied = _to_mmh(values, meta, asset.product)
     cropped = sample_to_bbox(converted, meta)
     scale = PRECIP_SCALE if asset.product == "precip" else HAIL_SCALE
