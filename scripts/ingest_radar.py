@@ -178,9 +178,10 @@ def parse_ts_from_filename(name: str) -> datetime | None:
         h, mi = int(hh), int(mm)
         if not (0 <= h < 24 and 0 <= mi < 60 and 1 <= int(doy) <= 366):
             return None
-        return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(
+        naive_local = datetime(year, 1, 1) + timedelta(
             days=int(doy) - 1, hours=h, minutes=mi
         )
+        return naive_local.replace(tzinfo=MCH_FILENAME_TZ).astimezone(timezone.utc)
     except ValueError:
         return None
 
