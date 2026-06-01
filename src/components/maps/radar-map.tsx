@@ -325,14 +325,14 @@ function PrecipOverlay({
   nextFrame,
   progress,
   opacity = 1,
-  pixelated = false,
+  contour = false,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
   nextFrame?: RadarFrame | null;
   progress?: number;
   opacity?: number;
-  pixelated?: boolean;
+  contour?: boolean;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -349,8 +349,8 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = pixelated ? "none" : "blur(0.8px) contrast(2.2)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = pixelated ? "pixelated" : "auto";
+        cv.style.filter = contour ? "contrast(1.4)" : "blur(0.8px) contrast(2.2)";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -449,15 +449,6 @@ function PrecipOverlay({
         // MeteoSchweiz/SRF-Optik). Räumliche Glättung kommt allein aus dem
         // einmaligen ctx.imageSmoothing beim Upscale des Off-Screen-Buffers.
         const sample = (arr: number[]) => {
-          if (pixelated) {
-            // Nearest-Neighbor: nächstgelegene Grid-Zelle nehmen → Blöcke.
-            const xn = tx < 0.5 ? x0 : x1;
-            const yn = ty < 0.5 ? y0 : y1;
-            const inXN = xn >= 0 && xn < nLon;
-            const inYN = yn >= 0 && yn < nLat;
-            if (!inXN || !inYN) return 0;
-            return arr[yn * nLon + xn] ?? 0;
-          }
           const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
           const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
           const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
@@ -478,7 +469,10 @@ function PrecipOverlay({
           const sv = nextSnowVals ? lerp(svCur, sample(nextSnowVals)) : svCur;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
-        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : pixelated ? colorFor(v) : colorForSmooth(v);
+        // contour=true (Prognose): diskrete Stufen → sichtbare Iso-Bänder mit
+        // weichen Kurven aus dem bilinearen Skalarfeld. contour=false: weiche
+        // Farbverläufe (Messung-Canvas / Fallback).
+        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : contour ? colorFor(v) : colorForSmooth(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -502,7 +496,7 @@ function PrecipOverlay({
     // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = !pixelated;
+    ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
@@ -1016,7 +1010,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                       nextFrame={blendNext}
                       progress={progress}
                       opacity={opacityVal}
-                      pixelated={currentFrame.source !== "radar"}
+                      contour={currentFrame.source !== "radar"}
                     />
                   )}
                   {hasPng && (
