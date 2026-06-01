@@ -227,16 +227,16 @@ function MarkerPill({
           {mode === "daily" ? (
             <>
               <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
-                {Math.round(tMin)}°
+                {Number.isFinite(tMin) ? `${Math.round(tMin)}°` : "–"}
               </span>
               <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>/</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
-                {Math.round(tMax)}°
+                {Number.isFinite(tMax) ? `${Math.round(tMax)}°` : "–"}
               </span>
             </>
           ) : (
             <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
-              {Math.round(tNow)}°
+              {Number.isFinite(tNow) ? `${Math.round(tNow)}°` : "–"}
             </span>
           )}
         </div>
