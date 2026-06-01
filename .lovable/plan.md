@@ -1,17 +1,16 @@
-Ich habe gesehen: Die Icon-Komponente wurde zwar angepasst, aber die Tagesdaten selbst wählen weiterhin oft einen pessimistischen Tages-WMO-Code, weil die Aggregation den kategorialen Modus nimmt und bei Gleichstand die nassere Kategorie bevorzugt.
+Ich würde die Tagesicon-Logik an zwei Stellen nachschärfen:
 
-Plan:
+1. `src/lib/weather.ts`
+   - Die Tages-WMO-Auswahl nicht mehr rein über den „nasseren“ Modus entscheiden lassen.
+   - Für kurze Niederschlagsphasen mit Sonne gezielt einen Schauer-Code bevorzugen, statt `Drizzle/Regen` zu behalten.
+   - Gleichzeitig bei trockenen Tagen mit wenigen Wolken nicht automatisch `Sonne` wählen, sondern anhand von Wolkenanteil/Sonnenanteil eher `mostly clear` oder `partly cloudy` setzen.
 
-1. `src/lib/weather.ts` anpassen
-   - Die Tagesaggregation in `aggregateDailyFromHourly` so ändern, dass ein Tag mit Regen erst ab genügend Regenstunden oder relevanter Menge als Regen-/Schauertag dominiert.
-   - Bei Regen erst ab Nachmittag bzw. kurzen Schauern den Tagescode eher als Schauer statt Dauerregen behandeln.
-   - Bei mehreren trockenen/sonnigen Stunden den Tagescode nicht mehr allein durch ein paar nasse Stunden auf Regen kippen lassen.
+2. `src/components/weather-icons/index.tsx`
+   - Bei Tages-Wet-Codes (`51–67`, `80–82`) mit Sonne und begrenzten Niederschlagsstunden konsequent `IconSunShower` anzeigen.
+   - Reinen Regen/Drizzle nur zeigen, wenn Niederschlag den Tag wirklich prägt: viele Regenstunden, wenig Sonne oder größere Mengen.
+   - Den Sonnen-Override entschärfen: `code 2/3 + viel Sonne` darf nicht mehr zu `IconClear` werden, sondern maximal zu `IconMostlyClear` bzw. `IconPartlyCloudy`.
 
-2. `src/components/weather-icons/index.tsx` feinjustieren
-   - Die verbleibende Tages-Override-Schwelle bei `dayHasRain` ebenfalls von `0.3` auf `0.25` vereinheitlichen.
-   - Optional eine zusätzliche Regel ergänzen: kurzer Tagesregen + Sonne → `IconSunShower`, unabhängig davon, ob der Tages-WMO-Code schon nass ist.
-
-3. Ergebnis prüfen
-   - Sicherstellen, dass die Tageskacheln und Kartenmarker beide dieselbe Logik bekommen.
-   - Erwartung für Dienstag: nicht mehr reines Regen-/Drizzle-Symbol, sondern Schauer-mit-Sonne, wenn erst ab Nachmittag Regen fällt und vorher Sonne vorhanden ist.
-   - Dauerregen-Tage mit vielen Regenstunden und höherer Summe bleiben weiterhin Regen.
+3. Erwartetes Ergebnis
+   - „Sonne + Nachmittagsschauer“ wird als Sonnen-Schauer angezeigt, nicht als Drizzle/Regen.
+   - „Sonne + wenige Wolken“ bleibt sichtbar leicht bewölkt, nicht einfach wolkenlos sonnig.
+   - Echte Regentage bleiben Regen/Drizzle.
