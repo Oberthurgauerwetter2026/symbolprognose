@@ -1010,7 +1010,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                       nextFrame={blendNext}
                       progress={progress}
                       opacity={opacityVal}
-                      pixelated={currentFrame.source !== "radar"}
+                      contour={currentFrame.source !== "radar"}
                     />
                   )}
                   {hasPng && (
