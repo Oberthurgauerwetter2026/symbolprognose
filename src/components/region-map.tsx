@@ -204,6 +204,7 @@ function MarkerPill({
         precip={precip}
         precipProb={precipProb}
         precipHours={precipHours}
+        thunderHours={thunderHours}
         isSnow={isSnow}
         sunshineRatio={sunshineRatio}
         cloudLow={cloudLow}
