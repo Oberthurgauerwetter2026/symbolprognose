@@ -27,6 +27,9 @@ export interface DailyData {
   sunset: string[];
   snowfall_sum: number[];
   precipitation_hours: number[];
+  cloud_cover_low_mean?: number[];
+  cloud_cover_mid_mean?: number[];
+  cloud_cover_high_mean?: number[];
 }
 
 export interface HourlyData {
@@ -40,7 +43,11 @@ export interface HourlyData {
   winddirection_10m: number[];
   snowfall: number[];
   sunshine_duration: number[];
+  cloud_cover_low?: number[];
+  cloud_cover_mid?: number[];
+  cloud_cover_high?: number[];
 }
+
 
 export interface ForecastResponse {
   latitude: number;
@@ -131,7 +138,11 @@ const HOURLY_VARS = [
   "winddirection_10m",
   "snowfall",
   "sunshine_duration",
+  "cloud_cover_low",
+  "cloud_cover_mid",
+  "cloud_cover_high",
 ] as const;
+
 
 const TOTAL_DAYS = 7;
 
@@ -202,7 +213,11 @@ function fillGaps(
     winddirection_10m: mergeArr(h?.winddirection_10m, fh?.winddirection_10m),
     snowfall: mergeArr(h?.snowfall, fh?.snowfall),
     sunshine_duration: mergeArr(h?.sunshine_duration, fh?.sunshine_duration),
+    cloud_cover_low: mergeArr(h?.cloud_cover_low, fh?.cloud_cover_low),
+    cloud_cover_mid: mergeArr(h?.cloud_cover_mid, fh?.cloud_cover_mid),
+    cloud_cover_high: mergeArr(h?.cloud_cover_high, fh?.cloud_cover_high),
   };
+
 
   const mergedDaily: DailyData = {
     time: mergeTime(d?.time, fd?.time),
@@ -560,6 +575,7 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   }
   const precipFinite = finite(h.precipitation);
   const precipHours = precipFinite.reduce((n, v) => (v >= 0.1 ? n + 1 : n), 0);
+  const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
   return {
     weathercode: representativeWeathercode(finite(h.weathercode), { preferShower: precipHours < 5 }),
 
@@ -572,8 +588,12 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     winddirection_10m_dominant: dominantDir,
     sunshine_duration: sum(finite(h.sunshine_duration)),
     snowfall_sum: sum(finite(h.snowfall)),
+    cloud_cover_low_mean: mean(finite(h.cloud_cover_low)),
+    cloud_cover_mid_mean: mean(finite(h.cloud_cover_mid)),
+    cloud_cover_high_mean: mean(finite(h.cloud_cover_high)),
   } as Record<string, number | null>;
 }
+
 
 export async function fetchForecast(
   latitude: number,
@@ -644,8 +664,9 @@ export async function fetchForecast(
     const arr = merged.daily[key] as (number | string)[];
     while (arr.length < dailyTimes.length) arr.push(0 as never);
   };
-  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum","precipitation_hours"] as (keyof DailyData)[])
+  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum","precipitation_hours","cloud_cover_low_mean","cloud_cover_mid_mean","cloud_cover_high_mean"] as (keyof DailyData)[])
     .forEach(ensureLen);
+
 
   for (let i = 0; i < dailyTimes.length; i++) {
     const agg = aggregateDailyFromHourly(merged.hourly, dailyTimes[i]);
@@ -665,7 +686,11 @@ export async function fetchForecast(
     apply("winddirection_10m_dominant");
     apply("sunshine_duration");
     apply("snowfall_sum");
+    apply("cloud_cover_low_mean");
+    apply("cloud_cover_mid_mean");
+    apply("cloud_cover_high_mean");
   }
+
 
   return sanitizeForecast(merged);
 }
@@ -696,7 +721,11 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     winddirection_10m: fixNumArr(h?.winddirection_10m as (number | null)[]),
     snowfall: fixNumArr(h?.snowfall as (number | null)[]),
     sunshine_duration: fixNumArr(h?.sunshine_duration as (number | null)[]),
+    cloud_cover_low: fixNumArr(h?.cloud_cover_low as (number | null)[] | undefined),
+    cloud_cover_mid: fixNumArr(h?.cloud_cover_mid as (number | null)[] | undefined),
+    cloud_cover_high: fixNumArr(h?.cloud_cover_high as (number | null)[] | undefined),
   };
+
 
   const sanitizedDaily: DailyData = {
     time: d?.time ?? [],
@@ -717,7 +746,11 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     sunset: (d?.sunset ?? []).map((v) => v ?? ""),
     snowfall_sum: fixNumArr(d?.snowfall_sum as (number | null)[]),
     precipitation_hours: fixNumArr(d?.precipitation_hours as (number | null)[]),
+    cloud_cover_low_mean: fixNumArr(d?.cloud_cover_low_mean as (number | null)[] | undefined),
+    cloud_cover_mid_mean: fixNumArr(d?.cloud_cover_mid_mean as (number | null)[] | undefined),
+    cloud_cover_high_mean: fixNumArr(d?.cloud_cover_high_mean as (number | null)[] | undefined),
   };
+
 
   return {
     ...data,

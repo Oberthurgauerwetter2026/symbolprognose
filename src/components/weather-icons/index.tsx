@@ -343,23 +343,25 @@ export function WeatherIcon({
   scope = "hourly",
   precipHours,
   sunshineRatio,
+  cloudLow,
+  cloudMid,
+  cloudHigh,
 }: {
   code: number;
   isDay?: boolean;
   size?: number;
   className?: string;
-  /** Niederschlag in mm (Stunde oder Tagessumme) — wenn vorhanden, kann er den Code überstimmen. */
   precip?: number;
-  /** Niederschlagswahrscheinlichkeit 0–100. */
   precipProb?: number;
-  /** Schneefall-Hinweis (z. B. Temp < 1 °C oder snowfall_sum > 0). */
   isSnow?: boolean;
-  /** Geltungsbereich des Icons — beeinflusst, wie aggressiv der Niederschlags-Override greift. */
   scope?: "hourly" | "daily";
-  /** Anzahl Stunden mit Niederschlag (nur Daily). Override greift erst ab ~6 h. */
   precipHours?: number;
-  /** Anteil Sonne an der Slot-/Tagdauer (0–1). Korrigiert zu pessimistische Wolken-Codes. */
   sunshineRatio?: number;
+  /** Wolken-Stockwerke 0–100 (low/mid/high). Trennt Cirrus von echter Bedeckung. */
+  cloudLow?: number;
+  cloudMid?: number;
+  cloudHigh?: number;
+
 }) {
   const props = { size, className };
 
@@ -389,6 +391,24 @@ export function WeatherIcon({
     if ((sunshineRatio ?? 0) >= 0.3) return <IconSunShower {...props} />;
     return <IconDrizzle {...props} />;
   }
+
+  // Wolken-Stockwerke: trennt Cirrus (Sonne scheint durch) von echter Bedeckung.
+  const hasLayers =
+    typeof cloudLow === "number" || typeof cloudMid === "number" || typeof cloudHigh === "number";
+  if (hasLayers && !wmoIsWet && !dayHasRain && code <= 3) {
+    const low = cloudLow ?? 0;
+    const mid = cloudMid ?? 0;
+    const high = cloudHigh ?? 0;
+    if (low >= 60) return <IconCloudy {...props} />;
+    if (low < 30 && mid < 40 && high >= 40) {
+      return isDay ? <IconMostlyClear isDay {...props} /> : <IconClearNight {...props} />;
+    }
+    if (mid >= 50 && low < 50) return <IconPartlyCloudy isDay={isDay} {...props} />;
+    if (low < 20 && mid < 25 && high < 25) {
+      return isDay ? <IconClear {...props} /> : <IconClearNight {...props} />;
+    }
+  }
+
 
   // Sonnen-Korrektiv: bei trockenen Bewölkungs-Codes (2/3) und viel Sonne das Symbol aufhellen.
   if (isDay && !wmoIsWet && !dayHasRain && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
