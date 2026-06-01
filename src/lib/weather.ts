@@ -213,7 +213,11 @@ function fillGaps(
     winddirection_10m: mergeArr(h?.winddirection_10m, fh?.winddirection_10m),
     snowfall: mergeArr(h?.snowfall, fh?.snowfall),
     sunshine_duration: mergeArr(h?.sunshine_duration, fh?.sunshine_duration),
+    cloud_cover_low: mergeArr(h?.cloud_cover_low, fh?.cloud_cover_low),
+    cloud_cover_mid: mergeArr(h?.cloud_cover_mid, fh?.cloud_cover_mid),
+    cloud_cover_high: mergeArr(h?.cloud_cover_high, fh?.cloud_cover_high),
   };
+
 
   const mergedDaily: DailyData = {
     time: mergeTime(d?.time, fd?.time),
