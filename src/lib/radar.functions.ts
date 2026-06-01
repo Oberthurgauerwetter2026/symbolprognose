@@ -557,16 +557,77 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       anchors.push({ tMs, precip, snow, u, v });
     }
 
-    // ---- Zwischen-Frames per Advection erzeugen ----
-    // Alle minutely_15 Zeitpunkte durchgehen, passenden Anker-Slot finden,
-    // A vorwärts + B rückwärts advektieren und blenden.
+    // ---- Pro Ankerpaar einmalig den Bewegungsvektor schätzen ----
+    // ICON-Wind dient als robustem Initial-Guess; Cross-Correlation der
+    // Niederschlagsfelder liefert die tatsächliche Zellverlagerung (kann von
+    // 700-hPa-Wind abweichen, vor allem bei Konvektion). Resultat: konstantes
+    // u/v-Feld pro Stunde, in beiden Warps verwendet → A_fwd und B_bwd treffen
+    // sich am selben Ort → kein Pulsieren.
+    const cellSizeLatM = ((lats[nLat - 1] - lats[0]) / (nLat - 1)) * 111_320;
+    const centerLat = (lats[0] + lats[nLat - 1]) / 2;
+    const cellSizeLonM =
+      ((lons[nLon - 1] - lons[0]) / (nLon - 1)) *
+      111_320 *
+      Math.cos((centerLat * Math.PI) / 180);
+
+    type PairFlow = { u: number[]; v: number[] };
+    const pairFlows: (PairFlow | null)[] = anchors.map((A, ai) => {
+      const B = anchors[ai + 1];
+      if (!B) return null;
+      // Mittlerer ICON-Wind über Pixel mit Niederschlag in A.
+      let mU = 0;
+      let mV = 0;
+      let mN = 0;
+      for (let k = 0; k < nPts; k++) {
+        if (A.precip[k] > 0.05) {
+          mU += A.u[k];
+          mV += A.v[k];
+          mN++;
+        }
+      }
+      if (mN === 0) {
+        for (let k = 0; k < nPts; k++) {
+          mU += A.u[k];
+          mV += A.v[k];
+        }
+        mN = nPts;
+      }
+      const meanU = mU / mN;
+      const meanV = mV / mN;
+      const dtSec = (B.tMs - A.tMs) / 1000;
+      const dxGuess = (meanU * dtSec) / cellSizeLonM;
+      const dyGuess = (meanV * dtSec) / cellSizeLatM;
+      const { dx, dy, confidence } = estimateGlobalShift(
+        A.precip,
+        B.precip,
+        nLat,
+        nLon,
+        dxGuess,
+        dyGuess,
+        8,
+      );
+      // Bei niedriger Konfidenz: ICON-Wind beibehalten (Mischung 70/30).
+      const w = Math.max(0, Math.min(1, confidence * 2));
+      const finalDx = w * dx + (1 - w) * dxGuess;
+      const finalDy = w * dy + (1 - w) * dyGuess;
+      const uConst = (finalDx * cellSizeLonM) / dtSec;
+      const vConst = (finalDy * cellSizeLatM) / dtSec;
+      const u = new Array<number>(nPts).fill(uConst);
+      const v = new Array<number>(nPts).fill(vConst);
+      console.info(
+        `[radar] flow pair ${ai}: wind(${meanU.toFixed(1)},${meanV.toFixed(1)}) m/s ` +
+          `→ flow(${uConst.toFixed(1)},${vConst.toFixed(1)}) m/s (conf ${confidence.toFixed(2)})`,
+      );
+      return { u, v };
+    });
+
+    // ---- Zwischen-Frames per Advection + Closest-Cell-Blending erzeugen ----
     for (let ti = 0; ti < ref1.time.length; ti++) {
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
       if (tMs <= now) continue;
       if (tMs > forecastCutoff) continue;
 
-      // Anker-Slot: letzter Anker mit tMs <= aktueller Zeit
       let a = -1;
       for (let k = 0; k < anchors.length; k++) {
         if (anchors[k].tMs <= tMs) a = k;
@@ -576,6 +637,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
       const A = anchors[a];
       const B = anchors[a + 1];
+      const flow = pairFlows[a];
       const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
       const biasWeight =
         biasFactor === 1 ? 0 : Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
@@ -583,28 +645,21 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
       let precipOut: number[];
       let snowOut: number[] | undefined;
-      if (!B) {
-        // Letzter Anker: kein Nachbar → Identität.
+      if (!B || !flow) {
         precipOut = A.precip.slice();
         if (A.snow) snowOut = A.snow.slice();
       } else {
-        const span = B.tMs - A.tMs; // ms
+        const span = B.tMs - A.tMs;
         const dtToA = tMs - A.tMs;
-        const dtToB = tMs - B.tMs; // negativ
+        const dtToB = tMs - B.tMs;
         const alpha = Math.max(0, Math.min(1, dtToA / span));
-        const aFwd = advectField(A.precip, A.u, A.v, dtToA / 1000, lats, lons);
-        const bBwd = advectField(B.precip, B.u, B.v, dtToB / 1000, lats, lons);
-        precipOut = new Array<number>(nPts);
-        for (let k = 0; k < nPts; k++) {
-          precipOut[k] = Math.max(0, (1 - alpha) * aFwd[k] + alpha * bBwd[k]);
-        }
+        const aFwd = advectField(A.precip, flow.u, flow.v, dtToA / 1000, lats, lons);
+        const bBwd = advectField(B.precip, flow.u, flow.v, dtToB / 1000, lats, lons);
+        precipOut = blendClosestCell(aFwd, bBwd, alpha);
         if (A.snow && B.snow) {
-          const aFwdS = advectField(A.snow, A.u, A.v, dtToA / 1000, lats, lons);
-          const bBwdS = advectField(B.snow, B.u, B.v, dtToB / 1000, lats, lons);
-          snowOut = new Array<number>(nPts);
-          for (let k = 0; k < nPts; k++) {
-            snowOut[k] = Math.max(0, (1 - alpha) * aFwdS[k] + alpha * bBwdS[k]);
-          }
+          const aFwdS = advectField(A.snow, flow.u, flow.v, dtToA / 1000, lats, lons);
+          const bBwdS = advectField(B.snow, flow.u, flow.v, dtToB / 1000, lats, lons);
+          snowOut = blendClosestCell(aFwdS, bBwdS, alpha);
         }
       }
 
