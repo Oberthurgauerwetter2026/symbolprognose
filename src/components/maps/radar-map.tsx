@@ -344,23 +344,11 @@ function PrecipOverlay({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
 
-  // Phase-Correlation-Cache: pro Frame-Paar (key = "t_a|t_b") einmal
-  // berechnet, danach 0 Zusatzkosten beim Loop. Nur Prognose.
-  const advCacheRef = useRef<Map<string, { dx: number; dy: number }>>(new Map());
-  const advection = useMemo(() => {
-    if (!contour || !frame || !nextFrame) return { dx: 0, dy: 0 };
-    const a = frame.values;
-    const b = nextFrame.values;
-    if (!a || !b) return { dx: 0, dy: 0 };
-    const key = `${frame.t}|${nextFrame.t}`;
-    const cached = advCacheRef.current.get(key);
-    if (cached) return cached;
-    const v = estimateAdvection(a, b, payload.gridLat.length, payload.gridLon.length);
-    advCacheRef.current.set(key, v);
-    return v;
-  }, [contour, frame, nextFrame, payload]);
-  const advectionRef = useRef(advection);
-  advectionRef.current = advection;
+  // Advektives Resampling wurde entfernt — pro Framepaar wechselnde Shift-
+  // Vektoren liessen die Prognose-Bänder sichtbar wackeln. Jetzt nur weicher
+  // Crossfade zwischen den Frames.
+
+
 
 
   // Canvas-Layer einmalig anlegen.
