@@ -856,7 +856,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1); // 1× ≈ 800ms pro 15-min-Frame
+  const [speed, setSpeed] = useState(1); // 1× ≈ 1800ms pro Stunden-Prognoseframe
   const [showHail, setShowHail] = useState(true);
 
   const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
