@@ -191,13 +191,13 @@ function renderHeatmapDataUrl(
       data[i] = 15;
       data[i + 1] = 23;
       data[i + 2] = 42;
-      data[i + 3] = 210;
+      data[i + 3] = 230;
     } else {
       // helle Linie
       data[i] = 255;
       data[i + 1] = 255;
       data[i + 2] = 255;
-      data[i + 3] = 235;
+      data[i + 3] = 250;
     }
   };
 
@@ -227,6 +227,18 @@ function renderHeatmapDataUrl(
   }
 
   ctx.putImageData(img, 0, 0);
+
+  // Weichzeichnungs-Pass: Bitmap durch Off-Screen-Blur → rundere Klassenkanten.
+  const blurCanvas = document.createElement("canvas");
+  blurCanvas.width = w;
+  blurCanvas.height = h;
+  const bctx = blurCanvas.getContext("2d");
+  if (bctx) {
+    bctx.filter = "blur(2px)";
+    bctx.drawImage(canvas, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(blurCanvas, 0, 0);
+  }
 
   // Bounds: Gitterpunkt-zu-Gitterpunkt (Pixel liegen direkt auf Gitterpunkten).
   const minLat = Math.min(gridLat[0], gridLat[nLat - 1]);

@@ -1,12 +1,14 @@
 ## Änderung in `src/components/maps/precip-accum-map.tsx`
 
-Die Klassenkanten wirken aktuell pixelig, weil das Heatmap-PNG per `image-rendering: crisp-edges` ohne Browser-Smoothing skaliert wird.
+In `renderHeatmapDataUrl` nach dem `ctx.putImageData(...)` einen Weichzeichnungs-Pass ergänzen:
 
-- `image-rendering`-Style auf `.leaflet-image-layer` **entfernen** (Style-Tag löschen). Browser interpoliert dann beim Hochskalieren wieder bilinear → weiche, runde Klassengrenzen.
-- Damit die Trennlinien beim Smoothing nicht ausgewaschen wirken, Border-Alpha leicht anheben: dunkel `180 → 210`, hell `210 → 235`.
-- `UP` bleibt bei `16` (gute Auflösung als Smoothing-Basis).
+- Off-Screen-Canvas gleicher Größe anlegen, Original-Bitmap mit `ctx.filter = "blur(2px)"` darauf zeichnen.
+- Den geblurrten Inhalt zurück auf das Haupt-Canvas zeichnen.
+- Border-Alpha leicht erhöhen (dunkel `210 → 230`, hell `235 → 250`), damit Trennlinien durch den Blur nicht verschwinden.
+
+Effekt: Klassenkanten werden zusätzlich zur Browser-Bilinear-Skalierung an der Bitmap-Quelle weichgezeichnet → sichtbar rundere, weichere Übergänge.
 
 ## Verifikation
 
-- `/intern/niederschlag`: Klassenkanten erscheinen weich und gerundet, keine Treppen-Pixel mehr, Bänder bleiben klar getrennt.
-- Download-PNG übernimmt das Erscheinungsbild (DOM-Snapshot).
+- `/intern/niederschlag` → Heatmap-Bänder mit weichen, gerundeten Übergängen, Trennlinien bleiben erkennbar.
+- Download-PNG zeigt denselben Look.
