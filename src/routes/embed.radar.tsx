@@ -16,17 +16,7 @@ const EMPTY_NOSCRIPT: RadarNoscriptData = { precipNext: [], precipDaily: [] };
 
 export const Route = createFileRoute("/embed/radar")({
   component: EmbedRadar,
-  loader: () => {
-    // Embeds sind für alle Besucher identisch -> aggressiv am Edge cachen.
-    // Keine teuren Server-Fetches mehr im Loader: Radar-Daten holt der Client
-    // per React Query parallel zum JS-Download. Spart ~3-4 s TTFB.
-    setResponseHeaders(
-      new Headers({
-        "Cache-Control":
-          "public, max-age=60, s-maxage=300, stale-while-revalidate=3600",
-      }),
-    );
-  },
+  loader: () => setEmbedCacheHeaders(),
   head: () => ({
     meta: [
       { title: "Radar (Embed)" },
