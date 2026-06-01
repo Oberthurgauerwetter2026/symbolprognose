@@ -1,7 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
-import { RegionMap } from "@/components/region-map";
+
+const RegionMap = lazy(() =>
+  import("@/components/region-map").then((module) => ({ default: module.RegionMap })),
+);
 
 export const Route = createFileRoute("/karten/region")({
   ssr: false,
@@ -29,7 +33,9 @@ function KartenRegionPage() {
     <DashboardLayout title="Wetterkarte Region" subtitle="Symbolprognose · aktualisiert jede Stunde">
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="region" />
-        <RegionMap />
+        <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
+          <RegionMap />
+        </Suspense>
       </div>
     </DashboardLayout>
   );
