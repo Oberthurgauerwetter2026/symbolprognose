@@ -301,6 +301,9 @@ const ENSEMBLE_HOURLY_VARS = [
   "winddirection_10m",
   "snowfall",
   "sunshine_duration",
+  "cloud_cover_low",
+  "cloud_cover_mid",
+  "cloud_cover_high",
 ] as const;
 
 type EnsembleHourly = Partial<HourlyData> & { time: string[]; utc_offset_seconds?: number };
@@ -448,6 +451,9 @@ function wrapEnsembleAsForecast(ens: EnsembleHourly): ForecastResponse {
     winddirection_10m: (ens.winddirection_10m ?? []) as number[],
     snowfall: (ens.snowfall ?? []) as number[],
     sunshine_duration: (ens.sunshine_duration ?? []) as number[],
+    cloud_cover_low: (ens.cloud_cover_low ?? []) as number[],
+    cloud_cover_mid: (ens.cloud_cover_mid ?? []) as number[],
+    cloud_cover_high: (ens.cloud_cover_high ?? []) as number[],
   };
   const emptyDaily: DailyData = {
     time: [],
