@@ -263,8 +263,8 @@ function SpotMarker({
 }) {
   const getForecast = useServerFn(getAggregatedForecast);
   const { data } = useQuery({
-    queryKey: ["map-weather", "v6", spot.id],
-    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon, v: "v6" } }),
+    queryKey: ["map-weather", "v7", spot.id],
+    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon, v: "v7" } }),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnMount: "always",
@@ -533,8 +533,8 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   const firstSpot = SPOTS[0];
   const getForecast = useServerFn(getAggregatedForecast);
   const { dataUpdatedAt } = useQuery({
-    queryKey: ["map-weather", "v6", firstSpot.id],
-    queryFn: () => getForecast({ data: { lat: firstSpot.lat, lon: firstSpot.lon, v: "v6" } }),
+    queryKey: ["map-weather", "v7", firstSpot.id],
+    queryFn: () => getForecast({ data: { lat: firstSpot.lat, lon: firstSpot.lon, v: "v7" } }),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnMount: "always",

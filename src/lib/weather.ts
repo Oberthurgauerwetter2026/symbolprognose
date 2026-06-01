@@ -586,13 +586,16 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   const sunshineRatio = sunSec / (15 * 3600);
   const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
 
-  // Tages-WMO-Code:
-  // - Nur wenn Regen den Tag wirklich prägt (≥6h ODER ≥5mm), darf die Regenkategorie gewinnen.
-  // - Bei kurzem Niederschlag mit Sonne wird gezielt ein Schauer-Code (80) gesetzt,
-  //   damit der Tag nicht als Drizzle/Dauerregen erscheint.
-  // - Trockene „klar"-Codes werden anhand der mittleren Bewölkung hochgestuft,
-  //   damit ein Tag mit Wolken nicht als wolkenlos sonnig erscheint.
-  const rainDominates = precipHours >= 6 || precipSum >= 5;
+  // Tages-WMO-Code, dreistufig:
+  // 1) Trocken (sonnig/wolkig) – nur Bewölkung entscheidet (Code 0–3).
+  // 2) Schauertag – Niederschlag UND Sonne/Trockenphase → 80/81/82 (95 bei Gewitter).
+  // 3) Dauerregen – nur wenn Niederschlag den Tag wirklich dominiert.
+  const dryHours = idxs.length - precipHours;
+  const maxHourlyPrecip = precipFinite.length ? Math.max(...precipFinite) : 0;
+  const thunderHours = idxs.reduce((n, i) => {
+    const c = h.weathercode?.[i];
+    return c === 95 || c === 96 || c === 99 ? n + 1 : n;
+  }, 0);
   const cloudLowMean = mean(finite(h.cloud_cover_low)) ?? 0;
   const cloudMidMean = mean(finite(h.cloud_cover_mid)) ?? 0;
   const cloudHighMean = mean(finite(h.cloud_cover_high)) ?? 0;
@@ -606,26 +609,41 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     return code;
   };
 
+  const isDry = precipHours <= 1 && precipSum < 1;
+  const isPersistentRain =
+    precipHours >= 8 || (precipHours >= 6 && sunshineRatio < 0.15);
+  const isShowerDay =
+    !isDry && !isPersistentRain &&
+    precipHours >= 1 &&
+    (dryHours >= 4 || sunshineRatio >= 0.20);
+
   let weathercode: number | null;
-  if (!rainDominates && precipHours <= 3 && sunshineRatio >= 0.25) {
-    if (precipHours >= 1 || precipSum >= 0.5) {
-      // Sonne + kurzer Schauer → Schauer-Code, nicht Drizzle/Regen.
-      weathercode = 80;
+  if (isDry) {
+    const dryCodes = idxs
+      .filter((i) => !((h.precipitation?.[i] ?? 0) >= 0.1))
+      .map((i) => h.weathercode?.[i])
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+    weathercode = adjustForClouds(
+      representativeWeathercode(dryCodes) ?? representativeWeathercode(finite(h.weathercode)),
+    );
+  } else if (isShowerDay) {
+    if (thunderHours >= 1) {
+      weathercode = 95;
+    } else if (maxHourlyPrecip >= 7.5) {
+      weathercode = 82;
+    } else if (maxHourlyPrecip >= 2.5 || precipSum >= 10) {
+      weathercode = 81;
     } else {
-      const dryCodes = idxs
-        .filter((i) => !((h.precipitation?.[i] ?? 0) >= 0.1))
-        .map((i) => h.weathercode?.[i])
-        .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
-      weathercode =
-        adjustForClouds(representativeWeathercode(dryCodes)) ??
-        representativeWeathercode(finite(h.weathercode), { preferShower: true });
+      weathercode = 80;
     }
   } else {
     weathercode = representativeWeathercode(finite(h.weathercode), {
-      preferShower: !rainDominates,
+      preferShower: false,
     });
+    if (weathercode == null || weathercode < 50) {
+      weathercode = precipSum >= 15 ? 65 : precipSum >= 5 ? 63 : 61;
+    }
   }
-  weathercode = adjustForClouds(weathercode);
 
   return {
     weathercode,
