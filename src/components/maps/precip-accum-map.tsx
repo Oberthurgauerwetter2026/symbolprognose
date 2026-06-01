@@ -172,7 +172,7 @@ function renderHeatmapDataUrl(
       data[idx] = c.rgb[0];
       data[idx + 1] = c.rgb[1];
       data[idx + 2] = c.rgb[2];
-      data[idx + 3] 255;
+      data[idx + 3] = 255;
       clsIdx[py * w + px] = ci;
     }
   }
