@@ -686,7 +686,11 @@ export async function fetchForecast(
     apply("winddirection_10m_dominant");
     apply("sunshine_duration");
     apply("snowfall_sum");
+    apply("cloud_cover_low_mean");
+    apply("cloud_cover_mid_mean");
+    apply("cloud_cover_high_mean");
   }
+
 
   return sanitizeForecast(merged);
 }
