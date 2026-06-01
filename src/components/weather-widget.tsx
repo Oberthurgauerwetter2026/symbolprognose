@@ -162,7 +162,7 @@ export function WeatherWidget({
   }, []);
 
   const getForecast = useServerFn(getAggregatedForecast);
-  const FORECAST_VERSION = "v5";
+  const FORECAST_VERSION = "v6";
   const forecast = useQuery({
     queryKey: ["forecast", FORECAST_VERSION, location?.latitude ?? 0, location?.longitude ?? 0],
     queryFn: () =>
