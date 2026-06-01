@@ -10,10 +10,6 @@ export const Route = createFileRoute("/embed/pollen")({
   ssr: false,
   component: () => (
     <EmbedShell>
-      <EmbedFallbackBar
-        title={def.label}
-        href="https://symbolprognose.lovable.app/karten/pollen"
-      />
       <ComingSoonMap icon={def.icon} title={def.label} description={def.description} />
     </EmbedShell>
   ),
