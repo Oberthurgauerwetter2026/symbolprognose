@@ -81,10 +81,14 @@ export const Route = createFileRoute("/embed/radar")({
           data: { lat: AMRISWIL.lat, lon: AMRISWIL.lon },
         }).catch(() => null),
       ]);
-      return { noscript: buildRadarNoscript(frames, fc) };
+      return {
+        noscript: buildRadarNoscript(frames, fc),
+        radar: frames,
+      };
     } catch {
       return {
         noscript: { precipNext: [], precipDaily: [] } satisfies RadarNoscriptData,
+        radar: null,
       };
     }
   },
@@ -97,7 +101,7 @@ export const Route = createFileRoute("/embed/radar")({
 });
 
 function EmbedRadar() {
-  const { noscript } = Route.useLoaderData();
+  const { noscript, radar } = Route.useLoaderData();
   return (
     <>
       <noscript>
@@ -115,7 +119,7 @@ function EmbedRadar() {
                 <div className="h-full min-h-[300px] w-full animate-pulse rounded-lg bg-muted" />
               }
             >
-              <RadarMapLazy bare />
+              <RadarMapLazy bare initialFrames={radar ?? undefined} />
             </Suspense>
           </ClientOnly>
         </div>
