@@ -323,6 +323,18 @@ function SpotMarker({
       mode === "daily"
         ? (data.daily.sunshine_duration?.[dayIdx] ?? 0) / (15 * 3600)
         : (data.hourly.sunshine_duration?.[absoluteHour] ?? 0) / 3600;
+    const cloudLow =
+      mode === "daily"
+        ? data.daily.cloud_cover_low_mean?.[dayIdx]
+        : data.hourly.cloud_cover_low?.[absoluteHour];
+    const cloudMid =
+      mode === "daily"
+        ? data.daily.cloud_cover_mid_mean?.[dayIdx]
+        : data.hourly.cloud_cover_mid?.[absoluteHour];
+    const cloudHigh =
+      mode === "daily"
+        ? data.daily.cloud_cover_high_mean?.[dayIdx]
+        : data.hourly.cloud_cover_high?.[absoluteHour];
     const html = renderToStaticMarkup(
       <MarkerPill
         name={spot.name}
@@ -337,8 +349,12 @@ function SpotMarker({
         precipHours={precipHours}
         isSnow={isSnow}
         sunshineRatio={sunshineRatio}
+        cloudLow={cloudLow}
+        cloudMid={cloudMid}
+        cloudHigh={cloudHigh}
       />,
     );
+
 
     return L.divIcon({
       html,
