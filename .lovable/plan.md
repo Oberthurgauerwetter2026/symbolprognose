@@ -1,46 +1,29 @@
 ## Ziel
 
-Nur in der **Prognose** (`PrecipOverlay`, wenn `currentFrame.source !== "radar"`): Niederschlagsbänder fliessen sanft zwischen zwei Modell-Zeitschritten statt zu pulsieren. Messung (PNG-Bilder) bleibt **komplett unberührt**. Mobile-tauglich.
+Alle Einbinde-Snippets auf `/embed-info` auf das nötige Minimum reduzieren — ein einfaches `<iframe>`, das man kopieren und einsetzen kann, ohne `<script>`-Block, ohne SVG-Vorschaubild, ohne Hinweis-Boxen. Einzige Ausnahme: **Lokalprognose Amriswil** bleibt unverändert (inkl. ihrem aktuellen postMessage-Höhen-Skript, weil sich dort die Höhe stark dem Inhalt anpasst).
 
-## Änderungen
+## Änderungen in `src/routes/embed-info.tsx`
 
-Alle in `src/components/maps/radar-map.tsx`, nur im `PrecipOverlay`-Renderpfad.
+1. **Neue, einfache Snippet-Funktion** für alle Karten ausser Amriswil:
+   - Reines `<iframe src="…" loading="lazy" style="width:100%;height:{fallbackHeight}px;border:0;display:block" title="Wetter-Karte"></iframe>`
+   - Kein `<script>`, kein SVG-Vorschau-`<img>`, kein Wrapper-`<div>` mit Positionierung, kein Watchdog.
+   - `fallbackHeight` bleibt parametrisierbar (760 für „alle Karten", default für Einzelkarten).
 
-### 1. Phase-Correlation zwischen aufeinanderfolgenden Forecast-Frames
+2. **Komplett-Widget (alle Karten mit Tabs)** und **Einzelne Karten (Region, Wind, Radar, Pollen …)** verwenden ab sofort diese einfache Funktion.
 
-- Beim Wechsel des Frame-Paars `(vals_a, vals_b)` einmal einen globalen Verschiebungsvektor `(dx, dy)` in Grid-Zellen schätzen.
-- Methode: **diskrete Kreuzkorrelation** auf einem heruntergerechneten Grid (z. B. 32×32 Bilinear-Resample der Werte), Suchfenster ±4 Zellen → ~80 Vergleiche × 1024 Pixel ≈ ein paar ms, einmal pro Frame-Paar (nicht pro Animations-Tick).
-- Ergebnis cachen in einem `useRef<Map<string, {dx,dy}>>`, Key = `${frame_a.t}|${frame_b.t}`.
-- Fallback `(0,0)` bei zu wenig Signal (max Korrelation < Schwelle) oder wenn `vals_b` fehlt.
+3. **Lokalprognose Amriswil bleibt 1:1**: weiter `buildSnippet(url, "/embed/region-lokal", "region-lokal", null, "/karten/region", 480)` — gleiches Snippet wie heute (mit Höhen-Auto-Resize via postMessage, ohne SVG-Bild).
 
-### 2. Advektives Sampling im bestehenden Bilinear-Pfad
+4. **Hinweis-Boxen entfernen**, weil sie nur den JS-Fallback erklären:
+   - Die grüne Box „Neu: garantierter Fallback …"
+   - Die graue Box „Bleibt die Karte bei einzelnen Besuchern leer? …" inkl. Liste und Datenquellen-Hinweis am Ende.
+   - Den einleitenden Satz auf „Füge im WordPress-Editor einen Custom-HTML-Block (oder iframe-Block) ein und kopiere das Snippet hinein." kürzen.
+   - Den orangen Hinweis „Snippets zeigen immer auf publizierte URL …" behalten (das ist kein JS-Hinweis, sondern eine wichtige Publish-Info).
+   - Im Beschreibungstext bei Amriswil den Satz über `resize:vertical` etc. behalten (er trifft auf Amriswil weiter zu).
 
-- Bisher: `v = lerp(sample(vals_a, x, y), sample(vals_b, x, y), alpha)`.
-- Neu (nur Prognose): 
-  - `v_a = sample(vals_a, x + alpha·dx,       y + alpha·dy)`
-  - `v_b = sample(vals_b, x - (1-alpha)·dx,   y - (1-alpha)·dy)`
-  - `v = lerp(v_a, v_b, smoothstep(alpha))`
-- Dezent ⇒ Vektor mit `0.4` multiplizieren, hart auf max. 1.5 Zellen clampen.
-- `smoothstep` statt linear ⇒ ruhigerer Übergang an Bandkanten (das war der „leichte Crossfade"-Teil).
+5. **Nicht mehr benötigte Funktionen entfernen**: `buildViewportSnippet` wird aktuell nirgends mehr aufgerufen — bleibt unangetastet (kein Scope-Creep), ausser wir merken beim Edit, dass sie ungenutzt ist und ein Linter-Fehler entsteht. Falls ja: löschen.
 
-### 3. Messung & Radar bleiben unverändert
+## Out of scope
 
-- Im Radar-Pfad (`currentFrame.source === "radar"`) keine Advektion, kein smoothstep — exakt aktueller Code.
-- PNG-Layer (Messung) wird gar nicht angefasst.
-
-### 4. Mobile-Sicherheit
-
-- Phase-Correlation nur auf 32×32-Downsample → Worst-Case ein paar ms, einmal pro Frame-Paar, nicht pro rAF-Tick.
-- Ergebnis pro Frame-Paar gecached → bei Loop-Wiederholung 0 Zusatzkosten.
-- Kein zusätzlicher Canvas, kein FFT, keine WebGL-Abhängigkeit.
-- Bestehende Responsive-Logik (Container-Queries, Touch-Controls) bleibt unverändert.
-
-## Technische Notiz
-
-Die Phase-Correlation läuft im selben `useMemo`/Effect, in dem heute schon `vals_a` und `vals_b` decodiert werden — also einmal pro Frame-Wechsel, nicht pro Animations-Tick. Der Sampling-Hot-Path bekommt nur zwei zusätzliche Multiplikationen und Additionen pro Pixel, was im bestehenden Render-Budget unsichtbar ist.
-
-## Out of Scope
-
-- Pro-Zelle-Wind aus u/v (nicht jetzt).
-- Farbänderungen, Konturlogik, Snow-Handling — alles unverändert.
-- Messpfad / PNG-Overlay — explizit nicht anfassen.
+- Keine Änderung an den eigentlichen `/embed/*` Routen oder den Karten-Komponenten.
+- Keine Änderung am SVG-Snapshot-Endpoint (bleibt für Amriswil-unabhängige zukünftige Nutzung erhalten).
+- Keine Design-/Styling-Änderungen ausserhalb des Entfernens der zwei Boxen.
