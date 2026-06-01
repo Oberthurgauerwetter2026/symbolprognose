@@ -575,9 +575,34 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   }
   const precipFinite = finite(h.precipitation);
   const precipHours = precipFinite.reduce((n, v) => (v >= 0.1 ? n + 1 : n), 0);
+  const precipSum = precipFinite.reduce((x, y) => x + y, 0);
+  const sunSec = finite(h.sunshine_duration).reduce((x, y) => x + y, 0);
+  const sunshineRatio = sunSec / (15 * 3600);
   const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+
+  // Tages-WMO-Code:
+  // - Nur wenn Regen den Tag wirklich prägt (≥6h ODER ≥5mm), darf die Regenkategorie gewinnen.
+  // - Sonst bevorzugen wir Schauer- vor Regen-Kategorie, und bei sehr wenig Regen + nennenswerter
+  //   Sonne wird der Code aus den TROCKENEN Stunden gewählt (Sonne/Wolken statt Drizzle).
+  const rainDominates = precipHours >= 6 || precipSum >= 5;
+  let weathercode: number | null;
+  if (!rainDominates && precipHours <= 3 && sunshineRatio >= 0.25) {
+    // Tag mit kurzem Schauer und Sonne → Code aus trockenen Stunden ableiten.
+    const dryCodes = idxs
+      .filter((i) => !((h.precipitation?.[i] ?? 0) >= 0.1))
+      .map((i) => h.weathercode?.[i])
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+    weathercode =
+      representativeWeathercode(dryCodes) ??
+      representativeWeathercode(finite(h.weathercode), { preferShower: true });
+  } else {
+    weathercode = representativeWeathercode(finite(h.weathercode), {
+      preferShower: !rainDominates,
+    });
+  }
+
   return {
-    weathercode: representativeWeathercode(finite(h.weathercode), { preferShower: precipHours < 5 }),
+    weathercode,
 
     temperature_2m_max: max(finite(h.temperature_2m)),
     temperature_2m_min: min(finite(h.temperature_2m)),
