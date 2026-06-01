@@ -7,11 +7,9 @@ export const Route = createFileRoute("/embed/region")({
   ssr: false,
   component: () => (
     <EmbedShell>
-      <EmbedFallbackBar
-        title="Wetterkarte Region"
-        href="https://symbolprognose.lovable.app/karten/region"
-      />
       <RegionMap />
+    </EmbedShell>
+  ),
     </EmbedShell>
   ),
   head: () => ({
