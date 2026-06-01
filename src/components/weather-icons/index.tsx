@@ -340,6 +340,28 @@ export function IconSunThunder({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconSunSnowThunder({ size, ...rest }: IconProps) {
+  return (
+    <Svg size={size} {...rest}>
+      <Sun cx={20} cy={20} r={9} />
+      <Cloud x={38} y={32} scale={1} dark />
+      <Flake x={32} y={52} size={1} />
+      <Bolt />
+    </Svg>
+  );
+}
+
+export function IconSnowThunder({ size, ...rest }: IconProps) {
+  return (
+    <Svg size={size} {...rest}>
+      <Cloud x={32} y={24} scale={1.05} dark />
+      <Flake x={20} y={48} size={1.1} />
+      <Flake x={46} y={48} size={1.1} />
+      <Bolt />
+    </Svg>
+  );
+}
+
 
 /* ---------- Daily wet-icon helper ---------- */
 
@@ -417,15 +439,21 @@ export function WeatherIcon({
   //  - sonstige Gewitterstunden ohne Sonne → Vollgewitter
   if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
     const th = thunderHours ?? 0;
+    const sunny = (sunshineRatio ?? 0) >= 0.15 && (precipHours ?? 0) < 8;
+
+    // Vollgewitter nur, wenn das Gewitter den Tag prägt
     const heavyThunder =
-      th >= 2 ||
-      (th >= 1 && (precip ?? 0) >= 8) ||
-      (wmoIsThunder && (precipHours ?? 0) >= 3);
-    if (heavyThunder) return <IconThunderstorm {...props} />;
-    if ((sunshineRatio ?? 0) >= 0.15 && (precipHours ?? 0) < 8) {
-      return <IconSunThunder {...props} />;
+      th >= 3 ||
+      (th >= 2 && (precip ?? 0) >= 8) ||
+      (wmoIsThunder && (precipHours ?? 0) >= 5 && !sunny);
+
+    if (heavyThunder) {
+      return isSnow ? <IconSnowThunder {...props} /> : <IconThunderstorm {...props} />;
     }
-    return <IconThunderstorm {...props} />;
+    if (sunny) {
+      return isSnow ? <IconSunSnowThunder {...props} /> : <IconSunThunder {...props} />;
+    }
+    return isSnow ? <IconSnowThunder {...props} /> : <IconThunderstorm {...props} />;
   }
   // Stündlich: kleine Mengen reichen. Täglich: nur überstimmen, wenn der Regen den Tag prägt
   // (sonst macht ein kurzer Schauer aus einem teils-sonnigen Tag fälschlich „Regen").
