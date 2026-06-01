@@ -1,28 +1,32 @@
 ## Plan
 
-Aktuell „verschluckt" der kategoriale Modus kleine Regenmengen: wenn zwischen 06–21 Uhr nur 1–2 Stunden Schauer fallen, dominiert der Trocken-Code und das Tages-Icon zeigt reine Wolken/Sonne. Lösung: **Niederschlag im Tagesfenster erzwingt mindestens ein Niederschlags-Symbol**, kombiniert mit Sonne, wenn der Tag insgesamt sonnig bleibt.
+Die neuen Wetter-Symbol-Logiken (Sonnen-Aufhellung, Schauer-Override mit `IconSunShower`, Drizzle-vs-Rain-Schwellen) greifen aktuell nur im `WeatherWidget`. Auf den Karten-Markern (`region-map.tsx`, Region- und Lokalkarte) wird `WeatherIcon` ohne die nötigen Zusatz-Props aufgerufen — daher zeigen die Marker noch das alte, rein code-basierte Symbol.
 
-### Änderungen
+### Änderung
 
-1. **Neues Icon `IconSunShower`** in `src/components/weather-icons/index.tsx`
-   - Sonne oben links, Wolke rechts unten, 2–3 Tropfen unter der Wolke.
-   - Verwendet bestehende `Sun`, `Cloud`, `Drop` Bausteine.
+**`src/components/region-map.tsx` (`SpotMarker` + `MarkerPill`)**
 
-2. **`WeatherIcon`-Dispatcher** (`src/components/weather-icons/index.tsx`)
-   - Neuer Override **vor** dem normalen Code-Mapping, nur für `scope="daily"`:
-     - Wenn `precipHours ≥ 1` ODER `precip ≥ 0.5 mm` (im Tagsfenster),
-       und WMO-Code ist **nicht** bereits nass/Schnee/Gewitter/Nebel:
-       - `sunshineRatio ≥ 0.3` → `IconSunShower` (Sonne + Wolken + Regen)
-       - sonst → `IconDrizzle` (Wolken + Regen)
-     - Wenn Code bereits nass ist, bleibt die bestehende Regen-/Schauer-Logik.
-   - Sonnen-Aufhellung (clear/mostly-clear/partly) greift wie bisher — aber nur, wenn **kein** Regen im Fenster fällt.
+1. `MarkerPill`-Props um die zusätzlichen Wetterfelder erweitern und an `<WeatherIcon>` durchreichen:
+   - `precip`, `precipProb`, `precipHours`, `isSnow`, `sunshineRatio`, `scope`.
 
-3. **Daten-Pipeline** ist bereits passend
-   - `aggregateDailyFromHourly` aggregiert `precipitation_sum` und `precipitation_hours` schon über 06–21 (vorherige Änderung). Diese Werte werden ans Tages-Icon übergeben — keine zusätzliche Aggregation nötig.
+2. In `SpotMarker` aus `data` extrahieren:
+   - **Daily-Modus**:
+     - `scope="daily"`
+     - `precip = daily.precipitation_sum[dayIdx]`
+     - `precipProb = daily.precipitation_probability_max?.[dayIdx]`
+     - `precipHours = daily.precipitation_hours?.[dayIdx]`
+     - `isSnow = (daily.snowfall_sum?.[dayIdx] ?? 0) > 0.1`
+     - `sunshineRatio = (daily.sunshine_duration?.[dayIdx] ?? 0) / (15*3600)`
+   - **Hourly-Modus**:
+     - `scope="hourly"`
+     - `precip = hourly.precipitation[absoluteHour]`
+     - `precipProb = hourly.precipitation_probability?.[absoluteHour]`
+     - `isSnow = (hourly.snowfall?.[absoluteHour] ?? 0) > 0.05`
+     - `sunshineRatio = (hourly.sunshine_duration?.[absoluteHour] ?? 0) / 3600`
+
+3. Werte im `useMemo`-Dependency-Array ergänzen, damit die Marker bei Datenwechsel neu rendern.
 
 ### Auswirkungen
 
-- Tag mit 14 Std. Sonne + 1 Std. leichtem Schauer → `IconSunShower` statt nur Sonne/Wolken.
-- Tag mit wenig Sonne + 2 Std. Schauer → `IconDrizzle` statt reine Wolke.
-- Vollnasse Tage (Modus = Regen) bleiben `IconRain` über die bestehende Schwere-Schwelle (≥6 h oder ≥10 mm).
-- Stündliche Icons unverändert.
+- Region- und Lokalkarten-Marker zeigen dieselbe Logik wie die Tages-/Stundenkacheln: Sonne, Wolken, Sonne-Schauer-Kombi, Drizzle-vs-Rain — konsistent über das ganze Produkt.
+- Keine Daten-Pipeline-Änderung nötig, `fetchForecast` liefert die Felder bereits.
