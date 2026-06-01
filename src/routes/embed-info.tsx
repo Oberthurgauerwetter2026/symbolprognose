@@ -13,94 +13,28 @@ export const Route = createFileRoute("/embed-info")({
 });
 
 /**
- * Embed-Snippet mit zweistufigem Fallback:
- *   1. <img> mit serverseitig gerendertem SVG-Snapshot (immer sichtbar — auch
- *      ohne JavaScript, in In-App-Browsern, mit Tracking-Blockern).
- *   2. <iframe> mit der interaktiven Karte: legt sich beim erfolgreichen Laden
- *      über das Bild. Schlägt das Laden fehl, bleibt das Bild sichtbar und
- *      der eingebettete Link öffnet die volle Karte.
+ * Einfaches iframe-Snippet ohne JS-Fallback. Für alle Karten ausser
+ * Lokalprognose Amriswil, die weiter das postMessage-Höhen-Skript braucht.
  */
-function buildSnippet(
-  url: string,
-  path: string,
-  idSuffix: string,
-  snapshotId: string | null,
-  fullPath: string,
-  fallbackHeight = 600,
-) {
+function buildSimpleSnippet(url: string, path: string, height = 600) {
   const full = `${url}${path}`;
-  const fullLink = `${url}${fullPath}`;
-  const snapshot = snapshotId ? `${url}/api/public/snapshot/${snapshotId}.svg` : null;
-  const fallbackImg = snapshot
-    ? `<a href="${fullLink}" target="_blank" rel="noopener" style="display:block;position:absolute;inset:0;text-decoration:none">
-    <img src="${snapshot}" alt="Wetterkarte — interaktive Version: ${fullLink}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"/>
-  </a>
-  `
-    : "";
-  const watchdog = snapshot
-    ? `
-  (function () {
-    var wrap = document.getElementById("wx-${idSuffix}-wrap");
-    var f = document.getElementById("wx-${idSuffix}");
-    if (!wrap || !f) return;
-    window.addEventListener("message", function (e) {
-      if (e.data && e.data.type === "lovable-weather:height" && e.source === f.contentWindow) {
-        wrap.style.height = e.data.height + "px";
-      }
-    });
-    // Wenn das iframe nach 6 s nicht geladen ist (Adblocker, In-App-Browser,
-    // alter Browser), iframe entfernen — das Snapshot-Bild bleibt sichtbar.
-    setTimeout(function () {
-      try {
-        var doc = f.contentDocument;
-        var ok = (doc && doc.body && doc.body.children.length > 0) || (f.offsetHeight > 80 && f.style.opacity === "1");
-        if (!ok) { f.parentNode && f.parentNode.removeChild(f); }
-      } catch (_) { /* cross-origin = iframe lädt erfolgreich */ }
-    }, 6000);
-  })();`
-    : `
-  (function () {
-    var wrap = document.getElementById("wx-${idSuffix}-wrap");
-    var f = document.getElementById("wx-${idSuffix}");
-    if (!wrap || !f) return;
-    window.addEventListener("message", function (e) {
-      if (e.data && e.data.type === "lovable-weather:height" && e.source === f.contentWindow) {
-        wrap.style.height = e.data.height + "px";
-      }
-    });
-  })();`;
-  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${fallbackHeight}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden;resize:vertical">
-  ${fallbackImg}<iframe
-    id="wx-${idSuffix}"
-    src="${full}"
-    loading="lazy"
-    referrerpolicy="no-referrer-when-downgrade"
-    allow="geolocation; fullscreen"
-    scrolling="no"
-    onload="this.style.opacity=1"
-    style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .2s"
-    title="Wetter-Karte"
-  ></iframe>
-</div>
-<script>${watchdog}
-</script>`;
+  return `<iframe
+  src="${full}"
+  loading="lazy"
+  referrerpolicy="no-referrer-when-downgrade"
+  allow="geolocation; fullscreen"
+  style="width:100%;height:${height}px;border:0;display:block"
+  title="Wetter-Karte"
+></iframe>`;
 }
 
-
-function buildViewportSnippet(
-  url: string,
-  path: string,
-  idSuffix: string,
-  snapshotId: string,
-  fullPath: string,
-) {
+/**
+ * Snippet für Lokalprognose Amriswil: reines iframe + kleines Skript, das die
+ * Höhe per postMessage automatisch dem Inhalt anpasst (kein SVG-Fallback).
+ */
+function buildAmriswilSnippet(url: string, path: string, idSuffix: string, height = 480) {
   const full = `${url}${path}`;
-  const fullLink = `${url}${fullPath}`;
-  const snapshot = `${url}/api/public/snapshot/${snapshotId}.svg`;
-  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;height:100vh;min-height:70vh;max-height:100vh;border:0;box-sizing:border-box;background:#eaf2fb;overflow:hidden">
-  <a href="${fullLink}" target="_blank" rel="noopener" style="display:block;position:absolute;inset:0;text-decoration:none">
-    <img src="${snapshot}" alt="Wetterkarte — interaktive Version: ${fullLink}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block"/>
-  </a>
+  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${height}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden;resize:vertical">
   <iframe
     id="wx-${idSuffix}"
     src="${full}"
@@ -108,12 +42,22 @@ function buildViewportSnippet(
     referrerpolicy="no-referrer-when-downgrade"
     allow="geolocation; fullscreen"
     scrolling="no"
-    onload="this.style.opacity=1"
-    style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block;opacity:0;transition:opacity .2s"
+    style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block"
     title="Wetter-Karte"
   ></iframe>
 </div>
-<style>@supports (height: 100dvh) { #wx-${idSuffix}-wrap { height: 100dvh !important; max-height: 100dvh !important; } }</style>`;
+<script>
+  (function () {
+    var wrap = document.getElementById("wx-${idSuffix}-wrap");
+    var f = document.getElementById("wx-${idSuffix}");
+    if (!wrap || !f) return;
+    window.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "lovable-weather:height" && e.source === f.contentWindow) {
+        wrap.style.height = e.data.height + "px";
+      }
+    });
+  })();
+</script>`;
 }
 
 function SnippetBlock({ snippet }: { snippet: string }) {
@@ -148,12 +92,11 @@ function EmbedInfo() {
     >
       <div className="mx-auto w-full max-w-3xl space-y-10 px-4 py-8">
         <p className="text-sm text-muted-foreground">
-          Füge im WordPress-Editor einen <strong>Custom-HTML-Block</strong> ein und kopiere das Snippet (inkl. <code>&lt;script&gt;</code>) hinein. Die Breite passt sich dem Container an, die Höhe wird per <code>postMessage</code> automatisch nachgeführt.
+          Füge im WordPress-Editor einen <strong>Custom-HTML-Block</strong> (oder iframe-Block) ein und kopiere das Snippet hinein.
         </p>
         <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
           Die Snippets zeigen immer auf die publizierte URL <code>{PUBLISHED_ORIGIN}</code>. Nach Code-Änderungen zuerst publishen, damit sie in WordPress sichtbar werden.
         </p>
-
 
         <section className="space-y-3">
           <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
@@ -162,7 +105,7 @@ function EmbedInfo() {
           <p className="text-sm text-muted-foreground">
             Region, Lokalprognose, Wind, Radar und Pollen in einer einzigen Einbettung. Besucher wechseln im iframe selbst.
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/all", "all", "all", "/karten/region", 760)} />
+          <SnippetBlock snippet={buildSimpleSnippet(url, "/embed/all", 760)} />
         </section>
 
         <section className="space-y-3">
@@ -170,9 +113,9 @@ function EmbedInfo() {
             Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Ohne Vorschaubild: beim Laden ist nur ein dezenter blauer Hintergrund sichtbar, bis die Prognose erscheint. Die Höhe passt sich automatisch dem Inhalt an (per <code>postMessage</code>). Der Wert <code>height:480px</code> im Snippet ist nur ein Fallback und kann beliebig verändert werden; zusätzlich lässt sich der Rahmen über die untere rechte Ecke per Maus vergrößern (<code>resize:vertical</code>).
+            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Beim Laden ist nur ein dezenter blauer Hintergrund sichtbar, bis die Prognose erscheint. Die Höhe passt sich automatisch dem Inhalt an (per <code>postMessage</code>). Der Wert <code>height:480px</code> im Snippet ist nur ein Fallback und kann beliebig verändert werden; zusätzlich lässt sich der Rahmen über die untere rechte Ecke per Maus vergrössern (<code>resize:vertical</code>).
           </p>
-          <SnippetBlock snippet={buildSnippet(url, "/embed/region-lokal", "region-lokal", null, "/karten/region", 480)} />
+          <SnippetBlock snippet={buildAmriswilSnippet(url, "/embed/region-lokal", "region-lokal", 480)} />
         </section>
 
         <section className="space-y-6">
@@ -206,34 +149,11 @@ function EmbedInfo() {
                     </span>
                   )}
                 </div>
-                <SnippetBlock snippet={buildSnippet(url, m.embedPath!, m.id, m.id, m.routePath)} />
+                <SnippetBlock snippet={buildSimpleSnippet(url, m.embedPath!, 600)} />
               </div>
             );
           })}
         </section>
-
-        <div className="space-y-1 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-[11px] text-emerald-900">
-          <p>
-            <strong>Neu: garantierter Fallback.</strong> Jedes Snippet zeigt sofort ein statisches Karten-Vorschau-Bild (SVG, vom Server gerendert, alle 5 min aktualisiert). Wenn das interaktive iframe geladen wird, legt es sich darüber. Wird es blockiert (Adblocker, In-App-Browser, fehlendes JS), bleibt das Bild sichtbar — ein Klick öffnet die volle Karte in einem neuen Tab.
-          </p>
-        </div>
-        <div className="space-y-1 rounded-md border border-border bg-muted/40 p-3 text-[11px] text-muted-foreground">
-          <p>
-            <strong>Bleibt die Karte bei einzelnen Besuchern leer?</strong>
-          </p>
-          <ul className="ml-4 list-disc space-y-0.5">
-            <li>Im WordPress-Editor den Block <strong>„Custom HTML"</strong> verwenden (nicht den Visual-Editor – sonst wird <code>&lt;script&gt;</code> entfernt und das iframe legt sich nie über das Fallback-Bild).</li>
-            <li>Tracking-/Werbeblocker (Brave, Firefox Strict, iOS-Content-Blocker, uBlock) können <code>lovable.app</code> blockieren. In dem Fall bleibt das Snapshot-Bild sichtbar — ein Klick öffnet die Karte in einem neuen Tab.</li>
-            <li>In-App-Browser von Facebook/Instagram zeigen das iframe gelegentlich leer – auch hier öffnet ein Tipp auf das Bild die Karte im richtigen Browser.</li>
-          </ul>
-
-          <p className="pt-1">
-            <strong>Tipp:</strong> Auf Smartphones bietet die Lokalprognose einen „Ortung"-Knopf für den eigenen Standort.
-          </p>
-          <p>
-            Datenquellen: MeteoSchweiz ICON-CH1/CH2 & ECMWF IFS via Open-Meteo (kostenlos für nicht-kommerzielle Nutzung).
-          </p>
-        </div>
       </div>
     </DashboardLayout>
   );
