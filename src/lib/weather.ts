@@ -721,7 +721,8 @@ export async function fetchForecast(
       arr = [];
       (merged.daily as unknown as Record<string, unknown>)[key as string] = arr;
     }
-    while (arr.length < dailyTimes.length) arr.push(0 as never);
+    // NaN als "fehlt"-Marker, damit Konsumenten nicht fälschlich 0° anzeigen.
+    while (arr.length < dailyTimes.length) arr.push(NaN as never);
   };
 
   (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum","precipitation_hours","cloud_cover_low_mean","cloud_cover_mid_mean","cloud_cover_high_mean"] as (keyof DailyData)[])
