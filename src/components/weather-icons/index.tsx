@@ -386,6 +386,7 @@ export function WeatherIcon({
   isSnow?: boolean;
   scope?: "hourly" | "daily";
   precipHours?: number;
+  thunderHours?: number;
   sunshineRatio?: number;
   /** Wolken-Stockwerke 0–100 (low/mid/high). Trennt Cirrus von echter Bedeckung. */
   cloudLow?: number;
