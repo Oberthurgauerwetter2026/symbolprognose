@@ -27,6 +27,7 @@ export interface DailyData {
   sunset: string[];
   snowfall_sum: number[];
   precipitation_hours: number[];
+  thunderstorm_hours?: number[];
   cloud_cover_low_mean?: number[];
   cloud_cover_mid_mean?: number[];
   cloud_cover_high_mean?: number[];
