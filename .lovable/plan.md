@@ -1,52 +1,39 @@
-## Problem (verifiziert für Amriswil, Di 02.06.)
+## Problem
 
-Open-Meteo Tageswerte: `wc=95`, `precip=12.3 mm`, `precipHours=4`, `sun=6.7 h`.
-Stündlich: 00–16 Uhr Code 2/3 ohne Niederschlag, 17–21 Uhr eine einzige Gewitterstunde (19 Uhr, 5.8 mm) plus Regen drumherum.
+In `src/lib/weather.ts` (`aggregateDailyFromHourly`, Z. 545–660) werden **alle** Tages-Kennzahlen über das 06–21-Fenster (`idxs`) berechnet. Für **Temperatur-Min/Max** und **Wind** (Geschwindigkeit, Böen, Dominantrichtung) ist das fachlich falsch:
 
-Aktuelle Logik (`src/components/weather-icons/index.tsx`, Z. 418–429) schaltet wegen `(thunderHours ≥ 1 && precip ≥ 8)` auf **`IconThunderstorm` (Vollgewitter)** — obwohl der Tag fast komplett sonnig ist und nur 1 h Gewitter hat. Erwartet: **`IconSunThunder`** (Sonne-Wolke-Tropfen-Blitz). Im Winter analog mit Schneeflocke statt Tropfen.
+- Tagesminimum liegt meist nachts (03–06 Uhr) → wird heute abgeschnitten.
+- Sturmböen / Föhnspitzen treten oft abends/nachts auf → fehlen.
 
-## Änderungen
+Icons/Niederschlag/Sonne sollen weiterhin 06–21 nutzen.
 
-### 1. `src/components/weather-icons/index.tsx` — neuer Winter-Wrap
+## Änderung — `src/lib/weather.ts`, `aggregateDailyFromHourly`
 
-Neue Komponente `IconSunSnowThunder` (Sonne + dunkle Wolke + Flake + Bolt), analog zu `IconSunThunder` aber mit `<Flake/>` statt `<Drop/>`. Zusätzlich `IconSnowThunder` (Wolke + Flake + Bolt) als heavy-Snow-Thunder.
-
-### 2. `src/components/weather-icons/index.tsx` — Daily-Dispatcher (Z. 418–429)
-
-Threshold-Mix entschärfen, sodass **isolierte Gewitterstunden auf sonst sonnigem Tag** zu `IconSunThunder` werden, statt zu Vollgewitter. Neuer Block:
+Zusätzlich zum bestehenden `idxs` (06–21, „Day-Window") ein zweites Index-Set `allIdxs` für den vollen Kalendertag (00–23) bauen:
 
 ```ts
-if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
-  const th = thunderHours ?? 0;
-  const sunny = (sunshineRatio ?? 0) >= 0.15 && (precipHours ?? 0) < 8;
-
-  // Vollgewitter nur, wenn das Gewitter den Tag prägt
-  const heavyThunder =
-    th >= 3 ||
-    (th >= 2 && (precip ?? 0) >= 8) ||
-    (wmoIsThunder && (precipHours ?? 0) >= 5 && !sunny);
-
-  if (heavyThunder) {
-    return isSnow ? <IconSnowThunder {...props} /> : <IconThunderstorm {...props} />;
-  }
-  if (sunny) {
-    return isSnow ? <IconSunSnowThunder {...props} /> : <IconSunThunder {...props} />;
-  }
-  return isSnow ? <IconSnowThunder {...props} /> : <IconThunderstorm {...props} />;
+const allIdxs: number[] = [];
+for (let i = 0; i < h.time.length; i++) {
+  const t = h.time[i] ?? "";
+  if (t.slice(0, 10) === day) allIdxs.push(i);
 }
+const finiteAll = (arr: number[] | undefined): number[] =>
+  allIdxs.map((i) => arr?.[i]).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
 ```
 
-Was sich konkret ändert:
-- alte `(th ≥ 1 && precip ≥ 8)`-Klausel entfällt → 1-h-Abendgewitter mit kräftigem Niederschlag bei sonst viel Sonne bleibt `IconSunThunder`.
-- `th ≥ 2`-Schwelle wird auf `th ≥ 3` angehoben, `2 h` brauchen jetzt zusätzlich ≥ 8 mm.
-- `wmoIsThunder && precipHours ≥ 3` wird zu `≥ 5 && !sunny` — vermeidet, dass viel Sonne weggewischt wird.
-- Winter: bei `isSnow` jeweils Schnee-Pendant.
+Im Return-Block (Z. 649–…) auf `finiteAll` umstellen für:
+- `temperature_2m_max`, `temperature_2m_min`
+- `windspeed_10m_max`, `windgusts_10m_max`
+- `winddirection_10m_dominant` (auch Berechnung der Vektor-Mittelung Z. 569–582 auf `finiteAll(h.winddirection_10m)` / `finiteAll(h.windspeed_10m)` ziehen)
 
-### 3. Keine Änderungen an `weather.ts`, kein Cache-Bump.
+Unverändert auf `idxs` (06–21):
+- `precipitation_sum`, `precipitation_hours`, `thunderstorm_hours`
+- `sunshine_duration`, `sunshineRatio`
+- Wolken-Stockwerk-Mittelwerte (`cloudLowMean` etc.) und der daraus abgeleitete `weathercode`
+- `dryHours`, `maxHourlyPrecip`, `isDry/isShowerDay/isPersistentRain`-Klassifikation
 
 ## Verifikation
 
-- **Amriswil/Di**: th=1, precip=12.3, pHrs=4, sun=6.7h → `sunny=true`, kein heavyThunder → **`IconSunThunder`** ✅
-- **3 h Gewitter, durchgehender Regen, pHrs=8**: `heavyThunder` via `th≥3` → `IconThunderstorm` ✅
-- **Winter-Pendant (isSnow + th=1 + Sonne)**: → `IconSunSnowThunder` ✅
-- **Stündliche Icons** unverändert (Block läuft nur in `scope === "daily"`).
+- Klare Nacht 4 °C / sonniger Tag 18 °C → `temperature_2m_min` = 4 °C (vorher ~10 °C).
+- Föhnsturm 23 Uhr 95 km/h, tagsüber 30 km/h → `windgusts_10m_max` = 95 km/h.
+- Tages-Icon (Amriswil/Di Gewitter 19 Uhr) bleibt unverändert, da Icon-Logik weiter auf `idxs` rechnet.
