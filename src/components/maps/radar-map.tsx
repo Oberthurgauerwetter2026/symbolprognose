@@ -1007,6 +1007,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                       nextFrame={blendNext}
                       progress={progress}
                       opacity={opacityVal}
+                      smooth={currentFrame.source !== "radar"}
                     />
                   )}
                   {hasPng && (
