@@ -1,68 +1,89 @@
-# Wind-Advection für ICON-CH1-Prognose
+# Sauberere Zellverlagerung — Stufe 1 + 2
 
-Messung (MeteoSchweiz-PNGs, R2-Manifest, Ingest) bleibt komplett unangetastet. Änderungen ausschließlich im Prognose-Pfad von `src/lib/radar.functions.ts`.
+Messung (MeteoSchweiz-PNGs, R2-Manifest, Ingest, GitHub Action, Cron, `past_minutely_15`-Canvas-Pfad) bleibt **komplett unangetastet**. Änderungen ausschliesslich im Prognose-Pfad von `src/lib/radar.functions.ts`.
 
-## Verfahren
+## Ziel
 
-Semi-Lagrangian Advection zwischen je zwei stündlichen ICON-CH1-Ankern A (t=0) und B (t=60 min). Für jeden 15-min-Frame mit α = Δt/60:
+Das Pulsieren zwischen den Stunden­ankern eliminieren und Zellen sichtbar entlang ihrer **tatsächlichen Bewegungs­richtung** verlagern — nicht entlang des groben 700-hPa-Modell­winds.
 
-- `A_fwd = advect(A, uA, vA, +α·3600 s)` — Anker A entlang Wind(A) vorwärts verschoben
-- `B_bwd = advect(B, uB, vB, −(1−α)·3600 s)` — Anker B entlang Wind(B) rückwärts verschoben
-- Frame-Wert = `(1−α) · A_fwd + α · B_bwd`
+## Stufe 1 — Closest-Cell-Blending statt linearem Crossfade
 
-Zellen wandern sichtbar von A nach B; Intensitäts­änderungen über den Blend. Bei Wind ≈ 0 fällt das automatisch auf einen reinen Crossfade zurück.
+Aktuell: `value = (1−α)·A_fwd + α·B_bwd` → bei α≈0.5 zwei halbtransparente Zellen sichtbar (Pulsieren).
 
-`advect(field, u, v, dt)` arbeitet pro Ziel-Gridpunkt mit Backward-Lookup:
-- Quelle (lat, lon) = (lat − v·dt/111000, lon − u·dt/(111000·cos(lat)))
-- bilineares Sampling der vier Nachbarn im 36×22-Grid
-- Out-of-bbox → 0
+Neu: pro Ziel-Pixel **distanz­gewichtetes Maximum**:
 
-Aufwand: ein bilinearer Pass pro 15-min-Frame über 36×22 ≈ 800 Punkte — vernachlässigbar.
+```text
+if A_fwd ≥ B_bwd:  value = A_fwd · (1 − soft·α)  + B_bwd · soft·α
+else:              value = B_bwd · (1 − soft·(1−α)) + A_fwd · soft·(1−α)
+```
+
+mit `soft = 0.3` (sanfter Übergang, kein hartes Switch). Bei gut überlappenden Zellen → praktisch wie vorher. Bei räumlich versetzten Zellen → die dominantere Zelle gewinnt, kein Doppel-Geist.
+
+Alternativ noch sauberer: **Distance-Transform-Blending** — zu jedem Pixel die Distanz zur nächsten "echten" Zelle in A_fwd bzw. B_bwd bestimmen, Gewicht = inverse Distanz. Wird nur eingebaut, falls Variante oben noch sichtbar pulsiert.
+
+## Stufe 2 — Optical Flow ersetzt 700-hPa-Wind
+
+Statt `uHour`/`vHour` aus ICON-Wind, berechnen wir Bewegungs­vektoren aus zwei aufeinander­folgenden Niederschlags­feldern selbst.
+
+### Algorithmus: Pyramidal Lucas-Kanade auf 36×22-Grid
+
+Pro Anker­paar (A, B) im Stunden­abstand:
+
+1. **Pyramide** in zwei Stufen (18×11 → 36×22), bilineares Downsample.
+2. **Auf jeder Stufe** für jeden Grid­punkt (i,j):
+   - Fenster 5×5 um (i,j) in A.
+   - Gradienten `Ix, Iy` (zentrale Differenzen auf A), Zeit­differenz `It = B−A`.
+   - Lösen des 2×2-Systems `[ΣIx² ΣIxIy; ΣIxIy ΣIy²] · [u;v] = -[ΣIxIt; ΣIyIt]`.
+   - Bei singulärer Matrix (kein Gradient) → (0,0).
+3. **Upsample** des Flow-Feldes von grob → fein, Verfeinerung auf der feinen Stufe mit gewarptem A.
+4. **Cap** auf physikalisch sinnvolle Werte: max 30 m/s, glätte mit 3×3-Box-Filter.
+
+Output: `flowU[GRID_LAT][GRID_LON]`, `flowV[...]` in m/s — Einheit kompatibel zur bestehenden `advectField`.
+
+### Fallback
+
+Wenn Flow-Magnitude < 1 m/s an einem Punkt UND ICON-Wind > 3 m/s → ICON-Wind verwenden (Übergangs­bereiche ohne Niederschlag, in die Zellen reinwandern). Per-Pixel-Blend mit Gewicht aus lokaler Niederschlags­intensität.
+
+### Wind-Felder bleiben erhalten
+
+`uHour`/`vHour` aus 700 hPa werden **nicht entfernt** — sie dienen als Fallback (siehe oben) und als Sanity-Check bei numerisch instabilen Flow-Lösungen.
 
 ## Konkrete Änderungen — nur `src/lib/radar.functions.ts`
 
-### 1. `LocResponse.hourly` erweitern
-`wind_speed_700hPa: (number|null)[]`, `wind_direction_700hPa: (number|null)[]` ergänzen. Wird vom Ingest schon geliefert.
+1. **Neue Helper-Funktionen** (Modul-Scope, oberhalb des Handlers):
+   - `computeOpticalFlow(fieldA, fieldB, dtSeconds): { u: number[][], v: number[][] }` — pyramidal Lucas-Kanade.
+   - `warpField(field, u, v, dt, lats, lons)` — identisch zu bisherigem `advectField`, nur umbenannt zur Klarheit.
+   - `blendClosestCell(aFwd, bBwd, alpha, soft)` — Stufe-1-Blending.
+   - `boxFilter3(field)` — 3×3 Glättung des Flow-Feldes.
 
-### 2. Stündliche Anker als 2D-Felder formen
-Innerhalb des bestehenden Forecast-Blocks (ab Zeile ~309):
-- Aus `minutely_15.time` die Stunden-Indizes ermitteln (jeweils erstes 15-min-Sample pro Stunde).
-- Aus `hourly.time` die zugehörigen Wind-Indizes mappen.
-- Für jeden Stunden-Anker: 2D-Felder `precipHour[GRID_LAT][GRID_LON]` (mm/h), `snowHour[...]`, `uHour[...]`, `vHour[...]` aus `r1[pi]` aufbauen.
-- Wind-Umrechnung met → kart.: `u = -speed · sin(dir·π/180)`, `v = -speed · cos(dir·π/180)` (Open-Meteo `wind_direction` = Herkunftsrichtung).
-- `speed` von km/h in m/s teilen (Open-Meteo Default ist km/h).
+2. **Pro Anker­paar einmalig** (vor der 15-min-Frame-Schleife):
+   - `const flow = computeOpticalFlow(precipHour[a], precipHour[a+1], 3600)`.
+   - `const { u, v } = blendFlowWithWind(flow, uHour[a], vHour[a], precipHour[a])` — Fallback-Logik.
+   - Cache pro `a`, damit wiederverwendet für alle vier 15-min-Frames im Stunden­intervall.
 
-### 3. Advection-Kernel
-Reine Helper-Funktion (Modul-Scope, oberhalb des Handlers):
+3. **Frame-Schleife angepasst**:
+   - `A_fwd = warpField(precipHour[a], u, v, +α·3600, ...)`.
+   - `B_bwd = warpField(precipHour[a+1], u, v, −(1−α)·3600, ...)`.
+   - `value = blendClosestCell(A_fwd, B_bwd, α, 0.3) · biasCorrection`.
+   - Schnee analog mit demselben Flow-Feld (Schnee folgt dem Niederschlags­muster).
 
-```text
-function advect(field, u, v, dtSeconds, lats, lons): number[][]
-```
-- Iteriert über alle Ziel-Gitterpunkte (lat[i], lon[j]).
-- Berechnet Quelle, sampelt bilinear, schreibt ins Output-Grid.
-- Verwendet die u/v-Felder am Ziel-Punkt (Standard semi-Lagrangian Approx).
+4. **Bias-Korrektur, Farb­palette, Canvas-Renderer, Crossfade/Pause-Tween** — unverändert.
 
-### 4. Frame-Schleife umbauen
-Pro 15-min-Frame zwischen now und now+24 h:
-- Anker-Index a finden (letzter Stundenanker ≤ tMs), α berechnen.
-- `A_fwd = advect(precipHour[a], uHour[a], vHour[a], +α·3600, ...)`.
-- `B_bwd = advect(precipHour[a+1], uHour[a+1], vHour[a+1], −(1−α)·3600, ...)`.
-- Per Ziel-Pixel: `value = ((1−α)·A_fwd + α·B_bwd) · biasCorrection`.
-- Schnee analog mit denselben u/v.
-- Letzter Stunden­anker (a+1 nicht vorhanden) → reines `A` ohne Advection.
+## Performance
 
-### 5. Alten Pfad entfernen
-`buildSmoothSeries` + die per-Punkt-Zeitreihen werden entfernt — durch Advection ersetzt. Bias-Korrektur (`biasFactor`, `BIAS_FADE_MIN`) und alle anderen Schritte bleiben unverändert.
+- Optical Flow: 36×22 = 792 Punkte × 2 Pyramiden­stufen × ~30 Ops = ~50k Ops pro Anker­paar.
+- 24 Anker­paare (24 h) × 50k = 1.2M Ops pro Request → < 20 ms in V8.
+- Warping: wie bisher, ~800 bilineare Lookups pro Frame, 96 Frames = vernachlässigbar.
 
 ## Nicht angefasst
 
 - MeteoSchweiz-Messpfad (PNGs, R2-Manifest, `past_minutely_15`-Canvas-Füllung).
-- Ingest-Skript, GitHub Action, Cron.
+- Ingest-Skript, GitHub Action, Cron, Cloudflare Worker.
 - ICON-CH2 (bleibt deaktiviert).
-- Farbpalette, Canvas-Renderer, Crossfade-/Pause-Tween-Logik.
+- `LocResponse`-Typ (Wind-Felder bleiben, werden als Fallback genutzt).
+- Farb­palette, Canvas-Renderer, Crossfade-/Pause-Tween-Logik, Bias-Korrektur.
 
-## Hinweise
+## Verifikation
 
-- 700 hPa ist Standard-Steuerniveau für die ICON-Synoptik. Wenn ein Fall mal daneben liegt (sehr flache Schauer), können wir später ein 700/850-Mittel ergänzen.
-- Wind-Werte je Grid-Punkt: Wir nutzen den lokalen Wind am Ziel-Pixel — räumlich heterogene Lagen werden so korrekt erfasst.
-- Bei Wind 0 m/s ist `advect` die Identität → Verhalten = Crossfade wie vorher.
+- `bunx tsc --noEmit` muss durchgehen.
+- Visuell im Preview: kein Pulsieren mehr bei α≈0.5, Zellen bewegen sich erkennbar entlang ihrer Eigen­richtung (kann von 700-hPa-Wind abweichen).
