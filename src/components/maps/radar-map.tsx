@@ -1278,7 +1278,7 @@ export function RadarMap({
 
 
             <p className="mt-1.5 text-[10px] text-neutral-500">
-              Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
+              Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung & Hagel-POH) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
             </p>
 
 
