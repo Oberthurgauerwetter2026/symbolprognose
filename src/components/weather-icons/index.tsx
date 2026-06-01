@@ -340,6 +340,28 @@ export function IconSunThunder({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconSunSnowThunder({ size, ...rest }: IconProps) {
+  return (
+    <Svg size={size} {...rest}>
+      <Sun cx={20} cy={20} r={9} />
+      <Cloud x={38} y={32} scale={1} dark />
+      <Flake x={32} y={52} size={1} />
+      <Bolt />
+    </Svg>
+  );
+}
+
+export function IconSnowThunder({ size, ...rest }: IconProps) {
+  return (
+    <Svg size={size} {...rest}>
+      <Cloud x={32} y={24} scale={1.05} dark />
+      <Flake x={20} y={48} size={1.1} />
+      <Flake x={46} y={48} size={1.1} />
+      <Bolt />
+    </Svg>
+  );
+}
+
 
 /* ---------- Daily wet-icon helper ---------- */
 
