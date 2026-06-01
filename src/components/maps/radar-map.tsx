@@ -325,12 +325,14 @@ function PrecipOverlay({
   nextFrame,
   progress,
   opacity = 1,
+  smooth = false,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
   nextFrame?: RadarFrame | null;
   progress?: number;
   opacity?: number;
+  smooth?: boolean;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
