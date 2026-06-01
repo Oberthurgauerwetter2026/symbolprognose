@@ -1,10 +1,12 @@
 ## Änderung
-**`src/components/maps/radar-map.tsx`** Zeile 1281 — Quellen-Footer ergänzen:
+**`src/components/maps/radar-map.tsx`** Zeile 572–577 — Label-Funktion vereinfachen:
 
-Vorher:
-> Quellen: MeteoSchweiz Radar (Messung) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
+| Vorher | Nachher |
+|---|---|
+| `Messung MeteoSchweiz` | `Messung` |
+| `Prognose ICON-CH1` | `Modellprognose` |
+| `Prognose ICON-CH2` | `Modellprognose` |
 
-Nachher:
-> Quellen: MeteoSchweiz Radar (**Messung & Hagel-POH**) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
+Beide ICON-Modelle werden zu „Modellprognose" zusammengefasst (technische Modellnamen tauchen weiterhin in der Quellenzeile im Footer auf, daher in der Karten-Badge redundant). Farben bleiben unverändert (CH1 = Brand-Blau, CH2 = Lila), sodass der Wechsel weiterhin visuell sichtbar ist.
 
-Eine Zeile, keine weiteren Änderungen.
+Keine weiteren Änderungen.
