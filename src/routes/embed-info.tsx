@@ -18,9 +18,13 @@ export const Route = createFileRoute("/embed-info")({
  */
 function buildSimpleSnippet(url: string, path: string, height = 600) {
   const full = `${url}${path}`;
-  return `<iframe
+  const origin = new URL(url).origin;
+  return `<link rel="preconnect" href="${origin}" crossorigin>
+<link rel="dns-prefetch" href="${origin}">
+<iframe
   src="${full}"
-  loading="lazy"
+  loading="eager"
+  fetchpriority="high"
   referrerpolicy="no-referrer-when-downgrade"
   allow="geolocation; fullscreen"
   style="width:100%;height:${height}px;border:0;display:block"
@@ -34,11 +38,15 @@ function buildSimpleSnippet(url: string, path: string, height = 600) {
  */
 function buildAmriswilSnippet(url: string, path: string, idSuffix: string, height = 480) {
   const full = `${url}${path}`;
-  return `<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${height}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden;resize:vertical">
+  const origin = new URL(url).origin;
+  return `<link rel="preconnect" href="${origin}" crossorigin>
+<link rel="dns-prefetch" href="${origin}">
+<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${height}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden;resize:vertical">
   <iframe
     id="wx-${idSuffix}"
     src="${full}"
-    loading="lazy"
+    loading="eager"
+    fetchpriority="high"
     referrerpolicy="no-referrer-when-downgrade"
     allow="geolocation; fullscreen"
     scrolling="no"
@@ -59,6 +67,7 @@ function buildAmriswilSnippet(url: string, path: string, idSuffix: string, heigh
   })();
 </script>`;
 }
+
 
 function SnippetBlock({ snippet }: { snippet: string }) {
   const [copied, setCopied] = useState(false);
