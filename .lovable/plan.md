@@ -1,65 +1,46 @@
 ## Ziel
 
-Prognose-Frames hybrid emittieren: **15-min-Takt für die ersten 6 h**, danach **stündlich** bis +24 h. Bias-Korrektur, Snow-Handling und Client-Advektion bleiben unverändert.
+Nur in der **Prognose** (`PrecipOverlay`, wenn `currentFrame.source !== "radar"`): Niederschlagsbänder fliessen sanft zwischen zwei Modell-Zeitschritten statt zu pulsieren. Messung (PNG-Bilder) bleibt **komplett unberührt**. Mobile-tauglich.
 
-## Änderung (1 Datei, 1 Block)
+## Änderungen
 
-`src/lib/radar.functions.ts`, ab Zeile 318 (`if (ref1 && r1) { ... }`).
+Alle in `src/components/maps/radar-map.tsx`, nur im `PrecipOverlay`-Renderpfad.
 
-### Logik
+### 1. Phase-Correlation zwischen aufeinanderfolgenden Forecast-Frames
 
-Filterkriterium pro `ti`:
-- Innerhalb der ersten 6 h ab `now`: **alle 15-min-Samples** verwenden (`:00`, `:15`, `:30`, `:45`).
-- Nach 6 h: nur noch `:00`-Samples (wie bisher).
-- Cutoff oben (`forecastCutoff`, +24 h) unverändert.
+- Beim Wechsel des Frame-Paars `(vals_a, vals_b)` einmal einen globalen Verschiebungsvektor `(dx, dy)` in Grid-Zellen schätzen.
+- Methode: **diskrete Kreuzkorrelation** auf einem heruntergerechneten Grid (z. B. 32×32 Bilinear-Resample der Werte), Suchfenster ±4 Zellen → ~80 Vergleiche × 1024 Pixel ≈ ein paar ms, einmal pro Frame-Paar (nicht pro Animations-Tick).
+- Ergebnis cachen in einem `useRef<Map<string, {dx,dy}>>`, Key = `${frame_a.t}|${frame_b.t}`.
+- Fallback `(0,0)` bei zu wenig Signal (max Korrelation < Schwelle) oder wenn `vals_b` fehlt.
 
-Konkret in der bestehenden Schleife `for (let ti = 0; ti < ref1.time.length; ti++)`:
+### 2. Advektives Sampling im bestehenden Bilinear-Pfad
 
-```text
-const tIso = ref1.time[ti];
-const tMs = Date.parse(tIso + "Z");
-if (tMs <= now) continue;
-if (tMs > forecastCutoff) continue;
-const dtMinFromNow = (tMs - now) / 60_000;
-const inNowcast = dtMinFromNow <= 360;          // 6 h
-const isHourly = tIso.endsWith(":00");
-if (!inNowcast && !isHourly) continue;          // ausserhalb Nowcast nur volle Stunden
-```
+- Bisher: `v = lerp(sample(vals_a, x, y), sample(vals_b, x, y), alpha)`.
+- Neu (nur Prognose): 
+  - `v_a = sample(vals_a, x + alpha·dx,       y + alpha·dy)`
+  - `v_b = sample(vals_b, x - (1-alpha)·dx,   y - (1-alpha)·dy)`
+  - `v = lerp(v_a, v_b, smoothstep(alpha))`
+- Dezent ⇒ Vektor mit `0.4` multiplizieren, hart auf max. 1.5 Zellen clampen.
+- `smoothstep` statt linear ⇒ ruhigerer Übergang an Bandkanten (das war der „leichte Crossfade"-Teil).
 
-`dtMinFromNow` wird ohnehin schon für die Bias-Fade-Gewichtung berechnet — Berechnung einmal teilen.
+### 3. Messung & Radar bleiben unverändert
 
-### Korrekt-Anzeige der „echten" Stützstellen
+- Im Radar-Pfad (`currentFrame.source === "radar"`) keine Advektion, kein smoothstep — exakt aktueller Code.
+- PNG-Layer (Messung) wird gar nicht angefasst.
 
-Nur volle Stunden (`:00`) sind native ICON-CH1-Werte. Die `:15`/`:30`/`:45`-Samples sind Open-Meteo-Interpolationen. Damit die UI das nicht als gleich-präzise Modellfelder verkauft, das `RadarFrame` um ein optionales Flag erweitern:
+### 4. Mobile-Sicherheit
 
-- In `radar.functions.ts`:
-  ```text
-  frames.push({
-    t: tIso + "Z",
-    source: "icon-ch1",
-    values: precip,
-    snowValues: snow,
-    interpolated: inNowcast && !isHourly,   // neu
-  });
-  ```
-- Im `RadarFrame`-Typ (gleiche Datei oder zentral, wo immer er deklariert ist) `interpolated?: boolean` ergänzen.
-- Keine UI-Änderungen in diesem Plan — Flag steht bereit für späteren Tooltip-Hinweis, falls gewünscht. (Optisch ist die Animation durch Advektion + Crossfade ohnehin stetig.)
+- Phase-Correlation nur auf 32×32-Downsample → Worst-Case ein paar ms, einmal pro Frame-Paar, nicht pro rAF-Tick.
+- Ergebnis pro Frame-Paar gecached → bei Loop-Wiederholung 0 Zusatzkosten.
+- Kein zusätzlicher Canvas, kein FFT, keine WebGL-Abhängigkeit.
+- Bestehende Responsive-Logik (Container-Queries, Touch-Controls) bleibt unverändert.
 
-### Payload-Folgen
+## Technische Notiz
 
-- Stündlich heute: ~24 Frames × nPts.
-- Hybrid: 6 h × 4 + 18 = **42 Frames** statt 24 → ~+75 % Manifest-Grösse.
-- Kein Snow-Decode-Mehraufwand pro Frame, da `nPts` identisch.
-
-### Was nicht angefasst wird
-
-- `radar-map.tsx` (Client-Rendering, Advektion, Player-UI): unverändert. Mehr Frames → mehr Slider-Stops, das ist von Haus aus mitskaliert.
-- Bias-Korrektur-Block (Zeilen 271–316): unverändert.
-- Messpfad (PNG-Frames): unverändert.
-- `forecast.functions.ts` / Embed-Loader: keine Änderung nötig (lesen anderen Endpoint).
+Die Phase-Correlation läuft im selben `useMemo`/Effect, in dem heute schon `vals_a` und `vals_b` decodiert werden — also einmal pro Frame-Wechsel, nicht pro Animations-Tick. Der Sampling-Hot-Path bekommt nur zwei zusätzliche Multiplikationen und Additionen pro Pixel, was im bestehenden Render-Budget unsichtbar ist.
 
 ## Out of Scope
 
-- UI-Hinweis „interpoliert" — Flag wird vorbereitet, aber nicht gerendert.
-- Echter Nowcast aus AROME/INCA — separater Vorschlag, falls später gewünscht.
-- Player-Speed-Anpassung an grössere Frame-Zahl.
+- Pro-Zelle-Wind aus u/v (nicht jetzt).
+- Farbänderungen, Konturlogik, Snow-Handling — alles unverändert.
+- Messpfad / PNG-Overlay — explizit nicht anfassen.
