@@ -320,6 +320,8 @@ function SpotMarker({
         : data.hourly.precipitation_probability?.[absoluteHour];
     const precipHours =
       mode === "daily" ? data.daily.precipitation_hours?.[dayIdx] : undefined;
+    const thunderHours =
+      mode === "daily" ? data.daily.thunderstorm_hours?.[dayIdx] : undefined;
     const isSnow =
       mode === "daily"
         ? (data.daily.snowfall_sum?.[dayIdx] ?? 0) > 0.1
