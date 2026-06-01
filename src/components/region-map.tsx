@@ -227,16 +227,16 @@ function MarkerPill({
           {mode === "daily" ? (
             <>
               <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
-                {Math.round(tMin)}°
+                {Number.isFinite(tMin) ? `${Math.round(tMin)}°` : "–"}
               </span>
               <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>/</span>
               <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
-                {Math.round(tMax)}°
+                {Number.isFinite(tMax) ? `${Math.round(tMax)}°` : "–"}
               </span>
             </>
           ) : (
             <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
-              {Math.round(tNow)}°
+              {Number.isFinite(tNow) ? `${Math.round(tNow)}°` : "–"}
             </span>
           )}
         </div>
@@ -263,8 +263,8 @@ function SpotMarker({
 }) {
   const getForecast = useServerFn(getAggregatedForecast);
   const { data } = useQuery({
-    queryKey: ["map-weather", "v5", spot.id],
-    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon, v: "v5" } }),
+    queryKey: ["map-weather", "v6", spot.id],
+    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon, v: "v6" } }),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnMount: "always",
@@ -306,8 +306,8 @@ function SpotMarker({
         : data.hourly.weathercode[absoluteHour] ??
           data.daily.weathercode[dayIdx] ??
           0;
-    const tMin = data.daily.temperature_2m_min[dayIdx] ?? 0;
-    const tMax = data.daily.temperature_2m_max[dayIdx] ?? 0;
+    const tMin = data.daily.temperature_2m_min[dayIdx] ?? NaN;
+    const tMax = data.daily.temperature_2m_max[dayIdx] ?? NaN;
     const tNow = data.hourly.temperature_2m[absoluteHour] ?? tMax;
     const effectiveIsDay = mode === "daily" ? true : isDay;
     const precip =
@@ -533,8 +533,8 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   const firstSpot = SPOTS[0];
   const getForecast = useServerFn(getAggregatedForecast);
   const { dataUpdatedAt } = useQuery({
-    queryKey: ["map-weather", "v5", firstSpot.id],
-    queryFn: () => getForecast({ data: { lat: firstSpot.lat, lon: firstSpot.lon, v: "v5" } }),
+    queryKey: ["map-weather", "v6", firstSpot.id],
+    queryFn: () => getForecast({ data: { lat: firstSpot.lat, lon: firstSpot.lon, v: "v6" } }),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnMount: "always",

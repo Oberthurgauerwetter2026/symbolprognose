@@ -162,7 +162,7 @@ export function WeatherWidget({
   }, []);
 
   const getForecast = useServerFn(getAggregatedForecast);
-  const FORECAST_VERSION = "v5";
+  const FORECAST_VERSION = "v6";
   const forecast = useQuery({
     queryKey: ["forecast", FORECAST_VERSION, location?.latitude ?? 0, location?.longitude ?? 0],
     queryFn: () =>
@@ -562,14 +562,14 @@ function DayStrip({
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
                   <span className="text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900 font-[family-name:var(--font-display)]">
-                    {Math.round(d.temperature_2m_max[i])}°
+                    {Number.isFinite(d.temperature_2m_max[i]) ? `${Math.round(d.temperature_2m_max[i])}°` : "–"}
                   </span>
                   <span className="text-base text-zinc-700 font-semibold tabular-nums">
-                    {Math.round(d.temperature_2m_min[i])}°
+                    {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
                   </span>
                 </div>
                 <div className="text-xs text-zinc-700 font-medium flex justify-between tabular-nums">
-                  <span>{d.precipitation_sum[i].toFixed(1)} mm</span>
+                  <span>{Number.isFinite(d.precipitation_sum[i]) ? `${d.precipitation_sum[i].toFixed(1)} mm` : "– mm"}</span>
                   <span>{d.precipitation_probability_max[i] ?? 0}%</span>
                 </div>
               </div>

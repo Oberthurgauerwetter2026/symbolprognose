@@ -721,7 +721,8 @@ export async function fetchForecast(
       arr = [];
       (merged.daily as unknown as Record<string, unknown>)[key as string] = arr;
     }
-    while (arr.length < dailyTimes.length) arr.push(0 as never);
+    // NaN als "fehlt"-Marker, damit Konsumenten nicht fälschlich 0° anzeigen.
+    while (arr.length < dailyTimes.length) arr.push(NaN as never);
   };
 
   (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum","precipitation_hours","cloud_cover_low_mean","cloud_cover_mid_mean","cloud_cover_high_mean"] as (keyof DailyData)[])
@@ -771,6 +772,12 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
 
   const fixNumArr = (arr: (number | null)[] | undefined, fallback = 0) =>
     (arr ?? []).map((v) => num(v, fallback));
+  // Behält NaN/null für Daily-Werte als "fehlt"-Marker, damit Kacheln keine
+  // falschen 0°-Werte rendern, sondern den fehlenden Zustand erkennen.
+  const keepNaNArr = (arr: (number | null)[] | undefined): number[] =>
+    (arr ?? []).map((v) =>
+      typeof v === "number" && Number.isFinite(v) ? v : NaN,
+    );
 
   const sanitizedHourly: HourlyData = {
     time: h?.time ?? [],
@@ -794,8 +801,8 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
   const sanitizedDaily: DailyData = {
     time: d?.time ?? [],
     weathercode: fixNumArr(d?.weathercode as (number | null)[]),
-    temperature_2m_max: fixNumArr(d?.temperature_2m_max as (number | null)[]),
-    temperature_2m_min: fixNumArr(d?.temperature_2m_min as (number | null)[]),
+    temperature_2m_max: keepNaNArr(d?.temperature_2m_max as (number | null)[]),
+    temperature_2m_min: keepNaNArr(d?.temperature_2m_min as (number | null)[]),
     precipitation_sum: fixNumArr(d?.precipitation_sum as (number | null)[]),
     precipitation_probability_max: fixNumArr(
       d?.precipitation_probability_max as (number | null)[],
