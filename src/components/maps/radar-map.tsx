@@ -569,12 +569,12 @@ function fmtTime(iso: string): string {
 
 function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "radar") {
-    return { label: "Messung MeteoSchweiz", color: "#1f7a3a" };
+    return { label: "Messung", color: "#1f7a3a" };
   }
   if (frame.source === "icon-ch1") {
-    return { label: "Prognose ICON-CH1", color: BRAND };
+    return { label: "Modellprognose", color: BRAND };
   }
-  return { label: "Prognose ICON-CH2", color: "#7a4ca0" };
+  return { label: "Modellprognose", color: "#7a4ca0" };
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
