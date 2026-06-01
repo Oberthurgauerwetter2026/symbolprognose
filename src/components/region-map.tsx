@@ -152,6 +152,7 @@ function MarkerPill({
   precip,
   precipProb,
   precipHours,
+  thunderHours,
   isSnow,
   sunshineRatio,
   cloudLow,
@@ -168,6 +169,7 @@ function MarkerPill({
   precip?: number;
   precipProb?: number;
   precipHours?: number;
+  thunderHours?: number;
   isSnow?: boolean;
   sunshineRatio?: number;
   cloudLow?: number;
@@ -202,6 +204,7 @@ function MarkerPill({
         precip={precip}
         precipProb={precipProb}
         precipHours={precipHours}
+        thunderHours={thunderHours}
         isSnow={isSnow}
         sunshineRatio={sunshineRatio}
         cloudLow={cloudLow}
@@ -263,8 +266,8 @@ function SpotMarker({
 }) {
   const getForecast = useServerFn(getAggregatedForecast);
   const { data } = useQuery({
-    queryKey: ["map-weather", "v7", spot.id],
-    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon, v: "v7" } }),
+    queryKey: ["map-weather", "v8", spot.id],
+    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon, v: "v8" } }),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnMount: "always",
@@ -320,6 +323,8 @@ function SpotMarker({
         : data.hourly.precipitation_probability?.[absoluteHour];
     const precipHours =
       mode === "daily" ? data.daily.precipitation_hours?.[dayIdx] : undefined;
+    const thunderHours =
+      mode === "daily" ? data.daily.thunderstorm_hours?.[dayIdx] : undefined;
     const isSnow =
       mode === "daily"
         ? (data.daily.snowfall_sum?.[dayIdx] ?? 0) > 0.1
@@ -352,6 +357,7 @@ function SpotMarker({
         precip={precip}
         precipProb={precipProb}
         precipHours={precipHours}
+        thunderHours={thunderHours}
         isSnow={isSnow}
         sunshineRatio={sunshineRatio}
         cloudLow={cloudLow}
@@ -533,8 +539,8 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   const firstSpot = SPOTS[0];
   const getForecast = useServerFn(getAggregatedForecast);
   const { dataUpdatedAt } = useQuery({
-    queryKey: ["map-weather", "v7", firstSpot.id],
-    queryFn: () => getForecast({ data: { lat: firstSpot.lat, lon: firstSpot.lon, v: "v7" } }),
+    queryKey: ["map-weather", "v8", firstSpot.id],
+    queryFn: () => getForecast({ data: { lat: firstSpot.lat, lon: firstSpot.lon, v: "v8" } }),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnMount: "always",

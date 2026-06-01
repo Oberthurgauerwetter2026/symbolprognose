@@ -371,6 +371,7 @@ export function WeatherIcon({
   isSnow,
   scope = "hourly",
   precipHours,
+  thunderHours,
   sunshineRatio,
   cloudLow,
   cloudMid,
@@ -385,6 +386,7 @@ export function WeatherIcon({
   isSnow?: boolean;
   scope?: "hourly" | "daily";
   precipHours?: number;
+  thunderHours?: number;
   sunshineRatio?: number;
   /** Wolken-Stockwerke 0–100 (low/mid/high). Trennt Cirrus von echter Bedeckung. */
   cloudLow?: number;
@@ -397,6 +399,11 @@ export function WeatherIcon({
   // Override: Wenn das Modell selbst klaren Niederschlag prognostiziert,
   // aber den weathercode auf „bedeckt/teils bewölkt" stehen lässt, das Niederschlags-Icon erzwingen.
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
+  const wmoIsThunder = code === 95 || code === 96 || code === 99;
+  // Dringlichkeits-Override: an Tagen mit Gewitterstunden hat das Gewittersymbol Vorrang.
+  if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
+    return <IconThunderstorm {...props} />;
+  }
   // Stündlich: kleine Mengen reichen. Täglich: nur überstimmen, wenn der Regen den Tag prägt
   // (sonst macht ein kurzer Schauer aus einem teils-sonnigen Tag fälschlich „Regen").
   const wet =
