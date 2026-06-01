@@ -128,7 +128,7 @@ function renderHeatmapDataUrl(
   const nLon = gridLon.length;
   if (!nLat || !nLon || values.length !== nLat * nLon) return null;
 
-  const UP = 8;
+  const UP = 16;
   const w = (nLon - 1) * UP;
   const h = (nLat - 1) * UP;
   const canvas = document.createElement("canvas");
