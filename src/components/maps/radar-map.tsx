@@ -469,7 +469,7 @@ function PrecipOverlay({
           const sv = nextSnowVals ? lerp(svCur, sample(nextSnowVals)) : svCur;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
-        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
+        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : smooth ? colorForSmooth(v) : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
