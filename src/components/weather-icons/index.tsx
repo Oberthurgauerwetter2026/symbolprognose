@@ -398,6 +398,7 @@ export function WeatherIcon({
   }
 
   // Wolken-Stockwerke: trennt Cirrus (Sonne scheint durch) von echter Bedeckung.
+  // Gilt scope-übergreifend — auch stündlich soll Code 2 + viel low-cloud als bedeckt erscheinen.
   const hasLayers =
     typeof cloudLow === "number" || typeof cloudMid === "number" || typeof cloudHigh === "number";
   if (hasLayers && !wmoIsWet && !dayHasRain && code <= 3) {
@@ -417,9 +418,29 @@ export function WeatherIcon({
 
   // Sonnen-Korrektiv: bei trockenen Bewölkungs-Codes (2/3) und viel Sonne aufhellen —
   // aber nie auf „wolkenlos" (IconClear). Ein Tag mit Wolken bleibt sichtbar bewölkt.
+  // Stündliche Werte sind 0/1-lastig → höhere Schwellen.
   if (isDay && !wmoIsWet && !dayHasRain && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
-    if (sunshineRatio >= 0.55) return <IconMostlyClear isDay {...props} />;
-    if (sunshineRatio >= 0.25) return <IconPartlyCloudy isDay {...props} />;
+    const hiThresh = scope === "hourly" ? 0.65 : 0.55;
+    const loThresh = scope === "hourly" ? 0.35 : 0.25;
+    if (sunshineRatio >= hiThresh) return <IconMostlyClear isDay {...props} />;
+    if (sunshineRatio >= loThresh) return <IconPartlyCloudy isDay {...props} />;
+  }
+
+  // Sonne-mit-Schauer für stündliche Drizzle-/Schauer-Codes.
+  // Wenn parallel viel Sonne scheint und der Niederschlag klein ist, ist es ein Sonnenschauer,
+  // kein Dauerregen. Echter Regen (precip >= 1mm oder code 66/67) bleibt unverändert.
+  const isShowerCode =
+    (code >= 51 && code <= 57) ||
+    (code >= 61 && code <= 65) ||
+    (code >= 80 && code <= 82);
+  if (
+    scope === "hourly" &&
+    isShowerCode &&
+    isDay &&
+    (sunshineRatio ?? 0) >= 0.3 &&
+    (precip ?? 0) < 1
+  ) {
+    return <IconSunShower {...props} />;
   }
 
 
@@ -459,3 +480,4 @@ export function WeatherIcon({
   if (code >= 95) return <IconThunderstorm {...props} />;
   return <IconCloudy {...props} />;
 }
+

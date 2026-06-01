@@ -163,7 +163,7 @@ export function WeatherWidget({
 
   const getForecast = useServerFn(getAggregatedForecast);
   const forecast = useQuery({
-    queryKey: ["forecast", location?.latitude ?? 0, location?.longitude ?? 0],
+    queryKey: ["forecast", "v2", location?.latitude ?? 0, location?.longitude ?? 0],
     queryFn: () => getForecast({ data: { lat: location!.latitude, lon: location!.longitude } }),
     enabled: !!location,
     staleTime: 15 * 60 * 1000,

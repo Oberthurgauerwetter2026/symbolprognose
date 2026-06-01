@@ -26,7 +26,8 @@ export const getAggregatedForecast = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<ForecastResponse> => {
     setResponseHeader(
       "Cache-Control",
-      "public, max-age=300, s-maxage=900, stale-while-revalidate=3600",
+      "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
     );
+
     return await fetchForecast(data.lat, data.lon);
   });
