@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { setResponseHeaders } from "@tanstack/react-start/server";
 import { useState } from "react";
 import { EmbedShell } from "@/components/embed-shell";
 
@@ -13,14 +12,6 @@ const BRAND = "#2561a1";
 
 export const Route = createFileRoute("/embed/all")({
   ssr: false,
-  loader: () => {
-    setResponseHeaders(
-      new Headers({
-        "Cache-Control":
-          "public, max-age=60, s-maxage=300, stale-while-revalidate=3600",
-      }),
-    );
-  },
   component: EmbedAll,
   head: () => ({
     meta: [
