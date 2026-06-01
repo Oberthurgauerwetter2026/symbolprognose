@@ -393,7 +393,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
                 key={`accum-${hours}-${overlay.url.length}`}
                 url={overlay.url}
                 bounds={overlay.bounds}
-                opacity={0.95}
+                opacity={0.7}
                 zIndex={460}
               />
             )}
