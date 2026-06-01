@@ -26,6 +26,7 @@ export interface DailyData {
   sunrise: string[];
   sunset: string[];
   snowfall_sum: number[];
+  precipitation_hours: number[];
 }
 
 export interface HourlyData {
@@ -223,6 +224,7 @@ function fillGaps(
     sunrise: mergeArr(d?.sunrise, fd?.sunrise),
     sunset: mergeArr(d?.sunset, fd?.sunset),
     snowfall_sum: mergeArr(d?.snowfall_sum, fd?.snowfall_sum),
+    precipitation_hours: mergeArr(d?.precipitation_hours, fd?.precipitation_hours),
   };
 
   return { ...primary, hourly: mergedHourly, daily: mergedDaily };
@@ -383,6 +385,7 @@ function wrapEnsembleAsForecast(ens: EnsembleHourly): ForecastResponse {
     sunrise: [],
     sunset: [],
     snowfall_sum: [],
+    precipitation_hours: [],
   };
   return { latitude: 0, longitude: 0, timezone: "", hourly: empty, daily: emptyDaily };
 }
@@ -449,7 +452,7 @@ function alignMosmixToTimeline(
     time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [],
     precipitation_sum: [], precipitation_probability_max: [], windspeed_10m_max: [],
     windgusts_10m_max: [], winddirection_10m_dominant: [], sunshine_duration: [],
-    sunrise: [], sunset: [], snowfall_sum: [],
+    sunrise: [], sunset: [], snowfall_sum: [], precipitation_hours: [],
   };
   return { latitude: 0, longitude: 0, timezone: "", hourly: out, daily: emptyDaily };
 }
@@ -487,11 +490,14 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     }
     dominantDir = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
   }
+  const precipFinite = finite(h.precipitation);
+  const precipHours = precipFinite.reduce((n, v) => (v >= 0.1 ? n + 1 : n), 0);
   return {
     weathercode: median(finite(h.weathercode)),
     temperature_2m_max: max(finite(h.temperature_2m)),
     temperature_2m_min: min(finite(h.temperature_2m)),
-    precipitation_sum: sum(finite(h.precipitation)),
+    precipitation_sum: sum(precipFinite),
+    precipitation_hours: precipHours,
     windspeed_10m_max: max(finite(h.windspeed_10m)),
     windgusts_10m_max: max(finite(h.windgusts_10m)),
     winddirection_10m_dominant: dominantDir,
@@ -569,7 +575,7 @@ export async function fetchForecast(
     const arr = merged.daily[key] as (number | string)[];
     while (arr.length < dailyTimes.length) arr.push(0 as never);
   };
-  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum"] as (keyof DailyData)[])
+  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum","precipitation_hours"] as (keyof DailyData)[])
     .forEach(ensureLen);
 
   for (let i = 0; i < dailyTimes.length; i++) {
@@ -584,6 +590,7 @@ export async function fetchForecast(
     apply("temperature_2m_max");
     apply("temperature_2m_min");
     apply("precipitation_sum");
+    apply("precipitation_hours");
     apply("windspeed_10m_max");
     apply("windgusts_10m_max");
     apply("winddirection_10m_dominant");
@@ -640,6 +647,7 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     sunrise: (d?.sunrise ?? []).map((v) => v ?? ""),
     sunset: (d?.sunset ?? []).map((v) => v ?? ""),
     snowfall_sum: fixNumArr(d?.snowfall_sum as (number | null)[]),
+    precipitation_hours: fixNumArr(d?.precipitation_hours as (number | null)[]),
   };
 
   return {

@@ -535,8 +535,10 @@ function DayStrip({
                 <WeatherIcon
                   code={d.weathercode[i]}
                   size={80}
+                  scope="daily"
                   precip={d.precipitation_sum[i]}
                   precipProb={d.precipitation_probability_max?.[i]}
+                  precipHours={d.precipitation_hours?.[i]}
                   isSnow={(d.snowfall_sum?.[i] ?? 0) > 0.1}
                 />
 
