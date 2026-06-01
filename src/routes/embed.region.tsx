@@ -10,8 +10,6 @@ export const Route = createFileRoute("/embed/region")({
       <RegionMap />
     </EmbedShell>
   ),
-    </EmbedShell>
-  ),
   head: () => ({
     meta: [
       { title: "Wetterkarte Region (Embed)" },
