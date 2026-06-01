@@ -152,6 +152,9 @@ function MarkerPill({
   precipHours,
   isSnow,
   sunshineRatio,
+  cloudLow,
+  cloudMid,
+  cloudHigh,
 }: {
   name: string;
   mode: "hourly" | "daily";
@@ -165,6 +168,9 @@ function MarkerPill({
   precipHours?: number;
   isSnow?: boolean;
   sunshineRatio?: number;
+  cloudLow?: number;
+  cloudMid?: number;
+  cloudHigh?: number;
 }) {
   return (
     <div
@@ -196,7 +202,11 @@ function MarkerPill({
         precipHours={precipHours}
         isSnow={isSnow}
         sunshineRatio={sunshineRatio}
+        cloudLow={cloudLow}
+        cloudMid={cloudMid}
+        cloudHigh={cloudHigh}
       />
+
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
