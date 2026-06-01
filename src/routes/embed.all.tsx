@@ -26,10 +26,6 @@ function EmbedAll() {
 
   return (
     <EmbedShell>
-      <EmbedFallbackBar
-        title="Wetter-Karten Oberthurgau"
-        href="https://symbolprognose.lovable.app/karten/region"
-      />
       <div className="no-scrollbar -mx-1 mb-4 flex gap-1 overflow-x-auto rounded-full bg-muted p-1">
         {MAPS.filter((m) => !m.internal).map((m) => {
           const Icon = m.icon;
