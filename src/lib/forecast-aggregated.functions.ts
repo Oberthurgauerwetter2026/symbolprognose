@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
-import { fetchForecastFromUpstream, type ForecastResponse } from "./weather";
+import { fetchForecast, type ForecastResponse } from "./weather";
 
 /**
  * Serverseitiges Multi-Modell-Aggregat.
@@ -28,5 +28,5 @@ export const getAggregatedForecast = createServerFn({ method: "GET" })
       "Cache-Control",
       "public, max-age=300, s-maxage=900, stale-while-revalidate=3600",
     );
-    return await fetchForecastFromUpstream(data.lat, data.lon);
+    return await fetchForecast(data.lat, data.lon);
   });
