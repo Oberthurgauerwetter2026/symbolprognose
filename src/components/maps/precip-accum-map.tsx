@@ -358,7 +358,8 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         </div>
       </div>
       <CardContent className="p-0">
-        <div className="h-[560px] w-full">
+        <style>{`.precip-accum-overlay .leaflet-image-layer{image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}`}</style>
+        <div className="precip-accum-overlay relative h-[560px] w-full">
           <MapContainer
             key={mapKeyRef.current}
             center={MAP_CENTER}
@@ -407,25 +408,28 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
             />
             <ZoomControl position="topright" />
           </MapContainer>
-        </div>
 
-        {/* Legende */}
-        <div className="px-6 py-4 border-t border-zinc-100 bg-zinc-50/60">
-          <div className="flex items-stretch gap-0 w-full rounded-md overflow-hidden ring-1 ring-zinc-200">
-            {ACCUM_CLASSES.map((c) => (
-              <div
-                key={c.min}
-                className="flex-1 h-4"
-                style={{ background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})` }}
-              />
-            ))}
+          {/* Floating-Legende */}
+          <div
+            className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 z-[500] rounded-2xl bg-white/85 backdrop-blur-md ring-1 ring-zinc-900/10 shadow-lg px-3 py-2"
+            style={{ width: "min(420px, calc(100% - 24px))" }}
+          >
+            <div className="flex justify-between text-[10px] font-semibold text-zinc-600 tabular-nums mb-1 px-[2px]">
+              {ACCUM_CLASSES.map((c) => (
+                <span key={c.min} className="flex-1 text-center">{c.label}</span>
+              ))}
+            </div>
+            <div className="flex h-2.5 w-full overflow-hidden rounded-full ring-1 ring-zinc-900/10">
+              {ACCUM_CLASSES.map((c) => (
+                <div
+                  key={c.min}
+                  className="flex-1"
+                  style={{ background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})` }}
+                />
+              ))}
+            </div>
+            <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">mm Niederschlag</p>
           </div>
-          <div className="flex justify-between mt-1 text-[10px] font-medium text-zinc-500 tabular-nums">
-            {ACCUM_CLASSES.map((c) => (
-              <span key={c.min} className="flex-1 text-center">{c.label}</span>
-            ))}
-          </div>
-          <p className="text-[10px] text-zinc-400 mt-1">mm Niederschlag (Klassen)</p>
         </div>
       </CardContent>
     </Card>
