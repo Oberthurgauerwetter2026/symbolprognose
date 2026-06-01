@@ -310,6 +310,59 @@ function sliceEnsembleHourly(ens: EnsembleHourly, maxHours: number): EnsembleHou
   return out;
 }
 
+// WMO-Code → Kategorie (höher = "nasser/schwerer", für Tie-Break).
+function wmoCategory(code: number): number {
+  if (code >= 95) return 9;
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 8;
+  if ((code >= 61 && code <= 67) || code === 82) return 7;
+  if (code === 80 || code === 81) return 6;
+  if (code >= 51 && code <= 57) return 5;
+  if (code === 45 || code === 48) return 4;
+  if (code === 3) return 3;
+  if (code === 2) return 2;
+  if (code === 1) return 1;
+  return 0;
+}
+
+// Kategorialer Modus statt arithmetisches Mittel/Median für WMO-Codes.
+function representativeWeathercode(
+  codes: number[],
+  opts?: { preferShower?: boolean },
+): number | null {
+  const valid = codes.filter((c) => typeof c === "number" && Number.isFinite(c));
+  if (!valid.length) return null;
+  const catCount = new Map<number, number>();
+  const codeCount = new Map<number, number>();
+  for (const c of valid) {
+    const cat = wmoCategory(c);
+    catCount.set(cat, (catCount.get(cat) ?? 0) + 1);
+    codeCount.set(c, (codeCount.get(c) ?? 0) + 1);
+  }
+  let bestCat = -1;
+  let bestCount = -1;
+  for (const [cat, n] of catCount) {
+    if (n > bestCount || (n === bestCount && cat > bestCat)) {
+      bestCat = cat;
+      bestCount = n;
+    }
+  }
+  // Schauer-vor-Regen-Override (Daily, wenn precipHours < 8h).
+  if (opts?.preferShower && bestCat === 7) {
+    const showerN = catCount.get(6) ?? 0;
+    if (showerN >= bestCount - 1) bestCat = 6;
+  }
+  let bestCode = valid[0];
+  let bestN = -1;
+  for (const [c, n] of codeCount) {
+    if (wmoCategory(c) !== bestCat) continue;
+    if (n > bestN) {
+      bestCode = c;
+      bestN = n;
+    }
+  }
+  return bestCode;
+}
+
 async function fetchEnsembleMean(
   latitude: number,
   longitude: number,
