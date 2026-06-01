@@ -217,12 +217,13 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
     try {
       // Kurz warten, damit ggf. noch ausstehende Tile-Loads abgeschlossen sind.
       await new Promise((r) => setTimeout(r, 250));
+      const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(cardRef.current, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: "#ffffff",
         // Leaflet-Controls (Zoom-Buttons, Attribution) im Export weglassen
-        filter: (node) => {
+        filter: (node: HTMLElement) => {
           if (!(node instanceof HTMLElement)) return true;
           if (node.classList?.contains("leaflet-control-container")) return false;
           return true;
