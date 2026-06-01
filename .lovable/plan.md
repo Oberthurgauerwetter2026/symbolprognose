@@ -1,29 +1,35 @@
-## Ziel
+## Problem
 
-Alle Einbinde-Snippets auf `/embed-info` auf das nötige Minimum reduzieren — ein einfaches `<iframe>`, das man kopieren und einsetzen kann, ohne `<script>`-Block, ohne SVG-Vorschaubild, ohne Hinweis-Boxen. Einzige Ausnahme: **Lokalprognose Amriswil** bleibt unverändert (inkl. ihrem aktuellen postMessage-Höhen-Skript, weil sich dort die Höhe stark dem Inhalt anpasst).
+In der Radar-Animation (1×/2×/4×) "eiern" die Niederschlagsbänder im **Prognose-Teil** sichtbar hin und her. Die **Messungen** sind nicht betroffen und sollen unverändert bleiben.
 
-## Änderungen in `src/routes/embed-info.tsx`
+## Ursache
 
-1. **Neue, einfache Snippet-Funktion** für alle Karten ausser Amriswil:
-   - Reines `<iframe src="…" loading="lazy" style="width:100%;height:{fallbackHeight}px;border:0;display:block" title="Wetter-Karte"></iframe>`
-   - Kein `<script>`, kein SVG-Vorschau-`<img>`, kein Wrapper-`<div>` mit Positionierung, kein Watchdog.
-   - `fallbackHeight` bleibt parametrisierbar (760 für „alle Karten", default für Einzelkarten).
+In `src/components/maps/radar-map.tsx` berechnet `PrecipOverlay` für jedes Prognose-Framepaar per Phasen-Korrelation einen globalen Verschiebungsvektor (`estimateAdvection` → `advection`) und sampelt damit das aktuelle Frame vorwärts (`+t·adv`) und das nächste rückwärts (`-(1-t)·adv`). 
 
-2. **Komplett-Widget (alle Karten mit Tabs)** und **Einzelne Karten (Region, Wind, Radar, Pollen …)** verwenden ab sofort diese einfache Funktion.
+Pro Framepaar ist der Vektor unterschiedlich (Richtung/Betrag), und beim Übergang zum nächsten Paar kippt die Sample-Verschiebung schlagartig in eine andere Richtung. Ergebnis: die Bänder werden innerhalb eines Frames in Richtung A geschoben, im nächsten Frame in Richtung B — das sieht als sichtbares Hin-und-Her-Wackeln aus, vor allem bei 2× und 4×.
 
-3. **Lokalprognose Amriswil bleibt 1:1**: weiter `buildSnippet(url, "/embed/region-lokal", "region-lokal", null, "/karten/region", 480)` — gleiches Snippet wie heute (mit Höhen-Auto-Resize via postMessage, ohne SVG-Bild).
+## Lösung
 
-4. **Hinweis-Boxen entfernen**, weil sie nur den JS-Fallback erklären:
-   - Die grüne Box „Neu: garantierter Fallback …"
-   - Die graue Box „Bleibt die Karte bei einzelnen Besuchern leer? …" inkl. Liste und Datenquellen-Hinweis am Ende.
-   - Den einleitenden Satz auf „Füge im WordPress-Editor einen Custom-HTML-Block (oder iframe-Block) ein und kopiere das Snippet hinein." kürzen.
-   - Den orangen Hinweis „Snippets zeigen immer auf publizierte URL …" behalten (das ist kein JS-Hinweis, sondern eine wichtige Publish-Info).
-   - Im Beschreibungstext bei Amriswil den Satz über `resize:vertical` etc. behalten (er trifft auf Amriswil weiter zu).
+Im Prognose-Pfad nur noch den weichen Crossfade (Smoothstep zwischen `vals` und `nextVals`) verwenden, **ohne** advektives Resampling. Das eliminiert das Wackeln vollständig. Die Bänder bewegen sich dann nicht künstlich mit, blenden aber sauber von Position A nach Position B über — was bei stündlichen ICON-CH1-Frames der korrekte Eindruck ist.
 
-5. **Nicht mehr benötigte Funktionen entfernen**: `buildViewportSnippet` wird aktuell nirgends mehr aufgerufen — bleibt unangetastet (kein Scope-Creep), ausser wir merken beim Edit, dass sie ungenutzt ist und ein Linter-Fehler entsteht. Falls ja: löschen.
+Messungen (`contour=false`) bleiben komplett unverändert, weil sie den Advektions-Pfad ohnehin nicht nutzen.
 
-## Out of scope
+## Änderungen
 
-- Keine Änderung an den eigentlichen `/embed/*` Routen oder den Karten-Komponenten.
-- Keine Änderung am SVG-Snapshot-Endpoint (bleibt für Amriswil-unabhängige zukünftige Nutzung erhalten).
-- Keine Design-/Styling-Änderungen ausserhalb des Entfernens der zwei Boxen.
+`src/components/maps/radar-map.tsx`, Funktion `PrecipOverlay`:
+
+1. Den `advection`-`useMemo` und `advectionRef` entfernen (bzw. fest auf `{dx:0, dy:0}` setzen) — inkl. `advCacheRef` und Import-Aufruf `estimateAdvection`.
+2. Den `useAdv`-Zweig in der Sampling-Schleife (Zeilen ~502–514 und ~563–566 / ~573–583) entfernen, so dass nur noch der einfache Lerp-Pfad bleibt:
+   ```
+   const vCur = sampleAt(vals, fxRaw, fyRaw);
+   v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
+   ```
+   (analog für `snowVals`).
+3. `estimateAdvection` (und nur dafür genutzte Helfer wie ggf. die Phasen-Korrelations-Hilfsfunktionen) löschen, wenn danach keine Referenzen mehr bestehen — sonst nur die Aufrufe entfernen.
+
+Alle anderen Teile (Messungs-Frames, Zeitleiste, Geschwindigkeitsumschaltung, Snow-Overlay, Crossfade-Easing) bleiben unverändert.
+
+## Verifikation
+
+- Vorschau `/karten/radar` öffnen, in den Prognose-Bereich der Zeitleiste springen, 1×/2×/4× durchspielen → Bänder ziehen weich, kein Hin-und-Her mehr.
+- Messungen (Vergangenheit) sehen exakt gleich aus wie vorher.
