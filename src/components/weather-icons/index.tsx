@@ -335,11 +335,11 @@ export function IconSunThunder({ size, intensity = 2, ...rest }: IconProps & { i
       <Sun cx={20} cy={20} r={9} />
       <Cloud x={38} y={32} scale={1} dark />
       <Bolt />
-      {/* Tropfen rechts vom Blitz (Bolt-BBox x 24–38) */}
-      <Drop x={44} y={50} size={0.9} tilt={-12} />
-      <Drop x={56} y={50} size={0.9} tilt={-12} />
-      {intensity >= 3 && <Drop x={50} y={58} size={0.9} tilt={-12} />}
-      {intensity >= 4 && <Drop x={42} y={60} size={0.9} tilt={-12} />}
+      {/* Tropfen rechts vom Blitz (Bolt-BBox x 24–38), oben gehalten damit nichts abschneidet */}
+      <Drop x={44} y={46} size={0.9} tilt={-12} />
+      <Drop x={56} y={46} size={0.9} tilt={-12} />
+      {intensity >= 3 && <Drop x={50} y={54} size={0.9} tilt={-12} />}
+      {intensity >= 4 && <Drop x={42} y={54} size={0.9} tilt={-12} />}
     </Svg>
   );
 }
@@ -350,10 +350,10 @@ export function IconSunSnowThunder({ size, intensity = 2, ...rest }: IconProps &
       <Sun cx={20} cy={20} r={9} />
       <Cloud x={38} y={32} scale={1} dark />
       <Bolt />
-      <Flake x={44} y={50} size={0.95} />
-      <Flake x={56} y={50} size={0.95} />
-      {intensity >= 3 && <Flake x={50} y={58} size={0.95} />}
-      {intensity >= 4 && <Flake x={42} y={60} size={0.95} />}
+      <Flake x={44} y={46} size={0.95} />
+      <Flake x={56} y={46} size={0.95} />
+      {intensity >= 3 && <Flake x={50} y={54} size={0.95} />}
+      {intensity >= 4 && <Flake x={42} y={54} size={0.95} />}
     </Svg>
   );
 }
