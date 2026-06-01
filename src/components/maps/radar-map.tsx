@@ -898,8 +898,12 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
   }, [playing, speed, frames.length]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
+  // Crossfade auch im Pause-Modus: für Canvas-Prognose-Frames immer den nächsten
+  // Frame mitgeben, damit Slider/Auto-Tween fliessend zwischen 15-min-Frames
+  // wirken. Bei Messung-PNGs bleibt es beim harten Snap.
+  const isForecastCurrent = !!currentFrame && currentFrame.source !== "radar";
   const nextFrame =
-    idx !== null && playing && currentFrame
+    idx !== null && currentFrame && (playing || isForecastCurrent)
       ? frames[(idx + 1) % frames.length] ?? null
       : null;
   // Cross-Fade Canvas↔Canvas (Forecast) bzw. PNG↔PNG (Messung).
