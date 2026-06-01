@@ -1,9 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getRadarFrames } from "@/lib/radar.functions";
-import { PrecipAccumMap } from "@/components/maps/precip-accum-map";
+
+const PrecipAccumMap = lazy(() =>
+  import("@/components/maps/precip-accum-map").then((module) => ({
+    default: module.PrecipAccumMap,
+  })),
+);
 
 const ADMIN_PASSWORD = "wetter2026";
 const STORAGE_KEY = "wx_admin_unlocked";
@@ -121,13 +126,14 @@ function PrecipDashboard() {
         {data && data.frames.length > 0 && (
           <div className="space-y-6">
             {[12, 24, 48].map((h) => (
-              <PrecipAccumMap
-                key={h}
-                hours={h as 12 | 24 | 48}
-                frames={data.frames}
-                gridLat={data.gridLat}
-                gridLon={data.gridLon}
-              />
+              <Suspense key={h} fallback={<div className="h-[420px] rounded-lg bg-zinc-200" />}>
+                <PrecipAccumMap
+                  hours={h as 12 | 24 | 48}
+                  frames={data.frames}
+                  gridLat={data.gridLat}
+                  gridLon={data.gridLon}
+                />
+              </Suspense>
             ))}
           </div>
         )}
