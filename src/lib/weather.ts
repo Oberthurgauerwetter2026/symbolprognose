@@ -723,6 +723,31 @@ export async function fetchForecast(
 
   if (bestMatch && primarySource !== "best_match") merged = fillGaps(merged, bestMatch);
 
+  // Gewitter-Override: Ensemble-Mittel glättet seltene Gewittercodes (95/96/99) weg.
+  // Wenn best_match oder MOSMIX an einer Stunde Gewitter sehen, in merged.hourly.weathercode
+  // hochstufen — alle anderen Felder bleiben unverändert.
+  const isThunder = (c: unknown): boolean =>
+    c === 95 || c === 96 || c === 99;
+  const timeIndex = new Map<string, number>();
+  for (let i = 0; i < merged.hourly.time.length; i++) {
+    timeIndex.set(merged.hourly.time[i] ?? "", i);
+  }
+  const overlayThunder = (src: ForecastResponse | null) => {
+    if (!src?.hourly?.time || !src.hourly.weathercode) return;
+    for (let j = 0; j < src.hourly.time.length; j++) {
+      if (!isThunder(src.hourly.weathercode[j])) continue;
+      const i = timeIndex.get(src.hourly.time[j] ?? "");
+      if (i == null) continue;
+      merged.hourly.weathercode[i] = src.hourly.weathercode[j] as number;
+    }
+  };
+  overlayThunder(bestMatch ?? null);
+  if (mosmixRaw) {
+    const mosmixFc = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 0);
+    overlayThunder(mosmixFc);
+  }
+
+
   // Daily-Werte aus den gemergten Hourly-Arrays neu aggregieren (Ensembles liefern keine Daily-Felder).
   // Sunrise/Sunset/Probability bleiben aus best_match (via fillGaps schon übernommen).
   const daysFromHourly = new Set<string>();
