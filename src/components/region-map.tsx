@@ -147,6 +147,11 @@ function MarkerPill({
   tNow,
   code,
   isDay,
+  precip,
+  precipProb,
+  precipHours,
+  isSnow,
+  sunshineRatio,
 }: {
   name: string;
   mode: "hourly" | "daily";
@@ -155,6 +160,11 @@ function MarkerPill({
   tNow: number;
   code: number;
   isDay: boolean;
+  precip?: number;
+  precipProb?: number;
+  precipHours?: number;
+  isSnow?: boolean;
+  sunshineRatio?: number;
 }) {
   return (
     <div
@@ -176,7 +186,18 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
-      <WeatherIcon code={code} isDay={isDay} size={40} />
+      <WeatherIcon
+        code={code}
+        isDay={isDay}
+        size={40}
+        scope={mode}
+        precip={precip}
+        precipProb={precipProb}
+        precipHours={precipHours}
+        isSnow={isSnow}
+        sunshineRatio={sunshineRatio}
+      />
+
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
           style={{
@@ -274,9 +295,41 @@ function SpotMarker({
     const tMax = data.daily.temperature_2m_max[dayIdx] ?? 0;
     const tNow = data.hourly.temperature_2m[absoluteHour] ?? tMax;
     const effectiveIsDay = mode === "daily" ? true : isDay;
+    const precip =
+      mode === "daily"
+        ? data.daily.precipitation_sum?.[dayIdx]
+        : data.hourly.precipitation?.[absoluteHour];
+    const precipProb =
+      mode === "daily"
+        ? data.daily.precipitation_probability_max?.[dayIdx]
+        : data.hourly.precipitation_probability?.[absoluteHour];
+    const precipHours =
+      mode === "daily" ? data.daily.precipitation_hours?.[dayIdx] : undefined;
+    const isSnow =
+      mode === "daily"
+        ? (data.daily.snowfall_sum?.[dayIdx] ?? 0) > 0.1
+        : (data.hourly.snowfall?.[absoluteHour] ?? 0) > 0.05;
+    const sunshineRatio =
+      mode === "daily"
+        ? (data.daily.sunshine_duration?.[dayIdx] ?? 0) / (15 * 3600)
+        : (data.hourly.sunshine_duration?.[absoluteHour] ?? 0) / 3600;
     const html = renderToStaticMarkup(
-      <MarkerPill name={spot.name} mode={mode} tMin={tMin} tMax={tMax} tNow={tNow} code={code} isDay={effectiveIsDay} />,
+      <MarkerPill
+        name={spot.name}
+        mode={mode}
+        tMin={tMin}
+        tMax={tMax}
+        tNow={tNow}
+        code={code}
+        isDay={effectiveIsDay}
+        precip={precip}
+        precipProb={precipProb}
+        precipHours={precipHours}
+        isSnow={isSnow}
+        sunshineRatio={sunshineRatio}
+      />,
     );
+
     return L.divIcon({
       html,
       className: "region-map-marker",
