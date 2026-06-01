@@ -359,8 +359,8 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         </div>
       </div>
       <CardContent className="p-0">
-        <style>{`.precip-accum-overlay .leaflet-image-layer{image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}`}</style>
-        <div className="precip-accum-overlay relative h-[560px] w-full">
+        <div className="relative h-[560px] w-full">
+
           <MapContainer
             key={mapKeyRef.current}
             center={MAP_CENTER}
