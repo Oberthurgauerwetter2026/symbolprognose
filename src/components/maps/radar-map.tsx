@@ -1132,6 +1132,17 @@ export function RadarMap({
               <span className="text-muted-foreground">{s.label}</span>
             </div>
           ))}
+          <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Hagel</span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-2.5 w-3 rounded-sm bg-white sm:h-3 sm:w-4"
+              style={{
+                backgroundImage: "radial-gradient(circle, #000 35%, transparent 36%)",
+                backgroundSize: "4px 4px",
+              }}
+            />
+            <span className="text-muted-foreground">POH</span>
+          </div>
         </div>
       </div>
 

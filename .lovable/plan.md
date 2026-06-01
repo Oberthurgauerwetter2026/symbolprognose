@@ -1,56 +1,28 @@
 ## Ziel
+In der Radar-Farblegende (oben rechts, neben mm/h und Schnee) einen Eintrag für die Hagelerkennung (POH) ergänzen, damit klar ist, was die schwarzen Punkte in der Messung bedeuten.
 
-Cache-Header + Client-Side-Fetching-Muster (wie bei `embed.radar`) auf die verbleibenden SSR-Embed-Routen anwenden, damit alle Snippets gleich schnelles TTFB/FCP liefern.
+## Änderung
+**`src/components/maps/radar-map.tsx`** — in der Legende (Zeile ~1113–1135), unterhalb des Schnee-Blocks, einen neuen Hagel-Block hinzufügen:
 
-## Aktueller Stand
+```tsx
+<span className="mt-1.5 mb-0.5 font-semibold text-foreground">Hagel</span>
+<div className="flex items-center gap-1.5">
+  <span
+    className="inline-block h-2.5 w-3 rounded-sm bg-white sm:h-3 sm:w-4"
+    style={{
+      backgroundImage:
+        "radial-gradient(circle, #000 35%, transparent 36%)",
+      backgroundSize: "4px 4px",
+    }}
+  />
+  <span className="text-muted-foreground">POH</span>
+</div>
+```
 
+- Visuell: weisses Feld mit schwarzen Punkten — entspricht genau dem `hail-blackdots`-Overlay (POH-PNG, `filter: brightness(0)`) auf der Karte.
+- Label: „Hagel" als Sektionstitel, „POH" als Zeile (Probability of Hail, MeteoSchweiz-Standard, taucht bereits im Toggle-Tooltip auf).
+- Nur eine Zeile, da das POH-PNG ohnehin nur eine binäre Punkte-Darstellung liefert (keine Stufen).
 
-| Route                    | Cache-Header    | SSR-Fetch im Loader      |
-| ------------------------ | --------------- | ------------------------ |
-| `embed.radar`            | ✅               | ❌ (client)               |
-| `embed.pollen`           | ✅               | — (kein Fetch)           |
-| `embed.wind`             | ✅               | — (kein Fetch)           |
-| `embed.region`           | — (`ssr:false`) | —                        |
-| `embed.all`              | — (`ssr:false`) | —                        |
-| `**embed.lokal**`        | ❌               | ✅ blockiert SSR (~3–4 s) |
-| `**embed.region-lokal**` | ❌               | ✅ blockiert SSR (~3–4 s) |
-
-
-## Änderungen
-
-### 1. `src/routes/embed.lokal.tsx`
-
-- `setEmbedCacheHeaders` importieren.
-- Loader umbauen analog Radar: kein `getMultiModelForecast`-Call mehr im Loader. Stattdessen:
-  ```ts
-  loader: () => {
-    setEmbedCacheHeaders();
-    return { noscript: EMPTY_NOSCRIPT };
-  }
-  ```
-  Konstante `EMPTY_NOSCRIPT: LokalNoscriptData = { locationName: AMRISWIL.name, hourly: [], daily: [] }` auf Modulebene anlegen.
-- Forecast wird ohnehin clientseitig via `WeatherWidget` (eigener Fetch/Query) geholt; der `<noscript>`-Fallback bleibt strukturell vorhanden (Embed ist `noindex`, daher kein SEO-Verlust).
-
-### 2. `src/routes/embed.region-lokal.tsx`
-
-- Gleiches Muster: `setEmbedCacheHeaders` importieren, Loader auf
-  ```ts
-  loader: () => {
-    setEmbedCacheHeaders();
-    return { noscript: EMPTY_NOSCRIPT };
-  }
-  ```
-  reduzieren, `EMPTY_NOSCRIPT` als Modul-Konstante.
-
-### 3. Keine Änderung
-
-- `embed.region`, `embed.all`: `ssr:false` (kein Loader-Header möglich, hatte zuvor SSR-Fehler verursacht). Cache greift via Cloudflare-Defaults für das statische Shell-HTML.
-- `embed.radar/pollen/wind`: bereits umgesetzt.
-
-## Erwartetes Ergebnis
-
-Alle SSR-Embed-Routen liefern HTML in ~300–600 ms TTFB (cold) bzw. <200 ms (CDN-Hit), Forecast lädt parallel zum JS-Bundle clientseitig. `embed.lokal` und `embed.region-lokal` werden damit auf das gleiche ~1 s-FCP-Niveau wie Radar gebracht.
-
-&nbsp;
-
-Auch in den anderen  Projekten umsetzen
+## Nicht geändert
+- Keine Logik, kein Toggle-Verhalten, kein Datenpfad.
+- Legende bleibt ausgeblendet, wenn die Karte keine Hagel-Frames hat? → Nein, Legende bleibt statisch sichtbar (analog Schnee, das ebenfalls immer angezeigt wird). Falls gewünscht, kann der Block bedingt via `data?.hasHail` gerendert werden — frage ich nicht extra ab, default = immer sichtbar zur Erklärung der Symbolik.
