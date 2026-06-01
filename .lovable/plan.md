@@ -1,19 +1,22 @@
-## Gewitter-Override aus best_match / MOSMIX
+## Neues Icon „Sonne + Wolke + Schauer + Blitz"
 
-**Problem:** `best_match` zeigt morgen 19 Uhr Code 95 (Gewitter, 5.8 mm), aber der Ensemble-Mittelwert glättet das zu 61/63. `thunderHours` zählt daher 0 → kein Gewittersymbol.
+**`src/components/weather-icons/index.tsx`**
 
-**Änderung in `src/lib/weather.ts`, Funktion `fetchForecast`:**
+1. Neues Icon `IconSunThunder`: Sonne (oben links), Wolke (Mitte), 1 Tropfen, Blitz — aus vorhandenen Sub-Primitiven `Sun`, `Cloud`, `Drop`, `Bolt`.
 
-Nach allen Merges, **vor** `aggregateDailyFromHourly`:
+2. Daily-Override-Logik dreistufig (ersetzt aktuellen `thunderHours ≥ 1 → IconThunderstorm`-Block):
+   - **Vollgewitter** (`IconThunderstorm`): `thunderHours ≥ 2` ODER (`thunderHours ≥ 1 && precip ≥ 8`) ODER (`code ∈ {95,96,99} && precipHours ≥ 3`).
+   - **Gewitter-Schauer mit Sonne** (`IconSunThunder`): sonst, wenn `thunderHours ≥ 1` UND `sunshineRatio ≥ 0.15` UND `precipHours < 8`.
+   - **Restliche Gewitter-Stunden ohne Sonne**: `IconThunderstorm`.
+   - Sonst fällt es durch in die bestehende Sonne/Schauer-Logik (`pickWetDailyIcon`).
 
-1. Wenn `bestMatch?.hourly?.weathercode[i] ∈ {95,96,99}` → `merged.hourly.weathercode[i]` auf diesen Code setzen.
-2. Analog für MOSMIX (`mosmixForecast.hourly.weathercode[i]`), wenn vorhanden.
-3. Index-Mapping über `merged.hourly.time` (gleiche Zeitachse wie best_match dank gleicher `timezone=auto`-Quelle; MOSMIX ist bereits via `alignMosmixToTimeline` ausgerichtet).
+**`src/lib/weather.ts`, `fetchForecast`**
 
-Nur dieser eine Code wird überschrieben — alle anderen Felder (precip, temp etc.) bleiben Ensemble.
+3. Gewitter-Overlay aus best_match/MOSMIX nur übernehmen, wenn an dieser Stunde `merged.hourly.precipitation[i] ≥ 2 mm` — verhindert Geisterblitze.
 
-**Konsequenz:** `aggregateDailyFromHourly` zählt `thunderHours ≥ 1` korrekt, Tagessymbol zeigt Gewitter.
+**Kein Cache-Bump.**
 
-**Kein Cache-Bump nötig** (`v8` reicht — Datenstruktur unverändert), aber zur Sicherheit auf `v9` bumpen, damit Browser den alten Cache verwirft.
-
-**Verifikation:** Amriswil / morgen → `daily.thunderstorm_hours[1] ≥ 1` → Gewitter-Icon in Tageskachel.
+**Verifikation:**
+- Amriswil/morgen (1h Gewitter mit ~5 mm + viel Sonne) → IconSunThunder.
+- Tag mit 3h Gewitter / Dauerregen → IconThunderstorm.
+- Schauertag ohne Gewitter → IconSunShower (unverändert).
