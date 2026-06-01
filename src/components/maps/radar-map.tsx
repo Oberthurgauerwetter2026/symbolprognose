@@ -314,73 +314,9 @@ function ZoomGate({ minZoom, children }: { minZoom: number; children: React.Reac
   return <>{children}</>;
 }
 
-/**
- * Schätzt globalen Verschiebungsvektor zwischen zwei Niederschlags-Frames
- * via diskreter Kreuzkorrelation auf 32×32-Downsample. Rückgabe in
- * Original-Gridzellen. Nur für Prognose-Frame-Paare; einmal pro Paar.
- */
-function estimateAdvection(
-  a: number[],
-  b: number[],
-  nLat: number,
-  nLon: number,
-): { dx: number; dy: number } {
-  const N = 32;
-  const downA = new Float32Array(N * N);
-  const downB = new Float32Array(N * N);
-  for (let j = 0; j < N; j++) {
-    const y0 = Math.floor((j * nLat) / N);
-    const y1 = Math.max(y0 + 1, Math.floor(((j + 1) * nLat) / N));
-    for (let i = 0; i < N; i++) {
-      const x0 = Math.floor((i * nLon) / N);
-      const x1 = Math.max(x0 + 1, Math.floor(((i + 1) * nLon) / N));
-      let sa = 0;
-      let sb = 0;
-      let c = 0;
-      for (let yy = y0; yy < y1; yy++) {
-        for (let xx = x0; xx < x1; xx++) {
-          sa += a[yy * nLon + xx] || 0;
-          sb += b[yy * nLon + xx] || 0;
-          c++;
-        }
-      }
-      downA[j * N + i] = c ? sa / c : 0;
-      downB[j * N + i] = c ? sb / c : 0;
-    }
-  }
-  let energyA = 0;
-  for (let k = 0; k < N * N; k++) energyA += downA[k] * downA[k];
-  if (energyA < 1e-4) return { dx: 0, dy: 0 };
+// estimateAdvection entfernt: advektives Resampling in der Prognose verursachte
+// sichtbares Wackeln der Niederschlagsbänder zwischen Framepaaren.
 
-  const R = 4;
-  let bestScore = -Infinity;
-  let zeroScore = 0;
-  let bestDx = 0;
-  let bestDy = 0;
-  for (let sdy = -R; sdy <= R; sdy++) {
-    for (let sdx = -R; sdx <= R; sdx++) {
-      let score = 0;
-      const jStart = Math.max(0, -sdy);
-      const jEnd = Math.min(N, N - sdy);
-      const iStart = Math.max(0, -sdx);
-      const iEnd = Math.min(N, N - sdx);
-      for (let j = jStart; j < jEnd; j++) {
-        for (let i = iStart; i < iEnd; i++) {
-          score += downA[j * N + i] * downB[(j + sdy) * N + (i + sdx)];
-        }
-      }
-      if (sdx === 0 && sdy === 0) zeroScore = score;
-      if (score > bestScore) {
-        bestScore = score;
-        bestDx = sdx;
-        bestDy = sdy;
-      }
-    }
-  }
-  // Nur akzeptieren, wenn die Korrelation klar besser ist als Null-Shift.
-  if (bestScore < zeroScore * 1.05) return { dx: 0, dy: 0 };
-  return { dx: bestDx * (nLon / N), dy: bestDy * (nLat / N) };
-}
 
 
 
@@ -408,23 +344,11 @@ function PrecipOverlay({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
 
-  // Phase-Correlation-Cache: pro Frame-Paar (key = "t_a|t_b") einmal
-  // berechnet, danach 0 Zusatzkosten beim Loop. Nur Prognose.
-  const advCacheRef = useRef<Map<string, { dx: number; dy: number }>>(new Map());
-  const advection = useMemo(() => {
-    if (!contour || !frame || !nextFrame) return { dx: 0, dy: 0 };
-    const a = frame.values;
-    const b = nextFrame.values;
-    if (!a || !b) return { dx: 0, dy: 0 };
-    const key = `${frame.t}|${nextFrame.t}`;
-    const cached = advCacheRef.current.get(key);
-    if (cached) return cached;
-    const v = estimateAdvection(a, b, payload.gridLat.length, payload.gridLon.length);
-    advCacheRef.current.set(key, v);
-    return v;
-  }, [contour, frame, nextFrame, payload]);
-  const advectionRef = useRef(advection);
-  advectionRef.current = advection;
+  // Advektives Resampling wurde entfernt — pro Framepaar wechselnde Shift-
+  // Vektoren liessen die Prognose-Bänder sichtbar wackeln. Jetzt nur weicher
+  // Crossfade zwischen den Frames.
+
+
 
 
   // Canvas-Layer einmalig anlegen.
@@ -497,22 +421,6 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Advektion: in Prognose globalen Verschiebungsvektor verwenden, damit
-    // Bänder sanft "fliessen" statt zu pulsieren. Dezent (gain 0.4, clamp 1.5).
-    let adx = 0;
-    let ady = 0;
-    if (contour && nextVals) {
-      const raw = advectionRef.current;
-      adx = raw.dx * 0.4;
-      ady = raw.dy * 0.4;
-      const mag = Math.hypot(adx, ady);
-      if (mag > 1.5) {
-        adx = (adx / mag) * 1.5;
-        ady = (ady / mag) * 1.5;
-      }
-    }
-    const useAdv = adx !== 0 || ady !== 0;
-
     // STEP=2: Off-screen-Buffer auf halber Auflösung pro Achse (1/4 Pixel)
     // → deutlich schnellere Redraws, stabile 60fps Animation.
     const STEP = 2;
@@ -522,8 +430,7 @@ function PrecipOverlay({
     const img = ctx.createImageData(lowW, lowH);
     const data = img.data;
 
-    // Bilineare Sample-Funktion, parametrisiert über (fx, fy) → erlaubt
-    // advektives Sampling mit verschobenen Koordinaten.
+    // Bilineare Sample-Funktion.
     const sampleAt = (arr: number[], fx: number, fy: number) => {
       const x0 = Math.floor(fx);
       const y0 = Math.floor(fy);
@@ -559,30 +466,17 @@ function PrecipOverlay({
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
 
-        let v: number;
-        if (useAdv && nextVals) {
-          const va = sampleAt(vals, fxRaw + t * adx, fyRaw + t * ady);
-          const vb = sampleAt(nextVals, fxRaw - (1 - t) * adx, fyRaw - (1 - t) * ady);
-          v = va + (vb - va) * t;
-        } else {
-          const vCur = sampleAt(vals, fxRaw, fyRaw);
-          v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
-        }
+        const vCur = sampleAt(vals, fxRaw, fyRaw);
+        const v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
         if (v < 0.1) continue;
 
         let snowFrac = 0;
         if (snowVals) {
-          let sv: number;
-          if (useAdv && nextSnowVals) {
-            const sa = sampleAt(snowVals, fxRaw + t * adx, fyRaw + t * ady);
-            const sb = sampleAt(nextSnowVals, fxRaw - (1 - t) * adx, fyRaw - (1 - t) * ady);
-            sv = sa + (sb - sa) * t;
-          } else {
-            const svCur = sampleAt(snowVals, fxRaw, fyRaw);
-            sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
-          }
+          const svCur = sampleAt(snowVals, fxRaw, fyRaw);
+          const sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
+
         // contour=true (Prognose): diskrete Stufen → sichtbare Iso-Bänder mit
         // weichen Kurven aus dem bilinearen Skalarfeld. contour=false: weiche
         // Farbverläufe (Messung-Canvas / Fallback).
