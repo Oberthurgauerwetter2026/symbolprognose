@@ -5,29 +5,23 @@ import { fetchForecast, type ForecastResponse } from "./weather";
 /**
  * Serverseitiges Multi-Modell-Aggregat.
  *
- * Browser rufen dieses serverFn statt direkt Open-Meteo aufzurufen. Damit:
- * - Open-Meteo sieht nur Worker-IPs (statt jeden Besucher).
- * - Antwort wird am Cloudflare-Edge gecacht (s-maxage=900) → bei vielen
- *   Besuchern auf denselben Spot fällt fast jeder Request auf den Cache.
- *
- * Kein Auth — public read.
+ * `v` ist ein reiner Cache-Bust-Parameter: erhöhen, wenn sich die Aggregations-
+ * oder Symbol-Logik ändert und alte Edge-Cache-Antworten umgangen werden müssen.
  */
 export const getAggregatedForecast = createServerFn({ method: "GET" })
-  .inputValidator((input: { lat: number; lon: number }) => {
+  .inputValidator((input: { lat: number; lon: number; v?: string | number }) => {
     if (typeof input?.lat !== "number" || typeof input?.lon !== "number") {
       throw new Error("lat/lon required");
     }
-    // Auf 4 Nachkommastellen runden → Cache-Key-Stabilität für nahe Punkte.
     return {
       lat: Math.round(input.lat * 10_000) / 10_000,
       lon: Math.round(input.lon * 10_000) / 10_000,
+      v: input?.v != null ? String(input.v) : undefined,
     };
   })
   .handler(async ({ data }): Promise<ForecastResponse> => {
-    setResponseHeader(
-      "Cache-Control",
-      "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
-    );
+    // Vorübergehend kein Edge-Cache, damit Symbol-/Aggregations-Updates sofort sichtbar sind.
+    setResponseHeader("Cache-Control", "no-store, max-age=0");
 
     return await fetchForecast(data.lat, data.lon);
   });

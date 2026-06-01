@@ -162,11 +162,17 @@ export function WeatherWidget({
   }, []);
 
   const getForecast = useServerFn(getAggregatedForecast);
+  const FORECAST_VERSION = "v4";
   const forecast = useQuery({
-    queryKey: ["forecast", "v2", location?.latitude ?? 0, location?.longitude ?? 0],
-    queryFn: () => getForecast({ data: { lat: location!.latitude, lon: location!.longitude } }),
+    queryKey: ["forecast", FORECAST_VERSION, location?.latitude ?? 0, location?.longitude ?? 0],
+    queryFn: () =>
+      getForecast({
+        data: { lat: location!.latitude, lon: location!.longitude, v: FORECAST_VERSION },
+      }),
     enabled: !!location,
-    staleTime: 15 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
 
