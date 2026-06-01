@@ -1,29 +1,17 @@
-## Problem
+## Gewitter-Vorrang im Tagessymbol
 
-Im Daily-Icon-Dispatcher (`src/components/weather-icons/index.tsx`) ist die Schwelle für „Sonne im Schauer-Symbol" `sunshineRatio >= 0.25`. Für viele teils-sonnige Tage liegt der Tagessummen-Anteil (`sunshine_duration / 15h`) jedoch bei 0.15–0.22. Dann fällt das Icon auf `IconDrizzle`/`IconRain` (reine Wolke + Tropfen) zurück — obwohl die Stundenkacheln klar Sonne zeigen.
+**`src/components/weather-icons/index.tsx`**
+- Neuen Prop `thunderHours?: number` an `WeatherIcon`.
+- Daily-Override direkt nach `wmoIsWet`: wenn `scope==="daily"` und (`thunderHours ≥ 1` oder Code ∈ {95,96,99}) → `IconThunderstorm`. Steht vor allen anderen Wet-Pfaden.
 
-## Änderung (nur `src/components/weather-icons/index.tsx`)
+**`src/lib/weather.ts`**
+- `DailyData`-Typ: `thunderstorm_hours: number[]` ergänzen.
+- `aggregateDailyFromHourly` gibt `thunderstorm_hours` (bereits berechnetes `thunderHours`) zurück.
+- Im Daily-Apply-Loop und in `ensureLen`-Keyliste `thunderstorm_hours` aufnehmen.
 
-1. **Hilfsfunktion** `pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow })` einführen. Reihenfolge:
-   - Schnee → `IconSnow`
-   - `sunshineRatio >= 0.15 && precipHours < 8` → `IconSunShower`
-   - `precipHours >= 8 && precip >= 15` → `IconRain`
-   - sonst → `IconDrizzle`
+**`src/components/weather-widget.tsx` + `src/components/region-map.tsx`**
+- `thunderHours={d.thunderstorm_hours?.[i]}` an `WeatherIcon` durchreichen.
 
-2. **Diese Funktion an allen 5 Daily-Stellen verwenden**:
-   - Wet-Override-Block (Z. ~381)
-   - „dayHasRain"-Block (Z. ~396)
-   - Code 61–67 daily (Z. ~458)
-   - Code 80/81 daily (Z. ~466)
-   - Code 82 daily (Z. ~473)
+**Cache:** `v7` → `v8` in `weather-widget.tsx` und `region-map.tsx`.
 
-3. **Schwelle senken** von `0.25` → `0.15` für die Daily-Sonne. Hourly-Pfad bleibt unverändert.
-
-## Nicht geändert
-
-- Hourly-Pfad, Aggregator-Logik, kein Cache-Bump.
-
-## Verifikation
-
-- Amriswil / „Morgen": `sunshineRatio ≈ 0.2`, `precipHours ≈ 2` → `IconSunShower`.
-- Voll bedeckter Regentag (`sunshineRatio < 0.1`, `precipHours ≥ 8`) → `IconRain`/`IconDrizzle`.
+**Verifikation:** Tag mit 1h Gewittercode → IconThunderstorm; sonst unverändert.
