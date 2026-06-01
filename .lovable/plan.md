@@ -1,51 +1,25 @@
-## Diagnose
-Im Screenshot zeigt 15:00 Uhr 2.9 mm Niederschlag bei 100 % Wahrscheinlichkeit, das Icon ist aber nur eine Wolke (WMO-Code 3 = bedeckt). Zwei Ursachen:
+## Problem
+Im Tagesblock greift jetzt derselbe Override wie stündlich: `precipitation_sum` ist die **Tagessumme** (z. B. 3 mm aus einem 1-Stunden-Schauer) und triggert sofort das Regen-Icon für den ganzen Tag — auch wenn die übrigen 23 h trocken/sonnig sind. Die WMO-Tages-Codes von Open-Meteo unterscheiden bereits zwischen „Regen" (61–65) und „Schauer" (80–82); der Override macht diese Nuance kaputt.
 
-1. **Icon-Picker ignoriert Niederschlag**: `WeatherIcon` mappt 1:1 vom WMO-`weathercode` — wenn das Modell „bedeckt" liefert, aber gleichzeitig 3 mm Regen prognostiziert, gewinnt der `weathercode` und das Regen-Icon bleibt aus.
-2. **Bewölkungsgrad fehlt als Signal**: Aktuell wird `cloud_cover` nicht abgefragt; jede Bewölkung > „leicht bewölkt" wird vom Modell direkt zu `weathercode: 3` (komplett überzogen) zusammengefasst.
+## Lösung
+Override nur für **stündliche** Icons. Für den Tagesblock dem `weathercode` vertrauen, optional mit `precipitation_hours` als Korrektiv.
 
-## Vorgeschlagene Änderungen
+### Änderungen
 
-### 1. Icon-Override bei Niederschlag (sofort wirksam, klein)
-**`src/components/weather-icons/index.tsx`** — `WeatherIcon` um optionale Felder erweitern:
+**`src/components/weather-icons/index.tsx`**
+- Neue Prop `scope?: "hourly" | "daily"` (Default `"hourly"`).
+- Override-Logik für Regen/Drizzle nur ausführen, wenn `scope === "hourly"`.
+- Für `scope === "daily"` zusätzlich `precipHours` akzeptieren: Override greift nur, wenn `precipHours >= 6` (≈ ein Viertel des Tages) — verhindert „ganzer Tag Regen" bei kurzem Schauer.
+- `isSnow`-Logik bleibt für beide Scopes (Schnee ist als Tagessignal robust).
 
-```tsx
-export function WeatherIcon({
-  code, isDay = true, size = 48, className,
-  precip,         // mm in dieser Stunde (oder mm/h)
-  precipProb,     // 0–100
-  isSnow,         // optional: Schnee-Hinweis (z. B. Temperatur < 1 °C)
-}) {
-  // Override: klar prognostizierter Niederschlag schlägt den Bewölkungscode
-  const wet = (precip ?? 0) >= 0.2 || (precipProb ?? 0) >= 60;
-  if (wet && !(code >= 51 && code <= 99)) {
-    if (isSnow) return <IconSnow .../>;
-    if ((precip ?? 0) >= 1.5 || (precipProb ?? 0) >= 80) return <IconRain .../>;
-    return <IconDrizzle .../>;
-  }
-  // ... bestehender Switch
-}
-```
+**`src/components/weather-widget.tsx`**
+- Daily-Aufruf (Zeile ~535): `scope="daily"` setzen und `precipHours={d.precipitation_hours?.[i]}` mitgeben.
+- Hourly-Aufruf bleibt unverändert.
 
-**`src/components/weather-widget.tsx`** — beim Aufruf `precip` + `precipProb` + ggf. `isSnow` mitgeben (Hourly & Daily-Block, je 1 Stelle).
+**`src/lib/weather.ts`**
+- `precipitation_hours` zur Daily-Liste im Open-Meteo-Request ergänzen und als `number[]` durchreichen (analog zu `precipitation_sum`).
 
-### 2. `cloud_cover` als Signal nutzen (für „zu pessimistisch")
-**`src/lib/weather.ts`** — `cloud_cover` zur Hourly-Liste hinzufügen (`hourly`-Parameter beim Open-Meteo-Request: `"cloud_cover"`), als `number[]` durch alle Merge-/Ensemble-Pfade durchschleifen.
-
-**`src/components/weather-icons/index.tsx`** — im Picker bei Code 3 (bedeckt) abstufen, sofern `cloudCover` mitgegeben wird:
-- `cloudCover ≥ 87` → `IconCloudy` (wie bisher)
-- `70–86` → `IconPartlyCloudy`
-- `< 70` → `IconMostlyClear`
-
-Damit wird ein häufiger Modellfehler („alles als bedeckt taggen") visuell korrigiert, ohne die Modellzahlen zu verfälschen.
-
-### 3. Daily-Aggregation
-Für den Tages-Block (`d.weathercode[i]`) zusätzlich `precipitation_sum` und ein neu zu holendes `cloud_cover_mean` (Open-Meteo Daily) als Hints durchreichen.
-
-## Was nicht geändert wird
-- Modelldaten/Forecast bleiben unverändert; nur die Icon-Wahl wird robuster.
-- Temperatur, Wind, Niederschlagsbalken bleiben unangetastet.
-- Keine Änderung am Region-Wetter-Tooltip.
-
-## Rückfrage
-Setze ich **nur Schritt 1** um (schneller Fix, Regen-Icon erscheint zuverlässig) oder **1 + 2 + 3** zusammen (vollständige Lösung inkl. abgestufter Bewölkung)?
+## Resultat
+- Tageskachel zeigt bei kurzem Schauer das Modell-Symbol (z. B. „teils bewölkt mit Schauern"), nicht mehr Dauerregen.
+- Stündliche Kacheln bleiben mit dem zuverlässigen Regen-Override.
+- Schnee-Override bleibt überall aktiv.
