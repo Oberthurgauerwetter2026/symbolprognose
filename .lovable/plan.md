@@ -1,45 +1,68 @@
-# Flüssige 15-min-Animation der ICON-Prognose
+# Wind-Advection für ICON-CH1-Prognose
 
-Messung (MeteoSchweiz-PNGs) bleibt unverändert. Fokus nur auf die Canvas-Frames der ICON-CH1-Prognose.
+Messung (MeteoSchweiz-PNGs, R2-Manifest, Ingest) bleibt komplett unangetastet. Änderungen ausschließlich im Prognose-Pfad von `src/lib/radar.functions.ts`.
 
-## Diagnose
+## Verfahren
 
-Drei Punkte verursachen das wahrgenommene 60-min-Stocken:
+Semi-Lagrangian Advection zwischen je zwei stündlichen ICON-CH1-Ankern A (t=0) und B (t=60 min). Für jeden 15-min-Frame mit α = Δt/60:
 
-1. **Anker-Werte „springen" hart**: ICON-CH1 ist nativ stündlich, Open-Meteo wiederholt denselben Wert 4× pro Stunde im `minutely_15`-Feld. Die aktuelle `buildSmoothSeries`-Logik interpoliert zwar zwischen den Stunden-Ankern, aber linear — beim Übergang Anker→Anker ist die zeitliche Ableitung unstetig (Knick), das Auge liest das als „Sprung alle 60 min".
-2. **Progress läuft nur im Play-Modus**: `progress` wird nur durch den rAF-Loop hochgezählt, wenn `playing=true`. Beim Slider-Scrubben oder Pause zeigt das Canvas den reinen 15-min-Frame ohne Sub-Frame-Tween → man sieht 15-min-Snaps statt eines weichen Stroms.
-3. **750 ms pro 15-min-Frame** ist im Play-Modus zwar OK, aber bei stehenden Zellen wird der Crossfade durch die quantisierten Farbbänder erst sichtbar, wenn ein Bandwechsel passiert — gefühlt „rastet" die Animation nur an Stundenkanten ein.
+- `A_fwd = advect(A, uA, vA, +α·3600 s)` — Anker A entlang Wind(A) vorwärts verschoben
+- `B_bwd = advect(B, uB, vB, −(1−α)·3600 s)` — Anker B entlang Wind(B) rückwärts verschoben
+- Frame-Wert = `(1−α) · A_fwd + α · B_bwd`
 
-## Änderungen — minimal, nur Prognose-Pfad
+Zellen wandern sichtbar von A nach B; Intensitäts­änderungen über den Blend. Bei Wind ≈ 0 fällt das automatisch auf einen reinen Crossfade zurück.
 
-### A. `src/lib/radar.functions.ts` — Anker-Interpolation mit Easing
+`advect(field, u, v, dt)` arbeitet pro Ziel-Gridpunkt mit Backward-Lookup:
+- Quelle (lat, lon) = (lat − v·dt/111000, lon − u·dt/(111000·cos(lat)))
+- bilineares Sampling der vier Nachbarn im 36×22-Grid
+- Out-of-bbox → 0
 
-In `buildSmoothSeries` die lineare Interpolation durch einen monotonen kubischen Hermite-Tween (Catmull-Rom / smoothstep zwischen je 2 benachbarten Anker-Paaren) ersetzen. Effekt:
-- Werte gleiten weich von Stunde zu Stunde ohne Knick.
-- An Ankerpunkten bleibt der ICON-Originalwert exakt erhalten.
-- Negative Überschwinger werden mit `Math.max(0, …)` geklemmt.
+Aufwand: ein bilinearer Pass pro 15-min-Frame über 36×22 ≈ 800 Punkte — vernachlässigbar.
 
-Keine Änderung an Anker-Erkennung, Anker-Werten, Bias-Korrektur, oder Time-Grid (bleibt 15-min).
+## Konkrete Änderungen — nur `src/lib/radar.functions.ts`
 
-### B. `src/components/maps/radar-map.tsx` — Sub-15-min-Tween auch im Pause/Scrub-Modus
+### 1. `LocResponse.hourly` erweitern
+`wind_speed_700hPa: (number|null)[]`, `wind_direction_700hPa: (number|null)[]` ergänzen. Wird vom Ingest schon geliefert.
 
-`progress` heute = 0 außerhalb des Play-Loops. Neu:
-- Wenn `currentFrame.source !== "radar"` und `nextFrame` existiert: zusätzlich einen kontinuierlich laufenden Pause-Tween-Loop (rAF) starten, der `progress` zwischen 0…1 schwingt (Ping-Pong über z. B. 2 s). So bewegt sich das Bild auch beim Stehen, statt einer eingefrorenen 15-min-Stufe.
-- Beim Slider-Drag (`onChange`): progress = 0, springt sauber auf den neuen Frame; danach übernimmt der Pause-Loop wieder.
+### 2. Stündliche Anker als 2D-Felder formen
+Innerhalb des bestehenden Forecast-Blocks (ab Zeile ~309):
+- Aus `minutely_15.time` die Stunden-Indizes ermitteln (jeweils erstes 15-min-Sample pro Stunde).
+- Aus `hourly.time` die zugehörigen Wind-Indizes mappen.
+- Für jeden Stunden-Anker: 2D-Felder `precipHour[GRID_LAT][GRID_LON]` (mm/h), `snowHour[...]`, `uHour[...]`, `vHour[...]` aus `r1[pi]` aufbauen.
+- Wind-Umrechnung met → kart.: `u = -speed · sin(dir·π/180)`, `v = -speed · cos(dir·π/180)` (Open-Meteo `wind_direction` = Herkunftsrichtung).
+- `speed` von km/h in m/s teilen (Open-Meteo Default ist km/h).
 
-Im Play-Modus bleibt alles wie heute (rAF + 750 ms/Frame), nur jetzt mit weichem A→B-Übergang dank Easing in A.
+### 3. Advection-Kernel
+Reine Helper-Funktion (Modul-Scope, oberhalb des Handlers):
 
-### C. Crossfade-Dauer im Play-Modus auf 1200 ms anheben
+```text
+function advect(field, u, v, dtSeconds, lats, lons): number[][]
+```
+- Iteriert über alle Ziel-Gitterpunkte (lat[i], lon[j]).
+- Berechnet Quelle, sampelt bilinear, schreibt ins Output-Grid.
+- Verwendet die u/v-Felder am Ziel-Punkt (Standard semi-Lagrangian Approx).
 
-`FRAME_MS = 1200 / speed` statt 750. Bei den natürlichen Verlagerungs-Skalen einer ICON-Stunde ergibt das ein angenehmeres Tempo (≈ 5 s pro Modellstunde bei `speed=1`), ohne die Gesamtdauer für 24 h Prognose unangenehm zu strecken.
+### 4. Frame-Schleife umbauen
+Pro 15-min-Frame zwischen now und now+24 h:
+- Anker-Index a finden (letzter Stundenanker ≤ tMs), α berechnen.
+- `A_fwd = advect(precipHour[a], uHour[a], vHour[a], +α·3600, ...)`.
+- `B_bwd = advect(precipHour[a+1], uHour[a+1], vHour[a+1], −(1−α)·3600, ...)`.
+- Per Ziel-Pixel: `value = ((1−α)·A_fwd + α·B_bwd) · biasCorrection`.
+- Schnee analog mit denselben u/v.
+- Letzter Stunden­anker (a+1 nicht vorhanden) → reines `A` ohne Advection.
+
+### 5. Alten Pfad entfernen
+`buildSmoothSeries` + die per-Punkt-Zeitreihen werden entfernt — durch Advection ersetzt. Bias-Korrektur (`biasFactor`, `BIAS_FADE_MIN`) und alle anderen Schritte bleiben unverändert.
 
 ## Nicht angefasst
 
-- Ingest-Skript, Open-Meteo-Anfrage, Cache, Cron, R2.
-- MeteoSchweiz-PNG-Pfad und sein Snap-Verhalten.
-- Farbpalette, Legende, Layout, Bias-Korrektur, Snow-Frac.
-- Keine Wind-Advection, keine räumliche Verschiebung der Zellen.
+- MeteoSchweiz-Messpfad (PNGs, R2-Manifest, `past_minutely_15`-Canvas-Füllung).
+- Ingest-Skript, GitHub Action, Cron.
+- ICON-CH2 (bleibt deaktiviert).
+- Farbpalette, Canvas-Renderer, Crossfade-/Pause-Tween-Logik.
 
-## Erwartetes Ergebnis
+## Hinweise
 
-15-min-Frames erscheinen als kontinuierlicher, weicher Fluss: Intensität schwillt zwischen Stunden­ankern monoton-glatt an/ab, statt linear-knickig. Auch im Pause-Modus „atmet" das Bild zwischen den 15-min-Stufen, statt zu rasten.
+- 700 hPa ist Standard-Steuerniveau für die ICON-Synoptik. Wenn ein Fall mal daneben liegt (sehr flache Schauer), können wir später ein 700/850-Mittel ergänzen.
+- Wind-Werte je Grid-Punkt: Wir nutzen den lokalen Wind am Ziel-Pixel — räumlich heterogene Lagen werden so korrekt erfasst.
+- Bei Wind 0 m/s ist `advect` die Identität → Verhalten = Crossfade wie vorher.
