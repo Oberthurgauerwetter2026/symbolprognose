@@ -41,7 +41,7 @@ export function EmbedShell({
     return (
       <div
         ref={ref}
-        className="@container h-[100svh] min-h-[360px] w-full overflow-hidden supports-[height:100dvh]:h-[100dvh]"
+        className="@container flex h-[100svh] min-h-[360px] w-full flex-col overflow-hidden supports-[height:100dvh]:h-[100dvh]"
       >
         {children}
       </div>
