@@ -1,7 +1,6 @@
 // Open-Meteo client-side fetchers (ICON-CH2 / MeteoSchweiz model).
 // CORS-enabled, no API key required. DWD-MOSMIX wird via Server Function dazugemerged.
 import { fetchMosmix, type MosmixHourly } from "./mosmix.functions";
-import { getAggregatedForecast } from "./forecast-aggregated.functions";
 
 export interface GeoLocation {
   id: number;
