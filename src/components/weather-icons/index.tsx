@@ -404,14 +404,11 @@ export function WeatherIcon({
       ? (precip ?? 0) >= 0.2 || (precipProb ?? 0) >= 60
       : (precipHours ?? 0) >= 6 && ((precip ?? 0) >= 2 || (precipProb ?? 0) >= 70);
   if (wet && !wmoIsWet) {
-    if (isSnow) return <IconSnow {...props} />;
-    // Tages-Override: bei nennenswertem Sonnenanteil ist es Schauer-Charakter,
-    // kein Dauerregen — sonst wirkt das Symbol zu pessimistisch.
-    if (scope === "daily" && (sunshineRatio ?? 0) >= 0.25) {
-      return <IconSunShower {...props} />;
+    if (scope === "daily") {
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
     }
-    const heavyThresh = scope === "hourly" ? 1.5 : 8;
-    const heavy = (precip ?? 0) >= heavyThresh || (precipProb ?? 0) >= 80;
+    if (isSnow) return <IconSnow {...props} />;
+    const heavy = (precip ?? 0) >= 1.5 || (precipProb ?? 0) >= 80;
     return heavy ? <IconRain {...props} /> : <IconDrizzle {...props} />;
   }
   // Schnee-Override (gilt für beide Scopes — robustes Tagessignal).
@@ -422,9 +419,9 @@ export function WeatherIcon({
   const dayHasRain =
     scope === "daily" && !isSnow && ((precipHours ?? 0) >= 1 || (precip ?? 0) >= 0.5);
   if (dayHasRain && !wmoIsWet) {
-    if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
-    return <IconDrizzle {...props} />;
+    return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
   }
+
 
   // Wolken-Stockwerke: trennt Cirrus (Sonne scheint durch) von echter Bedeckung.
   // Gilt scope-übergreifend — auch stündlich soll Code 2 + viel low-cloud als bedeckt erscheinen.
