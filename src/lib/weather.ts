@@ -575,6 +575,7 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   }
   const precipFinite = finite(h.precipitation);
   const precipHours = precipFinite.reduce((n, v) => (v >= 0.1 ? n + 1 : n), 0);
+  const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
   return {
     weathercode: representativeWeathercode(finite(h.weathercode), { preferShower: precipHours < 5 }),
 
@@ -587,8 +588,12 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     winddirection_10m_dominant: dominantDir,
     sunshine_duration: sum(finite(h.sunshine_duration)),
     snowfall_sum: sum(finite(h.snowfall)),
+    cloud_cover_low_mean: mean(finite(h.cloud_cover_low)),
+    cloud_cover_mid_mean: mean(finite(h.cloud_cover_mid)),
+    cloud_cover_high_mean: mean(finite(h.cloud_cover_high)),
   } as Record<string, number | null>;
 }
+
 
 export async function fetchForecast(
   latitude: number,
