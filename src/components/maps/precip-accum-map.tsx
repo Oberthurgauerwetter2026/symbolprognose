@@ -191,13 +191,13 @@ function renderHeatmapDataUrl(
       data[i] = 15;
       data[i + 1] = 23;
       data[i + 2] = 42;
-      data[i + 3] = 130;
+      data[i + 3] = 180;
     } else {
       // helle Linie
       data[i] = 255;
       data[i + 1] = 255;
       data[i + 2] = 255;
-      data[i + 3] = 150;
+      data[i + 3] = 210;
     }
   };
 
