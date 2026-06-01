@@ -50,7 +50,10 @@ export const getMultiModelForecast = createServerFn({ method: "GET" })
     return input;
   })
   .handler(async ({ data }): Promise<MultiModelLocationForecast | null> => {
-    setResponseHeader("Cache-Control", "public, max-age=60, s-maxage=120");
+    setResponseHeader(
+      "Cache-Control",
+      "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
+    );
 
     const cache = await getOpenMeteoCache();
     if (!cache?.phaseA?.length) {

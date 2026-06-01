@@ -856,12 +856,20 @@ function MeteoTimeline({
 
 
 
-export function RadarMap({ bare = false }: { bare?: boolean }) {
+export function RadarMap({
+  bare = false,
+  initialFrames,
+}: {
+  bare?: boolean;
+  initialFrames?: RadarPayload;
+}) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["radar-frames"],
     queryFn: () => getRadarFrames(),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
+    initialData: initialFrames,
+    initialDataUpdatedAt: initialFrames ? Date.now() : undefined,
   });
 
   const frames = data?.frames ?? [];
