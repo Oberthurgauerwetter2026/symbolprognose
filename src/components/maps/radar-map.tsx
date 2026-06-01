@@ -421,22 +421,6 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Advektion: in Prognose globalen Verschiebungsvektor verwenden, damit
-    // Bänder sanft "fliessen" statt zu pulsieren. Dezent (gain 0.4, clamp 1.5).
-    let adx = 0;
-    let ady = 0;
-    if (contour && nextVals) {
-      const raw = advectionRef.current;
-      adx = raw.dx * 0.4;
-      ady = raw.dy * 0.4;
-      const mag = Math.hypot(adx, ady);
-      if (mag > 1.5) {
-        adx = (adx / mag) * 1.5;
-        ady = (ady / mag) * 1.5;
-      }
-    }
-    const useAdv = adx !== 0 || ady !== 0;
-
     // STEP=2: Off-screen-Buffer auf halber Auflösung pro Achse (1/4 Pixel)
     // → deutlich schnellere Redraws, stabile 60fps Animation.
     const STEP = 2;
@@ -446,8 +430,7 @@ function PrecipOverlay({
     const img = ctx.createImageData(lowW, lowH);
     const data = img.data;
 
-    // Bilineare Sample-Funktion, parametrisiert über (fx, fy) → erlaubt
-    // advektives Sampling mit verschobenen Koordinaten.
+    // Bilineare Sample-Funktion.
     const sampleAt = (arr: number[], fx: number, fy: number) => {
       const x0 = Math.floor(fx);
       const y0 = Math.floor(fy);
@@ -483,30 +466,17 @@ function PrecipOverlay({
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
 
-        let v: number;
-        if (useAdv && nextVals) {
-          const va = sampleAt(vals, fxRaw + t * adx, fyRaw + t * ady);
-          const vb = sampleAt(nextVals, fxRaw - (1 - t) * adx, fyRaw - (1 - t) * ady);
-          v = va + (vb - va) * t;
-        } else {
-          const vCur = sampleAt(vals, fxRaw, fyRaw);
-          v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
-        }
+        const vCur = sampleAt(vals, fxRaw, fyRaw);
+        const v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
         if (v < 0.1) continue;
 
         let snowFrac = 0;
         if (snowVals) {
-          let sv: number;
-          if (useAdv && nextSnowVals) {
-            const sa = sampleAt(snowVals, fxRaw + t * adx, fyRaw + t * ady);
-            const sb = sampleAt(nextSnowVals, fxRaw - (1 - t) * adx, fyRaw - (1 - t) * ady);
-            sv = sa + (sb - sa) * t;
-          } else {
-            const svCur = sampleAt(snowVals, fxRaw, fyRaw);
-            sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
-          }
+          const svCur = sampleAt(snowVals, fxRaw, fyRaw);
+          const sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
+
         // contour=true (Prognose): diskrete Stufen → sichtbare Iso-Bänder mit
         // weichen Kurven aus dem bilinearen Skalarfeld. contour=false: weiche
         // Farbverläufe (Messung-Canvas / Fallback).
