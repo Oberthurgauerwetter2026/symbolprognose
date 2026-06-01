@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EmbedShell } from "@/components/embed-shell";
-import { EmbedFallbackBar } from "@/components/embeds/embed-fallback-bar";
+
 import { ComingSoonMap } from "@/components/maps/coming-soon-map";
 import { getMap } from "@/lib/maps-config";
 
