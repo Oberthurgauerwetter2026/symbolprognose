@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { EmbedShell } from "@/components/embed-shell";
-import { EmbedFallbackBar } from "@/components/embeds/embed-fallback-bar";
+
 import { RadarNoscript, type RadarNoscriptData } from "@/components/embeds/radar-noscript";
 import { getRadarFrames } from "@/lib/radar.functions";
 import { getMultiModelForecast } from "@/lib/forecast.functions";
@@ -104,10 +104,6 @@ function EmbedRadar() {
         <RadarNoscript data={noscript} />
       </noscript>
       <EmbedShell fillViewport>
-        <EmbedFallbackBar
-          title="Radar Oberthurgau"
-          href="https://symbolprognose.lovable.app/karten/radar"
-        />
         <div className="flex min-h-0 flex-1 flex-col">
           <ClientOnly
             fallback={
