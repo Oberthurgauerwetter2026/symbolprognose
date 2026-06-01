@@ -330,7 +330,36 @@ export function IconSunShower({ size, ...rest }: IconProps) {
 }
 
 
+/* ---------- Daily wet-icon helper ---------- */
+
+function pickWetDailyIcon({
+  sunshineRatio,
+  precipHours,
+  precip,
+  isSnow,
+  size,
+  className,
+}: {
+  sunshineRatio?: number;
+  precipHours?: number;
+  precip?: number;
+  isSnow?: boolean;
+  size?: number;
+  className?: string;
+}) {
+  const props = { size, className };
+  if (isSnow) return <IconSnow {...props} />;
+  if ((sunshineRatio ?? 0) >= 0.15 && (precipHours ?? 0) < 8) {
+    return <IconSunShower {...props} />;
+  }
+  if ((precipHours ?? 0) >= 8 && (precip ?? 0) >= 15) {
+    return <IconRain {...props} />;
+  }
+  return <IconDrizzle {...props} />;
+}
+
 /* ---------- Dispatcher ---------- */
+
 
 export function WeatherIcon({
   code,
@@ -375,14 +404,11 @@ export function WeatherIcon({
       ? (precip ?? 0) >= 0.2 || (precipProb ?? 0) >= 60
       : (precipHours ?? 0) >= 6 && ((precip ?? 0) >= 2 || (precipProb ?? 0) >= 70);
   if (wet && !wmoIsWet) {
-    if (isSnow) return <IconSnow {...props} />;
-    // Tages-Override: bei nennenswertem Sonnenanteil ist es Schauer-Charakter,
-    // kein Dauerregen — sonst wirkt das Symbol zu pessimistisch.
-    if (scope === "daily" && (sunshineRatio ?? 0) >= 0.25) {
-      return <IconSunShower {...props} />;
+    if (scope === "daily") {
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
     }
-    const heavyThresh = scope === "hourly" ? 1.5 : 8;
-    const heavy = (precip ?? 0) >= heavyThresh || (precipProb ?? 0) >= 80;
+    if (isSnow) return <IconSnow {...props} />;
+    const heavy = (precip ?? 0) >= 1.5 || (precipProb ?? 0) >= 80;
     return heavy ? <IconRain {...props} /> : <IconDrizzle {...props} />;
   }
   // Schnee-Override (gilt für beide Scopes — robustes Tagessignal).
@@ -393,9 +419,9 @@ export function WeatherIcon({
   const dayHasRain =
     scope === "daily" && !isSnow && ((precipHours ?? 0) >= 1 || (precip ?? 0) >= 0.5);
   if (dayHasRain && !wmoIsWet) {
-    if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
-    return <IconDrizzle {...props} />;
+    return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
   }
+
 
   // Wolken-Stockwerke: trennt Cirrus (Sonne scheint durch) von echter Bedeckung.
   // Gilt scope-übergreifend — auch stündlich soll Code 2 + viel low-cloud als bedeckt erscheinen.
@@ -450,29 +476,28 @@ export function WeatherIcon({
   if (code === 3) return <IconCloudy {...props} />;
   if (code === 45 || code === 48) return <IconFog {...props} />;
 
-  if (code >= 51 && code <= 57) return <IconDrizzle {...props} />;
-  if (code >= 61 && code <= 67) {
-    // Tageskachel: WMO-„Regen"-Code (61–67) ist nur dann wirklich Dauerregen,
-    // wenn der Tag deutlich nass UND wenig sonnig ist. Sonst Schauer-Charakter.
+  if (code >= 51 && code <= 57) {
     if (scope === "daily") {
-      if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
-      const heavyRain = (precipHours ?? 0) >= 8 && (precip ?? 0) >= 15;
-      return heavyRain ? <IconRain {...props} /> : <IconDrizzle {...props} />;
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
+    }
+    return <IconDrizzle {...props} />;
+  }
+  if (code >= 61 && code <= 67) {
+    if (scope === "daily") {
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
     }
     return <IconRain {...props} />;
   }
   if (code >= 71 && code <= 77) return <IconSnow {...props} />;
   if (code === 80 || code === 81) {
-    if (scope === "daily" && (sunshineRatio ?? 0) >= 0.25) {
-      return <IconSunShower {...props} />;
+    if (scope === "daily") {
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
     }
     return <IconDrizzle {...props} />;
   }
   if (code === 82) {
     if (scope === "daily") {
-      if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
-      const heavyShower = (precipHours ?? 0) >= 8 && (precip ?? 0) >= 20;
-      return heavyShower ? <IconRain {...props} /> : <IconDrizzle {...props} />;
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
     }
     return <IconRain {...props} />;
   }
