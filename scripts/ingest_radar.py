@@ -321,6 +321,27 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
             candidates = sorted(all_assets, key=lambda x: x.ts)[-6:]
     else:
         print("  NOTE: no parseable assets found at all.", flush=True)
+        # Prefix-Fallback: wenn `rzc` (instant) in OGD nicht verfügbar ist,
+        # einmaliger Retry mit dem alten `cpc`-Prefix (60-min-Smear).
+        if fallback_prefix and fallback_prefix != prefix:
+            print(
+                f"  WARN: {prefix!r} not available, falling back to {fallback_prefix!r} "
+                f"(may show 60-min accumulation smear).",
+                flush=True,
+            )
+            for day_offset in (0, 1):
+                day = (now - timedelta(days=day_offset)).strftime("%Y%m%d")
+                url = f"{STAC_BASE}/{coll}/items/{day}-ch"
+                try:
+                    r = http_get(url, timeout=30)
+                    if r.status_code == 404:
+                        continue
+                    r.raise_for_status()
+                    feat = r.json()
+                    candidates.extend(_extract_assets(feat, product, fallback_prefix, since))
+                except Exception as exc:
+                    print(f"  STAC fallback {day}-ch error: {exc!r}", flush=True)
+
 
     seen: set[datetime] = set()
     uniq: list[AssetRef] = []
