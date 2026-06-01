@@ -110,8 +110,66 @@ type LocResponse = {
   hourly?: {
     time: string[];
     precipitation?: (number | null)[];
+    wind_speed_700hPa?: (number | null)[];
+    wind_direction_700hPa?: (number | null)[];
   };
 };
+
+// Semi-Lagrangian Backward-Advection eines 2D-Felds entlang u/v (m/s).
+// Layout: row-major i*nLon + j. dtSeconds > 0 → Vorwärts-Verlagerung
+// (Quelle = Ziel − v·dt), dtSeconds < 0 → Rückwärts.
+function advectField(
+  field: number[],
+  u: number[],
+  v: number[],
+  dtSeconds: number,
+  lats: number[],
+  lons: number[],
+): number[] {
+  const nLat = lats.length;
+  const nLon = lons.length;
+  const out = new Array<number>(nLat * nLon).fill(0);
+  if (Math.abs(dtSeconds) < 1) {
+    for (let k = 0; k < field.length; k++) out[k] = field[k] ?? 0;
+    return out;
+  }
+  const lat0 = lats[0];
+  const dLat = lats[nLat - 1] - lats[0];
+  const lon0 = lons[0];
+  const dLon = lons[nLon - 1] - lons[0];
+  const M_PER_DEG_LAT = 111_320;
+
+  for (let i = 0; i < nLat; i++) {
+    const lat = lats[i];
+    const mPerDegLon = M_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180);
+    for (let j = 0; j < nLon; j++) {
+      const k = i * nLon + j;
+      const uu = u[k] ?? 0;
+      const vv = v[k] ?? 0;
+      const srcLat = lat - (vv * dtSeconds) / M_PER_DEG_LAT;
+      const srcLon = lons[j] - (uu * dtSeconds) / mPerDegLon;
+      const fy = ((srcLat - lat0) / dLat) * (nLat - 1);
+      const fx = ((srcLon - lon0) / dLon) * (nLon - 1);
+      if (fy < 0 || fy > nLat - 1 || fx < 0 || fx > nLon - 1) continue;
+      const y0 = Math.floor(fy);
+      const x0 = Math.floor(fx);
+      const y1 = Math.min(y0 + 1, nLat - 1);
+      const x1 = Math.min(x0 + 1, nLon - 1);
+      const ty = fy - y0;
+      const tx = fx - x0;
+      const v00 = field[y0 * nLon + x0] ?? 0;
+      const v01 = field[y0 * nLon + x1] ?? 0;
+      const v10 = field[y1 * nLon + x0] ?? 0;
+      const v11 = field[y1 * nLon + x1] ?? 0;
+      out[k] =
+        v00 * (1 - tx) * (1 - ty) +
+        v01 * tx * (1 - ty) +
+        v10 * (1 - tx) * ty +
+        v11 * tx * ty;
+    }
+  }
+  return out;
+}
 
 type ManifestFrame = { t: string; precipUrl?: string; hailUrl?: string };
 type Manifest = {
