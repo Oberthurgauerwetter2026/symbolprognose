@@ -270,8 +270,10 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
     """
     coll = COLLECTIONS[product]
     prefix = ASSET_PREFIX[product]
+    fallback_prefix = ASSET_PREFIX_FALLBACK.get(product)
     now = datetime.now(tz=timezone.utc)
-    print(f"  lookback={LOOKBACK}h since={since.isoformat()}", flush=True)
+    print(f"  lookback={LOOKBACK}h since={since.isoformat()} prefix={prefix!r}", flush=True)
+
     candidates: list[AssetRef] = []
     all_assets: list[AssetRef] = []  # ignoring `since`, for fallback
     for day_offset in (0, 1):
