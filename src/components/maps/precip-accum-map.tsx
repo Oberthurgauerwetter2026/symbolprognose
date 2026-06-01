@@ -138,6 +138,7 @@ function renderHeatmapDataUrl(
   if (!ctx) return null;
   const img = ctx.createImageData(w, h);
   const data = img.data;
+  const clsIdx = new Int8Array(w * h).fill(-1);
 
   const latAsc = gridLat[nLat - 1] > gridLat[0];
 
@@ -164,14 +165,64 @@ function renderHeatmapDataUrl(
         v01 * (1 - tx) * ty +
         v11 * tx * ty;
 
-      if (v < ACCUM_CLASSES[0].min) continue;
-      const [r, g, b, a] = colorForAccum(v);
-      if (a === 0) continue;
+      const ci = classIndexForAccum(v);
+      if (ci < 0) continue;
+      const c = ACCUM_CLASSES[ci];
       const idx = (py * w + px) * 4;
-      data[idx] = r;
-      data[idx + 1] = g;
-      data[idx + 2] = b;
-      data[idx + 3] = Math.round(a * 255);
+      data[idx] = c.rgb[0];
+      data[idx + 1] = c.rgb[1];
+      data[idx + 2] = c.rgb[2];
+      data[idx + 3] 255;
+      clsIdx[py * w + px] = ci;
+    }
+  }
+
+  // Zweiter Pass: feine Trennlinien zwischen Klassen.
+  // Border wird auf der Pixelseite mit der HÖHEREN Klasse gezeichnet,
+  // damit die Außenkontur der intensiveren Klasse scharf bleibt.
+  // Farbe adaptiv: dunkle Linie auf hellen Klassen (0–4), helle Linie auf dunklen Klassen (5–9).
+  const drawBorderAt = (p: number) => {
+    const ci = clsIdx[p];
+    if (ci < 0) return;
+    const dark = ci <= 4;
+    const i = p * 4;
+    if (dark) {
+      // dunkle Linie
+      data[i] = 15;
+      data[i + 1] = 23;
+      data[i + 2] = 42;
+      data[i + 3] = 170;
+    } else {
+      // helle Linie
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = 200;
+    }
+  };
+
+  for (let py = 0; py < h; py++) {
+    for (let px = 0; px < w; px++) {
+      const p = py * w + px;
+      const ci = clsIdx[p];
+      // Rechts
+      if (px + 1 < w) {
+        const pr = p + 1;
+        const cr = clsIdx[pr];
+        if (ci !== cr) {
+          if (ci > cr) drawBorderAt(p);
+          else drawBorderAt(pr);
+        }
+      }
+      // Unten
+      if (py + 1 < h) {
+        const pd = p + w;
+        const cd = clsIdx[pd];
+        if (ci !== cd) {
+          if (ci > cd) drawBorderAt(p);
+          else drawBorderAt(pd);
+        }
+      }
     }
   }
 
