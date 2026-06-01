@@ -343,23 +343,25 @@ export function WeatherIcon({
   scope = "hourly",
   precipHours,
   sunshineRatio,
+  cloudLow,
+  cloudMid,
+  cloudHigh,
 }: {
   code: number;
   isDay?: boolean;
   size?: number;
   className?: string;
-  /** Niederschlag in mm (Stunde oder Tagessumme) — wenn vorhanden, kann er den Code überstimmen. */
   precip?: number;
-  /** Niederschlagswahrscheinlichkeit 0–100. */
   precipProb?: number;
-  /** Schneefall-Hinweis (z. B. Temp < 1 °C oder snowfall_sum > 0). */
   isSnow?: boolean;
-  /** Geltungsbereich des Icons — beeinflusst, wie aggressiv der Niederschlags-Override greift. */
   scope?: "hourly" | "daily";
-  /** Anzahl Stunden mit Niederschlag (nur Daily). Override greift erst ab ~6 h. */
   precipHours?: number;
-  /** Anteil Sonne an der Slot-/Tagdauer (0–1). Korrigiert zu pessimistische Wolken-Codes. */
   sunshineRatio?: number;
+  /** Wolken-Stockwerke 0–100 (low/mid/high). Trennt Cirrus von echter Bedeckung. */
+  cloudLow?: number;
+  cloudMid?: number;
+  cloudHigh?: number;
+
 }) {
   const props = { size, className };
 
