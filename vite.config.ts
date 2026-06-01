@@ -18,7 +18,6 @@ export default defineConfig({
         "@supabase/supabase-js",
         "@tanstack/react-query",
         "@tanstack/react-router",
-        "@tanstack/react-start",
         "@tanstack/router-core",
         "@tanstack/router-core/isServer",
         "@tanstack/router-core/ssr/client",
