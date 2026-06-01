@@ -575,7 +575,7 @@ export async function fetchForecast(
     const arr = merged.daily[key] as (number | string)[];
     while (arr.length < dailyTimes.length) arr.push(0 as never);
   };
-  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum"] as (keyof DailyData)[])
+  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum","precipitation_hours"] as (keyof DailyData)[])
     .forEach(ensureLen);
 
   for (let i = 0; i < dailyTimes.length; i++) {
@@ -590,6 +590,7 @@ export async function fetchForecast(
     apply("temperature_2m_max");
     apply("temperature_2m_min");
     apply("precipitation_sum");
+    apply("precipitation_hours");
     apply("windspeed_10m_max");
     apply("windgusts_10m_max");
     apply("winddirection_10m_dominant");
