@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v19-mch-intensity-boost"
+RADAR_INGEST_VERSION = "v20-odim-time"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
@@ -549,9 +549,9 @@ def _to_mmh(values: np.ndarray, meta: dict, product: str) -> tuple[np.ndarray, s
 def process_asset(s3, asset: AssetRef) -> str | None:
     """Download → reproject → render → upload. Returns object key or None.
 
-    WICHTIG: Der STAC-Dateiname bleibt die primäre Zeitquelle. Die H5-Zeit
-    wird nur akzeptiert, wenn sie plausibel nahe daran liegt; so verhindern
-    wir sowohl Sommerzeit-Fehler als auch alte/falsch gelabelte Frames.
+    Zeit-Quelle: ODIM `enddate/endtime` aus dem H5 ist verbindlich (= Ende
+    des Akkumulations-Intervalls = nominaler Bildzeitpunkt). Der STAC-
+    Dateiname ist nur Fallback, falls die H5-Zeit fehlt.
     """
     print(f"  fetching {asset.href}", flush=True)
     r = http_get(asset.href, timeout=60)
@@ -559,18 +559,15 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     values, meta = read_h5_grid(r.content)
     img_ts = meta.get("image_time")
     if isinstance(img_ts, datetime):
-        delta_min = abs((img_ts - asset.ts).total_seconds()) / 60.0
-        if delta_min <= 10 and img_ts != asset.ts:
+        if img_ts != asset.ts:
+            delta_min = (img_ts - asset.ts).total_seconds() / 60.0
             print(
-                f"  ts-correct: filename={asset.ts.isoformat()} → h5={img_ts.isoformat()}",
+                f"  ts-odim: filename={asset.ts.isoformat()} → h5={img_ts.isoformat()} Δ={delta_min:+.0f}min",
                 flush=True,
             )
-            asset.ts = img_ts
-        elif delta_min > 10:
-            print(
-                f"  ts-h5 ignored: filename={asset.ts.isoformat()} h5={img_ts.isoformat()} Δ={delta_min:.0f}min",
-                flush=True,
-            )
+        asset.ts = img_ts
+    else:
+        print(f"  ts-fallback: no h5 image_time, using filename {asset.ts.isoformat()}", flush=True)
     ts_iso = asset.ts.strftime("%Y%m%dT%H%M")
     key = f"radar/{asset.product}/{ts_iso}.png"
     if head_exists(s3, key):

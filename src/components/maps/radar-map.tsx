@@ -874,7 +874,9 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
       : null;
   // Cross-Fade Canvas↔Canvas (Forecast) bzw. PNG↔PNG (Messung).
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
-  const blendNextPng = nextFrame && nextFrame.precipUrl && currentFrame?.precipUrl ? nextFrame : null;
+  // PNG-Messung: kein Crossfade — Snap zwischen Frames, damit Konvektion sichtbar
+  // wandert statt am Ort zu pulsieren.
+  const blendNextPng = null as RadarFrame | null;
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
