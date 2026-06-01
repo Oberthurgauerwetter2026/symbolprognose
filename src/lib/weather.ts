@@ -452,7 +452,7 @@ function alignMosmixToTimeline(
     time: [], weathercode: [], temperature_2m_max: [], temperature_2m_min: [],
     precipitation_sum: [], precipitation_probability_max: [], windspeed_10m_max: [],
     windgusts_10m_max: [], winddirection_10m_dominant: [], sunshine_duration: [],
-    sunrise: [], sunset: [], snowfall_sum: [],
+    sunrise: [], sunset: [], snowfall_sum: [], precipitation_hours: [],
   };
   return { latitude: 0, longitude: 0, timezone: "", hourly: out, daily: emptyDaily };
 }
