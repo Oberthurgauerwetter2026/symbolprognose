@@ -714,7 +714,6 @@ export async function fetchForecast(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
-  const { getAggregatedForecast } = await import("./forecast-aggregated.functions");
   return await getAggregatedForecast({ data: { lat: latitude, lon: longitude } });
 }
 
