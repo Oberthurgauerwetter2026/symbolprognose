@@ -271,7 +271,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
   };
 
   return (
-    <Card className="overflow-hidden border-zinc-200/80 shadow-sm">
+    <Card ref={cardRef} className="overflow-hidden border-zinc-200/80 shadow-sm bg-white">
       <div className="flex items-center justify-between gap-4 flex-wrap px-6 pt-5 pb-4 border-b border-zinc-100">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
