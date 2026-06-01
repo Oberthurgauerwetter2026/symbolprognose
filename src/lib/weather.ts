@@ -762,6 +762,7 @@ export async function fetchForecast(
     apply("temperature_2m_min");
     apply("precipitation_sum");
     apply("precipitation_hours");
+    apply("thunderstorm_hours");
     apply("windspeed_10m_max");
     apply("windgusts_10m_max");
     apply("winddirection_10m_dominant");
