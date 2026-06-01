@@ -906,6 +906,27 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
     idx !== null && currentFrame && (playing || isForecastCurrent)
       ? frames[(idx + 1) % frames.length] ?? null
       : null;
+
+  // Pause-Tween: Bei Forecast-Frames lässt das Canvas-Bild zwischen current
+  // und next 15-min-Frame ping-pong-tweenen, damit auch im Stand das Bild
+  // atmet statt zu rasten. Nur aktiv wenn pausiert + Forecast + nextFrame.
+  useEffect(() => {
+    if (playing) return;
+    if (!isForecastCurrent || !nextFrame) return;
+    let raf = 0;
+    const start = performance.now();
+    const PERIOD_MS = 2400; // 1× hin + 1× zurück
+    const loop = (now: number) => {
+      const phase = ((now - start) % PERIOD_MS) / PERIOD_MS; // 0…1
+      // Ping-Pong via Cosinus: 0 → 1 → 0 ohne Knick
+      const p = 0.5 - 0.5 * Math.cos(phase * 2 * Math.PI);
+      setProgress(p);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, isForecastCurrent, nextFrame, idx]);
+
   // Cross-Fade Canvas↔Canvas (Forecast) bzw. PNG↔PNG (Messung).
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
   // PNG-Messung: kein Crossfade — Snap zwischen Frames, damit Konvektion sichtbar
