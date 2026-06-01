@@ -540,7 +540,9 @@ function DayStrip({
                   precipProb={d.precipitation_probability_max?.[i]}
                   precipHours={d.precipitation_hours?.[i]}
                   isSnow={(d.snowfall_sum?.[i] ?? 0) > 0.1}
+                  sunshineRatio={(d.sunshine_duration?.[i] ?? 0) / (15 * 3600)}
                 />
+
 
               </div>
               <div className="space-y-1">
