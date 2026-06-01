@@ -334,7 +334,9 @@ export function IconSunThunder({ size, ...rest }: IconProps) {
     <Svg size={size} {...rest}>
       <Sun cx={20} cy={20} r={9} />
       <Cloud x={38} y={32} scale={1} dark />
-      <Drop x={32} y={52} size={0.95} tilt={-12} />
+      <Drop x={32} y={52} size={0.9} tilt={-12} />
+      <Drop x={52} y={52} size={0.9} tilt={-12} />
+      <Drop x={42} y={56} size={0.9} tilt={-12} />
       <Bolt />
     </Svg>
   );
@@ -345,7 +347,9 @@ export function IconSunSnowThunder({ size, ...rest }: IconProps) {
     <Svg size={size} {...rest}>
       <Sun cx={20} cy={20} r={9} />
       <Cloud x={38} y={32} scale={1} dark />
-      <Flake x={32} y={52} size={1} />
+      <Flake x={32} y={52} size={0.95} />
+      <Flake x={52} y={52} size={0.95} />
+      <Flake x={42} y={56} size={0.95} />
       <Bolt />
     </Svg>
   );
