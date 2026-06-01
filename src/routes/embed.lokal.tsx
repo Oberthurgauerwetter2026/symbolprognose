@@ -2,12 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { EmbedShell } from "@/components/embed-shell";
+import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
 
 import { WeatherWidget } from "@/components/weather-widget";
 import { LokalNoscript, type LokalNoscriptData } from "@/components/embeds/lokal-noscript";
-import { getMultiModelForecast } from "@/lib/forecast.functions";
 
 const AMRISWIL = { name: "Amriswil", lat: 47.5469, lon: 9.2986 };
+
+const EMPTY_NOSCRIPT: LokalNoscriptData = {
+  locationName: AMRISWIL.name,
+  hourly: [],
+  daily: [],
+};
 
 const searchSchema = z.object({
   day: fallback(z.number().int().min(0).max(6).optional(), undefined).optional(),
