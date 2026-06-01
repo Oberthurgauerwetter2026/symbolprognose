@@ -210,25 +210,29 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
   const pctWet = ((pxOver1 / accum.values.length) * 100).toFixed(0);
 
   const mapKeyRef = useRef(`map-${hours}-${Math.random()}`);
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const download = () => {
+  const download = async () => {
+    if (!cardRef.current) return;
     try {
-      const exportCanvas = document.createElement("canvas");
-      renderExportCanvas(exportCanvas, {
-        values: accum.values,
-        gridLat,
-        gridLon,
-        hours,
-        firstT: accum.firstT,
-        lastT: accum.lastT,
-        maxMm: accum.maxMm,
-        sourceMix: accum.sourceMix,
+      // Kurz warten, damit ggf. noch ausstehende Tile-Loads abgeschlossen sind.
+      await new Promise((r) => setTimeout(r, 250));
+      const dataUrl = await toPng(cardRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        // Leaflet-Controls (Zoom-Buttons, Attribution) im Export weglassen
+        filter: (node) => {
+          if (!(node instanceof HTMLElement)) return true;
+          if (node.classList?.contains("leaflet-control-container")) return false;
+          return true;
+        },
       });
+
       const fileName = `niederschlag-${hours}h-${new Date()
         .toISOString()
         .slice(0, 16)
         .replace(/[-:T]/g, "")}.png`;
-      const dataUrl = exportCanvas.toDataURL("image/png");
 
       const win = window.open("", "_blank");
       if (win && win.document) {
@@ -250,25 +254,19 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         return;
       }
 
-      exportCanvas.toBlob((blob) => {
-        if (!blob) {
-          toast.error("Export fehlgeschlagen", {
-            description: "Bitte Popups erlauben.",
-          });
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
-        toast.success("PNG-Download gestartet", { description: fileName });
-      }, "image/png");
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast.success("PNG-Download gestartet", { description: fileName });
     } catch (e) {
-      toast.error("Export fehlgeschlagen", { description: (e as Error).message });
+      toast.error("Export fehlgeschlagen", {
+        description:
+          (e as Error).message ||
+          "Karte noch nicht vollständig geladen — kurz warten und erneut versuchen.",
+      });
     }
   };
 
