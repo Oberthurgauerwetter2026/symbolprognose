@@ -314,73 +314,9 @@ function ZoomGate({ minZoom, children }: { minZoom: number; children: React.Reac
   return <>{children}</>;
 }
 
-/**
- * Schätzt globalen Verschiebungsvektor zwischen zwei Niederschlags-Frames
- * via diskreter Kreuzkorrelation auf 32×32-Downsample. Rückgabe in
- * Original-Gridzellen. Nur für Prognose-Frame-Paare; einmal pro Paar.
- */
-function estimateAdvection(
-  a: number[],
-  b: number[],
-  nLat: number,
-  nLon: number,
-): { dx: number; dy: number } {
-  const N = 32;
-  const downA = new Float32Array(N * N);
-  const downB = new Float32Array(N * N);
-  for (let j = 0; j < N; j++) {
-    const y0 = Math.floor((j * nLat) / N);
-    const y1 = Math.max(y0 + 1, Math.floor(((j + 1) * nLat) / N));
-    for (let i = 0; i < N; i++) {
-      const x0 = Math.floor((i * nLon) / N);
-      const x1 = Math.max(x0 + 1, Math.floor(((i + 1) * nLon) / N));
-      let sa = 0;
-      let sb = 0;
-      let c = 0;
-      for (let yy = y0; yy < y1; yy++) {
-        for (let xx = x0; xx < x1; xx++) {
-          sa += a[yy * nLon + xx] || 0;
-          sb += b[yy * nLon + xx] || 0;
-          c++;
-        }
-      }
-      downA[j * N + i] = c ? sa / c : 0;
-      downB[j * N + i] = c ? sb / c : 0;
-    }
-  }
-  let energyA = 0;
-  for (let k = 0; k < N * N; k++) energyA += downA[k] * downA[k];
-  if (energyA < 1e-4) return { dx: 0, dy: 0 };
+// estimateAdvection entfernt: advektives Resampling in der Prognose verursachte
+// sichtbares Wackeln der Niederschlagsbänder zwischen Framepaaren.
 
-  const R = 4;
-  let bestScore = -Infinity;
-  let zeroScore = 0;
-  let bestDx = 0;
-  let bestDy = 0;
-  for (let sdy = -R; sdy <= R; sdy++) {
-    for (let sdx = -R; sdx <= R; sdx++) {
-      let score = 0;
-      const jStart = Math.max(0, -sdy);
-      const jEnd = Math.min(N, N - sdy);
-      const iStart = Math.max(0, -sdx);
-      const iEnd = Math.min(N, N - sdx);
-      for (let j = jStart; j < jEnd; j++) {
-        for (let i = iStart; i < iEnd; i++) {
-          score += downA[j * N + i] * downB[(j + sdy) * N + (i + sdx)];
-        }
-      }
-      if (sdx === 0 && sdy === 0) zeroScore = score;
-      if (score > bestScore) {
-        bestScore = score;
-        bestDx = sdx;
-        bestDy = sdy;
-      }
-    }
-  }
-  // Nur akzeptieren, wenn die Korrelation klar besser ist als Null-Shift.
-  if (bestScore < zeroScore * 1.05) return { dx: 0, dy: 0 };
-  return { dx: bestDx * (nLon / N), dy: bestDy * (nLat / N) };
-}
 
 
 
