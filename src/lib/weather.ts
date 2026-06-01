@@ -595,7 +595,14 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
 }
 
 
-export async function fetchForecast(
+/**
+ * Direktes Multi-Modell-Aggregat (Ensembles + best_match + MOSMIX).
+ * Wird ausschließlich serverseitig aufgerufen (via getAggregatedForecast),
+ * damit Open-Meteo nur die Worker-IPs sieht und das Ergebnis am Edge gecacht
+ * werden kann. Browser nutzen `fetchForecast` (siehe unten), das die
+ * Server-Function ruft.
+ */
+export async function fetchForecastFromUpstream(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
