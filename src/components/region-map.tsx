@@ -152,6 +152,7 @@ function MarkerPill({
   precip,
   precipProb,
   precipHours,
+  thunderHours,
   isSnow,
   sunshineRatio,
   cloudLow,
