@@ -214,8 +214,10 @@ function renderExportCanvas(
 
   const drawFC = (
     fc: FeatureCollection,
-    style: { fill?: string; stroke?: string; lineWidth?: number },
+    style: { fill?: string; stroke?: string; lineWidth?: number; alpha?: number },
   ) => {
+    ctx.save();
+    if (style.alpha != null) ctx.globalAlpha = style.alpha;
     for (const feat of fc.features) {
       const g = feat.geometry;
       if (!g) continue;
@@ -242,12 +244,14 @@ function renderExportCanvas(
         }
       }
     }
+    ctx.restore();
   };
 
-  // Hintergrund + Schweiz
-  ctx.fillStyle = "#ffffff";
+  // Hintergrund — gleicher Map-Background wie Leaflet
+  ctx.fillStyle = "#ebefeb";
   ctx.fillRect(0, 0, W, H);
-  drawFC(SWITZERLAND, { fill: "#f1f5f9" });
+  // Schweiz-Fläche als sanftes Land-Substitut (statt swisstopo-Relief)
+  drawFC(SWITZERLAND, { fill: "#f7faf7" });
 
   // Heatmap (bilineare Klassen-Zuordnung)
   const { values, gridLat, gridLon } = payload;
@@ -294,16 +298,18 @@ function renderExportCanvas(
   off.width = innerW;
   off.height = innerH;
   off.getContext("2d")!.putImageData(heatImg, 0, 0);
-  ctx.drawImage(off, PAD.left, PAD.top);
-
-  // See + Schweiz-Grenze + Thurgau
-  drawFC(LAKE, { fill: "#cfe4f5", stroke: "#7aa9c8", lineWidth: 0.8 });
-  drawFC(SWITZERLAND, { stroke: "#cbd5e1", lineWidth: 1 });
   ctx.save();
-  ctx.shadowColor = "rgba(15, 23, 42, 0.18)";
-  ctx.shadowBlur = 6;
-  drawFC(THURGAU, { stroke: "#1e293b", lineWidth: 2.5 });
+  ctx.globalAlpha = 0.85;
+  ctx.drawImage(off, PAD.left, PAD.top);
   ctx.restore();
+
+  // See (über Heatmap, wie Leaflet-Reihenfolge)
+  drawFC(LAKE, { fill: "#7ec8e3", alpha: 0.25 });
+  drawFC(LAKE, { stroke: "#5ba8c8", lineWidth: 1.2 });
+  // Schweiz-Grenze
+  drawFC(SWITZERLAND, { stroke: "#0f172a", lineWidth: 1.4, alpha: 0.85 });
+  // Thurgau-Grenze
+  drawFC(THURGAU, { stroke: "#0f172a", lineWidth: 2.2, alpha: 0.95 });
 
   // Header
   ctx.fillStyle = "#0f172a";
