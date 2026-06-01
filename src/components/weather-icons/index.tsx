@@ -329,6 +329,17 @@ export function IconSunShower({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconSunThunder({ size, ...rest }: IconProps) {
+  return (
+    <Svg size={size} {...rest}>
+      <Sun cx={20} cy={20} r={9} />
+      <Cloud x={38} y={32} scale={1} dark />
+      <Drop x={32} y={52} size={0.95} tilt={-12} />
+      <Bolt />
+    </Svg>
+  );
+}
+
 
 /* ---------- Daily wet-icon helper ---------- */
 
