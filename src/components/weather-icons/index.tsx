@@ -324,13 +324,33 @@ export function WeatherIcon({
   isDay = true,
   size = 48,
   className,
+  precip,
+  precipProb,
+  isSnow,
 }: {
   code: number;
   isDay?: boolean;
   size?: number;
   className?: string;
+  /** Niederschlag in mm (Stunde oder Tagessumme) — wenn vorhanden, kann er den Code überstimmen. */
+  precip?: number;
+  /** Niederschlagswahrscheinlichkeit 0–100. */
+  precipProb?: number;
+  /** Schneefall-Hinweis (z. B. Temp < 1 °C oder snowfall_sum > 0). */
+  isSnow?: boolean;
 }) {
   const props = { size, className };
+
+  // Override: Wenn das Modell selbst klaren Niederschlag prognostiziert,
+  // aber den weathercode auf „bedeckt/teils bewölkt" stehen lässt, das Niederschlags-Icon erzwingen.
+  const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
+  const wet = (precip ?? 0) >= 0.2 || (precipProb ?? 0) >= 60;
+  if (wet && !wmoIsWet) {
+    if (isSnow) return <IconSnow {...props} />;
+    const heavy = (precip ?? 0) >= 1.5 || (precipProb ?? 0) >= 80;
+    return heavy ? <IconRain {...props} /> : <IconDrizzle {...props} />;
+  }
+
   if (code === 0) return isDay ? <IconClear {...props} /> : <IconClearNight {...props} />;
   if (code === 1) return <IconMostlyClear isDay={isDay} {...props} />;
   if (code === 2) return <IconPartlyCloudy isDay={isDay} {...props} />;
