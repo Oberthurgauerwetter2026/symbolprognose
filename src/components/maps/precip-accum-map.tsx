@@ -4,7 +4,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { toPng } from "html-to-image";
+
 
 import thurgauData from "@/data/thurgau.json";
 import lakeData from "@/data/lake.json";
