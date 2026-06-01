@@ -26,6 +26,7 @@ export interface DailyData {
   sunrise: string[];
   sunset: string[];
   snowfall_sum: number[];
+  precipitation_hours: number[];
 }
 
 export interface HourlyData {
