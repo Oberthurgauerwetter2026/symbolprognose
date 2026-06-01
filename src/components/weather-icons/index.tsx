@@ -393,7 +393,7 @@ export function WeatherIcon({
   const dayHasRain =
     scope === "daily" && !isSnow && ((precipHours ?? 0) >= 1 || (precip ?? 0) >= 0.5);
   if (dayHasRain && !wmoIsWet) {
-    if ((sunshineRatio ?? 0) >= 0.3) return <IconSunShower {...props} />;
+    if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
     return <IconDrizzle {...props} />;
   }
 
