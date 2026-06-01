@@ -191,13 +191,13 @@ function renderHeatmapDataUrl(
       data[i] = 15;
       data[i + 1] = 23;
       data[i + 2] = 42;
-      data[i + 3] = 130;
+      data[i + 3] = 180;
     } else {
       // helle Linie
       data[i] = 255;
       data[i + 1] = 255;
       data[i + 2] = 255;
-      data[i + 3] = 150;
+      data[i + 3] = 210;
     }
   };
 
@@ -379,9 +379,9 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
             <TileLayer
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
               maxZoom={18}
-              opacity={0.7}
+              opacity={0.85}
               crossOrigin="anonymous"
-              attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · ICON-CH1/CH2'
+              attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · ICON-CH1/CH2'
             />
             <GeoJSON
               data={LAKE}
@@ -393,7 +393,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
                 key={`accum-${hours}-${overlay.url.length}`}
                 url={overlay.url}
                 bounds={overlay.bounds}
-                opacity={0.95}
+                opacity={0.7}
                 zIndex={460}
               />
             )}
