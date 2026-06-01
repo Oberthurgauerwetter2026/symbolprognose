@@ -554,8 +554,18 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     idxs.push(i);
   }
   if (idxs.length === 0) return {} as Record<string, number | null>;
+  // Volltag (00–23) für Temperatur/Wind — diese Größen sollen Nachtwerte einbeziehen.
+  const allIdxs: number[] = [];
+  for (let i = 0; i < h.time.length; i++) {
+    const t = h.time[i] ?? "";
+    if (t.slice(0, 10) === day) allIdxs.push(i);
+  }
   const finite = (arr: number[] | undefined): number[] =>
     idxs
+      .map((i) => arr?.[i])
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  const finiteAll = (arr: number[] | undefined): number[] =>
+    allIdxs
       .map((i) => arr?.[i])
       .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
   const max = (a: number[]) => (a.length ? Math.max(...a) : null);
@@ -566,8 +576,8 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     const s = [...a].sort((x, y) => x - y);
     return s[Math.floor(s.length / 2)];
   };
-  const dirs = finite(h.winddirection_10m);
-  const speeds = finite(h.windspeed_10m);
+  const dirs = finiteAll(h.winddirection_10m);
+  const speeds = finiteAll(h.windspeed_10m);
   let dominantDir: number | null = null;
   if (dirs.length) {
     let x = 0;
@@ -650,12 +660,12 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     weathercode,
     thunderstorm_hours: thunderHours,
 
-    temperature_2m_max: max(finite(h.temperature_2m)),
-    temperature_2m_min: min(finite(h.temperature_2m)),
+    temperature_2m_max: max(finiteAll(h.temperature_2m)),
+    temperature_2m_min: min(finiteAll(h.temperature_2m)),
     precipitation_sum: sum(precipFinite),
     precipitation_hours: precipHours,
-    windspeed_10m_max: max(finite(h.windspeed_10m)),
-    windgusts_10m_max: max(finite(h.windgusts_10m)),
+    windspeed_10m_max: max(finiteAll(h.windspeed_10m)),
+    windgusts_10m_max: max(finiteAll(h.windgusts_10m)),
     winddirection_10m_dominant: dominantDir,
     sunshine_duration: sum(finite(h.sunshine_duration)),
     snowfall_sum: sum(finite(h.snowfall)),
