@@ -1,89 +1,37 @@
-# Sauberere Zellverlagerung — Stufe 1 + 2
+## Weg Z — Ehrliche Stundenprognose (ICON-CH1)
 
-Messung (MeteoSchweiz-PNGs, R2-Manifest, Ingest, GitHub Action, Cron, `past_minutely_15`-Canvas-Pfad) bleibt **komplett unangetastet**. Änderungen ausschliesslich im Prognose-Pfad von `src/lib/radar.functions.ts`.
+Keine künstliche Bewegung mehr. Wir zeigen die Niederschlagsprognose so, wie ICON-CH1 sie liefert: **stündliche Werte**, sauber dargestellt mit weichem Crossfade zwischen den Frames.
 
-## Ziel
+### Was sich ändert
 
-Das Pulsieren zwischen den Stunden­ankern eliminieren und Zellen sichtbar entlang ihrer **tatsächlichen Bewegungs­richtung** verlagern — nicht entlang des groben 700-hPa-Modell­winds.
+1. **Datenmodell**
+   - Frames im Stundenraster (z. B. +0h, +1h, +2h … +24h oder +48h, je nach ICON-CH1-Verfügbarkeit über Open-Meteo).
+   - Pro Frame: das 36×22-Punktraster mit Niederschlag (mm/h) zu genau dieser Stunde.
+   - Keine 10-Minuten-Interpolation, keine Advektion, keine Pseudo-Zwischenframes.
 
-## Stufe 1 — Closest-Cell-Blending statt linearem Crossfade
+2. **Server (`src/lib/radar.functions.ts`)**
+   - Prognose-Funktion liefert nur noch stündliche Frames direkt aus Open-Meteo ICON-CH1 (`precipitation` hourly).
+   - Sämtliche Advektions-/Interpolations-Logik für die Prognose entfernen.
+   - Timestamps exakt auf die volle Stunde (UTC) ausgerichtet.
 
-Aktuell: `value = (1−α)·A_fwd + α·B_bwd` → bei α≈0.5 zwei halbtransparente Zellen sichtbar (Pulsieren).
+3. **Client (`/karten/radar`)**
+   - Slider/Timeline rastet auf Stundenschritte.
+   - Beim Auto-Play: pro Frame ca. 700–1000 ms anzeigen, Übergang per **CSS-Crossfade** (zwei übereinander­liegende Canvas/Image-Layer, Opacity-Transition 300–400 ms).
+   - Label klar: „Prognose +3 h · Di 14:00" — kein „Live", kein „Nowcast" für Prognose-Frames.
+   - Trennung im UI zwischen *Messung/Nowcast* (falls vorhanden) und *Prognose* deutlich machen (z. B. vertikaler Strich auf der Timeline bei „jetzt").
 
-Neu: pro Ziel-Pixel **distanz­gewichtetes Maximum**:
+4. **Was wir explizit NICHT tun**
+   - Keine Bewegungsschätzung zwischen Stundenframes.
+   - Keine 10-Min-Zwischenbilder durch Interpolation.
+   - Keine Vermischung Messung ↔ Prognose im selben Frame.
 
-```text
-if A_fwd ≥ B_bwd:  value = A_fwd · (1 − soft·α)  + B_bwd · soft·α
-else:              value = B_bwd · (1 − soft·(1−α)) + A_fwd · soft·(1−α)
-```
+### Technische Details
 
-mit `soft = 0.3` (sanfter Übergang, kein hartes Switch). Bei gut überlappenden Zellen → praktisch wie vorher. Bei räumlich versetzten Zellen → die dominantere Zelle gewinnt, kein Doppel-Geist.
+- `radar.functions.ts`: Prognose-Pfad liefert `frames: { tsUtc, grid }[]` strikt im 60-Min-Abstand. Bestehende Advektions-/Resample-Helpers für die Prognose entfernen (für Nowcast bleiben sie, falls dort genutzt).
+- Rendering-Komponente: zwei Layer `<canvas>` A/B; bei Frame-Wechsel wird der inaktive Layer mit dem neuen Frame gezeichnet und per `opacity` eingeblendet, danach Rollen tauschen. Tailwind `transition-opacity duration-300`.
+- Timeline-Marker: senkrechte Linie + Label „Jetzt" zwischen letztem Messframe und erstem Prognoseframe.
+- Playback-Geschwindigkeit konfigurierbar (1×/2×), Default 1 Frame ≈ 800 ms.
 
-Alternativ noch sauberer: **Distance-Transform-Blending** — zu jedem Pixel die Distanz zur nächsten "echten" Zelle in A_fwd bzw. B_bwd bestimmen, Gewicht = inverse Distanz. Wird nur eingebaut, falls Variante oben noch sichtbar pulsiert.
+### Ergebnis
 
-## Stufe 2 — Optical Flow ersetzt 700-hPa-Wind
-
-Statt `uHour`/`vHour` aus ICON-Wind, berechnen wir Bewegungs­vektoren aus zwei aufeinander­folgenden Niederschlags­feldern selbst.
-
-### Algorithmus: Pyramidal Lucas-Kanade auf 36×22-Grid
-
-Pro Anker­paar (A, B) im Stunden­abstand:
-
-1. **Pyramide** in zwei Stufen (18×11 → 36×22), bilineares Downsample.
-2. **Auf jeder Stufe** für jeden Grid­punkt (i,j):
-   - Fenster 5×5 um (i,j) in A.
-   - Gradienten `Ix, Iy` (zentrale Differenzen auf A), Zeit­differenz `It = B−A`.
-   - Lösen des 2×2-Systems `[ΣIx² ΣIxIy; ΣIxIy ΣIy²] · [u;v] = -[ΣIxIt; ΣIyIt]`.
-   - Bei singulärer Matrix (kein Gradient) → (0,0).
-3. **Upsample** des Flow-Feldes von grob → fein, Verfeinerung auf der feinen Stufe mit gewarptem A.
-4. **Cap** auf physikalisch sinnvolle Werte: max 30 m/s, glätte mit 3×3-Box-Filter.
-
-Output: `flowU[GRID_LAT][GRID_LON]`, `flowV[...]` in m/s — Einheit kompatibel zur bestehenden `advectField`.
-
-### Fallback
-
-Wenn Flow-Magnitude < 1 m/s an einem Punkt UND ICON-Wind > 3 m/s → ICON-Wind verwenden (Übergangs­bereiche ohne Niederschlag, in die Zellen reinwandern). Per-Pixel-Blend mit Gewicht aus lokaler Niederschlags­intensität.
-
-### Wind-Felder bleiben erhalten
-
-`uHour`/`vHour` aus 700 hPa werden **nicht entfernt** — sie dienen als Fallback (siehe oben) und als Sanity-Check bei numerisch instabilen Flow-Lösungen.
-
-## Konkrete Änderungen — nur `src/lib/radar.functions.ts`
-
-1. **Neue Helper-Funktionen** (Modul-Scope, oberhalb des Handlers):
-   - `computeOpticalFlow(fieldA, fieldB, dtSeconds): { u: number[][], v: number[][] }` — pyramidal Lucas-Kanade.
-   - `warpField(field, u, v, dt, lats, lons)` — identisch zu bisherigem `advectField`, nur umbenannt zur Klarheit.
-   - `blendClosestCell(aFwd, bBwd, alpha, soft)` — Stufe-1-Blending.
-   - `boxFilter3(field)` — 3×3 Glättung des Flow-Feldes.
-
-2. **Pro Anker­paar einmalig** (vor der 15-min-Frame-Schleife):
-   - `const flow = computeOpticalFlow(precipHour[a], precipHour[a+1], 3600)`.
-   - `const { u, v } = blendFlowWithWind(flow, uHour[a], vHour[a], precipHour[a])` — Fallback-Logik.
-   - Cache pro `a`, damit wiederverwendet für alle vier 15-min-Frames im Stunden­intervall.
-
-3. **Frame-Schleife angepasst**:
-   - `A_fwd = warpField(precipHour[a], u, v, +α·3600, ...)`.
-   - `B_bwd = warpField(precipHour[a+1], u, v, −(1−α)·3600, ...)`.
-   - `value = blendClosestCell(A_fwd, B_bwd, α, 0.3) · biasCorrection`.
-   - Schnee analog mit demselben Flow-Feld (Schnee folgt dem Niederschlags­muster).
-
-4. **Bias-Korrektur, Farb­palette, Canvas-Renderer, Crossfade/Pause-Tween** — unverändert.
-
-## Performance
-
-- Optical Flow: 36×22 = 792 Punkte × 2 Pyramiden­stufen × ~30 Ops = ~50k Ops pro Anker­paar.
-- 24 Anker­paare (24 h) × 50k = 1.2M Ops pro Request → < 20 ms in V8.
-- Warping: wie bisher, ~800 bilineare Lookups pro Frame, 96 Frames = vernachlässigbar.
-
-## Nicht angefasst
-
-- MeteoSchweiz-Messpfad (PNGs, R2-Manifest, `past_minutely_15`-Canvas-Füllung).
-- Ingest-Skript, GitHub Action, Cron, Cloudflare Worker.
-- ICON-CH2 (bleibt deaktiviert).
-- `LocResponse`-Typ (Wind-Felder bleiben, werden als Fallback genutzt).
-- Farb­palette, Canvas-Renderer, Crossfade-/Pause-Tween-Logik, Bias-Korrektur.
-
-## Verifikation
-
-- `bunx tsc --noEmit` muss durchgehen.
-- Visuell im Preview: kein Pulsieren mehr bei α≈0.5, Zellen bewegen sich erkennbar entlang ihrer Eigen­richtung (kann von 700-hPa-Wind abweichen).
+Eine **ehrliche, lesbare** Stundenprognose. Kein Geflacker, kein Fake-Movement — Übergänge wirken durch den Crossfade ruhig, der Nutzer sieht aber klar: hier springt die Zeit in 1-h-Schritten.
