@@ -327,6 +327,8 @@ export function WeatherIcon({
   precip,
   precipProb,
   isSnow,
+  scope = "hourly",
+  precipHours,
 }: {
   code: number;
   isDay?: boolean;
@@ -338,18 +340,30 @@ export function WeatherIcon({
   precipProb?: number;
   /** Schneefall-Hinweis (z. B. Temp < 1 °C oder snowfall_sum > 0). */
   isSnow?: boolean;
+  /** Geltungsbereich des Icons — beeinflusst, wie aggressiv der Niederschlags-Override greift. */
+  scope?: "hourly" | "daily";
+  /** Anzahl Stunden mit Niederschlag (nur Daily). Override greift erst ab ~6 h. */
+  precipHours?: number;
 }) {
   const props = { size, className };
 
   // Override: Wenn das Modell selbst klaren Niederschlag prognostiziert,
   // aber den weathercode auf „bedeckt/teils bewölkt" stehen lässt, das Niederschlags-Icon erzwingen.
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
-  const wet = (precip ?? 0) >= 0.2 || (precipProb ?? 0) >= 60;
+  // Stündlich: kleine Mengen reichen. Täglich: nur überstimmen, wenn der Regen den Tag prägt
+  // (sonst macht ein kurzer Schauer aus einem teils-sonnigen Tag fälschlich „Regen").
+  const wet =
+    scope === "hourly"
+      ? (precip ?? 0) >= 0.2 || (precipProb ?? 0) >= 60
+      : (precipHours ?? 0) >= 6 && ((precip ?? 0) >= 2 || (precipProb ?? 0) >= 70);
   if (wet && !wmoIsWet) {
     if (isSnow) return <IconSnow {...props} />;
-    const heavy = (precip ?? 0) >= 1.5 || (precipProb ?? 0) >= 80;
+    const heavyThresh = scope === "hourly" ? 1.5 : 8;
+    const heavy = (precip ?? 0) >= heavyThresh || (precipProb ?? 0) >= 80;
     return heavy ? <IconRain {...props} /> : <IconDrizzle {...props} />;
   }
+  // Schnee-Override (gilt für beide Scopes — robustes Tagessignal).
+  if (isSnow && !wmoIsWet) return <IconSnow {...props} />;
 
   if (code === 0) return isDay ? <IconClear {...props} /> : <IconClearNight {...props} />;
   if (code === 1) return <IconMostlyClear isDay={isDay} {...props} />;
