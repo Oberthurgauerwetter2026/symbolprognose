@@ -1,18 +1,19 @@
 ## Plan
 
-1. **Ursache gezielt beheben**
-   - Der Daten-Merge ist bereits kategorial umgestellt, aber das angezeigte Tagesicon kann weiterhin durch die Icon-Logik auf `IconRain` fallen.
-   - Konkret: Wenn ein Tag als Schauer-Code `80/81` klassifiziert ist, soll die Tagesmenge bzw. 100% Wahrscheinlichkeit daraus nicht wieder ein Dauerregen-Symbol machen.
+Die Tages-Aggregation in `aggregateDailyFromHourly` (src/lib/weather.ts) wird auf das Zeitfenster **06:00–21:00 Uhr (lokal)** eingeschränkt. Nachtstunden (00–05 und 22–23) fließen nicht mehr in Tages-Icon, Niederschlagssumme, nasse Stunden, Min/Max-Temperatur, Wind etc. ein.
 
-2. **Icon-Dispatcher anpassen**
-   - In `src/components/weather-icons/index.tsx` die Daily-Logik so ändern, dass:
-     - `80` und `81` immer das Schauer-/Drizzle-Symbol behalten.
-     - `82` nur bei wirklich markantem Starkregen als kräftiges Regensymbol bleibt.
-     - Der Niederschlags-Override nicht gegen bereits nasse WMO-Codes arbeitet.
-   - Dadurch wird Amriswil, Dienstag 2. Juni mit Schauer-Code nicht mehr als Dauerregen-Icon dargestellt.
+### Änderungen
 
-3. **Beschriftung/Signal konsistent halten**
-   - Falls nötig `weatherLabel` prüfen/anpassen, damit Tooltip/ARIA nicht „Regen“ sagt, wenn der Code Schauer meint.
+1. **`aggregateDailyFromHourly`** in `src/lib/weather.ts`
+   - Beim Sammeln der Indizes für einen Tag zusätzlich filtern: nur Stunden mit `06 ≤ HH < 21` einbeziehen.
+   - Stunde aus `h.time[i]` (ISO-String, lokal) auslesen.
+   - Alle abgeleiteten Werte (weathercode, temp_max/min, precipitation_sum, precipitation_hours, wind, sunshine, snowfall) basieren auf demselben Fenster.
 
-4. **Validierung**
-   - Die relevanten Stellen in der Vorschau prüfen: Tageskachel „Morgen / Di 2. Jun“ soll nicht mehr das Dauerregen-Symbol zeigen, sondern das Schauer-Symbol passend zum kategorialen Code.
+2. **Konsistenz**
+   - `precipHours`-Schwelle für den „Schauer-vor-Regen"-Override entsprechend anpassen (aktuell `< 8` von 24 → neu `< 5` von 15 Tagstunden), damit der Override im neuen Fenster gleich aggressiv bleibt.
+
+### Auswirkungen
+
+- Tages-Symbol bildet realistisch den Wettercharakter zwischen Sonnenaufgang/Aktivzeit ab; nächtlicher Schauer macht aus einem teils-sonnigen Tag keinen „Regentag" mehr.
+- Tages-`precipitation_sum` und `precipitation_hours` zeigen dann nur Tagstunden — das ist gewollt, da diese Werte auch das Icon und die Schwellen (`≥6h` / `≥10mm`) im Icon-Dispatcher steuern.
+- Tageskachel im Beispiel „Amriswil, Di 2. Juni" sollte korrekt als Schauer/teils bewölkt statt Dauerregen erscheinen.

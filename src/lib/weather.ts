@@ -524,7 +524,12 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   const day = dayIso.slice(0, 10);
   const idxs: number[] = [];
   for (let i = 0; i < h.time.length; i++) {
-    if ((h.time[i] ?? "").slice(0, 10) === day) idxs.push(i);
+    const t = h.time[i] ?? "";
+    if (t.slice(0, 10) !== day) continue;
+    // Nur Tagstunden 06:00–21:00 lokal einbeziehen.
+    const hh = Number(t.slice(11, 13));
+    if (!Number.isFinite(hh) || hh < 6 || hh >= 21) continue;
+    idxs.push(i);
   }
   if (idxs.length === 0) return {} as Record<string, number | null>;
   const finite = (arr: number[] | undefined): number[] =>
@@ -556,7 +561,8 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   const precipFinite = finite(h.precipitation);
   const precipHours = precipFinite.reduce((n, v) => (v >= 0.1 ? n + 1 : n), 0);
   return {
-    weathercode: representativeWeathercode(finite(h.weathercode), { preferShower: precipHours < 8 }),
+    weathercode: representativeWeathercode(finite(h.weathercode), { preferShower: precipHours < 5 }),
+
     temperature_2m_max: max(finite(h.temperature_2m)),
     temperature_2m_min: min(finite(h.temperature_2m)),
     precipitation_sum: sum(precipFinite),
