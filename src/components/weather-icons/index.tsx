@@ -476,29 +476,28 @@ export function WeatherIcon({
   if (code === 3) return <IconCloudy {...props} />;
   if (code === 45 || code === 48) return <IconFog {...props} />;
 
-  if (code >= 51 && code <= 57) return <IconDrizzle {...props} />;
-  if (code >= 61 && code <= 67) {
-    // Tageskachel: WMO-„Regen"-Code (61–67) ist nur dann wirklich Dauerregen,
-    // wenn der Tag deutlich nass UND wenig sonnig ist. Sonst Schauer-Charakter.
+  if (code >= 51 && code <= 57) {
     if (scope === "daily") {
-      if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
-      const heavyRain = (precipHours ?? 0) >= 8 && (precip ?? 0) >= 15;
-      return heavyRain ? <IconRain {...props} /> : <IconDrizzle {...props} />;
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
+    }
+    return <IconDrizzle {...props} />;
+  }
+  if (code >= 61 && code <= 67) {
+    if (scope === "daily") {
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
     }
     return <IconRain {...props} />;
   }
   if (code >= 71 && code <= 77) return <IconSnow {...props} />;
   if (code === 80 || code === 81) {
-    if (scope === "daily" && (sunshineRatio ?? 0) >= 0.25) {
-      return <IconSunShower {...props} />;
+    if (scope === "daily") {
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
     }
     return <IconDrizzle {...props} />;
   }
   if (code === 82) {
     if (scope === "daily") {
-      if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
-      const heavyShower = (precipHours ?? 0) >= 8 && (precip ?? 0) >= 20;
-      return heavyShower ? <IconRain {...props} /> : <IconDrizzle {...props} />;
+      return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
     }
     return <IconRain {...props} />;
   }
