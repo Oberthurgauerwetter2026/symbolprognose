@@ -103,24 +103,26 @@ function EmbedRadar() {
       <noscript>
         <RadarNoscript data={noscript} />
       </noscript>
-      <EmbedShell>
+      <EmbedShell fillViewport>
         <EmbedFallbackBar
           title="Radar Oberthurgau"
           href="https://symbolprognose.lovable.app/karten/radar"
         />
-        <ClientOnly
-          fallback={
-            <div className="h-[400px] w-full animate-pulse rounded-lg bg-muted" />
-          }
-        >
-          <Suspense
+        <div className="flex min-h-0 flex-1 flex-col">
+          <ClientOnly
             fallback={
-              <div className="h-[400px] w-full animate-pulse rounded-lg bg-muted" />
+              <div className="h-full min-h-[300px] w-full animate-pulse rounded-lg bg-muted" />
             }
           >
-            <RadarMapLazy bare />
-          </Suspense>
-        </ClientOnly>
+            <Suspense
+              fallback={
+                <div className="h-full min-h-[300px] w-full animate-pulse rounded-lg bg-muted" />
+              }
+            >
+              <RadarMapLazy bare />
+            </Suspense>
+          </ClientOnly>
+        </div>
       </EmbedShell>
     </>
   );
