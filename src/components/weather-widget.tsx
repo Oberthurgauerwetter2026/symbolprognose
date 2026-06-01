@@ -872,7 +872,11 @@ function DetailPanel({
                         precipProb={h.precipitation_probability?.[idx]}
                         isSnow={(h.snowfall?.[idx] ?? 0) > 0.05}
                         sunshineRatio={(h.sunshine_duration?.[idx] ?? 0) / (cadence === "1h" ? 3600 : 3 * 3600)}
+                        cloudLow={h.cloud_cover_low?.[idx]}
+                        cloudMid={h.cloud_cover_mid?.[idx]}
+                        cloudHigh={h.cloud_cover_high?.[idx]}
                       />
+
 
                     </div>
                     <div className={`${cadence === "1h" ? "text-base" : "text-xl"} font-bold tabular-nums text-zinc-900`}>
