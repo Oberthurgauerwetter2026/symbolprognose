@@ -317,6 +317,19 @@ export function IconThunderstorm({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconSunShower({ size, ...rest }: IconProps) {
+  return (
+    <Svg size={size} {...rest}>
+      <Sun cx={20} cy={20} r={9} />
+      <Cloud x={38} y={32} scale={1} />
+      <Drop x={32} y={50} size={0.95} tilt={-12} />
+      <Drop x={42} y={54} size={0.95} tilt={-12} />
+      <Drop x={52} y={50} size={0.95} tilt={-12} />
+    </Svg>
+  );
+}
+
+
 /* ---------- Dispatcher ---------- */
 
 export function WeatherIcon({
@@ -368,12 +381,22 @@ export function WeatherIcon({
   // Schnee-Override (gilt für beide Scopes — robustes Tagessignal).
   if (isSnow && !wmoIsWet) return <IconSnow {...props} />;
 
+  // Tages-Override: jeder Niederschlag im 06–21-Fenster muss sichtbar sein,
+  // auch wenn der Modus-Code trocken ist.
+  const dayHasRain =
+    scope === "daily" && !isSnow && ((precipHours ?? 0) >= 1 || (precip ?? 0) >= 0.5);
+  if (dayHasRain && !wmoIsWet) {
+    if ((sunshineRatio ?? 0) >= 0.3) return <IconSunShower {...props} />;
+    return <IconDrizzle {...props} />;
+  }
+
   // Sonnen-Korrektiv: bei trockenen Bewölkungs-Codes (2/3) und viel Sonne das Symbol aufhellen.
-  if (isDay && !wmoIsWet && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
+  if (isDay && !wmoIsWet && !dayHasRain && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
     if (sunshineRatio >= 0.7) return <IconClear {...props} />;
     if (sunshineRatio >= 0.4) return <IconMostlyClear isDay {...props} />;
     if (sunshineRatio >= 0.15) return <IconPartlyCloudy isDay {...props} />;
   }
+
 
   if (code === 0) return isDay ? <IconClear {...props} /> : <IconClearNight {...props} />;
   if (code === 1) return <IconMostlyClear isDay={isDay} {...props} />;
