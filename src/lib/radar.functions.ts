@@ -339,6 +339,9 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       if (anchors[anchors.length - 1].i !== nTimes - 1) {
         anchors.push({ i: nTimes - 1, v: anchors[anchors.length - 1].v });
       }
+      // Monotoner kubischer Hermite (smoothstep) zwischen Ankern — Anker-Werte
+      // bleiben exakt erhalten, aber die zeitliche Ableitung ist stetig
+      // (kein Knick alle 60 min). Kein Überschwingen bei monotonen Sequenzen.
       let a = 0;
       for (let i = 0; i < nTimes; i++) {
         while (a < anchors.length - 1 && anchors[a + 1].i < i) a++;
@@ -352,7 +355,9 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
           out[i] = right.v;
         } else {
           const t = (i - left.i) / (right.i - left.i);
-          out[i] = left.v + (right.v - left.v) * t;
+          // smoothstep: 3t² − 2t³  → C¹-stetig an Ankern
+          const s = t * t * (3 - 2 * t);
+          out[i] = Math.max(0, left.v + (right.v - left.v) * s);
         }
       }
       return out;
