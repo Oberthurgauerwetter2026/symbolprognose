@@ -415,11 +415,11 @@ export function WeatherIcon({
   }
 
 
-  // Sonnen-Korrektiv: bei trockenen Bewölkungs-Codes (2/3) und viel Sonne das Symbol aufhellen.
+  // Sonnen-Korrektiv: bei trockenen Bewölkungs-Codes (2/3) und viel Sonne aufhellen —
+  // aber nie auf „wolkenlos" (IconClear). Ein Tag mit Wolken bleibt sichtbar bewölkt.
   if (isDay && !wmoIsWet && !dayHasRain && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
-    if (sunshineRatio >= 0.7) return <IconClear {...props} />;
-    if (sunshineRatio >= 0.4) return <IconMostlyClear isDay {...props} />;
-    if (sunshineRatio >= 0.15) return <IconPartlyCloudy isDay {...props} />;
+    if (sunshineRatio >= 0.55) return <IconMostlyClear isDay {...props} />;
+    if (sunshineRatio >= 0.25) return <IconPartlyCloudy isDay {...props} />;
   }
 
 

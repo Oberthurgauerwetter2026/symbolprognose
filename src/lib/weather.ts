@@ -582,24 +582,44 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
 
   // Tages-WMO-Code:
   // - Nur wenn Regen den Tag wirklich prägt (≥6h ODER ≥5mm), darf die Regenkategorie gewinnen.
-  // - Sonst bevorzugen wir Schauer- vor Regen-Kategorie, und bei sehr wenig Regen + nennenswerter
-  //   Sonne wird der Code aus den TROCKENEN Stunden gewählt (Sonne/Wolken statt Drizzle).
+  // - Bei kurzem Niederschlag mit Sonne wird gezielt ein Schauer-Code (80) gesetzt,
+  //   damit der Tag nicht als Drizzle/Dauerregen erscheint.
+  // - Trockene „klar"-Codes werden anhand der mittleren Bewölkung hochgestuft,
+  //   damit ein Tag mit Wolken nicht als wolkenlos sonnig erscheint.
   const rainDominates = precipHours >= 6 || precipSum >= 5;
+  const cloudLowMean = mean(finite(h.cloud_cover_low)) ?? 0;
+  const cloudMidMean = mean(finite(h.cloud_cover_mid)) ?? 0;
+  const cloudHighMean = mean(finite(h.cloud_cover_high)) ?? 0;
+
+  const adjustForClouds = (code: number | null): number | null => {
+    if (code == null) return code;
+    if (code > 3) return code;
+    if (cloudLowMean >= 60) return 3;
+    if (cloudMidMean >= 50 || cloudLowMean >= 30) return Math.max(code, 2);
+    if (cloudHighMean >= 40 || cloudMidMean >= 25) return Math.max(code, 1);
+    return code;
+  };
+
   let weathercode: number | null;
   if (!rainDominates && precipHours <= 3 && sunshineRatio >= 0.25) {
-    // Tag mit kurzem Schauer und Sonne → Code aus trockenen Stunden ableiten.
-    const dryCodes = idxs
-      .filter((i) => !((h.precipitation?.[i] ?? 0) >= 0.1))
-      .map((i) => h.weathercode?.[i])
-      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
-    weathercode =
-      representativeWeathercode(dryCodes) ??
-      representativeWeathercode(finite(h.weathercode), { preferShower: true });
+    if (precipHours >= 1 || precipSum >= 0.5) {
+      // Sonne + kurzer Schauer → Schauer-Code, nicht Drizzle/Regen.
+      weathercode = 80;
+    } else {
+      const dryCodes = idxs
+        .filter((i) => !((h.precipitation?.[i] ?? 0) >= 0.1))
+        .map((i) => h.weathercode?.[i])
+        .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+      weathercode =
+        adjustForClouds(representativeWeathercode(dryCodes)) ??
+        representativeWeathercode(finite(h.weathercode), { preferShower: true });
+    }
   } else {
     weathercode = representativeWeathercode(finite(h.weathercode), {
       preferShower: !rainDominates,
     });
   }
+  weathercode = adjustForClouds(weathercode);
 
   return {
     weathercode,
