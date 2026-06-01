@@ -84,6 +84,8 @@ export interface RadarFrame {
   hailUrl?: string;
   /** Optional: Bbox des PNG-Overlays für diesen Frame. */
   imageBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+  /** true: 15-min-Stützstelle aus ICON-Interpolation (Nowcast 0–6 h), nicht nativ. */
+  interpolated?: boolean;
 }
 
 export interface RadarPayload {
