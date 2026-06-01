@@ -371,10 +371,25 @@ export function WeatherIcon({
   if (code === 3) return <IconCloudy {...props} />;
   if (code === 45 || code === 48) return <IconFog {...props} />;
   if (code >= 51 && code <= 57) return <IconDrizzle {...props} />;
-  if (code >= 61 && code <= 67) return <IconRain {...props} />;
+  if (code >= 61 && code <= 67) {
+    // Tageskachel: WMO-„Regen"-Code (61–67) ist nur dann wirklich Dauerregen,
+    // wenn der Niederschlag den Tag prägt (viele nasse Stunden ODER große Menge).
+    // Sonst ist es realistisch ein Schauer-Charakter → IconDrizzle.
+    if (scope === "daily") {
+      const heavyRain = (precipHours ?? 0) >= 6 || (precip ?? 0) >= 10;
+      return heavyRain ? <IconRain {...props} /> : <IconDrizzle {...props} />;
+    }
+    return <IconRain {...props} />;
+  }
   if (code >= 71 && code <= 77) return <IconSnow {...props} />;
   if (code === 80 || code === 81) return <IconDrizzle {...props} />;
-  if (code === 82) return <IconRain {...props} />;
+  if (code === 82) {
+    if (scope === "daily") {
+      const heavyShower = (precipHours ?? 0) >= 6 || (precip ?? 0) >= 15;
+      return heavyShower ? <IconRain {...props} /> : <IconDrizzle {...props} />;
+    }
+    return <IconRain {...props} />;
+  }
   if (code === 85 || code === 86) return <IconSnow {...props} />;
   if (code >= 95) return <IconThunderstorm {...props} />;
   return <IconCloudy {...props} />;
