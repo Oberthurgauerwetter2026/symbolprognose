@@ -110,8 +110,66 @@ type LocResponse = {
   hourly?: {
     time: string[];
     precipitation?: (number | null)[];
+    wind_speed_700hPa?: (number | null)[];
+    wind_direction_700hPa?: (number | null)[];
   };
 };
+
+// Semi-Lagrangian Backward-Advection eines 2D-Felds entlang u/v (m/s).
+// Layout: row-major i*nLon + j. dtSeconds > 0 → Vorwärts-Verlagerung
+// (Quelle = Ziel − v·dt), dtSeconds < 0 → Rückwärts.
+function advectField(
+  field: number[],
+  u: number[],
+  v: number[],
+  dtSeconds: number,
+  lats: number[],
+  lons: number[],
+): number[] {
+  const nLat = lats.length;
+  const nLon = lons.length;
+  const out = new Array<number>(nLat * nLon).fill(0);
+  if (Math.abs(dtSeconds) < 1) {
+    for (let k = 0; k < field.length; k++) out[k] = field[k] ?? 0;
+    return out;
+  }
+  const lat0 = lats[0];
+  const dLat = lats[nLat - 1] - lats[0];
+  const lon0 = lons[0];
+  const dLon = lons[nLon - 1] - lons[0];
+  const M_PER_DEG_LAT = 111_320;
+
+  for (let i = 0; i < nLat; i++) {
+    const lat = lats[i];
+    const mPerDegLon = M_PER_DEG_LAT * Math.cos((lat * Math.PI) / 180);
+    for (let j = 0; j < nLon; j++) {
+      const k = i * nLon + j;
+      const uu = u[k] ?? 0;
+      const vv = v[k] ?? 0;
+      const srcLat = lat - (vv * dtSeconds) / M_PER_DEG_LAT;
+      const srcLon = lons[j] - (uu * dtSeconds) / mPerDegLon;
+      const fy = ((srcLat - lat0) / dLat) * (nLat - 1);
+      const fx = ((srcLon - lon0) / dLon) * (nLon - 1);
+      if (fy < 0 || fy > nLat - 1 || fx < 0 || fx > nLon - 1) continue;
+      const y0 = Math.floor(fy);
+      const x0 = Math.floor(fx);
+      const y1 = Math.min(y0 + 1, nLat - 1);
+      const x1 = Math.min(x0 + 1, nLon - 1);
+      const ty = fy - y0;
+      const tx = fx - x0;
+      const v00 = field[y0 * nLon + x0] ?? 0;
+      const v01 = field[y0 * nLon + x1] ?? 0;
+      const v10 = field[y1 * nLon + x0] ?? 0;
+      const v11 = field[y1 * nLon + x1] ?? 0;
+      out[k] =
+        v00 * (1 - tx) * (1 - ty) +
+        v01 * tx * (1 - ty) +
+        v10 * (1 - tx) * ty +
+        v11 * tx * ty;
+    }
+  }
+  return out;
+}
 
 type ManifestFrame = { t: string; precipUrl?: string; hailUrl?: string };
 type Manifest = {
@@ -308,94 +366,121 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   if (ref1 && r1) {
     const hasSnow = Array.isArray((r1[0] as LocResponse | undefined)?.minutely_15?.snowfall);
-    const nTimes = ref1.time.length;
+    const nLat = lats.length;
+    const nLon = lons.length;
+    const nPts = nLat * nLon;
 
-    // ICON-CH1 ist nativ stündlich; Open-Meteo wiederholt denselben Wert 4×
-    // pro Stunde im `minutely_15`-Feld. Wir behandeln jeden ti als Anker und
-    // interpolieren zwischen den nächsten echten Werten linear über die Zeit,
-    // damit die Animation fliessend statt blockweise wirkt.
-    //
-    // Pro Grid-Punkt: finde für jeden Time-Index die linke/rechte Stütze, an
-    // der sich der Wert ändert, und interpoliere linear.
-    const buildSmoothSeries = (
-      raw: (number | null | undefined)[],
-    ): number[] => {
-      const out: number[] = new Array(nTimes).fill(0);
-      // Sammle Ankerpunkte: Indizes, an denen sich der Wert ändert (inkl. erstem
-      // und letztem). Da Open-Meteo bei stündlichen Modellen 4× wiederholt,
-      // werden so 1× pro Stunde Anker entstehen — exakt was wir wollen.
-      const anchors: { i: number; v: number }[] = [];
-      let prev: number | null = null;
-      for (let i = 0; i < nTimes; i++) {
-        const r = raw[i];
-        const v = typeof r === "number" ? r : 0;
-        if (prev === null || v !== prev) {
-          anchors.push({ i, v });
-          prev = v;
-        }
-      }
-      if (anchors.length === 0) return out;
-      // Letzten Anker pin'en, damit Tailende nicht abgeschnitten ist.
-      if (anchors[anchors.length - 1].i !== nTimes - 1) {
-        anchors.push({ i: nTimes - 1, v: anchors[anchors.length - 1].v });
-      }
-      // Monotoner kubischer Hermite (smoothstep) zwischen Ankern — Anker-Werte
-      // bleiben exakt erhalten, aber die zeitliche Ableitung ist stetig
-      // (kein Knick alle 60 min). Kein Überschwingen bei monotonen Sequenzen.
-      let a = 0;
-      for (let i = 0; i < nTimes; i++) {
-        while (a < anchors.length - 1 && anchors[a + 1].i < i) a++;
-        const left = anchors[a];
-        const right = anchors[Math.min(a + 1, anchors.length - 1)];
-        if (right.i === left.i) {
-          out[i] = left.v;
-        } else if (i <= left.i) {
-          out[i] = left.v;
-        } else if (i >= right.i) {
-          out[i] = right.v;
-        } else {
-          const t = (i - left.i) / (right.i - left.i);
-          // smoothstep: 3t² − 2t³  → C¹-stetig an Ankern
-          const s = t * t * (3 - 2 * t);
-          out[i] = Math.max(0, left.v + (right.v - left.v) * s);
-        }
-      }
-      return out;
+    // ---- Stündliche Anker-Felder (precip mm/h, snow mm/h, u/v m/s @700 hPa) ----
+    // ICON-CH1 ist nativ stündlich. Wir nehmen je Stunde das erste 15-min-Sample
+    // aus minutely_15 (= Stundenwert) und den Wind aus hourly. Zwischen den
+    // Stundenankern wird per Semi-Lagrangian-Advection entlang des 700-hPa-Winds
+    // verlagert + linear geblendet → Zellen wandern sichtbar.
+    type Anchor = {
+      tMs: number;
+      precip: number[];
+      snow: number[] | null;
+      u: number[];
+      v: number[];
     };
+    const anchors: Anchor[] = [];
+    const ref1Hourly = (r1[0] as LocResponse | undefined)?.hourly;
+    const hourTimes = ref1Hourly?.time ?? [];
+    // Map: ISO-Stunde → Index in hourly.time
+    const hourIdxByIso = new Map<string, number>();
+    for (let h = 0; h < hourTimes.length; h++) hourIdxByIso.set(hourTimes[h], h);
 
-    // Pro Grid-Punkt eine geglättete Zeitreihe vorberechnen.
-    const smoothPrecip: number[][] = new Array(pts.length);
-    const smoothSnow: number[][] | null = hasSnow ? new Array(pts.length) : null;
-    for (let pi = 0; pi < pts.length; pi++) {
-      const loc = r1[pi] as LocResponse | undefined;
-      smoothPrecip[pi] = buildSmoothSeries(loc?.minutely_15?.precipitation ?? []);
-      if (smoothSnow) {
-        smoothSnow[pi] = buildSmoothSeries(loc?.minutely_15?.snowfall ?? []);
+    const M_PER_S_FROM_KMH = 1 / 3.6;
+    for (let ti = 0; ti < ref1.time.length; ti++) {
+      const tIso = ref1.time[ti];
+      // Nur volle Stunden als Anker (minutely_15 endet auf :00).
+      if (!tIso.endsWith(":00")) continue;
+      const tMs = Date.parse(tIso + "Z");
+      const hIdx = hourIdxByIso.get(tIso);
+      const precip = new Array<number>(nPts).fill(0);
+      const snow = hasSnow ? new Array<number>(nPts).fill(0) : null;
+      const u = new Array<number>(nPts).fill(0);
+      const v = new Array<number>(nPts).fill(0);
+      for (let pi = 0; pi < nPts; pi++) {
+        const loc = r1[pi] as LocResponse | undefined;
+        const p = loc?.minutely_15?.precipitation?.[ti];
+        // minutely_15 precip ist mm/15min (Stunde wiederholt 4×) → ×4 = mm/h
+        precip[pi] = typeof p === "number" ? p * 4 : 0;
+        if (snow) {
+          const s = loc?.minutely_15?.snowfall?.[ti];
+          snow[pi] = typeof s === "number" ? s * 4 : 0;
+        }
+        if (hIdx !== undefined) {
+          const spdKmh = loc?.hourly?.wind_speed_700hPa?.[hIdx];
+          const dirDeg = loc?.hourly?.wind_direction_700hPa?.[hIdx];
+          if (typeof spdKmh === "number" && typeof dirDeg === "number") {
+            const spd = spdKmh * M_PER_S_FROM_KMH;
+            const rad = (dirDeg * Math.PI) / 180;
+            // Open-Meteo wind_direction = Herkunftsrichtung
+            u[pi] = -spd * Math.sin(rad);
+            v[pi] = -spd * Math.cos(rad);
+          }
+        }
       }
+      anchors.push({ tMs, precip, snow, u, v });
     }
 
-    for (let ti = 0; ti < nTimes; ti++) {
+    // ---- Zwischen-Frames per Advection erzeugen ----
+    // Alle minutely_15 Zeitpunkte durchgehen, passenden Anker-Slot finden,
+    // A vorwärts + B rückwärts advektieren und blenden.
+    for (let ti = 0; ti < ref1.time.length; ti++) {
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
-      // Strikt: Prognose erst NACH now (harter Übergang Messung → Prognose).
       if (tMs <= now) continue;
       if (tMs > forecastCutoff) continue;
 
-      const dtMin = Math.max(0, (tMs - now) / 60_000);
+      // Anker-Slot: letzter Anker mit tMs <= aktueller Zeit
+      let a = -1;
+      for (let k = 0; k < anchors.length; k++) {
+        if (anchors[k].tMs <= tMs) a = k;
+        else break;
+      }
+      if (a < 0) continue;
+
+      const A = anchors[a];
+      const B = anchors[a + 1];
+      const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
       const biasWeight =
-        biasFactor === 1 ? 0 : Math.max(0, 1 - dtMin / BIAS_FADE_MIN);
+        biasFactor === 1 ? 0 : Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
       const correction = 1 + (biasFactor - 1) * biasWeight;
 
-      const values: number[] = new Array(pts.length);
-      const snowValues: number[] | undefined = smoothSnow ? new Array(pts.length) : undefined;
-      for (let pi = 0; pi < pts.length; pi++) {
-        // mm/15min → mm/h (×4) und Bias-Korrektur.
-        values[pi] = smoothPrecip[pi][ti] * 4 * correction;
-        if (snowValues && smoothSnow) {
-          snowValues[pi] = smoothSnow[pi][ti] * 4 * correction;
+      let precipOut: number[];
+      let snowOut: number[] | undefined;
+      if (!B) {
+        // Letzter Anker: kein Nachbar → Identität.
+        precipOut = A.precip.slice();
+        if (A.snow) snowOut = A.snow.slice();
+      } else {
+        const span = B.tMs - A.tMs; // ms
+        const dtToA = tMs - A.tMs;
+        const dtToB = tMs - B.tMs; // negativ
+        const alpha = Math.max(0, Math.min(1, dtToA / span));
+        const aFwd = advectField(A.precip, A.u, A.v, dtToA / 1000, lats, lons);
+        const bBwd = advectField(B.precip, B.u, B.v, dtToB / 1000, lats, lons);
+        precipOut = new Array<number>(nPts);
+        for (let k = 0; k < nPts; k++) {
+          precipOut[k] = Math.max(0, (1 - alpha) * aFwd[k] + alpha * bBwd[k]);
+        }
+        if (A.snow && B.snow) {
+          const aFwdS = advectField(A.snow, A.u, A.v, dtToA / 1000, lats, lons);
+          const bBwdS = advectField(B.snow, B.u, B.v, dtToB / 1000, lats, lons);
+          snowOut = new Array<number>(nPts);
+          for (let k = 0; k < nPts; k++) {
+            snowOut[k] = Math.max(0, (1 - alpha) * aFwdS[k] + alpha * bBwdS[k]);
+          }
         }
       }
-      frames.push({ t: tIso, source: "icon-ch1", values, snowValues });
+
+      if (correction !== 1) {
+        for (let k = 0; k < nPts; k++) precipOut[k] *= correction;
+        if (snowOut) for (let k = 0; k < nPts; k++) snowOut[k] *= correction;
+      }
+
+      frames.push({ t: tIso, source: "icon-ch1", values: precipOut, snowValues: snowOut });
     }
   }
 
