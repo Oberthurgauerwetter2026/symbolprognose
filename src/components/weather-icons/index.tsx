@@ -329,6 +329,7 @@ export function WeatherIcon({
   isSnow,
   scope = "hourly",
   precipHours,
+  sunshineRatio,
 }: {
   code: number;
   isDay?: boolean;
@@ -344,6 +345,8 @@ export function WeatherIcon({
   scope?: "hourly" | "daily";
   /** Anzahl Stunden mit Niederschlag (nur Daily). Override greift erst ab ~6 h. */
   precipHours?: number;
+  /** Anteil Sonne an der Slot-/Tagdauer (0–1). Korrigiert zu pessimistische Wolken-Codes. */
+  sunshineRatio?: number;
 }) {
   const props = { size, className };
 
@@ -365,11 +368,19 @@ export function WeatherIcon({
   // Schnee-Override (gilt für beide Scopes — robustes Tagessignal).
   if (isSnow && !wmoIsWet) return <IconSnow {...props} />;
 
+  // Sonnen-Korrektiv: bei trockenen Bewölkungs-Codes (2/3) und viel Sonne das Symbol aufhellen.
+  if (isDay && !wmoIsWet && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
+    if (sunshineRatio >= 0.7) return <IconClear {...props} />;
+    if (sunshineRatio >= 0.4) return <IconMostlyClear isDay {...props} />;
+    if (sunshineRatio >= 0.15) return <IconPartlyCloudy isDay {...props} />;
+  }
+
   if (code === 0) return isDay ? <IconClear {...props} /> : <IconClearNight {...props} />;
   if (code === 1) return <IconMostlyClear isDay={isDay} {...props} />;
   if (code === 2) return <IconPartlyCloudy isDay={isDay} {...props} />;
   if (code === 3) return <IconCloudy {...props} />;
   if (code === 45 || code === 48) return <IconFog {...props} />;
+
   if (code >= 51 && code <= 57) return <IconDrizzle {...props} />;
   if (code >= 61 && code <= 67) {
     // Tageskachel: WMO-„Regen"-Code (61–67) ist nur dann wirklich Dauerregen,
