@@ -711,7 +711,11 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     winddirection_10m: fixNumArr(h?.winddirection_10m as (number | null)[]),
     snowfall: fixNumArr(h?.snowfall as (number | null)[]),
     sunshine_duration: fixNumArr(h?.sunshine_duration as (number | null)[]),
+    cloud_cover_low: fixNumArr(h?.cloud_cover_low as (number | null)[] | undefined),
+    cloud_cover_mid: fixNumArr(h?.cloud_cover_mid as (number | null)[] | undefined),
+    cloud_cover_high: fixNumArr(h?.cloud_cover_high as (number | null)[] | undefined),
   };
+
 
   const sanitizedDaily: DailyData = {
     time: d?.time ?? [],
