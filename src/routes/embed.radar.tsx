@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
-import { setResponseHeaders } from "@tanstack/react-start/server";
+import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
 import { EmbedShell } from "@/components/embed-shell";
 
 import { RadarNoscript, type RadarNoscriptData } from "@/components/embeds/radar-noscript";
