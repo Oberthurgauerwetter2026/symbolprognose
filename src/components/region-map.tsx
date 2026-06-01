@@ -147,6 +147,11 @@ function MarkerPill({
   tNow,
   code,
   isDay,
+  precip,
+  precipProb,
+  precipHours,
+  isSnow,
+  sunshineRatio,
 }: {
   name: string;
   mode: "hourly" | "daily";
@@ -155,6 +160,11 @@ function MarkerPill({
   tNow: number;
   code: number;
   isDay: boolean;
+  precip?: number;
+  precipProb?: number;
+  precipHours?: number;
+  isSnow?: boolean;
+  sunshineRatio?: number;
 }) {
   return (
     <div
@@ -176,7 +186,18 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
-      <WeatherIcon code={code} isDay={isDay} size={40} />
+      <WeatherIcon
+        code={code}
+        isDay={isDay}
+        size={40}
+        scope={mode}
+        precip={precip}
+        precipProb={precipProb}
+        precipHours={precipHours}
+        isSnow={isSnow}
+        sunshineRatio={sunshineRatio}
+      />
+
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
           style={{
