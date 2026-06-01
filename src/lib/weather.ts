@@ -503,7 +503,7 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   const precipFinite = finite(h.precipitation);
   const precipHours = precipFinite.reduce((n, v) => (v >= 0.1 ? n + 1 : n), 0);
   return {
-    weathercode: median(finite(h.weathercode)),
+    weathercode: representativeWeathercode(finite(h.weathercode), { preferShower: precipHours < 8 }),
     temperature_2m_max: max(finite(h.temperature_2m)),
     temperature_2m_min: min(finite(h.temperature_2m)),
     precipitation_sum: sum(precipFinite),
