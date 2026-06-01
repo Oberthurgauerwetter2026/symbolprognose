@@ -411,8 +411,20 @@ export function WeatherIcon({
   // aber den weathercode auf „bedeckt/teils bewölkt" stehen lässt, das Niederschlags-Icon erzwingen.
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
   const wmoIsThunder = code === 95 || code === 96 || code === 99;
-  // Dringlichkeits-Override: an Tagen mit Gewitterstunden hat das Gewittersymbol Vorrang.
+  // Daily-Gewitter, dreistufig:
+  //  - Vollgewitter (dunkles Symbol) bei breitem/heftigem Signal
+  //  - Sonne+Gewitter-Schauer bei lokal begrenztem Signal mit Sonne
+  //  - sonstige Gewitterstunden ohne Sonne → Vollgewitter
   if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
+    const th = thunderHours ?? 0;
+    const heavyThunder =
+      th >= 2 ||
+      (th >= 1 && (precip ?? 0) >= 8) ||
+      (wmoIsThunder && (precipHours ?? 0) >= 3);
+    if (heavyThunder) return <IconThunderstorm {...props} />;
+    if ((sunshineRatio ?? 0) >= 0.15 && (precipHours ?? 0) < 8) {
+      return <IconSunThunder {...props} />;
+    }
     return <IconThunderstorm {...props} />;
   }
   // Stündlich: kleine Mengen reichen. Täglich: nur überstimmen, wenn der Regen den Tag prägt
