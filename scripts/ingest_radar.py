@@ -43,18 +43,26 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v20-odim-time"
+RADAR_INGEST_VERSION = "v21-rzc-instant"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
-    "precip": "ch.meteoschweiz.ogd-radar-precip",  # CPC, mm/h
+    "precip": "ch.meteoschweiz.ogd-radar-precip",  # RZC instant rate, mm/h
     "hail": "ch.meteoschweiz.ogd-radar-hail",  # POH, %
 }
 
 # Asset filename prefix per product (h5 files start with these tokens).
+# RZC = instantaneous radar precipitation rate (mm/h), 5-min cadence,
+# kein gleitender Mittelwert. CPC (CombiPrecip) ist 60-min-Akkumulation
+# und verursacht die „in die Länge gezogenen" Felder — daher Fallback only.
 ASSET_PREFIX = {
-    "precip": "cpc",
+    "precip": "rzc",
     "hail": "bzc",  # POH product (Probability Of Hail)
 }
+# Fallback-Prefix wenn `rzc` in der OGD-Collection (noch) nicht verfügbar ist.
+ASSET_PREFIX_FALLBACK = {
+    "precip": "cpc",
+}
+
 
 # Erweiterte Bbox (WGS84) — Oberthurgau + ~50 km in alle Richtungen, deckt CH-Mitte/Ost, Süd-Schwarzwald, Bodensee/Allgäu, Vorarlberg ab.
 BBOX_WGS = {"minLon": 8.15, "maxLon": 10.55, "minLat": 46.85, "maxLat": 48.30}
@@ -262,8 +270,10 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
     """
     coll = COLLECTIONS[product]
     prefix = ASSET_PREFIX[product]
+    fallback_prefix = ASSET_PREFIX_FALLBACK.get(product)
     now = datetime.now(tz=timezone.utc)
-    print(f"  lookback={LOOKBACK}h since={since.isoformat()}", flush=True)
+    print(f"  lookback={LOOKBACK}h since={since.isoformat()} prefix={prefix!r}", flush=True)
+
     candidates: list[AssetRef] = []
     all_assets: list[AssetRef] = []  # ignoring `since`, for fallback
     for day_offset in (0, 1):
@@ -311,6 +321,27 @@ def list_recent_assets(product: str, since: datetime) -> list[AssetRef]:
             candidates = sorted(all_assets, key=lambda x: x.ts)[-6:]
     else:
         print("  NOTE: no parseable assets found at all.", flush=True)
+        # Prefix-Fallback: wenn `rzc` (instant) in OGD nicht verfügbar ist,
+        # einmaliger Retry mit dem alten `cpc`-Prefix (60-min-Smear).
+        if fallback_prefix and fallback_prefix != prefix:
+            print(
+                f"  WARN: {prefix!r} not available, falling back to {fallback_prefix!r} "
+                f"(may show 60-min accumulation smear).",
+                flush=True,
+            )
+            for day_offset in (0, 1):
+                day = (now - timedelta(days=day_offset)).strftime("%Y%m%d")
+                url = f"{STAC_BASE}/{coll}/items/{day}-ch"
+                try:
+                    r = http_get(url, timeout=30)
+                    if r.status_code == 404:
+                        continue
+                    r.raise_for_status()
+                    feat = r.json()
+                    candidates.extend(_extract_assets(feat, product, fallback_prefix, since))
+                except Exception as exc:
+                    print(f"  STAC fallback {day}-ch error: {exc!r}", flush=True)
+
 
     seen: set[datetime] = set()
     uniq: list[AssetRef] = []
