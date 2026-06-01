@@ -224,6 +224,7 @@ function fillGaps(
     sunrise: mergeArr(d?.sunrise, fd?.sunrise),
     sunset: mergeArr(d?.sunset, fd?.sunset),
     snowfall_sum: mergeArr(d?.snowfall_sum, fd?.snowfall_sum),
+    precipitation_hours: mergeArr(d?.precipitation_hours, fd?.precipitation_hours),
   };
 
   return { ...primary, hourly: mergedHourly, daily: mergedDaily };
