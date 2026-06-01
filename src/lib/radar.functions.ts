@@ -308,7 +308,68 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   if (ref1 && r1) {
     const hasSnow = Array.isArray((r1[0] as LocResponse | undefined)?.minutely_15?.snowfall);
-    for (let ti = 0; ti < ref1.time.length; ti++) {
+    const nTimes = ref1.time.length;
+
+    // ICON-CH1 ist nativ stündlich; Open-Meteo wiederholt denselben Wert 4×
+    // pro Stunde im `minutely_15`-Feld. Wir behandeln jeden ti als Anker und
+    // interpolieren zwischen den nächsten echten Werten linear über die Zeit,
+    // damit die Animation fliessend statt blockweise wirkt.
+    //
+    // Pro Grid-Punkt: finde für jeden Time-Index die linke/rechte Stütze, an
+    // der sich der Wert ändert, und interpoliere linear.
+    const buildSmoothSeries = (
+      raw: (number | null | undefined)[],
+    ): number[] => {
+      const out: number[] = new Array(nTimes).fill(0);
+      // Sammle Ankerpunkte: Indizes, an denen sich der Wert ändert (inkl. erstem
+      // und letztem). Da Open-Meteo bei stündlichen Modellen 4× wiederholt,
+      // werden so 1× pro Stunde Anker entstehen — exakt was wir wollen.
+      const anchors: { i: number; v: number }[] = [];
+      let prev: number | null = null;
+      for (let i = 0; i < nTimes; i++) {
+        const r = raw[i];
+        const v = typeof r === "number" ? r : 0;
+        if (prev === null || v !== prev) {
+          anchors.push({ i, v });
+          prev = v;
+        }
+      }
+      if (anchors.length === 0) return out;
+      // Letzten Anker pin'en, damit Tailende nicht abgeschnitten ist.
+      if (anchors[anchors.length - 1].i !== nTimes - 1) {
+        anchors.push({ i: nTimes - 1, v: anchors[anchors.length - 1].v });
+      }
+      let a = 0;
+      for (let i = 0; i < nTimes; i++) {
+        while (a < anchors.length - 1 && anchors[a + 1].i < i) a++;
+        const left = anchors[a];
+        const right = anchors[Math.min(a + 1, anchors.length - 1)];
+        if (right.i === left.i) {
+          out[i] = left.v;
+        } else if (i <= left.i) {
+          out[i] = left.v;
+        } else if (i >= right.i) {
+          out[i] = right.v;
+        } else {
+          const t = (i - left.i) / (right.i - left.i);
+          out[i] = left.v + (right.v - left.v) * t;
+        }
+      }
+      return out;
+    };
+
+    // Pro Grid-Punkt eine geglättete Zeitreihe vorberechnen.
+    const smoothPrecip: number[][] = new Array(pts.length);
+    const smoothSnow: number[][] | null = hasSnow ? new Array(pts.length) : null;
+    for (let pi = 0; pi < pts.length; pi++) {
+      const loc = r1[pi] as LocResponse | undefined;
+      smoothPrecip[pi] = buildSmoothSeries(loc?.minutely_15?.precipitation ?? []);
+      if (smoothSnow) {
+        smoothSnow[pi] = buildSmoothSeries(loc?.minutely_15?.snowfall ?? []);
+      }
+    }
+
+    for (let ti = 0; ti < nTimes; ti++) {
       const tIso = ref1.time[ti] + "Z";
       const tMs = Date.parse(tIso);
       // Strikt: Prognose erst NACH now (harter Übergang Messung → Prognose).
@@ -321,14 +382,12 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
       const correction = 1 + (biasFactor - 1) * biasWeight;
 
       const values: number[] = new Array(pts.length);
-      const snowValues: number[] | undefined = hasSnow ? new Array(pts.length) : undefined;
+      const snowValues: number[] | undefined = smoothSnow ? new Array(pts.length) : undefined;
       for (let pi = 0; pi < pts.length; pi++) {
-        const loc = r1[pi] as LocResponse | undefined;
-        const v = loc?.minutely_15?.precipitation?.[ti];
-        values[pi] = typeof v === "number" ? v * 4 * correction : 0;
-        if (snowValues) {
-          const s = loc?.minutely_15?.snowfall?.[ti];
-          snowValues[pi] = typeof s === "number" ? s * 4 * correction : 0;
+        // mm/15min → mm/h (×4) und Bias-Korrektur.
+        values[pi] = smoothPrecip[pi][ti] * 4 * correction;
+        if (snowValues && smoothSnow) {
+          snowValues[pi] = smoothSnow[pi][ti] * 4 * correction;
         }
       }
       frames.push({ t: tIso, source: "icon-ch1", values, snowValues });
