@@ -191,13 +191,13 @@ function renderHeatmapDataUrl(
       data[i] = 15;
       data[i + 1] = 23;
       data[i + 2] = 42;
-      data[i + 3] = 180;
+      data[i + 3] = 210;
     } else {
       // helle Linie
       data[i] = 255;
       data[i + 1] = 255;
       data[i + 2] = 255;
-      data[i + 3] = 210;
+      data[i + 3] = 235;
     }
   };
 
@@ -359,8 +359,8 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         </div>
       </div>
       <CardContent className="p-0">
-        <style>{`.precip-accum-overlay .leaflet-image-layer{image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}`}</style>
-        <div className="precip-accum-overlay relative h-[560px] w-full">
+        <div className="relative h-[560px] w-full">
+
           <MapContainer
             key={mapKeyRef.current}
             center={MAP_CENTER}
