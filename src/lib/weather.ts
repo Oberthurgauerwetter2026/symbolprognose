@@ -648,6 +648,7 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
 
   return {
     weathercode,
+    thunderstorm_hours: thunderHours,
 
     temperature_2m_max: max(finite(h.temperature_2m)),
     temperature_2m_min: min(finite(h.temperature_2m)),
