@@ -285,6 +285,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         filter: (node: HTMLElement) => {
           if (!(node instanceof HTMLElement)) return true;
           if (node.classList?.contains("leaflet-control-container")) return false;
+          if (node.dataset && "exportExclude" in node.dataset) return false;
           return true;
         },
       });
