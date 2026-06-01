@@ -27,6 +27,9 @@ export interface DailyData {
   sunset: string[];
   snowfall_sum: number[];
   precipitation_hours: number[];
+  cloud_cover_low_mean?: number[];
+  cloud_cover_mid_mean?: number[];
+  cloud_cover_high_mean?: number[];
 }
 
 export interface HourlyData {
@@ -40,7 +43,11 @@ export interface HourlyData {
   winddirection_10m: number[];
   snowfall: number[];
   sunshine_duration: number[];
+  cloud_cover_low?: number[];
+  cloud_cover_mid?: number[];
+  cloud_cover_high?: number[];
 }
+
 
 export interface ForecastResponse {
   latitude: number;
