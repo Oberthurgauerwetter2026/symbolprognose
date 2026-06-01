@@ -490,11 +490,14 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     }
     dominantDir = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
   }
+  const precipFinite = finite(h.precipitation);
+  const precipHours = precipFinite.reduce((n, v) => (v >= 0.1 ? n + 1 : n), 0);
   return {
     weathercode: median(finite(h.weathercode)),
     temperature_2m_max: max(finite(h.temperature_2m)),
     temperature_2m_min: min(finite(h.temperature_2m)),
-    precipitation_sum: sum(finite(h.precipitation)),
+    precipitation_sum: sum(precipFinite),
+    precipitation_hours: precipHours,
     windspeed_10m_max: max(finite(h.windspeed_10m)),
     windgusts_10m_max: max(finite(h.windgusts_10m)),
     winddirection_10m_dominant: dominantDir,
