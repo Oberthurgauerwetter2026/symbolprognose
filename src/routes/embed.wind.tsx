@@ -10,10 +10,6 @@ export const Route = createFileRoute("/embed/wind")({
   ssr: false,
   component: () => (
     <EmbedShell>
-      <EmbedFallbackBar
-        title={def.label}
-        href="https://symbolprognose.lovable.app/karten/wind"
-      />
       <ComingSoonMap icon={def.icon} title={def.label} description={def.description} />
     </EmbedShell>
   ),
