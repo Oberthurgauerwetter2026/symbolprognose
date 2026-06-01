@@ -306,8 +306,8 @@ function SpotMarker({
         : data.hourly.weathercode[absoluteHour] ??
           data.daily.weathercode[dayIdx] ??
           0;
-    const tMin = data.daily.temperature_2m_min[dayIdx] ?? 0;
-    const tMax = data.daily.temperature_2m_max[dayIdx] ?? 0;
+    const tMin = data.daily.temperature_2m_min[dayIdx] ?? NaN;
+    const tMax = data.daily.temperature_2m_max[dayIdx] ?? NaN;
     const tNow = data.hourly.temperature_2m[absoluteHour] ?? tMax;
     const effectiveIsDay = mode === "daily" ? true : isDay;
     const precip =
