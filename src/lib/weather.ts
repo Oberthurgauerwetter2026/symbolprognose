@@ -664,8 +664,9 @@ export async function fetchForecast(
     const arr = merged.daily[key] as (number | string)[];
     while (arr.length < dailyTimes.length) arr.push(0 as never);
   };
-  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum","precipitation_hours"] as (keyof DailyData)[])
+  (["weathercode","temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","windspeed_10m_max","windgusts_10m_max","winddirection_10m_dominant","sunshine_duration","snowfall_sum","precipitation_hours","cloud_cover_low_mean","cloud_cover_mid_mean","cloud_cover_high_mean"] as (keyof DailyData)[])
     .forEach(ensureLen);
+
 
   for (let i = 0; i < dailyTimes.length; i++) {
     const agg = aggregateDailyFromHourly(merged.hourly, dailyTimes[i]);
