@@ -330,7 +330,36 @@ export function IconSunShower({ size, ...rest }: IconProps) {
 }
 
 
+/* ---------- Daily wet-icon helper ---------- */
+
+function pickWetDailyIcon({
+  sunshineRatio,
+  precipHours,
+  precip,
+  isSnow,
+  size,
+  className,
+}: {
+  sunshineRatio?: number;
+  precipHours?: number;
+  precip?: number;
+  isSnow?: boolean;
+  size?: number;
+  className?: string;
+}) {
+  const props = { size, className };
+  if (isSnow) return <IconSnow {...props} />;
+  if ((sunshineRatio ?? 0) >= 0.15 && (precipHours ?? 0) < 8) {
+    return <IconSunShower {...props} />;
+  }
+  if ((precipHours ?? 0) >= 8 && (precip ?? 0) >= 15) {
+    return <IconRain {...props} />;
+  }
+  return <IconDrizzle {...props} />;
+}
+
 /* ---------- Dispatcher ---------- */
+
 
 export function WeatherIcon({
   code,
