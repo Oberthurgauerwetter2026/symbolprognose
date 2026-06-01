@@ -317,178 +317,49 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
 
   if (ref1 && r1) {
     const hasSnow = Array.isArray((r1[0] as LocResponse | undefined)?.minutely_15?.snowfall);
-    const nLat = lats.length;
-    const nLon = lons.length;
-    const nPts = nLat * nLon;
+    const nPts = pts.length;
 
-    // ---- Stündliche Anker-Felder (precip mm/h, snow mm/h, u/v m/s @700 hPa) ----
-    // ICON-CH1 ist nativ stündlich. Wir nehmen je Stunde das erste 15-min-Sample
-    // aus minutely_15 (= Stundenwert) und den Wind aus hourly. Zwischen den
-    // Stundenankern wird per Semi-Lagrangian-Advection entlang des 700-hPa-Winds
-    // verlagert + linear geblendet → Zellen wandern sichtbar.
-    type Anchor = {
-      tMs: number;
-      precip: number[];
-      snow: number[] | null;
-      u: number[];
-      v: number[];
-    };
-    const anchors: Anchor[] = [];
-    const ref1Hourly = (r1[0] as LocResponse | undefined)?.hourly;
-    const hourTimes = ref1Hourly?.time ?? [];
-    // Map: ISO-Stunde → Index in hourly.time
-    const hourIdxByIso = new Map<string, number>();
-    for (let h = 0; h < hourTimes.length; h++) hourIdxByIso.set(hourTimes[h], h);
-
-    const M_PER_S_FROM_KMH = 1 / 3.6;
+    // ---- Stündliche Prognose-Frames direkt aus ICON-CH1 ----
+    // ICON-CH1 ist nativ stündlich. Wir lesen das :00-Sample aus minutely_15
+    // (entspricht dem Stundenwert) und emittieren je volle Stunde genau einen
+    // Frame. Keine Advektion, kein 15-min-Resampling — der Crossfade im Client
+    // sorgt für den weichen optischen Übergang zwischen den Stundenframes.
     for (let ti = 0; ti < ref1.time.length; ti++) {
       const tIso = ref1.time[ti];
-      // Nur volle Stunden als Anker (minutely_15 endet auf :00).
       if (!tIso.endsWith(":00")) continue;
       const tMs = Date.parse(tIso + "Z");
-      const hIdx = hourIdxByIso.get(tIso);
-      const precip = new Array<number>(nPts).fill(0);
-      const snow = hasSnow ? new Array<number>(nPts).fill(0) : null;
-      const u = new Array<number>(nPts).fill(0);
-      const v = new Array<number>(nPts).fill(0);
-      for (let pi = 0; pi < nPts; pi++) {
-        const loc = r1[pi] as LocResponse | undefined;
-        const p = loc?.minutely_15?.precipitation?.[ti];
-        // minutely_15 precip ist mm/15min (Stunde wiederholt 4×) → ×4 = mm/h
-        precip[pi] = typeof p === "number" ? p * 4 : 0;
-        if (snow) {
-          const s = loc?.minutely_15?.snowfall?.[ti];
-          snow[pi] = typeof s === "number" ? s * 4 : 0;
-        }
-        if (hIdx !== undefined) {
-          const spdKmh = loc?.hourly?.wind_speed_700hPa?.[hIdx];
-          const dirDeg = loc?.hourly?.wind_direction_700hPa?.[hIdx];
-          if (typeof spdKmh === "number" && typeof dirDeg === "number") {
-            const spd = spdKmh * M_PER_S_FROM_KMH;
-            const rad = (dirDeg * Math.PI) / 180;
-            // Open-Meteo wind_direction = Herkunftsrichtung
-            u[pi] = -spd * Math.sin(rad);
-            v[pi] = -spd * Math.cos(rad);
-          }
-        }
-      }
-      anchors.push({ tMs, precip, snow, u, v });
-    }
-
-    // ---- Pro Ankerpaar einmalig den Bewegungsvektor schätzen ----
-    // ICON-Wind dient als robustem Initial-Guess; Cross-Correlation der
-    // Niederschlagsfelder liefert die tatsächliche Zellverlagerung (kann von
-    // 700-hPa-Wind abweichen, vor allem bei Konvektion). Resultat: konstantes
-    // u/v-Feld pro Stunde, in beiden Warps verwendet → A_fwd und B_bwd treffen
-    // sich am selben Ort → kein Pulsieren.
-    const cellSizeLatM = ((lats[nLat - 1] - lats[0]) / (nLat - 1)) * 111_320;
-    const centerLat = (lats[0] + lats[nLat - 1]) / 2;
-    const cellSizeLonM =
-      ((lons[nLon - 1] - lons[0]) / (nLon - 1)) *
-      111_320 *
-      Math.cos((centerLat * Math.PI) / 180);
-
-    type PairFlow = { u: number[]; v: number[] };
-    const pairFlows: (PairFlow | null)[] = anchors.map((A, ai) => {
-      const B = anchors[ai + 1];
-      if (!B) return null;
-      // Mittlerer ICON-Wind über Pixel mit Niederschlag in A.
-      let mU = 0;
-      let mV = 0;
-      let mN = 0;
-      for (let k = 0; k < nPts; k++) {
-        if (A.precip[k] > 0.05) {
-          mU += A.u[k];
-          mV += A.v[k];
-          mN++;
-        }
-      }
-      if (mN === 0) {
-        for (let k = 0; k < nPts; k++) {
-          mU += A.u[k];
-          mV += A.v[k];
-        }
-        mN = nPts;
-      }
-      const meanU = mU / mN;
-      const meanV = mV / mN;
-      const dtSec = (B.tMs - A.tMs) / 1000;
-      const dxGuess = (meanU * dtSec) / cellSizeLonM;
-      const dyGuess = (meanV * dtSec) / cellSizeLatM;
-      const { dx, dy, confidence } = estimateGlobalShift(
-        A.precip,
-        B.precip,
-        nLat,
-        nLon,
-        dxGuess,
-        dyGuess,
-        8,
-      );
-      // Bei niedriger Konfidenz: ICON-Wind beibehalten (Mischung 70/30).
-      const w = Math.max(0, Math.min(1, confidence * 2));
-      const finalDx = w * dx + (1 - w) * dxGuess;
-      const finalDy = w * dy + (1 - w) * dyGuess;
-      const uConst = (finalDx * cellSizeLonM) / dtSec;
-      const vConst = (finalDy * cellSizeLatM) / dtSec;
-      const u = new Array<number>(nPts).fill(uConst);
-      const v = new Array<number>(nPts).fill(vConst);
-      console.info(
-        `[radar] flow pair ${ai}: wind(${meanU.toFixed(1)},${meanV.toFixed(1)}) m/s ` +
-          `→ flow(${uConst.toFixed(1)},${vConst.toFixed(1)}) m/s (conf ${confidence.toFixed(2)})`,
-      );
-      return { u, v };
-    });
-
-    // ---- Zwischen-Frames per Advection + Closest-Cell-Blending erzeugen ----
-    for (let ti = 0; ti < ref1.time.length; ti++) {
-      const tIso = ref1.time[ti] + "Z";
-      const tMs = Date.parse(tIso);
       if (tMs <= now) continue;
       if (tMs > forecastCutoff) continue;
 
-      let a = -1;
-      for (let k = 0; k < anchors.length; k++) {
-        if (anchors[k].tMs <= tMs) a = k;
-        else break;
-      }
-      if (a < 0) continue;
-
-      const A = anchors[a];
-      const B = anchors[a + 1];
-      const flow = pairFlows[a];
       const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
       const biasWeight =
         biasFactor === 1 ? 0 : Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
       const correction = 1 + (biasFactor - 1) * biasWeight;
 
-      let precipOut: number[];
-      let snowOut: number[] | undefined;
-      if (!B || !flow) {
-        precipOut = A.precip.slice();
-        if (A.snow) snowOut = A.snow.slice();
-      } else {
-        const span = B.tMs - A.tMs;
-        const dtToA = tMs - A.tMs;
-        const dtToB = tMs - B.tMs;
-        const alpha = Math.max(0, Math.min(1, dtToA / span));
-        const aFwd = advectField(A.precip, flow.u, flow.v, dtToA / 1000, lats, lons);
-        const bBwd = advectField(B.precip, flow.u, flow.v, dtToB / 1000, lats, lons);
-        precipOut = blendClosestCell(aFwd, bBwd, alpha);
-        if (A.snow && B.snow) {
-          const aFwdS = advectField(A.snow, flow.u, flow.v, dtToA / 1000, lats, lons);
-          const bBwdS = advectField(B.snow, flow.u, flow.v, dtToB / 1000, lats, lons);
-          snowOut = blendClosestCell(aFwdS, bBwdS, alpha);
+      const precip = new Array<number>(nPts).fill(0);
+      const snow: number[] | undefined = hasSnow ? new Array<number>(nPts).fill(0) : undefined;
+      for (let pi = 0; pi < nPts; pi++) {
+        const loc = r1[pi] as LocResponse | undefined;
+        const p = loc?.minutely_15?.precipitation?.[ti];
+        // minutely_15 precip ist mm/15min; ×4 = mm/h.
+        const mmh = typeof p === "number" ? p * 4 : 0;
+        precip[pi] = correction === 1 ? mmh : mmh * correction;
+        if (snow) {
+          const s = loc?.minutely_15?.snowfall?.[ti];
+          const smm = typeof s === "number" ? s * 4 : 0;
+          snow[pi] = correction === 1 ? smm : smm * correction;
         }
       }
 
-      if (correction !== 1) {
-        for (let k = 0; k < nPts; k++) precipOut[k] *= correction;
-        if (snowOut) for (let k = 0; k < nPts; k++) snowOut[k] *= correction;
-      }
-
-      frames.push({ t: tIso, source: "icon-ch1", values: precipOut, snowValues: snowOut });
+      frames.push({
+        t: tIso + "Z",
+        source: "icon-ch1",
+        values: precip,
+        snowValues: snow,
+      });
     }
   }
+
 
   // ICON-CH2 (hourly, +33…+48 h) wurde mit Cutoff-Reduktion auf +24 h entfernt.
 
