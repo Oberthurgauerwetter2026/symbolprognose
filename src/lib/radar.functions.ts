@@ -171,6 +171,139 @@ function advectField(
   return out;
 }
 
+// Globale Bewegungsabschätzung A → B per Block-Matching, mit ICON-Wind als
+// Initial-Guess. Ergibt einen Sub-Pixel-Shift (dx in Lon-Zellen, dy in
+// Lat-Zellen), den die Zellen über dt Sekunden zurücklegen.
+function estimateGlobalShift(
+  A: number[],
+  B: number[],
+  nLat: number,
+  nLon: number,
+  dxGuess: number,
+  dyGuess: number,
+  radius: number,
+): { dx: number; dy: number; confidence: number } {
+  const THRESH = 0.05;
+  let nA = 0;
+  let nB = 0;
+  for (let k = 0; k < A.length; k++) {
+    if (A[k] > THRESH) nA++;
+    if (B[k] > THRESH) nB++;
+  }
+  if (nA < 5 || nB < 5) {
+    return { dx: dxGuess, dy: dyGuess, confidence: 0 };
+  }
+
+  const cx = Math.round(dxGuess);
+  const cy = Math.round(dyGuess);
+  const side = 2 * radius + 1;
+  const costGrid: number[] = new Array(side * side).fill(Infinity);
+  const idx = (dy: number, dx: number) =>
+    (dy - cy + radius) * side + (dx - cx + radius);
+
+  let best = Infinity;
+  let bestDx = cx;
+  let bestDy = cy;
+  for (let dy = cy - radius; dy <= cy + radius; dy++) {
+    for (let dx = cx - radius; dx <= cx + radius; dx++) {
+      let cost = 0;
+      let count = 0;
+      for (let i = 0; i < nLat; i++) {
+        const i2 = i + dy;
+        if (i2 < 0 || i2 >= nLat) continue;
+        for (let j = 0; j < nLon; j++) {
+          const j2 = j + dx;
+          if (j2 < 0 || j2 >= nLon) continue;
+          const a = A[i * nLon + j];
+          const b = B[i2 * nLon + j2];
+          if (a <= THRESH && b <= THRESH) continue;
+          const d = a - b;
+          cost += d * d;
+          count++;
+        }
+      }
+      if (count < 5) continue;
+      const norm = cost / count;
+      costGrid[idx(dy, dx)] = norm;
+      if (norm < best) {
+        best = norm;
+        bestDx = dx;
+        bestDy = dy;
+      }
+    }
+  }
+  if (!Number.isFinite(best)) {
+    return { dx: dxGuess, dy: dyGuess, confidence: 0 };
+  }
+
+  let subDx = bestDx;
+  let subDy = bestDy;
+  if (bestDx - 1 >= cx - radius && bestDx + 1 <= cx + radius) {
+    const cm = costGrid[idx(bestDy, bestDx - 1)];
+    const c0 = costGrid[idx(bestDy, bestDx)];
+    const cp = costGrid[idx(bestDy, bestDx + 1)];
+    if (Number.isFinite(cm) && Number.isFinite(cp)) {
+      const den = cm - 2 * c0 + cp;
+      if (Math.abs(den) > 1e-9) subDx = bestDx + (cm - cp) / (2 * den);
+    }
+  }
+  if (bestDy - 1 >= cy - radius && bestDy + 1 <= cy + radius) {
+    const cm = costGrid[idx(bestDy - 1, bestDx)];
+    const c0 = costGrid[idx(bestDy, bestDx)];
+    const cp = costGrid[idx(bestDy + 1, bestDx)];
+    if (Number.isFinite(cm) && Number.isFinite(cp)) {
+      const den = cm - 2 * c0 + cp;
+      if (Math.abs(den) > 1e-9) subDy = bestDy + (cm - cp) / (2 * den);
+    }
+  }
+
+  let sumCost = 0;
+  let nCost = 0;
+  for (const v of costGrid) {
+    if (Number.isFinite(v)) {
+      sumCost += v;
+      nCost++;
+    }
+  }
+  const meanCost = nCost > 0 ? sumCost / nCost : best;
+  const confidence = meanCost > 0 ? Math.max(0, 1 - best / meanCost) : 0;
+
+  return { dx: subDx, dy: subDy, confidence };
+}
+
+// Dominanz-gewichtetes Blending statt linearer Crossfade. Verhindert
+// "Doppel-Geist" und sichtbares Pulsieren bei α ≈ 0.5.
+function blendClosestCell(
+  aFwd: number[],
+  bBwd: number[],
+  alpha: number,
+  soft = 0.4,
+): number[] {
+  const n = aFwd.length;
+  const out = new Array<number>(n);
+  for (let k = 0; k < n; k++) {
+    const a = aFwd[k] ?? 0;
+    const b = bBwd[k] ?? 0;
+    const wAlin = 1 - alpha;
+    const wBlin = alpha;
+    const sum = a + b;
+    let wAdom: number;
+    let wBdom: number;
+    if (sum < 1e-6) {
+      wAdom = wAlin;
+      wBdom = wBlin;
+    } else {
+      wAdom = a / sum;
+      wBdom = b / sum;
+    }
+    const wA = (1 - soft) * wAlin + soft * wAdom;
+    const wB = (1 - soft) * wBlin + soft * wBdom;
+    const norm = wA + wB;
+    out[k] = norm > 0 ? Math.max(0, (wA * a + wB * b) / norm) : 0;
+  }
+  return out;
+}
+
 type ManifestFrame = { t: string; precipUrl?: string; hailUrl?: string };
 type Manifest = {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
