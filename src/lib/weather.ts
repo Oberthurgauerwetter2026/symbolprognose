@@ -138,7 +138,11 @@ const HOURLY_VARS = [
   "winddirection_10m",
   "snowfall",
   "sunshine_duration",
+  "cloud_cover_low",
+  "cloud_cover_mid",
+  "cloud_cover_high",
 ] as const;
+
 
 const TOTAL_DAYS = 7;
 
