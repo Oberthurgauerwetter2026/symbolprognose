@@ -376,6 +376,11 @@ export function WeatherIcon({
       : (precipHours ?? 0) >= 6 && ((precip ?? 0) >= 2 || (precipProb ?? 0) >= 70);
   if (wet && !wmoIsWet) {
     if (isSnow) return <IconSnow {...props} />;
+    // Tages-Override: bei nennenswertem Sonnenanteil ist es Schauer-Charakter,
+    // kein Dauerregen — sonst wirkt das Symbol zu pessimistisch.
+    if (scope === "daily" && (sunshineRatio ?? 0) >= 0.3) {
+      return <IconSunShower {...props} />;
+    }
     const heavyThresh = scope === "hourly" ? 1.5 : 8;
     const heavy = (precip ?? 0) >= heavyThresh || (precipProb ?? 0) >= 80;
     return heavy ? <IconRain {...props} /> : <IconDrizzle {...props} />;
@@ -427,10 +432,10 @@ export function WeatherIcon({
   if (code >= 51 && code <= 57) return <IconDrizzle {...props} />;
   if (code >= 61 && code <= 67) {
     // Tageskachel: WMO-„Regen"-Code (61–67) ist nur dann wirklich Dauerregen,
-    // wenn der Niederschlag den Tag prägt (viele nasse Stunden ODER große Menge).
-    // Sonst ist es realistisch ein Schauer-Charakter → IconDrizzle.
+    // wenn der Tag deutlich nass UND wenig sonnig ist. Sonst Schauer-Charakter.
     if (scope === "daily") {
-      const heavyRain = (precipHours ?? 0) >= 6 || (precip ?? 0) >= 10;
+      if ((sunshineRatio ?? 0) >= 0.3) return <IconSunShower {...props} />;
+      const heavyRain = (precipHours ?? 0) >= 8 && (precip ?? 0) >= 15;
       return heavyRain ? <IconRain {...props} /> : <IconDrizzle {...props} />;
     }
     return <IconRain {...props} />;
@@ -439,7 +444,8 @@ export function WeatherIcon({
   if (code === 80 || code === 81) return <IconDrizzle {...props} />;
   if (code === 82) {
     if (scope === "daily") {
-      const heavyShower = (precipHours ?? 0) >= 6 || (precip ?? 0) >= 15;
+      if ((sunshineRatio ?? 0) >= 0.3) return <IconSunShower {...props} />;
+      const heavyShower = (precipHours ?? 0) >= 8 && (precip ?? 0) >= 20;
       return heavyShower ? <IconRain {...props} /> : <IconDrizzle {...props} />;
     }
     return <IconRain {...props} />;
