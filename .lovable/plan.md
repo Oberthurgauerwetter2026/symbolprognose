@@ -1,28 +1,28 @@
 ## Plan
 
-Aktuell wählt `WeatherIcon` das Symbol fast nur aus dem WMO-Weathercode. Bei Open-Meteo wird `weathercode = 3 (bedeckt)` häufig auch bei dünner, hoher Bewölkung mit viel Sonne geliefert — das Icon zeigt dann eine volle Wolke, obwohl die Stunde 50–60 min Sonnenschein hat. Lösung: **`sunshine_duration` als Korrektiv** in die Symbol-Wahl einbauen, sowohl stündlich als auch für die Tageskachel.
+Aktuell „verschluckt" der kategoriale Modus kleine Regenmengen: wenn zwischen 06–21 Uhr nur 1–2 Stunden Schauer fallen, dominiert der Trocken-Code und das Tages-Icon zeigt reine Wolken/Sonne. Lösung: **Niederschlag im Tagesfenster erzwingt mindestens ein Niederschlags-Symbol**, kombiniert mit Sonne, wenn der Tag insgesamt sonnig bleibt.
 
 ### Änderungen
 
-1. **`WeatherIcon` (`src/components/weather-icons/index.tsx`)**
-   - Neue Prop `sunshineRatio` (0–1): Anteil Sonne an der Slot-Dauer.
-   - Wenn der Code „bedeckt/teils bewölkt" ist (`2` oder `3`) UND es **nicht** nass/Nebel/Schnee/Gewitter ist:
-     - `sunshineRatio ≥ 0.7` → `IconClear` / `IconClearNight`
-     - `sunshineRatio ≥ 0.4` → `IconMostlyClear`
-     - `sunshineRatio ≥ 0.15` → `IconPartlyCloudy`
-     - sonst Symbol unverändert (bleibt `IconCloudy`)
-   - Override wirkt nur tagsüber (für Nachtstunden kein Sonnen-Override).
+1. **Neues Icon `IconSunShower`** in `src/components/weather-icons/index.tsx`
+   - Sonne oben links, Wolke rechts unten, 2–3 Tropfen unter der Wolke.
+   - Verwendet bestehende `Sun`, `Cloud`, `Drop` Bausteine.
 
-2. **Stündliche Slots (`src/components/weather-widget.tsx`, ~Z. 861)**
-   - `sunshineRatio = h.sunshine_duration[idx] / (cadence === "1h" ? 3600 : 3*3600)` an `WeatherIcon` übergeben.
-   - Für 3h-Blöcke gemittelt über die 1–3 Stunden des Blocks.
+2. **`WeatherIcon`-Dispatcher** (`src/components/weather-icons/index.tsx`)
+   - Neuer Override **vor** dem normalen Code-Mapping, nur für `scope="daily"`:
+     - Wenn `precipHours ≥ 1` ODER `precip ≥ 0.5 mm` (im Tagsfenster),
+       und WMO-Code ist **nicht** bereits nass/Schnee/Gewitter/Nebel:
+       - `sunshineRatio ≥ 0.3` → `IconSunShower` (Sonne + Wolken + Regen)
+       - sonst → `IconDrizzle` (Wolken + Regen)
+     - Wenn Code bereits nass ist, bleibt die bestehende Regen-/Schauer-Logik.
+   - Sonnen-Aufhellung (clear/mostly-clear/partly) greift wie bisher — aber nur, wenn **kein** Regen im Fenster fällt.
 
-3. **Tageskachel (`DayStrip`, ~Z. 535)**
-   - `sunshineRatio = daily.sunshine_duration[i] / (Tagstunden 06–21 × 3600 = 54 000 s)` (entspricht dem neuen Aggregationsfenster).
-   - Schwellen identisch zur stündlichen Variante.
+3. **Daten-Pipeline** ist bereits passend
+   - `aggregateDailyFromHourly` aggregiert `precipitation_sum` und `precipitation_hours` schon über 06–21 (vorherige Änderung). Diese Werte werden ans Tages-Icon übergeben — keine zusätzliche Aggregation nötig.
 
 ### Auswirkungen
 
-- Im Screenshot würden 14:00–19:00 (54–60 min Sonne) statt Vollwolke ein „mostly clear"-/Sonne-leicht-bewölkt-Symbol zeigen.
-- Tage mit hoher Tagessonnen-Summe und gleichzeitig hohem Modus-Code (3) erscheinen nicht mehr als reine Bewölkung.
-- Nass-Codes (Regen, Schnee, Nebel, Gewitter) bleiben unverändert; der Override greift bewusst nur bei „trockener" Bewölkung.
+- Tag mit 14 Std. Sonne + 1 Std. leichtem Schauer → `IconSunShower` statt nur Sonne/Wolken.
+- Tag mit wenig Sonne + 2 Std. Schauer → `IconDrizzle` statt reine Wolke.
+- Vollnasse Tage (Modus = Regen) bleiben `IconRain` über die bestehende Schwere-Schwelle (≥6 h oder ≥10 mm).
+- Stündliche Icons unverändert.

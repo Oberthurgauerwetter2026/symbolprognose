@@ -317,6 +317,19 @@ export function IconThunderstorm({ size, ...rest }: IconProps) {
   );
 }
 
+export function IconSunShower({ size, ...rest }: IconProps) {
+  return (
+    <Svg size={size} {...rest}>
+      <Sun cx={20} cy={20} r={9} />
+      <Cloud x={38} y={32} scale={1} />
+      <Drop x={32} y={50} size={0.95} tilt={-12} />
+      <Drop x={42} y={54} size={0.95} tilt={-12} />
+      <Drop x={52} y={50} size={0.95} tilt={-12} />
+    </Svg>
+  );
+}
+
+
 /* ---------- Dispatcher ---------- */
 
 export function WeatherIcon({
