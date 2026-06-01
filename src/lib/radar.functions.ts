@@ -157,7 +157,11 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
 }
 
 export const getRadarFrames = createServerFn({ method: "GET" }).handler(async () => {
-  setResponseHeader("Cache-Control", "public, max-age=60, s-maxage=120");
+  setResponseHeader(
+    "Cache-Control",
+    "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
+  );
+
 
   const [cacheRes, manifestRes] = await Promise.allSettled([
     fetchOpenMeteoCache(),
