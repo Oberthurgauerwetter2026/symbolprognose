@@ -744,9 +744,6 @@ export async function fetchForecast(
       merged.hourly.weathercode[i] = src.hourly.weathercode[j] as number;
     }
   };
-      merged.hourly.weathercode[i] = src.hourly.weathercode[j] as number;
-    }
-  };
   overlayThunder(bestMatch ?? null);
   if (mosmixRaw) {
     const mosmixFc = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 0);
