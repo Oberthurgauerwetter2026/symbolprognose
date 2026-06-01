@@ -329,28 +329,31 @@ export function IconSunShower({ size, ...rest }: IconProps) {
   );
 }
 
-export function IconSunThunder({ size, ...rest }: IconProps) {
+export function IconSunThunder({ size, intensity = 2, ...rest }: IconProps & { intensity?: 2 | 3 | 4 }) {
   return (
     <Svg size={size} {...rest}>
       <Sun cx={20} cy={20} r={9} />
       <Cloud x={38} y={32} scale={1} dark />
-      <Drop x={32} y={52} size={0.9} tilt={-12} />
-      <Drop x={52} y={52} size={0.9} tilt={-12} />
-      <Drop x={42} y={56} size={0.9} tilt={-12} />
       <Bolt />
+      {/* Tropfen rechts vom Blitz (Bolt-BBox x 24–38) */}
+      <Drop x={44} y={50} size={0.9} tilt={-12} />
+      <Drop x={56} y={50} size={0.9} tilt={-12} />
+      {intensity >= 3 && <Drop x={50} y={58} size={0.9} tilt={-12} />}
+      {intensity >= 4 && <Drop x={42} y={60} size={0.9} tilt={-12} />}
     </Svg>
   );
 }
 
-export function IconSunSnowThunder({ size, ...rest }: IconProps) {
+export function IconSunSnowThunder({ size, intensity = 2, ...rest }: IconProps & { intensity?: 2 | 3 | 4 }) {
   return (
     <Svg size={size} {...rest}>
       <Sun cx={20} cy={20} r={9} />
       <Cloud x={38} y={32} scale={1} dark />
-      <Flake x={32} y={52} size={0.95} />
-      <Flake x={52} y={52} size={0.95} />
-      <Flake x={42} y={56} size={0.95} />
       <Bolt />
+      <Flake x={44} y={50} size={0.95} />
+      <Flake x={56} y={50} size={0.95} />
+      {intensity >= 3 && <Flake x={50} y={58} size={0.95} />}
+      {intensity >= 4 && <Flake x={42} y={60} size={0.95} />}
     </Svg>
   );
 }
@@ -451,11 +454,16 @@ export function WeatherIcon({
       (th >= 2 && (precip ?? 0) >= 8) ||
       (wmoIsThunder && (precipHours ?? 0) >= 5 && !sunny);
 
+    const sunIntensity: 2 | 3 | 4 =
+      (precip ?? 0) >= 10 ? 4 : (precip ?? 0) >= 4 ? 3 : 2;
+
     if (heavyThunder) {
       return isSnow ? <IconSnowThunder {...props} /> : <IconThunderstorm {...props} />;
     }
     if (sunny) {
-      return isSnow ? <IconSunSnowThunder {...props} /> : <IconSunThunder {...props} />;
+      return isSnow
+        ? <IconSunSnowThunder {...props} intensity={sunIntensity} />
+        : <IconSunThunder {...props} intensity={sunIntensity} />;
     }
     return isSnow ? <IconSnowThunder {...props} /> : <IconThunderstorm {...props} />;
   }
