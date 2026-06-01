@@ -1,14 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { EmbedShell } from "@/components/embed-shell";
 
 import { MAPS, type MapId } from "@/lib/maps-config";
-import { RegionMap } from "@/components/region-map";
 import { WeatherWidget } from "@/components/weather-widget";
 import { ComingSoonMap } from "@/components/maps/coming-soon-map";
 import { cn } from "@/lib/utils";
 
 const BRAND = "#2561a1";
+const RegionMap = lazy(() =>
+  import("@/components/region-map").then((module) => ({ default: module.RegionMap })),
+);
 
 export const Route = createFileRoute("/embed/all")({
   ssr: false,
@@ -60,7 +62,11 @@ function EmbedAll() {
         })}
       </div>
 
-      {active === "region" && <RegionMap />}
+      {active === "region" && (
+        <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
+          <RegionMap />
+        </Suspense>
+      )}
       {active === "lokal" && <WeatherWidget />}
       {(active === "wind" || active === "radar" || active === "pollen") && (
         <ComingSoonMap
