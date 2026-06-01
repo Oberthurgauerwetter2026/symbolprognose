@@ -4,6 +4,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import { toPng } from "html-to-image";
 
 import thurgauData from "@/data/thurgau.json";
 import lakeData from "@/data/lake.json";
@@ -180,215 +181,6 @@ function renderHeatmapDataUrl(
   };
 }
 
-// ---------- Export-PNG (standalone, ohne Basemap-Tiles) ----------
-function renderExportCanvas(
-  canvas: HTMLCanvasElement,
-  payload: {
-    values: number[];
-    gridLat: number[];
-    gridLon: number[];
-    hours: number;
-    firstT: string | null;
-    lastT: string | null;
-    maxMm: number;
-    sourceMix: string;
-  },
-) {
-  const W = 1280;
-  const H = 760;
-  const PAD = { top: 70, right: 28, bottom: 110, left: 28 };
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  const bbox = { minLat: 47.30, maxLat: 47.85, minLon: 8.80, maxLon: 9.80 };
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-
-  const project = (lat: number, lon: number): [number, number] => {
-    const x = PAD.left + ((lon - bbox.minLon) / (bbox.maxLon - bbox.minLon)) * innerW;
-    const y = PAD.top + (1 - (lat - bbox.minLat) / (bbox.maxLat - bbox.minLat)) * innerH;
-    return [x, y];
-  };
-
-  const drawFC = (
-    fc: FeatureCollection,
-    style: { fill?: string; stroke?: string; lineWidth?: number; alpha?: number },
-  ) => {
-    ctx.save();
-    if (style.alpha != null) ctx.globalAlpha = style.alpha;
-    for (const feat of fc.features) {
-      const g = feat.geometry;
-      if (!g) continue;
-      const rings: number[][][] = [];
-      if (g.type === "Polygon") rings.push(...(g.coordinates as number[][][]));
-      else if (g.type === "MultiPolygon")
-        for (const poly of g.coordinates as number[][][][]) rings.push(...poly);
-      for (const r of rings) {
-        ctx.beginPath();
-        for (let i = 0; i < r.length; i++) {
-          const [lon, lat] = r[i];
-          const [x, y] = project(lat, lon);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        if (style.fill) {
-          ctx.fillStyle = style.fill;
-          ctx.fill();
-        }
-        if (style.stroke) {
-          ctx.strokeStyle = style.stroke;
-          ctx.lineWidth = style.lineWidth ?? 1;
-          ctx.stroke();
-        }
-      }
-    }
-    ctx.restore();
-  };
-
-  // Hintergrund — gleicher Map-Background wie Leaflet
-  ctx.fillStyle = "#ebefeb";
-  ctx.fillRect(0, 0, W, H);
-  // Schweiz-Fläche als sanftes Land-Substitut (statt swisstopo-Relief)
-  drawFC(SWITZERLAND, { fill: "#f7faf7" });
-
-  // Heatmap (bilineare Klassen-Zuordnung)
-  const { values, gridLat, gridLon } = payload;
-  const nLat = gridLat.length;
-  const nLon = gridLon.length;
-  const heatImg = ctx.createImageData(innerW, innerH);
-  const hd = heatImg.data;
-  for (let py = 0; py < innerH; py++) {
-    const lat = bbox.maxLat - (py / innerH) * (bbox.maxLat - bbox.minLat);
-    const fy = ((lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-    if (fy < 0 || fy > nLat - 1) continue;
-    const y0 = Math.max(0, Math.min(nLat - 2, Math.floor(fy)));
-    const y1 = y0 + 1;
-    const ty = fy - y0;
-    for (let px = 0; px < innerW; px++) {
-      const lon = bbox.minLon + (px / innerW) * (bbox.maxLon - bbox.minLon);
-      const fx = ((lon - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
-      if (fx < 0 || fx > nLon - 1) continue;
-      const x0 = Math.max(0, Math.min(nLon - 2, Math.floor(fx)));
-      const x1 = x0 + 1;
-      const tx = fx - x0;
-
-      const v00 = values[y0 * nLon + x0];
-      const v10 = values[y0 * nLon + x1];
-      const v01 = values[y1 * nLon + x0];
-      const v11 = values[y1 * nLon + x1];
-      const v =
-        v00 * (1 - tx) * (1 - ty) +
-        v10 * tx * (1 - ty) +
-        v01 * (1 - tx) * ty +
-        v11 * tx * ty;
-
-      if (v < ACCUM_CLASSES[0].min) continue;
-      const [r, g, b, a] = colorForAccum(v);
-      if (a === 0) continue;
-      const idx = (py * innerW + px) * 4;
-      hd[idx] = r;
-      hd[idx + 1] = g;
-      hd[idx + 2] = b;
-      hd[idx + 3] = Math.round(a * 255);
-    }
-  }
-  const off = document.createElement("canvas");
-  off.width = innerW;
-  off.height = innerH;
-  off.getContext("2d")!.putImageData(heatImg, 0, 0);
-  ctx.save();
-  ctx.globalAlpha = 0.85;
-  ctx.drawImage(off, PAD.left, PAD.top);
-  ctx.restore();
-
-  // See (über Heatmap, wie Leaflet-Reihenfolge)
-  drawFC(LAKE, { fill: "#7ec8e3", alpha: 0.25 });
-  drawFC(LAKE, { stroke: "#5ba8c8", lineWidth: 1.2 });
-  // Schweiz-Grenze
-  drawFC(SWITZERLAND, { stroke: "#0f172a", lineWidth: 1.4, alpha: 0.85 });
-  // Thurgau-Grenze
-  drawFC(THURGAU, { stroke: "#0f172a", lineWidth: 2.2, alpha: 0.95 });
-
-  // Header
-  ctx.fillStyle = "#0f172a";
-  ctx.font = "700 26px ui-sans-serif, system-ui, sans-serif";
-  ctx.fillText(`+${payload.hours} h Niederschlagssumme`, PAD.left, 36);
-  ctx.font = "500 13px ui-sans-serif, system-ui, sans-serif";
-  ctx.fillStyle = "#64748b";
-  const fmt = (iso: string | null) => {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    const p = (n: number) => String(n).padStart(2, "0");
-    return `${p(d.getDate())}.${p(d.getMonth() + 1)}. ${p(d.getHours())}:${p(d.getMinutes())}`;
-  };
-  ctx.fillText(
-    `Zeitraum: ${fmt(payload.firstT)} → ${fmt(payload.lastT)} (Lokalzeit)`,
-    PAD.left,
-    56,
-  );
-
-  // Max chip
-  const chipText = `Max ${payload.maxMm.toFixed(1)} mm`;
-  ctx.font = "700 13px ui-sans-serif, system-ui, sans-serif";
-  const chipW = ctx.measureText(chipText).width + 20;
-  const chipH = 26;
-  const chipX = W - PAD.right - chipW;
-  const chipY = 22;
-  ctx.fillStyle = "#0f172a";
-  ctx.beginPath();
-  const cr = 13;
-  ctx.moveTo(chipX + cr, chipY);
-  ctx.lineTo(chipX + chipW - cr, chipY);
-  ctx.quadraticCurveTo(chipX + chipW, chipY, chipX + chipW, chipY + cr);
-  ctx.lineTo(chipX + chipW, chipY + chipH - cr);
-  ctx.quadraticCurveTo(chipX + chipW, chipY + chipH, chipX + chipW - cr, chipY + chipH);
-  ctx.lineTo(chipX + cr, chipY + chipH);
-  ctx.quadraticCurveTo(chipX, chipY + chipH, chipX, chipY + chipH - cr);
-  ctx.lineTo(chipX, chipY + cr);
-  ctx.quadraticCurveTo(chipX, chipY, chipX + cr, chipY);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(chipText, chipX + 10, chipY + 17);
-
-  // Legende: diskrete Klassen
-  const legY = H - PAD.bottom + 36;
-  const legX = PAD.left;
-  const legW = W - PAD.left - PAD.right;
-  const legH = 16;
-  const n = ACCUM_CLASSES.length;
-  const bw = legW / n;
-  for (let i = 0; i < n; i++) {
-    const c = ACCUM_CLASSES[i];
-    ctx.fillStyle = `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`;
-    ctx.fillRect(legX + i * bw, legY, bw, legH);
-  }
-  ctx.strokeStyle = "rgba(15,23,42,0.25)";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(legX + 0.5, legY + 0.5, legW - 1, legH - 1);
-  ctx.fillStyle = "#475569";
-  ctx.font = "600 11px ui-sans-serif, system-ui, sans-serif";
-  for (let i = 0; i < n; i++) {
-    const label = ACCUM_CLASSES[i].label;
-    const tx = legX + i * bw;
-    const lw = ctx.measureText(label).width;
-    ctx.fillText(label, tx + bw / 2 - lw / 2, legY + legH + 14);
-  }
-  ctx.font = "500 10px ui-sans-serif, system-ui, sans-serif";
-  ctx.fillStyle = "#94a3b8";
-  ctx.fillText("mm Niederschlag (Klassen)", legX, legY + legH + 30);
-
-  // Footer
-  ctx.font = "500 11px ui-sans-serif, system-ui, sans-serif";
-  ctx.fillStyle = "#94a3b8";
-  ctx.fillText(`Modell: ${payload.sourceMix}`, PAD.left, H - 10);
-  const src = "ICON-CH1/CH2 via Open-Meteo · oberthurgauerwetter.ch";
-  const sw = ctx.measureText(src).width;
-  ctx.fillText(src, W - PAD.right - sw, H - 10);
-}
-
 interface Props {
   hours: 12 | 24 | 48;
   frames: RadarFrame[];
@@ -418,25 +210,29 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
   const pctWet = ((pxOver1 / accum.values.length) * 100).toFixed(0);
 
   const mapKeyRef = useRef(`map-${hours}-${Math.random()}`);
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const download = () => {
+  const download = async () => {
+    if (!cardRef.current) return;
     try {
-      const exportCanvas = document.createElement("canvas");
-      renderExportCanvas(exportCanvas, {
-        values: accum.values,
-        gridLat,
-        gridLon,
-        hours,
-        firstT: accum.firstT,
-        lastT: accum.lastT,
-        maxMm: accum.maxMm,
-        sourceMix: accum.sourceMix,
+      // Kurz warten, damit ggf. noch ausstehende Tile-Loads abgeschlossen sind.
+      await new Promise((r) => setTimeout(r, 250));
+      const dataUrl = await toPng(cardRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        // Leaflet-Controls (Zoom-Buttons, Attribution) im Export weglassen
+        filter: (node) => {
+          if (!(node instanceof HTMLElement)) return true;
+          if (node.classList?.contains("leaflet-control-container")) return false;
+          return true;
+        },
       });
+
       const fileName = `niederschlag-${hours}h-${new Date()
         .toISOString()
         .slice(0, 16)
         .replace(/[-:T]/g, "")}.png`;
-      const dataUrl = exportCanvas.toDataURL("image/png");
 
       const win = window.open("", "_blank");
       if (win && win.document) {
@@ -458,30 +254,24 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         return;
       }
 
-      exportCanvas.toBlob((blob) => {
-        if (!blob) {
-          toast.error("Export fehlgeschlagen", {
-            description: "Bitte Popups erlauben.",
-          });
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
-        toast.success("PNG-Download gestartet", { description: fileName });
-      }, "image/png");
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast.success("PNG-Download gestartet", { description: fileName });
     } catch (e) {
-      toast.error("Export fehlgeschlagen", { description: (e as Error).message });
+      toast.error("Export fehlgeschlagen", {
+        description:
+          (e as Error).message ||
+          "Karte noch nicht vollständig geladen — kurz warten und erneut versuchen.",
+      });
     }
   };
 
   return (
-    <Card className="overflow-hidden border-zinc-200/80 shadow-sm">
+    <Card ref={cardRef} className="overflow-hidden border-zinc-200/80 shadow-sm bg-white">
       <div className="flex items-center justify-between gap-4 flex-wrap px-6 pt-5 pb-4 border-b border-zinc-100">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -528,6 +318,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
               maxZoom={18}
               opacity={0.7}
+              crossOrigin="anonymous"
               attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · ICON-CH1/CH2'
             />
             <GeoJSON
