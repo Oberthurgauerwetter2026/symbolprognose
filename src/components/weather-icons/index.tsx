@@ -1,7 +1,7 @@
 // Instrumental Swiss weather icon set — monochrome line icons with red accent.
 // All icons share viewBox 0 0 64 64 and use currentColor for the stroke.
 
-import type { SVGProps } from "react";
+import type { ReactNode, SVGProps } from "react";
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
@@ -27,7 +27,7 @@ function Svg({
   size = 48,
   children,
   ...rest
-}: IconProps & { children: React.ReactNode }) {
+}: IconProps & { children: ReactNode }) {
   return (
     <svg
       width={size}
