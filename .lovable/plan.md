@@ -1,31 +1,32 @@
-## Ziel
-429-Fehler beheben, indem das Frontend Open-Meteo nicht mehr direkt aufruft. Der bereits vorhandene serverFn `getAggregatedForecast` wird zur einzigen Quelle für die Symbolprognose. Dadurch:
-- Open-Meteo sieht nur noch Worker-IPs statt jeder Besucher-IP.
-- Edge-Cache (`s-maxage=900`) bündelt Requests pro Spot.
-- Die bestehende Multi-Modell-Logik (ICON-CH1/CH2, IFS, MOSMIX, best_match) und die neue Cloud-Layer-Heuristik bleiben unverändert.
+## Problem
 
-## Änderungen
+Das Tagesicon für Dienstag zeigt 3 Regentropfen (`IconDrizzle`), obwohl von 06–15 Uhr deutlich Sonne herrscht und Regen erst ab 18 Uhr einsetzt.
 
-1. **`src/components/weather-widget.tsx`**
-   - Import `fetchForecast` → entfernen.
-   - Stattdessen `getAggregatedForecast` aus `@/lib/forecast-aggregated.functions` via `useServerFn(...)` einbinden.
-   - `queryFn` ruft das Server-Wrapper-Objekt mit `{ data: { lat, lon } }` auf.
+**Ursache** in `src/components/weather-icons/index.tsx` Z. 444:
+```ts
+if (code === 80 || code === 81) return <IconDrizzle {...props} />;
+```
+Für die WMO-Schauer-Codes 80/81 wird im `daily`-Scope **direkt** `IconDrizzle` zurückgegeben — ohne den Sonnen-Override, der für Code 82 (Z. 446–451) und für 61–67 (Z. 436–440) bereits existiert.
 
-2. **`src/components/region-map.tsx`** (zwei `useQuery`-Stellen: `SpotMarker` ~Z. 264, Lokalprognose-Karte ~Z. 531)
-   - Gleiche Umstellung wie oben.
+## Fix
 
-3. **`src/lib/weather.ts`**
-   - `fetchForecast` bleibt exportiert, wird aber nur noch serverseitig von `getAggregatedForecast` aufgerufen. Kein Code-Change nötig — nur Kommentar verschärfen („nicht aus dem Browser aufrufen").
+Den gleichen Daily-SunShower-Pfad auch auf Codes **80/81** anwenden:
 
-4. **Sanity-Check Ingest/Cache**
-   - `scripts/ingest_openmeteo.py` enthält bereits `cloud_cover_low/mid/high` → keine Änderung.
-   - `getMultiModelForecast` (R2-basiert) bleibt für andere Verbraucher (Karten-Tiles etc.) unangetastet.
+```ts
+if (code === 80 || code === 81) {
+  if (scope === "daily" && (sunshineRatio ?? 0) >= 0.3) {
+    return <IconSunShower {...props} />;
+  }
+  return <IconDrizzle {...props} />;
+}
+```
 
-## Erwartetes Verhalten nach dem Build
-- Browser-Network-Tab zeigt keine Aufrufe mehr an `api.open-meteo.com` / `ensemble-api.open-meteo.com` aus den Wetter-Widgets/Karten — nur noch `/_serverFn/...getAggregatedForecast`.
-- Symbolprognose, Regionkarte und stündliche Lokalprognose erhalten wieder Daten.
-- Die kürzlich eingeführte Bewölkungs-Heuristik (low/mid/high → IconCloudy, IconMostlyClear, IconPartlyCloudy, IconSunShower) funktioniert unverändert, weil `fetchForecast` die Felder bereits liefert.
+Zusätzlich Schwelle auf **`sunshineRatio >= 0.25`** senken (an allen drei Stellen: Z. 381, 437, 447, neu 444). Begründung: Nenner ist 15 h; ein Tag mit ~4 h klarer Vormittagssonne (wie Dienstag) liegt bei ~0.27. 0.30 verfehlt das knapp.
 
-## Risiken
-- Server-Cold-Start kann den ersten Spot-Request leicht verzögern; danach greift der Edge-Cache.
-- Falls Open-Meteo den Worker auch limitiert, ist Phase 2 nötig: alle Aufrufe auf R2 (`getMultiModelForecast`) umstellen. Aktuell nicht Teil dieses Plans.
+## Geänderte Datei
+
+- `src/components/weather-icons/index.tsx` — vier Stellen (Override-Block + 3 WMO-Branches).
+
+## Erwartetes Ergebnis
+
+Dienstag → `IconSunShower` (Sonne + Schauer) statt `IconDrizzle`. Reine Regentage (kaum Sonne, viele nasse Stunden) bleiben unverändert `IconRain`/`IconDrizzle`.

@@ -378,7 +378,7 @@ export function WeatherIcon({
     if (isSnow) return <IconSnow {...props} />;
     // Tages-Override: bei nennenswertem Sonnenanteil ist es Schauer-Charakter,
     // kein Dauerregen — sonst wirkt das Symbol zu pessimistisch.
-    if (scope === "daily" && (sunshineRatio ?? 0) >= 0.3) {
+    if (scope === "daily" && (sunshineRatio ?? 0) >= 0.25) {
       return <IconSunShower {...props} />;
     }
     const heavyThresh = scope === "hourly" ? 1.5 : 8;
@@ -434,17 +434,22 @@ export function WeatherIcon({
     // Tageskachel: WMO-„Regen"-Code (61–67) ist nur dann wirklich Dauerregen,
     // wenn der Tag deutlich nass UND wenig sonnig ist. Sonst Schauer-Charakter.
     if (scope === "daily") {
-      if ((sunshineRatio ?? 0) >= 0.3) return <IconSunShower {...props} />;
+      if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
       const heavyRain = (precipHours ?? 0) >= 8 && (precip ?? 0) >= 15;
       return heavyRain ? <IconRain {...props} /> : <IconDrizzle {...props} />;
     }
     return <IconRain {...props} />;
   }
   if (code >= 71 && code <= 77) return <IconSnow {...props} />;
-  if (code === 80 || code === 81) return <IconDrizzle {...props} />;
+  if (code === 80 || code === 81) {
+    if (scope === "daily" && (sunshineRatio ?? 0) >= 0.25) {
+      return <IconSunShower {...props} />;
+    }
+    return <IconDrizzle {...props} />;
+  }
   if (code === 82) {
     if (scope === "daily") {
-      if ((sunshineRatio ?? 0) >= 0.3) return <IconSunShower {...props} />;
+      if ((sunshineRatio ?? 0) >= 0.25) return <IconSunShower {...props} />;
       const heavyShower = (precipHours ?? 0) >= 8 && (precip ?? 0) >= 20;
       return heavyShower ? <IconRain {...props} /> : <IconDrizzle {...props} />;
     }
