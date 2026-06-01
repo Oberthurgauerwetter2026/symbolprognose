@@ -549,6 +549,7 @@ function DayStrip({
                   precip={d.precipitation_sum[i]}
                   precipProb={d.precipitation_probability_max?.[i]}
                   precipHours={d.precipitation_hours?.[i]}
+                  thunderHours={d.thunderstorm_hours?.[i]}
                   isSnow={(d.snowfall_sum?.[i] ?? 0) > 0.1}
                   sunshineRatio={(d.sunshine_duration?.[i] ?? 0) / (15 * 3600)}
                   cloudLow={d.cloud_cover_low_mean?.[i]}
