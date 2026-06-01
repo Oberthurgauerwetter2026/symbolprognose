@@ -996,7 +996,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
               const hasPng = !!currentFrame.precipUrl;
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
-              const opacityVal = 0.95;
+              const opacityVal = 0.75;
 
               return (
                 <>
@@ -1047,7 +1047,7 @@ export function RadarMap({ bare = false }: { bare?: boolean }) {
                 [data.imageBbox.minLat, data.imageBbox.minLon],
                 [data.imageBbox.maxLat, data.imageBbox.maxLon],
               ]}
-              opacity={0.95}
+              opacity={0.8}
               className="hail-blackdots"
             />
           )}
