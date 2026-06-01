@@ -392,6 +392,24 @@ export function WeatherIcon({
     return <IconDrizzle {...props} />;
   }
 
+  // Wolken-Stockwerke: trennt Cirrus (Sonne scheint durch) von echter Bedeckung.
+  const hasLayers =
+    typeof cloudLow === "number" || typeof cloudMid === "number" || typeof cloudHigh === "number";
+  if (hasLayers && !wmoIsWet && !dayHasRain && code <= 3) {
+    const low = cloudLow ?? 0;
+    const mid = cloudMid ?? 0;
+    const high = cloudHigh ?? 0;
+    if (low >= 60) return <IconCloudy {...props} />;
+    if (low < 30 && mid < 40 && high >= 40) {
+      return isDay ? <IconMostlyClear isDay {...props} /> : <IconClearNight {...props} />;
+    }
+    if (mid >= 50 && low < 50) return <IconPartlyCloudy isDay={isDay} {...props} />;
+    if (low < 20 && mid < 25 && high < 25) {
+      return isDay ? <IconClear {...props} /> : <IconClearNight {...props} />;
+    }
+  }
+
+
   // Sonnen-Korrektiv: bei trockenen Bewölkungs-Codes (2/3) und viel Sonne das Symbol aufhellen.
   if (isDay && !wmoIsWet && !dayHasRain && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
     if (sunshineRatio >= 0.7) return <IconClear {...props} />;
