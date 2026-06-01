@@ -379,9 +379,9 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
             <TileLayer
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
               maxZoom={18}
-              opacity={0.7}
+              opacity={0.85}
               crossOrigin="anonymous"
-              attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · ICON-CH1/CH2'
+              attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · ICON-CH1/CH2'
             />
             <GeoJSON
               data={LAKE}
