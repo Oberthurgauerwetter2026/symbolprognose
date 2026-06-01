@@ -702,19 +702,7 @@ export async function fetchForecastFromUpstream(
   return sanitizeForecast(merged);
 }
 
-/**
- * Public Forecast-API für Browser-Code.
- *
- * Ruft das serverseitige Aggregat (`getAggregatedForecast`) auf, sodass
- * Open-Meteo nicht direkt aus dem Browser angefragt wird (vermeidet das
- * IP-Tageslimit) und das Resultat am Edge gecacht ist.
- */
-export async function fetchForecast(
-  latitude: number,
-  longitude: number,
-): Promise<ForecastResponse> {
-  return await getAggregatedForecast({ data: { lat: latitude, lon: longitude } });
-}
+
 
 
 
