@@ -181,8 +181,7 @@ function renderHeatmapDataUrl(
   };
 }
 
-
-
+interface Props {
   hours: 12 | 24 | 48;
   frames: RadarFrame[];
   gridLat: number[];
