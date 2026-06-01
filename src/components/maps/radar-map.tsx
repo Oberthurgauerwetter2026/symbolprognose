@@ -478,6 +478,22 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
+    // Advektion: in Prognose globalen Verschiebungsvektor verwenden, damit
+    // Bänder sanft "fliessen" statt zu pulsieren. Dezent (gain 0.4, clamp 1.5).
+    let adx = 0;
+    let ady = 0;
+    if (contour && nextVals) {
+      const raw = advectionRef.current;
+      adx = raw.dx * 0.4;
+      ady = raw.dy * 0.4;
+      const mag = Math.hypot(adx, ady);
+      if (mag > 1.5) {
+        adx = (adx / mag) * 1.5;
+        ady = (ady / mag) * 1.5;
+      }
+    }
+    const useAdv = adx !== 0 || ady !== 0;
+
     // STEP=2: Off-screen-Buffer auf halber Auflösung pro Achse (1/4 Pixel)
     // → deutlich schnellere Redraws, stabile 60fps Animation.
     const STEP = 2;
@@ -486,6 +502,32 @@ function PrecipOverlay({
 
     const img = ctx.createImageData(lowW, lowH);
     const data = img.data;
+
+    // Bilineare Sample-Funktion, parametrisiert über (fx, fy) → erlaubt
+    // advektives Sampling mit verschobenen Koordinaten.
+    const sampleAt = (arr: number[], fx: number, fy: number) => {
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const txL = fx - x0;
+      const tyL = fy - y0;
+      const inX0 = x0 >= 0 && x0 < nLon;
+      const inX1 = x1 >= 0 && x1 < nLon;
+      const inY0 = y0 >= 0 && y0 < nLat;
+      const inY1 = y1 >= 0 && y1 < nLat;
+      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      return (
+        v00 * (1 - txL) * (1 - tyL) +
+        v01 * txL * (1 - tyL) +
+        v10 * (1 - txL) * tyL +
+        v11 * txL * tyL
+      );
+    };
 
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
@@ -497,46 +539,29 @@ function PrecipOverlay({
         const BUFFER = 3;
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
-        // Bilineare Interpolation der 4 Nachbarzellen — liefert ein glattes
-        // Skalarfeld. In Kombination mit quantisierter Farbe in colorFor()
-        // ergeben sich die "Bubble"-förmigen Iso-Bänder.
-        const x0 = Math.floor(fxRaw);
-        const y0 = Math.floor(fyRaw);
-        const x1 = x0 + 1;
-        const y1 = y0 + 1;
-        // Reine bilineare Gewichte → weiche, runde Iso-Konturbänder
-        // wie übliche Wetterdienst-Vorhersagekarten (MCH/DWD).
-        const tx = fxRaw - x0;
-        const ty = fyRaw - y0;
-        const inX0 = x0 >= 0 && x0 < nLon;
-        const inX1 = x1 >= 0 && x1 < nLon;
-        const inY0 = y0 >= 0 && y0 < nLat;
-        const inY1 = y1 >= 0 && y1 < nLat;
-        if (!inX0 && !inX1) continue;
-        if (!inY0 && !inY1) continue;
-        // Reine bilineare Interpolation — kein zusätzliches Gauss-Blur,
-        // damit lokale Niederschlagsspitzen kräftig erhalten bleiben (näher an
-        // MeteoSchweiz/SRF-Optik). Räumliche Glättung kommt allein aus dem
-        // einmaligen ctx.imageSmoothing beim Upscale des Off-Screen-Buffers.
-        const sample = (arr: number[]) => {
-          const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-          const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-          const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-          const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-          return (
-            v00 * (1 - tx) * (1 - ty) +
-            v01 * tx * (1 - ty) +
-            v10 * (1 - tx) * ty +
-            v11 * tx * ty
-          );
-        };
-        const vCur = sample(vals);
-        const v = nextVals ? lerp(vCur, sample(nextVals)) : vCur;
+
+        let v: number;
+        if (useAdv && nextVals) {
+          const va = sampleAt(vals, fxRaw + t * adx, fyRaw + t * ady);
+          const vb = sampleAt(nextVals, fxRaw - (1 - t) * adx, fyRaw - (1 - t) * ady);
+          v = va + (vb - va) * t;
+        } else {
+          const vCur = sampleAt(vals, fxRaw, fyRaw);
+          v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
+        }
         if (v < 0.1) continue;
+
         let snowFrac = 0;
         if (snowVals) {
-          const svCur = sample(snowVals);
-          const sv = nextSnowVals ? lerp(svCur, sample(nextSnowVals)) : svCur;
+          let sv: number;
+          if (useAdv && nextSnowVals) {
+            const sa = sampleAt(snowVals, fxRaw + t * adx, fyRaw + t * ady);
+            const sb = sampleAt(nextSnowVals, fxRaw - (1 - t) * adx, fyRaw - (1 - t) * ady);
+            sv = sa + (sb - sa) * t;
+          } else {
+            const svCur = sampleAt(snowVals, fxRaw, fyRaw);
+            sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
+          }
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
         // contour=true (Prognose): diskrete Stufen → sichtbare Iso-Bänder mit
@@ -553,6 +578,7 @@ function PrecipOverlay({
         data[idx + 3] = alpha;
       }
     }
+
 
     // Off-screen Buffer für putImageData (ignoriert Transformationen/Clip).
     const off = document.createElement("canvas");
