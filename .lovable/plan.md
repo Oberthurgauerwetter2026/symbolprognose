@@ -1,16 +1,20 @@
-## Plan
+Ja — Sonnenschein wird aktuell schon an die Icons übergeben und in der Tages-Aggregation berücksichtigt. Die Wolken-Klassifikation ist aber nur teilweise wirksam: Die Ensemble-Abfrage lädt `cloud_cover_low/mid/high` aktuell nicht mit, und `wrapEnsembleAsForecast`/MOSMIX-Overwrite übernehmen diese Felder ebenfalls nicht. Dadurch landen in den Kacheln häufig `0`/fehlende Wolkenwerte, weshalb die neue Klassifikation kaum sichtbar werden kann.
 
-1. **Cache komplett versionieren**
-   - Den Server-Funktions-Request bekommt einen expliziten `version`/`cacheBust`-Parameter, damit bestehende Edge-Cache-Einträge nicht mehr getroffen werden.
-   - Der React-Query-Key wird auf eine neue Version gesetzt und die Forecast-Query wird beim Laden/refokussieren aktiv erneuert.
+Plan:
 
-2. **Server-Antwort kurzfristig nicht mehr stale ausliefern**
-   - Für die Wetter-Serverfunktion setze ich vorübergehend strengere Header wie `no-cache`/sehr kurze Revalidierung, damit Änderungen an Symbol-/Aggregationslogik sofort sichtbar werden.
-   - Die eigentliche Wetterdaten-Quelle bleibt unverändert; es geht nur darum, alte zwischengespeicherte Antworten zu vermeiden.
+1. `src/lib/weather.ts` korrigieren
+   - `cloud_cover_low`, `cloud_cover_mid`, `cloud_cover_high` in die Ensemble-Hourly-Variablen aufnehmen.
+   - Diese Felder in `wrapEnsembleAsForecast` übernehmen.
+   - Beim MOSMIX-Overwrite die Cloud-Felder nicht versehentlich aus dem späteren Forecast verlieren.
+   - Die Tagesklassifikation weiter aus den 06:00–21:00-Stunden berechnen, aber mit echten Wolkenwerten.
 
-3. **Sicherstellen, dass die angezeigten Kacheln wirklich neue Daten nutzen**
-   - Tageskacheln und Stundenprognose verwenden weiterhin dieselbe Datenquelle, aber mit frischem Query-Key.
-   - Ich prüfe zusätzlich, ob `/karten/lokal` oder Embed-Routen noch einen anderen Key/Fallback nutzen.
+2. Stündliche Symbol-Klassifikation robuster machen
+   - Für einzelne Stunden nicht nur den rohen `weathercode` anzeigen, sondern bei trockenem Wetter anhand von Wolkenstockwerken + Sonnenscheindauer sichtbar auf `klar/heiter/teils bewölkt/bewölkt` korrigieren.
+   - Das betrifft direkt die Stundenprognose und die Karten-Pills.
 
-4. **Validierung**
-   - Nach der Umsetzung prüfe ich anhand der geladenen Network-Antwort/Preview, dass der neue Request nicht mehr die alte gecachte Antwort verwendet und die Kacheln/Stundenprognose neu berechnet werden.
+3. Cache-Version erneut erhöhen
+   - Forecast-Version von `v4` auf `v5` erhöhen in `WeatherWidget` und `RegionMap`, damit garantiert keine alten Browser-/Server-Antworten verwendet werden.
+
+4. Validierung
+   - In der Preview `/karten/lokal` prüfen, ob der neue Request geladen wird.
+   - Sichtbar kontrollieren, dass Tageskacheln, Stundenprognose und Karten-Pills die neuen Cloud-/Sunshine-Felder nutzen.
