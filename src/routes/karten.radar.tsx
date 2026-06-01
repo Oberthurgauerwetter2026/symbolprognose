@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
-import { RadarMap } from "@/components/maps/radar-map";
 import { getMap } from "@/lib/maps-config";
 
 const def = getMap("radar");
+const RadarMap = lazy(() =>
+  import("@/components/maps/radar-map").then((module) => ({ default: module.RadarMap })),
+);
 
 export const Route = createFileRoute("/karten/radar")({
   ssr: false,
@@ -22,7 +25,9 @@ function KartenRadarPage() {
     <DashboardLayout title={def.label} subtitle={def.description}>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="radar" />
-        <RadarMap />
+        <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
+          <RadarMap />
+        </Suspense>
       </div>
     </DashboardLayout>
   );
