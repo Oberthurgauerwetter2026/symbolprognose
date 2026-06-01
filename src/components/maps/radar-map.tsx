@@ -87,6 +87,34 @@ function colorFor(mmh: number): [number, number, number, number] {
   return [band.rgb[0], band.rgb[1], band.rgb[2], band.a];
 }
 
+// Weiche Farbskala für Prognose-Frames — linear zwischen zwei Bändern blenden,
+// damit die ICON-CH1-Felder nicht als rechteckige Blöcke wirken.
+function colorForSmooth(mmh: number): [number, number, number, number] {
+  if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
+  if (mmh >= SCALE[SCALE.length - 1].mmh) {
+    const last = SCALE[SCALE.length - 1];
+    return [last.rgb[0], last.rgb[1], last.rgb[2], last.a];
+  }
+  for (let i = 0; i < SCALE.length - 1; i++) {
+    const lo = SCALE[i];
+    const hi = SCALE[i + 1];
+    if (mmh >= lo.mmh && mmh < hi.mmh) {
+      // log-Interpolation, weil die Skala selbst log-artig ist (0.1→0.3→0.8→2…).
+      const tt =
+        (Math.log(mmh) - Math.log(lo.mmh)) /
+        (Math.log(hi.mmh) - Math.log(lo.mmh));
+      const t = Math.max(0, Math.min(1, tt));
+      return [
+        Math.round(lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t),
+        Math.round(lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t),
+        Math.round(lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t),
+        lo.a + (hi.a - lo.a) * t,
+      ];
+    }
+  }
+  return [0, 0, 0, 0];
+}
+
 
 
 
