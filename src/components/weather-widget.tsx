@@ -532,7 +532,14 @@ function DayStrip({
                 aria-label={weatherLabel(d.weathercode[i])}
                 title={weatherLabel(d.weathercode[i])}
               >
-                <WeatherIcon code={d.weathercode[i]} size={80} />
+                <WeatherIcon
+                  code={d.weathercode[i]}
+                  size={80}
+                  precip={d.precipitation_sum[i]}
+                  precipProb={d.precipitation_probability_max?.[i]}
+                  isSnow={(d.snowfall_sum?.[i] ?? 0) > 0.1}
+                />
+
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
