@@ -385,6 +385,7 @@ function wrapEnsembleAsForecast(ens: EnsembleHourly): ForecastResponse {
     sunrise: [],
     sunset: [],
     snowfall_sum: [],
+    precipitation_hours: [],
   };
   return { latitude: 0, longitude: 0, timezone: "", hourly: empty, daily: emptyDaily };
 }
