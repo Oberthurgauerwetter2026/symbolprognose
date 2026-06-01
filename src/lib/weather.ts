@@ -595,6 +595,10 @@ function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
 }
 
 
+/**
+ * Direktes Multi-Modell-Aggregat (Ensembles + best_match + MOSMIX).
+ * Wird serverseitig von getAggregatedForecast verwendet (Edge-Cache + Worker-IP).
+ */
 export async function fetchForecast(
   latitude: number,
   longitude: number,
@@ -694,6 +698,10 @@ export async function fetchForecast(
 
   return sanitizeForecast(merged);
 }
+
+
+
+
 
 
 
