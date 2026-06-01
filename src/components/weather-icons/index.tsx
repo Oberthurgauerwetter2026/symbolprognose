@@ -454,11 +454,16 @@ export function WeatherIcon({
       (th >= 2 && (precip ?? 0) >= 8) ||
       (wmoIsThunder && (precipHours ?? 0) >= 5 && !sunny);
 
+    const sunIntensity: 2 | 3 | 4 =
+      (precip ?? 0) >= 10 ? 4 : (precip ?? 0) >= 4 ? 3 : 2;
+
     if (heavyThunder) {
       return isSnow ? <IconSnowThunder {...props} /> : <IconThunderstorm {...props} />;
     }
     if (sunny) {
-      return isSnow ? <IconSunSnowThunder {...props} /> : <IconSunThunder {...props} />;
+      return isSnow
+        ? <IconSunSnowThunder {...props} intensity={sunIntensity} />
+        : <IconSunThunder {...props} intensity={sunIntensity} />;
     }
     return isSnow ? <IconSnowThunder {...props} /> : <IconThunderstorm {...props} />;
   }
