@@ -347,7 +347,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
             {pctWet}% der Fläche ≥ 1 mm · {accum.framesUsed} Frames · {accum.sourceMix}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-1" data-export-exclude>
           <Button onClick={download} size="sm" className="gap-2">
             <Download className="h-4 w-4" />
             PNG herunterladen
