@@ -84,6 +84,8 @@ export interface RadarFrame {
   hailUrl?: string;
   /** Optional: Bbox des PNG-Overlays für diesen Frame. */
   imageBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+  /** true: 15-min-Stützstelle aus ICON-Interpolation (Nowcast 0–6 h), nicht nativ. */
+  interpolated?: boolean;
 }
 
 export interface RadarPayload {
@@ -319,19 +321,21 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
     const hasSnow = Array.isArray((r1[0] as LocResponse | undefined)?.minutely_15?.snowfall);
     const nPts = pts.length;
 
-    // ---- Stündliche Prognose-Frames direkt aus ICON-CH1 ----
-    // ICON-CH1 ist nativ stündlich. Wir lesen das :00-Sample aus minutely_15
-    // (entspricht dem Stundenwert) und emittieren je volle Stunde genau einen
-    // Frame. Keine Advektion, kein 15-min-Resampling — der Crossfade im Client
-    // sorgt für den weichen optischen Übergang zwischen den Stundenframes.
+    // ---- Prognose-Frames aus ICON-CH1 (Hybrid-Takt) ----
+    // 0–6 h: alle 15-min-Stützstellen (Open-Meteo-Interpolation, `interpolated: true`).
+    // 6–24 h: nur volle Stunden (native ICON-CH1-Werte).
+    // Der Client-Crossfade + Advektion bügelt die Übergänge optisch glatt.
     for (let ti = 0; ti < ref1.time.length; ti++) {
       const tIso = ref1.time[ti];
-      if (!tIso.endsWith(":00")) continue;
       const tMs = Date.parse(tIso + "Z");
       if (tMs <= now) continue;
       if (tMs > forecastCutoff) continue;
 
       const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
+      const inNowcast = dtMinFromNow <= 360; // 6 h
+      const isHourly = tIso.endsWith(":00");
+      if (!inNowcast && !isHourly) continue;
+
       const biasWeight =
         biasFactor === 1 ? 0 : Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
       const correction = 1 + (biasFactor - 1) * biasWeight;
@@ -356,6 +360,7 @@ export const getRadarFrames = createServerFn({ method: "GET" }).handler(async ()
         source: "icon-ch1",
         values: precip,
         snowValues: snow,
+        interpolated: inNowcast && !isHourly,
       });
     }
   }
