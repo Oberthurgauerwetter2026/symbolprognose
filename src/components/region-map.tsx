@@ -169,6 +169,7 @@ function MarkerPill({
   precip?: number;
   precipProb?: number;
   precipHours?: number;
+  thunderHours?: number;
   isSnow?: boolean;
   sunshineRatio?: number;
   cloudLow?: number;
