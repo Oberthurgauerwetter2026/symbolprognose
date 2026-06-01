@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { EmbedShell } from "@/components/embed-shell";
-import { EmbedFallbackBar } from "@/components/embeds/embed-fallback-bar";
+
 import { MAPS, type MapId } from "@/lib/maps-config";
 import { RegionMap } from "@/components/region-map";
 import { WeatherWidget } from "@/components/weather-widget";
