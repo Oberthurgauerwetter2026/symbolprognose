@@ -371,6 +371,7 @@ export function WeatherIcon({
   isSnow,
   scope = "hourly",
   precipHours,
+  thunderHours,
   sunshineRatio,
   cloudLow,
   cloudMid,
