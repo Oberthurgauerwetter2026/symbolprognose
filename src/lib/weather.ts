@@ -643,6 +643,7 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     sunrise: (d?.sunrise ?? []).map((v) => v ?? ""),
     sunset: (d?.sunset ?? []).map((v) => v ?? ""),
     snowfall_sum: fixNumArr(d?.snowfall_sum as (number | null)[]),
+    precipitation_hours: fixNumArr(d?.precipitation_hours as (number | null)[]),
   };
 
   return {
