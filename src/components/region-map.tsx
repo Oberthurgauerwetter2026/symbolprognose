@@ -47,7 +47,9 @@ import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
 import thurgauData from "@/data/thurgau.json";
 import switzerlandData from "@/data/switzerland.json";
-import { fetchForecast } from "@/lib/weather";
+import { useServerFn } from "@tanstack/react-start";
+import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
+
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
@@ -259,12 +261,14 @@ function SpotMarker({
   isDay: boolean;
   onClick: () => void;
 }) {
+  const getForecast = useServerFn(getAggregatedForecast);
   const { data } = useQuery({
     queryKey: ["map-weather", spot.id],
-    queryFn: () => fetchForecast(spot.lat, spot.lon),
+    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon } }),
     staleTime: 1000 * 60 * 30,
     gcTime: 1000 * 60 * 60,
   });
+
 
   const icon = useMemo(() => {
     if (!data) {
@@ -526,12 +530,14 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
 
   // Datenstand vom ersten Spot (Cache wird mit den Markern geteilt).
   const firstSpot = SPOTS[0];
+  const getForecast = useServerFn(getAggregatedForecast);
   const { dataUpdatedAt } = useQuery({
     queryKey: ["map-weather", firstSpot.id],
-    queryFn: () => fetchForecast(firstSpot.lat, firstSpot.lon),
+    queryFn: () => getForecast({ data: { lat: firstSpot.lat, lon: firstSpot.lon } }),
     staleTime: 1000 * 60 * 30,
     gcTime: 1000 * 60 * 60,
   });
+
 
   const days = useMemo(() => {
     const base = new Date();

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
-  fetchForecast,
   formatDateShort,
   formatTimeHHMM,
   reverseGeocode,
@@ -13,6 +13,8 @@ import {
   windDirectionLabel,
   type GeoLocation,
 } from "@/lib/weather";
+import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
+
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
 import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
@@ -159,12 +161,14 @@ export function WeatherWidget({
     return () => ro.disconnect();
   }, []);
 
+  const getForecast = useServerFn(getAggregatedForecast);
   const forecast = useQuery({
     queryKey: ["forecast", location?.latitude ?? 0, location?.longitude ?? 0],
-    queryFn: () => fetchForecast(location!.latitude, location!.longitude),
+    queryFn: () => getForecast({ data: { lat: location!.latitude, lon: location!.longitude } }),
     enabled: !!location,
     staleTime: 15 * 60 * 1000,
   });
+
 
   const days = useMemo(() => {
     if (!forecast.data) return [];
