@@ -342,6 +342,16 @@ async function fetchEnsembleMean(
     if (series.length === 0) continue;
     const mean: number[] = new Array(time.length);
     for (let i = 0; i < time.length; i++) {
+      if (v === "weathercode") {
+        const codes: number[] = [];
+        for (const s of series) {
+          const x = s[i];
+          if (typeof x === "number" && Number.isFinite(x)) codes.push(x);
+        }
+        const rep = representativeWeathercode(codes);
+        mean[i] = rep ?? (NaN as number);
+        continue;
+      }
       let sum = 0;
       let count = 0;
       for (const s of series) {
@@ -351,7 +361,7 @@ async function fetchEnsembleMean(
           count++;
         }
       }
-      mean[i] = count > 0 ? (v === "weathercode" ? Math.round(sum / count) : sum / count) : (NaN as number);
+      mean[i] = count > 0 ? sum / count : (NaN as number);
     }
     (out as Record<string, unknown>)[v] = mean;
   }
