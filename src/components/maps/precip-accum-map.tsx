@@ -284,7 +284,8 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
         // Leaflet-Controls (Zoom-Buttons, Attribution) im Export weglassen
         filter: (node: HTMLElement) => {
           if (!(node instanceof HTMLElement)) return true;
-          if (node.classList?.contains("leaflet-control-container")) return false;
+          // Zoom-Buttons aus dem Export ausblenden, Attribution behalten.
+          if (node.classList?.contains("leaflet-control-zoom")) return false;
           if (node.dataset && "exportExclude" in node.dataset) return false;
           return true;
         },
