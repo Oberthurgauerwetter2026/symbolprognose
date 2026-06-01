@@ -369,17 +369,11 @@ export function WeatherIcon({
   if (isSnow && !wmoIsWet) return <IconSnow {...props} />;
 
   // Sonnen-Korrektiv: bei trockenen Bewölkungs-Codes (2/3) und viel Sonne das Symbol aufhellen.
-  // Nur greifen, wenn im Aggregationsfenster wirklich kein/kaum Regen fällt.
-  const dryEnoughForSun =
-    scope === "daily"
-      ? (precipHours ?? 0) < 1 && (precip ?? 0) < 0.5
-      : (precip ?? 0) < 0.1 && (precipProb ?? 0) < 40;
-  if (isDay && !wmoIsWet && dryEnoughForSun && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
+  if (isDay && !wmoIsWet && (code === 2 || code === 3) && typeof sunshineRatio === "number") {
     if (sunshineRatio >= 0.7) return <IconClear {...props} />;
     if (sunshineRatio >= 0.4) return <IconMostlyClear isDay {...props} />;
     if (sunshineRatio >= 0.15) return <IconPartlyCloudy isDay {...props} />;
   }
-
 
   if (code === 0) return isDay ? <IconClear {...props} /> : <IconClearNight {...props} />;
   if (code === 1) return <IconMostlyClear isDay={isDay} {...props} />;
