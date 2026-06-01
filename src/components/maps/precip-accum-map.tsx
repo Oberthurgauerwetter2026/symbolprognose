@@ -37,12 +37,20 @@ const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; 
   { min: 100, max: 9999, rgb: [95, 15, 100],   label: "100+" },
 ];
 
-function colorForAccum(mm: number): [number, number, number, number] {
-  if (mm < ACCUM_CLASSES[0].min) return [0, 0, 0, 0];
-  for (const c of ACCUM_CLASSES) {
-    if (mm >= c.min && mm < c.max) return [c.rgb[0], c.rgb[1], c.rgb[2], 0.86];
+function classIndexForAccum(mm: number): number {
+  if (mm < ACCUM_CLASSES[0].min) return -1;
+  for (let i = 0; i < ACCUM_CLASSES.length; i++) {
+    const c = ACCUM_CLASSES[i];
+    if (mm >= c.min && mm < c.max) return i;
   }
-  return [0, 0, 0, 0];
+  return -1;
+}
+
+function colorForAccum(mm: number): [number, number, number, number] {
+  const idx = classIndexForAccum(mm);
+  if (idx < 0) return [0, 0, 0, 0];
+  const c = ACCUM_CLASSES[idx];
+  return [c.rgb[0], c.rgb[1], c.rgb[2], 1.0];
 }
 
 interface AccumResult {
