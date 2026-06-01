@@ -736,7 +736,11 @@ function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     sunset: (d?.sunset ?? []).map((v) => v ?? ""),
     snowfall_sum: fixNumArr(d?.snowfall_sum as (number | null)[]),
     precipitation_hours: fixNumArr(d?.precipitation_hours as (number | null)[]),
+    cloud_cover_low_mean: fixNumArr(d?.cloud_cover_low_mean as (number | null)[] | undefined),
+    cloud_cover_mid_mean: fixNumArr(d?.cloud_cover_mid_mean as (number | null)[] | undefined),
+    cloud_cover_high_mean: fixNumArr(d?.cloud_cover_high_mean as (number | null)[] | undefined),
   };
+
 
   return {
     ...data,
