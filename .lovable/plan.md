@@ -1,11 +1,13 @@
-## Prognose pixelig rendern (Search.ch-Look)
+## Prognose als Iso-Band-Konturen (Referenzbild-Stil)
 
-Nur in `src/components/maps/radar-map.tsx`, Komponente `PrecipOverlay`:
+Nur `PrecipOverlay` in `src/components/maps/radar-map.tsx`. Messung (PNG) bleibt unberührt.
 
-1. Prop `smooth` → `pixelated` umbenennen (eine Aufrufstelle).
-2. **Sampling**: bei `pixelated` Nearest-Neighbor statt bilinear — direkt `v00` nehmen, kein `tx/ty`-Mix. Grid-Zellen bleiben als Blöcke sichtbar.
-3. **Upscale**: bei `pixelated` `ctx.imageSmoothingEnabled = false` und `canvas.style.imageRendering = "pixelated"`.
-4. **Farbe**: bei `pixelated` `colorFor` (diskrete Stufen) statt `colorForSmooth`. Palette unverändert.
-5. Aufruf: `pixelated={currentFrame.source !== "radar"}` — nur Prognose betroffen, Messung (PNG-Pfad) bleibt unberührt.
+1. Prop `pixelated` → `contour` umbenennen (eine Aufrufstelle).
+2. **Sampling bilinear** (kein Nearest-Neighbor) → glatte Kurven zwischen Gridzellen.
+3. **`ctx.imageSmoothingEnabled = true`** + `canvas.style.imageRendering = "auto"` → keine harten Pixel.
+4. **Farbe weiterhin `colorFor`** (diskrete Stufen) statt `colorForSmooth` → sichtbare Bänder mit klaren Übergängen.
+5. **Filter `blur(0.8px) contrast(2.2)` → `contrast(1.4)` ohne Blur** für `contour` → schärfere, aber nicht künstliche Bandkanten.
+6. **Off-Screen-Buffer prüfen**: falls Sub-Grid-Upscale zu niedrig (Treppen statt Kurven), Buffer-Auflösung mindestens 4× pro Grid-Zelle in jede Richtung, dann per `drawImage` weichgezogen.
+7. Aufruf: `contour={currentFrame.source !== "radar"}`.
 
-Snow-Farben (`snowColorFor`) und alle anderen Overlays unverändert.
+Snow-Farben unverändert.
