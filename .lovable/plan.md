@@ -1,14 +1,17 @@
-## Änderung in `src/components/maps/precip-accum-map.tsx`
+## Ortsbeschriftungen auf `/intern/niederschlag`
 
-In `renderHeatmapDataUrl` nach dem `ctx.putImageData(...)` einen Weichzeichnungs-Pass ergänzen:
+In `src/components/maps/precip-accum-map.tsx` sieben Ortspunkte mit Labels einblenden: Bischofszell, Romanshorn, Amriswil, Horn, Erlen, Münsterlingen, Güttingen.
 
-- Off-Screen-Canvas gleicher Größe anlegen, Original-Bitmap mit `ctx.filter = "blur(2px)"` darauf zeichnen.
-- Den geblurrten Inhalt zurück auf das Haupt-Canvas zeichnen.
-- Border-Alpha leicht erhöhen (dunkel `210 → 230`, hell `235 → 250`), damit Trennlinien durch den Blur nicht verschwinden.
+### Umsetzung
 
-Effekt: Klassenkanten werden zusätzlich zur Browser-Bilinear-Skalierung an der Bitmap-Quelle weichgezeichnet → sichtbar rundere, weichere Übergänge.
+- Import erweitern: `CircleMarker, Tooltip` aus `react-leaflet`.
+- Konstante `CITIES: { name, lat, lon }[]` mit den 7 Orten (Koordinaten aus bekannten Werten, z. B. Amriswil 47.5469/9.2986).
+- Nach dem THURGAU-`GeoJSON` (Zeile 422), vor `ZoomControl`, eine Liste rendern:
+  - `CircleMarker` (radius 3, weiß gefüllt, dunkler Rand, `interactive={false}`)
+  - dazu permanentes `Tooltip` (`permanent direction="right" offset={[6,0]}`) mit Ortsname, eigene CSS-Klasse für kleines, kompaktes Label (weißer Halbtransparenz-Hintergrund, dunkler Text, kein Pfeil).
+- Tooltip-Styling via kleine `<style>`-Injektion oder Klasse in `src/styles.css` (kurz, lokal in der Komponente reicht).
 
-## Verifikation
+### Verifikation
 
-- `/intern/niederschlag` → Heatmap-Bänder mit weichen, gerundeten Übergängen, Trennlinien bleiben erkennbar.
-- Download-PNG zeigt denselben Look.
+- `/intern/niederschlag`: sieben Ortspunkte mit Namen sichtbar, auch bei Zoom-Änderungen lesbar.
+- PNG-Download enthält die Marker und Labels (liegen im Map-Container, werden vom html-to-image-Filter nicht ausgeschlossen).
