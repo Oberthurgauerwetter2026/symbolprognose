@@ -1,3 +1,7 @@
-In `src/components/maps/radar-map.tsx` den Standard-Zoom des `MapContainer` von `zoom={9.5}` auf `zoom={9}` reduzieren — damit ist beim Aufruf etwas mehr Umland sichtbar. Center bleibt unverändert.
+In `src/components/maps/radar-map.tsx`:
 
-Falls 9 zu weit ist, wäre `9.25` ein Zwischenschritt (zoomSnap=0.5 erlaubt halbe Stufen, also nicht 9.25 — dann 9.0 oder 9.5).
+1. **Zoom zurück auf 9.5** (`MapContainer zoom={9.5}`).
+2. **„Jetzt"-Button entfernen** aus der Sekundär-Toolbar.
+3. **„Hagel" ins Zahnrad-Popover verschieben** als Switch (analog zum Auto-Loop), mit deaktiviertem Zustand wenn `!data.hasHail`.
+4. Die nun leere Sekundär-Toolbar (`mt-1.5 flex flex-wrap …`) komplett entfernen → Overlay-Panel wird vertikal um ~28 px schlanker, nur noch eine Zeile (Play | Slider | Next | ⚙).
+5. Den `Hinweis: …`-Text (Daten-Warnung) als kleinen Hinweis unter den Slider in derselben Panel-Box rendern, falls vorhanden — bleibt optisch dezent.
