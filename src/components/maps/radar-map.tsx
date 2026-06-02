@@ -14,7 +14,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, CloudHail, Settings } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
@@ -978,7 +978,7 @@ export function RadarMap({
       >
         <MapContainer
           center={[47.575, 9.35]}
-          zoom={9}
+          zoom={9.5}
           zoomSnap={0.5}
           zoomDelta={0.5}
           maxBounds={maxBoundsExt}
@@ -1272,53 +1272,35 @@ export function RadarMap({
                           </div>
                           <Switch checked={loop} onCheckedChange={setLoop} aria-label="Auto-Loop" />
                         </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className={cn(
+                              "text-[11px] font-semibold",
+                              data?.hasHail ? "text-neutral-700" : "text-neutral-400",
+                            )}>
+                              Hagel (POH)
+                            </p>
+                            <p className="text-[10px] text-neutral-500">
+                              {data?.hasHail ? "Wahrscheinlichkeit einblenden" : "Aktuell nicht verfügbar"}
+                            </p>
+                          </div>
+                          <Switch
+                            checked={showHail && !!data?.hasHail}
+                            onCheckedChange={setShowHail}
+                            disabled={!data?.hasHail}
+                            aria-label="Hagel-Layer"
+                          />
+                        </div>
                       </div>
                     </PopoverContent>
                   </Popover>
                 </div>
 
-                {/* Sekundär-Toolbar: Jetzt, Hagel */}
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIdx(nowIdx);
-                      setPlaying(false);
-                    }}
-                    className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
-                  >
-                    Jetzt
-                  </button>
-
-                  {data?.warning && (
-                    <span className="truncate text-[10px] text-neutral-500">
-                      Hinweis: {data.warning}
-                    </span>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setShowHail((v) => !v)}
-                    className={cn(
-                      "ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold transition",
-                      !data?.hasHail && "cursor-not-allowed opacity-60",
-                      showHail && data?.hasHail
-                        ? "border-transparent text-white shadow-sm"
-                        : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50",
-                    )}
-                    style={showHail && data?.hasHail ? { background: BRAND } : undefined}
-                    title={
-                      data?.hasHail
-                        ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
-                        : "Hagel – nur in der Vergangenheit verfügbar, sobald MeteoSchweiz-Radar aktiv ist"
-                    }
-                    disabled={!data?.hasHail}
-                  >
-                    <CloudHail className="h-3 w-3" />
-                    Hagel
-                    {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
-                  </button>
-                </div>
+                {data?.warning && (
+                  <p className="mt-1 truncate text-center text-[10px] text-neutral-500">
+                    Hinweis: {data.warning}
+                  </p>
+                )}
               </>
             )}
           </div>
