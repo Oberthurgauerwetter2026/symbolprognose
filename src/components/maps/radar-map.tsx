@@ -1239,7 +1239,13 @@ export function RadarMap({
                         <Settings className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                       </button>
                     </PopoverTrigger>
-                    <PopoverContent side="top" align="end" className="w-56 p-3">
+                    <PopoverContent
+                      side="top"
+                      align="end"
+                      sideOffset={8}
+                      collisionPadding={12}
+                      className="z-[1000] w-60 border-neutral-200 bg-white p-3 text-neutral-900 shadow-xl"
+                    >
                       <div className="space-y-3">
                         <div>
                           <p className="mb-1.5 text-[11px] font-semibold text-neutral-600">
