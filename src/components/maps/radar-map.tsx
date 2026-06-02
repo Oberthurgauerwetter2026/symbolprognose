@@ -1163,148 +1163,174 @@ export function RadarMap({
             <span className="text-muted-foreground">POH</span>
           </div>
         </div>
+
+        {/* Steuerung — schwebendes Overlay-Panel unten in der Karte */}
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3">
+          <div className="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white/90 p-2 text-neutral-900 shadow-lg backdrop-blur sm:p-2.5">
+            {isLoading && (
+              <p className="text-center text-xs text-neutral-500">Lade Radardaten …</p>
+            )}
+            {error && (
+              <p className="text-center text-xs text-red-600">
+                Radardaten konnten nicht geladen werden.
+              </p>
+            )}
+
+            {data && frames.length > 0 && idx !== null && (
+              <>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {/* Play/Pause */}
+                  <button
+                    type="button"
+                    onClick={() => setPlaying((p) => !p)}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
+                    style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
+                    aria-label={playing ? "Pause" : "Play"}
+                  >
+                    {playing ? <Pause className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Play className="h-4 w-4 translate-x-px sm:h-3.5 sm:w-3.5" />}
+                  </button>
+                  {/* Prev */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlaying(false);
+                      setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
+                    }}
+                    className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
+                    aria-label="Vorheriger Frame"
+                  >
+                    <ChevronLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                  </button>
+
+                  {/* Track */}
+                  <div className="min-w-0 flex-1">
+                    <MeteoTimeline
+                      frames={frames}
+                      idx={idx}
+                      isMobile={isMobile}
+                      onChange={(i) => {
+                        setIdx(i);
+                        setPlaying(false);
+                      }}
+                    />
+                  </div>
+
+                  {/* Next */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlaying(false);
+                      setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
+                    }}
+                    className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
+                    aria-label="Nächster Frame"
+                  >
+                    <ChevronRight className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                  </button>
+
+                  {/* Einstellungen (Speed + Loop) */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
+                        aria-label="Wiedergabe-Einstellungen"
+                      >
+                        <Settings className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" align="end" className="w-56 p-3">
+                      <div className="space-y-3">
+                        <div>
+                          <p className="mb-1.5 text-[11px] font-semibold text-neutral-600">
+                            Geschwindigkeit
+                          </p>
+                          <div className="inline-flex w-full items-center rounded-full border border-neutral-200 bg-white p-0.5">
+                            {[1, 2, 5, 10].map((s) => {
+                              const active = speed === s;
+                              return (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => setSpeed(s)}
+                                  className={cn(
+                                    "flex-1 rounded-full px-2 py-1 text-[11px] font-semibold transition",
+                                    active ? "text-white shadow-sm" : "text-neutral-600 hover:text-neutral-900",
+                                  )}
+                                  style={active ? { background: BRAND } : undefined}
+                                >
+                                  {s}×
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[11px] font-semibold text-neutral-700">Auto-Loop</p>
+                            <p className="text-[10px] text-neutral-500">Endlos wiederholen</p>
+                          </div>
+                          <Switch checked={loop} onCheckedChange={setLoop} aria-label="Auto-Loop" />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Sekundär-Toolbar: Jetzt, Hagel */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdx(nowIdx);
+                      setPlaying(false);
+                    }}
+                    className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
+                  >
+                    Jetzt
+                  </button>
+
+                  {data?.warning && (
+                    <span className="truncate text-[10px] text-neutral-500">
+                      Hinweis: {data.warning}
+                    </span>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowHail((v) => !v)}
+                    className={cn(
+                      "ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold transition",
+                      !data?.hasHail && "cursor-not-allowed opacity-60",
+                      showHail && data?.hasHail
+                        ? "border-transparent text-white shadow-sm"
+                        : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50",
+                    )}
+                    style={showHail && data?.hasHail ? { background: BRAND } : undefined}
+                    title={
+                      data?.hasHail
+                        ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
+                        : "Hagel – nur in der Vergangenheit verfügbar, sobald MeteoSchweiz-Radar aktiv ist"
+                    }
+                    disabled={!data?.hasHail}
+                  >
+                    <CloudHail className="h-3 w-3" />
+                    Hagel
+                    {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Steuerung — schlankes weisses Panel */}
-      <div className="rounded-xl border border-neutral-200 bg-white p-2 text-neutral-900 shadow-md sm:p-3">
-        {isLoading && (
-          <p className="text-center text-xs text-neutral-500">Lade Radardaten …</p>
-        )}
-        {error && (
-          <p className="text-center text-xs text-red-600">
-            Radardaten konnten nicht geladen werden.
-          </p>
-        )}
-        {data?.warning && (
-          <p className="mb-1.5 text-center text-[11px] text-neutral-500">
-            Hinweis: {data.warning}
-          </p>
-        )}
-
-        {data && frames.length > 0 && idx !== null && (
-          <>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Play/Pause */}
-              <button
-                type="button"
-                onClick={() => setPlaying((p) => !p)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
-                style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
-                aria-label={playing ? "Pause" : "Play"}
-              >
-                {playing ? <Pause className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Play className="h-4 w-4 translate-x-px sm:h-3.5 sm:w-3.5" />}
-              </button>
-              {/* Prev */}
-              <button
-                type="button"
-                onClick={() => {
-                  setPlaying(false);
-                  setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
-                }}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
-                aria-label="Vorheriger Frame"
-              >
-                <ChevronLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-              </button>
-
-              {/* Track */}
-              <div className="min-w-0 flex-1">
-                <MeteoTimeline
-                  frames={frames}
-                  idx={idx}
-                  isMobile={isMobile}
-                  onChange={(i) => {
-                    setIdx(i);
-                    setPlaying(false);
-                  }}
-                />
-              </div>
-
-              {/* Next */}
-              <button
-                type="button"
-                onClick={() => {
-                  setPlaying(false);
-                  setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
-                }}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
-                aria-label="Nächster Frame"
-              >
-                <ChevronRight className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-              </button>
-            </div>
-
-            {/* Sekundär-Toolbar: Jetzt, Speed, Modell, Hagel */}
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => {
-                  setIdx(nowIdx);
-                  setPlaying(false);
-                }}
-                className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50"
-              >
-                Jetzt
-              </button>
-
-
-
-              <div className="inline-flex items-center rounded-full border border-neutral-200 bg-white p-0.5">
-                {[1, 2, 4].map((s) => {
-                  const active = speed === s;
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSpeed(s)}
-                      className={cn(
-                        "rounded-full px-2 py-0.5 font-semibold transition",
-                        active ? "text-white shadow-sm" : "text-neutral-600 hover:text-neutral-900",
-                      )}
-                      style={active ? { background: BRAND } : undefined}
-                    >
-                      {s}×
-                    </button>
-                  );
-                })}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowHail((v) => !v)}
-                className={cn(
-                  "ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-semibold transition",
-                  !data?.hasHail && "cursor-not-allowed opacity-60",
-                  showHail && data?.hasHail
-                    ? "border-transparent text-white shadow-sm"
-                    : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50",
-                )}
-                style={showHail && data?.hasHail ? { background: BRAND } : undefined}
-                title={
-                  data?.hasHail
-                    ? "Hagelwahrscheinlichkeit (POH) ein-/ausblenden"
-                    : "Hagel – nur in der Vergangenheit verfügbar, sobald MeteoSchweiz-Radar aktiv ist"
-                }
-                disabled={!data?.hasHail}
-              >
-                <CloudHail className="h-3 w-3" />
-                Hagel
-                {!data?.hasHail && <span className="text-[9px] opacity-70">bald</span>}
-              </button>
-            </div>
-
-
-
-
-            <p className="mt-1.5 text-[10px] text-neutral-500">
-              Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung & Hagel-POH) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
-            </p>
-
-
-
-          </>
-        )}
-      </div>
+      {/* Footnote unter der Karte */}
+      {data && (
+        <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
+          Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
+        </p>
+      )}
     </div>
   );
 }
