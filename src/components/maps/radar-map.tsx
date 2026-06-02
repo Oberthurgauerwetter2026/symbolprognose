@@ -14,7 +14,9 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, CloudHail } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, CloudHail, Settings } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 
 
 import regionData from "@/data/region.json";
