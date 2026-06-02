@@ -23,6 +23,16 @@ const MAP_BOUNDS: [[number, number], [number, number]] = [
   [47.90, 9.95],
 ];
 
+const CITIES: { name: string; lat: number; lon: number }[] = [
+  { name: "Bischofszell", lat: 47.4972, lon: 9.2336 },
+  { name: "Romanshorn", lat: 47.5667, lon: 9.3786 },
+  { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
+  { name: "Horn", lat: 47.4972, lon: 9.4486 },
+  { name: "Erlen", lat: 47.5417, lon: 9.2417 },
+  { name: "Münsterlingen", lat: 47.6325, lon: 9.2389 },
+  { name: "Güttingen", lat: 47.6014, lon: 9.2861 },
+];
+
 // Klassengrenzen mm (radar-ähnlich, Kachelmann/MeteoSchweiz). Harte Bänder, keine Interpolation.
 const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; label: string }[] = [
   { min: 0.3, max: 1,    rgb: [195, 220, 245], label: "0.3" },
