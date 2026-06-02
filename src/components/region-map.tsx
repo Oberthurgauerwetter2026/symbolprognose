@@ -229,11 +229,11 @@ function MarkerPill({
         <div style={{ display: "flex", gap: 4, alignItems: "baseline" }}>
           {mode === "daily" ? (
             <>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(15,23,42,0.6)" }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: tempTint(tMin, 0.78) }}>
                 {Number.isFinite(tMin) ? `${Math.round(tMin)}°` : "–"}
               </span>
               <span style={{ fontSize: 12, color: "rgba(15,23,42,0.35)" }}>/</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: tempTint(tMax, 1) }}>
                 {Number.isFinite(tMax) ? `${Math.round(tMax)}°` : "–"}
               </span>
             </>
