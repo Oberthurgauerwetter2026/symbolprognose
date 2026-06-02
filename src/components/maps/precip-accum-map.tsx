@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, CircleMarker, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 
@@ -21,6 +21,16 @@ const MAP_CENTER: [number, number] = [47.575, 9.35];
 const MAP_BOUNDS: [[number, number], [number, number]] = [
   [47.25, 8.65],
   [47.90, 9.95],
+];
+
+const CITIES: { name: string; lat: number; lon: number }[] = [
+  { name: "Bischofszell", lat: 47.4972, lon: 9.2336 },
+  { name: "Romanshorn", lat: 47.5667, lon: 9.3786 },
+  { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
+  { name: "Horn", lat: 47.4972, lon: 9.4486 },
+  { name: "Erlen", lat: 47.5417, lon: 9.2417 },
+  { name: "Münsterlingen", lat: 47.6325, lon: 9.2389 },
+  { name: "Güttingen", lat: 47.6014, lon: 9.2861 },
 ];
 
 // Klassengrenzen mm (radar-ähnlich, Kachelmann/MeteoSchweiz). Harte Bänder, keine Interpolation.
@@ -373,6 +383,21 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
       </div>
       <CardContent className="p-0">
         <div className="relative h-[560px] w-full">
+          <style>{`
+            .leaflet-tooltip.city-label {
+              background: rgba(255,255,255,0.85);
+              border: none;
+              box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+              color: #0f172a;
+              font-size: 11px;
+              font-weight: 600;
+              padding: 1px 5px;
+              border-radius: 4px;
+              white-space: nowrap;
+            }
+            .leaflet-tooltip.city-label::before { display: none; }
+          `}</style>
+
 
           <MapContainer
             key={mapKeyRef.current}
@@ -420,6 +445,19 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
               style={() => ({ color: "#0f172a", weight: 2.2, opacity: 0.95, fill: false })}
               interactive={false}
             />
+            {CITIES.map((c) => (
+              <CircleMarker
+                key={c.name}
+                center={[c.lat, c.lon]}
+                radius={3}
+                pathOptions={{ color: "#0f172a", weight: 1.5, fillColor: "#ffffff", fillOpacity: 1 }}
+                interactive={false}
+              >
+                <Tooltip permanent direction="right" offset={[6, 0]} className="city-label">
+                  {c.name}
+                </Tooltip>
+              </CircleMarker>
+            ))}
             <ZoomControl position="topright" />
           </MapContainer>
 
