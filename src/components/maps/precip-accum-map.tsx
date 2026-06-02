@@ -383,6 +383,21 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
       </div>
       <CardContent className="p-0">
         <div className="relative h-[560px] w-full">
+          <style>{`
+            .leaflet-tooltip.city-label {
+              background: rgba(255,255,255,0.85);
+              border: none;
+              box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+              color: #0f172a;
+              font-size: 11px;
+              font-weight: 600;
+              padding: 1px 5px;
+              border-radius: 4px;
+              white-space: nowrap;
+            }
+            .leaflet-tooltip.city-label::before { display: none; }
+          `}</style>
+
 
           <MapContainer
             key={mapKeyRef.current}
