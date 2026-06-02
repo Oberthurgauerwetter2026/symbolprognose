@@ -748,9 +748,9 @@ export async function fetchForecast(
       if (!isThunder(src.hourly.weathercode[j])) continue;
       const i = timeIndex.get(src.hourly.time[j] ?? "");
       if (i == null) continue;
-      // Geisterblitze vermeiden: nur übernehmen, wenn auch ein spürbarer Niederschlag vorliegt.
+      // Geisterblitze vermeiden: nur übernehmen, wenn auch leichter Niederschlag vorliegt.
       const p = src.hourly.precipitation?.[j] ?? merged.hourly.precipitation?.[i] ?? 0;
-      if (p < 2) continue;
+      if (p < 0.5) continue;
       merged.hourly.weathercode[i] = src.hourly.weathercode[j] as number;
     }
   };

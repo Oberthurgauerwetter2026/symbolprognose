@@ -446,13 +446,13 @@ export function WeatherIcon({
   //  - sonstige Gewitterstunden ohne Sonne → Vollgewitter
   if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
     const th = thunderHours ?? 0;
-    const sunny = (sunshineRatio ?? 0) >= 0.15 && (precipHours ?? 0) < 8;
+    const sunny = (sunshineRatio ?? 0) >= 0.10 && (precipHours ?? 0) < 10;
 
-    // Vollgewitter nur, wenn das Gewitter den Tag prägt
+    // Vollgewitter nur, wenn das Gewitter den Tag wirklich prägt
     const heavyThunder =
-      th >= 3 ||
-      (th >= 2 && (precip ?? 0) >= 8) ||
-      (wmoIsThunder && (precipHours ?? 0) >= 5 && !sunny);
+      th >= 4 ||
+      (th >= 3 && (precip ?? 0) >= 8) ||
+      (wmoIsThunder && (precipHours ?? 0) >= 6 && !sunny);
 
     const sunIntensity: 2 | 3 | 4 =
       (precip ?? 0) >= 10 ? 4 : (precip ?? 0) >= 4 ? 3 : 2;
