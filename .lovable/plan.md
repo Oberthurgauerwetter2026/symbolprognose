@@ -1,17 +1,27 @@
-## Ortsbeschriftungen auf `/intern/niederschlag`
+## Ziel
+Die neuen Gewitter-Icons (`IconSunThunder`, `IconSunSnowThunder`, `IconThunderstorm`, `IconSnowThunder`) sollen bereits bei schwächeren Signalen erscheinen, damit konvektive Lagen nicht durch konservative Schwellen verloren gehen.
 
-In `src/components/maps/precip-accum-map.tsx` sieben Ortspunkte mit Labels einblenden: Bischofszell, Romanshorn, Amriswil, Horn, Erlen, Münsterlingen, Güttingen.
+## Änderungen
 
-### Umsetzung
+### 1. `src/lib/weather.ts` – Gewitter-Override (Zeile 736–756)
+Niederschlagsschwelle für die Übernahme von WMO-Code 95/96/99 aus `best_match` / MOSMIX in den geglätteten Ensemble-Mittel-Strang senken:
+- **alt:** `if (p < 2) continue;` (mind. 2 mm/h)
+- **neu:** `if (p < 0.5) continue;` (mind. 0.5 mm/h)
 
-- Import erweitern: `CircleMarker, Tooltip` aus `react-leaflet`.
-- Konstante `CITIES: { name, lat, lon }[]` mit den 7 Orten (Koordinaten aus bekannten Werten, z. B. Amriswil 47.5469/9.2986).
-- Nach dem THURGAU-`GeoJSON` (Zeile 422), vor `ZoomControl`, eine Liste rendern:
-  - `CircleMarker` (radius 3, weiß gefüllt, dunkler Rand, `interactive={false}`)
-  - dazu permanentes `Tooltip` (`permanent direction="right" offset={[6,0]}`) mit Ortsname, eigene CSS-Klasse für kleines, kompaktes Label (weißer Halbtransparenz-Hintergrund, dunkler Text, kein Pfeil).
-- Tooltip-Styling via kleine `<style>`-Injektion oder Klasse in `src/styles.css` (kurz, lokal in der Komponente reicht).
+Damit werden auch schwache Gewitterschauer ins ICON-CH2-Ensemble übertragen, wo das Ensemble-Mittel den Gewittercode wegmittelt.
 
-### Verifikation
+### 2. `src/components/weather-icons/index.tsx` – Daily-Gewitterlogik (Zeile 447–468)
+Schwellen lockern, sodass Sonne+Gewitter-Icon schon bei minimalem konvektivem Signal greift:
 
-- `/intern/niederschlag`: sieben Ortspunkte mit Namen sichtbar, auch bei Zoom-Änderungen lesbar.
-- PNG-Download enthält die Marker und Labels (liegen im Map-Container, werden vom html-to-image-Filter nicht ausgeschlossen).
+| Bedingung | alt | neu |
+|---|---|---|
+| Trigger für Daily-Gewitterzweig | `thunderHours ≥ 1` oder WMO-Thunder | unverändert |
+| `heavyThunder` Vollgewitter | `th ≥ 3` ODER (`th ≥ 2` & `precip ≥ 8`) ODER (WMO & `precipHours ≥ 5` & nicht sonnig) | `th ≥ 4` ODER (`th ≥ 3` & `precip ≥ 8`) ODER (WMO & `precipHours ≥ 6` & nicht sonnig) |
+| `sunny` (→ Sonne+Gewitter) | `sunshineRatio ≥ 0.15` & `precipHours < 8` | `sunshineRatio ≥ 0.10` & `precipHours < 10` |
+
+**Effekt:** Typische Sommer-Konvektionstage mit 1–3 Gewitterstunden und mittlerem Sonnenanteil zeigen jetzt verlässlich das Sonne-Wolke-Tropfen-Blitz-Icon statt eines reinen Regen-/Bewölkt-Icons. Vollgewitter bleibt den wirklich gewittergeprägten Tagen vorbehalten.
+
+## Verifikation
+- `/karten/lokal` öffnen, mehrere Orte/Tage durchklicken; bei aktuellen Daten erscheinen — sobald irgendein Modell Code 95/96/99 mit ≥ 0.5 mm/h liefert — die neuen Symbole.
+- Falls aktuell keine Gewitter prognostiziert sind (typisch Anfang Juni nach kühler Nordlage), bleibt die Anzeige korrekt ohne Gewitter — die Logik ist dann nicht sichtbar, aber die nächsten konvektiven Tage triggern verlässlich.
+- Stündliche Icons bleiben unverändert (greifen schon ab kleinen Mengen).
