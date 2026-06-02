@@ -1,24 +1,29 @@
-Tiefst- und Höchstwerte in der Pille (daily-Modus) bekommen eine dezente Temperatur-Farbe, damit sie auf einen Blick einordbar sind — ohne den minimalen Look zu brechen.
+Marker werden zu kompakten, kontraststarken Karten — solides Dunkel, fette Typografie, klare Hierarchie. Form bleibt Pill (abgerundet), Inhalt wird visuell deutlich stärker.
 
-## Umsetzung
+## Änderungen in `src/components/region-map.tsx`
 
-In `src/components/region-map.tsx` (Zeilen 230–244) eine kleine Hilfsfunktion `tempTint(t)` einführen, die für einen °C-Wert eine gedämpfte Farbe liefert:
+**Container (Zeilen 180–197):**
+- Hintergrund: solides `#0f172a` (slate-900)
+- Rand: `1px solid rgba(255,255,255,0.08)` für saubere Kante
+- Schatten: `0 10px 24px rgba(15,23,42,0.45), 0 2px 6px rgba(15,23,42,0.3)` — deutliche Erhebung gegen die Karte
+- Border-Radius: bleibt `999` (Pill)
+- Padding: leicht erhöhen auf `9px 14px 9px 10px`
 
-- ≤ −10°: `#3b5bdb` (tiefes Blau)
-- −10 … 0°: `#4c6ef5` → `#5c9bd9`
-- 0 … 10°: `#5c9bd9` → `#74c0fc` (kühl)
-- 10 … 18°: `#62a87a` (neutral-grün)
-- 18 … 25°: `#e8a23b` (warm)
-- 25 … 30°: `#e8744a`
-- > 30°: `#d6453b` (heiß)
+**Ortsname (Zeile 217–228):**
+- Farbe: `#ffffff`
+- Gewicht: `700` (statt 600)
+- Größe: `12`
+- Letter-spacing: `0.06em`
+- Uppercase bleibt
 
-Werte werden linear zwischen Stützstellen interpoliert.
+**Temperaturwerte:**
+- `tNow` (hourly): `#ffffff`, `fontWeight: 800`, `fontSize: 17`
+- `tMax` (daily): `fontWeight: 800`, `fontSize: 17`, Farbe weiss (`#ffffff`) — Temperatur-Tönung entfällt zugunsten von reinem Kontrast
+- `tMin` (daily): `fontWeight: 700`, `fontSize: 14`, Farbe `rgba(255,255,255,0.7)`
+- Trenner `/`: `rgba(255,255,255,0.35)`, `fontSize: 12`
 
-Anwendung nur im **daily**-Modus:
-- `tMin`: Farbe = `tempTint(tMin)` bei reduzierter Deckkraft (~75 %), Gewicht bleibt 600, Größe 14.
-- `tMax`: Farbe = `tempTint(tMax)` voll deckend, Gewicht 700, Größe 16 — bleibt der visuelle Anker.
-- Trenner `/` bleibt grau (`rgba(15,23,42,0.35)`).
+**Aufräumen:** `tempTint`-Funktion (eingeführt im letzten Schritt) wird entfernt, da Farb-Tönung nun nicht mehr verwendet wird.
 
-Im **hourly**-Modus bleibt `tNow` schwarz wie bisher (oder optional ebenfalls leicht eingefärbt — sage Bescheid, falls gewünscht).
+**Icon:** Größe bleibt `40`. Icons sind farbig (Sonne gelb, Wolken hell) und stehen auf dem dunklen Grund kontrastreich — keine Anpassung nötig.
 
-Keine Änderungen an Layout, Pillen-Hintergrund, Icon oder Schatten.
+Layout-Struktur (Icon links, Text-Spalte rechts) bleibt erhalten.
