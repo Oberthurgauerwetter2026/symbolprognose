@@ -805,7 +805,13 @@ function MeteoTimeline({
             className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${handlePct}%` }}
           >
-            <div className="relative h-6 w-[3px] rounded-sm bg-neutral-900 shadow-md before:absolute before:-inset-x-3 before:-inset-y-2 before:content-['']" />
+            <div className="relative h-6 w-[2px] rounded-sm bg-neutral-900/70">
+              {/* Greif-Knopf */}
+              <div
+                className="absolute left-1/2 top-1/2 h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md before:absolute before:-inset-3 before:content-['']"
+                style={{ background: BRAND }}
+              />
+            </div>
             {/* Bubble */}
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
               <span
