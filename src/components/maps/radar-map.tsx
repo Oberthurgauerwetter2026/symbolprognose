@@ -884,11 +884,17 @@ export function RadarMap({
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1); // 1× ≈ 1800ms pro Stunden-Prognoseframe
+  const [speed, setSpeed] = useState(2); // Default 2× beim Play
+  const [loop, setLoop] = useState(false);
   const [showHail, setShowHail] = useState(true);
 
   const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
+
+  // loop in einem Ref spiegeln, damit der Play-rAF nicht neu startet, wenn
+  // der User den Loop-Switch toggelt.
+  const loopRef = useRef(loop);
+  useEffect(() => { loopRef.current = loop; }, [loop]);
 
   // Auf "jetzt" springen sobald Daten da sind.
   useEffect(() => {
@@ -913,7 +919,12 @@ export function RadarMap({
           setIdx((cur) => {
             if (cur === null) return 0;
             const next = cur + 1;
-            return next >= frames.length ? 0 : next;
+            if (next >= frames.length) {
+              if (loopRef.current) return 0;
+              setPlaying(false);
+              return cur;
+            }
+            return next;
           });
           return np - 1;
         }
