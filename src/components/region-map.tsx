@@ -217,13 +217,13 @@ function MarkerPill({
         display: "inline-flex",
         alignItems: "center",
         gap: 8,
-        padding: "8px 16px 8px 10px",
+        padding: "9px 14px 9px 10px",
         borderRadius: 999,
-        background: "rgba(255,255,255,0.92)",
-        border: "1px solid rgba(15,23,42,0.12)",
-        boxShadow: "0 6px 18px rgba(15,23,42,0.18), 0 2px 4px rgba(15,23,42,0.10)",
+        background: "#0f172a",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 10px 24px rgba(15,23,42,0.45), 0 2px 6px rgba(15,23,42,0.3)",
         fontFamily: '"Figtree", system-ui, sans-serif',
-        color: "#0f172a",
+        color: "#ffffff",
         lineHeight: 1.15,
         cursor: "pointer",
         transition: "transform 120ms ease, box-shadow 150ms ease",
@@ -251,9 +251,9 @@ function MarkerPill({
         <span
           style={{
             fontSize: 12,
-            fontWeight: 600,
-            color: "rgba(15,23,42,0.65)",
-            letterSpacing: "0.04em",
+            fontWeight: 700,
+            color: "#ffffff",
+            letterSpacing: "0.06em",
             lineHeight: 1,
             textTransform: "uppercase",
           }}
@@ -263,16 +263,16 @@ function MarkerPill({
         <div style={{ display: "flex", gap: 4, alignItems: "baseline" }}>
           {mode === "daily" ? (
             <>
-              <span style={{ fontSize: 14, fontWeight: 600, color: tempTint(tMin, 0.78) }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>
                 {Number.isFinite(tMin) ? `${Math.round(tMin)}°` : "–"}
               </span>
-              <span style={{ fontSize: 12, color: "rgba(15,23,42,0.35)" }}>/</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: tempTint(tMax, 1) }}>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>/</span>
+              <span style={{ fontSize: 17, fontWeight: 800, color: "#ffffff" }}>
                 {Number.isFinite(tMax) ? `${Math.round(tMax)}°` : "–"}
               </span>
             </>
           ) : (
-            <span style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+            <span style={{ fontSize: 17, fontWeight: 800, color: "#ffffff" }}>
               {Number.isFinite(tNow) ? `${Math.round(tNow)}°` : "–"}
             </span>
           )}
