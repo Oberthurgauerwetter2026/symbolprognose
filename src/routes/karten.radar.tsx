@@ -3,6 +3,7 @@ import { lazy, Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
 import { getMap } from "@/lib/maps-config";
+import { getRadarFrames } from "@/lib/radar.functions";
 
 const def = getMap("radar");
 const RadarMap = lazy(() =>
@@ -11,6 +12,14 @@ const RadarMap = lazy(() =>
 
 export const Route = createFileRoute("/karten/radar")({
   ssr: false,
+  loader: ({ context }) => {
+    // Daten parallel zum Lazy-Chunk laden, ohne die Navigation zu blockieren.
+    context.queryClient.prefetchQuery({
+      queryKey: ["radar-frames"],
+      queryFn: () => getRadarFrames(),
+      staleTime: 5 * 60_000,
+    });
+  },
   component: KartenRadarPage,
   head: () => ({
     meta: [
@@ -19,6 +28,7 @@ export const Route = createFileRoute("/karten/radar")({
     ],
   }),
 });
+
 
 function KartenRadarPage() {
   return (
