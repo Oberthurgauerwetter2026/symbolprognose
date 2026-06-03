@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 import {
   fetchForecast,
   sanitizeForecast,
@@ -146,12 +145,6 @@ export const getAggregatedForecast = createServerFn({ method: "GET" })
     };
   })
   .handler(async ({ data }): Promise<ForecastResponse> => {
-    // Kurzer Edge-Cache: Daten im R2-Cache rotieren ohnehin nur alle 5 min.
-    setResponseHeader(
-      "Cache-Control",
-      "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
-    );
-
     const cached = await forecastFromCache(data.lat, data.lon);
     if (cached) return cached;
 

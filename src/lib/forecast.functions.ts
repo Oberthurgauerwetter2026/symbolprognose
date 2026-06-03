@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 import { getOpenMeteoCache } from "./openmeteo-cache.server";
 
 /**
@@ -50,11 +49,6 @@ export const getMultiModelForecast = createServerFn({ method: "GET" })
     return input;
   })
   .handler(async ({ data }): Promise<MultiModelLocationForecast | null> => {
-    setResponseHeader(
-      "Cache-Control",
-      "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
-    );
-
     const cache = await getOpenMeteoCache();
     if (!cache?.phaseA?.length) {
       console.warn("[forecast] phaseA missing in R2 cache");
