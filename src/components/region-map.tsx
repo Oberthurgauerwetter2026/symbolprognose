@@ -206,15 +206,15 @@ function MarkerPill({
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          width: 69,
-          height: 69,
+          width: 71,
+          height: 71,
         }}
       >
         <span style={{ display: "inline-flex", filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.45)) drop-shadow(0 1px 2px rgba(0,0,0,0.35))" }}>
           <WeatherIcon
             code={code}
             isDay={isDay}
-            size={69}
+            size={71}
             scope={mode}
             precip={precip}
             precipProb={precipProb}
