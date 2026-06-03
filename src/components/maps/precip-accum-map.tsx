@@ -105,16 +105,16 @@ function CityMarkers() {
 
 // Klassengrenzen mm (radar-ähnlich, Kachelmann/MeteoSchweiz). Harte Bänder, keine Interpolation.
 const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; label: string }[] = [
-  { min: 0.3, max: 1,    rgb: [195, 220, 245], label: "0.3" },
-  { min: 1,   max: 2,    rgb: [120, 170, 230], label: "1" },
-  { min: 2,   max: 5,    rgb: [40, 110, 215],  label: "2" },
-  { min: 5,   max: 10,   rgb: [20, 50, 165],   label: "5" },
-  { min: 10,  max: 20,   rgb: [40, 170, 80],   label: "10" },
-  { min: 20,  max: 30,   rgb: [245, 230, 50],  label: "20" },
-  { min: 30,  max: 50,   rgb: [245, 160, 35],  label: "30" },
-  { min: 50,  max: 75,   rgb: [230, 55, 35],   label: "50" },
-  { min: 75,  max: 100,  rgb: [165, 30, 130],  label: "75" },
-  { min: 100, max: 9999, rgb: [95, 15, 100],   label: "100+" },
+  { min: 0.3, max: 1,    rgb: [150, 195, 235], label: "0.3" },
+  { min: 1,   max: 2,    rgb: [95, 155, 220],  label: "1" },
+  { min: 2,   max: 5,    rgb: [40, 90, 195],   label: "2" },
+  { min: 5,   max: 10,   rgb: [20, 40, 150],   label: "5" },
+  { min: 10,  max: 20,   rgb: [55, 170, 75],   label: "10" },
+  { min: 20,  max: 30,   rgb: [245, 220, 55],  label: "20" },
+  { min: 30,  max: 50,   rgb: [240, 140, 35],  label: "30" },
+  { min: 50,  max: 75,   rgb: [220, 40, 40],   label: "50" },
+  { min: 75,  max: 100,  rgb: [170, 40, 180],  label: "75" },
+  { min: 100, max: 9999, rgb: [110, 20, 130],  label: "100+" },
 ];
 
 function classIndexForAccum(mm: number): number {
