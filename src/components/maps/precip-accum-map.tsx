@@ -25,13 +25,38 @@ const MAP_BOUNDS: [[number, number], [number, number]] = [
 ];
 
 const CITIES: { name: string; lat: number; lon: number; minZoom?: number }[] = [
+  // Stufe 0 — immer sichtbar
   { name: "Bischofszell", lat: 47.4972, lon: 9.2336 },
   { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
   { name: "Horn", lat: 47.4972, lon: 9.4486 },
   { name: "Münsterlingen", lat: 47.6325, lon: 9.2389 },
+  // Stufe 1 — ab Zoom 11
   { name: "Romanshorn", lat: 47.5667, lon: 9.3786, minZoom: 11 },
+  { name: "Arbon", lat: 47.5150, lon: 9.4339, minZoom: 11 },
+  { name: "Kreuzlingen", lat: 47.6500, lon: 9.1739, minZoom: 11 },
+  { name: "Weinfelden", lat: 47.5667, lon: 9.1083, minZoom: 11 },
+  { name: "Sulgen", lat: 47.5333, lon: 9.1850, minZoom: 11 },
   { name: "Erlen", lat: 47.5417, lon: 9.2417, minZoom: 11 },
   { name: "Güttingen", lat: 47.6014, lon: 9.2861, minZoom: 11 },
+  { name: "Egnach", lat: 47.5444, lon: 9.3833, minZoom: 11 },
+  // Stufe 2 — ab Zoom 12
+  { name: "Hauptwil-Gottshaus", lat: 47.4806, lon: 9.3100, minZoom: 12 },
+  { name: "Langrickenbach", lat: 47.5833, lon: 9.2333, minZoom: 12 },
+  { name: "Berg", lat: 47.5469, lon: 9.1672, minZoom: 12 },
+  { name: "Hefenhofen", lat: 47.5667, lon: 9.3417, minZoom: 12 },
+  { name: "Salmsach", lat: 47.5500, lon: 9.3792, minZoom: 12 },
+  { name: "Uttwil", lat: 47.5944, lon: 9.3403, minZoom: 12 },
+  { name: "Kesswil", lat: 47.6056, lon: 9.3175, minZoom: 12 },
+  { name: "Dozwil", lat: 47.5917, lon: 9.3528, minZoom: 12 },
+  { name: "Roggwil", lat: 47.4889, lon: 9.4022, minZoom: 12 },
+  { name: "Sommeri", lat: 47.5650, lon: 9.2667, minZoom: 12 },
+  { name: "Bürglen", lat: 47.5408, lon: 9.1561, minZoom: 12 },
+  { name: "Hohentannen", lat: 47.5183, lon: 9.2056, minZoom: 12 },
+  { name: "Zihlschlacht", lat: 47.5300, lon: 9.2683, minZoom: 12 },
+  { name: "Altnau", lat: 47.6181, lon: 9.2625, minZoom: 12 },
+  { name: "Lengwil", lat: 47.6336, lon: 9.2089, minZoom: 12 },
+  { name: "Bottighofen", lat: 47.6481, lon: 9.2167, minZoom: 12 },
+  { name: "Tägerwilen", lat: 47.6500, lon: 9.1361, minZoom: 12 },
 ];
 
 function useMapZoom(): number {
