@@ -1,57 +1,34 @@
-## Problem
+## Ziel
+Crossfade-Logik wieder entfernen — harte Framewechsel, aber **kein Flackern** beim Layer-Swap.
 
-1. **Flackern beim Animieren** — Radar-Messung-Frames werden als `<ImageOverlay key={...t}>` gerendert. Bei jedem Framewechsel wird das Overlay entfernt und neu gemountet; das Bild muss laden/decodieren → kurzes Aufblitzen/Leerframe.
-2. **Langsame Ladezeit** — PNGs werden erst beim Anzeigen aus R2 geladen. Beim Scrubben/Play wartet jeder Frame auf das Netzwerk.
+## Ursache des Flackerns
+Beim Framewechsel wird das alte `<ImageOverlay>` unmounted und das neue gemountet. Zwischen Unmount und sichtbarem neuen Bild entsteht ein kurzer Leerframe → Aufblitzen.
 
-## Fix
+## Fix (`src/components/maps/radar-map.tsx`)
 
-### 1. PNG-Frames vorab in den Browser-Cache laden (`src/components/maps/radar-map.tsx`)
-Sobald Radar-Daten ankommen, in einem `useEffect` alle `precipUrl` und `hailUrl` per `new Image()` parallel anstossen. Der Browser cached und dekodiert sie vorab, sodass der spätere Frame-Wechsel sofort sichtbar ist.
+**Doppel-Layer ohne Fade**: zwei `<ImageOverlay>` permanent gemountet, beide volle Opacity:
+- **Hinten** (zIndex 460): vorheriger Frame, bleibt sichtbar bis verdeckt wird.
+- **Vorne** (zIndex 461): aktueller Frame, volle Deckkraft.
 
-```ts
-useEffect(() => {
-  if (!data) return;
-  const imgs: HTMLImageElement[] = [];
-  for (const f of data.frames) {
-    if (f.precipUrl) { const i = new Image(); i.decoding = "async"; i.src = f.precipUrl; imgs.push(i); }
-    if (f.hailUrl)   { const i = new Image(); i.decoding = "async"; i.src = f.hailUrl;   imgs.push(i); }
-  }
-  return () => { imgs.forEach(i => { i.src = ""; }); };
-}, [data]);
-```
+Beim Framewechsel rutscht der bisherige "vordere" Frame nach hinten und der neue erscheint vorne. Da alle PNGs durch den bereits implementierten Preload im Browser-Cache liegen, ist der neue Frame sofort sichtbar — der hintere alte Frame verdeckt etwaige Mikrolücken.
 
-### 2. Minimaler Crossfade für PNG-Frames
-Beim Framewechsel nie ein leeres Bild sichtbar werden lassen: der nächste Frame wird als zweites `<ImageOverlay>` mit `opacity: 0` vorgehalten. Während `playing` läuft ein **sehr kurzer, dezenter Übergang** (~120 ms opacity-Crossfade), sodass das alte Bild kaum merklich in das neue übergeht — kein hartes Flackern, aber auch kein auffälliger Blende-Effekt. Im Pause-Modus snappt es weiterhin direkt auf einen Frame.
+Konkret:
+- `blendNextPng` und das `progress`-Crossfade-Fenster entfallen.
+- Neuer State `prevFrame` (Ref auf den vorherigen `currentFrame`), aktualisiert in einem `useEffect` wenn `currentFrame.t` wechselt.
+- Render:
+  ```tsx
+  {prevFrame?.precipUrl && (
+    <ImageOverlay key={`precip-prev-${prevFrame.t}`} url={prevFrame.precipUrl!} ...
+      opacity={opacityVal} zIndex={460} />
+  )}
+  {hasPng && (
+    <ImageOverlay key={`precip-${currentFrame.t}`} url={currentFrame.precipUrl!} ...
+      opacity={opacityVal} zIndex={461} />
+  )}
+  ```
 
-Statt dem hartcodierten `blendNextPng = null`:
-```ts
-const blendNextPng =
-  playing && nextFrame?.precipUrl && currentFrame?.precipUrl ? nextFrame : null;
-```
-
-Zusammen mit (1) liegen die nächsten Frames bereits im Cache → der minimale Übergang rendert sofort ohne Wartezeit.
-
-### 3. Radar-Daten frühzeitig anstossen (`src/routes/karten.radar.tsx`)
-`ssr: false` mit `lazy()` bedeutet: Chunk + Daten starten erst nach Mount. Schon vor dem Lazy-Import einen Fetch anstossen:
-
-```ts
-import { getRadarFrames } from "@/lib/radar.functions";
-
-export const Route = createFileRoute("/karten/radar")({
-  ssr: false,
-  loader: ({ context }) =>
-    context.queryClient.prefetchQuery({
-      queryKey: ["radar-frames"],
-      queryFn: () => getRadarFrames(),
-      staleTime: 5 * 60_000,
-    }),
-  component: KartenRadarPage,
-  // …
-});
-```
-
-`prefetchQuery` blockiert den Navigationsabschluss nicht — der Lazy-Chunk und der Datenabruf laufen parallel.
+Im Pause-Modus identisch — `prevFrame` bleibt einfach gleich dem `currentFrame` oder `null`.
 
 ## Out of scope
-- Keine Änderung am Canvas-Forecast-Rendering (kein Flackern, In-Place-Redraw).
-- Keine Änderung an Farbskala/Bias/Server-Logik.
+- PNG-Preload (bereits drin) bleibt — Voraussetzung für sofortigen Swap.
+- Canvas-Forecast-Pfad, Hagel-Overlay, Farbskala, Server-Logik unverändert.

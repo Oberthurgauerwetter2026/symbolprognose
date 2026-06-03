@@ -945,13 +945,25 @@ export function RadarMap({
       ? frames[(idx + 1) % frames.length] ?? null
       : null;
 
-  // Cross-Fade Canvas↔Canvas (Forecast) bzw. PNG↔PNG (Messung).
+  // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
-  // PNG-Messung: Crossfade während Auto-Play, damit kein Flackern beim
-  // Layer-Swap entsteht. Beide PNGs sind durch Preload (s.u.) bereits im
-  // Browser-Cache, also wirkt der Übergang sofort.
-  const blendNextPng =
-    playing && nextFrame?.precipUrl && currentFrame?.precipUrl ? nextFrame : null;
+
+  // Vorheriger PNG-Frame bleibt als Backdrop gemountet, damit beim Wechsel
+  // kein Leerframe sichtbar wird. Kein Crossfade — beide Layer volle Opacity,
+  // neuer Frame liegt oben und ist durch Preload sofort sichtbar.
+  const prevPngRef = useRef<RadarFrame | null>(null);
+  const [prevPngFrame, setPrevPngFrame] = useState<RadarFrame | null>(null);
+  useEffect(() => {
+    if (!currentFrame?.precipUrl) {
+      prevPngRef.current = null;
+      setPrevPngFrame(null);
+      return;
+    }
+    if (prevPngRef.current && prevPngRef.current.t !== currentFrame.t) {
+      setPrevPngFrame(prevPngRef.current);
+    }
+    prevPngRef.current = currentFrame;
+  }, [currentFrame]);
 
   // Alle Radar-PNGs vorab in den Browser-Cache laden → kein Aufflackern beim
   // Framewechsel, sofortiger Snap beim Scrubben.
