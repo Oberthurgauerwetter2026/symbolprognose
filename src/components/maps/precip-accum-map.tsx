@@ -74,13 +74,13 @@ function useMapZoom(): number {
 }
 
 function cityIcon(name: string): L.DivIcon {
-  const square =
-    "display:inline-block;width:7px;height:7px;background:#2561a1;box-shadow:0 0 0 1px #fff,0 0 3px #fff;margin-right:5px;vertical-align:middle;";
+  const bullet =
+    "font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2561a1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;line-height:1;margin-right:4px;vertical-align:middle;";
   const label =
     "font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;vertical-align:middle;";
   return L.divIcon({
     className: "accum-city-marker",
-    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-3px,-4px);"><span style="${square}"></span><span style="${label}">${name}</span></div>`,
+    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-3px,-7px);"><span style="${bullet}">•</span><span style="${label}">${name}</span></div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
