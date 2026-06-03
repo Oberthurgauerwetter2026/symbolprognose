@@ -947,9 +947,36 @@ export function RadarMap({
 
   // Cross-Fade Canvas↔Canvas (Forecast) bzw. PNG↔PNG (Messung).
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
-  // PNG-Messung: kein Crossfade — Snap zwischen Frames, damit Konvektion sichtbar
-  // wandert statt am Ort zu pulsieren.
-  const blendNextPng = null as RadarFrame | null;
+  // PNG-Messung: Crossfade während Auto-Play, damit kein Flackern beim
+  // Layer-Swap entsteht. Beide PNGs sind durch Preload (s.u.) bereits im
+  // Browser-Cache, also wirkt der Übergang sofort.
+  const blendNextPng =
+    playing && nextFrame?.precipUrl && currentFrame?.precipUrl ? nextFrame : null;
+
+  // Alle Radar-PNGs vorab in den Browser-Cache laden → kein Aufflackern beim
+  // Framewechsel, sofortiger Snap beim Scrubben.
+  useEffect(() => {
+    if (!data) return;
+    const imgs: HTMLImageElement[] = [];
+    for (const f of data.frames) {
+      if (f.precipUrl) {
+        const i = new Image();
+        i.decoding = "async";
+        i.src = f.precipUrl;
+        imgs.push(i);
+      }
+      if (f.hailUrl) {
+        const i = new Image();
+        i.decoding = "async";
+        i.src = f.hailUrl;
+        imgs.push(i);
+      }
+    }
+    return () => {
+      for (const i of imgs) i.src = "";
+    };
+  }, [data]);
+
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
