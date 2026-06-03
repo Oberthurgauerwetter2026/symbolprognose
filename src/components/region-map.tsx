@@ -210,7 +210,7 @@ function MarkerPill({
         <WeatherIcon
           code={code}
           isDay={isDay}
-          size={67}
+          size={69}
           scope={mode}
           precip={precip}
           precipProb={precipProb}
