@@ -490,19 +490,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
               style={() => ({ color: "#0f172a", weight: 2.2, opacity: 0.95, fill: false })}
               interactive={false}
             />
-            {CITIES.map((c) => (
-              <CircleMarker
-                key={c.name}
-                center={[c.lat, c.lon]}
-                radius={3}
-                pathOptions={{ color: "#0f172a", weight: 1.5, fillColor: "#ffffff", fillOpacity: 1 }}
-                interactive={false}
-              >
-                <Tooltip permanent direction="right" offset={[6, 0]} className="city-label">
-                  {c.name}
-                </Tooltip>
-              </CircleMarker>
-            ))}
+            <CityMarkers />
             <ZoomControl position="topright" />
           </MapContainer>
 
