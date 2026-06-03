@@ -203,25 +203,40 @@ function MarkerPill({
           top: "50%",
           transform: "translateY(-50%)",
           pointerEvents: "none",
-          filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.25))",
           display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 69,
+          height: 69,
         }}
       >
-        <WeatherIcon
-          code={code}
-          isDay={isDay}
-          size={69}
-          scope={mode}
-          precip={precip}
-          precipProb={precipProb}
-          precipHours={precipHours}
-          thunderHours={thunderHours}
-          isSnow={isSnow}
-          sunshineRatio={sunshineRatio}
-          cloudLow={cloudLow}
-          cloudMid={cloudMid}
-          cloudHigh={cloudHigh}
+        <span
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.85)",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+            zIndex: 0,
+          }}
         />
+        <span style={{ position: "relative", zIndex: 1, display: "inline-flex", filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))" }}>
+          <WeatherIcon
+            code={code}
+            isDay={isDay}
+            size={69}
+            scope={mode}
+            precip={precip}
+            precipProb={precipProb}
+            precipHours={precipHours}
+            thunderHours={thunderHours}
+            isSnow={isSnow}
+            sunshineRatio={sunshineRatio}
+            cloudLow={cloudLow}
+            cloudMid={cloudMid}
+            cloudHigh={cloudHigh}
+          />
+        </span>
       </span>
 
 
