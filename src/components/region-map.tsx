@@ -199,7 +199,7 @@ function MarkerPill({
       <span
         style={{
           position: "absolute",
-          left: -32,
+          left: -44,
           top: "50%",
           transform: "translateY(-50%)",
           pointerEvents: "none",
@@ -210,7 +210,7 @@ function MarkerPill({
         <WeatherIcon
           code={code}
           isDay={isDay}
-          size={66}
+          size={67}
           scope={mode}
           precip={precip}
           precipProb={precipProb}
