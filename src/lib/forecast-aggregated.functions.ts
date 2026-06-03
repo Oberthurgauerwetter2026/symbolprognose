@@ -31,6 +31,15 @@ type Loc = {
   daily?: Series;
 };
 
+const CACHE_MODEL_SUFFIXES = [
+  "meteoswiss_icon_ch2",
+  "icon_d2",
+  "arpege_europe",
+  "meteofrance_arome_france_hd",
+  "ecmwf_ifs025",
+  "gfs_global",
+] as const;
+
 function dist2(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
   const dLat = a.lat - b.lat;
   const dLon = a.lon - b.lon;
@@ -59,6 +68,10 @@ function pickArr(s: Series | undefined, ...keys: string[]): (number | null)[] {
   for (const k of keys) {
     const a = s[k];
     if (Array.isArray(a)) return a as (number | null)[];
+    for (const suffix of CACHE_MODEL_SUFFIXES) {
+      const modelArr = s[`${k}_${suffix}`];
+      if (Array.isArray(modelArr)) return modelArr as (number | null)[];
+    }
   }
   return [];
 }
@@ -67,6 +80,10 @@ function pickStrArr(s: Series | undefined, ...keys: string[]): string[] {
   for (const k of keys) {
     const a = s[k];
     if (Array.isArray(a)) return (a as (string | null)[]).map((v) => v ?? "");
+    for (const suffix of CACHE_MODEL_SUFFIXES) {
+      const modelArr = s[`${k}_${suffix}`];
+      if (Array.isArray(modelArr)) return (modelArr as (string | null)[]).map((v) => v ?? "");
+    }
   }
   return [];
 }
