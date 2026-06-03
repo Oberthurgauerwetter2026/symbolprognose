@@ -825,7 +825,7 @@ function num(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
-function sanitizeForecast(data: ForecastResponse): ForecastResponse {
+export function sanitizeForecast(data: ForecastResponse): ForecastResponse {
   const h = data.hourly;
   const d = data.daily;
 
