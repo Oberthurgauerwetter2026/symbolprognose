@@ -1095,22 +1095,9 @@ export function RadarMap({
                       contour={currentFrame.source !== "radar"}
                     />
                   )}
-                  {hasPng && prevPngFrame?.precipUrl && prevPngFrame.t !== currentFrame.t && (
-                    <ImageOverlay
-                      key={`precip-prev-${prevPngFrame.t}`}
-                      url={prevPngFrame.precipUrl}
-                      bounds={[
-                        [ib.minLat, ib.minLon],
-                        [ib.maxLat, ib.maxLon],
-                      ]}
-                      opacity={opacityVal}
-                      zIndex={459}
-                      className="mch-precip"
-                    />
-                  )}
                   {hasPng && (
                     <ImageOverlay
-                      key={`precip-${currentFrame.t}`}
+                      key="precip-main"
                       url={currentFrame.precipUrl!}
                       bounds={[
                         [ib.minLat, ib.minLon],
