@@ -945,13 +945,25 @@ export function RadarMap({
       ? frames[(idx + 1) % frames.length] ?? null
       : null;
 
-  // Cross-Fade Canvas↔Canvas (Forecast) bzw. PNG↔PNG (Messung).
+  // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
-  // PNG-Messung: Crossfade während Auto-Play, damit kein Flackern beim
-  // Layer-Swap entsteht. Beide PNGs sind durch Preload (s.u.) bereits im
-  // Browser-Cache, also wirkt der Übergang sofort.
-  const blendNextPng =
-    playing && nextFrame?.precipUrl && currentFrame?.precipUrl ? nextFrame : null;
+
+  // Vorheriger PNG-Frame bleibt als Backdrop gemountet, damit beim Wechsel
+  // kein Leerframe sichtbar wird. Kein Crossfade — beide Layer volle Opacity,
+  // neuer Frame liegt oben und ist durch Preload sofort sichtbar.
+  const prevPngRef = useRef<RadarFrame | null>(null);
+  const [prevPngFrame, setPrevPngFrame] = useState<RadarFrame | null>(null);
+  useEffect(() => {
+    if (!currentFrame?.precipUrl) {
+      prevPngRef.current = null;
+      setPrevPngFrame(null);
+      return;
+    }
+    if (prevPngRef.current && prevPngRef.current.t !== currentFrame.t) {
+      setPrevPngFrame(prevPngRef.current);
+    }
+    prevPngRef.current = currentFrame;
+  }, [currentFrame]);
 
   // Alle Radar-PNGs vorab in den Browser-Cache laden → kein Aufflackern beim
   // Framewechsel, sofortiger Snap beim Scrubben.
@@ -1076,46 +1088,32 @@ export function RadarMap({
                       contour={currentFrame.source !== "radar"}
                     />
                   )}
-                  {(() => {
-                    // Minimaler Crossfade: nur in den letzten ~15% der Framedauer
-                    // weich übergehen. Davor bleibt der aktuelle Frame voll
-                    // sichtbar, der nächste komplett transparent → kein auffälliges
-                    // Blenden, aber kein Flackern beim Layer-Swap.
-                    const FADE_WINDOW = 0.15;
-                    const fade = blendNextPng
-                      ? Math.max(0, Math.min(1, (progress - (1 - FADE_WINDOW)) / FADE_WINDOW))
-                      : 0;
-                    return (
-                      <>
-                        {hasPng && (
-                          <ImageOverlay
-                            key={`precip-${currentFrame.t}`}
-                            url={currentFrame.precipUrl!}
-                            bounds={[
-                              [ib.minLat, ib.minLon],
-                              [ib.maxLat, ib.maxLon],
-                            ]}
-                            opacity={opacityVal * (1 - fade)}
-                            zIndex={460}
-                            className="mch-precip"
-                          />
-                        )}
-                        {hasPng && blendNextPng && (
-                          <ImageOverlay
-                            key={`precip-next-${blendNextPng.t}`}
-                            url={blendNextPng.precipUrl!}
-                            bounds={[
-                              [ib.minLat, ib.minLon],
-                              [ib.maxLat, ib.maxLon],
-                            ]}
-                            opacity={opacityVal * fade}
-                            zIndex={461}
-                            className="mch-precip"
-                          />
-                        )}
-                      </>
-                    );
-                  })()}
+                  {hasPng && prevPngFrame?.precipUrl && prevPngFrame.t !== currentFrame.t && (
+                    <ImageOverlay
+                      key={`precip-prev-${prevPngFrame.t}`}
+                      url={prevPngFrame.precipUrl}
+                      bounds={[
+                        [ib.minLat, ib.minLon],
+                        [ib.maxLat, ib.maxLon],
+                      ]}
+                      opacity={opacityVal}
+                      zIndex={459}
+                      className="mch-precip"
+                    />
+                  )}
+                  {hasPng && (
+                    <ImageOverlay
+                      key={`precip-${currentFrame.t}`}
+                      url={currentFrame.precipUrl!}
+                      bounds={[
+                        [ib.minLat, ib.minLon],
+                        [ib.maxLat, ib.maxLon],
+                      ]}
+                      opacity={opacityVal}
+                      zIndex={460}
+                      className="mch-precip"
+                    />
+                  )}
                 </>
               );
             })()}
