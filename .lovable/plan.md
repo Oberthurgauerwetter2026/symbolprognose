@@ -1,34 +1,48 @@
 ## Ziel
-Crossfade-Logik wieder entfernen — harte Framewechsel, aber **kein Flackern** beim Layer-Swap.
+Manuelles Sliden auf der Radar-Timeline soll flüssig sein — kein Stocken, keine Layer-Remounts pro Frame.
 
-## Ursache des Flackerns
-Beim Framewechsel wird das alte `<ImageOverlay>` unmounted und das neue gemountet. Zwischen Unmount und sichtbarem neuen Bild entsteht ein kurzer Leerframe → Aufblitzen.
+## Ursache
+1. `<ImageOverlay key={\`precip-${currentFrame.t}\`}>` zwingt Leaflet bei jedem Frame-Wechsel zu vollständigem Unmount + Mount (DOM-`<img>` neu erzeugen, Layer aus der Map entfernen/hinzufügen). Beim Scrubben über z.B. 30 Frames passiert das 30× in Sekundenbruchteilen.
+2. `onPointerMove` ruft `onChange` synchron bei jedem Pointer-Event (häufiger als die Display-Refresh-Rate) → zusätzliche React-Renders ohne sichtbaren Nutzen.
+3. Der `prevPngFrame`-`useState`+`useEffect`-Pfad löst pro Frame-Wechsel einen zweiten Render aus.
 
 ## Fix (`src/components/maps/radar-map.tsx`)
 
-**Doppel-Layer ohne Fade**: zwei `<ImageOverlay>` permanent gemountet, beide volle Opacity:
-- **Hinten** (zIndex 460): vorheriger Frame, bleibt sichtbar bis verdeckt wird.
-- **Vorne** (zIndex 461): aktueller Frame, volle Deckkraft.
+### 1. Stabile ImageOverlays — kein Key-Remount
+`react-leaflet` ruft bei Änderung der `url`-Prop intern `setUrl()` auf dem bestehenden Leaflet-Layer auf (kein DOM-Tausch, nur `img.src` Update). Da alle PNGs vorgeladen sind, ist der neue Frame sofort da.
 
-Beim Framewechsel rutscht der bisherige "vordere" Frame nach hinten und der neue erscheint vorne. Da alle PNGs durch den bereits implementierten Preload im Browser-Cache liegen, ist der neue Frame sofort sichtbar — der hintere alte Frame verdeckt etwaige Mikrolücken.
+- Die `key`-Props auf den `<ImageOverlay>`-Instanzen entfernen (oder durch eine stabile Konstante wie `key="precip-main"` ersetzen) — so bleibt der Leaflet-Layer über alle Frame-Wechsel bestehen.
+- Den Hagel-`<ImageOverlay>` analog auf stabilen Key umstellen (`key="hail-main"`).
 
-Konkret:
-- `blendNextPng` und das `progress`-Crossfade-Fenster entfallen.
-- Neuer State `prevFrame` (Ref auf den vorherigen `currentFrame`), aktualisiert in einem `useEffect` wenn `currentFrame.t` wechselt.
-- Render:
-  ```tsx
-  {prevFrame?.precipUrl && (
-    <ImageOverlay key={`precip-prev-${prevFrame.t}`} url={prevFrame.precipUrl!} ...
-      opacity={opacityVal} zIndex={460} />
-  )}
-  {hasPng && (
-    <ImageOverlay key={`precip-${currentFrame.t}`} url={currentFrame.precipUrl!} ...
-      opacity={opacityVal} zIndex={461} />
-  )}
-  ```
+### 2. Backdrop-Layer entfernen
+Da der Haupt-Overlay jetzt nicht mehr neu mountet, gibt es keinen Leerframe → `prevPngFrame` + `prevPngRef` + zugehöriges `useEffect` sind überflüssig. Entfernen, inkl. des zweiten `<ImageOverlay>` für den Vorgängerframe (Zeilen ~951–966 und ~1091–1103). Das spart einen Render-Pfad und einen Leaflet-Layer.
 
-Im Pause-Modus identisch — `prevFrame` bleibt einfach gleich dem `currentFrame` oder `null`.
+### 3. Pointer-Move throttlen via requestAnimationFrame
+In `MeteoTimeline` (`handlePointerMove`, Zeilen 663–666): den `onChange`-Aufruf in einen rAF-Coalescer wickeln, damit pro Animationsframe maximal ein State-Update läuft.
+
+```ts
+const rafRef = useRef<number | null>(null);
+const pendingXRef = useRef<number | null>(null);
+const handlePointerMove = (e: React.PointerEvent) => {
+  if (!dragging) return;
+  pendingXRef.current = e.clientX;
+  if (rafRef.current != null) return;
+  rafRef.current = requestAnimationFrame(() => {
+    rafRef.current = null;
+    const x = pendingXRef.current;
+    if (x != null) onChange(idxFromClientX(x));
+  });
+};
+```
+Bei `pointerup`/`pointercancel` den ausstehenden rAF cancellen.
+
+### 4. (Optional, klein) Memoization
+Falls nach 1–3 noch spürbares Ruckeln auftritt: `idxFromClientX` mit `useCallback` stabilisieren — Haupteffekt ist aber 1+3.
 
 ## Out of scope
-- PNG-Preload (bereits drin) bleibt — Voraussetzung für sofortigen Swap.
-- Canvas-Forecast-Pfad, Hagel-Overlay, Farbskala, Server-Logik unverändert.
+- Auto-Play-Crossfade Canvas↔Canvas (PrecipOverlay) bleibt unverändert.
+- PNG-Preload bleibt unverändert (Voraussetzung dafür, dass `setUrl` ohne Flicker funktioniert).
+- Server-/Manifest-Logik, Hagel-Logik, Farbskala unverändert.
+
+## Erwartetes Resultat
+Während des Drags wird nur noch `img.src` des bestehenden Overlays getauscht (sofort aus Cache) + maximal ein React-Render pro Display-Frame. Kein Layer-Mount/Unmount, kein zweiter „Backdrop"-Layer, keine Render-Lawine durch Pointer-Events.
