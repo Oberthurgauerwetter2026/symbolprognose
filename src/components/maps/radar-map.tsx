@@ -1113,7 +1113,7 @@ export function RadarMap({
             })()}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
             <ImageOverlay
-              key={`hail-${currentFrame.t}`}
+              key="hail-main"
               url={currentFrame.hailUrl}
               bounds={[
                 [data.imageBbox.minLat, data.imageBbox.minLon],
