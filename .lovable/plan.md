@@ -1,5 +1,17 @@
-In `src/components/region-map.tsx`:
-- Icon `size={66}` → `size={67}`
-- Wrapper-`left: -32` → `left: -44` (deutlich weiter aus der Pill)
-- Pill `padding-left: 38` → `padding-left: 28` (Text rückt näher an linke Pillkante, da Icon mehr ausserhalb sitzt)
-- divIcon `iconSize [240,72]` → `[250,72]`, `iconAnchor [120,36]` → `[125,36]`
+## Hintergrundkreis für Wetter-Icons auf der Karte
+
+**Ziel:** Die Wetter-Icons in der Leaflet-Karte (`/karten/region`) besser sichtbar machen, indem jeder Icon einen kleinen, kontrastreichen Hintergrundkreis erhält.
+
+### Änderungen
+1. **`src/components/region-map.tsx`** — Im `WeatherIcon`-Wrapper (innerhalb des `divIcon`-HTML-Strings) einen zusätzlichen `<div>` als Hintergrundkreis hinzufügen:
+   - Kreis hinter dem Icon, zentriert
+   - Helle oder halbtransparente Füllfarbe (z. B. `rgba(255,255,255,0.85)` oder passend zum Design-Token-System)
+   - Leichter Schatten oder Rand, damit er vom Kartenhintergrund abhebt
+   - Z-Index so, dass der Kreis hinter dem Icon selbst liegt
+2. **Keine anderen visuellen Änderungen** — Drop-Shadow und Icon-Größe (69 px) bleiben wie zuletzt eingestellt.
+
+### Test
+Nach der Änderung prüfen, ob die Icons auf verschiedenen Kartenhintergründen (Satellit, Terrain, Standard) gut lesbar sind.
+
+---
+Soll ich den Hintergrundkreis implementieren?
