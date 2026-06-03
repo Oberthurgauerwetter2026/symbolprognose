@@ -150,7 +150,7 @@ async function forecastFromCache(
   return buildForecastFromCacheLoc(best);
 }
 
-export const getAggregatedForecast = createServerFn({ method: "GET" })
+export const getAggregatedForecast = createServerFn({ method: "POST" })
   .inputValidator((input: { lat: number; lon: number; v?: string | number }) => {
     if (typeof input?.lat !== "number" || typeof input?.lon !== "number") {
       throw new Error("lat/lon required");
