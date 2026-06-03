@@ -180,10 +180,10 @@ function MarkerPill({
     <div
       className={MARKER_PILL_CLASS}
       style={{
+        position: "relative",
         display: "inline-flex",
         alignItems: "center",
-        gap: 8,
-        padding: "8px 16px 8px 10px",
+        padding: "8px 16px 8px 56px",
         borderRadius: 999,
         background: BRAND,
         border: "1px solid rgba(255,255,255,0.25)",
@@ -196,21 +196,34 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
-      <WeatherIcon
-        code={code}
-        isDay={isDay}
-        size={40}
-        scope={mode}
-        precip={precip}
-        precipProb={precipProb}
-        precipHours={precipHours}
-        thunderHours={thunderHours}
-        isSnow={isSnow}
-        sunshineRatio={sunshineRatio}
-        cloudLow={cloudLow}
-        cloudMid={cloudMid}
-        cloudHigh={cloudHigh}
-      />
+      <span
+        style={{
+          position: "absolute",
+          left: -14,
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+          filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.25))",
+          display: "inline-flex",
+        }}
+      >
+        <WeatherIcon
+          code={code}
+          isDay={isDay}
+          size={64}
+          scope={mode}
+          precip={precip}
+          precipProb={precipProb}
+          precipHours={precipHours}
+          thunderHours={thunderHours}
+          isSnow={isSnow}
+          sunshineRatio={sunshineRatio}
+          cloudLow={cloudLow}
+          cloudMid={cloudMid}
+          cloudHigh={cloudHigh}
+        />
+      </span>
+
 
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -370,8 +383,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [170, 52],
-      iconAnchor: [85, 26],
+      iconSize: [230, 72],
+      iconAnchor: [110, 36],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 

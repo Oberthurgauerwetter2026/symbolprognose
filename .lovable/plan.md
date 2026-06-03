@@ -1,8 +1,20 @@
-In `src/components/maps/radar-map.tsx` am `PopoverContent` (Zahnrad-Popup):
+## Ziel
 
-- **Volldeckend statt halbtransparent**: explizite Klassen `bg-white text-neutral-900 border-neutral-200 shadow-xl` (Popover-Default greift `bg-popover` und bekommt vom Glas-Panel darunter den Eindruck einer Transparenz; mit fester `bg-white` ist es eindeutig deckend).
-- **Vollständig sichtbar / nicht verdeckt**: 
-  - `z-[1000]` setzen, damit es über der Karten-Legende (`z-[400]`) und allen Overlays liegt.
-  - `collisionPadding={12}` an `PopoverContent`, damit Radix das Popup automatisch verschiebt, wenn es an den Rand stösst.
-  - `sideOffset={8}` für etwas mehr Abstand zum Zahnrad-Knopf.
-  - Breite leicht erhöhen: `w-60` (vorher `w-56`), damit „Hagel (POH) — Wahrscheinlichkeit einblenden" auf einer Zeile bleibt.
+Wetter-Icons auf der Region-Karte deutlich präsenter machen: Icon 64 px, sitzt links ausserhalb der Pill und überlappt sie leicht.
+
+## Änderungen
+
+Datei: `src/components/region-map.tsx` (RegionMarker, ca. Zeilen 178–248)
+
+1. **Pill-Container** auf `position: relative` setzen, linkes Padding erhöhen (z. B. `padding: "8px 16px 8px 44px"`), damit der Text nicht unter das Icon rutscht. `overflow: visible` sicherstellen (Default — kein Clip).
+2. **WeatherIcon** aus dem Flex-Fluss nehmen und absolut positionieren:
+   - `size={64}` (statt 40)
+   - Wrapper-`<span>` mit `position: absolute; left: -14px; top: 50%; transform: translateY(-50%); pointer-events: none;`
+   - Leichter Schatten (`filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25))`), damit das Icon vor hellen Karten-Hintergründen lesbar bleibt.
+3. **Gap** zwischen Icon und Textspalte entfällt (Icon ist absolut), Text-Block bleibt unverändert.
+4. Leaflet-`divIcon` Anker: prüfen, dass `iconAnchor` / `iconSize` die neue Gesamtbreite inkl. überhängendem Icon abdecken — falls der Marker derzeit fix dimensioniert ist, Breite/Anker entsprechend nach links verschieben (Icon ragt 14 px nach links + 64 px Icon-Hälfte berücksichtigen). Wenn `divIcon` mit `iconSize: [0,0]` / auto verwendet wird, ist nichts zu tun.
+
+## Keine Änderungen
+
+- Daten, Modi (hourly/daily), Farben, Typografie, Slider, Popover.
+- Andere Marker (SpotMarker) bleiben unangetastet, sofern nicht visuell dieselbe Pill nutzen — falls doch, analog anpassen (kurzer Check während Umsetzung).
