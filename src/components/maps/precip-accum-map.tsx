@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, CircleMarker, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, Marker, useMap } from "react-leaflet";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 
@@ -23,15 +24,59 @@ const MAP_BOUNDS: [[number, number], [number, number]] = [
   [47.90, 9.95],
 ];
 
-const CITIES: { name: string; lat: number; lon: number }[] = [
+const CITIES: { name: string; lat: number; lon: number; minZoom?: number }[] = [
   { name: "Bischofszell", lat: 47.4972, lon: 9.2336 },
-  { name: "Romanshorn", lat: 47.5667, lon: 9.3786 },
   { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
   { name: "Horn", lat: 47.4972, lon: 9.4486 },
-  { name: "Erlen", lat: 47.5417, lon: 9.2417 },
   { name: "Münsterlingen", lat: 47.6325, lon: 9.2389 },
-  { name: "Güttingen", lat: 47.6014, lon: 9.2861 },
+  { name: "Romanshorn", lat: 47.5667, lon: 9.3786, minZoom: 11 },
+  { name: "Erlen", lat: 47.5417, lon: 9.2417, minZoom: 11 },
+  { name: "Güttingen", lat: 47.6014, lon: 9.2861, minZoom: 11 },
 ];
+
+function useMapZoom(): number {
+  const map = useMap();
+  const [z, setZ] = useState<number>(() => map.getZoom());
+  useEffect(() => {
+    const update = () => setZ(map.getZoom());
+    map.on("zoomend zoom", update);
+    update();
+    return () => {
+      map.off("zoomend zoom", update);
+    };
+  }, [map]);
+  return z;
+}
+
+function cityIcon(name: string): L.DivIcon {
+  const square =
+    "display:inline-block;width:7px;height:7px;background:#2561a1;box-shadow:0 0 0 1px #fff,0 0 3px #fff;margin-right:5px;vertical-align:middle;";
+  const label =
+    "font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;vertical-align:middle;";
+  return L.divIcon({
+    className: "accum-city-marker",
+    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-3px,-4px);"><span style="${square}"></span><span style="${label}">${name}</span></div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
+
+function CityMarkers() {
+  const z = useMapZoom();
+  return (
+    <>
+      {CITIES.filter((c) => z >= (c.minZoom ?? 0)).map((c) => (
+        <Marker
+          key={c.name}
+          position={[c.lat, c.lon]}
+          icon={cityIcon(c.name)}
+          interactive={false}
+          keyboard={false}
+        />
+      ))}
+    </>
+  );
+}
 
 // Klassengrenzen mm (radar-ähnlich, Kachelmann/MeteoSchweiz). Harte Bänder, keine Interpolation.
 const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; label: string }[] = [
@@ -445,19 +490,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
               style={() => ({ color: "#0f172a", weight: 2.2, opacity: 0.95, fill: false })}
               interactive={false}
             />
-            {CITIES.map((c) => (
-              <CircleMarker
-                key={c.name}
-                center={[c.lat, c.lon]}
-                radius={3}
-                pathOptions={{ color: "#0f172a", weight: 1.5, fillColor: "#ffffff", fillOpacity: 1 }}
-                interactive={false}
-              >
-                <Tooltip permanent direction="right" offset={[6, 0]} className="city-label">
-                  {c.name}
-                </Tooltip>
-              </CircleMarker>
-            ))}
+            <CityMarkers />
             <ZoomControl position="topright" />
           </MapContainer>
 
