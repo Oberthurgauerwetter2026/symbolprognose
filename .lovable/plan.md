@@ -1,17 +1,13 @@
-## Hintergrundkreis für Wetter-Icons auf der Karte
+## Hintergrundkreis entfernen & Schatten verstärken
 
-**Ziel:** Die Wetter-Icons in der Leaflet-Karte (`/karten/region`) besser sichtbar machen, indem jeder Icon einen kleinen, kontrastreichen Hintergrundkreis erhält.
+**Ziel:** Die Wetter-Icons auf der Karte (in `MarkerPill`) sollen ohne den zuletzt hinzugefügten Hintergrundkreis dargestellt werden, dafür aber mit einem deutlich stärkeren Schatten.
 
-### Änderungen
-1. **`src/components/region-map.tsx`** — Im `WeatherIcon`-Wrapper (innerhalb des `divIcon`-HTML-Strings) einen zusätzlichen `<div>` als Hintergrundkreis hinzufügen:
-   - Kreis hinter dem Icon, zentriert
-   - Helle oder halbtransparente Füllfarbe (z. B. `rgba(255,255,255,0.85)` oder passend zum Design-Token-System)
-   - Leichter Schatten oder Rand, damit er vom Kartenhintergrund abhebt
-   - Z-Index so, dass der Kreis hinter dem Icon selbst liegt
-2. **Keine anderen visuellen Änderungen** — Drop-Shadow und Icon-Größe (69 px) bleiben wie zuletzt eingestellt.
+### Änderungen in `src/components/region-map.tsx`
 
-### Test
-Nach der Änderung prüfen, ob die Icons auf verschiedenen Kartenhintergründen (Satellit, Terrain, Standard) gut lesbar sind.
+1. **Hintergrundkreis entfernen**  
+   Den absolut positionierten `<span>` mit `borderRadius: "50%"`, `background: "rgba(255,255,255,0.85)"` und `boxShadow` (Zeilen 213–222) löschen.
 
----
-Soll ich den Hintergrundkreis implementieren?
+2. **Drop-Shadow der Icons verstärken**  
+   Den `filter: "drop-shadow(...)"` auf dem WeatherIcon-Wrapper (Zeile 223) von `0 1px 2px rgba(0,0,0,0.2)` auf einen stärkeren Wert erhöhen, z. B. `0 3px 5px rgba(0,0,0,0.35)`.
+
+Keine weiteren Dateien oder Layout-Änderungen notwendig.
