@@ -183,7 +183,7 @@ function MarkerPill({
         position: "relative",
         display: "inline-flex",
         alignItems: "center",
-        padding: "8px 16px 8px 56px",
+        padding: "8px 16px 8px 38px",
         borderRadius: 999,
         background: BRAND,
         border: "1px solid rgba(255,255,255,0.25)",
