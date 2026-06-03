@@ -652,6 +652,23 @@ function MeteoTimeline({
     return best;
   };
 
+  const rafRef = useRef<number | null>(null);
+  const pendingXRef = useRef<number | null>(null);
+  const flushPending = () => {
+    rafRef.current = null;
+    const x = pendingXRef.current;
+    pendingXRef.current = null;
+    if (x != null) onChange(idxFromClientX(x));
+  };
+  const cancelPending = () => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    pendingXRef.current = null;
+  };
+  useEffect(() => () => cancelPending(), []);
+
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setDragging(true);
@@ -662,10 +679,13 @@ function MeteoTimeline({
   };
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragging) return;
-    onChange(idxFromClientX(e.clientX));
+    pendingXRef.current = e.clientX;
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(flushPending);
   };
   const handlePointerUp = (e: React.PointerEvent) => {
     setDragging(false);
+    cancelPending();
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
