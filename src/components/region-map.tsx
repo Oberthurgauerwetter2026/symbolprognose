@@ -183,7 +183,7 @@ function MarkerPill({
         position: "relative",
         display: "inline-flex",
         alignItems: "center",
-        padding: "8px 16px 8px 56px",
+        padding: "8px 16px 8px 38px",
         borderRadius: 999,
         background: BRAND,
         border: "1px solid rgba(255,255,255,0.25)",
@@ -199,7 +199,7 @@ function MarkerPill({
       <span
         style={{
           position: "absolute",
-          left: -14,
+          left: -32,
           top: "50%",
           transform: "translateY(-50%)",
           pointerEvents: "none",
@@ -210,7 +210,7 @@ function MarkerPill({
         <WeatherIcon
           code={code}
           isDay={isDay}
-          size={64}
+          size={66}
           scope={mode}
           precip={precip}
           precipProb={precipProb}
@@ -383,8 +383,8 @@ function SpotMarker({
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [230, 72],
-      iconAnchor: [110, 36],
+      iconSize: [240, 72],
+      iconAnchor: [120, 36],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
