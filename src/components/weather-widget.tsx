@@ -170,9 +170,8 @@ export function WeatherWidget({
         data: { lat: location!.latitude, lon: location!.longitude, v: FORECAST_VERSION },
       }),
     enabled: !!location,
-    staleTime: 2 * 60 * 1000,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
 
