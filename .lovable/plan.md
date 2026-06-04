@@ -1,6 +1,18 @@
-Weitere leichte Reduktion der Radar-Prognose-Glättung:
+## Änderung
 
-1. **CSS-Filter Kontrast** — `contrast(1.25)` auf `contrast(1.35)` erhöhen (scharfere Konturen, weniger weiche Übergänge).
-2. **Off-Screen-Blur** — `blur(0.6px)` auf `blur(0.3px)` reduzieren (weniger Weichzeichnung der ICON-CH1-Zellen, aber noch ausreichend, um harte Pixel-Blöcke zu vermeiden).
+Den sichtbaren Namen der Radar-Karte von "Radar" auf "Niederschlagsradar" ändern.
 
-Die Alpha-Ramp (0.05 → 0.1) und `colorForSmooth` bleiben erhalten, damit die Prognose nicht wieder fleckenartig wird.
+## Betroffene Stellen
+
+1. **`src/lib/maps-config.ts`** — `label` und `shortLabel` des `radar`-Eintrags:
+   - `label`: "Radar" → "Niederschlagsradar"
+   - `shortLabel`: "Radar" → "Niederschlagsradar" (für MapTabs)
+
+2. **`src/routes/karten.radar.tsx`** — Seiten-Titel:
+   - "Radar Oberthurgau · Niederschlags-Animation" → "Niederschlagsradar Oberthurgau · Niederschlags-Animation"
+
+## Keine Änderung an
+- Route-URLs (`/karten/radar`, `/embed/radar`)
+- Internen IDs (`id: "radar"`)
+- Dateinamen oder Funktionsnamen
+- Embed-Info-Seite (bezieht Labels dynamisch aus `maps-config.ts`)
