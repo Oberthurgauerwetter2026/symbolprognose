@@ -231,16 +231,30 @@ function buildForecastFromCacheLoc(loc: Loc): ForecastResponse {
   });
 }
 
+async function loadSymbolLocs(): Promise<Loc[] | null> {
+  const cache = await getSymbolCache();
+  const locs = cache?.phaseA as Loc[] | undefined;
+  return locs?.length ? locs : null;
+}
+
 async function forecastFromCache(
   lat: number,
   lon: number,
 ): Promise<ForecastResponse | null> {
-  const cache = await getOpenMeteoCache();
-  const locs = cache?.phaseA as Loc[] | undefined;
-  if (!locs?.length) return null;
+  const locs = await loadSymbolLocs();
+  if (!locs) return null;
   const best = pickNearest(locs, lat, lon);
   if (!best?.hourly?.time?.length) return null;
   return buildForecastFromCacheLoc(best);
+}
+
+function setCdnCacheHeaders() {
+  setResponseHeaders(
+    new Headers({
+      "Cache-Control":
+        "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+    }),
+  );
 }
 
 function emptyForecast(lat: number, lon: number): ForecastResponse {
