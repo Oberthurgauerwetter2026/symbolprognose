@@ -196,7 +196,13 @@ export function WeatherWidget({
     })();
     const cutoffMs = curHourMs + 12 * 3600_000;
     const out: { idx: number; cadence: "1h" | "3h" }[] = [];
-    for (let i = 0; i < h.time.length; i++) {
+    const safeLen = Math.min(
+      h.time.length,
+      h.temperature_2m?.length ?? 0,
+      h.winddirection_10m?.length ?? 0,
+      h.weathercode?.length ?? 0,
+    );
+    for (let i = 0; i < safeLen; i++) {
       const tMs = new Date(h.time[i]).getTime();
       if (tMs < curHourMs) continue;
       if (tMs < cutoffMs) {
@@ -836,8 +842,8 @@ function DetailPanel({
                 const slotMs = t.getTime();
                 const slotDur = cadence === "1h" ? 3600_000 : 3 * 3600_000;
                 const isCurrent = nowMs >= slotMs && nowMs < slotMs + slotDur;
-                const wind = h.windspeed_10m[idx];
-                const rawGust = h.windgusts_10m[idx];
+                const wind = h.windspeed_10m?.[idx] ?? 0;
+                const rawGust = h.windgusts_10m?.[idx] ?? 0;
                 const gust =
                   rawGust > 0
                     ? rawGust
@@ -873,10 +879,10 @@ function DetailPanel({
                     </div>
                     <div
                       className="flex items-center justify-center"
-                      title={weatherLabel(h.weathercode[idx])}
+                      title={weatherLabel(h.weathercode?.[idx] ?? 0)}
                     >
                       <WeatherIcon
-                        code={h.weathercode[idx]}
+                        code={h.weathercode?.[idx] ?? 0}
                         isDay={t.getHours() >= 6 && t.getHours() < 20}
                         size={cadence === "1h" ? 48 : 64}
                         precip={h.precipitation?.[idx]}
@@ -891,11 +897,13 @@ function DetailPanel({
 
                     </div>
                     <div className={`${cadence === "1h" ? "text-base" : "text-xl"} font-bold tabular-nums text-zinc-900`}>
-                      {h.temperature_2m[idx].toFixed(1)}°
+                      {Number.isFinite(h.temperature_2m?.[idx])
+                        ? `${h.temperature_2m[idx].toFixed(1)}°`
+                        : "–"}
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 text-xs">
-                        <WindArrow deg={h.winddirection_10m[idx]} />
+                        <WindArrow deg={h.winddirection_10m?.[idx] ?? 0} />
                         <span className="font-bold tabular-nums text-zinc-900">
                           {Math.round(wind)}
                           <span className="font-semibold text-zinc-700">
@@ -904,7 +912,7 @@ function DetailPanel({
                         </span>
                         {cadence === "3h" && (
                           <span className="text-zinc-700 font-medium">
-                            {windDirectionLabel(h.winddirection_10m[idx])}
+                            {windDirectionLabel(h.winddirection_10m?.[idx] ?? 0)}
                           </span>
                         )}
                       </div>
