@@ -88,6 +88,70 @@ function pickStrArr(s: Series | undefined, ...keys: string[]): string[] {
   return [];
 }
 
+/**
+ * Per-Index-Merge über alle Modell-Spalten: hochauflösende Modelle zuerst,
+ * ECMWF/GFS als Lückenfüller für späte Tage. Liefert immer ein Array der
+ * längsten gefundenen Spalte; Indizes ohne Wert bleiben `null`.
+ */
+function collectArrs(s: Series | undefined, keys: string[]): (number | null)[][] {
+  if (!s) return [];
+  const out: (number | null)[][] = [];
+  for (const k of keys) {
+    const unsuf = s[k];
+    if (Array.isArray(unsuf)) out.push(unsuf as (number | null)[]);
+    for (const suffix of CACHE_MODEL_SUFFIXES) {
+      const a = s[`${k}_${suffix}`];
+      if (Array.isArray(a)) out.push(a as (number | null)[]);
+    }
+  }
+  return out;
+}
+function mergeArr(s: Series | undefined, ...keys: string[]): (number | null)[] {
+  const arrs = collectArrs(s, keys);
+  if (!arrs.length) return [];
+  const len = arrs.reduce((m, a) => Math.max(m, a.length), 0);
+  const out: (number | null)[] = new Array(len).fill(null);
+  for (let i = 0; i < len; i++) {
+    for (const a of arrs) {
+      const v = a[i];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        out[i] = v;
+        break;
+      }
+    }
+  }
+  return out;
+}
+function collectStrArrs(s: Series | undefined, keys: string[]): (string | null)[][] {
+  if (!s) return [];
+  const out: (string | null)[][] = [];
+  for (const k of keys) {
+    const unsuf = s[k];
+    if (Array.isArray(unsuf)) out.push(unsuf as (string | null)[]);
+    for (const suffix of CACHE_MODEL_SUFFIXES) {
+      const a = s[`${k}_${suffix}`];
+      if (Array.isArray(a)) out.push(a as (string | null)[]);
+    }
+  }
+  return out;
+}
+function mergeStrArr(s: Series | undefined, ...keys: string[]): string[] {
+  const arrs = collectStrArrs(s, keys);
+  if (!arrs.length) return [];
+  const len = arrs.reduce((m, a) => Math.max(m, a.length), 0);
+  const out: string[] = new Array(len).fill("");
+  for (let i = 0; i < len; i++) {
+    for (const a of arrs) {
+      const v = a[i];
+      if (typeof v === "string" && v.length > 0) {
+        out[i] = v;
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 function padNum(arr: number[], len: number, fill = 0): number[] {
   if (arr.length >= len) return arr.slice(0, len);
   const out = arr.slice();
