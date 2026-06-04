@@ -1,49 +1,42 @@
-# Fix: Embed Lokalprognose – Laufzeitfehler `temperature_2m[c].toFixed`
+# Fix: Daten fehlen ab Mo, 8. Juni in Wetterkarte / Lokalprognose
 
-## Diagnose
+## Ursache
 
-- Der iframe ruft `symbolprognose.lovable.app/embed/region-lokal`. Dort lädt `WeatherWidget` über `getAggregatedForecast` (POST `/_serverFn/…`).
-- Live-Test auf der publizierten Domain: **HTTP 500** für genau diesen Server-Fn-Endpoint (Worker-Log `dwl.proxy.response.error`). Der Preview/Dev liefert dagegen 200.
-- Ursache des Crashs im Browser: das Widget greift in `src/components/weather-widget.tsx:894` ungeschützt auf `h.temperature_2m[idx].toFixed(1)` zu. Wenn die Stunden-Schleife über `h.time.length` läuft, aber ein einzelnes Array (z. B. nach Teil-Cache oder Fallback-Ergebnis) kürzer/leer ist, gibt `[idx]` `undefined` → Crash. Dieselbe Schwachstelle gilt für `winddirection_10m[idx]`, `weathercode[idx]`, etc.
-- Der R2-Cache liefert nur **suffigierte** Felder (`temperature_2m_meteoswiss_icon_ch2`, …). `pickArr` in `forecast-aggregated.functions.ts` deckt zwar alle aktuell beobachteten Suffixe ab, aber sobald ein einzelnes Modell ein Feld nicht liefert (oder ein zukünftiges Suffix dazukommt), bleibt das jeweilige Array leer, während `time` (168 Einträge) gefüllt bleibt → genau das oben gezeigte Crash-Muster.
-- Warum publiziert 500: vermutlich greift im Worker die Fallback-Pfad-`fetchForecast()` (R2 nicht erreichbar oder Felder nicht gemappt → leere `phaseA`-Auswahl → 429 von Open-Meteo → `throw "Keine Wettermodelle erreichbar"`). Aktuell wird der Fehler ungefiltert zum 500 durchgereicht.
+Der R2-Cache (`openmeteo/symbol.json`) enthält pro Stunde/Tag **mehrere Modell-Spalten** (Suffix `_meteoswiss_icon_ch2`, `_icon_d2`, `_arpege_europe`, `_meteofrance_arome_france_hd`, `_ecmwf_ifs025`, `_gfs_global`). Die hochauflösenden Regional-Modelle reichen nur ~2–5 Tage in die Zukunft, ECMWF/GFS dagegen volle 7 Tage:
 
-## Lösung – drei kleine, voneinander unabhängige Schritte
+```text
+temperature_2m_meteoswiss_icon_ch2   117/168 non-null  (≈ bis 9. Juni)
+temperature_2m_icon_d2                51/168            (≈ bis 6. Juni)
+temperature_2m_arpege_europe          99/168            (≈ bis 8. Juni)
+temperature_2m_meteofrance_arome_…    51/168            (≈ bis 6. Juni)
+temperature_2m_ecmwf_ifs025          168/168 ✓
+temperature_2m_gfs_global            168/168 ✓
+```
 
-### 1. Server-Fn nie mehr 500: leere, valide Antwort + Logging
+In `src/lib/forecast-aggregated.functions.ts` wählt `pickArr` jedoch **eine einzige** Modell-Spalte – nach Suffix-Reihenfolge die erste vorhandene. Das ist `meteoswiss_icon_ch2`. Ab dem Zeitpunkt, an dem dieses Modell `null` liefert (≈ ab Mo, 8. Juni), füllt `sanitizeForecast` die Werte mit `0`/`NaN` auf → Temperatur 0°, Wind 0, Code 0 (= „Klar") → für den User sehen die Tage „leer" / falsch aus.
 
-`src/lib/forecast-aggregated.functions.ts` – `handler`:
+## Lösung
 
-- `try/catch` um den `fetchForecast`-Fallback. Bei Fehler **nicht** werfen, sondern eine `sanitizeForecast(emptyForecast)`-Antwort zurückgeben (alle Arrays leer, `latitude/longitude/timezone` aus dem Input). So bekommt der Client immer ein valides Schema, die `useQuery` rendert kein Error-Boundary und der WordPress-Embed bleibt funktional (zeigt „keine Daten" statt weisse Seite).
-- Cause-Logging (`console.error("[aggregated-forecast] hard fail", err)`), damit wir die Ursache in den Worker-Logs sehen.
+Per-Index-Merge über alle Modelle, statt eine einzelne Modell-Spalte zu wählen. Priorität nach Modellreihenfolge (hochauflösend zuerst, ECMWF/GFS als Lückenfüller).
 
-### 2. Cache→Forecast-Mapping längen-konsistent
+### `src/lib/forecast-aggregated.functions.ts`
 
-`src/lib/forecast-aggregated.functions.ts` – `buildForecastFromCacheLoc`:
+- Neuer Helper `mergeArr(s, ...keys)`:
+  - Sammelt für jeden `key` alle vorhandenen Spalten: unsuffigiert + alle `key_<modelSuffix>` in `CACHE_MODEL_SUFFIXES`-Reihenfolge.
+  - Bestimmt die Ziel-Länge aus dem längsten Array.
+  - Für jeden Index `i`: nimm den ersten finiten Zahlenwert über die Modell-Reihenfolge (priorisiert hochauflösende Modelle, fällt auf ECMWF/GFS zurück). Wenn nichts vorhanden ist, bleibt `null` (wird später von `sanitizeForecast`/`keepNaNArr` korrekt behandelt) bzw. für hourly-Zahlen `0` als sicherer Default.
+- Analog `mergeStrArr` für `sunrise`/`sunset` (priorisiert erste nichtleere Zeichenkette pro Tag).
+- `buildForecastFromCacheLoc` verwendet `mergeArr` statt `pickArr` für alle Hourly- und Daily-Felder. `time` bleibt unverändert (`pickStrArr`).
+- Padding-Aufrufe (`padNum`/`padStr`) bleiben als Sicherheitsnetz für Schemafehler.
 
-- Nach dem Aufbau aller `hourly`-Arrays auf die Länge von `hourly.time` **padden** (Default `0` für Zahlen, `0` für weathercode). Analog `daily` auf `daily.time` padden. Damit ist garantiert: jeder `idx < time.length` liefert einen definierten Wert, egal ob der Cache ein einzelnes Modell-Feld nicht enthält oder ein neues Suffix auftaucht.
-- Keine Änderung an der Suffix-Liste – das löst nur Symptome.
+### Keine weiteren Änderungen
 
-### 3. Render-Guards im Widget (defensive UI)
-
-`src/components/weather-widget.tsx` Hourly-Kachel (Zeilen ~860–940):
-
-- `const temp = h.temperature_2m?.[idx]; const wdir = h.winddirection_10m?.[idx]; const wcode = h.weathercode?.[idx] ?? 0;`
-- Temperatur-Render: `{Number.isFinite(temp) ? temp.toFixed(1) + "°" : "–"}` (entspricht dem Stil der Daily-Min/Max-Kacheln in Zeile 566/569).
-- Windrichtung/Code-Helfer mit Fallback `0` aufrufen, damit `WindArrow`/`WeatherIcon` nie `undefined` bekommen.
-- Schleife `allHourly` zusätzlich limitieren auf `Math.min(h.time.length, h.temperature_2m.length)` als zweite Verteidigungslinie.
-
-Kein Layout-, Farb- oder Styling-Change – rein defensive Guards.
+- Keine UI/Design-Änderungen.
+- Keine Änderungen am Ingest-Workflow oder R2-Schema.
+- `getMultiModelForecast`, `radar.functions.ts`, `weather.ts` bleiben unverändert.
 
 ## Verifikation
 
-1. Dev-Preview: `/embed/region-lokal` lädt wie bisher mit vollen Werten.
-2. Server-Fn-Aufruf gegen Published nach Re-Publish: HTTP 200, `hourly.temperature_2m.length === hourly.time.length`.
-3. Erzwungener Bad-Path-Test (lokal R2_PUBLIC_URL leeren): Endpoint liefert 200 mit leeren Arrays, Widget zeigt „keine Daten", **kein Crash** im Browser.
-4. Worker-Log nach Republish: bei einem etwaigen Fallback-Fehler erscheint `[aggregated-forecast] hard fail …` statt 500-HTML.
-
-## Nicht enthalten
-
-- Keine Änderung an `getMultiModelForecast`, `radar.functions.ts`, am Ingest-Workflow oder am R2-Schema.
-- Keine UI-/Designänderungen, kein neuer Cache, keine neuen Secrets.
-- Nach dem Merge **muss publiziert** werden, damit `symbolprognose.lovable.app` (und damit der WordPress-Embed) den Fix bekommt.
+1. Server-Fn-Test für Amriswil: `hourly.temperature_2m[i]` und `daily.temperature_2m_max[i]` ab Index `i ≥ 4` (= 8. Juni) sind **finite, plausible Werte** statt 0.
+2. Browser: `/karten/region` und `/embed/region-lokal` zeigen Symbole/Temperaturen auch für Mo–Mi.
+3. Spot-Check: wenn `ecmwf_ifs025` als einziges Modell für späte Tage Daten liefert, werden seine Werte gerendert.
