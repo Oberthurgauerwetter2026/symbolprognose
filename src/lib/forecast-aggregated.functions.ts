@@ -308,6 +308,7 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }): Promise<ForecastResponse> => {
+    setCdnCacheHeaders();
     try {
       const cached = await forecastFromCache(data.lat, data.lon);
       if (cached) return cached;
@@ -330,3 +331,63 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
       return emptyForecast(data.lat, data.lon);
     }
   });
+
+/**
+ * Batch-Variante: liest den Symbol-Cache **einmal** und liefert die Prognose
+ * pro übergebenem Punkt. So macht die Region-Karte 1 RPC statt N.
+ */
+export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: {
+      points: { id: string; lat: number; lon: number }[];
+      v?: string | number;
+    }) => {
+      if (!Array.isArray(input?.points) || input.points.length === 0) {
+        throw new Error("points required");
+      }
+      const points = input.points.slice(0, 32).map((p) => {
+        if (
+          typeof p?.id !== "string" ||
+          typeof p?.lat !== "number" ||
+          typeof p?.lon !== "number"
+        ) {
+          throw new Error("invalid point");
+        }
+        return {
+          id: p.id,
+          lat: Math.round(p.lat * 10_000) / 10_000,
+          lon: Math.round(p.lon * 10_000) / 10_000,
+        };
+      });
+      return { points, v: input?.v != null ? String(input.v) : undefined };
+    },
+  )
+  .handler(
+    async ({ data }): Promise<Record<string, ForecastResponse>> => {
+      setCdnCacheHeaders();
+      const out: Record<string, ForecastResponse> = {};
+      let locs: Loc[] | null = null;
+      try {
+        locs = await loadSymbolLocs();
+      } catch (err) {
+        console.error("[aggregated-forecast-batch] cache read failed", err);
+      }
+
+      for (const p of data.points) {
+        if (locs) {
+          const best = pickNearest(locs, p.lat, p.lon);
+          if (best?.hourly?.time?.length) {
+            out[p.id] = buildForecastFromCacheLoc(best);
+            continue;
+          }
+        }
+        try {
+          out[p.id] = await fetchForecast(p.lat, p.lon);
+        } catch (err) {
+          console.error("[aggregated-forecast-batch] direct fail", p.id, err);
+          out[p.id] = emptyForecast(p.lat, p.lon);
+        }
+      }
+      return out;
+    },
+  );
