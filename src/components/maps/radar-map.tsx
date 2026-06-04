@@ -472,7 +472,7 @@ function PrecipOverlay({
         const v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
         // Prognose: weicher Alpha-Ramp unter dem ersten Band, damit einzelne
         // ICON-CH1-Modellzellen nicht als isolierte Punkte erscheinen.
-        const minV = contour ? 0.03 : 0.1;
+        const minV = contour ? 0.05 : 0.1;
         if (v < minV) continue;
 
         let snowFrac = 0;
