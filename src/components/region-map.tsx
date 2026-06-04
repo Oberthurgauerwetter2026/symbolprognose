@@ -288,13 +288,10 @@ function SpotMarker({
 
 
   const icon = useMemo(() => {
-    const ICON_W = 330;
+    const ICON_W = 250;
     const ICON_H = 72;
-    const ANCHOR_X = 52;
-    const ANCHOR_Y = ICON_H / 2;
-    const PILL_LEFT = 60;
     const wrap = (inner: string) =>
-      `<div style="position:relative;width:${ICON_W}px;height:${ICON_H}px;"><div style="position:absolute;left:${PILL_LEFT}px;top:50%;transform:translateY(-50%);">${inner}</div></div>`;
+      `<div style="width:${ICON_W}px;height:${ICON_H}px;display:flex;align-items:center;justify-content:center;">${inner}</div>`;
 
     if (!data) {
       return L.divIcon({
@@ -323,7 +320,7 @@ function SpotMarker({
         ),
         className: "region-map-marker",
         iconSize: [ICON_W, ICON_H],
-        iconAnchor: [ANCHOR_X, ANCHOR_Y],
+        iconAnchor: [ICON_W / 2, ICON_H / 2],
       });
     }
     const code =
@@ -396,7 +393,7 @@ function SpotMarker({
       html,
       className: "region-map-marker",
       iconSize: [ICON_W, ICON_H],
-      iconAnchor: [ANCHOR_X, ANCHOR_Y],
+      iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
 
