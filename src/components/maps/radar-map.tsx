@@ -488,7 +488,7 @@ function PrecipOverlay({
         let [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorForSmooth(v);
         // Unter erstem Band (nur Prognose): Alpha sanft auf 0 ausblenden.
         if (contour && v < 0.1) {
-          const ramp = (v - 0.03) / (0.1 - 0.03);
+          const ramp = (v - 0.05) / (0.1 - 0.05);
           a = a * Math.max(0, Math.min(1, ramp));
         }
         if (a === 0) continue;
