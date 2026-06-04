@@ -470,7 +470,10 @@ function PrecipOverlay({
 
         const vCur = sampleAt(vals, fxRaw, fyRaw);
         const v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
-        if (v < 0.1) continue;
+        // Prognose: weicher Alpha-Ramp unter dem ersten Band, damit einzelne
+        // ICON-CH1-Modellzellen nicht als isolierte Punkte erscheinen.
+        const minV = contour ? 0.03 : 0.1;
+        if (v < minV) continue;
 
         let snowFrac = 0;
         if (snowVals) {
@@ -479,10 +482,15 @@ function PrecipOverlay({
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
-        // contour=true (Prognose): diskrete Stufen → sichtbare Iso-Bänder mit
-        // weichen Kurven aus dem bilinearen Skalarfeld. contour=false: weiche
-        // Farbverläufe (Messung-Canvas / Fallback).
-        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : contour ? colorFor(v) : colorForSmooth(v);
+        // contour=true (Prognose): log-interpolierte Bänder (colorForSmooth),
+        // damit ICON-CH1-Felder nicht als Cartoon-Blöcke wirken.
+        // contour=false: gleiche weiche Skala für Messung-Canvas-Fallback.
+        let [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorForSmooth(v);
+        // Unter erstem Band (nur Prognose): Alpha sanft auf 0 ausblenden.
+        if (contour && v < 0.1) {
+          const ramp = (v - 0.03) / (0.1 - 0.03);
+          a = a * Math.max(0, Math.min(1, ramp));
+        }
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
