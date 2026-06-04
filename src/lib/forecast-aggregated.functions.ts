@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { setResponseHeaders } from "@tanstack/react-start/server";
 import {
   fetchForecast,
   sanitizeForecast,
@@ -6,7 +7,7 @@ import {
   type ForecastResponse,
   type HourlyData,
 } from "./weather";
-import { getOpenMeteoCache } from "./openmeteo-cache.server";
+import { getSymbolCache } from "./openmeteo-cache.server";
 
 /**
  * Serverseitiges Multi-Modell-Aggregat.
@@ -230,16 +231,30 @@ function buildForecastFromCacheLoc(loc: Loc): ForecastResponse {
   });
 }
 
+async function loadSymbolLocs(): Promise<Loc[] | null> {
+  const cache = await getSymbolCache();
+  const locs = cache?.phaseA as Loc[] | undefined;
+  return locs?.length ? locs : null;
+}
+
 async function forecastFromCache(
   lat: number,
   lon: number,
 ): Promise<ForecastResponse | null> {
-  const cache = await getOpenMeteoCache();
-  const locs = cache?.phaseA as Loc[] | undefined;
-  if (!locs?.length) return null;
+  const locs = await loadSymbolLocs();
+  if (!locs) return null;
   const best = pickNearest(locs, lat, lon);
   if (!best?.hourly?.time?.length) return null;
   return buildForecastFromCacheLoc(best);
+}
+
+function setCdnCacheHeaders() {
+  setResponseHeaders(
+    new Headers({
+      "Cache-Control":
+        "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+    }),
+  );
 }
 
 function emptyForecast(lat: number, lon: number): ForecastResponse {
@@ -293,6 +308,7 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }): Promise<ForecastResponse> => {
+    setCdnCacheHeaders();
     try {
       const cached = await forecastFromCache(data.lat, data.lon);
       if (cached) return cached;
@@ -315,3 +331,63 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
       return emptyForecast(data.lat, data.lon);
     }
   });
+
+/**
+ * Batch-Variante: liest den Symbol-Cache **einmal** und liefert die Prognose
+ * pro übergebenem Punkt. So macht die Region-Karte 1 RPC statt N.
+ */
+export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: {
+      points: { id: string; lat: number; lon: number }[];
+      v?: string | number;
+    }) => {
+      if (!Array.isArray(input?.points) || input.points.length === 0) {
+        throw new Error("points required");
+      }
+      const points = input.points.slice(0, 32).map((p) => {
+        if (
+          typeof p?.id !== "string" ||
+          typeof p?.lat !== "number" ||
+          typeof p?.lon !== "number"
+        ) {
+          throw new Error("invalid point");
+        }
+        return {
+          id: p.id,
+          lat: Math.round(p.lat * 10_000) / 10_000,
+          lon: Math.round(p.lon * 10_000) / 10_000,
+        };
+      });
+      return { points, v: input?.v != null ? String(input.v) : undefined };
+    },
+  )
+  .handler(
+    async ({ data }): Promise<Record<string, ForecastResponse>> => {
+      setCdnCacheHeaders();
+      const out: Record<string, ForecastResponse> = {};
+      let locs: Loc[] | null = null;
+      try {
+        locs = await loadSymbolLocs();
+      } catch (err) {
+        console.error("[aggregated-forecast-batch] cache read failed", err);
+      }
+
+      for (const p of data.points) {
+        if (locs) {
+          const best = pickNearest(locs, p.lat, p.lon);
+          if (best?.hourly?.time?.length) {
+            out[p.id] = buildForecastFromCacheLoc(best);
+            continue;
+          }
+        }
+        try {
+          out[p.id] = await fetchForecast(p.lat, p.lon);
+        } catch (err) {
+          console.error("[aggregated-forecast-batch] direct fail", p.id, err);
+          out[p.id] = emptyForecast(p.lat, p.lon);
+        }
+      }
+      return out;
+    },
+  );

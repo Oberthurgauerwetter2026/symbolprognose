@@ -48,7 +48,8 @@ import lakeData from "@/data/lake.json";
 import thurgauData from "@/data/thurgau.json";
 import switzerlandData from "@/data/switzerland.json";
 import { useServerFn } from "@tanstack/react-start";
-import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
+import { getAggregatedForecastBatch } from "@/lib/forecast-aggregated.functions";
+import type { ForecastResponse } from "@/lib/weather";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
@@ -274,6 +275,7 @@ function SpotMarker({
   absoluteHour,
   isDay,
   onClick,
+  data,
 }: {
   spot: Spot;
   mode: "hourly" | "daily";
@@ -281,15 +283,8 @@ function SpotMarker({
   absoluteHour: number;
   isDay: boolean;
   onClick: () => void;
+  data: ForecastResponse | undefined;
 }) {
-  const getForecast = useServerFn(getAggregatedForecast);
-  const { data } = useQuery({
-    queryKey: ["map-weather", "v9", spot.id],
-    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon, v: "v9" } }),
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 30,
-    refetchOnMount: "always",
-  });
 
 
   const icon = useMemo(() => {
@@ -553,15 +548,17 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   const isDay = hourOfDay >= 6 && hourOfDay < 20;
 
 
-  // Datenstand vom ersten Spot (Cache wird mit den Markern geteilt).
-  const firstSpot = SPOTS[0];
-  const getForecast = useServerFn(getAggregatedForecast);
-  const { dataUpdatedAt } = useQuery({
-    queryKey: ["map-weather", "v9", firstSpot.id],
-    queryFn: () => getForecast({ data: { lat: firstSpot.lat, lon: firstSpot.lon, v: "v9" } }),
+  // Eine einzige Server-Anfrage für alle Spots (Batch + Edge-Cache).
+  const getForecastBatch = useServerFn(getAggregatedForecastBatch);
+  const points = useMemo(
+    () => SPOTS.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon })),
+    [],
+  );
+  const { data: forecasts, dataUpdatedAt } = useQuery({
+    queryKey: ["map-weather-batch", "v9"],
+    queryFn: () => getForecastBatch({ data: { points, v: "v9" } }),
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
-    refetchOnMount: "always",
   });
 
 
@@ -757,6 +754,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               absoluteHour={absoluteHour}
               isDay={isDay}
               onClick={() => goToLokal(s)}
+              data={forecasts?.[s.id]}
             />
           ))}
           <ZoomControl position="topright" />

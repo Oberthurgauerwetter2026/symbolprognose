@@ -22,6 +22,24 @@ export interface OpenMeteoCachePayload {
 
 const MEMO_TTL_MS = 30_000;
 let memo: { at: number; data: OpenMeteoCachePayload } | null = null;
+let symbolMemo: { at: number; data: OpenMeteoCachePayload } | null = null;
+
+/**
+ * Lädt NUR symbol.json (phaseA — Symbolprognose). Eigener Memo,
+ * damit Konsumenten der Symbolprognose nicht zusätzlich forecast.json ziehen.
+ */
+export async function getSymbolCache(): Promise<OpenMeteoCachePayload | null> {
+  if (symbolMemo && Date.now() - symbolMemo.at < MEMO_TTL_MS) return symbolMemo.data;
+  const base = r2BaseUrl();
+  if (!base) {
+    console.warn("[openmeteo-cache] R2_PUBLIC_URL not set");
+    return null;
+  }
+  const data = await fetchCacheUrl(`${base}/openmeteo/symbol.json`);
+  if (!data) return null;
+  symbolMemo = { at: Date.now(), data };
+  return data;
+}
 
 function r2BaseUrl(): string | null {
   const base = process.env.R2_PUBLIC_URL;
@@ -70,5 +88,6 @@ export async function getOpenMeteoCache(): Promise<OpenMeteoCachePayload | null>
     phaseA: symbolCache?.phaseA?.length ? symbolCache.phaseA : radarCache?.phaseA,
   };
   memo = { at: Date.now(), data: merged };
+  if (symbolCache) symbolMemo = { at: Date.now(), data: symbolCache };
   return merged;
 }
