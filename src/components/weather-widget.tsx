@@ -879,10 +879,10 @@ function DetailPanel({
                     </div>
                     <div
                       className="flex items-center justify-center"
-                      title={weatherLabel(h.weathercode[idx])}
+                      title={weatherLabel(h.weathercode?.[idx] ?? 0)}
                     >
                       <WeatherIcon
-                        code={h.weathercode[idx]}
+                        code={h.weathercode?.[idx] ?? 0}
                         isDay={t.getHours() >= 6 && t.getHours() < 20}
                         size={cadence === "1h" ? 48 : 64}
                         precip={h.precipitation?.[idx]}
