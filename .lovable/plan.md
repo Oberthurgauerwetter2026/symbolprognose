@@ -1,42 +1,61 @@
-# Fix: Daten fehlen ab Mo, 8. Juni in Wetterkarte / Lokalprognose
+# Performance-Fix: Symbolprognose & Lokalprognose
 
-## Ursache
+## Befund
 
-Der R2-Cache (`openmeteo/symbol.json`) enthält pro Stunde/Tag **mehrere Modell-Spalten** (Suffix `_meteoswiss_icon_ch2`, `_icon_d2`, `_arpege_europe`, `_meteofrance_arome_france_hd`, `_ecmwf_ifs025`, `_gfs_global`). Die hochauflösenden Regional-Modelle reichen nur ~2–5 Tage in die Zukunft, ECMWF/GFS dagegen volle 7 Tage:
+Aktuell ist jeder Aufruf der Karten-/Widget-Seiten teuer:
 
-```text
-temperature_2m_meteoswiss_icon_ch2   117/168 non-null  (≈ bis 9. Juni)
-temperature_2m_icon_d2                51/168            (≈ bis 6. Juni)
-temperature_2m_arpege_europe          99/168            (≈ bis 8. Juni)
-temperature_2m_meteofrance_arome_…    51/168            (≈ bis 6. Juni)
-temperature_2m_ecmwf_ifs025          168/168 ✓
-temperature_2m_gfs_global            168/168 ✓
-```
+- **Region-Karte** ruft `getAggregatedForecast` **5× pro Mount** auf (4 Spots + 1 für `dataUpdatedAt`).
+- **Lokalprognose-Widget** ruft es 1× pro Mount.
+- Jeder Server-Call führt in `openmeteo-cache.server.ts` **parallel zwei R2-Downloads** aus (`forecast.json` **und** `symbol.json`), obwohl phaseA-Konsumenten nur `symbol.json` brauchen.
+- `useQuery` setzt `refetchOnMount: "always"` → Client-Cache wird ignoriert, jeder Routen-Wechsel triggert neu.
+- Keine HTTP-Cache-Header auf der Server-Function → CDN/Browser können nichts cachen, jeder Request schlägt durch bis zum Worker.
 
-In `src/lib/forecast-aggregated.functions.ts` wählt `pickArr` jedoch **eine einzige** Modell-Spalte – nach Suffix-Reihenfolge die erste vorhandene. Das ist `meteoswiss_icon_ch2`. Ab dem Zeitpunkt, an dem dieses Modell `null` liefert (≈ ab Mo, 8. Juni), füllt `sanitizeForecast` die Werte mit `0`/`NaN` auf → Temperatur 0°, Wind 0, Code 0 (= „Klar") → für den User sehen die Tage „leer" / falsch aus.
+Ergebnis: 5 RPCs × (R2-Roundtrip + JSON-Parse großer Files) bei jedem Karten-Open. Cold Isolate verstärkt das.
 
-## Lösung
+## Plan
 
-Per-Index-Merge über alle Modelle, statt eine einzelne Modell-Spalte zu wählen. Priorität nach Modellreihenfolge (hochauflösend zuerst, ECMWF/GFS als Lückenfüller).
+### 1. R2-Reader splitten (`src/lib/openmeteo-cache.server.ts`)
 
-### `src/lib/forecast-aggregated.functions.ts`
+- Neuer Export `getSymbolCache()` lädt **nur** `openmeteo/symbol.json` (eigener Memo).
+- Bestehendes `getOpenMeteoCache()` bleibt für Radar/Konsumenten von `forecast.json`.
+- `forecast-aggregated.functions.ts` und alles, was nur `phaseA` braucht, nutzt `getSymbolCache()` → halbiert Bandbreite & Latenz pro Worker-Isolate.
 
-- Neuer Helper `mergeArr(s, ...keys)`:
-  - Sammelt für jeden `key` alle vorhandenen Spalten: unsuffigiert + alle `key_<modelSuffix>` in `CACHE_MODEL_SUFFIXES`-Reihenfolge.
-  - Bestimmt die Ziel-Länge aus dem längsten Array.
-  - Für jeden Index `i`: nimm den ersten finiten Zahlenwert über die Modell-Reihenfolge (priorisiert hochauflösende Modelle, fällt auf ECMWF/GFS zurück). Wenn nichts vorhanden ist, bleibt `null` (wird später von `sanitizeForecast`/`keepNaNArr` korrekt behandelt) bzw. für hourly-Zahlen `0` als sicherer Default.
-- Analog `mergeStrArr` für `sunrise`/`sunset` (priorisiert erste nichtleere Zeichenkette pro Tag).
-- `buildForecastFromCacheLoc` verwendet `mergeArr` statt `pickArr` für alle Hourly- und Daily-Felder. `time` bleibt unverändert (`pickStrArr`).
-- Padding-Aufrufe (`padNum`/`padStr`) bleiben als Sicherheitsnetz für Schemafehler.
+### 2. Batch-Server-Function (`src/lib/forecast-aggregated.functions.ts`)
 
-### Keine weiteren Änderungen
+- Neue `getAggregatedForecastBatch({ points: {id,lat,lon}[], v? })` → liest **einmal** den Symbol-Cache, mappt per `pickNearest` für jeden Punkt, gibt `Record<id, ForecastResponse>` zurück.
+- `getAggregatedForecast` (einzeln) bleibt für Bestandscode erhalten, delegiert intern an Batch-Pfad.
+- Edge-Cache-Header setzen:
+  `Cache-Control: public, max-age=60, s-maxage=300, stale-while-revalidate=600`
+  via `setResponseHeaders` im Handler. Damit dedupliziert Cloudflare wiederholte Requests auf gleiche Lat/Lon.
 
-- Keine UI/Design-Änderungen.
-- Keine Änderungen am Ingest-Workflow oder R2-Schema.
-- `getMultiModelForecast`, `radar.functions.ts`, `weather.ts` bleiben unverändert.
+### 3. Region-Karte umstellen (`src/components/region-map.tsx`)
+
+- **Eine** `useQuery` auf Parent-Ebene (`RegionMapInner`), die `getAggregatedForecastBatch` für alle `SPOTS` aufruft.
+- `SpotMarker` bekommt den fertigen `ForecastResponse` als Prop (kein eigenes `useQuery` mehr).
+- Liefert nebenbei das Timestamp für `dataUpdatedAt` ohne Extra-Call.
+- 5 RPCs → **1 RPC**.
+
+### 4. Widget-Cache-Hygiene (`src/components/weather-widget.tsx` und `region-map.tsx`)
+
+- `refetchOnMount: "always"` entfernen, `staleTime` bleibt (2–5 min).
+- Damit nutzt der Client den React-Query-Cache zwischen Routen-Wechseln statt jedes Mal neu zu fetchen.
+
+### 5. Lokal-Embeds (`/embed/lokal`, `/embed/region-lokal`)
+
+- `EmbedShell`/Route-Loader: `Cache-Control` ist bereits gesetzt (`embed-cache.functions.ts`). Zusätzlich `getAggregatedForecast` für Amriswil im **Route-Loader** vorladen (TanStack Query `ensureQueryData`), damit der erste Render schon Daten hat statt erst nach Hydration zu fetchen.
+
+## Was sich NICHT ändert
+
+- Keine Änderung an Ingest-Workflows, R2-Layout, AROME/Radar-Pfaden, Modell-Merge-Logik (`mergeArr`/`pickNearest`), UI/Design.
+- `getMultiModelForecast`, `radar.functions.ts` unangetastet.
+
+## Erwartete Wirkung
+
+- Region-Karte: 5 → 1 Server-Call, jeweils nur 1 R2-File statt 2, plus CDN-Cache → Erstladung typischerweise **deutlich unter 1 s** statt mehrere Sekunden, Repeats nahezu instant.
+- Lokalprognose: 1 Call mit Edge-Cache, plus Loader-Preload → spürbar schnelleres First-Paint im Embed.
 
 ## Verifikation
 
-1. Server-Fn-Test für Amriswil: `hourly.temperature_2m[i]` und `daily.temperature_2m_max[i]` ab Index `i ≥ 4` (= 8. Juni) sind **finite, plausible Werte** statt 0.
-2. Browser: `/karten/region` und `/embed/region-lokal` zeigen Symbole/Temperaturen auch für Mo–Mi.
-3. Spot-Check: wenn `ecmwf_ifs025` als einziges Modell für späte Tage Daten liefert, werden seine Werte gerendert.
+- DevTools Network: `/_serverFn/...getAggregatedForecast*` Anzahl auf Region-Karte = 1; Response-Header zeigt `cache-control: ... s-maxage=300`.
+- Zweiter Karten-Open: Request kommt aus CF-Edge-Cache (`cf-cache-status: HIT`).
+- Inhalte (Symbole, Temperaturen, Tageswahl) identisch zur jetzigen Anzeige.
