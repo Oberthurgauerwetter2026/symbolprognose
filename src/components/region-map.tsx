@@ -275,6 +275,7 @@ function SpotMarker({
   absoluteHour,
   isDay,
   onClick,
+  data,
 }: {
   spot: Spot;
   mode: "hourly" | "daily";
@@ -282,15 +283,8 @@ function SpotMarker({
   absoluteHour: number;
   isDay: boolean;
   onClick: () => void;
+  data: ForecastResponse | undefined;
 }) {
-  const getForecast = useServerFn(getAggregatedForecast);
-  const { data } = useQuery({
-    queryKey: ["map-weather", "v9", spot.id],
-    queryFn: () => getForecast({ data: { lat: spot.lat, lon: spot.lon, v: "v9" } }),
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 30,
-    refetchOnMount: "always",
-  });
 
 
   const icon = useMemo(() => {
