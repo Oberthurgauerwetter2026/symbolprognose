@@ -897,7 +897,9 @@ function DetailPanel({
 
                     </div>
                     <div className={`${cadence === "1h" ? "text-base" : "text-xl"} font-bold tabular-nums text-zinc-900`}>
-                      {h.temperature_2m[idx].toFixed(1)}°
+                      {Number.isFinite(h.temperature_2m?.[idx])
+                        ? `${h.temperature_2m[idx].toFixed(1)}°`
+                        : "–"}
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 text-xs">
