@@ -88,5 +88,6 @@ export async function getOpenMeteoCache(): Promise<OpenMeteoCachePayload | null>
     phaseA: symbolCache?.phaseA?.length ? symbolCache.phaseA : radarCache?.phaseA,
   };
   memo = { at: Date.now(), data: merged };
+  if (symbolCache) symbolMemo = { at: Date.now(), data: symbolCache };
   return merged;
 }
