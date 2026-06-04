@@ -48,7 +48,8 @@ import lakeData from "@/data/lake.json";
 import thurgauData from "@/data/thurgau.json";
 import switzerlandData from "@/data/switzerland.json";
 import { useServerFn } from "@tanstack/react-start";
-import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
+import { getAggregatedForecastBatch } from "@/lib/forecast-aggregated.functions";
+import type { ForecastResponse } from "@/lib/weather";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
