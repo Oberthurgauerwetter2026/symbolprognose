@@ -903,7 +903,7 @@ function DetailPanel({
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 text-xs">
-                        <WindArrow deg={h.winddirection_10m[idx]} />
+                        <WindArrow deg={h.winddirection_10m?.[idx] ?? 0} />
                         <span className="font-bold tabular-nums text-zinc-900">
                           {Math.round(wind)}
                           <span className="font-semibold text-zinc-700">
