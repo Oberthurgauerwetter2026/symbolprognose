@@ -173,52 +173,52 @@ function buildForecastFromCacheLoc(loc: Loc): ForecastResponse {
   const hLen = hTime.length;
   const hourly: HourlyData = {
     time: hTime,
-    weathercode: padNum(pickArr(h, "weathercode", "weather_code") as number[], hLen),
-    temperature_2m: padNum(pickArr(h, "temperature_2m") as number[], hLen),
-    precipitation: padNum(pickArr(h, "precipitation") as number[], hLen),
-    precipitation_probability: padNum(pickArr(h, "precipitation_probability") as number[], hLen),
-    windspeed_10m: padNum(pickArr(h, "windspeed_10m", "wind_speed_10m") as number[], hLen),
-    windgusts_10m: padNum(pickArr(h, "windgusts_10m", "wind_gusts_10m") as number[], hLen),
+    weathercode: padNum(mergeArr(h, "weathercode", "weather_code") as number[], hLen),
+    temperature_2m: padNum(mergeArr(h, "temperature_2m") as number[], hLen),
+    precipitation: padNum(mergeArr(h, "precipitation") as number[], hLen),
+    precipitation_probability: padNum(mergeArr(h, "precipitation_probability") as number[], hLen),
+    windspeed_10m: padNum(mergeArr(h, "windspeed_10m", "wind_speed_10m") as number[], hLen),
+    windgusts_10m: padNum(mergeArr(h, "windgusts_10m", "wind_gusts_10m") as number[], hLen),
     winddirection_10m: padNum(
-      pickArr(h, "winddirection_10m", "wind_direction_10m") as number[],
+      mergeArr(h, "winddirection_10m", "wind_direction_10m") as number[],
       hLen,
     ),
-    snowfall: padNum(pickArr(h, "snowfall") as number[], hLen),
-    sunshine_duration: padNum(pickArr(h, "sunshine_duration") as number[], hLen),
-    cloud_cover_low: padNum(pickArr(h, "cloud_cover_low", "cloudcover_low") as number[], hLen),
-    cloud_cover_mid: padNum(pickArr(h, "cloud_cover_mid", "cloudcover_mid") as number[], hLen),
-    cloud_cover_high: padNum(pickArr(h, "cloud_cover_high", "cloudcover_high") as number[], hLen),
+    snowfall: padNum(mergeArr(h, "snowfall") as number[], hLen),
+    sunshine_duration: padNum(mergeArr(h, "sunshine_duration") as number[], hLen),
+    cloud_cover_low: padNum(mergeArr(h, "cloud_cover_low", "cloudcover_low") as number[], hLen),
+    cloud_cover_mid: padNum(mergeArr(h, "cloud_cover_mid", "cloudcover_mid") as number[], hLen),
+    cloud_cover_high: padNum(mergeArr(h, "cloud_cover_high", "cloudcover_high") as number[], hLen),
   };
 
   const dTime = pickStrArr(d, "time");
   const dLen = dTime.length;
   const daily: DailyData = {
     time: dTime,
-    weathercode: padNum(pickArr(d, "weathercode", "weather_code") as number[], dLen),
-    temperature_2m_max: padNum(pickArr(d, "temperature_2m_max") as number[], dLen),
-    temperature_2m_min: padNum(pickArr(d, "temperature_2m_min") as number[], dLen),
-    precipitation_sum: padNum(pickArr(d, "precipitation_sum") as number[], dLen),
+    weathercode: padNum(mergeArr(d, "weathercode", "weather_code") as number[], dLen),
+    temperature_2m_max: padNum(mergeArr(d, "temperature_2m_max") as number[], dLen),
+    temperature_2m_min: padNum(mergeArr(d, "temperature_2m_min") as number[], dLen),
+    precipitation_sum: padNum(mergeArr(d, "precipitation_sum") as number[], dLen),
     precipitation_probability_max: padNum(
-      pickArr(d, "precipitation_probability_max") as number[],
+      mergeArr(d, "precipitation_probability_max") as number[],
       dLen,
     ),
     windspeed_10m_max: padNum(
-      pickArr(d, "windspeed_10m_max", "wind_speed_10m_max") as number[],
+      mergeArr(d, "windspeed_10m_max", "wind_speed_10m_max") as number[],
       dLen,
     ),
     windgusts_10m_max: padNum(
-      pickArr(d, "windgusts_10m_max", "wind_gusts_10m_max") as number[],
+      mergeArr(d, "windgusts_10m_max", "wind_gusts_10m_max") as number[],
       dLen,
     ),
     winddirection_10m_dominant: padNum(
-      pickArr(d, "winddirection_10m_dominant", "wind_direction_10m_dominant") as number[],
+      mergeArr(d, "winddirection_10m_dominant", "wind_direction_10m_dominant") as number[],
       dLen,
     ),
-    sunshine_duration: padNum(pickArr(d, "sunshine_duration") as number[], dLen),
-    sunrise: padStr(pickStrArr(d, "sunrise"), dLen),
-    sunset: padStr(pickStrArr(d, "sunset"), dLen),
-    snowfall_sum: padNum(pickArr(d, "snowfall_sum") as number[], dLen),
-    precipitation_hours: padNum(pickArr(d, "precipitation_hours") as number[], dLen),
+    sunshine_duration: padNum(mergeArr(d, "sunshine_duration") as number[], dLen),
+    sunrise: padStr(mergeStrArr(d, "sunrise"), dLen),
+    sunset: padStr(mergeStrArr(d, "sunset"), dLen),
+    snowfall_sum: padNum(mergeArr(d, "snowfall_sum") as number[], dLen),
+    precipitation_hours: padNum(mergeArr(d, "precipitation_hours") as number[], dLen),
   };
 
   return sanitizeForecast({
