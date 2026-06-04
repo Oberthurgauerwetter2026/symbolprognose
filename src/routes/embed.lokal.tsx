@@ -3,17 +3,12 @@ import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { EmbedShell } from "@/components/embed-shell";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
+import { buildLokalNoscriptData } from "@/lib/embed-noscript.server";
 
 import { WeatherWidget } from "@/components/weather-widget";
-import { LokalNoscript, type LokalNoscriptData } from "@/components/embeds/lokal-noscript";
+import { LokalNoscript } from "@/components/embeds/lokal-noscript";
 
 const AMRISWIL = { name: "Amriswil", lat: 47.5469, lon: 9.2986 };
-
-const EMPTY_NOSCRIPT: LokalNoscriptData = {
-  locationName: AMRISWIL.name,
-  hourly: [],
-  daily: [],
-};
 
 const searchSchema = z.object({
   day: fallback(z.number().int().min(0).max(6).optional(), undefined).optional(),
@@ -22,9 +17,14 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/embed/lokal")({
   component: EmbedLokal,
   validateSearch: zodValidator(searchSchema),
-  loader: () => {
+  loader: async () => {
     setEmbedCacheHeaders();
-    return { noscript: EMPTY_NOSCRIPT };
+    const noscript = await buildLokalNoscriptData({
+      name: AMRISWIL.name,
+      lat: AMRISWIL.lat,
+      lon: AMRISWIL.lon,
+    });
+    return { noscript };
   },
   head: () => ({
     meta: [
