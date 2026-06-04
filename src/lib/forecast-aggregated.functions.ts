@@ -88,45 +88,73 @@ function pickStrArr(s: Series | undefined, ...keys: string[]): string[] {
   return [];
 }
 
+function padNum(arr: number[], len: number, fill = 0): number[] {
+  if (arr.length >= len) return arr.slice(0, len);
+  const out = arr.slice();
+  while (out.length < len) out.push(fill);
+  return out;
+}
+function padStr(arr: string[], len: number, fill = ""): string[] {
+  if (arr.length >= len) return arr.slice(0, len);
+  const out = arr.slice();
+  while (out.length < len) out.push(fill);
+  return out;
+}
+
 function buildForecastFromCacheLoc(loc: Loc): ForecastResponse {
   const h = loc.hourly;
   const d = loc.daily;
 
+  const hTime = pickStrArr(h, "time");
+  const hLen = hTime.length;
   const hourly: HourlyData = {
-    time: pickStrArr(h, "time"),
-    weathercode: pickArr(h, "weathercode", "weather_code") as number[],
-    temperature_2m: pickArr(h, "temperature_2m") as number[],
-    precipitation: pickArr(h, "precipitation") as number[],
-    precipitation_probability: pickArr(h, "precipitation_probability") as number[],
-    windspeed_10m: pickArr(h, "windspeed_10m", "wind_speed_10m") as number[],
-    windgusts_10m: pickArr(h, "windgusts_10m", "wind_gusts_10m") as number[],
-    winddirection_10m: pickArr(h, "winddirection_10m", "wind_direction_10m") as number[],
-    snowfall: pickArr(h, "snowfall") as number[],
-    sunshine_duration: pickArr(h, "sunshine_duration") as number[],
-    cloud_cover_low: pickArr(h, "cloud_cover_low", "cloudcover_low") as number[],
-    cloud_cover_mid: pickArr(h, "cloud_cover_mid", "cloudcover_mid") as number[],
-    cloud_cover_high: pickArr(h, "cloud_cover_high", "cloudcover_high") as number[],
+    time: hTime,
+    weathercode: padNum(pickArr(h, "weathercode", "weather_code") as number[], hLen),
+    temperature_2m: padNum(pickArr(h, "temperature_2m") as number[], hLen),
+    precipitation: padNum(pickArr(h, "precipitation") as number[], hLen),
+    precipitation_probability: padNum(pickArr(h, "precipitation_probability") as number[], hLen),
+    windspeed_10m: padNum(pickArr(h, "windspeed_10m", "wind_speed_10m") as number[], hLen),
+    windgusts_10m: padNum(pickArr(h, "windgusts_10m", "wind_gusts_10m") as number[], hLen),
+    winddirection_10m: padNum(
+      pickArr(h, "winddirection_10m", "wind_direction_10m") as number[],
+      hLen,
+    ),
+    snowfall: padNum(pickArr(h, "snowfall") as number[], hLen),
+    sunshine_duration: padNum(pickArr(h, "sunshine_duration") as number[], hLen),
+    cloud_cover_low: padNum(pickArr(h, "cloud_cover_low", "cloudcover_low") as number[], hLen),
+    cloud_cover_mid: padNum(pickArr(h, "cloud_cover_mid", "cloudcover_mid") as number[], hLen),
+    cloud_cover_high: padNum(pickArr(h, "cloud_cover_high", "cloudcover_high") as number[], hLen),
   };
 
+  const dTime = pickStrArr(d, "time");
+  const dLen = dTime.length;
   const daily: DailyData = {
-    time: pickStrArr(d, "time"),
-    weathercode: pickArr(d, "weathercode", "weather_code") as number[],
-    temperature_2m_max: pickArr(d, "temperature_2m_max") as number[],
-    temperature_2m_min: pickArr(d, "temperature_2m_min") as number[],
-    precipitation_sum: pickArr(d, "precipitation_sum") as number[],
-    precipitation_probability_max: pickArr(d, "precipitation_probability_max") as number[],
-    windspeed_10m_max: pickArr(d, "windspeed_10m_max", "wind_speed_10m_max") as number[],
-    windgusts_10m_max: pickArr(d, "windgusts_10m_max", "wind_gusts_10m_max") as number[],
-    winddirection_10m_dominant: pickArr(
-      d,
-      "winddirection_10m_dominant",
-      "wind_direction_10m_dominant",
-    ) as number[],
-    sunshine_duration: pickArr(d, "sunshine_duration") as number[],
-    sunrise: pickStrArr(d, "sunrise"),
-    sunset: pickStrArr(d, "sunset"),
-    snowfall_sum: pickArr(d, "snowfall_sum") as number[],
-    precipitation_hours: pickArr(d, "precipitation_hours") as number[],
+    time: dTime,
+    weathercode: padNum(pickArr(d, "weathercode", "weather_code") as number[], dLen),
+    temperature_2m_max: padNum(pickArr(d, "temperature_2m_max") as number[], dLen),
+    temperature_2m_min: padNum(pickArr(d, "temperature_2m_min") as number[], dLen),
+    precipitation_sum: padNum(pickArr(d, "precipitation_sum") as number[], dLen),
+    precipitation_probability_max: padNum(
+      pickArr(d, "precipitation_probability_max") as number[],
+      dLen,
+    ),
+    windspeed_10m_max: padNum(
+      pickArr(d, "windspeed_10m_max", "wind_speed_10m_max") as number[],
+      dLen,
+    ),
+    windgusts_10m_max: padNum(
+      pickArr(d, "windgusts_10m_max", "wind_gusts_10m_max") as number[],
+      dLen,
+    ),
+    winddirection_10m_dominant: padNum(
+      pickArr(d, "winddirection_10m_dominant", "wind_direction_10m_dominant") as number[],
+      dLen,
+    ),
+    sunshine_duration: padNum(pickArr(d, "sunshine_duration") as number[], dLen),
+    sunrise: padStr(pickStrArr(d, "sunrise"), dLen),
+    sunset: padStr(pickStrArr(d, "sunset"), dLen),
+    snowfall_sum: padNum(pickArr(d, "snowfall_sum") as number[], dLen),
+    precipitation_hours: padNum(pickArr(d, "precipitation_hours") as number[], dLen),
   };
 
   return sanitizeForecast({
@@ -150,6 +178,45 @@ async function forecastFromCache(
   return buildForecastFromCacheLoc(best);
 }
 
+function emptyForecast(lat: number, lon: number): ForecastResponse {
+  return sanitizeForecast({
+    latitude: lat,
+    longitude: lon,
+    timezone: "Europe/Zurich",
+    hourly: {
+      time: [],
+      weathercode: [],
+      temperature_2m: [],
+      precipitation: [],
+      precipitation_probability: [],
+      windspeed_10m: [],
+      windgusts_10m: [],
+      winddirection_10m: [],
+      snowfall: [],
+      sunshine_duration: [],
+      cloud_cover_low: [],
+      cloud_cover_mid: [],
+      cloud_cover_high: [],
+    },
+    daily: {
+      time: [],
+      weathercode: [],
+      temperature_2m_max: [],
+      temperature_2m_min: [],
+      precipitation_sum: [],
+      precipitation_probability_max: [],
+      windspeed_10m_max: [],
+      windgusts_10m_max: [],
+      winddirection_10m_dominant: [],
+      sunshine_duration: [],
+      sunrise: [],
+      sunset: [],
+      snowfall_sum: [],
+      precipitation_hours: [],
+    },
+  });
+}
+
 export const getAggregatedForecast = createServerFn({ method: "POST" })
   .inputValidator((input: { lat: number; lon: number; v?: string | number }) => {
     if (typeof input?.lat !== "number" || typeof input?.lon !== "number") {
@@ -162,8 +229,12 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }): Promise<ForecastResponse> => {
-    const cached = await forecastFromCache(data.lat, data.lon);
-    if (cached) return cached;
+    try {
+      const cached = await forecastFromCache(data.lat, data.lon);
+      if (cached) return cached;
+    } catch (err) {
+      console.error("[aggregated-forecast] cache read failed", err);
+    }
 
     // Fallback: R2 leer / nicht erreichbar → direkter Open-Meteo-Call
     // (kann am Worker-IP-Rate-Limit scheitern, deshalb nur Last Resort).
@@ -173,5 +244,10 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
       data.lon,
       "— falling back to direct Open-Meteo",
     );
-    return await fetchForecast(data.lat, data.lon);
+    try {
+      return await fetchForecast(data.lat, data.lon);
+    } catch (err) {
+      console.error("[aggregated-forecast] hard fail", err);
+      return emptyForecast(data.lat, data.lon);
+    }
   });
