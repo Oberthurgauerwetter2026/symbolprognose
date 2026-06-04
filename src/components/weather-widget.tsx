@@ -842,8 +842,8 @@ function DetailPanel({
                 const slotMs = t.getTime();
                 const slotDur = cadence === "1h" ? 3600_000 : 3 * 3600_000;
                 const isCurrent = nowMs >= slotMs && nowMs < slotMs + slotDur;
-                const wind = h.windspeed_10m[idx];
-                const rawGust = h.windgusts_10m[idx];
+                const wind = h.windspeed_10m?.[idx] ?? 0;
+                const rawGust = h.windgusts_10m?.[idx] ?? 0;
                 const gust =
                   rawGust > 0
                     ? rawGust
