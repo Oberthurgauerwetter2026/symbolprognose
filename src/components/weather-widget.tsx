@@ -196,7 +196,13 @@ export function WeatherWidget({
     })();
     const cutoffMs = curHourMs + 12 * 3600_000;
     const out: { idx: number; cadence: "1h" | "3h" }[] = [];
-    for (let i = 0; i < h.time.length; i++) {
+    const safeLen = Math.min(
+      h.time.length,
+      h.temperature_2m?.length ?? 0,
+      h.winddirection_10m?.length ?? 0,
+      h.weathercode?.length ?? 0,
+    );
+    for (let i = 0; i < safeLen; i++) {
       const tMs = new Date(h.time[i]).getTime();
       if (tMs < curHourMs) continue;
       if (tMs < cutoffMs) {
