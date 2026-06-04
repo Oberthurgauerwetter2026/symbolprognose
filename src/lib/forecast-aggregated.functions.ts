@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { setResponseHeaders } from "@tanstack/react-start/server";
 import {
   fetchForecast,
   sanitizeForecast,
@@ -6,7 +7,7 @@ import {
   type ForecastResponse,
   type HourlyData,
 } from "./weather";
-import { getOpenMeteoCache } from "./openmeteo-cache.server";
+import { getSymbolCache } from "./openmeteo-cache.server";
 
 /**
  * Serverseitiges Multi-Modell-Aggregat.
