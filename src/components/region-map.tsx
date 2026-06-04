@@ -288,32 +288,39 @@ function SpotMarker({
 
 
   const icon = useMemo(() => {
+    const ICON_W = 250;
+    const ICON_H = 72;
+    const wrap = (inner: string) =>
+      `<div style="width:${ICON_W}px;height:${ICON_H}px;display:flex;align-items:center;justify-content:center;">${inner}</div>`;
+
     if (!data) {
       return L.divIcon({
-        html: renderToStaticMarkup(
-          <div
-            style={{
-              padding: "6px 14px",
-              borderRadius: 999,
-              background: BRAND,
-              border: "1px solid rgba(255,255,255,0.25)",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-              color: "rgba(255,255,255,0.85)",
-              fontFamily: '"Figtree", system-ui, sans-serif',
-              fontSize: 12,
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {spot.name}
-          </div>,
+        html: wrap(
+          renderToStaticMarkup(
+            <div
+              style={{
+                padding: "6px 14px",
+                borderRadius: 999,
+                background: BRAND,
+                border: "1px solid rgba(255,255,255,0.25)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+                color: "rgba(255,255,255,0.85)",
+                fontFamily: '"Figtree", system-ui, sans-serif',
+                fontSize: 12,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {spot.name}
+            </div>,
+          ),
         ),
         className: "region-map-marker",
-        iconSize: [160, 32],
-        iconAnchor: [80, 16],
+        iconSize: [ICON_W, ICON_H],
+        iconAnchor: [ICON_W / 2, ICON_H / 2],
       });
     }
     const code =
@@ -358,35 +365,38 @@ function SpotMarker({
       mode === "daily"
         ? data.daily.cloud_cover_high_mean?.[dayIdx]
         : data.hourly.cloud_cover_high?.[absoluteHour];
-    const html = renderToStaticMarkup(
-      <MarkerPill
-        name={spot.name}
-        mode={mode}
-        tMin={tMin}
-        tMax={tMax}
-        tNow={tNow}
-        code={code}
-        isDay={effectiveIsDay}
-        precip={precip}
-        precipProb={precipProb}
-        precipHours={precipHours}
-        thunderHours={thunderHours}
-        isSnow={isSnow}
-        sunshineRatio={sunshineRatio}
-        cloudLow={cloudLow}
-        cloudMid={cloudMid}
-        cloudHigh={cloudHigh}
-      />,
+    const html = wrap(
+      renderToStaticMarkup(
+        <MarkerPill
+          name={spot.name}
+          mode={mode}
+          tMin={tMin}
+          tMax={tMax}
+          tNow={tNow}
+          code={code}
+          isDay={effectiveIsDay}
+          precip={precip}
+          precipProb={precipProb}
+          precipHours={precipHours}
+          thunderHours={thunderHours}
+          isSnow={isSnow}
+          sunshineRatio={sunshineRatio}
+          cloudLow={cloudLow}
+          cloudMid={cloudMid}
+          cloudHigh={cloudHigh}
+        />,
+      ),
     );
 
 
     return L.divIcon({
       html,
       className: "region-map-marker",
-      iconSize: [250, 72],
-      iconAnchor: [125, 36],
+      iconSize: [ICON_W, ICON_H],
+      iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
   }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
+
 
   return (
     <Marker
