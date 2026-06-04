@@ -518,7 +518,7 @@ function PrecipOverlay({
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     // Prognose: leichter Blur glättet die ~2-km-ICON-CH1-Modellzellen.
-    if (contour) ctx.filter = "blur(0.6px)";
+    if (contour) ctx.filter = "blur(0.3px)";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     if (contour) ctx.filter = "none";
     ctx.restore();
