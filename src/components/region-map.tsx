@@ -754,6 +754,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               absoluteHour={absoluteHour}
               isDay={isDay}
               onClick={() => goToLokal(s)}
+              data={forecasts?.[s.id]}
             />
           ))}
           <ZoomControl position="topright" />
