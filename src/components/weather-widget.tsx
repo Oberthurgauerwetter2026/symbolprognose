@@ -912,7 +912,7 @@ function DetailPanel({
                         </span>
                         {cadence === "3h" && (
                           <span className="text-zinc-700 font-medium">
-                            {windDirectionLabel(h.winddirection_10m[idx])}
+                            {windDirectionLabel(h.winddirection_10m?.[idx] ?? 0)}
                           </span>
                         )}
                       </div>
