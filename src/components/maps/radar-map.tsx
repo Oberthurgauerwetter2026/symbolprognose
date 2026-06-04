@@ -364,7 +364,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = contour ? "contrast(1.15)" : "blur(0.8px) contrast(2.2)";
+        cv.style.filter = contour ? "contrast(1.25)" : "blur(0.8px) contrast(2.2)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
@@ -472,7 +472,7 @@ function PrecipOverlay({
         const v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
         // Prognose: weicher Alpha-Ramp unter dem ersten Band, damit einzelne
         // ICON-CH1-Modellzellen nicht als isolierte Punkte erscheinen.
-        const minV = contour ? 0.03 : 0.1;
+        const minV = contour ? 0.05 : 0.1;
         if (v < minV) continue;
 
         let snowFrac = 0;
@@ -488,7 +488,7 @@ function PrecipOverlay({
         let [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorForSmooth(v);
         // Unter erstem Band (nur Prognose): Alpha sanft auf 0 ausblenden.
         if (contour && v < 0.1) {
-          const ramp = (v - 0.03) / (0.1 - 0.03);
+          const ramp = (v - 0.05) / (0.1 - 0.05);
           a = a * Math.max(0, Math.min(1, ramp));
         }
         if (a === 0) continue;
@@ -518,7 +518,7 @@ function PrecipOverlay({
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     // Prognose: leichter Blur glättet die ~2-km-ICON-CH1-Modellzellen.
-    if (contour) ctx.filter = "blur(1.2px)";
+    if (contour) ctx.filter = "blur(0.6px)";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     if (contour) ctx.filter = "none";
     ctx.restore();
