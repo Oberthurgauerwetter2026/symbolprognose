@@ -23,7 +23,13 @@ function BoundsFitter({ bounds }: { bounds: L.LatLngBoundsExpression }) {
   useEffect(() => {
     const fit = () => {
       map.invalidateSize();
-      map.fitBounds(bounds, { padding: [4, 4] });
+      const w = map.getContainer().clientWidth;
+      // Padding so randständige Marker-Pills (250×72 px, geo-zentriert) komplett sichtbar bleiben.
+      // Auf schmalen Viewports moderat reduziert, damit die Karte nicht zu stark herauszoomt.
+      const isNarrow = w < 480;
+      const padX = isNarrow ? 70 : 130;
+      const padY = isNarrow ? 44 : 48;
+      map.fitBounds(bounds, { padding: [padX, padY] });
     };
     fit();
     window.addEventListener("resize", fit);
@@ -38,6 +44,7 @@ function BoundsFitter({ bounds }: { bounds: L.LatLngBoundsExpression }) {
   }, [map, bounds]);
   return null;
 }
+
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { renderToStaticMarkup } from "react-dom/server";
