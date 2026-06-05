@@ -36,7 +36,6 @@ const CACHE_MODEL_SUFFIXES = [
   "meteoswiss_icon_ch2",
   "icon_d2",
   "arpege_europe",
-  "meteofrance_arome_france_hd",
   "ecmwf_ifs025",
   "gfs_global",
 ] as const;
