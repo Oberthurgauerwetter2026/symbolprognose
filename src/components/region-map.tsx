@@ -921,7 +921,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                   hour: "2-digit",
                   minute: "2-digit",
                 }).format(new Date(dataUpdatedAt))}{" "}
-                · Quellen: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
+                · Quelle: Oberthurgauer Wetter · Modelle: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
               </p>
             )}
           </div>
