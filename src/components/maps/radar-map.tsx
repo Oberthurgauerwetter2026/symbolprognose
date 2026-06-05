@@ -1153,17 +1153,16 @@ export function RadarMap({
 
 
 
-          <ZoomGate minZoom={10.5}>
-            {RADAR_CITIES.map((c) => (
+          {RADAR_CITIES.map((c) => (
+            <ZoomGate key={c.name} minZoom={c.minZoom ?? 10.5}>
               <Marker
-                key={c.name}
                 position={[c.lat, c.lon]}
                 icon={cityIcon(c.name)}
                 interactive={false}
                 keyboard={false}
               />
-            ))}
-          </ZoomGate>
+            </ZoomGate>
+          ))}
           <ZoomControl position="topright" />
         </MapContainer>
 
