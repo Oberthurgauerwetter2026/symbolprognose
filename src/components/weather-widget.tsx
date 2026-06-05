@@ -351,7 +351,7 @@ function DataStamp({ updatedAt }: { updatedAt: number }) {
     "(00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 15–30 Min. zwischengespeichert.";
   return (
     <p className="text-[11px] text-zinc-500 text-center pt-1" title={tip}>
-      Datenstand: {fmt} · Quellen: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
+      Datenstand: {fmt} · Quelle: Oberthurgauer Wetter · Modelle: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
     </p>
   );
 }

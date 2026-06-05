@@ -697,7 +697,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
             opacity={0.55}
-            attribution='© <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
+            attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
           />
           {/* Aussen-CH-Maske: deutlich dunkler, gilt nur ausserhalb der Schweizer Landesgrenze */}
           <GeoJSON
@@ -921,7 +921,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                   hour: "2-digit",
                   minute: "2-digit",
                 }).format(new Date(dataUpdatedAt))}{" "}
-                · Quellen: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
+                · Quelle: Oberthurgauer Wetter · Modelle: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
               </p>
             )}
           </div>
