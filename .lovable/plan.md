@@ -1,47 +1,51 @@
 ## Ziel
 
-Überall in der App / in den Embeds die Quellenangabe **"Oberthurgauer Wetter"** als Primärquelle voranstellen — analog zu Radar- und Niederschlagskarte, die das bereits machen ("Quelle: Oberthurgauer Wetter · …").
+Auf der Radarkarte (`/karten/radar`) beim Reinzoomen mehr Ortsnamen im **Bezirk Oberthurgau** anzeigen — auch kleine Gemeinden und Weiler, gestaffelt wie bei OpenStreetMap (grössere Orte früher, kleinere erst weit zoomed-in).
 
-## Bestand
+## Aktuelles Verhalten
 
-Bereits vorhanden:
-- `src/components/maps/radar-map.tsx` (Attribution & Footer)
-- `src/components/maps/precip-accum-map.tsx` (Attribution)
+`src/components/maps/radar-map.tsx`:
 
-Fehlt noch:
+- `RADAR_CITIES` (Z. 39–47): 7 Orte (Amriswil, Erlen, Bischofszell, Münsterlingen, Güttingen, Egnach, Horn) — Bischofszell liegt streng genommen ausserhalb Oberthurgau, bleibt aber als Anker.
+- Eine einzelne `ZoomGate minZoom={10.5}` zeigt alle Marker gleichzeitig.
+- **Romanshorn fehlt** vollständig.
 
-| Datei | Stelle |
-|---|---|
-| `src/components/region-map.tsx` | Z. 700 Leaflet-`attribution`; Z. 924 Footer "· Quellen: …" |
-| `src/components/region-map-template.tsx` | Z. 152 Leaflet-`attribution` |
-| `src/components/weather-widget.tsx` | Z. 354 "Datenstand: … · Quellen: …" |
-| `src/components/embeds/lokal-noscript.tsx` | Z. 164 "Quelle: MeteoSchweiz …" |
-| `src/components/embeds/radar-noscript.tsx` | Z. 120 "Quelle: MeteoSchweiz …" |
+## Änderung
 
-`weather-widget.tsx` Z. 1171 ("Grafik © …") bleibt unverändert — das ist eine Copyright-Zeile für die Grafik, keine Datenquelle.
-`embed-shell.tsx` und `embeds/region-lokal-noscript.tsx` haben keine eigene Quellenzeile.
+In `src/components/maps/radar-map.tsx`:
 
-## Änderung (konsistentes Muster)
-
-Überall den String so umformulieren, dass **"Oberthurgauer Wetter"** vorne steht und die Modelle als Nachsatz folgen:
-
-- **Leaflet-Attribution** (Karten): vorne `Quelle: Oberthurgauer Wetter · ` ergänzen, bestehende swisstopo/OSM-Links unverändert dahinter belassen.
-  - `region-map.tsx` Z. 700 →
-    `'Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'`
-  - `region-map-template.tsx` Z. 152 →
-    `'Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a>, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'`
-
-- **Footer/Quellenzeilen** (Widgets, Embeds):
-  - `weather-widget.tsx` Z. 354 →
-    `Datenstand: {fmt} · Quelle: Oberthurgauer Wetter · Modelle: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX`
-  - `region-map.tsx` Z. 924 (das `·`-Suffix nach Datenstand) →
-    `· Quelle: Oberthurgauer Wetter · Modelle: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX`
-  - `embeds/lokal-noscript.tsx` Z. 164 →
-    `Quelle: Oberthurgauer Wetter · Modelle: MeteoSchweiz ICON-CH1/CH2 & ECMWF IFS via Open-Meteo`
-  - `embeds/radar-noscript.tsx` Z. 120 →
-    `Quelle: Oberthurgauer Wetter · MeteoSchweiz Radar (CPC) & ICON-CH1/CH2 via Open-Meteo`
+1. **Typ erweitern**: `RADAR_CITIES`-Einträge erhalten optional `minZoom?: number` (Default 10.5).
+2. **Liste neu aufbauen** — ausschliesslich Oberthurgau (Bezirk Arbon) + ein paar nahe Seeufer-Anker, gestaffelt nach Ortsgrösse:
+  - **Tier A — ab Zoom 10.5** (Hauptorte):
+   Amriswil, Romanshorn, Arbon, Horn, Münsterlingen, Egnach, Güttingen
+  - **Tier B — ab Zoom 11.5** (mittelgrosse Gemeinden):  
+  Roggwil,, Uttwil, Salmsach, Sommeri, Erlen, Langrickenbach
+  - **Tier C — ab Zoom 12.5** (kleine Gemeinden / Ortsteile):
+  Hefenhofen, Dozwil, Kesswil, Hauptwil-Gottshaus, Zihlschlacht-Sitterdorf, Bischofszell
+   Koordinaten (gerundet auf 4 Dezimalstellen, Ortszentren):
+  - Amriswil 47.5469 / 9.2986
+  - Romanshorn 47.5667 / 9.3786
+  - Arbon 47.5158 / 9.4339
+  - Horn 47.4986 / 9.4470
+  - Münsterlingen 47.6306 / 9.2378
+  - Egnach 47.5444 / 9.3833
+  - Güttingen 47.6011 / 9.2917
+  - Roggwil 47.4769 / 9.3922
+  - Uttwil 47.5907 / 9.3367
+  - Salmsach 47.5503 / 9.3725
+  - Sommeri 47.5775 / 9.3194
+  - Erlen 47.5375 / 9.2378
+  - Langrickenbach 47.5947 / 9.2406
+  - Hefenhofen 47.5722 / 9.3289
+  - Dozwil 47.5867 / 9.3047
+  - Kesswil 47.6022 / 9.3217
+  - Hauptwil-Gottshaus 47.4894 / 9.2806
+  - Zihlschlacht-Sitterdorf 47.5158 / 9.2750
+  - Bischofszell 47.4944 / 9.2389
+3. **Rendering** (Z. 1141–1151): Einzelne `<ZoomGate minZoom={10.5}>` durch ein Mapping ersetzen, das pro Marker einen eigenen `<ZoomGate minZoom={c.minZoom ?? 10.5}>` rendert.
 
 ## Nicht betroffen
 
-- Datenabrufe, Aggregation, Server-Functions, JSON-LD-Metadaten.
-- Reine Copyright-/Grafik-Hinweise.
+- Radar-/Forecast-Layer, Legende, Slider, Datenquellen, andere Karten.
+- `ZoomGate`-Komponente selbst (Logik bleibt).
+  &nbsp;
