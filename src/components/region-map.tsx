@@ -407,7 +407,10 @@ function SpotMarker({
 
   return (
     <Marker
-      position={[spot.lat, spot.lon]}
+      position={[
+        spot.lat + (spot.markerLatOffset ?? 0),
+        spot.lon + (spot.markerLonOffset ?? 0),
+      ]}
       icon={icon}
       eventHandlers={{ click: onClick }}
     />
