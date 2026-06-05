@@ -80,7 +80,7 @@ function CityMarkers() {
   const z = useMapZoom();
   return (
     <>
-      {CITIES.filter((c) => z >= (c.minZoom ?? 0)).map((c) => (
+      {CITIES.filter((c) => z >= (c.minZoom ?? 10.5)).map((c) => (
         <Marker
           key={c.name}
           position={[c.lat, c.lon]}
