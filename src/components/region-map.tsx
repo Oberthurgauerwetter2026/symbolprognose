@@ -800,7 +800,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             <div
               className={cn(
                 "region-slider-slim relative select-none",
-                viewMode === "daily" && "pointer-events-none opacity-40",
+                viewMode === "daily" && "opacity-40",
               )}
             >
               {/* Stundenlabels (HH) über dem Track */}
@@ -873,8 +873,10 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                   max={MAX_STEPS}
                   step={1}
                   value={[stepOffset]}
-                  onValueChange={(v) => setStepOffset(v[0] ?? 0)}
-                  disabled={viewMode === "daily"}
+                  onValueChange={(v) => {
+                    if (viewMode === "daily") setViewMode("hourly");
+                    setStepOffset(v[0] ?? 0);
+                  }}
                 />
               </div>
 

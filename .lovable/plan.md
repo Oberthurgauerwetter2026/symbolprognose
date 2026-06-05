@@ -1,27 +1,20 @@
 ## Ziel
 
-Den AROME-HD-String aus der Multi-Modell-Aggregation der Symbolprognose entfernen. Die Radar-/Niederschlags-Komponenten (AROME-HD-Overlay) bleiben unangetastet.
+Auf der Region-Karte (`/karten/region`) soll ein Klick/Tap in den Zeit-Slider die Ansicht automatisch von **Tagesübersicht** auf **Stündlich** umschalten — unabhängig davon, wo geklickt wird.
+
+## Aktuelles Verhalten
+
+In `src/components/region-map.tsx` (Zeilen 869–878) ist der `<Slider>` im Daily-Modus mit `disabled={viewMode === "daily"}` gesetzt. Dadurch reagiert er nicht auf Klicks; der Wechsel auf "Stündlich" geht heute nur über den Tab "Stündlich" oder den "Jetzt"-Button.
 
 ## Änderung
 
-**Datei:** `src/lib/forecast-aggregated.functions.ts`
+In `src/components/region-map.tsx`:
 
-In `CACHE_MODEL_SUFFIXES` (Zeile 35–42) den Eintrag `"meteofrance_arome_france_hd",` entfernen. Die übrigen Modelle (ICON-CH2, ICON-D2, ARPEGE-Europe, ECMWF-IFS, GFS) bleiben.
-
-```ts
-const CACHE_MODEL_SUFFIXES = [
-  "meteoswiss_icon_ch2",
-  "icon_d2",
-  "arpege_europe",
-  "ecmwf_ifs025",
-  "gfs_global",
-] as const;
-```
+1. `disabled={viewMode === "daily"}` am `<Slider>` entfernen, damit der Slider auch im Daily-Modus klickbar ist.
+2. `onValueChange` so erweitern, dass bei aktivem Daily-Modus zusätzlich `setViewMode("hourly")` aufgerufen wird, bevor `setStepOffset(v[0] ?? 0)` läuft. Damit reicht ein einziger Klick irgendwo in den Track, um auf Stündlich zu wechseln und gleich die angeklickte Stunde zu setzen.
+3. Der Wrapper um den Slider/die Stunden-Ticks (Zeilen ~829–879) bleibt unverändert; insbesondere die Klasse `pointer-events-none opacity-40` auf dem Hour-Ticks-Container (Zeile 803) wird nicht angefasst — sie betrifft nur die Tick-Beschriftungen, nicht den Slider selbst.
 
 ## Nicht betroffen
 
-- `src/lib/arome-cache.server.ts`, `src/lib/arome-dispatch.server.ts`, `src/routes/api/public/arome/ingest-trigger.ts` — diese liefern das AROME-HD-Niederschlags-Overlay für den Radar und sind nicht Teil der Symbolprognose.
-
-## Verifikation
-
-Symbolprognose-Aufruf auf `/karten/region` und im Wetter-Widget kurz prüfen — Stundenwerte / Tages-Symbole müssen weiterhin gefüllt sein (Fallback über ICON-CH2 / ICON-D2 / ECMWF / GFS).
+- Daily-Tabs, "Jetzt"-Button, Marker, Datenabruf und Aggregation bleiben unverändert.
+- Keine Backend-/Server-Function-Änderungen.
