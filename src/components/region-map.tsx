@@ -800,7 +800,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             <div
               className={cn(
                 "region-slider-slim relative select-none",
-                viewMode === "daily" && "pointer-events-none opacity-40",
+                viewMode === "daily" && "opacity-40",
               )}
             >
               {/* Stundenlabels (HH) über dem Track */}
