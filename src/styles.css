@@ -193,3 +193,13 @@
   will-change: filter;
 }
 
+/* Embed-Fallback: server-gerenderter statischer Inhalt bleibt sichtbar,
+   solange das JS-Bundle nicht hydratisiert hat (z. B. Proxy/Signage-Display).
+   Sobald EmbedShell mounted, wird .js-ok auf <html> gesetzt → Live-Widget
+   übernimmt, Fallback wird ausgeblendet. */
+.embed-fallback { display: block; }
+.embed-live { display: none; }
+html.js-ok .embed-fallback { display: none; }
+html.js-ok .embed-live { display: block; }
+
+

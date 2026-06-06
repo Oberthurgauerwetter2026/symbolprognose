@@ -39,17 +39,19 @@ function EmbedLokal() {
   const { noscript } = Route.useLoaderData();
   return (
     <>
-      <noscript>
+      <div className="embed-fallback">
         <LokalNoscript data={noscript} />
-      </noscript>
-      <EmbedShell>
-        <WeatherWidget
-          initialDayIdx={day}
-          detailOnly
-          compact
-          lockedLocation={{ name: AMRISWIL.name, latitude: AMRISWIL.lat, longitude: AMRISWIL.lon }}
-        />
-      </EmbedShell>
+      </div>
+      <div className="embed-live">
+        <EmbedShell>
+          <WeatherWidget
+            initialDayIdx={day}
+            detailOnly
+            compact
+            lockedLocation={{ name: AMRISWIL.name, latitude: AMRISWIL.lat, longitude: AMRISWIL.lon }}
+          />
+        </EmbedShell>
+      </div>
     </>
   );
 }

@@ -18,6 +18,14 @@ export function EmbedShell({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Signal an CSS: JS-Bundle ist hydratisiert → Fallback ausblenden,
+    // Live-Widget einblenden. Wenn dieser Effect nie läuft (z. B. Proxy
+    // blockiert Bundle), bleibt der SSR-Fallback sichtbar.
+    document.documentElement.classList.add("js-ok");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     if (fillViewport) return;
     const el = ref.current;
     if (!el) return;
