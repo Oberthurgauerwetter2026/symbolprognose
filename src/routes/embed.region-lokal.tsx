@@ -30,12 +30,14 @@ function EmbedRegionLokal() {
   const { noscript } = Route.useLoaderData();
   return (
     <>
-      <noscript>
+      <div className="embed-fallback">
         <LokalNoscript data={noscript} />
-      </noscript>
-      <EmbedShell>
-        <WeatherWidget detailOnly compact lockedLocation={AMRISWIL} />
-      </EmbedShell>
+      </div>
+      <div className="embed-live">
+        <EmbedShell>
+          <WeatherWidget detailOnly compact lockedLocation={AMRISWIL} />
+        </EmbedShell>
+      </div>
     </>
   );
 }
