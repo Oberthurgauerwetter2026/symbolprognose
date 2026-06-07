@@ -3,6 +3,7 @@ import { setResponseHeaders } from "@tanstack/react-start/server";
 import {
   fetchForecast,
   sanitizeForecast,
+  aggregateDailyFromHourly,
   type DailyData,
   type ForecastResponse,
   type HourlyData,
