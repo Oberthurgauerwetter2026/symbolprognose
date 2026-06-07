@@ -1,26 +1,31 @@
-## Ziel
+## Befund
 
-Eine interne Übersichtsseite `/intern/icons`, die alle vorhandenen Wetter-Symbole nebeneinander zeigt — inkl. der Winter-Varianten — damit du das komplette Set auf einen Blick siehst. Danach Screenshot als PNG nach `/mnt/documents/weather-icons.png`.
+Die 48-h-Karte sieht identisch zur 24-h-Karte aus, weil der Server schlicht keine Frames jenseits +24 h liefert.
 
-## Neue Datei: `src/routes/intern.icons.tsx`
+In `src/lib/radar.functions.ts`:
 
-- `createFileRoute("/intern/icons")` mit `ssr: false` und `head()` `noindex, nofollow` (analog `intern.niederschlag.tsx`, aber ohne Passwort-Schutz — reine Designreferenz).
-- Layout: `max-w-7xl`, Sektionen als Grid (2/3/4/5 Spalten responsive).
-- Pro Kachel: das Icon zweimal nebeneinander (heller + dunkler Hintergrund), darunter Komponentenname (monospace) + Auslöse-Hinweis (WMO-Codes oder Bedingung).
-- Icon-Grösse einheitlich 72 px.
+- `forecastCutoff = now + 24 * 3600 * 1000` (Zeile 193) — harter Schnitt bei +24 h.
+- Prognose-Frames werden ausschliesslich aus `phase1.minutely_15` der `:00`-Samples erzeugt — ICON-CH1, der nativ nur bis ca. +33 h reicht.
+- Der frühere ICON-CH2-Block ist entfernt: *"ICON-CH2 (hourly, +33…+48 h) wurde mit Cutoff-Reduktion auf +24 h entfernt."* (Zeile 368).
 
-## Sektionen
+In `src/components/maps/precip-accum-map.tsx` summiert `accumulatePrecip` bis `cutoff = now + hours*3600_000`, aber da keine Frames nach +24 h existieren, bricht die Schleife dort ab und die Werte für `hours=24` und `hours=48` sind identisch.
 
-1. **Klar / wenig Wolken** — `IconClear`, `IconClearNight`, `IconMostlyClear` (Tag + Nacht), `IconPartlyCloudy` (Tag + Nacht).
-2. **Bewölkt / Nebel** — `IconCloudy`, `IconFog`.
-3. **Niederschlag** — `IconDrizzle`, `IconRain`, `IconSunShower`, `IconThunderstorm`, `IconSunThunder` (Intensität 2, 3, 4).
-4. **Winter / Schnee** — `IconSnow`, `IconSnowThunder`, `IconSunSnowThunder` (Intensität 2, 3, 4).
-5. **Dispatcher-Beispiele** — fünf Aufrufe des `WeatherIcon`-Dispatchers, die die wichtigen Korrektiv-Regeln demonstrieren (Stockwerke → `Cloudy`/`MostlyClear`, Sonnen-Korrektiv bei `code=3` + viel Sonne, Sonnenschauer-Override für `code=61` mit Sonne, daily-wet mit Sonne → `SunShower`).
+Die Ingest-Pipeline liefert die nötigen Daten bereits: `scripts/ingest_openmeteo.py` schreibt in `phase1` zusätzlich `hourly.precipitation` mit `forecast_hours: 120` (ICON-CH1 → ICON-CH2 Verlängerung). Diese Spalte wird im Worker aktuell ignoriert.
 
-## Verifikation
+## Änderung
 
-- Nach dem Erstellen Route im Preview öffnen (`/intern/icons`), per `browser--screenshot` mit `full_page: true` aufnehmen und nach `/mnt/documents/weather-icons.png` speichern, sodass das Bild direkt verfügbar ist.
+**Nur** `src/lib/radar.functions.ts`:
 
-## Nicht angefasst
+1. `forecastCutoff` auf `now + 48 * 3600 * 1000` anheben.
+2. Im `LocResponse`-Typ `hourly.precipitation` und `hourly.snowfall` mitführen (snowfall optional ergänzen, falls von Open-Meteo geliefert).
+3. Nach dem bestehenden ICON-CH1-Loop einen zweiten Loop einfügen, der aus `r1[pi].hourly` die Stunden `> letzteCH1-Stunde` und `≤ now + 48 h` als Frames mit `source: "icon-ch2"` emittiert. Stundenwerte aus `hourly.precipitation` sind bereits in mm/h — kein ×4 nötig.
+4. Bias-Korrektur (`correction`) gleichermassen auf die CH2-Frames anwenden (Gewicht über `BIAS_FADE_MIN` läuft bereits gegen 0, ist also unkritisch).
+5. Log-Zeile erweitern: `ch1=… ch2=…`.
 
-- Bestehende Icon-Komponenten, Dispatcher-Logik, andere Routen, Sidebar/Menü (Seite bleibt unverlinkt und nur via direkter URL erreichbar).
+Frontend (`precip-accum-map.tsx`) filtert bereits auf `icon-ch1 | icon-ch2` — keine Anpassung nötig. Die 12-h- und 24-h-Karten bleiben unverändert (gleiche CH1-Frames im Fenster).
+
+## Validierung
+
+- `/intern/niederschlag`: 48-h-Karte zeigt höhere Maxima und mehr Fläche ≥ 1 mm als 24-h-Karte; Footer-Zeile listet `icon-ch1 + icon-ch2` und mehr Frames.
+- 12-h- und 24-h-Karte bleiben optisch identisch zu vorher.
+- `/api/public/debug/r2-cache` muss `phase1 > 0` und `version` aktuell zeigen (sonst wartet die Erweiterung auf den nächsten Ingest-Run).
