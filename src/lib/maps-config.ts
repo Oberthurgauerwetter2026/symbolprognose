@@ -1,6 +1,6 @@
-import { Map as MapIcon, MapPin, Wind, CloudRain, Flower2, Droplets, type LucideIcon } from "lucide-react";
+import { Map as MapIcon, MapPin, Wind, CloudRain, Droplets, type LucideIcon } from "lucide-react";
 
-export type MapId = "region" | "lokal" | "wind" | "radar" | "pollen" | "niederschlag";
+export type MapId = "region" | "lokal" | "wind" | "radar" | "niederschlag";
 
 export interface MapDefinition {
   id: MapId;
@@ -13,9 +13,8 @@ export interface MapDefinition {
     | "/karten/lokal"
     | "/karten/wind"
     | "/karten/radar"
-    | "/karten/pollen"
-    | "/intern/niederschlag";
-  embedPath?: "/embed/region" | "/embed/lokal" | "/embed/wind" | "/embed/radar" | "/embed/pollen";
+    | "/karten/niederschlag";
+  embedPath?: "/embed/region" | "/embed/lokal" | "/embed/wind" | "/embed/radar";
   status: "live" | "coming-soon";
   internal?: boolean;
 }
@@ -55,31 +54,20 @@ export const MAPS: MapDefinition[] = [
     id: "radar",
     label: "Niederschlagsradar",
     shortLabel: "Niederschlagsradar",
-    description: "Niederschlags-Animation: −6 h MCH-Radar, Nowcast und ICON-CH1/CH2 Vorhersage bis +120 h.",
+    description: "Niederschlags-Animation: −6 h MCH-Radar, Nowcast und ICON-CH1 Vorhersage bis +24 h.",
     icon: CloudRain,
     routePath: "/karten/radar",
     embedPath: "/embed/radar",
     status: "live",
   },
   {
-    id: "pollen",
-    label: "Pollenprognose",
-    shortLabel: "Pollen",
-    description: "Pollenbelastung nach Pflanzenart und Tagesverlauf.",
-    icon: Flower2,
-    routePath: "/karten/pollen",
-    embedPath: "/embed/pollen",
-    status: "coming-soon",
-  },
-  {
     id: "niederschlag",
     label: "Niederschlagssummen",
     shortLabel: "Niederschlag",
-    description: "Akkumulierter Niederschlag der letzten Stunden – stündliche Aktualisierung. Passwortgeschützt.",
+    description: "Akkumulierter Niederschlag der nächsten 12, 24 und 48 Stunden – stündliche Aktualisierung.",
     icon: Droplets,
-    routePath: "/intern/niederschlag",
+    routePath: "/karten/niederschlag",
     status: "live",
-    internal: true,
   },
 ];
 
