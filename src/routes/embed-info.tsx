@@ -112,7 +112,7 @@ function EmbedInfo() {
             Komplett-Widget (alle Karten mit Tabs)
           </h2>
           <p className="text-sm text-muted-foreground">
-            Region, Lokalprognose, Wind, Radar und Pollen in einer einzigen Einbettung. Besucher wechseln im iframe selbst.
+            Region, Lokalprognose, Wind und Radar in einer einzigen Einbettung. Besucher wechseln im iframe selbst.
           </p>
           <SnippetBlock snippet={buildSimpleSnippet(url, "/embed/all", 760)} />
         </section>

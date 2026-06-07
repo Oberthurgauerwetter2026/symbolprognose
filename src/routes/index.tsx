@@ -12,7 +12,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Karten-Board für Region, Lokalprognose, Wind, Radar und Pollen. Jede Karte einzeln in WordPress einbettbar.",
+          "Karten-Board für Region, Lokalprognose, Wind, Radar und Niederschlagssummen. Jede Karte einzeln in WordPress einbettbar.",
       },
     ],
   }),

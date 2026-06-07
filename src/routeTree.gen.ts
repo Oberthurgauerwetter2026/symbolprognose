@@ -16,8 +16,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
 import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
+import { Route as KartenNiederschlagRouteImport } from './routes/karten.niederschlag'
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
-import { Route as InternNiederschlagRouteImport } from './routes/intern.niederschlag'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
@@ -67,14 +67,14 @@ const KartenRadarRoute = KartenRadarRouteImport.update({
   path: '/karten/radar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KartenNiederschlagRoute = KartenNiederschlagRouteImport.update({
+  id: '/karten/niederschlag',
+  path: '/karten/niederschlag',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KartenLokalRoute = KartenLokalRouteImport.update({
   id: '/karten/lokal',
   path: '/karten/lokal',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InternNiederschlagRoute = InternNiederschlagRouteImport.update({
-  id: '/intern/niederschlag',
-  path: '/intern/niederschlag',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InternIconsRoute = InternIconsRouteImport.update({
@@ -159,8 +159,8 @@ export interface FileRoutesByFullPath {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
-  '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
+  '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
@@ -183,8 +183,8 @@ export interface FileRoutesByTo {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
-  '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
+  '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
@@ -208,8 +208,8 @@ export interface FileRoutesById {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
-  '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
+  '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
@@ -234,8 +234,8 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/wind'
     | '/intern/icons'
-    | '/intern/niederschlag'
     | '/karten/lokal'
+    | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
@@ -258,8 +258,8 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/wind'
     | '/intern/icons'
-    | '/intern/niederschlag'
     | '/karten/lokal'
+    | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
@@ -282,8 +282,8 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/wind'
     | '/intern/icons'
-    | '/intern/niederschlag'
     | '/karten/lokal'
+    | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
@@ -307,8 +307,8 @@ export interface RootRouteChildren {
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
   EmbedWindRoute: typeof EmbedWindRoute
   InternIconsRoute: typeof InternIconsRoute
-  InternNiederschlagRoute: typeof InternNiederschlagRoute
   KartenLokalRoute: typeof KartenLokalRoute
+  KartenNiederschlagRoute: typeof KartenNiederschlagRoute
   KartenRadarRoute: typeof KartenRadarRoute
   KartenRegionRoute: typeof KartenRegionRoute
   KartenWindRoute: typeof KartenWindRoute
@@ -371,18 +371,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KartenRadarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/karten/niederschlag': {
+      id: '/karten/niederschlag'
+      path: '/karten/niederschlag'
+      fullPath: '/karten/niederschlag'
+      preLoaderRoute: typeof KartenNiederschlagRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/karten/lokal': {
       id: '/karten/lokal'
       path: '/karten/lokal'
       fullPath: '/karten/lokal'
       preLoaderRoute: typeof KartenLokalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/intern/niederschlag': {
-      id: '/intern/niederschlag'
-      path: '/intern/niederschlag'
-      fullPath: '/intern/niederschlag'
-      preLoaderRoute: typeof InternNiederschlagRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/intern/icons': {
@@ -491,8 +491,8 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
   EmbedWindRoute: EmbedWindRoute,
   InternIconsRoute: InternIconsRoute,
-  InternNiederschlagRoute: InternNiederschlagRoute,
   KartenLokalRoute: KartenLokalRoute,
+  KartenNiederschlagRoute: KartenNiederschlagRoute,
   KartenRadarRoute: KartenRadarRoute,
   KartenRegionRoute: KartenRegionRoute,
   KartenWindRoute: KartenWindRoute,
