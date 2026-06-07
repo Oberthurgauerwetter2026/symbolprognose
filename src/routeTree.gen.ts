@@ -16,7 +16,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
 import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
-import { Route as KartenPollenRouteImport } from './routes/karten.pollen'
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
 import { Route as InternNiederschlagRouteImport } from './routes/intern.niederschlag'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
@@ -24,7 +23,6 @@ import { Route as EmbedWindRouteImport } from './routes/embed.wind'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
-import { Route as EmbedPollenRouteImport } from './routes/embed.pollen'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
 import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/public/symbol/ingest-trigger'
@@ -69,11 +67,6 @@ const KartenRadarRoute = KartenRadarRouteImport.update({
   path: '/karten/radar',
   getParentRoute: () => rootRouteImport,
 } as any)
-const KartenPollenRoute = KartenPollenRouteImport.update({
-  id: '/karten/pollen',
-  path: '/karten/pollen',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const KartenLokalRoute = KartenLokalRouteImport.update({
   id: '/karten/lokal',
   path: '/karten/lokal',
@@ -107,11 +100,6 @@ const EmbedRegionRoute = EmbedRegionRouteImport.update({
 const EmbedRadarRoute = EmbedRadarRouteImport.update({
   id: '/embed/radar',
   path: '/embed/radar',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedPollenRoute = EmbedPollenRouteImport.update({
-  id: '/embed/pollen',
-  path: '/embed/pollen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedLokalRoute = EmbedLokalRouteImport.update({
@@ -166,7 +154,6 @@ export interface FileRoutesByFullPath {
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
-  '/embed/pollen': typeof EmbedPollenRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -174,7 +161,6 @@ export interface FileRoutesByFullPath {
   '/intern/icons': typeof InternIconsRoute
   '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
-  '/karten/pollen': typeof KartenPollenRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
@@ -192,7 +178,6 @@ export interface FileRoutesByTo {
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
-  '/embed/pollen': typeof EmbedPollenRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -200,7 +185,6 @@ export interface FileRoutesByTo {
   '/intern/icons': typeof InternIconsRoute
   '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
-  '/karten/pollen': typeof KartenPollenRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
@@ -219,7 +203,6 @@ export interface FileRoutesById {
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
-  '/embed/pollen': typeof EmbedPollenRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -227,7 +210,6 @@ export interface FileRoutesById {
   '/intern/icons': typeof InternIconsRoute
   '/intern/niederschlag': typeof InternNiederschlagRoute
   '/karten/lokal': typeof KartenLokalRoute
-  '/karten/pollen': typeof KartenPollenRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/wind': typeof KartenWindRoute
@@ -247,7 +229,6 @@ export interface FileRouteTypes {
     | '/karte'
     | '/embed/all'
     | '/embed/lokal'
-    | '/embed/pollen'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -255,7 +236,6 @@ export interface FileRouteTypes {
     | '/intern/icons'
     | '/intern/niederschlag'
     | '/karten/lokal'
-    | '/karten/pollen'
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
@@ -273,7 +253,6 @@ export interface FileRouteTypes {
     | '/karte'
     | '/embed/all'
     | '/embed/lokal'
-    | '/embed/pollen'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -281,7 +260,6 @@ export interface FileRouteTypes {
     | '/intern/icons'
     | '/intern/niederschlag'
     | '/karten/lokal'
-    | '/karten/pollen'
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
@@ -299,7 +277,6 @@ export interface FileRouteTypes {
     | '/karte'
     | '/embed/all'
     | '/embed/lokal'
-    | '/embed/pollen'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -307,7 +284,6 @@ export interface FileRouteTypes {
     | '/intern/icons'
     | '/intern/niederschlag'
     | '/karten/lokal'
-    | '/karten/pollen'
     | '/karten/radar'
     | '/karten/region'
     | '/karten/wind'
@@ -326,7 +302,6 @@ export interface RootRouteChildren {
   KarteRoute: typeof KarteRoute
   EmbedAllRoute: typeof EmbedAllRoute
   EmbedLokalRoute: typeof EmbedLokalRoute
-  EmbedPollenRoute: typeof EmbedPollenRoute
   EmbedRadarRoute: typeof EmbedRadarRoute
   EmbedRegionRoute: typeof EmbedRegionRoute
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
@@ -334,7 +309,6 @@ export interface RootRouteChildren {
   InternIconsRoute: typeof InternIconsRoute
   InternNiederschlagRoute: typeof InternNiederschlagRoute
   KartenLokalRoute: typeof KartenLokalRoute
-  KartenPollenRoute: typeof KartenPollenRoute
   KartenRadarRoute: typeof KartenRadarRoute
   KartenRegionRoute: typeof KartenRegionRoute
   KartenWindRoute: typeof KartenWindRoute
@@ -397,13 +371,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KartenRadarRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/karten/pollen': {
-      id: '/karten/pollen'
-      path: '/karten/pollen'
-      fullPath: '/karten/pollen'
-      preLoaderRoute: typeof KartenPollenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/karten/lokal': {
       id: '/karten/lokal'
       path: '/karten/lokal'
@@ -451,13 +418,6 @@ declare module '@tanstack/react-router' {
       path: '/embed/radar'
       fullPath: '/embed/radar'
       preLoaderRoute: typeof EmbedRadarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/pollen': {
-      id: '/embed/pollen'
-      path: '/embed/pollen'
-      fullPath: '/embed/pollen'
-      preLoaderRoute: typeof EmbedPollenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/lokal': {
@@ -526,7 +486,6 @@ const rootRouteChildren: RootRouteChildren = {
   KarteRoute: KarteRoute,
   EmbedAllRoute: EmbedAllRoute,
   EmbedLokalRoute: EmbedLokalRoute,
-  EmbedPollenRoute: EmbedPollenRoute,
   EmbedRadarRoute: EmbedRadarRoute,
   EmbedRegionRoute: EmbedRegionRoute,
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
@@ -534,7 +493,6 @@ const rootRouteChildren: RootRouteChildren = {
   InternIconsRoute: InternIconsRoute,
   InternNiederschlagRoute: InternNiederschlagRoute,
   KartenLokalRoute: KartenLokalRoute,
-  KartenPollenRoute: KartenPollenRoute,
   KartenRadarRoute: KartenRadarRoute,
   KartenRegionRoute: KartenRegionRoute,
   KartenWindRoute: KartenWindRoute,
@@ -548,3 +506,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

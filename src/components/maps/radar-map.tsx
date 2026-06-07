@@ -926,7 +926,9 @@ export function RadarMap({
     initialDataUpdatedAt: initialFrames ? Date.now() : undefined,
   });
 
-  const frames = data?.frames ?? [];
+  // Radar-Animation zeigt nur ICON-CH1 (bis +24 h). Die ICON-CH2-Verlängerung
+  // bis +48 h wird ausschliesslich für die Niederschlagssummen verwendet.
+  const frames = (data?.frames ?? []).filter((f) => f.source !== "icon-ch2");
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);

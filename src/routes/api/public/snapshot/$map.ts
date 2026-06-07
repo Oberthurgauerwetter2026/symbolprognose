@@ -51,13 +51,6 @@ export const Route = createFileRoute("/api/public/snapshot/$map")({
               note: "Bald verfügbar — tippen für mehr",
             });
             break;
-          case "pollen":
-            svg = buildPlaceholderSnapshotSvg({
-              title: "Pollenprognose",
-              link: `${PUBLISHED}/karten/pollen`,
-              note: "Bald verfügbar — tippen für mehr",
-            });
-            break;
           default:
             return new Response("Unknown map", { status: 404 });
         }

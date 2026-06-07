@@ -68,7 +68,7 @@ function EmbedAll() {
         </Suspense>
       )}
       {active === "lokal" && <WeatherWidget />}
-      {(active === "wind" || active === "radar" || active === "pollen") && (
+      {(active === "wind" || active === "radar") && (
         <ComingSoonMap
           icon={MAPS.find((m) => m.id === active)!.icon}
           title={MAPS.find((m) => m.id === active)!.label}
