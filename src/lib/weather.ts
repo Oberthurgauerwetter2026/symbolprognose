@@ -542,7 +542,7 @@ function alignMosmixToTimeline(
   return { latitude: 0, longitude: 0, timezone: "", hourly: out, daily: emptyDaily };
 }
 
-function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
+export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   const day = dayIso.slice(0, 10);
   const idxs: number[] = [];
   for (let i = 0; i < h.time.length; i++) {
