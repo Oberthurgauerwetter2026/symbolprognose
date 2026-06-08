@@ -1,42 +1,39 @@
 ## Ziel
 
-1. **Radar-Karte** zeigt wie früher nur bis +24 h Modellprognose (ICON-CH1). Die +48-h-Erweiterung (ICON-CH2) wird ausschliesslich für die Niederschlagssummen verwendet.
-2. **Pollenprognose** aus Navigation und Routen entfernen.
-3. **Niederschlagssummen** ohne Passwort, als regulärer Tab unter `/karten/niederschlag`.
+Die Radar-Modellprognose endet wieder klar bei **+24 h (ICON-CH1)**. ICON-CH2 wird ausschliesslich für die Niederschlagssummen ausgeliefert — nicht mehr im Client gefiltert, sondern direkt vom Server gesteuert. Die Quellenangabe im Radar wird entsprechend angepasst.
 
 ## Änderungen
 
-### 1) Radar-Map: CH2 ausblenden (keine Server-Änderung)
+### 1) `src/lib/radar.functions.ts` — CH2 nur auf Anforderung
 
-`src/lib/radar.functions.ts` bleibt wie zuletzt — liefert weiterhin `icon-ch1`- und `icon-ch2`-Frames bis +48 h. Damit die Modellprognose im Radar wieder bei +24 h endet, in **`src/components/maps/radar-map.tsx`** die Frames vor der Anzeige filtern:
+- `getRadarFrames` erhält einen `inputValidator`, der ein optionales Objekt akzeptiert:
+  ```ts
+  .inputValidator((data?: { extended?: boolean }) => ({
+    extended: data?.extended === true,
+  }))
+  ```
+- Der ICON-CH2-Block (aktuell ab Zeile ~373, `ref1Hourly`-Loop) wird in `if (data.extended) { … }` gewrappt. Ohne `extended` werden keine `icon-ch2`-Frames mehr emittiert; mit `extended: true` bleibt das bisherige Verhalten (Stundenframes bis +48 h, Bias-Korrektur identisch).
+- `ch2Count`-Log nur ausgeben, wenn `extended` aktiv ist.
 
-```ts
-const frames = (data?.frames ?? []).filter((f) => f.source !== "icon-ch2");
-```
+### 2) `src/components/maps/radar-map.tsx` — Client-Filter raus
 
-Folge: Timeline, Crossfade, Auto-Play, Snapshot — alles unverändert, exakt wie vor der CH2-Erweiterung. `precip-accum-map.tsx` filtert weiterhin auf `icon-ch1 | icon-ch2` und nutzt damit die volle 48-h-Reihe.
+- Zeile 931: Filter entfernen → `const frames = data?.frames ?? [];` (Server liefert ohnehin nur noch CH1).
+- Zeile 1379: Footer-Text korrigieren:
+  ```
+  · MeteoSchweiz ICON-CH1 (Vorhersage bis +24 h)
+  ```
 
-### 2) Pollenprognose entfernen
+### 3) `src/routes/karten.niederschlag.tsx` — Extended anfordern
 
-- `src/routes/karten.pollen.tsx` löschen
-- `src/routes/embed.pollen.tsx` löschen
-- `src/lib/maps-config.ts`: Pollen-Eintrag und `"pollen"` aus `MapId`/`routePath`/`embedPath`-Unions streichen, `Flower2`-Import entfernen
-- Eventuelle Verweise (z. B. `embed.all.tsx`) bereinigen — vorher mit `rg pollen src` prüfen
+- `queryFn: () => getRadarFrames({ data: { extended: true } })`
+- `queryKey: ["radar-frames-accum", "extended"]` (kein Cache-Konflikt mit Radar).
 
-### 3) Niederschlagssummen öffentlich
+### 4) `src/routes/karten.radar.tsx` & Radar-Map-Query
 
-- Datei **umbenennen**: `src/routes/intern.niederschlag.tsx` → `src/routes/karten.niederschlag.tsx`
-- Route-ID auf `/karten/niederschlag` setzen, Passwort-Form (`ADMIN_PASSWORD`, `STORAGE_KEY`, `unlocked`-State) entfernen — direkt `PrecipDashboard` rendern
-- In `src/lib/maps-config.ts` den `niederschlag`-Eintrag aktualisieren:
-  - `routePath: "/karten/niederschlag"`
-  - `internal: false` (bzw. Feld entfernen) → erscheint dadurch im `MapTabs`
-  - Beschreibung „Passwortgeschützt" streichen
-  - `routePath`-Union in `MapDefinition` entsprechend anpassen
-- `MapTabs` braucht keine Änderung (filtert nur `internal === true` raus)
-- Optional: Seite mit `DashboardLayout` + `MapTabs active="niederschlag"` umstellen, damit das Layout zu den anderen Karten passt
+- Aufrufe bleiben parameterlos (`getRadarFrames()`), Query-Key `["radar-frames"]` unverändert → Standard-Antwort ohne CH2.
 
-### 4) Verifikation
+### 5) Verifikation
 
-- `/karten/radar`: Timeline endet wie früher bei +24 h, keine zusätzlichen Stundenframes
-- `/karten/niederschlag`: ohne Passwort erreichbar, 12-/24-/48-h-Karten zeigen unterschiedliche Werte (48 h > 24 h, mit `icon-ch1 + icon-ch2` im Footer)
-- `/karten/pollen` liefert 404; Pollen-Tab fehlt in der Navigation
+- `/karten/radar`: Timeline endet bei +24 h, Footer zeigt „ICON-CH1 (Vorhersage bis +24 h)", Server-Log `[radar] forecast: ch1=N` (ohne ch2).
+- `/karten/niederschlag`: 12-/24-/48-h-Karten unverändert, 48 h > 24 h, Server-Log `[radar] forecast: ch1=N ch2=M`.
+- Payload `/karten/radar` ist messbar kleiner (kein zweiter Stundensatz).
