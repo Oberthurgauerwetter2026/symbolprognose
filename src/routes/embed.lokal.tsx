@@ -44,14 +44,16 @@ function EmbedLokal() {
         <LokalNoscript data={noscript} />
       </div>
       <div className="embed-live">
-        <EmbedShell>
-          <WeatherWidget
-            initialDayIdx={day}
-            detailOnly
-            compact
-            lockedLocation={{ name: AMRISWIL.name, latitude: AMRISWIL.lat, longitude: AMRISWIL.lon }}
-          />
-        </EmbedShell>
+        <EmbedErrorBoundary>
+          <EmbedShell>
+            <WeatherWidget
+              initialDayIdx={day}
+              detailOnly
+              compact
+              lockedLocation={{ name: AMRISWIL.name, latitude: AMRISWIL.lat, longitude: AMRISWIL.lon }}
+            />
+          </EmbedShell>
+        </EmbedErrorBoundary>
       </div>
     </>
   );
