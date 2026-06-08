@@ -371,58 +371,59 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   }
 
 
-  // ---- Prognose-Verlängerung: ICON-CH2 (hourly, > CH1-Horizont … +48 h) ----
-  // Open-Meteo liefert in phase1.hourly.precipitation die ICON-CH2-Verlängerung
-  // (meteoswiss-Modellkette) bis +120 h. Wir emittieren je Stunde einen Frame
-  // für alles oberhalb des letzten CH1-Frames, gedeckelt durch forecastCutoff.
-  const lastCh1Ms = frames
-    .filter((f) => f.source === "icon-ch1")
-    .reduce((m, f) => Math.max(m, Date.parse(f.t)), 0);
-  const ref1Hourly = r1 ? (r1[0] as LocResponse | undefined)?.hourly : undefined;
   let ch2Count = 0;
-  if (ref1Hourly && r1 && Array.isArray(ref1Hourly.precipitation)) {
-    const hasHourlySnow = Array.isArray(ref1Hourly.snowfall);
-    const nPts = pts.length;
-    for (let ti = 0; ti < ref1Hourly.time.length; ti++) {
-      const tIso = ref1Hourly.time[ti];
-      const tMs = Date.parse(tIso + "Z");
-      if (!Number.isFinite(tMs)) continue;
-      if (tMs <= now) continue;
-      if (tMs <= lastCh1Ms) continue;
-      if (tMs > forecastCutoff) continue;
+  if (input.extended) {
+    const lastCh1Ms = frames
+      .filter((f) => f.source === "icon-ch1")
+      .reduce((m, f) => Math.max(m, Date.parse(f.t)), 0);
+    const ref1Hourly = r1 ? (r1[0] as LocResponse | undefined)?.hourly : undefined;
+    if (ref1Hourly && r1 && Array.isArray(ref1Hourly.precipitation)) {
+      const hasHourlySnow = Array.isArray(ref1Hourly.snowfall);
+      const nPts = pts.length;
+      for (let ti = 0; ti < ref1Hourly.time.length; ti++) {
+        const tIso = ref1Hourly.time[ti];
+        const tMs = Date.parse(tIso + "Z");
+        if (!Number.isFinite(tMs)) continue;
+        if (tMs <= now) continue;
+        if (tMs <= lastCh1Ms) continue;
+        if (tMs > forecastCutoff) continue;
 
-      const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
-      const biasWeight =
-        biasFactor === 1 ? 0 : Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
-      const correction = 1 + (biasFactor - 1) * biasWeight;
+        const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
+        const biasWeight =
+          biasFactor === 1 ? 0 : Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
+        const correction = 1 + (biasFactor - 1) * biasWeight;
 
-      const precip = new Array<number>(nPts).fill(0);
-      const snow: number[] | undefined = hasHourlySnow ? new Array<number>(nPts).fill(0) : undefined;
-      for (let pi = 0; pi < nPts; pi++) {
-        const loc = r1[pi] as LocResponse | undefined;
-        const p = loc?.hourly?.precipitation?.[ti];
-        // hourly.precipitation ist bereits mm/h — kein ×4 nötig.
-        const mmh = typeof p === "number" ? p : 0;
-        precip[pi] = correction === 1 ? mmh : mmh * correction;
-        if (snow) {
-          const s = loc?.hourly?.snowfall?.[ti];
-          const smm = typeof s === "number" ? s : 0;
-          snow[pi] = correction === 1 ? smm : smm * correction;
+        const precip = new Array<number>(nPts).fill(0);
+        const snow: number[] | undefined = hasHourlySnow ? new Array<number>(nPts).fill(0) : undefined;
+        for (let pi = 0; pi < nPts; pi++) {
+          const loc = r1[pi] as LocResponse | undefined;
+          const p = loc?.hourly?.precipitation?.[ti];
+          const mmh = typeof p === "number" ? p : 0;
+          precip[pi] = correction === 1 ? mmh : mmh * correction;
+          if (snow) {
+            const s = loc?.hourly?.snowfall?.[ti];
+            const smm = typeof s === "number" ? s : 0;
+            snow[pi] = correction === 1 ? smm : smm * correction;
+          }
         }
-      }
 
-      frames.push({
-        t: tIso + "Z",
-        source: "icon-ch2",
-        values: precip,
-        snowValues: snow,
-      });
-      ch2Count++;
+        frames.push({
+          t: tIso + "Z",
+          source: "icon-ch2",
+          values: precip,
+          snowValues: snow,
+        });
+        ch2Count++;
+      }
     }
   }
 
   const ch1Count = frames.filter((f) => f.source === "icon-ch1").length;
-  console.info(`[radar] forecast: ch1=${ch1Count} ch2=${ch2Count}`);
+  if (input.extended) {
+    console.info(`[radar] forecast: ch1=${ch1Count} ch2=${ch2Count}`);
+  } else {
+    console.info(`[radar] forecast: ch1=${ch1Count}`);
+  }
 
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
