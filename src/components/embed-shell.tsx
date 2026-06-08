@@ -18,10 +18,54 @@ export function EmbedShell({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Signal an CSS: JS-Bundle ist hydratisiert → Fallback ausblenden,
-    // Live-Widget einblenden. Wenn dieser Effect nie läuft (z. B. Proxy
-    // blockiert Bundle), bleibt der SSR-Fallback sichtbar.
-    document.documentElement.classList.add("js-ok");
+
+    // js-ok erst setzen, wenn der Live-Container tatsächlich Inhalt hat —
+    // sonst würde der SSR-Fallback bereits verschwinden, bevor das Widget
+    // gerendert ist (sichtbar als blauer Wrapper auf Display-Browsern).
+    let cancelled = false;
+    const html = document.documentElement;
+
+    const tryActivate = (attempt = 0) => {
+      if (cancelled) return;
+      const h = ref.current?.getBoundingClientRect().height ?? 0;
+      if (h > 40) {
+        html.classList.add("js-ok");
+        return;
+      }
+      if (attempt < 30) {
+        // ~30 * 50ms = 1.5s
+        setTimeout(() => tryActivate(attempt + 1), 50);
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(() => tryActivate()));
+
+    // Wenn ein dynamischer Chunk-Import fehlschlägt (typisch nach Re-Deploy
+    // oder auf strikten Display-Browsern), den Fallback wieder einblenden.
+    const isChunkError = (msg: string) =>
+      /Importing a module script|Failed to fetch dynamically imported module|ChunkLoadError|Loading chunk/i.test(
+        msg,
+      );
+
+    const onError = (event: ErrorEvent) => {
+      const msg = String(event?.message ?? event?.error ?? "");
+      if (isChunkError(msg)) html.classList.remove("js-ok");
+    };
+    const onRejection = (event: PromiseRejectionEvent) => {
+      const reason = event?.reason;
+      const msg = String(
+        (reason && (reason.message ?? reason)) ?? "",
+      );
+      if (isChunkError(msg)) html.classList.remove("js-ok");
+    };
+
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
   }, []);
 
   useEffect(() => {
