@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { EmbedShell } from "@/components/embed-shell";
+import { EmbedErrorBoundary } from "@/components/embed-error-boundary";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
 import { buildLokalNoscriptData } from "@/lib/embed-noscript.server";
 
