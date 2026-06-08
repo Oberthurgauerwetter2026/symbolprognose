@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { EmbedShell } from "@/components/embed-shell";
+import { EmbedErrorBoundary } from "@/components/embed-error-boundary";
 import { WeatherWidget } from "@/components/weather-widget";
 import { LokalNoscript } from "@/components/embeds/lokal-noscript";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
@@ -34,9 +35,11 @@ function EmbedRegionLokal() {
         <LokalNoscript data={noscript} />
       </div>
       <div className="embed-live">
-        <EmbedShell>
-          <WeatherWidget detailOnly compact lockedLocation={AMRISWIL} />
-        </EmbedShell>
+        <EmbedErrorBoundary>
+          <EmbedShell>
+            <WeatherWidget detailOnly compact lockedLocation={AMRISWIL} />
+          </EmbedShell>
+        </EmbedErrorBoundary>
       </div>
     </>
   );
