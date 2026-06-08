@@ -1376,7 +1376,7 @@ export function RadarMap({
       {/* Footnote unter der Karte */}
       {data && (
         <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
-          Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1/CH2 (Vorhersage bis +48 h)
+          Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1 (Vorhersage bis +24 h)
         </p>
       )}
     </div>
