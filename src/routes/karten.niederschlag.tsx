@@ -39,8 +39,8 @@ function KartenNiederschlagPage() {
 
 function PrecipDashboard() {
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
-    queryKey: ["radar-frames-accum"],
-    queryFn: () => getRadarFrames(),
+    queryKey: ["radar-frames-accum", "extended"],
+    queryFn: () => getRadarFrames({ data: { extended: true } }),
     staleTime: 30 * 60_000,
     refetchInterval: 60 * 60_000,
   });
