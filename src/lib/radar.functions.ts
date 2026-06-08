@@ -158,7 +158,11 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
   }
 }
 
-export const getRadarFrames = createServerFn({ method: "GET" }).handler(async () => {
+export const getRadarFrames = createServerFn({ method: "GET" })
+  .inputValidator((data?: { extended?: boolean }) => ({
+    extended: data?.extended === true,
+  }))
+  .handler(async ({ data: input }) => {
   setResponseHeader(
     "Cache-Control",
     "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
