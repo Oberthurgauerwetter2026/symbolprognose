@@ -195,11 +195,13 @@
 
 /* Embed-Fallback: server-gerenderter statischer Inhalt bleibt sichtbar,
    solange das JS-Bundle nicht hydratisiert hat (z. B. Proxy/Signage-Display).
-   Sobald EmbedShell mounted, wird .js-ok auf <html> gesetzt → Live-Widget
-   übernimmt, Fallback wird ausgeblendet. */
-.embed-fallback { display: block; }
-.embed-live { display: none; }
+   Sobald EmbedShell mounted und Inhalt vorhanden ist, wird .js-ok auf <html>
+   gesetzt → Live-Widget übernimmt, Fallback wird ausgeblendet. Bei einem
+   Chunk-Fehler entfernt EmbedShell die Klasse wieder. */
+.embed-fallback { display: block; background: #ffffff; min-height: 100%; }
+.embed-live { display: none; background: #ffffff; min-height: 100%; }
 html.js-ok .embed-fallback { display: none; }
 html.js-ok .embed-live { display: block; }
+
 
 

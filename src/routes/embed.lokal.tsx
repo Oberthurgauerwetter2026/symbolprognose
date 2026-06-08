@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { EmbedShell } from "@/components/embed-shell";
+import { EmbedErrorBoundary } from "@/components/embed-error-boundary";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
 import { buildLokalNoscriptData } from "@/lib/embed-noscript.server";
 
@@ -43,14 +44,16 @@ function EmbedLokal() {
         <LokalNoscript data={noscript} />
       </div>
       <div className="embed-live">
-        <EmbedShell>
-          <WeatherWidget
-            initialDayIdx={day}
-            detailOnly
-            compact
-            lockedLocation={{ name: AMRISWIL.name, latitude: AMRISWIL.lat, longitude: AMRISWIL.lon }}
-          />
-        </EmbedShell>
+        <EmbedErrorBoundary>
+          <EmbedShell>
+            <WeatherWidget
+              initialDayIdx={day}
+              detailOnly
+              compact
+              lockedLocation={{ name: AMRISWIL.name, latitude: AMRISWIL.lat, longitude: AMRISWIL.lon }}
+            />
+          </EmbedShell>
+        </EmbedErrorBoundary>
       </div>
     </>
   );
