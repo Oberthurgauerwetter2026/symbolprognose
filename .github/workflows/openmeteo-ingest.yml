@@ -34,9 +34,11 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          CHUNK_PHASE1: "50"
+          CHUNK_PHASE1: "30"
           CHUNK_PHASEC: "60"
           BATCH_SLEEP_S: "3"
+          OM_READ_TIMEOUT: "120"
+          FETCH_WORKERS: "2"
           BBOX_MIN_LAT: "46.85"
           BBOX_MAX_LAT: "48.30"
           BBOX_MIN_LON: "8.15"
