@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { buildLokalNoscriptData } from "@/lib/embed-noscript.server";
-import { fetchOberthurgauStation } from "@/lib/weather-hub.server";
+import { fetchAmriswilStation } from "@/lib/weather-hub.server";
 
 const AMRISWIL = { name: "Amriswil", lat: 47.5469, lon: 9.2986 };
 
