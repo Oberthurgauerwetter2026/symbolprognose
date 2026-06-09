@@ -275,8 +275,17 @@ def main() -> None:
         print(f"phase1 übernommen aus Cache: {len(phase1)} locations")
     else:
         print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
-        phase1 = chunk_fetch("phase1", p1, pts, chunk_p1)
-        print(f"  -> {len(phase1)} locations")
+        phase1 = chunk_fetch("phase1", p1, pts, chunk_p1, optional=True)
+        if phase1 is None:
+            print("phase1 failed — versuche Fallback auf bestehenden R2-Cache …")
+            prev_phase1 = prev.get("phase1") or prev.get("phaseB")
+            if isinstance(prev_phase1, list) and prev_phase1:
+                phase1 = prev_phase1
+                print(f"  -> Fallback ok: {len(phase1)} locations aus bestehendem Cache")
+            else:
+                sys.exit("phase1 failed and no cached fallback available")
+        else:
+            print(f"  -> {len(phase1)} locations")
 
     # ---- phaseC (Bias-Lookback) ----
     if only_phaseA:
