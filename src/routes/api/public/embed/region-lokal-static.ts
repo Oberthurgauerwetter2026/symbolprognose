@@ -102,9 +102,11 @@ function renderStaticForecast(data: StaticForecastData): string {
 
   const hourlyRows = data.hourly
     .map(
-      (h) => `<tr><td>${esc(fmtTime(h.time))}</td><td class="sym">${weatherSymbol(h.weathercode, 20)}</td><td class="num">${esc(fmt(h.temperature, 0, "°"))}</td><td class="num">${esc(fmt(h.precipitation, 1, " mm"))}</td><td class="num">${esc(fmt(h.windSpeed, 0, " km/h"))}</td></tr>`,
+      (h) => `<tr><td>${esc(fmtTime(h.time))}</td><td class="sym">${weatherSymbol(h.weathercode, 28)}</td><td class="num">${esc(fmt(h.temperature, 0, "°"))}</td><td class="num">${esc(fmt(h.precipitation, 1, " mm"))}</td><td class="num">${esc(fmt(h.windSpeed, 0, " km/h"))}</td></tr>`,
     )
     .join("");
+
+
 
   const dailyRows = data.daily
     .map(
