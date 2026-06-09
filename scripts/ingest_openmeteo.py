@@ -77,14 +77,18 @@ def build_grid():
 
 def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     # 429 = Minutenlimit -> volle Minute warten (API sagt explizit "try again in one minute").
-    backoff_429 = [65, 65, 70, 90, 120]
-    backoff_other = [3, 10, 30, 60, 120]
+    backoff_429 = [65, 65, 70, 90, 120, 150, 180]
+    backoff_other = [10, 20, 45, 90, 180, 240, 300]
+    max_attempts = len(backoff_other)
+    connect_to = float(os.environ.get("OM_CONNECT_TIMEOUT", "15"))
+    read_to = float(os.environ.get("OM_READ_TIMEOUT", "120"))
+    import random
     last_err: Exception | None = None
     last_was_429 = False
-    for attempt in range(5):
+    for attempt in range(max_attempts):
         last_was_429 = False
         try:
-            r = requests.get(API, params=params, timeout=(15, 45))
+            r = requests.get(API, params=params, timeout=(connect_to, read_to))
             if not r.ok:
                 if r.status_code == 429:
                     last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
@@ -106,14 +110,19 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
             requests.exceptions.SSLError,
         ) as e:
             last_err = e
-        wait = backoff_429[attempt] if last_was_429 else backoff_other[attempt]
-        print(f"WARN: {label} attempt {attempt + 1}/5 failed ({last_err}); retry in {wait}s")
+        base_wait = backoff_429[attempt] if last_was_429 else backoff_other[attempt]
+        wait = base_wait * (0.8 + 0.4 * random.random())  # ±20 % jitter
+        print(
+            f"WARN: {label} attempt {attempt + 1}/{max_attempts} failed ({last_err}); "
+            f"retry in {wait:.1f}s"
+        )
         time.sleep(wait)
-    msg = f"open-meteo {label} failed after 5 attempts: {last_err}"
+    msg = f"open-meteo {label} failed after {max_attempts} attempts: {last_err}"
     if optional:
         print(f"WARN: {msg} — skipping (optional)")
         return None
     sys.exit(msg)
+
 
 
 
