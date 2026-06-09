@@ -10,7 +10,7 @@ export const Route = createFileRoute("/api/public/embed/region-lokal-static")({
       GET: async () => {
         const [data, station] = await Promise.all([
           buildLokalNoscriptData(AMRISWIL),
-          fetchOberthurgauStation(),
+          fetchAmriswilStation(),
         ]);
         if (station && data.current) {
           if (station.temperature != null) data.current.temperature = station.temperature;
