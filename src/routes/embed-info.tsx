@@ -108,7 +108,7 @@ function EmbedInfo() {
           <p className="text-sm text-muted-foreground">
             Stabile Monitor-Version für Amriswil: reine HTML-Prognose ohne JavaScript, ohne postMessage-Resize und ohne blaue Ladefläche. Der Wert <code>height:760px</code> kann bei Bedarf angepasst werden.
           </p>
-          <SnippetBlock snippet={buildAmriswilSnippet(url, "/embed/region-lokal-static", 760)} />
+          <SnippetBlock snippet={buildAmriswilSnippet(url, "/api/public/embed/region-lokal-static", 760)} />
         </section>
 
         <section className="space-y-6">
