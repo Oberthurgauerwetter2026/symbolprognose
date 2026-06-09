@@ -77,14 +77,18 @@ def build_grid():
 
 def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     # 429 = Minutenlimit -> volle Minute warten (API sagt explizit "try again in one minute").
-    backoff_429 = [65, 65, 70, 90, 120]
-    backoff_other = [3, 10, 30, 60, 120]
+    backoff_429 = [65, 65, 70, 90, 120, 150, 180]
+    backoff_other = [10, 20, 45, 90, 180, 240, 300]
+    max_attempts = len(backoff_other)
+    connect_to = float(os.environ.get("OM_CONNECT_TIMEOUT", "15"))
+    read_to = float(os.environ.get("OM_READ_TIMEOUT", "120"))
+    import random
     last_err: Exception | None = None
     last_was_429 = False
-    for attempt in range(5):
+    for attempt in range(max_attempts):
         last_was_429 = False
         try:
-            r = requests.get(API, params=params, timeout=(15, 45))
+            r = requests.get(API, params=params, timeout=(connect_to, read_to))
             if not r.ok:
                 if r.status_code == 429:
                     last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
@@ -106,14 +110,19 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
             requests.exceptions.SSLError,
         ) as e:
             last_err = e
-        wait = backoff_429[attempt] if last_was_429 else backoff_other[attempt]
-        print(f"WARN: {label} attempt {attempt + 1}/5 failed ({last_err}); retry in {wait}s")
+        base_wait = backoff_429[attempt] if last_was_429 else backoff_other[attempt]
+        wait = base_wait * (0.8 + 0.4 * random.random())  # ±20 % jitter
+        print(
+            f"WARN: {label} attempt {attempt + 1}/{max_attempts} failed ({last_err}); "
+            f"retry in {wait:.1f}s"
+        )
         time.sleep(wait)
-    msg = f"open-meteo {label} failed after 5 attempts: {last_err}"
+    msg = f"open-meteo {label} failed after {max_attempts} attempts: {last_err}"
     if optional:
         print(f"WARN: {msg} — skipping (optional)")
         return None
     sys.exit(msg)
+
 
 
 
@@ -128,9 +137,9 @@ def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optio
     total = len(pts)
     n_batches = (total + chunk_size - 1) // chunk_size
     try:
-        workers = max(1, int(os.environ.get("FETCH_WORKERS", "3")))
+        workers = max(1, int(os.environ.get("FETCH_WORKERS", "2")))
     except ValueError:
-        workers = 3
+        workers = 2
 
     results: list[list | None] = [None] * n_batches
 
@@ -266,8 +275,17 @@ def main() -> None:
         print(f"phase1 übernommen aus Cache: {len(phase1)} locations")
     else:
         print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
-        phase1 = chunk_fetch("phase1", p1, pts, chunk_p1)
-        print(f"  -> {len(phase1)} locations")
+        phase1 = chunk_fetch("phase1", p1, pts, chunk_p1, optional=True)
+        if phase1 is None:
+            print("phase1 failed — versuche Fallback auf bestehenden R2-Cache …")
+            prev_phase1 = prev.get("phase1") or prev.get("phaseB")
+            if isinstance(prev_phase1, list) and prev_phase1:
+                phase1 = prev_phase1
+                print(f"  -> Fallback ok: {len(phase1)} locations aus bestehendem Cache")
+            else:
+                sys.exit("phase1 failed and no cached fallback available")
+        else:
+            print(f"  -> {len(phase1)} locations")
 
     # ---- phaseC (Bias-Lookback) ----
     if only_phaseA:
