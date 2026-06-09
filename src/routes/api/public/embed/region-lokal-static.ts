@@ -102,30 +102,29 @@ function renderStaticForecast(data: StaticForecastData): string {
 
   const hourlyRows = data.hourly
     .map(
-      (h) => `<tr><td>${esc(fmtTime(h.time))}</td><td class="sym">${weatherSymbol(h.weathercode, 20)}</td><td class="num">${esc(fmt(h.temperature, 0, "°"))}</td><td class="num">${esc(fmt(h.precipitation, 1, " mm"))}</td><td class="num">${esc(fmt(h.windSpeed, 0, " km/h"))}</td></tr>`,
+      (h) => `<tr><td>${esc(fmtTime(h.time))}</td><td class="sym">${weatherSymbol(h.weathercode, 28)}</td><td class="num">${esc(fmt(h.temperature, 0, "°"))}</td><td class="num">${esc(fmt(h.precipitation, 1, " mm"))}</td><td class="num">${esc(fmt(h.windSpeed, 0, " km/h"))}</td></tr>`,
     )
     .join("");
 
+
+
   const dailyRows = data.daily
     .map(
-      (d) => `<tr><td>${esc(fmtDate(d.date))}</td><td class="sym">${weatherSymbol(d.weathercode, 20)}</td><td class="num">${esc(fmt(d.tMin, 0, "°"))}</td><td class="num">${esc(fmt(d.tMax, 0, "°"))}</td><td class="num">${esc(fmt(d.precipSum, 1, " mm"))}</td></tr>`,
+      (d) => `<tr><td>${esc(fmtDate(d.date))}</td><td class="sym">${weatherSymbol(d.weathercode, 28)}</td><td class="num">${esc(fmt(d.tMin, 0, "°"))}</td><td class="num">${esc(fmt(d.tMax, 0, "°"))}</td><td class="num">${esc(fmt(d.precipSum, 1, " mm"))}</td></tr>`,
     )
     .join("");
 
   const currentBlock = current
-    ? `<section class="now"><div class="now-sym">${weatherSymbol(current.weathercode ?? null, 44)}</div><div class="now-temp">${esc(fmt(current.temperature, 1, "°C"))}</div><div class="now-meta"><div class="now-desc">${esc(current.weathercode != null ? weatherLabel(current.weathercode) : "")} · ${esc(fmtTime(current.time))}</div><div class="now-sub">${esc(fmt(current.precipitation, 1, " mm/h"))} · ${esc(fmt(current.windSpeed, 0, " km/h"))}${current.windDirection != null ? ` ${esc(windDirectionLabel(current.windDirection))}` : ""}</div></div></section>`
+    ? `<section class="now"><div class="now-sym">${weatherSymbol(current.weathercode ?? null, 56)}</div><div class="now-temp">${esc(fmt(current.temperature, 1, "°C"))}</div><div class="now-meta"><div class="now-desc">${esc(current.weathercode != null ? weatherLabel(current.weathercode) : "")} · ${esc(fmtTime(current.time))}</div><div class="now-sub">${esc(fmt(current.precipitation, 1, " mm/h"))} · ${esc(fmt(current.windSpeed, 0, " km/h"))}${current.windDirection != null ? ` ${esc(windDirectionLabel(current.windDirection))}` : ""}</div></div></section>`
     : "";
 
-  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Lokalprognose Amriswil</title><style>
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Lokalprognose</title><style>
 html,body{margin:0;padding:0;background:#fff;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;font-size:13px;line-height:1.3}
 *{box-sizing:border-box}
-.page{width:100%;max-width:760px;margin:0 auto;padding:8px 10px 10px}
-.head{margin:0 0 6px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.head h1{margin:0;font-size:16px;font-weight:700}
-.head .src{color:#71717a;font-size:11px}
+.page{width:100%;max-width:760px;margin:0 auto;padding:4px 10px 10px}
 .now{display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid #e4e4e7;background:#fafafa;border-radius:6px;margin:0 0 8px}
 .now-sym{flex:0 0 auto;display:flex;align-items:center}
-.now-temp{font-size:24px;font-weight:800;line-height:1}
+.now-temp{font-size:28px;font-weight:800;line-height:1}
 .now-meta{flex:1;min-width:0}
 .now-desc{font-size:13px;font-weight:600}
 .now-sub{font-size:11px;color:#52525b;margin-top:1px}
@@ -135,17 +134,16 @@ table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 th{background:#f4f4f5;color:#52525b;text-align:left;font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}
 th,td{padding:3px 6px;border-bottom:1px solid #ececef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 tbody tr:last-child td{border-bottom:0}
-.sym{width:26px;text-align:center;padding:1px 2px}
+.sym{width:38px;text-align:center;padding:1px 2px}
 .sym svg{display:block;margin:0 auto}
 .num{text-align:right}
 .foot{color:#a1a1aa;font-size:10px;margin-top:6px;text-align:right}
 </style></head><body><main class="page">
-<header class="head"><h1>Lokalprognose ${esc(data.locationName)}</h1><span class="src">Open-Meteo · MeteoSchweiz</span></header>
 ${currentBlock}
 <h2>Nächste Stunden</h2>
-<div class="table-wrap"><table><colgroup><col style="width:48px"><col style="width:32px"><col><col><col></colgroup><thead><tr><th>Zeit</th><th class="sym"></th><th class="num">Temp</th><th class="num">Regen</th><th class="num">Wind</th></tr></thead><tbody>${hourlyRows || `<tr><td colspan="5">Keine Daten verfügbar</td></tr>`}</tbody></table></div>
+<div class="table-wrap"><table><colgroup><col style="width:48px"><col style="width:38px"><col><col><col></colgroup><thead><tr><th>Zeit</th><th class="sym"></th><th class="num">Temp</th><th class="num">Regen</th><th class="num">Wind</th></tr></thead><tbody>${hourlyRows || `<tr><td colspan="5">Keine Daten verfügbar</td></tr>`}</tbody></table></div>
 <h2>7 Tage</h2>
-<div class="table-wrap"><table><colgroup><col style="width:70px"><col style="width:32px"><col><col><col></colgroup><thead><tr><th>Tag</th><th class="sym"></th><th class="num">Min</th><th class="num">Max</th><th class="num">Regen</th></tr></thead><tbody>${dailyRows || `<tr><td colspan="5">Keine Daten verfügbar</td></tr>`}</tbody></table></div>
+<div class="table-wrap"><table><colgroup><col style="width:70px"><col style="width:38px"><col><col><col></colgroup><thead><tr><th>Tag</th><th class="sym"></th><th class="num">Min</th><th class="num">Max</th><th class="num">Regen</th></tr></thead><tbody>${dailyRows || `<tr><td colspan="5">Keine Daten verfügbar</td></tr>`}</tbody></table></div>
 ${data.generatedAt ? `<div class="foot">Stand ${esc(fmtTime(data.generatedAt))}</div>` : ""}
 </main></body></html>`;
 }
