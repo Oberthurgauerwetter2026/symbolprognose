@@ -137,9 +137,9 @@ def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optio
     total = len(pts)
     n_batches = (total + chunk_size - 1) // chunk_size
     try:
-        workers = max(1, int(os.environ.get("FETCH_WORKERS", "3")))
+        workers = max(1, int(os.environ.get("FETCH_WORKERS", "2")))
     except ValueError:
-        workers = 3
+        workers = 2
 
     results: list[list | None] = [None] * n_batches
 
