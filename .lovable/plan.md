@@ -1,25 +1,37 @@
-Ziel: Die Lokalprognose muss auf externen Monitoren sichtbar sein, auch wenn der Browser dort JavaScript, moderne CSS/JS-Bundles, postMessage-Resize oder Hydration nicht zuverlässig ausführt.
+## Ziel
+Statisches Lokalprognose-Embed (`/api/public/embed/region-lokal-static`) so umbauen, dass:
+- Wettersymbole statt nur Text dargestellt werden
+- „Aktuell"-Block kompakt wird
+- „Nächste Stunden" mehr Platz erhält
+- Gesamthöhe so knapp ist, dass das Embed neben der TWINT-Spalte komplett sichtbar bleibt (keine Scrollleiste/kein Abschnitt unter TWINT)
 
-Plan:
+## Umsetzung
 
-1. **Statische Embed-Route als sichere Hauptlösung**
-   - Eine neue, bewusst einfache Route für die Lokalprognose anlegen, z. B. `/embed/region-lokal-static`.
-   - Diese Route rendert ausschließlich serverseitigen HTML-Inhalt: aktuelle Werte, nächste Stunden und 7-Tage-Übersicht.
-   - Keine interaktive React-Hydration, keine dynamischen Chunks, kein versteckter Fallback, kein `js-ok`-Umschalten.
+1. **Inline-SVG-Symbole im Static-Endpoint**
+   - In `src/routes/api/public/embed/region-lokal-static.ts` eine kleine Map `codeToSymbol(code)` ergänzen, die für jeden Open-Meteo Weathercode ein passendes Inline-SVG (Sonne, Sonne+Wolke, Wolke, Nebel, Regen, Schauer, Schnee, Gewitter) zurückgibt.
+   - Symbole als reines SVG (kein externer Request, kein JS) in der Grösse ~22 px für die Tabelle und ~40 px für „Aktuell" einbinden, Farben fix (gelb/grau/blau) damit auf jedem Monitor konsistent.
 
-2. **HTML/CSS monitor-kompatibel machen**
-   - Für die statische Route möglichst einfache Klassen/Struktur verwenden und zusätzlich sicherstellen, dass der Inhalt mit weißem Hintergrund und fester Mindesthöhe sichtbar ist.
-   - Tabellen/Blöcke so formatieren, dass sie in einem 480px iframe sofort Inhalt oben anzeigen und bei größerer Höhe sauber weiterlaufen.
+2. **Kompakter „Aktuell"-Block**
+   - Aus eigener Card eine schmale Zeile machen: links Symbol (40 px) + Temperatur gross, rechts kleiner Text „Bewölkt · 0.0 mm/h · 7 km/h NW · 14:00".
+   - Padding und Schriftgrössen reduzieren; keine zweispaltige `dl` mehr.
 
-3. **Embed-Snippet umstellen**
-   - Das Snippet auf `/embed-info` für „Lokalprognose Amriswil“ auf die neue statische Route ändern.
-   - Den blauen Wrapper-Hintergrund im Snippet durch Weiß bzw. neutralen Hintergrund ersetzen, damit selbst bei Ladeproblemen kein leerer blauer Bereich erscheint.
-   - `scrolling="auto"` bzw. eine einfache statische Höhe verwenden, damit Monitore ohne funktionierendes `postMessage` den Inhalt trotzdem scrollbar/anzeigen können.
+3. **„Nächste Stunden" prominenter**
+   - Mehr Zeilen zeigen (12 → 12 behalten, aber kompakter pro Zeile, damit alle sichtbar sind ohne Scroll).
+   - Spalten: Zeit · Symbol · Temp · Regen · Wind. Spalte „Wetter"-Text entfällt (Symbol ersetzt Text), spart Breite und Höhe.
+   - Zeilenhöhe reduziert (padding 4–5 px), Schrift 12–13 px.
 
-4. **Bestehende interaktive Route behalten**
-   - `/embed/region-lokal` bleibt bestehen, falls sie in normalen Browsern weiter genutzt wird.
-   - Die neue statische Route wird aber als empfohlener Code für externe Monitore verwendet, weil sie deutlich weniger fehleranfällig ist.
+4. **7-Tage-Übersicht straffen**
+   - Symbol statt Text, kompaktere Zeilen, Wochentag-Kürzel + Datum kürzer.
+   - Optional auf 5 Tage reduzieren, falls Höhe knapp wird.
 
-5. **Verifikation**
-   - Die veröffentlichte/statische Ausgabe per HTML/Screenshot prüfen: Inhalt muss ohne Client-JavaScript sichtbar sein.
-   - Prüfen, dass `/embed-info` den neuen, robusten Einbettungscode ausgibt.
+5. **Gesamthöhe / Snippet**
+   - Höhe so wählen, dass es zur TWINT-Spalte passt. Aus dem Screenshot ist die rechte Spalte ca. 640–680 px hoch. Ziel: Embed-Inhalt rendert in ≤ 640 px ohne innere Scrollbar.
+   - In `src/routes/embed-info.tsx` Snippet-`height` von `760` auf `640` reduzieren und `scrolling="no"` setzen, damit nichts mehr abgeschnitten/gescrollt wird.
+   - CSS im Static-Endpoint: `body { min-height: 0 }`, kompaktere Paddings, kein `min-width:520px` auf der Tabelle (damit nichts horizontal scrollt im schmalen Container).
+
+6. **Keine Funktionsänderung sonst**
+   - Datenquelle, Caching-Header und die interaktive Route `/embed/region-lokal` bleiben unverändert.
+
+## Verifikation
+- HTML der statischen Route abrufen und prüfen: Symbole vorhanden, Layout kompakt, keine Tabelle > 640 px.
+- Snippet auf `/embed-info` zeigt neue Höhe `640` und `scrolling="no"`.
