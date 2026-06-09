@@ -1,17 +1,11 @@
 /**
  * Server-only Helper: zieht den aktuellen Messwert der Meteobridge-Station
- * "Oberthurgau" aus dem Weather-Hub-Projekt (live-wetterkarte.lovable.app).
- *
- * Voraussetzung: Im Weather-Hub-Projekt existiert ein öffentlicher Lese-
- * Endpoint unter /api/public/stations?name=Oberthurgau, der ein JSON-Array
- * mit mind. { name, temperature, rain_rate, measured_at } liefert.
- *
- * Bei Fehler/Timeout wird null zurückgegeben, damit das Embed weiterhin
- * mit Open-Meteo-Werten rendert.
+ * "Amriswil" aus dem Weather-Hub-Projekt (live-wetterkarte.lovable.app).
  */
 
+const STATION_NAME = "Amriswil";
 const STATION_URL =
-  "https://live-wetterkarte.lovable.app/api/public/stations?name=Oberthurgau";
+  `https://live-wetterkarte.lovable.app/api/public/stations?name=${encodeURIComponent(STATION_NAME)}`;
 
 const CACHE_TTL_MS = 30_000;
 const FETCH_TIMEOUT_MS = 2_000;
