@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { buildLokalNoscriptData } from "@/lib/embed-noscript.server";
+import { fetchOberthurgauStation } from "@/lib/weather-hub.server";
 
 const AMRISWIL = { name: "Amriswil", lat: 47.5469, lon: 9.2986 };
 
@@ -7,7 +8,15 @@ export const Route = createFileRoute("/api/public/embed/region-lokal-static")({
   server: {
     handlers: {
       GET: async () => {
-        const data = await buildLokalNoscriptData(AMRISWIL);
+        const [data, station] = await Promise.all([
+          buildLokalNoscriptData(AMRISWIL),
+          fetchOberthurgauStation(),
+        ]);
+        if (station && data.current) {
+          if (station.temperature != null) data.current.temperature = station.temperature;
+          if (station.rain_rate != null) data.current.precipitation = station.rain_rate;
+          if (station.measured_at) data.current.time = station.measured_at;
+        }
         return new Response(renderStaticForecast(data), {
           headers: {
             "content-type": "text/html; charset=utf-8",
