@@ -29,6 +29,7 @@ import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/p
 import { Route as ApiPublicSnapshotMapRouteImport } from './routes/api/public/snapshot/$map'
 import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
 import { Route as ApiPublicOpenmeteoIngestTriggerRouteImport } from './routes/api/public/openmeteo/ingest-trigger'
+import { Route as ApiPublicEmbedRegionLokalStaticRouteImport } from './routes/api/public/embed/region-lokal-static'
 import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 import { Route as ApiPublicAromeIngestTriggerRouteImport } from './routes/api/public/arome/ingest-trigger'
 
@@ -135,6 +136,12 @@ const ApiPublicOpenmeteoIngestTriggerRoute =
     path: '/api/public/openmeteo/ingest-trigger',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicEmbedRegionLokalStaticRoute =
+  ApiPublicEmbedRegionLokalStaticRouteImport.update({
+    id: '/api/public/embed/region-lokal-static',
+    path: '/api/public/embed/region-lokal-static',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicDebugR2CacheRoute = ApiPublicDebugR2CacheRouteImport.update({
   id: '/api/public/debug/r2-cache',
   path: '/api/public/debug/r2-cache',
@@ -166,6 +173,7 @@ export interface FileRoutesByFullPath {
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
+  '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
@@ -190,6 +198,7 @@ export interface FileRoutesByTo {
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
+  '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
@@ -215,6 +224,7 @@ export interface FileRoutesById {
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
+  '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
@@ -241,6 +251,7 @@ export interface FileRouteTypes {
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
+    | '/api/public/embed/region-lokal-static'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
     | '/api/public/snapshot/$map'
@@ -265,6 +276,7 @@ export interface FileRouteTypes {
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
+    | '/api/public/embed/region-lokal-static'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
     | '/api/public/snapshot/$map'
@@ -289,6 +301,7 @@ export interface FileRouteTypes {
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
+    | '/api/public/embed/region-lokal-static'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
     | '/api/public/snapshot/$map'
@@ -314,6 +327,7 @@ export interface RootRouteChildren {
   KartenWindRoute: typeof KartenWindRoute
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
+  ApiPublicEmbedRegionLokalStaticRoute: typeof ApiPublicEmbedRegionLokalStaticRoute
   ApiPublicOpenmeteoIngestTriggerRoute: typeof ApiPublicOpenmeteoIngestTriggerRoute
   ApiPublicRadarIngestTriggerRoute: typeof ApiPublicRadarIngestTriggerRoute
   ApiPublicSnapshotMapRoute: typeof ApiPublicSnapshotMapRoute
@@ -462,6 +476,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOpenmeteoIngestTriggerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/embed/region-lokal-static': {
+      id: '/api/public/embed/region-lokal-static'
+      path: '/api/public/embed/region-lokal-static'
+      fullPath: '/api/public/embed/region-lokal-static'
+      preLoaderRoute: typeof ApiPublicEmbedRegionLokalStaticRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/debug/r2-cache': {
       id: '/api/public/debug/r2-cache'
       path: '/api/public/debug/r2-cache'
@@ -498,6 +519,7 @@ const rootRouteChildren: RootRouteChildren = {
   KartenWindRoute: KartenWindRoute,
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
+  ApiPublicEmbedRegionLokalStaticRoute: ApiPublicEmbedRegionLokalStaticRoute,
   ApiPublicOpenmeteoIngestTriggerRoute: ApiPublicOpenmeteoIngestTriggerRoute,
   ApiPublicRadarIngestTriggerRoute: ApiPublicRadarIngestTriggerRoute,
   ApiPublicSnapshotMapRoute: ApiPublicSnapshotMapRoute,
@@ -506,13 +528,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

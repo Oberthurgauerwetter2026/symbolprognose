@@ -33,39 +33,23 @@ function buildSimpleSnippet(url: string, path: string, height = 600) {
 }
 
 /**
- * Snippet für Lokalprognose Amriswil: reines iframe + kleines Skript, das die
- * Höhe per postMessage automatisch dem Inhalt anpasst (kein SVG-Fallback).
+ * Monitor-stabiles Snippet für Lokalprognose Amriswil: statische HTML-Route,
+ * kein postMessage, keine Client-Hydration, keine blauen Ladeflächen.
  */
-function buildAmriswilSnippet(url: string, path: string, idSuffix: string, height = 480) {
+function buildAmriswilSnippet(url: string, path: string, height = 760) {
   const full = `${url}${path}`;
   const origin = new URL(url).origin;
   return `<link rel="preconnect" href="${origin}" crossorigin>
 <link rel="dns-prefetch" href="${origin}">
-<div id="wx-${idSuffix}-wrap" style="position:relative;width:100%;max-width:100%;min-width:0;height:${height}px;border:0;box-sizing:border-box;background:#eaf2fb;border-radius:8px;overflow:hidden;resize:vertical">
-  <iframe
-    id="wx-${idSuffix}"
-    src="${full}"
-    loading="eager"
-    fetchpriority="high"
-    referrerpolicy="no-referrer-when-downgrade"
-    allow="geolocation; fullscreen"
-    scrolling="no"
-    style="position:absolute;inset:0;width:100%;height:100%;border:0;display:block"
-    title="Wetter-Karte"
-  ></iframe>
-</div>
-<script>
-  (function () {
-    var wrap = document.getElementById("wx-${idSuffix}-wrap");
-    var f = document.getElementById("wx-${idSuffix}");
-    if (!wrap || !f) return;
-    window.addEventListener("message", function (e) {
-      if (e.data && e.data.type === "lovable-weather:height" && e.source === f.contentWindow) {
-        wrap.style.height = e.data.height + "px";
-      }
-    });
-  })();
-</script>`;
+<iframe
+  src="${full}"
+  loading="eager"
+  fetchpriority="high"
+  referrerpolicy="no-referrer-when-downgrade"
+  scrolling="auto"
+  style="width:100%;height:${height}px;border:0;display:block;background:#ffffff;border-radius:8px"
+  title="Lokalprognose Amriswil"
+></iframe>`;
 }
 
 
@@ -122,9 +106,9 @@ function EmbedInfo() {
             Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Nur der detaillierte Prognose-Bereich für Amriswil – ohne Karte, Suche, Ortsname oder Tagesleiste. Beim Laden ist nur ein dezenter blauer Hintergrund sichtbar, bis die Prognose erscheint. Die Höhe passt sich automatisch dem Inhalt an (per <code>postMessage</code>). Der Wert <code>height:480px</code> im Snippet ist nur ein Fallback und kann beliebig verändert werden; zusätzlich lässt sich der Rahmen über die untere rechte Ecke per Maus vergrössern (<code>resize:vertical</code>).
+            Stabile Monitor-Version für Amriswil: reine HTML-Prognose ohne JavaScript, ohne postMessage-Resize und ohne blaue Ladefläche. Der Wert <code>height:760px</code> kann bei Bedarf angepasst werden.
           </p>
-          <SnippetBlock snippet={buildAmriswilSnippet(url, "/embed/region-lokal", "region-lokal", 480)} />
+          <SnippetBlock snippet={buildAmriswilSnippet(url, "/api/public/embed/region-lokal-static", 760)} />
         </section>
 
         <section className="space-y-6">
