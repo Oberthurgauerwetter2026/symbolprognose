@@ -1,26 +1,46 @@
-# Statisches Embed: Titel entfernen, Symbole vergrössern
+# Aktuelle Temperatur + Regen aus Station Oberthurgau
 
-## Ziel
-Die kompakte, JavaScript-freie Wetter-Einbettung (`/api/public/embed/region-lokal-static`) anpassen, damit sie noch besser in die TWINT-Spalte passt und die Symbole deutlicher lesbar sind.
+Im statischen Embed `/api/public/embed/region-lokal-static` werden die beiden Felder **Temperatur** und **Regenrate** im «Aktuell»-Block nicht mehr aus Open-Meteo, sondern aus der Meteobridge-Station «Oberthurgau» (Weather-Hub-Projekt) gezogen. Symbol, Wind, Zeitreihe und 7-Tage bleiben unverändert aus Open-Meteo.
 
-## Änderungen
+## Voraussetzung im Weather-Hub-Projekt (separat)
 
-### 1. Kopfbereich entfernen
-In `src/routes/api/public/embed/region-lokal-static.ts`:
-- Den kompletten `<header class="head">`-Block (Titel «Lokalprognose Amriswil» + Quellenzeile «Open-Meteo · MeteoSchweiz») entfernen.
-- Das `<main class="page">`-Padding oben von `8px` auf `4px` reduzieren, damit kein visuelles Loch entsteht.
+Die Werte liegen heute in der Tabelle `stations` / View `public_stations` und sind nur per Service-Role lesbar. Damit dieses Projekt sie ohne Secret holen kann, braucht es im **Weather-Hub-Projekt** eine neue öffentliche Lese-Route:
 
-### 2. Symbole vergrössern
-In derselben Datei:
-- **Aktuell-Block:** Symbol-Grösse von `44 px` auf `56 px`, Temperatur-Schrift von `24 px` auf `28 px` erhöhen.
-- **Stundentabelle:** Symbol-Grösse von `20 px` auf `28 px` erhöhen.
-- **7-Tage-Tabelle:** Symbol-Grösse von `20 px` auf `28 px` erhöhen.
-- CSS-Anpassungen: `.sym`-Spaltenbreite in beiden Tabellen von `32 px` auf `38 px` erhöhen, damit die grösseren SVGs nicht abgeschnitten werden.
+- Datei: `src/routes/api/public/stations.ts`
+- Methode: `GET`
+- Antwort: JSON-Array `[{ id, name, temperature, rain_rate, measured_at }, …]` aus `public_stations`
+- Caching-Header: `cache-control: public, max-age=30, s-maxage=60, stale-while-revalidate=300`
+- Optional: `?name=Oberthurgau` filtert serverseitig
 
-## Dateien
-- `src/routes/api/public/embed/region-lokal-static.ts` (HTML/CSS-String im `renderStaticForecast`-Generator)
+(Diese Datei wird im Weather-Hub-Projekt angelegt — nicht in diesem Repo. Sobald sie unter `https://live-wetterkarte.lovable.app/api/public/stations?name=Oberthurgau` antwortet, ist die Lovable-Cloud-Seite fertig.)
+
+## Änderungen in diesem Projekt
+
+### 1. Neuer Server-Helper `src/lib/weather-hub.server.ts`
+- Funktion `fetchOberthurgauStation()` lädt per `fetch` die o. g. URL.
+- Liefert `{ temperature: number | null, rain_rate: number | null, measured_at: string | null } | null`.
+- Validierung mit `Number.isFinite`; bei Fehler/Timeout (2 s) `null` zurück und `console.warn`, damit das Embed beim Stations-Ausfall trotzdem rendert (Fallback = Open-Meteo-Werte).
+- Eigener kleiner In-Memory-Cache (~30 s) zusätzlich zu HTTP-Caching, damit die Worker-Aufrufe günstig bleiben.
+
+### 2. `src/routes/api/public/embed/region-lokal-static.ts`
+- Vor dem Render-Aufruf parallel zu `buildLokalNoscriptData` auch `fetchOberthurgauStation()` ausführen.
+- Im erzeugten `data.current`:
+  - `temperature` durch Stationswert ersetzen, falls vorhanden
+  - `precipitation` durch `rain_rate` der Station ersetzen, falls vorhanden
+  - `time` durch `measured_at` der Station ersetzen, falls vorhanden (damit der angezeigte Zeitstempel zu den Messwerten passt)
+- Symbol (`weathercode`), Wind und Windrichtung bleiben unverändert aus Open-Meteo.
+- `now-sub`-Zeile bleibt: `{rain_rate} mm/h · {wind} km/h {dir}` — Regenwert ist jetzt Stationsmesswert.
+
+### 3. Keine UI-/Styling-Änderungen
+- Header bleibt entfernt, Symbolgrössen bleiben (56 / 28 px), Layout unverändert.
+- Kein zusätzliches «Quelle: Station»-Label, damit nichts ausserhalb der TWINT-Spalte gedrückt wird.
 
 ## Nicht betroffen
-- Interaktive Route `/embed/region-lokal`
-- Embed-Info-Seite und Snippet (`src/routes/embed-info.tsx`)
-- Datenquelle & Caching-Header
+- Interaktive Routen `/embed/region-lokal` und `/embed/lokal`
+- Snippet/Embed-Info-Seite
+- Stunden- und 7-Tage-Tabellen
+- Caching-Header der statischen Route (bleibt `max-age=60, s-maxage=300, stale-while-revalidate=3600`)
+
+## Offene Fehlerpfade
+- Station antwortet 404 / Timeout → Fallback Open-Meteo-Werte (kein UI-Hinweis).
+- Station liefert `null`-Felder (Sensor offline) → einzelnes Feld fällt auf Open-Meteo zurück, anderes bleibt Station.
