@@ -26,7 +26,7 @@ function asStr(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
 
-export async function fetchOberthurgauStation(): Promise<StationCurrent | null> {
+export async function fetchAmriswilStation(): Promise<StationCurrent | null> {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) {
     return cache.value;
   }
@@ -40,7 +40,7 @@ export async function fetchOberthurgauStation(): Promise<StationCurrent | null> 
       headers: { accept: "application/json" },
     });
     if (!res.ok) {
-      console.warn(`[weather-hub] HTTP ${res.status} for Oberthurgau`);
+      console.warn(`[weather-hub] HTTP ${res.status} for ${STATION_NAME}`);
       cache = { at: Date.now(), value: null };
       return null;
     }
@@ -54,7 +54,7 @@ export async function fetchOberthurgauStation(): Promise<StationCurrent | null> 
       (r) =>
         typeof r === "object" &&
         r !== null &&
-        (r as { name?: unknown }).name === "Oberthurgau",
+        (r as { name?: unknown }).name === STATION_NAME,
     ) as Record<string, unknown> | undefined;
 
     if (!row) {
