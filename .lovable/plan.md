@@ -1,46 +1,43 @@
-# Lokalprognose Amriswil: gleiche Icons wie Symbolprognose
+## Ziel
 
-## Problem
-Die statische HTML-Route `/api/public/embed/region-lokal-static` (für das WordPress-Snippet "Lokalprognose Amriswil") zeichnet ihre Wettersymbole mit einer eigenen, vereinfachten Inline-SVG-Funktion (`weatherSymbol()` in `region-lokal-static.ts`). Diese Symbole sehen anders aus als die `WeatherIcon`-Komponente, die überall sonst in der Symbolprognose verwendet wird (z. B. in `/karten/lokal`).
+Im Snippet "Lokalprognose Amriswil" (`/api/public/embed/region-lokal-static`) soll die Stundenliste automatisch weiterrutschen, sobald eine Stunde abgelaufen ist – ohne dass jemand die Seite manuell neu lädt und ohne auf den nächsten Cache-Refresh zu warten.
 
-Ziel: Im Amriswil-Snippet exakt dieselben Symbole wie in der allgemeinen Symbolprognose anzeigen — inklusive der Auswahllogik (Sonne mit Schauer, Gewitter mit Sonne, „heiter" vs. „bewölkt" über Cloud-Layer-Anteile, Schnee-Override etc.).
+## Aktuelle Situation
 
-## Lösungsansatz
-Die React-`WeatherIcon`-Komponente (`src/components/weather-icons/index.tsx`) kann nicht direkt in einer reinen HTML-Response gerendert werden, ohne das React-Bundle in das Snippet zu ziehen — was den ganzen Sinn der Monitor-stabilen, JS-freien Route zunichte machen würde. Stattdessen wird die SVG-Ausgabe **server-seitig als HTML-String** repliziert, mit identischer Optik (gleiche Pfade, gleiche `--wx-*`-Farbtokens) und identischer Auswahllogik.
+- Der Endpoint liefert reines HTML, das im iFrame eingebettet wird.
+- Die Stundenzeilen werden serverseitig in `renderStaticForecast()` einmal gerendert (12 Stunden ab "jetzt zur Render-Zeit").
+- Cache-Header: `max-age=60, s-maxage=300, stale-while-revalidate=3600`. D. h. die abgelaufene Stunde bleibt teils bis zu 5 Min sichtbar, danach lädt das HTML erst beim nächsten Request neu.
+- Es gibt aktuell keinerlei Logik, die "vergangene" Stunden ausblendet.
 
-## Schritte
+## Lösung
 
-1. **Neue Datei `src/lib/weather-icon-svg.server.ts`**
-   - Portiert die SVG-Primitiven aus `weather-icons/index.tsx` (`Sun`, `Moon`, `Cloud`, `Drop`, `Flake`, `Bolt`) 1:1 als Template-Strings (gleiche Pfade, gleiche Farben über `var(--wx-*)`).
-   - Portiert die Icon-Varianten: `Clear`, `ClearNight`, `MostlyClear`, `PartlyCloudy`, `Cloudy`, `Fog`, `Drizzle`, `Rain`, `Snow`, `Thunderstorm`, `SunShower`, `SunThunder`, `SunSnowThunder`, `SnowThunder`.
-   - Portiert die Dispatcher-Logik aus `WeatherIcon` (gleiche Reihenfolge, gleiche Schwellen): Schnee/Regen-Override, Daily-Gewitter-Stufen, Cloud-Stockwerke (low/mid/high) vs. Cirrus, Sonnen-Korrektiv über `sunshineRatio`, Sonnenschauer.
-   - Exportiert `renderWeatherIconSvg(opts) => string` mit derselben Prop-Signatur wie `WeatherIcon`.
+Zwei kleine, voneinander unabhängige Schritte:
 
-2. **`src/components/embeds/lokal-noscript.tsx` (Typ-Erweiterung)**
-   - `LokalNoscriptData` um die für die Icon-Auswahl nötigen Felder erweitern, jeweils optional:
-     - pro Stunde: `precipProb`, `isDay`, `isSnow`, `cloudLow`, `cloudMid`, `cloudHigh`, `sunshineRatio`
-     - pro Tag: `precipHours`, `thunderHours`, `sunshineRatio`, `isSnow`
-     - in `current`: `isDay`, `cloudLow/Mid/High`, `sunshineRatio`, `isSnow`
-   - Reine Typ-Erweiterung; der bestehende `LokalNoscript`-React-Renderer bleibt unverändert.
+### 1. Mehr Stundenpuffer + Zeitstempel pro Zeile rendern
+- In `region-lokal-static.ts` jede `<tr>` der Stundentabelle mit einem `data-hour="<ISO>"`-Attribut versehen (ISO-Start der Stunde).
+- Statt nur 12 Stunden ein paar mehr ausliefern (z. B. 18), damit nach dem Wegblenden vergangener Zeilen immer noch ~12 sichtbar bleiben. `MAX_HOURLY` in `embed-noscript.server.ts` entsprechend anheben (oder ein zweiter Wert nur fürs Static-Snippet).
+- Zusätzlich eine `data-rendered-at="<ISO>"` am Tabellen-Wrapper.
 
-3. **`src/lib/embed-noscript.server.ts` (Datenanreicherung)**
-   - Zusätzlich aus `getAggregatedForecast` lesen: `is_day`, `cloud_cover_low/mid/high`, `sunshine_duration`, `precipitation_probability`, `snowfall` (stündlich), sowie tagesweise `precipitation_hours`, `thunderstorm`/Wettercode-basierte Stunden, `sunshine_duration`.
-   - Für jede ausgegebene Stunde / jeden Tag / `current` die Felder aus Schritt 2 berechnen (`sunshineRatio = sunshine_duration / 3600` für stündlich; für daily aus Summe geteilt durch Tageslicht-Sekunden, analog zur bestehenden Logik in der App).
-   - Falls einzelne Quellen fehlen: Feld bleibt `undefined`, das Icon-Dispatcher verhält sich dann wie der heutige WMO-Fallback.
+### 2. Mini-Script im Snippet, das abgelaufene Zeilen ausblendet
+- Ein winziges inline `<script>` (~20 Zeilen, kein Bundle, kein Framework) am Ende des HTML:
+  - Liest `data-hour` jeder Zeile.
+  - Setzt jede Zeile mit `hour + 1h <= now` auf `display:none`.
+  - Läuft sofort beim Laden und danach alle 60 s via `setInterval`.
+  - Optional: wenn weniger als z. B. 3 sichtbare Zeilen übrig sind, ruft es `location.reload()` auf, damit frische Daten nachgeladen werden.
+- Da das Snippet bereits in einem iFrame läuft und JS dort erlaubt ist, ist das unkritisch. Fällt JS aus, bleibt das aktuelle Verhalten (statische 18 Stunden) als Fallback erhalten.
 
-4. **`src/routes/api/public/embed/region-lokal-static.ts` (Snippet-Renderer)**
-   - `weatherSymbol()` entfernen.
-   - Stattdessen `renderWeatherIconSvg()` aus Schritt 1 mit allen jetzt verfügbaren Feldern aufrufen (für `current`, jede Stunde, jeden Tag; `scope: "hourly"` bzw. `"daily"`).
-   - Im `<style>`-Block die `--wx-*`-Farbtokens definieren (1:1 aus `src/styles.css` Zeilen 85–100 kopiert), damit `currentColor`/Variablen funktionieren — die Route hat kein Tailwind/Theme.
-   - Spaltenbreite `sym` ggf. leicht erhöhen (z. B. 44–48 px), damit die feineren neuen Icons nicht abgeschnitten werden; Tabellen-Layout sonst unverändert.
+### 3. Cache leicht entschärfen (optional, empfohlen)
+- `max-age` von 60 auf 300 belassen ist ok, aber damit die Liste nach Reload auch wirklich neue Stunden enthält: `s-maxage` auf z. B. 600 lassen, `stale-while-revalidate` beibehalten. Keine Änderung an der Caching-Strategie nötig, wenn Schritt 2 den Reload triggert.
+
+## Geänderte Dateien
+
+- `src/lib/embed-noscript.server.ts` – `MAX_HOURLY` erhöhen (z. B. 18) bzw. Parameter zulassen.
+- `src/routes/api/public/embed/region-lokal-static.ts`
+  - `data-hour` Attribute pro Zeile, `data-rendered-at` am Wrapper.
+  - Inline-Script ans Ende vor `</body>`.
 
 ## Nicht-Ziele
-- Keine Änderung am React-`/karten/lokal`-Erlebnis.
-- Keine Änderung an anderen Embed-Snippets (Wind, Radar, Region etc.).
-- Keine Änderung am `/embed/region-lokal`-noscript-React-Renderer — der bleibt textbasiert, weil er nur als Fallback im `<noscript>` läuft.
 
-## Technische Details
-- **Identische Optik durch Token-Wiederverwendung**: Die Variablen `--wx-sun`, `--wx-cloud`, `--wx-rain` etc. werden inline im `<style>` der Response definiert, exakt wie in `src/styles.css`. So sehen die SVGs pixelgenau aus wie in der App.
-- **`viewBox` bleibt `0 0 64 64`** (wie im React-Set), nicht mehr `0 0 24 24` wie die alten Inline-Symbole. Das `width`/`height`-Attribut steuert die Darstellungsgröße.
-- **Keine zusätzliche Bundle-Last**: Die neue Datei ist `*.server.ts` und wird nur in der Server-Route importiert.
-- **Build-Sicherheit**: Reine String-Konkatenation, keine JSX, keine Worker-inkompatiblen APIs.
+- Keine Änderung an der 7-Tage-Tabelle.
+- Keine Änderung am "Aktuell"-Block (der zeigt ohnehin die jüngste Stationsmessung).
+- Keine Änderung an anderen Embeds (`/embed/region-lokal`, `/embed/lokal`), die ohnehin clientseitig live aktualisieren.
