@@ -17,13 +17,26 @@ export interface LokalNoscriptData {
     precipitation?: number | null;
     windSpeed?: number | null;
     windDirection?: number | null;
+    isDay?: boolean;
+    isSnow?: boolean;
+    cloudLow?: number | null;
+    cloudMid?: number | null;
+    cloudHigh?: number | null;
+    sunshineRatio?: number | null;
   };
   hourly: Array<{
     time: string;
     temperature?: number | null;
     weathercode?: number | null;
     precipitation?: number | null;
+    precipProb?: number | null;
     windSpeed?: number | null;
+    isDay?: boolean;
+    isSnow?: boolean;
+    cloudLow?: number | null;
+    cloudMid?: number | null;
+    cloudHigh?: number | null;
+    sunshineRatio?: number | null;
   }>;
   daily: Array<{
     date: string;
@@ -31,6 +44,14 @@ export interface LokalNoscriptData {
     tMin?: number | null;
     tMax?: number | null;
     precipSum?: number | null;
+    precipProb?: number | null;
+    precipHours?: number | null;
+    thunderHours?: number | null;
+    sunshineRatio?: number | null;
+    isSnow?: boolean;
+    cloudLow?: number | null;
+    cloudMid?: number | null;
+    cloudHigh?: number | null;
     windMax?: number | null;
   }>;
 }
