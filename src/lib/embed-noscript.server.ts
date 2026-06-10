@@ -8,7 +8,7 @@
 import type { LokalNoscriptData } from "@/components/embeds/lokal-noscript";
 import { getAggregatedForecast } from "./forecast-aggregated.functions";
 
-const MAX_HOURLY = 12;
+const MAX_HOURLY = 18;
 const MAX_DAILY = 7;
 
 function emptyData(name: string): LokalNoscriptData {

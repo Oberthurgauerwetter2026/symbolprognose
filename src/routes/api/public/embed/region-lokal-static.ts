@@ -100,7 +100,7 @@ function renderStaticForecast(data: StaticForecastData): string {
         cloudHigh: n(h.cloudHigh),
         sunshineRatio: n(h.sunshineRatio),
       });
-      return `<tr><td>${esc(fmtTime(h.time))}</td><td class="sym">${sym}</td><td class="num">${esc(fmt(h.temperature, 0, "°"))}</td><td class="num">${esc(fmt(h.precipitation, 1, " mm"))}</td><td class="num">${esc(fmt(h.windSpeed, 0, " km/h"))}</td></tr>`;
+      return `<tr data-hour="${esc(h.time)}"><td>${esc(fmtTime(h.time))}</td><td class="sym">${sym}</td><td class="num">${esc(fmt(h.temperature, 0, "°"))}</td><td class="num">${esc(fmt(h.precipitation, 1, " mm"))}</td><td class="num">${esc(fmt(h.windSpeed, 0, " km/h"))}</td></tr>`;
     })
     .join("");
 
@@ -168,9 +168,10 @@ tbody tr:last-child td{border-bottom:0}
 </style></head><body><main class="page">
 ${currentBlock}
 <h2>Nächste Stunden</h2>
-<div class="table-wrap"><table><colgroup><col style="width:48px"><col style="width:44px"><col><col><col></colgroup><thead><tr><th>Zeit</th><th class="sym"></th><th class="num">Temp</th><th class="num">Regen</th><th class="num">Wind</th></tr></thead><tbody>${hourlyRows || `<tr><td colspan="5">Keine Daten verfügbar</td></tr>`}</tbody></table></div>
+<div class="table-wrap" id="hourly-wrap" data-rendered-at="${esc(new Date().toISOString())}"><table><colgroup><col style="width:48px"><col style="width:44px"><col><col><col></colgroup><thead><tr><th>Zeit</th><th class="sym"></th><th class="num">Temp</th><th class="num">Regen</th><th class="num">Wind</th></tr></thead><tbody id="hourly-body">${hourlyRows || `<tr><td colspan="5">Keine Daten verfügbar</td></tr>`}</tbody></table></div>
 <h2>7 Tage</h2>
 <div class="table-wrap"><table><colgroup><col style="width:70px"><col style="width:44px"><col><col><col></colgroup><thead><tr><th>Tag</th><th class="sym"></th><th class="num">Min</th><th class="num">Max</th><th class="num">Regen</th></tr></thead><tbody>${dailyRows || `<tr><td colspan="5">Keine Daten verfügbar</td></tr>`}</tbody></table></div>
 ${data.generatedAt ? `<div class="foot">Stand ${esc(fmtTime(data.generatedAt))}</div>` : ""}
+<script>(function(){function p(){var n=Date.now();var rows=document.querySelectorAll('#hourly-body tr[data-hour]');var visible=0;rows.forEach(function(r){var h=r.getAttribute('data-hour');if(!h)return;var t=new Date(h).getTime();if(!isFinite(t))return;if(t+3600000<=n){r.style.display='none';}else{r.style.display='';visible++;}});if(visible<=2){try{location.reload();}catch(e){}}}p();setInterval(p,60000);})();</script>
 </main></body></html>`;
 }
