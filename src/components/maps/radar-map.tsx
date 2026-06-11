@@ -379,7 +379,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = contour ? "contrast(1.35)" : "blur(0.8px) contrast(2.2)";
+        cv.style.filter = contour ? "contrast(1.55) saturate(1.05)" : "blur(0.8px) contrast(2.2)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
@@ -531,11 +531,9 @@ function PrecipOverlay({
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    // Prognose: leichter Blur glättet die ~2-km-ICON-CH1-Modellzellen.
-    if (contour) ctx.filter = "blur(0.3px)";
+    ctx.imageSmoothingQuality = contour ? "medium" : "high";
+    // Prognose: kein zusätzlicher Blur — Strukturen der ICON-CH1-Zellen sichtbar lassen.
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-    if (contour) ctx.filter = "none";
     ctx.restore();
   };
 
