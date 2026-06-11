@@ -379,7 +379,7 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = contour ? "contrast(1.35)" : "blur(0.8px) contrast(2.2)";
+        cv.style.filter = contour ? "contrast(1.55) saturate(1.05)" : "blur(0.8px) contrast(2.2)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
