@@ -1260,22 +1260,35 @@ export function RadarMap({
           <ZoomControl position="topright" />
         </MapContainer>
 
-        {/* Quellen-Badge oben links */}
-        {meta && (
-          <div className="pointer-events-none absolute left-3 top-3 z-[400] flex flex-col gap-1">
-            <span
-              className="rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
-              style={{ background: meta.color }}
-            >
-              {meta.label}
-            </span>
-            {currentFrame && (
-              <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
-                {fmtTime(currentFrame.t)}
+        {/* Quellen-Badge oben links — bei MCH-Ausfall wird Live-Bild von RainViewer beschriftet */}
+        {(() => {
+          const showRv = radarDown && rvFrame && rvHost;
+          const badge = showRv
+            ? { label: "Live · RainViewer", color: "#a14b1f" }
+            : meta;
+          const timeLabel = showRv
+            ? fmtRainViewerTime(rvFrame.time)
+            : currentFrame
+              ? fmtTime(currentFrame.t)
+              : null;
+          if (!badge) return null;
+          return (
+            <div className="pointer-events-none absolute left-3 top-3 z-[400] flex flex-col gap-1">
+              <span
+                className="rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
+                style={{ background: badge.color }}
+              >
+                {badge.label}
               </span>
-            )}
-          </div>
-        )}
+              {timeLabel && (
+                <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
+                  {timeLabel}
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
 
 
 
