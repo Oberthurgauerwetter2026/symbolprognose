@@ -86,8 +86,6 @@ export interface RadarFrame {
   imageBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
 }
 
-export type RadarStatus = "fresh" | "delayed" | "down";
-
 export interface RadarPayload {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   imageBbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
@@ -97,15 +95,8 @@ export interface RadarPayload {
   generatedAt: string;
   hasRealRadar: boolean;
   hasHail: boolean;
-  /** Liefer-Status der MCH-OGD-Radar-Messdaten. */
-  radarStatus: RadarStatus;
-  /** ISO UTC des aktuellsten verfügbaren MCH-Radar-PNGs (egal ob im Fenster). */
-  radarLastFrameAt?: string;
-  /** Alter dieses Frames in Minuten (zur Anzeige im Banner). */
-  radarAgeMin?: number;
   warning?: string;
 }
-
 
 type OpenMeteoCache = OpenMeteoCachePayload;
 
@@ -211,39 +202,9 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   const frames: RadarFrame[] = [];
 
   // ---- Messung: MeteoSchweiz-Radar-PNGs (Vergangenheit) ----
-  // Lieferstatus bestimmen: das aktuellste verfügbare MCH-Asset zählt,
-  // unabhängig vom 6h-Anzeigefenster.
-  const STALE_DELAY_MIN = 20;
-  const STALE_DOWN_MIN = 60;
-  let radarLastFrameMs = 0;
-  if (manifest && manifest.frames.length > 0) {
-    for (const f of manifest.frames) {
-      const tm = Date.parse(f.t);
-      if (Number.isFinite(tm) && tm > radarLastFrameMs) radarLastFrameMs = tm;
-    }
-  }
-  const radarAgeMin = radarLastFrameMs > 0 ? (now - radarLastFrameMs) / 60_000 : Number.POSITIVE_INFINITY;
-  const radarStatus: RadarStatus =
-    radarAgeMin <= STALE_DELAY_MIN ? "fresh" : radarAgeMin <= STALE_DOWN_MIN ? "delayed" : "down";
-
-  if (radarStatus === "delayed") {
-    warnings.push(
-      `MeteoSchweiz-Radar verzögert (letzter Frame vor ${Math.round(radarAgeMin)} Min)`,
-    );
-  } else if (radarStatus === "down") {
-    if (radarLastFrameMs > 0) {
-      const ageH = radarAgeMin / 60;
-      const ageLabel = ageH >= 2 ? `${ageH.toFixed(1)} h` : `${Math.round(radarAgeMin)} Min`;
-      warnings.push(`MeteoSchweiz-Radar derzeit nicht verfügbar (letzter Frame vor ${ageLabel})`);
-    } else {
-      warnings.push("MeteoSchweiz-Radar derzeit nicht verfügbar");
-    }
-  }
-
   const hasRealRadar = !!manifest && manifest.frames.length > 0;
   const hasHail = hasRealRadar && manifest!.frames.some((f) => f.hailUrl);
   const imageBbox = manifest?.bbox ?? BBOX;
-
 
   if (hasRealRadar) {
     const sortedMf = [...manifest!.frames].sort(
@@ -485,11 +446,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     generatedAt: new Date().toISOString(),
     hasRealRadar,
     hasHail,
-    radarStatus,
-    radarLastFrameAt: radarLastFrameMs > 0 ? new Date(radarLastFrameMs).toISOString() : undefined,
-    radarAgeMin: Number.isFinite(radarAgeMin) ? Math.round(radarAgeMin) : undefined,
     warning: warnings.length > 0 ? warnings.join("; ") : undefined,
-
   };
   return payload;
 });

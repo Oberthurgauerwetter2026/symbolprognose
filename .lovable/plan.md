@@ -1,42 +1,21 @@
-## Ziel
+# Radar-Prognose: weniger Glättung
 
-Solange MeteoSchweiz keine aktuellen OGD-Radardaten liefert (aktuell seit 11.06.2026 ~07:35 UTC, 0 Assets heute), zeigt die Karte (a) einen ehrlichen Status-Hinweis und (b) automatisch RainViewer-Tiles als Live-Fallback. Sobald MCH wieder liefert, wird ohne weitere Aktion auf MCH zurückgeschaltet.
+Die Prognose-Frames (ICON-CH1, `contour=true` im Canvas-Layer) werden aktuell durch drei Stufen geglättet:
 
-## Verhalten
+1. Bilineares Sampling auf einem halbauflösenden Off-Screen-Buffer (`STEP = 2`).
+2. `ctx.filter = "blur(0.3px)"` beim Hochskalieren (`radar-map.tsx:536`).
+3. CSS-Filter auf dem Canvas-Element: `contrast(1.35)` (`radar-map.tsx:382`).
 
-- Bei jedem Aufruf wird das Alter des neuesten MCH-Radarframes bestimmt.
-- Schwelle: **≤ 20 min** = MCH frisch → bisheriges Verhalten unverändert.
-- **20–60 min** = "MCH verzögert" → Banner zeigt Verzögerung, MCH-Frames bleiben sichtbar.
-- **> 60 min oder 0 MCH-Frames in den letzten 6 h** = "MCH-Ausfall" → Banner zeigt Ausfall + letzten verfügbaren Zeitstempel, **RainViewer-Layer aktiv**, MCH-Frames werden nicht mehr animiert.
+Zusammen ergibt das den weichen, „verwaschenen" Eindruck. Ziel: Strukturen der ~2-km-ICON-CH1-Zellen klarer zeigen, ohne den Cartoon-Block-Look zurückzuholen.
 
-Auf der Karte erscheint im RainViewer-Modus ein Quellen-Label „Radar: RainViewer (MCH-Daten nicht verfügbar)" mit Zeitstempel des aktuellsten RainViewer-Frames.
+## Änderungen (nur Frontend, `src/components/maps/radar-map.tsx`)
 
-Die Prognose-Schicht (ICON-CH1) bleibt unverändert — sie ist vom MCH-Ausfall nicht betroffen.
+1. **Blur entfernen beim Upscale** (Zeile 536/538): `ctx.filter = "blur(0.3px)"` durch `"none"` ersetzen bzw. den Block weglassen. Das ist die deutlichste Glättungsquelle.
+2. **CSS-Filter schärfen** (Zeile 382): für Prognose `contrast(1.35)` → `contrast(1.55)` und `imageRendering` auf `"auto"` belassen. Optional zusätzlich `saturate(1.05)`.
+3. **`imageSmoothingQuality`** (Zeile 534) für Prognose von `"high"` auf `"medium"` setzen, damit das Upsampling von Buffer→Canvas weniger weichzeichnet. Bilineares Sampling im Buffer bleibt — sonst gibt es harte Pixelblöcke.
 
-## Umfang
+Messung (`contour=false`) bleibt unverändert (dort ist der Blur stärker und gewollt, weil das MCH-PNG selbst schon scharf ist).
 
-- `src/lib/radar.functions.ts`
-  - Neuestes MCH-Frame-Alter berechnen, neue Felder im Server-Response: `radarStatus: "fresh" | "delayed" | "down"`, `radarLastFrameAt`, `radarAgeMin`.
-  - `manifest.warning` aus dem Manifest übernehmen (heute ignoriert).
-  - `hasRealRadar` strenger: mindestens ein Frame ≤ 60 min.
-  - Bei `down` keine zusätzliche Serverarbeit für RainViewer — Client lädt direkt.
-- `src/components/maps/radar-map.tsx`
-  - Status-Banner-Komponente (drei Zustände, Farben über bestehende Tokens, kein Hardcoding).
-  - RainViewer-Tile-Layer (Leaflet `L.tileLayer`) nur bei `radarStatus === "down"`; URL-Template aus `weather-maps.json` (`{host}{path}/256/{z}/{x}/{y}/2/1_1.png`).
-  - Animations-Loop nutzt im Fallback-Modus die RainViewer-Frames (past + nowcast) statt MCH-PNGs.
-  - Quellen-Label unter der Karte zeigt Quelle + Zeitstempel dynamisch.
-- Keine Änderung an `scripts/ingest_radar.py`, R2-Manifest-Format oder Cron — der Ausfall ist eine Lieferseite, nicht ein App-Bug.
+## Keine Backend-Änderungen
 
-## Technisches
-
-- RainViewer ist kostenlos, kein Key, CORS offen, weltweite Coverage inkl. CH. Update alle 10 min, Latenz 2–10 min.
-- Manifest-URL: `https://api.rainviewer.com/public/weather-maps.json` (Client-Fetch, 60 s SWR).
-- Tile-URL: `${host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png` (Color-Scheme 2 = Universal Blue, Smooth + Snow).
-- Schwellen (`STALE_DELAY_MIN=20`, `STALE_DOWN_MIN=60`) als Konstanten in `radar.functions.ts`, leicht justierbar.
-- Attribution „© RainViewer" gemäss deren Lizenz im Karten-Footer ergänzen, wenn Layer aktiv.
-- Keine neuen Secrets, keine neuen Backend-Routen, keine DB-Änderungen.
-
-## Out of Scope
-
-- Kommerzielle MCH-Quelle (Meteomatics/metradar) — eigener Plan, sobald Bedarf.
-- Korrektur des stillen Fallbacks in `scripts/ingest_radar.py` (alte Frames werden im Manifest nicht markiert). Empfehlung kann in einem Folgeschritt umgesetzt werden, ist für den UI-Ehrlichkeitsfix aber nicht zwingend, weil der Server jetzt das Alter selbst prüft.
+Grid-Auflösung, Bias-Korrektur und Frame-Erzeugung in `src/lib/radar.functions.ts` bleiben gleich — nur die Darstellung wird angepasst.
