@@ -485,7 +485,11 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     generatedAt: new Date().toISOString(),
     hasRealRadar,
     hasHail,
+    radarStatus,
+    radarLastFrameAt: radarLastFrameMs > 0 ? new Date(radarLastFrameMs).toISOString() : undefined,
+    radarAgeMin: Number.isFinite(radarAgeMin) ? Math.round(radarAgeMin) : undefined,
     warning: warnings.length > 0 ? warnings.join("; ") : undefined,
+
   };
   return payload;
 });
