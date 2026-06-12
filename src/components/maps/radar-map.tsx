@@ -603,6 +603,79 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   return { label: "Modellprognose", color: "#7a4ca0" };
 }
 
+// ---------------- RainViewer-Fallback ----------------
+// Wird nur aktiv, wenn MeteoSchweiz keine aktuellen Radardaten liefert
+// (radarStatus === "down"). RainViewer ist kostenlos, kein API-Key,
+// weltweite Coverage inkl. CH, Update alle 10 min.
+type RainViewerFrame = { time: number; path: string };
+type RainViewerManifest = {
+  host: string;
+  generated: number;
+  newest: RainViewerFrame | null;
+};
+
+async function fetchRainViewerManifest(): Promise<RainViewerManifest | null> {
+  try {
+    const res = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      host?: string;
+      generated?: number;
+      radar?: { past?: RainViewerFrame[]; nowcast?: RainViewerFrame[] };
+    };
+    const past = json.radar?.past ?? [];
+    if (!json.host || past.length === 0) return null;
+    const newest = past[past.length - 1] ?? null;
+    return {
+      host: json.host,
+      generated: json.generated ?? Math.floor(Date.now() / 1000),
+      newest,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function useRainViewer(enabled: boolean) {
+  return useQuery({
+    queryKey: ["rainviewer-manifest"],
+    queryFn: fetchRainViewerManifest,
+    staleTime: 60_000,
+    refetchInterval: enabled ? 5 * 60_000 : false,
+    enabled,
+  });
+}
+
+function RainViewerLayer({ frame, host }: { frame: RainViewerFrame; host: string }) {
+  const map = useMap();
+  useEffect(() => {
+    // Color scheme 2 = Universal Blue; Smooth=1, Snow=1
+    const url = `${host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+    const layer = L.tileLayer(url, {
+      opacity: 0.75,
+      zIndex: 455,
+      attribution: '© <a href="https://www.rainviewer.com/api.html">RainViewer</a>',
+      tileSize: 256,
+      maxZoom: 12,
+    });
+    layer.addTo(map);
+    return () => {
+      layer.remove();
+    };
+  }, [map, host, frame.path]);
+  return null;
+}
+
+function fmtRainViewerTime(ts: number): string {
+  return new Intl.DateTimeFormat("de-CH", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(ts * 1000));
+}
+
+
 // ---------------- MeteoSchweiz-Style Timeline ----------------
 
 const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
