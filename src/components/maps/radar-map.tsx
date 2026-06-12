@@ -1514,8 +1514,10 @@ export function RadarMap({
       {data && (
         <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
           Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1 (Vorhersage bis +24 h)
+          {radarDown && rvFrame && <> · Live-Fallback: © RainViewer</>}
         </p>
       )}
+
     </div>
   );
 }
