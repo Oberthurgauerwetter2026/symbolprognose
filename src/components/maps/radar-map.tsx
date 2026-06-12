@@ -603,6 +603,79 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   return { label: "Modellprognose", color: "#7a4ca0" };
 }
 
+// ---------------- RainViewer-Fallback ----------------
+// Wird nur aktiv, wenn MeteoSchweiz keine aktuellen Radardaten liefert
+// (radarStatus === "down"). RainViewer ist kostenlos, kein API-Key,
+// weltweite Coverage inkl. CH, Update alle 10 min.
+type RainViewerFrame = { time: number; path: string };
+type RainViewerManifest = {
+  host: string;
+  generated: number;
+  newest: RainViewerFrame | null;
+};
+
+async function fetchRainViewerManifest(): Promise<RainViewerManifest | null> {
+  try {
+    const res = await fetch("https://api.rainviewer.com/public/weather-maps.json", {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      host?: string;
+      generated?: number;
+      radar?: { past?: RainViewerFrame[]; nowcast?: RainViewerFrame[] };
+    };
+    const past = json.radar?.past ?? [];
+    if (!json.host || past.length === 0) return null;
+    const newest = past[past.length - 1] ?? null;
+    return {
+      host: json.host,
+      generated: json.generated ?? Math.floor(Date.now() / 1000),
+      newest,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function useRainViewer(enabled: boolean) {
+  return useQuery({
+    queryKey: ["rainviewer-manifest"],
+    queryFn: fetchRainViewerManifest,
+    staleTime: 60_000,
+    refetchInterval: enabled ? 5 * 60_000 : false,
+    enabled,
+  });
+}
+
+function RainViewerLayer({ frame, host }: { frame: RainViewerFrame; host: string }) {
+  const map = useMap();
+  useEffect(() => {
+    // Color scheme 2 = Universal Blue; Smooth=1, Snow=1
+    const url = `${host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+    const layer = L.tileLayer(url, {
+      opacity: 0.75,
+      zIndex: 455,
+      attribution: '© <a href="https://www.rainviewer.com/api.html">RainViewer</a>',
+      tileSize: 256,
+      maxZoom: 12,
+    });
+    layer.addTo(map);
+    return () => {
+      layer.remove();
+    };
+  }, [map, host, frame.path]);
+  return null;
+}
+
+function fmtRainViewerTime(ts: number): string {
+  return new Intl.DateTimeFormat("de-CH", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(ts * 1000));
+}
+
+
 // ---------------- MeteoSchweiz-Style Timeline ----------------
 
 const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -1032,6 +1105,14 @@ export function RadarMap({
 
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
+  const radarStatus = data?.radarStatus ?? "fresh";
+  const radarDown = radarStatus === "down";
+  const rv = useRainViewer(radarDown);
+  const rvFrame = rv.data?.newest ?? null;
+  const rvHost = rv.data?.host ?? null;
+
+
+
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
   // (true=trocken nur bei genau 0 values und keiner URL — wird hier vorsichtig
   // als unbekannt behandelt, damit echte Radar-PNGs nie fälschlich als trocken
@@ -1145,6 +1226,10 @@ export function RadarMap({
                 </>
               );
             })()}
+          {/* RainViewer-Fallback: aktiv nur wenn MeteoSchweiz keine aktuellen Daten liefert */}
+          {radarDown && rvFrame && rvHost && (
+            <RainViewerLayer frame={rvFrame} host={rvHost} />
+          )}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
             <ImageOverlay
               key="hail-main"
@@ -1157,6 +1242,7 @@ export function RadarMap({
               className="hail-blackdots"
             />
           )}
+
 
 
 
@@ -1174,22 +1260,35 @@ export function RadarMap({
           <ZoomControl position="topright" />
         </MapContainer>
 
-        {/* Quellen-Badge oben links */}
-        {meta && (
-          <div className="pointer-events-none absolute left-3 top-3 z-[400] flex flex-col gap-1">
-            <span
-              className="rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
-              style={{ background: meta.color }}
-            >
-              {meta.label}
-            </span>
-            {currentFrame && (
-              <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
-                {fmtTime(currentFrame.t)}
+        {/* Quellen-Badge oben links — bei MCH-Ausfall wird Live-Bild von RainViewer beschriftet */}
+        {(() => {
+          const showRv = radarDown && rvFrame && rvHost;
+          const badge = showRv
+            ? { label: "Live · RainViewer", color: "#a14b1f" }
+            : meta;
+          const timeLabel = showRv
+            ? fmtRainViewerTime(rvFrame.time)
+            : currentFrame
+              ? fmtTime(currentFrame.t)
+              : null;
+          if (!badge) return null;
+          return (
+            <div className="pointer-events-none absolute left-3 top-3 z-[400] flex flex-col gap-1">
+              <span
+                className="rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
+                style={{ background: badge.color }}
+              >
+                {badge.label}
               </span>
-            )}
-          </div>
-        )}
+              {timeLabel && (
+                <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
+                  {timeLabel}
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
 
 
 
@@ -1368,11 +1467,43 @@ export function RadarMap({
                   </Popover>
                 </div>
 
-                {data?.warning && (
+                {radarStatus !== "fresh" && (
+                  <div
+                    className={cn(
+                      "mt-1.5 rounded-md px-2 py-1 text-center text-[10px] leading-snug",
+                      radarStatus === "down"
+                        ? "bg-orange-50 text-orange-800"
+                        : "bg-amber-50 text-amber-800",
+                    )}
+                  >
+                    {radarStatus === "down" ? (
+                      <>
+                        <span className="font-semibold">MeteoSchweiz-Radar derzeit nicht verfügbar.</span>{" "}
+                        {rvFrame ? (
+                          <>Live-Anzeige via RainViewer (Stand {fmtRainViewerTime(rvFrame.time)}).</>
+                        ) : (
+                          <>Fallback wird geladen …</>
+                        )}
+                        {data?.radarLastFrameAt && (
+                          <> Letztes MCH-Bild: {fmtTime(data.radarLastFrameAt)}.</>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-semibold">MeteoSchweiz-Radar verzögert.</span>{" "}
+                        {typeof data?.radarAgeMin === "number" && (
+                          <>Letzter Frame vor {data.radarAgeMin} Min.</>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {data?.warning && radarStatus === "fresh" && (
                   <p className="mt-1 truncate text-center text-[10px] text-neutral-500">
                     Hinweis: {data.warning}
                   </p>
                 )}
+
               </>
             )}
           </div>
@@ -1383,8 +1514,10 @@ export function RadarMap({
       {data && (
         <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
           Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1 (Vorhersage bis +24 h)
+          {radarDown && rvFrame && <> · Live-Fallback: © RainViewer</>}
         </p>
       )}
+
     </div>
   );
 }
