@@ -1226,6 +1226,10 @@ export function RadarMap({
                 </>
               );
             })()}
+          {/* RainViewer-Fallback: aktiv nur wenn MeteoSchweiz keine aktuellen Daten liefert */}
+          {radarDown && rvFrame && rvHost && (
+            <RainViewerLayer frame={rvFrame} host={rvHost} />
+          )}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
             <ImageOverlay
               key="hail-main"
@@ -1238,6 +1242,7 @@ export function RadarMap({
               className="hail-blackdots"
             />
           )}
+
 
 
 
