@@ -1105,6 +1105,14 @@ export function RadarMap({
 
   const meta = currentFrame ? sourceLabel(currentFrame) : null;
 
+  const radarStatus = data?.radarStatus ?? "fresh";
+  const radarDown = radarStatus === "down";
+  const rv = useRainViewer(radarDown);
+  const rvFrame = rv.data?.newest ?? null;
+  const rvHost = rv.data?.host ?? null;
+
+
+
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
   // (true=trocken nur bei genau 0 values und keiner URL — wird hier vorsichtig
   // als unbekannt behandelt, damit echte Radar-PNGs nie fälschlich als trocken
