@@ -1467,11 +1467,43 @@ export function RadarMap({
                   </Popover>
                 </div>
 
-                {data?.warning && (
+                {radarStatus !== "fresh" && (
+                  <div
+                    className={cn(
+                      "mt-1.5 rounded-md px-2 py-1 text-center text-[10px] leading-snug",
+                      radarStatus === "down"
+                        ? "bg-orange-50 text-orange-800"
+                        : "bg-amber-50 text-amber-800",
+                    )}
+                  >
+                    {radarStatus === "down" ? (
+                      <>
+                        <span className="font-semibold">MeteoSchweiz-Radar derzeit nicht verfügbar.</span>{" "}
+                        {rvFrame ? (
+                          <>Live-Anzeige via RainViewer (Stand {fmtRainViewerTime(rvFrame.time)}).</>
+                        ) : (
+                          <>Fallback wird geladen …</>
+                        )}
+                        {data?.radarLastFrameAt && (
+                          <> Letztes MCH-Bild: {fmtTime(data.radarLastFrameAt)}.</>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-semibold">MeteoSchweiz-Radar verzögert.</span>{" "}
+                        {typeof data?.radarAgeMin === "number" && (
+                          <>Letzter Frame vor {data.radarAgeMin} Min.</>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {data?.warning && radarStatus === "fresh" && (
                   <p className="mt-1 truncate text-center text-[10px] text-neutral-500">
                     Hinweis: {data.warning}
                   </p>
                 )}
+
               </>
             )}
           </div>
