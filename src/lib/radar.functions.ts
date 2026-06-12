@@ -86,6 +86,8 @@ export interface RadarFrame {
   imageBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
 }
 
+export type RadarStatus = "fresh" | "delayed" | "down";
+
 export interface RadarPayload {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   imageBbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
@@ -95,8 +97,15 @@ export interface RadarPayload {
   generatedAt: string;
   hasRealRadar: boolean;
   hasHail: boolean;
+  /** Liefer-Status der MCH-OGD-Radar-Messdaten. */
+  radarStatus: RadarStatus;
+  /** ISO UTC des aktuellsten verfügbaren MCH-Radar-PNGs (egal ob im Fenster). */
+  radarLastFrameAt?: string;
+  /** Alter dieses Frames in Minuten (zur Anzeige im Banner). */
+  radarAgeMin?: number;
   warning?: string;
 }
+
 
 type OpenMeteoCache = OpenMeteoCachePayload;
 
