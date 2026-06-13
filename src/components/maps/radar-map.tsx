@@ -1334,13 +1334,6 @@ export function RadarMap({
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-[11px] font-semibold text-neutral-700">Auto-Loop</p>
-                            <p className="text-[10px] text-neutral-500">Endlos wiederholen</p>
-                          </div>
-                          <Switch checked={loop} onCheckedChange={setLoop} aria-label="Auto-Loop" />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
                             <p className={cn(
                               "text-[11px] font-semibold",
                               data?.hasHail ? "text-neutral-700" : "text-neutral-400",
