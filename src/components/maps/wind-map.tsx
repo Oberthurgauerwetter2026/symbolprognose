@@ -1143,6 +1143,11 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
             interactive={false}
           />
           <GeoJSON
+            data={THURGAU}
+            style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
+            interactive={false}
+          />
+          <GeoJSON
             data={REGION_OUTLINE}
             style={() => ({ color: "#1f4d80", weight: 2, opacity: 0.9, fill: false })}
             interactive={false}
