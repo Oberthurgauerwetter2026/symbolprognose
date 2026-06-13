@@ -43,20 +43,9 @@ const WIND_SCALE: { v: number; rgb: [number, number, number]; label: string }[] 
 ];
 
 function windColor(kmh: number): [number, number, number] {
-  if (kmh <= WIND_SCALE[0].v) return WIND_SCALE[0].rgb;
-  if (kmh >= WIND_SCALE[WIND_SCALE.length - 1].v)
-    return WIND_SCALE[WIND_SCALE.length - 1].rgb;
-  for (let i = 0; i < WIND_SCALE.length - 1; i++) {
-    const a = WIND_SCALE[i];
-    const b = WIND_SCALE[i + 1];
-    if (kmh >= a.v && kmh < b.v) {
-      const t = (kmh - a.v) / (b.v - a.v);
-      return [
-        Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t),
-        Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t),
-        Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t),
-      ];
-    }
+  // Diskrete Bft-ähnliche Bänder — keine Interpolation für scharfe Kanten.
+  for (let i = WIND_SCALE.length - 1; i >= 0; i--) {
+    if (kmh >= WIND_SCALE[i].v) return WIND_SCALE[i].rgb;
   }
   return WIND_SCALE[0].rgb;
 }
@@ -406,7 +395,7 @@ function WindColorOverlay({
     ctx.clearRect(0, 0, cv.width, cv.height);
 
     const sampler = makeSampler(payload, frame, nextFrame, progress);
-    const STEP = 2;
+    const STEP = 1;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
     const img = ctx.createImageData(lowW, lowH);
