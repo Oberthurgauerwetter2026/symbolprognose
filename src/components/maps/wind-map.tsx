@@ -1213,7 +1213,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
             className="rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
             style={{ background: BRAND }}
           >
-            Modellprognose · Böen
+            Modellprognose
           </span>
           {currentFrame && (
             <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
