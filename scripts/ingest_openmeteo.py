@@ -204,7 +204,7 @@ def main() -> None:
         "minutely_15": "precipitation,snowfall",
         "past_minutely_15": 48,
         "forecast_minutely_15": 132,
-        "hourly": "wind_speed_700hPa,wind_direction_700hPa,wind_speed_10m,wind_direction_10m,precipitation",
+        "hourly": "wind_speed_700hPa,wind_direction_700hPa,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation",
         "past_hours": 12,
         "forecast_hours": 120,
         "timezone": "UTC",

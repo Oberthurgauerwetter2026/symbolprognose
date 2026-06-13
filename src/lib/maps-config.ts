@@ -42,13 +42,13 @@ export const MAPS: MapDefinition[] = [
   },
   {
     id: "wind",
-    label: "Wind-Animation",
+    label: "Windprognose",
     shortLabel: "Wind",
-    description: "Animierte Windströmung mit Pfeil- und Partikel-Visualisierung.",
+    description: "Animierte Windböen aus ICON-CH1 — Farb-Layer, Strömungs-Partikel und Pfeile beim Zoom.",
     icon: Wind,
     routePath: "/karten/wind",
     embedPath: "/embed/wind",
-    status: "coming-soon",
+    status: "live",
   },
   {
     id: "radar",
