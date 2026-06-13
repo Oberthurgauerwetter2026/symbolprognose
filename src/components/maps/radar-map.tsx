@@ -939,16 +939,12 @@ export function RadarMap({
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
-  const [loop, setLoop] = useState(false);
   const [showHail, setShowHail] = useState(true);
 
   const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
 
-  // loop in einem Ref spiegeln, damit der Play-rAF nicht neu startet, wenn
-  // der User den Loop-Switch toggelt.
-  const loopRef = useRef(loop);
-  useEffect(() => { loopRef.current = loop; }, [loop]);
+
 
   // Auf "jetzt" springen sobald Daten da sind.
   useEffect(() => {
