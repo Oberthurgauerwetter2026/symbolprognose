@@ -939,16 +939,12 @@ export function RadarMap({
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
-  const [loop, setLoop] = useState(false);
   const [showHail, setShowHail] = useState(true);
 
   const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
 
-  // loop in einem Ref spiegeln, damit der Play-rAF nicht neu startet, wenn
-  // der User den Loop-Switch toggelt.
-  const loopRef = useRef(loop);
-  useEffect(() => { loopRef.current = loop; }, [loop]);
+
 
   // Auf "jetzt" springen sobald Daten da sind.
   useEffect(() => {
@@ -974,11 +970,10 @@ export function RadarMap({
             if (cur === null) return 0;
             const next = cur + 1;
             if (next >= frames.length) {
-              if (loopRef.current) return 0;
-              setPlaying(false);
-              return cur;
+              return 0;
             }
             return next;
+
           });
           return np - 1;
         }
@@ -1336,13 +1331,6 @@ export function RadarMap({
                               );
                             })}
                           </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-[11px] font-semibold text-neutral-700">Auto-Loop</p>
-                            <p className="text-[10px] text-neutral-500">Endlos wiederholen</p>
-                          </div>
-                          <Switch checked={loop} onCheckedChange={setLoop} aria-label="Auto-Loop" />
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
