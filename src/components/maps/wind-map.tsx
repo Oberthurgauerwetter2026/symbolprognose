@@ -1078,10 +1078,10 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
             if (cur === null) return 0;
             const next = cur + 1;
             if (next >= frames.length) {
-              setPlaying(false);
-              return cur;
+              return 0;
             }
             return next;
+
           });
           return np - 1;
         }
