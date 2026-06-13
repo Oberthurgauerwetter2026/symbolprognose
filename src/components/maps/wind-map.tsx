@@ -395,7 +395,7 @@ function WindColorOverlay({
     ctx.clearRect(0, 0, cv.width, cv.height);
 
     const sampler = makeSampler(payload, frame, nextFrame, progress);
-    const STEP = 2;
+    const STEP = 1;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
     const img = ctx.createImageData(lowW, lowH);
