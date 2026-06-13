@@ -1,22 +1,19 @@
 
-# Windkarte exakt wie Radarkarte
+# Ortsgrenzen entfernen, nur Oberthurgau-Hülle + schwacher Thurgau
 
-Ziel: `wind-map.tsx` zeigt denselben Kartenhintergrund, dieselben Ortschaften mit denselben Zoom-Tiers wie `radar-map.tsx`. Nur der Daten-Layer (Farbe + Partikel + Pfeile) bleibt windspezifisch.
+Ursache: `REGION_OUTLINE` in `wind-map.tsx` zeichnet **alle Ringe** der 21 Oberthurgau-Gemeinden in `region.json` → innenliegende Gemeindegrenzen erscheinen als blaue Linien. Auf der Radarkarte werden geteilte Kanten herausgerechnet, sodass nur der Aussenring der Region übrig bleibt.
 
 ## Änderungen in `src/components/maps/wind-map.tsx`
 
-1. **Ortschaften-Liste angleichen**: `WIND_CITIES` (aktuell nur 6 Hauptorte) durch die vollständige Radar-Liste ersetzen — Tier A (7 Hauptorte ab Zoom 10.5), Tier B (6 mittelgrosse Gemeinden ab Zoom 11.5), Tier C (6 kleine Gemeinden/Ortsteile ab Zoom 12.5). Identische Namen, Koordinaten und `minZoom`-Werte wie `RADAR_CITIES`.
-2. **`cityIcon`-Funktion identisch** zu Radar: gleicher Font-Stack (`system-ui,-apple-system,Segoe UI,Roboto,sans-serif`), gleicher Klassenname-Stil. CSS-Klasse bleibt `wind-city-marker`, damit es keine Konflikte gibt.
-3. **„Ortsumrisse" entfernen**: Den `THURGAU`-GeoJSON-Layer (Gemeindegrenzen Thurgau) aus dem Wind-Rendering streichen. Radar zeigt nur die schwache Kantonsgrenze — Wind soll das auch nur tun. *(Falls «Ortsumrisse» hier den `REGION_OUTLINE`-Layer meint, bitte kurz Bescheid — aktuell interpretiere ich es als die Thurgauer Gemeindelinien, die durch den 0.55-opaken Farb-Layer stärker hervortreten als beim Radar.)*
-4. **Layer-Reihenfolge wie Radar**: Reihenfolge bleibt `OUTSIDE_CH_MASK` → `OUTSIDE_MASK` → `LAKE` → `SWITZERLAND` → `REGION_OUTLINE` → Daten-Layer → City-Marker → `ZoomControl`. (Aktuell identisch, wird nach Entfernen von `THURGAU` automatisch sauber.)
+1. **REGION_OUTLINE-Berechnung wie Radar**: Die simple Variante (zeichnet alle Ringe) ersetzen durch denselben Edge-Dissolve-Algorithmus aus `radar-map.tsx` (Z. 183–257) — Kanten zählen, nur Kanten mit `count === 1` behalten, zu Polylinien verketten. Ergebnis ist der reine Aussenumriss der Region Oberthurgau.
 
-## Was sich NICHT ändert
+2. **Thurgau-Kanton schwach zurück**: `THURGAU`-Import (`@/data/thurgau.json`) und Konstante wieder einfügen, GeoJSON-Layer vor `REGION_OUTLINE` rendern mit gleichem Stil wie Radar:
+   ```ts
+   { color: "#1f4d80", weight: 1, opacity: 0.45, fill: false }
+   ```
 
-- Wind-Datenlayer (`WindColorOverlay`, `WindParticleLayer`, `WindArrowLayer`, `WindHoverTooltip`) bleiben unverändert.
-- Timeline / Settings-Popover / Tooltip-Logik bleiben unverändert.
-- Radarkarte wird nicht angefasst.
-- Keine Änderungen an Ingest, Server-Function oder Routen.
+## Was bleibt
 
-## Offene Frage
-
-«Ortsumrisse» kann zweideutig sein. Ich gehe von **Thurgauer Gemeindelinien** (`THURGAU`-GeoJSON) aus, weil Radar diese auch nur sehr schwach (`opacity 0.45`) zeichnet und sie durch den dichteren Wind-Farb-Layer dominanter wirken. Falls etwas anderes gemeint ist (z. B. die weisse Schweizer Landesgrenze oder die blaue Region-Outline), bitte korrigieren — dann passe ich genau diesen Layer an.
+- Wind-Datenlayer, Timeline, City-Marker, Settings-Popover unverändert.
+- Ortschaften-Liste (Tier A/B/C) wie bereits angeglichen.
+- Radarkarte unangetastet.
