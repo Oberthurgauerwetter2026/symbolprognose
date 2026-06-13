@@ -1,31 +1,22 @@
 ## Ziel
 
-Die Richtungspfeile im Wind-Layer sollen je nach Windstärke deutlich unterschiedlich lang sein — analog zu den Partikeln, bei denen schneller Wind klar längere Spuren erzeugt. Aktuell starten die Pfeile bei `6 + sp*0.22`, d.h. ein Pfeil bei 5 km/h ist ~7 px, bei 80 km/h ~24 px, und alles deckelt früh bei `STEP*0.45` (~21–26 px). Der Unterschied ist optisch zu klein.
+Der Farb-Layer soll noch schärfere, sichtbarere Kanten zwischen Windstärke-Zonen bekommen. Aktuell (`STEP = 2`, `imageSmoothingEnabled = false`) ist die Pixel-Skalierung zwar hart, aber die Farbe selbst wird zwischen den Stufen der `WIND_SCALE` linear interpoliert (`windColor`). Dadurch entstehen weiche Farbverläufe ohne klare Grenzen.
 
 ## Änderung
 
-Nur `WindArrowLayer.redrawRef` in `src/components/maps/wind-map.tsx` (Zeilen 744–789) wird angepasst — keine anderen Layer, keine Steuerung.
+Nur `src/components/maps/wind-map.tsx`, zwei kleine Stellen:
 
-1. **Pfeillänge proportional zur Geschwindigkeit**
-   - Neu: `len = clamp(sp * 0.55, 3, STEP * 0.9)`
-   - Ergebnis (bei `STEP = 58`, Zoom < 13):
-     - 5 km/h → 3 px (Minimum)
-     - 20 km/h → 11 px
-     - 50 km/h → 27 px
-     - 80 km/h → 44 px
-     - ≥ 95 km/h → 52 px (Maximum, ~STEP·0.9)
-   - Dynamikbereich damit ~17×, vorher ~3×.
+1. **Diskrete Farbstufen statt Verlauf** (Zeilen 45–62, `windColor`)
+   - Lineare Interpolation entfernen. Statt zwischen zwei Stops zu mischen, gibt die Funktion direkt die Farbe des unteren Stops zurück (klassische "Bin"-Zuordnung wie bei Beaufort/Bft-Skalen).
+   - Ergebnis: Sieben klar abgegrenzte Farbflächen → sichtbare Kanten zwischen 20/40/60/80/100/130 km/h.
 
-2. **Pfeilkopf skaliert mit**
-   - Neu: `ah = clamp(len * 0.28, 2.5, 7)` statt fixem `ah = 4`.
-   - Schwache Pfeile bleiben dezent, starke wirken kräftiger.
+2. **Feinere Pixelraster** (`WindColorOverlay`, Zeile 409)
+   - `STEP` von `2` auf `1` senken. Damit wird pro CSS-Pixel gesampelt; die Farbgrenzen liegen exakt am Pixel statt am 2-Pixel-Block.
+   - Performance: Auf einem ~1700 px Viewport sind das ~2 Mio Samples pro Redraw statt ~500 k. `WindColorOverlay` zeichnet nur bei `moveend/zoomend/resize` und bei Frame-Wechsel — kein per-Frame-Cost. Vertretbar.
+   - `imageSmoothingEnabled = false` bleibt.
 
-3. **Linienstärke leicht windabhängig**
-   - Neu: `ctx.lineWidth = clamp(1.0 + sp * 0.015, 1.0, 2.0)` statt fixer `1.4`.
-   - Unterstützt das Mehr/Weniger-Gefühl ohne grafisches Übermass.
-
-4. Schwellwert `sp < 1` (Pfeil ausblenden) bleibt unverändert; ebenso STEP-Raster, Farben, Zoom-Gate.
+Optional (nicht im Plan, falls Performance bei STEP=1 spürbar wird, fallen wir auf STEP=2 zurück und behalten nur die diskreten Stufen).
 
 ## Auswirkung
 
-Pfeile in Flautengebieten werden zu kleinen Indikatoren (~3 px), Sturmböen erzeugen lange, klar sichtbare Pfeile bis fast an den Rasterabstand — sichtbar konsistent mit den Partikel-Streaks.
+Statt eines weichen Farbverlaufs zeigt der Layer klar abgegrenzte Bänder pro Windstärke-Stufe — visuell wie eine Bft-Karte. Die Kanten werden zur Schlüsselinformation, nicht mehr ein gleitender Übergang.
