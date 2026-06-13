@@ -1,19 +1,16 @@
 
-# Ortsgrenzen entfernen, nur Oberthurgau-Hülle + schwacher Thurgau
+# Partikel-Flow sichtbarer
 
-Ursache: `REGION_OUTLINE` in `wind-map.tsx` zeichnet **alle Ringe** der 21 Oberthurgau-Gemeinden in `region.json` → innenliegende Gemeindegrenzen erscheinen als blaue Linien. Auf der Radarkarte werden geteilte Kanten herausgerechnet, sodass nur der Aussenring der Region übrig bleibt.
+Aktuell zu zart: Alpha 0.55, Strichbreite 1.1 px, Trail-Fade 0.10, Dichte ~viewport/5500.
 
-## Änderungen in `src/components/maps/wind-map.tsx`
+## Änderungen in `src/components/maps/wind-map.tsx` (WindParticleLayer)
 
-1. **REGION_OUTLINE-Berechnung wie Radar**: Die simple Variante (zeichnet alle Ringe) ersetzen durch denselben Edge-Dissolve-Algorithmus aus `radar-map.tsx` (Z. 183–257) — Kanten zählen, nur Kanten mit `count === 1` behalten, zu Polylinien verketten. Ergebnis ist der reine Aussenumriss der Region Oberthurgau.
-
-2. **Thurgau-Kanton schwach zurück**: `THURGAU`-Import (`@/data/thurgau.json`) und Konstante wieder einfügen, GeoJSON-Layer vor `REGION_OUTLINE` rendern mit gleichem Stil wie Radar:
-   ```ts
-   { color: "#1f4d80", weight: 1, opacity: 0.45, fill: false }
-   ```
+1. **Strichfarbe heller mit dunklem Halo**: Erst kurzen dunklen Stroke (`rgba(20,30,55,0.45)`, `lineWidth 2.2`) zeichnen, dann weissen Kern (`rgba(255,255,255,0.95)`, `lineWidth 1.4`) darüber. Sorgt für klaren Kontrast über blauem wie gelb/rotem Farb-Layer.
+2. **Längere Trails**: Trail-Fade von `0.10` → `0.06` (Linien bleiben länger sichtbar, „streaks" statt Punkte). `lineCap = "round"`.
+3. **Mehr Partikel**: Dichte-Divisor `5500` → `3200`, `zoomFactor`-Untergrenze `0.5` → `0.7`.
+4. **Etwas mehr Speed-Headroom**: `MAX_STEP` von `1.5` → `2.2` px/Frame, damit Bewegung deutlicher wird, ohne hektisch zu werden.
 
 ## Was bleibt
 
-- Wind-Datenlayer, Timeline, City-Marker, Settings-Popover unverändert.
-- Ortschaften-Liste (Tier A/B/C) wie bereits angeglichen.
-- Radarkarte unangetastet.
+- Algorithmus, Sampler, Reseed-Logik, Reduced-Motion-Guard, Trail-Compositing-Trick unverändert.
+- Farb-Layer, Pfeile, Tooltip unverändert.

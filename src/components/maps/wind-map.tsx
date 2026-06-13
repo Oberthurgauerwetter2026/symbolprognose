@@ -579,8 +579,8 @@ function WindParticleLayer({
 
       // Density scales with viewport and inversely with zoom: more flow when zoomed out.
       const zoom = map.getZoom();
-      const zoomFactor = Math.max(0.5, Math.min(1.4, 1.6 - (zoom - 9) * 0.15));
-      const targetCount = Math.round(((size.x * size.y) / 5500) * zoomFactor);
+      const zoomFactor = Math.max(0.7, Math.min(1.4, 1.6 - (zoom - 9) * 0.15));
+      const targetCount = Math.round(((size.x * size.y) / 3200) * zoomFactor);
       const particles = particlesRef.current;
       while (particles.length < targetCount) {
         particles.push({
@@ -592,18 +592,17 @@ function WindParticleLayer({
       }
       if (particles.length > targetCount) particles.length = targetCount;
 
-      // Fading trail.
+      // Fading trail (slower fade → longer streaks).
       ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = "rgba(0,0,0,0.10)";
+      ctx.fillStyle = "rgba(0,0,0,0.06)";
       ctx.fillRect(0, 0, size.x, size.y);
       ctx.globalCompositeOperation = "source-over";
 
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
-      ctx.lineWidth = 1.1;
+      ctx.lineCap = "round";
 
-      // Movement scale: ~0.012 CSS px / (km/h) per frame → "many slow particles".
+      // Movement scale: ~0.014 CSS px / (km/h) per frame → "many slow particles".
       const MOVE = reduced ? 0 : 0.014;
-      const MAX_STEP = 1.5;
+      const MAX_STEP = 2.2;
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -635,6 +634,16 @@ function WindParticleLayer({
 
         const nx = p.x + dx;
         const ny = p.y + dy;
+        // Dark halo for contrast over any color-layer hue.
+        ctx.strokeStyle = "rgba(20,30,55,0.45)";
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+        // Bright white core.
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.lineWidth = 1.4;
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
         ctx.lineTo(nx, ny);
