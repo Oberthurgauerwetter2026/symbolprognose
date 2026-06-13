@@ -44,7 +44,7 @@ const WIND_SCALE: { v: number; rgb: [number, number, number]; label: string }[] 
 
 function windColor(kmh: number): [number, number, number] {
   // Diskrete Bänder mit schmalem weichen Übergang (±2 km/h) an den Grenzen.
-  const HALF = 2;
+  const HALF = 3;
   let i = 0;
   for (let k = WIND_SCALE.length - 1; k >= 0; k--) {
     if (kmh >= WIND_SCALE[k].v) { i = k; break; }
