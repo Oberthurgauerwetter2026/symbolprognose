@@ -118,19 +118,35 @@ const REGION_OUTLINE: FeatureCollection = (() => {
 })();
 
 const WIND_CITIES: { name: string; lat: number; lon: number; minZoom?: number }[] = [
+  // Tier A — Hauptorte (ab Zoom 10.5)
   { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
   { name: "Romanshorn", lat: 47.5667, lon: 9.3786 },
   { name: "Arbon", lat: 47.5158, lon: 9.4339 },
+  { name: "Horn", lat: 47.4986, lon: 9.4470 },
   { name: "Münsterlingen", lat: 47.6306, lon: 9.2378 },
   { name: "Egnach", lat: 47.5444, lon: 9.3833 },
   { name: "Güttingen", lat: 47.6011, lon: 9.2917 },
+  // Tier B — mittelgrosse Gemeinden (ab Zoom 11.5)
+  { name: "Roggwil", lat: 47.4769, lon: 9.3922, minZoom: 11.5 },
+  { name: "Uttwil", lat: 47.5907, lon: 9.3367, minZoom: 11.5 },
+  { name: "Salmsach", lat: 47.5503, lon: 9.3725, minZoom: 11.5 },
+  { name: "Sommeri", lat: 47.5775, lon: 9.3194, minZoom: 11.5 },
+  { name: "Erlen", lat: 47.5375, lon: 9.2378, minZoom: 11.5 },
+  { name: "Langrickenbach", lat: 47.5947, lon: 9.2406, minZoom: 11.5 },
+  // Tier C — kleine Gemeinden / Ortsteile (ab Zoom 12.5)
+  { name: "Hefenhofen", lat: 47.5722, lon: 9.3289, minZoom: 12.5 },
+  { name: "Dozwil", lat: 47.5867, lon: 9.3047, minZoom: 12.5 },
+  { name: "Kesswil", lat: 47.6022, lon: 9.3217, minZoom: 12.5 },
+  { name: "Hauptwil-Gottshaus", lat: 47.4894, lon: 9.2806, minZoom: 12.5 },
+  { name: "Zihlschlacht-Sitterdorf", lat: 47.5158, lon: 9.2750, minZoom: 12.5 },
+  { name: "Bischofszell", lat: 47.4944, lon: 9.2389, minZoom: 12.5 },
 ];
 
 function cityIcon(name: string): L.DivIcon {
   const bullet =
-    "font:600 14px/1 system-ui,sans-serif;color:#2561a1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;line-height:1;margin-right:4px;vertical-align:middle;";
+    "font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2561a1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;line-height:1;margin-right:4px;vertical-align:middle;";
   const label =
-    "font:500 12px/1 system-ui,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;vertical-align:middle;";
+    "font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;vertical-align:middle;";
   return L.divIcon({
     className: "wind-city-marker",
     html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-3px,-7px);"><span style="${bullet}">•</span><span style="${label}">${name}</span></div>`,
@@ -1064,11 +1080,6 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
           <GeoJSON
             data={SWITZERLAND}
             style={() => ({ color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })}
-            interactive={false}
-          />
-          <GeoJSON
-            data={THURGAU}
-            style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
             interactive={false}
           />
           <GeoJSON
