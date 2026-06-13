@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
+import thurgauData from "@/data/thurgau.json";
 
 
 import { getWindFrames, type WindPayload, type WindFrame } from "@/lib/wind.functions";
@@ -27,6 +28,7 @@ const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
+const THURGAU = thurgauData as unknown as FeatureCollection;
 
 
 // --- Bft-ähnliche Böen-Farbskala (km/h) ---
