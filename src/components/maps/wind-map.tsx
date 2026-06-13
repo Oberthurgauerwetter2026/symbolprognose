@@ -43,11 +43,23 @@ const WIND_SCALE: { v: number; rgb: [number, number, number]; label: string }[] 
 ];
 
 function windColor(kmh: number): [number, number, number] {
-  // Diskrete Bft-ähnliche Bänder — keine Interpolation für scharfe Kanten.
-  for (let i = WIND_SCALE.length - 1; i >= 0; i--) {
-    if (kmh >= WIND_SCALE[i].v) return WIND_SCALE[i].rgb;
+  // Diskrete Bänder mit schmalem weichen Übergang (±2 km/h) an den Grenzen.
+  const HALF = 2;
+  let i = 0;
+  for (let k = WIND_SCALE.length - 1; k >= 0; k--) {
+    if (kmh >= WIND_SCALE[k].v) { i = k; break; }
   }
-  return WIND_SCALE[0].rgb;
+  const cur = WIND_SCALE[i];
+  const next = WIND_SCALE[i + 1];
+  if (next && kmh >= next.v - HALF) {
+    const t = Math.min(1, Math.max(0, (kmh - (next.v - HALF)) / (HALF * 2)));
+    return [
+      Math.round(cur.rgb[0] + (next.rgb[0] - cur.rgb[0]) * t),
+      Math.round(cur.rgb[1] + (next.rgb[1] - cur.rgb[1]) * t),
+      Math.round(cur.rgb[2] + (next.rgb[2] - cur.rgb[2]) * t),
+    ];
+  }
+  return cur.rgb;
 }
 
 // --- Outline / mask GeoJSON wie Radar ---

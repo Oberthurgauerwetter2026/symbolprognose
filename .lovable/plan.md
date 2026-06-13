@@ -1,22 +1,31 @@
 ## Ziel
 
-Der Farb-Layer soll noch schärfere, sichtbarere Kanten zwischen Windstärke-Zonen bekommen. Aktuell (`STEP = 2`, `imageSmoothingEnabled = false`) ist die Pixel-Skalierung zwar hart, aber die Farbe selbst wird zwischen den Stufen der `WIND_SCALE` linear interpoliert (`windColor`). Dadurch entstehen weiche Farbverläufe ohne klare Grenzen.
+Die Farbbänder im Windfarb-Overlay bleiben grundsätzlich klar erkennbar (wie aktuell), aber direkt an den Grenzen zwischen zwei Bändern gibt es einen kurzen, weichen Farbverlauf statt einer harten Pixelkante. So entsteht ein Kompromiss zwischen der vorherigen vollständig glatten Version und der aktuellen rein diskreten Variante.
 
 ## Änderung
 
-Nur `src/components/maps/wind-map.tsx`, zwei kleine Stellen:
+Eine einzige Funktion in `src/components/maps/wind-map.tsx` wird angepasst:
 
-1. **Diskrete Farbstufen statt Verlauf** (Zeilen 45–62, `windColor`)
-   - Lineare Interpolation entfernen. Statt zwischen zwei Stops zu mischen, gibt die Funktion direkt die Farbe des unteren Stops zurück (klassische "Bin"-Zuordnung wie bei Beaufort/Bft-Skalen).
-   - Ergebnis: Sieben klar abgegrenzte Farbflächen → sichtbare Kanten zwischen 20/40/60/80/100/130 km/h.
+**`windColor(kmh)` (Zeilen 45–51)**
 
-2. **Feinere Pixelraster** (`WindColorOverlay`, Zeile 409)
-   - `STEP` von `2` auf `1` senken. Damit wird pro CSS-Pixel gesampelt; die Farbgrenzen liegen exakt am Pixel statt am 2-Pixel-Block.
-   - Performance: Auf einem ~1700 px Viewport sind das ~2 Mio Samples pro Redraw statt ~500 k. `WindColorOverlay` zeichnet nur bei `moveend/zoomend/resize` und bei Frame-Wechsel — kein per-Frame-Cost. Vertretbar.
-   - `imageSmoothingEnabled = false` bleibt.
+Aktuell: gibt die Farbe des nächstniedrigeren Stops direkt zurück (harte Kante).
 
-Optional (nicht im Plan, falls Performance bei STEP=1 spürbar wird, fallen wir auf STEP=2 zurück und behalten nur die diskreten Stufen).
+Neu: Übergangszone von ±2 km/h um jede Bandgrenze. Außerhalb dieser Zone bleibt die Farbe konstant (klares Band), innerhalb wird linear zwischen den beiden Nachbarfarben interpoliert.
 
-## Auswirkung
+Konkret:
+- Finde den Index `i` des Bands, in das `kmh` fällt (höchster Stop mit `WIND_SCALE[i].v <= kmh`).
+- Sei `nextV = WIND_SCALE[i+1].v` die nächste Bandgrenze.
+- Wenn `kmh >= nextV - 2` und es gibt ein nächstes Band: linear mischen über das Fenster `[nextV-2, nextV+2]` (Breite 4 km/h, also ±2 um die Grenze).
+- Sonst: `WIND_SCALE[i].rgb` direkt zurückgeben.
 
-Statt eines weichen Farbverlaufs zeigt der Layer klar abgegrenzte Bänder pro Windstärke-Stufe — visuell wie eine Bft-Karte. Die Kanten werden zur Schlüsselinformation, nicht mehr ein gleitender Übergang.
+Das Übergangsfenster von 4 km/h ist schmal genug, dass die Bänder optisch dominant bleiben, aber breit genug, dass die Kante nicht mehr wie eine 1-Pixel-Stufe wirkt.
+
+## Was nicht verändert wird
+
+- `STEP = 1` im `WindColorOverlay` bleibt (pixelgenaue Abtastung).
+- `WIND_SCALE` (Stops bei 0/20/40/60/80/100/130) bleibt unverändert.
+- Partikel, Pfeile, Legende, alle anderen Layer bleiben unangetastet.
+
+## Falls die Übergänge zu schmal/zu breit wirken
+
+Die Halbbreite (`2` km/h) ist der einzige Tuning-Parameter. Bei Bedarf nachjustieren auf 1 (sehr schmal) oder 3–4 (deutlicher sichtbar).
