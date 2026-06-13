@@ -594,7 +594,7 @@ function WindParticleLayer({
 
       // Fading trail (slower fade → longer streaks).
       ctx.globalCompositeOperation = "destination-out";
-      ctx.fillStyle = "rgba(0,0,0,0.06)";
+      ctx.fillStyle = "rgba(0,0,0,0.05)";
       ctx.fillRect(0, 0, size.x, size.y);
       ctx.globalCompositeOperation = "source-over";
 
@@ -635,19 +635,20 @@ function WindParticleLayer({
         const nx = p.x + dx;
         const ny = p.y + dy;
         // Dark halo for contrast over any color-layer hue.
-        ctx.strokeStyle = "rgba(20,30,55,0.45)";
-        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = "rgba(10,15,30,0.75)";
+        ctx.lineWidth = 3.0;
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
         ctx.lineTo(nx, ny);
         ctx.stroke();
         // Bright white core.
-        ctx.strokeStyle = "rgba(255,255,255,0.95)";
-        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = "rgba(255,255,255,1)";
+        ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
         ctx.lineTo(nx, ny);
         ctx.stroke();
+
 
         p.x = nx;
         p.y = ny;
