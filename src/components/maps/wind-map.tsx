@@ -761,7 +761,7 @@ function WindArrowLayer({
         if (sp < 1) continue;
         const dr = sampler.dir(ll.lat, ll.lng);
         const rad = ((dr + 180) * Math.PI) / 180;
-        const len = Math.min(STEP * 0.45, 6 + sp * 0.22);
+        const len = Math.max(3, Math.min(STEP * 0.9, sp * 0.55));
         const dx = Math.sin(rad) * len;
         const dy = -Math.cos(rad) * len;
         const x0 = px - dx / 2;
@@ -770,14 +770,14 @@ function WindArrowLayer({
         const y1 = py + dy / 2;
 
         ctx.strokeStyle = "rgba(20,30,50,0.85)";
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = Math.max(1.0, Math.min(2.0, 1.0 + sp * 0.015));
         ctx.beginPath();
         ctx.moveTo(x0, y0);
         ctx.lineTo(x1, y1);
         ctx.stroke();
 
         // Arrow head
-        const ah = 4;
+        const ah = Math.max(2.5, Math.min(7, len * 0.28));
         const ang = Math.atan2(dy, dx);
         ctx.beginPath();
         ctx.moveTo(x1, y1);
