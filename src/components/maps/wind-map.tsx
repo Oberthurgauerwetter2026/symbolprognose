@@ -406,7 +406,7 @@ function WindColorOverlay({
     ctx.clearRect(0, 0, cv.width, cv.height);
 
     const sampler = makeSampler(payload, frame, nextFrame, progress);
-    const STEP = 3;
+    const STEP = 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
     const img = ctx.createImageData(lowW, lowH);
@@ -443,8 +443,7 @@ function WindColorOverlay({
 
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };

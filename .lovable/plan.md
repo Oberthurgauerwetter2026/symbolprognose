@@ -1,16 +1,12 @@
+Der Farb-Layer in der Windkarte wird aktuell zu stark geglättet. Ursache ist das Canvas-Rendering im `WindColorOverlay` (`wind-map.tsx`):
 
-# Partikel-Flow sichtbarer
+- `STEP = 3`: Das Off-screen-ImageData wird nur in jedem 3. Pixel berechnet.
+- `ctx.imageSmoothingEnabled = true` + `ctx.imageSmoothingQuality = "high"`: Das Canvas upscaled das Low-Res-Buffer bilinear, was den weichgewaschenen Look erzeugt.
 
-Aktuell zu zart: Alpha 0.55, Strichbreite 1.1 px, Trail-Fade 0.10, Dichte ~viewport/5500.
+Ziel: weniger Glättung, sichtbar schnellere Farbübergänge.
 
-## Änderungen in `src/components/maps/wind-map.tsx` (WindParticleLayer)
+Änderungen:
+1. `STEP` von `3` auf `2` reduzieren.
+2. `ctx.imageSmoothingEnabled` auf `false` setzen (bzw. `imageSmoothingQuality` entfernen).
 
-1. **Strichfarbe heller mit dunklem Halo**: Erst kurzen dunklen Stroke (`rgba(20,30,55,0.45)`, `lineWidth 2.2`) zeichnen, dann weissen Kern (`rgba(255,255,255,0.95)`, `lineWidth 1.4`) darüber. Sorgt für klaren Kontrast über blauem wie gelb/rotem Farb-Layer.
-2. **Längere Trails**: Trail-Fade von `0.10` → `0.06` (Linien bleiben länger sichtbar, „streaks" statt Punkte). `lineCap = "round"`.
-3. **Mehr Partikel**: Dichte-Divisor `5500` → `3200`, `zoomFactor`-Untergrenze `0.5` → `0.7`.
-4. **Etwas mehr Speed-Headroom**: `MAX_STEP` von `1.5` → `2.2` px/Frame, damit Bewegung deutlicher wird, ohne hektisch zu werden.
-
-## Was bleibt
-
-- Algorithmus, Sampler, Reseed-Logik, Reduced-Motion-Guard, Trail-Compositing-Trick unverändert.
-- Farb-Layer, Pfeile, Tooltip unverändert.
+Resultat: Der Wind-Farb-Layer wird deutlich weniger weichgewaschen und behält schärfere Kanten zwischen den Farbbändern, ähnlich wie beim Radar-Layer (wo `STEP = 2` + `imageSmoothingEnabled = false` durch den CSS-Filter ersetzt wird).
