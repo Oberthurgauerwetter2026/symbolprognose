@@ -974,11 +974,10 @@ export function RadarMap({
             if (cur === null) return 0;
             const next = cur + 1;
             if (next >= frames.length) {
-              if (loopRef.current) return 0;
-              setPlaying(false);
-              return cur;
+              return 0;
             }
             return next;
+
           });
           return np - 1;
         }
