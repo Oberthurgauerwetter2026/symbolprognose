@@ -297,6 +297,26 @@ def main() -> None:
         else:
             print(f"  -> {len(phase1)} locations")
 
+    # ---- phase2 (ICON-CH2 hourly — nahtlose CH1-Verlängerung) ----
+    if only_phaseA:
+        phase2 = prev.get("phase2") if isinstance(prev.get("phase2"), list) else []
+        print(f"phase2 übernommen aus Cache: {len(phase2)} locations")
+    else:
+        print(f"fetch phase2 (ICON-CH2 hourly) in chunks of {chunk_p2} …")
+        phase2 = chunk_fetch("phase2", p2, pts, chunk_p2, optional=True)
+        if phase2 is None:
+            print("phase2 failed — versuche Fallback auf bestehenden R2-Cache …")
+            prev_phase2 = prev.get("phase2")
+            if isinstance(prev_phase2, list) and prev_phase2:
+                phase2 = prev_phase2
+                print(f"  -> Fallback ok: {len(phase2)} locations aus bestehendem Cache")
+            else:
+                phase2 = []
+                print("  -> kein Fallback verfügbar, phase2 bleibt leer")
+        else:
+            print(f"  -> {len(phase2)} locations")
+
+
     # ---- phaseC (Bias-Lookback) ----
     if only_phaseA:
         phaseC = prev.get("phaseC")
