@@ -1236,14 +1236,15 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
 
         {/* Legende */}
         <div className="pointer-events-none absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
-          <span className="mb-1 font-semibold text-foreground">Böen km/h</span>
+          <span className="mb-1 font-semibold text-foreground">Böen km/h <span className="font-normal text-muted-foreground">(Bft)</span></span>
           {[...WIND_SCALE].reverse().map((s) => (
             <div key={s.v} className="flex items-center gap-1.5">
               <span
-                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                className="inline-block h-2 w-3 rounded-sm sm:h-2.5 sm:w-4"
                 style={{ background: `rgb(${s.rgb.join(",")})` }}
               />
               <span className="tabular-nums text-muted-foreground">{s.label}</span>
+              <span className="ml-auto tabular-nums text-[8px] text-muted-foreground/70 sm:text-[9px]">{s.bft}</span>
             </div>
           ))}
         </div>
