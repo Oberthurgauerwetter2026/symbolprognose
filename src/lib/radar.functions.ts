@@ -334,98 +334,163 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     }
   }
 
-  if (ref1 && r1) {
-    const hasSnow = Array.isArray((r1[0] as LocResponse | undefined)?.minutely_15?.snowfall);
-    const nPts = pts.length;
+  // ---- Stündliche Prognose-Frames (+1 … +48 h) ----
+  // Reihenfolge der Quellen pro Stunde:
+  //  1) ICON-CH1 minutely_15 :00-Sample (`r1`) — präzisester CH1-Stundenwert
+  //  2) ICON-CH1 hourly                       — wenn minutely-Slot fehlt
+  //  3) ICON-CH2 hourly (`r2`)                — wenn auch CH1-hourly leer ist
+  //                                              (Run-Lücke / jenseits CH1-Horizont)
+  // Bias-Korrektur wird nur auf CH1-Quellen angewandt; CH2 hat eigene Skalierung.
+  const nPts = pts.length;
+  const r1Min = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
+  const r1Hour = r1 ? (r1[0] as LocResponse | undefined)?.hourly : undefined;
+  const r2Hour = r2 ? (r2[0] as LocResponse | undefined)?.hourly : undefined;
 
-    // ---- Stündliche Prognose-Frames direkt aus ICON-CH1 ----
-    // ICON-CH1 ist nativ stündlich. Wir lesen das :00-Sample aus minutely_15
-    // (entspricht dem Stundenwert) und emittieren je volle Stunde genau einen
-    // Frame. Keine Advektion, kein 15-min-Resampling — der Crossfade im Client
-    // sorgt für den weichen optischen Übergang zwischen den Stundenframes.
-    for (let ti = 0; ti < ref1.time.length; ti++) {
-      const tIso = ref1.time[ti];
+  const hasMinSnow = Array.isArray(r1Min?.snowfall);
+  const hasR1HourSnow = Array.isArray(r1Hour?.snowfall);
+  const hasR2HourSnow = Array.isArray(r2Hour?.snowfall);
+  const emitSnow = hasMinSnow || hasR1HourSnow || hasR2HourSnow;
+
+  const minIdx = new Map<number, number>();
+  if (r1Min?.time) {
+    for (let ti = 0; ti < r1Min.time.length; ti++) {
+      const tIso = r1Min.time[ti];
       if (!tIso.endsWith(":00")) continue;
-      const tMs = Date.parse(tIso + "Z");
-      if (tMs <= now) continue;
-      if (tMs > forecastCutoff) continue;
+      minIdx.set(Date.parse(tIso + "Z"), ti);
+    }
+  }
+  const r1HourIdx = new Map<number, number>();
+  if (r1Hour?.time) {
+    for (let ti = 0; ti < r1Hour.time.length; ti++) {
+      r1HourIdx.set(Date.parse(r1Hour.time[ti] + "Z"), ti);
+    }
+  }
+  const r2HourIdx = new Map<number, number>();
+  if (r2Hour?.time) {
+    for (let ti = 0; ti < r2Hour.time.length; ti++) {
+      r2HourIdx.set(Date.parse(r2Hour.time[ti] + "Z"), ti);
+    }
+  }
 
-      const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
-      const biasWeight =
-        biasFactor === 1 ? 0 : Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
-      const correction = 1 + (biasFactor - 1) * biasWeight;
+  let ch1Count = 0;
+  let ch2Count = 0;
+  const startMs = Math.floor(now / 3600_000) * 3600_000 + 3600_000;
+  for (let tMs = startMs; tMs <= forecastCutoff; tMs += 3600_000) {
+    const tIso = new Date(tMs).toISOString();
 
-      const precip = new Array<number>(nPts).fill(0);
-      const snow: number[] | undefined = hasSnow ? new Array<number>(nPts).fill(0) : undefined;
+    // 1) CH1 minutely_15
+    let precip: number[] | null = null;
+    let snow: number[] | undefined;
+    let source: "icon-ch1" | "icon-ch2" = "icon-ch1";
+
+    const tiMin = minIdx.get(tMs);
+    if (typeof tiMin === "number" && r1) {
+      const p = new Array<number>(nPts).fill(0);
+      const s = hasMinSnow ? new Array<number>(nPts).fill(0) : undefined;
+      let any = false;
       for (let pi = 0; pi < nPts; pi++) {
         const loc = r1[pi] as LocResponse | undefined;
-        const p = loc?.minutely_15?.precipitation?.[ti];
-        // minutely_15 precip ist mm/15min; ×4 = mm/h.
-        const mmh = typeof p === "number" ? p * 4 : 0;
-        precip[pi] = correction === 1 ? mmh : mmh * correction;
-        if (snow) {
-          const s = loc?.minutely_15?.snowfall?.[ti];
-          const smm = typeof s === "number" ? s * 4 : 0;
-          snow[pi] = correction === 1 ? smm : smm * correction;
+        const v = loc?.minutely_15?.precipitation?.[tiMin];
+        if (typeof v === "number") {
+          p[pi] = v * 4;
+          any = true;
         }
-      }
-
-      frames.push({
-        t: tIso + "Z",
-        source: "icon-ch1",
-        values: precip,
-        snowValues: snow,
-      });
-    }
-  }
-
-
-  let ch2Count = 0;
-  if (input.extended) {
-    const lastCh1Ms = frames
-      .filter((f) => f.source === "icon-ch1")
-      .reduce((m, f) => Math.max(m, Date.parse(f.t)), 0);
-    const ref1Hourly = r1 ? (r1[0] as LocResponse | undefined)?.hourly : undefined;
-    if (ref1Hourly && r1 && Array.isArray(ref1Hourly.precipitation)) {
-      const hasHourlySnow = Array.isArray(ref1Hourly.snowfall);
-      const nPts = pts.length;
-      for (let ti = 0; ti < ref1Hourly.time.length; ti++) {
-        const tIso = ref1Hourly.time[ti];
-        const tMs = Date.parse(tIso + "Z");
-        if (!Number.isFinite(tMs)) continue;
-        if (tMs <= now) continue;
-        if (tMs <= lastCh1Ms) continue;
-        if (tMs > forecastCutoff) continue;
-
-        const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
-        const biasWeight =
-          biasFactor === 1 ? 0 : Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
-        const correction = 1 + (biasFactor - 1) * biasWeight;
-
-        const precip = new Array<number>(nPts).fill(0);
-        const snow: number[] | undefined = hasHourlySnow ? new Array<number>(nPts).fill(0) : undefined;
-        for (let pi = 0; pi < nPts; pi++) {
-          const loc = r1[pi] as LocResponse | undefined;
-          const p = loc?.hourly?.precipitation?.[ti];
-          const mmh = typeof p === "number" ? p : 0;
-          precip[pi] = correction === 1 ? mmh : mmh * correction;
-          if (snow) {
-            const s = loc?.hourly?.snowfall?.[ti];
-            const smm = typeof s === "number" ? s : 0;
-            snow[pi] = correction === 1 ? smm : smm * correction;
+        if (s) {
+          const sv = loc?.minutely_15?.snowfall?.[tiMin];
+          if (typeof sv === "number") {
+            s[pi] = sv * 4;
+            any = true;
           }
         }
-
-        frames.push({
-          t: tIso + "Z",
-          source: "icon-ch2",
-          values: precip,
-          snowValues: snow,
-        });
-        ch2Count++;
+      }
+      if (any) {
+        precip = p;
+        snow = s;
       }
     }
+
+    // 2) CH1 hourly
+    if (!precip) {
+      const tiH1 = r1HourIdx.get(tMs);
+      if (typeof tiH1 === "number" && r1) {
+        const p = new Array<number>(nPts).fill(0);
+        const s = hasR1HourSnow ? new Array<number>(nPts).fill(0) : undefined;
+        let any = false;
+        for (let pi = 0; pi < nPts; pi++) {
+          const loc = r1[pi] as LocResponse | undefined;
+          const v = loc?.hourly?.precipitation?.[tiH1];
+          if (typeof v === "number") {
+            p[pi] = v;
+            any = true;
+          }
+          if (s) {
+            const sv = loc?.hourly?.snowfall?.[tiH1];
+            if (typeof sv === "number") {
+              s[pi] = sv;
+              any = true;
+            }
+          }
+        }
+        if (any) {
+          precip = p;
+          snow = s;
+        }
+      }
+    }
+
+    // 3) CH2 hourly (Fallback)
+    if (!precip) {
+      const tiH2 = r2HourIdx.get(tMs);
+      if (typeof tiH2 === "number" && r2) {
+        const p = new Array<number>(nPts).fill(0);
+        const s = hasR2HourSnow ? new Array<number>(nPts).fill(0) : undefined;
+        let any = false;
+        for (let pi = 0; pi < nPts; pi++) {
+          const loc = r2[pi] as LocResponse | undefined;
+          const v = loc?.hourly?.precipitation?.[tiH2];
+          if (typeof v === "number") {
+            p[pi] = v;
+            any = true;
+          }
+          if (s) {
+            const sv = loc?.hourly?.snowfall?.[tiH2];
+            if (typeof sv === "number") {
+              s[pi] = sv;
+              any = true;
+            }
+          }
+        }
+        if (any) {
+          precip = p;
+          snow = s;
+          source = "icon-ch2";
+        }
+      }
+    }
+
+    if (!precip) continue;
+
+    // Bias-Korrektur nur für CH1-Frames.
+    if (source === "icon-ch1" && biasFactor !== 1) {
+      const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
+      const biasWeight = Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
+      const correction = 1 + (biasFactor - 1) * biasWeight;
+      if (correction !== 1) {
+        for (let pi = 0; pi < nPts; pi++) precip[pi] *= correction;
+        if (snow) for (let pi = 0; pi < nPts; pi++) snow[pi] *= correction;
+      }
+    }
+
+    frames.push({
+      t: tIso,
+      source,
+      values: precip,
+      snowValues: emitSnow ? snow ?? new Array<number>(nPts).fill(0) : undefined,
+    });
+    if (source === "icon-ch1") ch1Count++;
+    else ch2Count++;
   }
+
 
   const ch1Count = frames.filter((f) => f.source === "icon-ch1").length;
   if (input.extended) {
