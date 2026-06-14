@@ -1105,9 +1105,8 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
   const nextFrame = playing && idx !== null && currentFrame
     ? frames[idx + 1] ?? null
     : null;
-
-  const showFlow = mode === "flow" || mode === "both";
-  const showArrows = mode === "arrows" || mode === "both";
+  const showFlow = true;
+  const showArrows = arrowsOn;
 
   return (
     <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
