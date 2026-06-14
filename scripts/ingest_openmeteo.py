@@ -352,7 +352,7 @@ def main() -> None:
         "grid": {"points": [{"lat": la, "lon": lo} for la, lo in pts]},
         # Backwards-Compat für src/lib/radar.functions.ts
         "phase1": phase1,
-        "phase2": [],
+        "phase2": phase2,
         # Neues 3-Phasen-Schema (analog Amriswil)
         "phaseB": phase1,
         "phaseA": phaseA,
