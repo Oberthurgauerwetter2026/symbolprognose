@@ -492,12 +492,8 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   }
 
 
-  const ch1Count = frames.filter((f) => f.source === "icon-ch1").length;
-  if (input.extended) {
-    console.info(`[radar] forecast: ch1=${ch1Count} ch2=${ch2Count}`);
-  } else {
-    console.info(`[radar] forecast: ch1=${ch1Count}`);
-  }
+  console.info(`[radar] forecast: ch1=${ch1Count} ch2=${ch2Count}`);
+
 
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
