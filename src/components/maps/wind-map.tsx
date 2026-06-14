@@ -31,15 +31,21 @@ const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const THURGAU = thurgauData as unknown as FeatureCollection;
 
 
-// --- Bft-ähnliche Böen-Farbskala (km/h) ---
-const WIND_SCALE: { v: number; rgb: [number, number, number]; label: string }[] = [
-  { v: 0, rgb: [70, 130, 200], label: "0" },
-  { v: 20, rgb: [80, 180, 180], label: "20" },
-  { v: 40, rgb: [90, 190, 110], label: "40" },
-  { v: 60, rgb: [240, 210, 70], label: "60" },
-  { v: 80, rgb: [240, 140, 50], label: "80" },
-  { v: 100, rgb: [220, 60, 60], label: "100" },
-  { v: 130, rgb: [150, 40, 130], label: "130+" },
+// --- Beaufort-Böen-Farbskala (km/h, Bft 0–12 nach WMO) ---
+const WIND_SCALE: { v: number; rgb: [number, number, number]; label: string; bft: number }[] = [
+  { v: 0,   rgb: [ 60, 110, 190], label: "0",    bft: 0 },
+  { v: 1,   rgb: [ 70, 140, 200], label: "1",    bft: 1 },
+  { v: 6,   rgb: [ 80, 170, 200], label: "6",    bft: 2 },
+  { v: 12,  rgb: [ 90, 195, 175], label: "12",   bft: 3 },
+  { v: 20,  rgb: [110, 200, 130], label: "20",   bft: 4 },
+  { v: 29,  rgb: [170, 215, 100], label: "29",   bft: 5 },
+  { v: 39,  rgb: [240, 215,  80], label: "39",   bft: 6 },
+  { v: 50,  rgb: [245, 175,  60], label: "50",   bft: 7 },
+  { v: 62,  rgb: [240, 135,  50], label: "62",   bft: 8 },
+  { v: 75,  rgb: [230,  85,  55], label: "75",   bft: 9 },
+  { v: 89,  rgb: [200,  50,  70], label: "89",   bft: 10 },
+  { v: 103, rgb: [170,  40, 110], label: "103",  bft: 11 },
+  { v: 118, rgb: [130,  30, 140], label: "118+", bft: 12 },
 ];
 
 function windColor(kmh: number): [number, number, number] {
@@ -1230,14 +1236,15 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
 
         {/* Legende */}
         <div className="pointer-events-none absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
-          <span className="mb-1 font-semibold text-foreground">Böen km/h</span>
+          <span className="mb-1 font-semibold text-foreground">Böen km/h <span className="font-normal text-muted-foreground">(Bft)</span></span>
           {[...WIND_SCALE].reverse().map((s) => (
             <div key={s.v} className="flex items-center gap-1.5">
               <span
-                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                className="inline-block h-2 w-3 rounded-sm sm:h-2.5 sm:w-4"
                 style={{ background: `rgb(${s.rgb.join(",")})` }}
               />
               <span className="tabular-nums text-muted-foreground">{s.label}</span>
+              <span className="ml-auto tabular-nums text-[8px] text-muted-foreground/70 sm:text-[9px]">{s.bft}</span>
             </div>
           ))}
         </div>
