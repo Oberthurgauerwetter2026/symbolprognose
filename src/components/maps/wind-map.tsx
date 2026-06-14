@@ -32,26 +32,27 @@ const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const THURGAU = thurgauData as unknown as FeatureCollection;
 
 
-// --- Beaufort-Böen-Farbskala (km/h, Bft 0–12 nach WMO) ---
-const WIND_SCALE: { v: number; rgb: [number, number, number]; label: string; bft: number }[] = [
-  { v: 0,   rgb: [ 60, 110, 190], label: "0",    bft: 0 },
-  { v: 1,   rgb: [ 70, 140, 200], label: "1",    bft: 1 },
-  { v: 6,   rgb: [ 80, 170, 200], label: "6",    bft: 2 },
-  { v: 12,  rgb: [ 90, 195, 175], label: "12",   bft: 3 },
-  { v: 20,  rgb: [110, 200, 130], label: "20",   bft: 4 },
-  { v: 29,  rgb: [170, 215, 100], label: "29",   bft: 5 },
-  { v: 39,  rgb: [240, 215,  80], label: "39",   bft: 6 },
-  { v: 50,  rgb: [245, 175,  60], label: "50",   bft: 7 },
-  { v: 62,  rgb: [240, 135,  50], label: "62",   bft: 8 },
-  { v: 75,  rgb: [230,  85,  55], label: "75",   bft: 9 },
-  { v: 89,  rgb: [200,  50,  70], label: "89",   bft: 10 },
-  { v: 103, rgb: [170,  40, 110], label: "103",  bft: 11 },
-  { v: 118, rgb: [130,  30, 140], label: "118+", bft: 12 },
+// --- Böen-Farbskala (km/h, 5er-Schritte bis 40, dann 10er) ---
+const WIND_SCALE: { v: number; rgb: [number, number, number]; label: string }[] = [
+  { v: 0,   rgb: [ 60, 110, 190], label: "0"    },
+  { v: 5,   rgb: [ 70, 145, 205], label: "5"    },
+  { v: 10,  rgb: [ 80, 175, 200], label: "10"   },
+  { v: 15,  rgb: [ 90, 195, 175], label: "15"   },
+  { v: 20,  rgb: [110, 205, 140], label: "20"   },
+  { v: 25,  rgb: [150, 215, 110], label: "25"   },
+  { v: 30,  rgb: [200, 220,  90], label: "30"   },
+  { v: 35,  rgb: [235, 215,  75], label: "35"   },
+  { v: 40,  rgb: [245, 190,  65], label: "40"   },
+  { v: 50,  rgb: [245, 155,  55], label: "50"   },
+  { v: 60,  rgb: [240, 120,  55], label: "60"   },
+  { v: 70,  rgb: [230,  80,  60], label: "70"   },
+  { v: 80,  rgb: [200,  50,  85], label: "80"   },
+  { v: 100, rgb: [150,  35, 135], label: "100+" },
 ];
 
 function windColor(kmh: number): [number, number, number] {
   // Diskrete Bänder mit schmalem weichen Übergang (±2 km/h) an den Grenzen.
-  const HALF = 3;
+  const HALF = 2;
   let i = 0;
   for (let k = WIND_SCALE.length - 1; k >= 0; k--) {
     if (kmh >= WIND_SCALE[k].v) { i = k; break; }
