@@ -210,7 +210,16 @@ def main() -> None:
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
-    # phase2 entfernt — Worker nutzt nur ICON-CH1 (+32 h).
+    # phase2: ICON-CH2 hourly (+0 … +120 h) — nahtlose Verlängerung von phase1,
+    # wenn ICON-CH1 Lücken hat (Run-Verzögerung / Modellausfall) oder über
+    # den CH1-Horizont hinausreicht.
+    p2 = {
+        "hourly": "precipitation,snowfall,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+        "past_hours": 6,
+        "forecast_hours": 120,
+        "timezone": "UTC",
+        "models": "meteoswiss_icon_ch2",
+    }
     # phaseA: Multi-Modell hourly+daily 7 d — Symbolprognose Hot-Path
     pa = {
         "hourly": ",".join([
