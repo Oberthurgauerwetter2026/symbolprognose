@@ -924,16 +924,12 @@ export function RadarMap({
     initialDataUpdatedAt: initialFrames ? Date.now() : undefined,
   });
 
-  // Radar-Animation zeigt nur ICON-CH1 (bis +24 h). Die ICON-CH2-Verlängerung
-  // bis +48 h wird ausschliesslich für die Niederschlagssummen verwendet.
-  // Zusätzliche Client-Absicherung: kappe Prognose-Frames hart bei +24 h,
-  // falls noch ein älterer Cache mit längeren Frames im Browser liegt.
+  // Modellprognose bis +48 h: CH1 primär, CH2 nahtloser Fallback.
+  // Client-Cap auf +48 h für ältere Cache-Antworten.
   const frames = useMemo(() => {
     const all = data?.frames ?? [];
-    const cutoff = Date.now() + 24 * 3600 * 1000;
-    return all.filter(
-      (f) => f.source !== "icon-ch2" && Date.parse(f.t) <= cutoff,
-    );
+    const cutoff = Date.now() + 48 * 3600 * 1000;
+    return all.filter((f) => Date.parse(f.t) <= cutoff);
   }, [data]);
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
