@@ -1,59 +1,30 @@
-## Windfarbskala feiner abstufen — an Beaufort orientiert
+## 1) Skala in 5-km/h-Schritten
 
-### Welche Normen gibt es?
-
-Für Wind/Böen gibt es im Wesentlichen drei etablierte Skalen:
-
-1. **Beaufort-Skala (WMO/MeteoSchweiz-Standard)** — 13 Stufen (Bft 0–12), basierend auf Windgeschwindigkeit in 10 m über Grund. Das ist die in der europäischen Meteorologie verbindliche Norm und auch die Basis der MeteoSchweiz-Warnstufen.
-2. **MeteoSchweiz-Windwarnungen** — 4 Stufen (gelb ab ~60 km/h, orange ab ~90, rot ab ~110, violett ab ~140 km/h Böen im Flachland). Pragmatische Warnschwellen, aber gröber.
-3. **DWD/ZAMG-Warnstufen** — sehr ähnlich zu MeteoSchweiz, ebenfalls 4–5 Warnstufen.
-
-Für eine **Animation der Böen** ist die Beaufort-Skala der natürliche Bezug, weil sie über den ganzen Bereich abstuft (nicht nur ab Warnschwelle) und international anerkannt ist.
-
-### Aktuell (7 Bänder, grob)
+Statt der Beaufort-Schwellen feste, intuitive 5er-Schritte von 0 bis 100+:
 
 ```text
-0 · 20 · 40 · 60 · 80 · 100 · 130+ km/h
+0 · 5 · 10 · 15 · 20 · 25 · 30 · 35 · 40 · 50 · 60 · 70 · 80 · 100+ km/h
 ```
 
-Die Sprünge sind 20 km/h breit — das überspringt mehrere Beaufort-Stufen pro Band und „flacht" schwache bis mittlere Winde optisch ein.
+(Schritte ab 40 km/h auf 10er, weil oberhalb von 40 km/h Böen 5er-Schritte optisch nicht mehr unterscheidbar wären und die Legende sonst zu lang wird. Falls du strikt 5er bis 100 willst → sag Bescheid.)
 
-### Neu (12 Bänder, Beaufort-konform)
+Farbverlauf bleibt im gleichen Charakter (blau → türkis → grün → gelb → orange → rot → violett), nur sauber interpoliert über die neuen Stützpunkte. Übergangsfunktion (`HALF`) wird auf `2` km/h reduziert, damit bei 5er-Schritten innerhalb der Bänder noch eine klare Stufe sichtbar bleibt.
 
-Direkt an den Bft-Schwellen ausgerichtet (Werte in km/h, jeweils Untergrenze der Stufe):
+## 2) Windpfeile als optionaler Toggle
 
-```text
-Bft 0   <1     Windstille
-Bft 1    1     leiser Zug
-Bft 2    6     leichte Brise
-Bft 3   12     schwache Brise
-Bft 4   20     mäßige Brise
-Bft 5   29     frische Brise
-Bft 6   39     starker Wind
-Bft 7   50     steifer Wind
-Bft 8   62     stürmischer Wind
-Bft 9   75     Sturm
-Bft 10  89     schwerer Sturm
-Bft 11 103     orkanartiger Sturm
-Bft 12 118     Orkan
-```
+Aktuell: 3-Modi-Schalter „Strömung / Pfeile / Beide", Default ist **Beide** → Pfeile sind also immer an.
 
-Farbverlauf bleibt im gleichen Charakter (blau → türkis → grün → gelb → orange → rot → violett), nur mit feineren Zwischentönen, damit jede Stufe optisch unterscheidbar ist.
+Neu:
+- **Strömung (Partikel)** ist immer an, kein Toggle mehr nötig.
+- **Pfeile** sind ein eigenständiger Ein/Aus-Schalter, **Default: aus**.
+- Hinweis „ab Zoom 11 sichtbar" bleibt direkt am Toggle.
 
-### Auswirkungen auf die Karte
+UI: Der bisherige Dreifach-Tabs-Schalter wird ersetzt durch einen einzelnen Switch „Pfeile" (shadcn `Switch` mit Label).
 
-- Übergangsfunktion (`HALF = 3 km/h`) bleibt unverändert — bei kleineren Bändern (z. B. 6 km/h breit bei Bft 2) sorgt das automatisch für sanftere Verläufe, ohne Bänder zu „verschlucken".
-- Legende unten zeigt entsprechend mehr Ticks. Beschriftung kompakt: nur jede zweite Zahl + Bft-Nummer als Sekundärlabel, sonst wird's eng.
+## Betroffene Datei
 
-### Offene Frage
-
-Sollen wir
-- **(A) volle 13-stufige Beaufort-Skala** wie oben (feinst, exakt nach Norm), oder
-- **(B) reduzierte 9-stufige Variante** (0, 6, 20, 29, 39, 50, 62, 75, 89, 103+) — etwas gröber als A, aber immer noch klar feiner als heute und mit ruhigerer Legende,
-- **(C) MeteoSchweiz-Warnschwellen** (0, 20, 40, 60, 90, 110, 140) — gröber, aber mit den offiziellen CH-Warnfarben?
-
-Standard-Empfehlung wäre **(A)**, weil Böen-Animationen vom feinen Verlauf leben.
-
-### Betroffene Datei
-
-`src/components/maps/wind-map.tsx` — nur die Konstante `WIND_SCALE` (Zeilen 35–43) und die Legendenticks unten. Logik bleibt identisch.
+`src/components/maps/wind-map.tsx`:
+- `WIND_SCALE` (Zeilen 35–49) → neue 5er-Schritte + Farben
+- `HALF` (Zeile 47 alt) auf `2`
+- `DisplayMode` + `mode`-State → ersetzen durch `arrowsOn: boolean` (Default `false`)
+- Modus-Tabs-UI (~Zeile 1325–1350) → durch einen Switch ersetzen
