@@ -185,6 +185,11 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     !cacheGridStale && Array.isArray(r1Candidate) && r1Candidate.length === pts.length
       ? r1Candidate
       : null;
+  const r2Candidate = cache ? cache.phase2 ?? null : null;
+  const r2 =
+    !cacheGridStale && Array.isArray(r2Candidate) && r2Candidate.length === pts.length
+      ? r2Candidate
+      : null;
 
   const warnings: string[] = [];
   if (!cache) {
@@ -196,7 +201,10 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   }
 
   const now = Date.now();
-  const forecastHorizonH = input.extended ? 48 : 24;
+  // Modellprognose immer bis +48 h. `extended` bleibt aus Back-Compat
+  // erhalten, hat aber keine Auswirkung mehr auf den Horizont.
+  void input.extended;
+  const forecastHorizonH = 48;
   const forecastCutoff = now + forecastHorizonH * 3600 * 1000;
   const pastCutoff = now - 6 * 3600 * 1000;
   const frames: RadarFrame[] = [];
