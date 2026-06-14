@@ -1321,29 +1321,15 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
                   >
                     <div className="space-y-3">
                       <div>
-                        <p className="mb-1.5 text-[11px] font-semibold text-neutral-600">Anzeige</p>
-                        <div className="inline-flex w-full items-center rounded-full border border-neutral-200 bg-white p-0.5">
-                          {([
-                            { key: "flow" as const, label: "Strömung" },
-                            { key: "arrows" as const, label: "Pfeile" },
-                            { key: "both" as const, label: "Beides" },
-                          ]).map((opt) => {
-                            const active = mode === opt.key;
-                            return (
-                              <button
-                                key={opt.key}
-                                type="button"
-                                onClick={() => setMode(opt.key)}
-                                className={cn(
-                                  "flex-1 rounded-full px-2 py-1 text-[11px] font-semibold transition",
-                                  active ? "text-white shadow-sm" : "text-neutral-600 hover:text-neutral-900",
-                                )}
-                                style={active ? { background: BRAND } : undefined}
-                              >
-                                {opt.label}
-                              </button>
-                            );
-                          })}
+                        <div className="flex items-center justify-between gap-2">
+                          <label htmlFor="wind-arrows-toggle" className="text-[11px] font-semibold text-neutral-600">
+                            Windpfeile
+                          </label>
+                          <Switch
+                            id="wind-arrows-toggle"
+                            checked={arrowsOn}
+                            onCheckedChange={setArrowsOn}
+                          />
                         </div>
                         <p className="mt-1 text-[10px] text-neutral-500">Pfeile werden ab Zoom 11 sichtbar.</p>
                       </div>
