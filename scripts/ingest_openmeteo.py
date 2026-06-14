@@ -267,6 +267,7 @@ def main() -> None:
     }
 
     chunk_p1 = envi("CHUNK_PHASE1", 15)
+    chunk_p2 = envi("CHUNK_PHASE2", 20)
     chunk_pa = envi("CHUNK_PHASEA", 20)
     chunk_pc = envi("CHUNK_PHASEC", 40)
 
