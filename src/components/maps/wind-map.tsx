@@ -1061,7 +1061,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
   const [progress, setProgress] = useState(0);
-  const [mode, setMode] = useState<DisplayMode>("both");
+  const [arrowsOn, setArrowsOn] = useState(false);
   const isMobile = useIsMobile();
 
   useEffect(() => {
