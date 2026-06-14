@@ -210,7 +210,16 @@ def main() -> None:
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
-    # phase2 entfernt — Worker nutzt nur ICON-CH1 (+32 h).
+    # phase2: ICON-CH2 hourly (+0 … +120 h) — nahtlose Verlängerung von phase1,
+    # wenn ICON-CH1 Lücken hat (Run-Verzögerung / Modellausfall) oder über
+    # den CH1-Horizont hinausreicht.
+    p2 = {
+        "hourly": "precipitation,snowfall,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+        "past_hours": 6,
+        "forecast_hours": 120,
+        "timezone": "UTC",
+        "models": "meteoswiss_icon_ch2",
+    }
     # phaseA: Multi-Modell hourly+daily 7 d — Symbolprognose Hot-Path
     pa = {
         "hourly": ",".join([
@@ -258,6 +267,7 @@ def main() -> None:
     }
 
     chunk_p1 = envi("CHUNK_PHASE1", 15)
+    chunk_p2 = envi("CHUNK_PHASE2", 20)
     chunk_pa = envi("CHUNK_PHASEA", 20)
     chunk_pc = envi("CHUNK_PHASEC", 40)
 
@@ -286,6 +296,26 @@ def main() -> None:
                 sys.exit("phase1 failed and no cached fallback available")
         else:
             print(f"  -> {len(phase1)} locations")
+
+    # ---- phase2 (ICON-CH2 hourly — nahtlose CH1-Verlängerung) ----
+    if only_phaseA:
+        phase2 = prev.get("phase2") if isinstance(prev.get("phase2"), list) else []
+        print(f"phase2 übernommen aus Cache: {len(phase2)} locations")
+    else:
+        print(f"fetch phase2 (ICON-CH2 hourly) in chunks of {chunk_p2} …")
+        phase2 = chunk_fetch("phase2", p2, pts, chunk_p2, optional=True)
+        if phase2 is None:
+            print("phase2 failed — versuche Fallback auf bestehenden R2-Cache …")
+            prev_phase2 = prev.get("phase2")
+            if isinstance(prev_phase2, list) and prev_phase2:
+                phase2 = prev_phase2
+                print(f"  -> Fallback ok: {len(phase2)} locations aus bestehendem Cache")
+            else:
+                phase2 = []
+                print("  -> kein Fallback verfügbar, phase2 bleibt leer")
+        else:
+            print(f"  -> {len(phase2)} locations")
+
 
     # ---- phaseC (Bias-Lookback) ----
     if only_phaseA:
@@ -322,7 +352,7 @@ def main() -> None:
         "grid": {"points": [{"lat": la, "lon": lo} for la, lo in pts]},
         # Backwards-Compat für src/lib/radar.functions.ts
         "phase1": phase1,
-        "phase2": [],
+        "phase2": phase2,
         # Neues 3-Phasen-Schema (analog Amriswil)
         "phaseB": phase1,
         "phaseA": phaseA,
