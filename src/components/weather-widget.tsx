@@ -736,16 +736,6 @@ function DetailPanel({
               ? "Morgen"
               : weekdayLong(selectedDay.date)}
         </span>
-        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-zinc-700">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-px h-3 bg-zinc-300" aria-hidden />
-            1-h-Takt
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-[2px] h-3 bg-zinc-400" aria-hidden />
-            3-h-Takt (ab +12 h)
-          </span>
-        </div>
       </div>
       <div className="flex items-stretch">
         {/* Y-axes for charts */}
@@ -873,7 +863,7 @@ function DetailPanel({
                   >
                     {isCadenceBreak && (
                       <div className="absolute -top-px left-0 right-0 -translate-y-full px-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
-                        ab +12 h · 3-h-Takt
+                        3-h-Takt
                       </div>
                     )}
                     <div
