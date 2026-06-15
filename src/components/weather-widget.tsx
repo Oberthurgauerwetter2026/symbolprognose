@@ -1163,7 +1163,7 @@ function Footer({
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
       <div className="text-xs text-zinc-700 font-medium">
-        MeteoSchweiz ICON-CH1-EPS/ICON-CH2-EPS · Tag 6–7: ECMWF IFS Ensemble · Rest: Open-Meteo best_match · aktualisiert{" "}
+        MeteoSchweiz ICON-seamless · Tag 6–7: DWD-MOSMIX + ECMWF IFS Ensemble · Rest: Open-Meteo best_match · aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
