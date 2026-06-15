@@ -184,16 +184,16 @@ export function WeatherWidget({
     }));
   }, [forecast.data]);
 
-  // Continuous slot list: 1h cadence for next 12h, then 3h cadence onward.
+  // Continuous slot list: 3h cadence aligned to 3-h block boundaries.
   const allHourly = useMemo<{ idx: number; cadence: "1h" | "3h" }[]>(() => {
     if (!forecast.data) return [];
     const h = forecast.data.hourly;
-    const curHourMs = (() => {
+    const blockStartMs = (() => {
       const d = new Date(now);
       d.setMinutes(0, 0, 0);
+      d.setHours(d.getHours() - (d.getHours() % 3));
       return d.getTime();
     })();
-    const cutoffMs = curHourMs + 12 * 3600_000;
     const out: { idx: number; cadence: "1h" | "3h" }[] = [];
     const safeLen = Math.min(
       h.time.length,
@@ -203,14 +203,10 @@ export function WeatherWidget({
     );
     for (let i = 0; i < safeLen; i++) {
       const tMs = new Date(h.time[i]).getTime();
-      if (tMs < curHourMs) continue;
-      if (tMs < cutoffMs) {
-        out.push({ idx: i, cadence: "1h" });
-      } else {
-        const hr = new Date(h.time[i]).getHours();
-        if (hr % 3 !== 0) continue;
-        out.push({ idx: i, cadence: "3h" });
-      }
+      if (tMs < blockStartMs) continue;
+      const hr = new Date(h.time[i]).getHours();
+      if (hr % 3 !== 0) continue;
+      out.push({ idx: i, cadence: "3h" });
     }
     return out;
   }, [forecast.data, now]);
@@ -738,12 +734,8 @@ function DetailPanel({
         </span>
         <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-zinc-700">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-px h-3 bg-zinc-300" aria-hidden />
-            1-h-Takt
-          </span>
-          <span className="flex items-center gap-1.5">
             <span className="inline-block w-[2px] h-3 bg-zinc-400" aria-hidden />
-            3-h-Takt (ab +12 h)
+            3-h-Takt
           </span>
         </div>
       </div>
@@ -871,11 +863,6 @@ function DetailPanel({
                           : ""
                     } ${isCurrent ? "bg-[color-mix(in_oklab,var(--accent)_22%,white)]" : ""}`}
                   >
-                    {isCadenceBreak && (
-                      <div className="absolute -top-px left-0 right-0 -translate-y-full px-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
-                        ab +12 h · 3-h-Takt
-                      </div>
-                    )}
                     <div
                       className={`text-sm font-bold tabular-nums ${
                         isCurrent ? "text-accent" : "text-zinc-900"
