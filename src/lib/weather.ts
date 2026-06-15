@@ -309,11 +309,9 @@ const ENSEMBLE_HOURLY_VARS = [
 
 type EnsembleHourly = Partial<HourlyData> & { time: string[]; utc_offset_seconds?: number };
 
-type EnsembleModel = "meteoswiss_icon_ch1" | "meteoswiss_icon_ch2" | "ecmwf_ifs025";
+type EnsembleModel = "ecmwf_ifs025";
 
 const ENSEMBLE_DAYS: Record<EnsembleModel, number> = {
-  meteoswiss_icon_ch1: 2,
-  meteoswiss_icon_ch2: 5,
   ecmwf_ifs025: 7,
 };
 
