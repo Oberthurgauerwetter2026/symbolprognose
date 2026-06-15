@@ -315,17 +315,6 @@ const ENSEMBLE_DAYS: Record<EnsembleModel, number> = {
   ecmwf_ifs025: 7,
 };
 
-function sliceEnsembleHourly(ens: EnsembleHourly, maxHours: number): EnsembleHourly {
-  const out: EnsembleHourly = { time: ens.time.slice(0, maxHours) };
-  for (const key of Object.keys(ens)) {
-    if (key === "time") continue;
-    const arr = (ens as Record<string, unknown>)[key];
-    if (Array.isArray(arr)) {
-      (out as Record<string, unknown>)[key] = (arr as number[]).slice(0, maxHours);
-    }
-  }
-  return out;
-}
 
 // WMO-Code → Kategorie (höher = "nasser/schwerer", für Tie-Break).
 function wmoCategory(code: number): number {
