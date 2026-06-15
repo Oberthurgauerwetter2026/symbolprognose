@@ -4,10 +4,10 @@ import { getOpenMeteoCache } from "./openmeteo-cache.server";
 
 /**
  * Windprognose-Frames für die Region Oberthurgau.
- * Quelle: ICON-CH1 hourly (`phase1`) als primäre Quelle. Wo CH1 für eine
- * Stunde keine Werte liefert (Run-Verzögerung, Modellausfall, jenseits des
- * CH1-Horizonts), füllt ICON-CH2 hourly (`phase2`) nahtlos auf — gleicher
- * Grid, gleicher Zeitstempel, kein Sprung in der Timeline.
+ * Quelle: ICON-seamless hourly aus `phase2` (deterministisch, CH1 → CH2 →
+ * ICON-EU/global, nahtlos verkettet). Die alte CH1-Hourly-Schiene (`phase1`)
+ * enthält keine Wind-Felder mehr; der Lookup auf `phase1` bleibt defensiv
+ * als Fallback erhalten, ist im Normalbetrieb aber leer.
  *
  * Horizont: +0 … +48 h, stündlich. Keine Messdaten.
  */
