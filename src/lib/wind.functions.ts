@@ -74,8 +74,8 @@ function gridFromPoints(points: { lat: number; lon: number }[] | undefined) {
 }
 
 /**
- * Baut für eine Phasen-Quelle (CH1 oder CH2) einen Index `tMs -> ti`
- * über die ersten Location-Hourly-Times.
+ * Baut für eine Phasen-Quelle (phase1 legacy / phase2 icon_seamless) einen
+ * Index `tMs -> ti` über die ersten Location-Hourly-Times.
  */
 function buildTimeIndex(arr: LocResponseArray | undefined): Map<number, number> {
   const idx = new Map<number, number>();
