@@ -567,11 +567,11 @@ function DayStrip({
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
+                  <span className="text-base font-medium tabular-nums text-zinc-600">
+                    {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
+                  </span>
                   <span className="text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900 font-[family-name:var(--font-display)]">
                     {Number.isFinite(d.temperature_2m_max[i]) ? `${Math.round(d.temperature_2m_max[i])}°` : "–"}
-                  </span>
-                  <span className="text-base text-zinc-700 font-semibold tabular-nums">
-                    {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
                   </span>
                 </div>
                 <div className="text-xs text-zinc-700 font-medium flex justify-between tabular-nums">
