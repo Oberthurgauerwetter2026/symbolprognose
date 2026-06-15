@@ -62,7 +62,7 @@ function PrecipDashboard() {
       </div>
       <p className="text-sm text-zinc-600 max-w-2xl">
         Akkumulierte Vorhersage für die nächsten 12, 24 und 48 Stunden auf Basis von
-        ICON-CH1 (bis +33 h, 1 km) und ICON-CH2 (bis +120 h, 2 km) via Open-Meteo.
+        ICON-seamless (CH1 1 km · CH2 2 km · ICON-EU/global 6–13 km, bis +168 h) via Open-Meteo.
         Auto-Refresh stündlich.
       </p>
 
