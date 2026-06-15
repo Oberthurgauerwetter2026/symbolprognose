@@ -347,11 +347,11 @@ function DataStamp({ updatedAt }: { updatedAt: number }) {
     minute: "2-digit",
   }).format(new Date(updatedAt));
   const tip =
-    "Wettermodelle (ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX) werden ca. alle 6 Stunden " +
+    "Wettermodelle (ICON-seamless, ECMWF IFS, DWD-MOSMIX) werden ca. alle 6 Stunden " +
     "(00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 15–30 Min. zwischengespeichert.";
   return (
     <p className="text-[11px] text-zinc-500 text-center pt-1" title={tip}>
-      Datenstand: {fmt} · Quelle: Oberthurgauer Wetter · Modelle: ICON-CH1/CH2, ECMWF IFS, DWD-MOSMIX
+      Datenstand: {fmt} · Quelle: Oberthurgauer Wetter · Modelle: ICON-seamless, ECMWF IFS, DWD-MOSMIX
     </p>
   );
 }
