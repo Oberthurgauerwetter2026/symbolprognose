@@ -162,7 +162,7 @@ export const getWindFrames = createServerFn({ method: "GET" }).handler(async () 
       frames.push({ t: new Date(tMs).toISOString(), ...hour });
     }
     if (ch2Used > 0) {
-      console.info(`[wind] CH2-Fallback für ${ch2Used} Stunde(n) genutzt`);
+      console.info(`[wind] icon_seamless (phase2) für ${ch2Used} Stunde(n) genutzt`);
     }
   } else if (cache) {
     warnings.push("Open-Meteo-Cache enthält noch keine Windprognose; nach dem nächsten Ingest verfügbar");
