@@ -34,7 +34,7 @@ type Loc = {
 };
 
 const CACHE_MODEL_SUFFIXES = [
-  "meteoswiss_icon_ch2",
+  "icon_seamless",
   "icon_d2",
   "arpege_europe",
   "ecmwf_ifs025",

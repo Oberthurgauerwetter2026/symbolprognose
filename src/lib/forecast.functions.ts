@@ -8,7 +8,7 @@ import { getOpenMeteoCache } from "./openmeteo-cache.server";
  * zur angefragten Lat/Lon. Damit kann das Frontend die gleichen Daten lesen,
  * die sonst direkt von api.open-meteo.com kämen — aber ohne IP-Limit-Risiko.
  *
- * Die per-Modell-Aufschlüsselung (icon_ch2 / icon_d2 / arpege / ecmwf / gfs)
+ * Die per-Modell-Aufschlüsselung (icon_seamless / icon_d2 / arpege / ecmwf / gfs)
  * steckt in den Schlüsseln `hourly_X` bzw. `*_<model>` der Open-Meteo-Antwort
  * und wird hier unverändert weitergereicht.
  */

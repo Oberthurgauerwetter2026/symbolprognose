@@ -198,27 +198,24 @@ def main() -> None:
     pts = build_grid()
     print(f"grid points: {len(pts)}")
 
-    # phase1: ICON-CH1 minutely_15 (-12h … +33h) — Radar/Nowcast
-    # + hourly.precipitation (-12h … +120h) als ICON-CH2-Deterministisch-Verlängerung
+    # phase1: ICON-CH1 minutely_15 (-12h … +33h) — Radar/Nowcast (15-min-Schiene
+    # gibt es nur bei CH1, nicht bei icon_seamless).
     p1 = {
         "minutely_15": "precipitation,snowfall",
         "past_minutely_15": 48,
         "forecast_minutely_15": 132,
-        "hourly": "wind_speed_700hPa,wind_direction_700hPa,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation",
-        "past_hours": 12,
-        "forecast_hours": 120,
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
-    # phase2: ICON-CH2 hourly (+0 … +120 h) — nahtlose Verlängerung von phase1,
-    # wenn ICON-CH1 Lücken hat (Run-Verzögerung / Modellausfall) oder über
-    # den CH1-Horizont hinausreicht.
+    # phase2: ICON-seamless hourly (-12h … +168h) — deterministische,
+    # nahtlose Verkettung CH1 → CH2 → ICON-EU/global. Ersetzt die frühere
+    # zweistufige CH1/CH2-Kaskade.
     p2 = {
-        "hourly": "precipitation,snowfall,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
-        "past_hours": 6,
-        "forecast_hours": 120,
+        "hourly": "precipitation,snowfall,wind_speed_10m,wind_direction_10m,wind_gusts_10m,wind_speed_700hPa,wind_direction_700hPa",
+        "past_hours": 12,
+        "forecast_hours": 168,
         "timezone": "UTC",
-        "models": "meteoswiss_icon_ch2",
+        "models": "icon_seamless",
     }
     # phaseA: Multi-Modell hourly+daily 7 d — Symbolprognose Hot-Path
     pa = {
@@ -255,7 +252,7 @@ def main() -> None:
         ]),
         "forecast_days": 7,
         "timezone": "Europe/Zurich",
-        "models": "meteoswiss_icon_ch2,icon_d2,arpege_europe,meteofrance_arome_france_hd,ecmwf_ifs025,gfs_global",
+        "models": "icon_seamless,icon_d2,arpege_europe,meteofrance_arome_france_hd,ecmwf_ifs025,gfs_global",
     }
     # phaseC: Bias-Lookback (-7 d … +1 d) best_match
     pc = {

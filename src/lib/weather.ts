@@ -309,25 +309,12 @@ const ENSEMBLE_HOURLY_VARS = [
 
 type EnsembleHourly = Partial<HourlyData> & { time: string[]; utc_offset_seconds?: number };
 
-type EnsembleModel = "meteoswiss_icon_ch1" | "meteoswiss_icon_ch2" | "ecmwf_ifs025";
+type EnsembleModel = "ecmwf_ifs025";
 
 const ENSEMBLE_DAYS: Record<EnsembleModel, number> = {
-  meteoswiss_icon_ch1: 2,
-  meteoswiss_icon_ch2: 5,
   ecmwf_ifs025: 7,
 };
 
-function sliceEnsembleHourly(ens: EnsembleHourly, maxHours: number): EnsembleHourly {
-  const out: EnsembleHourly = { time: ens.time.slice(0, maxHours) };
-  for (const key of Object.keys(ens)) {
-    if (key === "time") continue;
-    const arr = (ens as Record<string, unknown>)[key];
-    if (Array.isArray(arr)) {
-      (out as Record<string, unknown>)[key] = (arr as number[]).slice(0, maxHours);
-    }
-  }
-  return out;
-}
 
 // WMO-Code → Kategorie (höher = "nasser/schwerer", für Tie-Break).
 function wmoCategory(code: number): number {
@@ -684,13 +671,12 @@ export async function fetchForecast(
   latitude: number,
   longitude: number,
 ): Promise<ForecastResponse> {
-  // ICON-CH1-EPS für Stunden 0–24, danach ICON-CH2-EPS (bis Tag 5),
-  // ab Tag 6 zusätzlich DWD-MOSMIX (vor ECMWF IFS Ensemble bis Tag 7).
-  // best_match nur als Restfallback für Felder, die Ensembles nicht liefern
+  // ICON-seamless (deterministisch, CH1 → CH2 → ICON-EU/global) als Primärquelle
+  // für 0–168 h. ECMWF IFS-EPS bleibt als Fallback, MOSMIX überschreibt ab Tag 6.
+  // best_match nur als Restfallback für Felder, die icon_seamless nicht liefert
   // (Probability, Sunrise/Sunset).
-  const [ch1RawFull, ch2Raw, ifsRaw, bestMatch, mosmixRaw] = await Promise.all([
-    fetchEnsembleMean(latitude, longitude, "meteoswiss_icon_ch1").catch(() => null),
-    fetchEnsembleMean(latitude, longitude, "meteoswiss_icon_ch2").catch(() => null),
+  const [iconSeamless, ifsRaw, bestMatch, mosmixRaw] = await Promise.all([
+    fetchModel(latitude, longitude, "icon_seamless").catch(() => null),
     fetchEnsembleMean(latitude, longitude, "ecmwf_ifs025").catch(() => null),
     fetchModel(latitude, longitude, "best_match").catch(() => null),
     fetchMosmix({ data: { latitude, longitude } }).catch((e) => {
@@ -699,39 +685,35 @@ export async function fetchForecast(
     }),
   ]);
 
-  const ch1Raw = ch1RawFull ? sliceEnsembleHourly(ch1RawFull, 24) : null;
-
-  // Primärquelle ist CH1 (0-24h); falls nicht verfügbar, nimm CH2 → IFS → best_match.
-  type PrimarySource = "ch1" | "ch2" | "ifs" | "best_match";
+  // Primärquelle ist icon_seamless; falls nicht verfügbar, nimm IFS → best_match.
+  type PrimarySource = "icon_seamless" | "ifs" | "best_match";
   let primary: ForecastResponse | null = null;
   let primarySource: PrimarySource | null = null;
-  if (ch1Raw) { primary = wrapEnsembleAsForecast(ch1Raw); primarySource = "ch1"; }
-  else if (ch2Raw) { primary = wrapEnsembleAsForecast(ch2Raw); primarySource = "ch2"; }
+  if (iconSeamless) { primary = iconSeamless; primarySource = "icon_seamless"; }
   else if (ifsRaw) { primary = wrapEnsembleAsForecast(ifsRaw); primarySource = "ifs"; }
   else if (bestMatch) { primary = bestMatch; primarySource = "best_match"; }
   if (!primary) throw new Error("Keine Wettermodelle erreichbar");
 
   // utc_offset_seconds aus einer Quelle ableiten (für MOSMIX-Alignment).
   const offsetSec =
-    ch1RawFull?.utc_offset_seconds ??
-    ch2Raw?.utc_offset_seconds ??
+    (iconSeamless as unknown as { utc_offset_seconds?: number } | null)?.utc_offset_seconds ??
     ifsRaw?.utc_offset_seconds ??
     (bestMatch as unknown as { utc_offset_seconds?: number } | null)?.utc_offset_seconds ??
     0;
 
   let merged = primary;
-  if (ch2Raw && primarySource !== "ch2") merged = fillGaps(merged, wrapEnsembleAsForecast(ch2Raw));
 
   // IFS zuerst mergen, damit die Timeline 168h umfasst — sonst hat MOSMIX keine Slots ab Index 120.
   if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
 
-  // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt CH2/IFS/best_match.
+  // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt icon_seamless/IFS/best_match.
   if (mosmixRaw) {
     const mosmixForecast = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 5 * 24);
     if (mosmixForecast) merged = overwriteFromIndex(merged, mosmixForecast, 5 * 24);
   }
 
   if (bestMatch && primarySource !== "best_match") merged = fillGaps(merged, bestMatch);
+
 
   // Gewitter-Override: Ensemble-Mittel glättet seltene Gewittercodes (95/96/99) weg.
   // Wenn best_match oder MOSMIX an einer Stunde Gewitter sehen, in merged.hourly.weathercode
