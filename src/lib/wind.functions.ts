@@ -90,9 +90,9 @@ function buildTimeIndex(arr: LocResponseArray | undefined): Map<number, number> 
 }
 
 /**
- * Liest Gust/Speed/Dir für (ti, allePunkte) aus einer Phasen-Quelle.
- * Gibt `null` zurück, wenn alle drei Felder leer/null sind (keine sinnvolle
- * Stunde) — Caller fällt dann auf die nächste Quelle zurück.
+ * Liest Gust/Speed/Dir für (ti, allePunkte) aus einer Phasen-Quelle
+ * (phase1 legacy / phase2 icon_seamless). Gibt `null` zurück, wenn alle
+ * drei Felder leer/null sind — Caller fällt dann auf die nächste Quelle zurück.
  */
 function readHour(
   arr: LocResponseArray,
