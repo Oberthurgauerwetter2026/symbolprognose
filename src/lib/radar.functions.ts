@@ -12,9 +12,10 @@ import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache
  *     Darstellung ausserhalb des CombiPrecip-Ausschnitts (gleiche Farbskala).
  *
  * Vorhersage (> now):
- *   - ICON-CH1 stündlich (bis +24 h) — ein Frame pro voller Stunde,
- *     direkt aus dem nativen Modell-Output. Keine Advektion, keine
- *     15-min-Interpolation, keine Wind-Glättung — ehrliche Stundenanzeige
+ *   - ICON-CH1 `minutely_15` für die nächste Stunde (Nowcast-Schiene),
+ *     danach ICON-seamless hourly (`phase2`, bis +48 h) — ein Frame pro
+ *     voller Stunde, direkt aus dem nativen Modell-Output. Keine Advektion,
+ *     keine 15-min-Interpolation, keine Wind-Glättung — ehrliche Stundenanzeige
  *     mit weichem Crossfade im Client.
  *
  * Kein Nowcast, keine Zell-Extrapolation.
