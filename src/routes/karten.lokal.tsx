@@ -21,7 +21,7 @@ export const Route = createFileRoute("/karten/lokal")({
       {
         name: "description",
         content:
-          "5-Tage Lokalprognose im 3-Stunden-Takt mit Modelldaten von MeteoSchweiz (ICON-CH2).",
+          "5-Tage Lokalprognose im 3-Stunden-Takt mit Modelldaten von MeteoSchweiz (ICON-seamless).",
       },
     ],
   }),
