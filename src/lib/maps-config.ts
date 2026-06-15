@@ -54,7 +54,7 @@ export const MAPS: MapDefinition[] = [
     id: "radar",
     label: "Niederschlagsradar",
     shortLabel: "Niederschlagsradar",
-    description: "Niederschlags-Animation: −6 h MCH-Radar, Nowcast und ICON-CH1 Vorhersage bis +24 h.",
+    description: "Niederschlags-Animation: −6 h MCH-Radar, Nowcast aus ICON-CH1 (15-min) und ICON-seamless Vorhersage bis +48 h.",
     icon: CloudRain,
     routePath: "/karten/radar",
     embedPath: "/embed/radar",
