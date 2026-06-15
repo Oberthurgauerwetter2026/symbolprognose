@@ -17,7 +17,7 @@ import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon, Thermometer } from "lucide-react";
 
 interface StoredLocation {
   name: string;
@@ -567,7 +567,8 @@ function DayStrip({
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-base font-medium tabular-nums text-zinc-600">
+                  <span className="text-base font-medium tabular-nums text-zinc-600 inline-flex items-center gap-1">
+                    <Thermometer className="w-3.5 h-3.5 text-zinc-600" aria-hidden />
                     {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
                   </span>
                   <span className="text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900 font-[family-name:var(--font-display)]">
