@@ -734,12 +734,8 @@ function DetailPanel({
         </span>
         <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-zinc-700">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-px h-3 bg-zinc-300" aria-hidden />
-            1-h-Takt
-          </span>
-          <span className="flex items-center gap-1.5">
             <span className="inline-block w-[2px] h-3 bg-zinc-400" aria-hidden />
-            3-h-Takt (ab +12 h)
+            3-h-Takt
           </span>
         </div>
       </div>
