@@ -863,11 +863,6 @@ function DetailPanel({
                           : ""
                     } ${isCurrent ? "bg-[color-mix(in_oklab,var(--accent)_22%,white)]" : ""}`}
                   >
-                    {isCadenceBreak && (
-                      <div className="absolute -top-px left-0 right-0 -translate-y-full px-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
-                        ab +12 h · 3-h-Takt
-                      </div>
-                    )}
                     <div
                       className={`text-sm font-bold tabular-nums ${
                         isCurrent ? "text-accent" : "text-zinc-900"
