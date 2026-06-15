@@ -575,7 +575,10 @@ function DayStrip({
                   </span>
                 </div>
                 <div className="text-xs text-zinc-800 font-semibold flex justify-between tabular-nums">
-                  <span>{Number.isFinite(d.precipitation_sum[i]) ? `${d.precipitation_sum[i].toFixed(1)} mm` : "– mm"}</span>
+                  <span className="inline-flex items-center gap-1">
+                    <CloudRain className="w-3.5 h-3.5 text-zinc-600" aria-hidden />
+                    {Number.isFinite(d.precipitation_sum[i]) ? `${d.precipitation_sum[i].toFixed(1)} mm` : "– mm"}
+                  </span>
                   <span>{d.precipitation_probability_max[i] ?? 0}%</span>
                 </div>
               </div>
