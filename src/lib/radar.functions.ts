@@ -495,7 +495,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   }
 
 
-  console.info(`[radar] forecast: ch1=${ch1Count} ch2=${ch2Count}`);
+  console.info(`[radar] forecast: ch1Minutely=${ch1Count} iconSeamless=${ch2Count}`);
 
 
 
