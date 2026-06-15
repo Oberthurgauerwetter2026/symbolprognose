@@ -862,7 +862,7 @@ function DetailPanel({
                     } ${isCurrent ? "bg-[color-mix(in_oklab,var(--accent)_22%,white)]" : ""}`}
                   >
                     {isCadenceBreak && (
-                      <div className="absolute -top-px left-0 right-0 -translate-y-full px-1 text-[9px] font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap">
+                      <div className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 whitespace-nowrap leading-none">
                         3-h-Takt
                       </div>
                     )}
@@ -873,6 +873,7 @@ function DetailPanel({
                     >
                       {String(t.getHours()).padStart(2, "0")}:00
                     </div>
+
                     <div
                       className="flex items-center justify-center"
                       title={weatherLabel(h.weathercode?.[idx] ?? 0)}

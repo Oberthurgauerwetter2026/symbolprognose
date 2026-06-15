@@ -1,33 +1,13 @@
-## Anpassung der Takt-Labels im Stundendetail-Panel
+## Problem
+Der Schriftzug "3-h-Takt" existiert bereits im Code (`weather-widget.tsx` Zeile 864–868), wird aber durch `overflow-hidden` am umgebenden `<section>`-Container (Zeile 730) abgeschnitten, da er absolut positioniert über die obere Kante des Slots ragt (`absolute -top-px -translate-y-full`).
 
-### Ausgangslage
-Im Header des Tagesdetail-Panels (rechts oben) werden aktuell zwei Legenden-Labels angezeigt:
-- **1-h-Takt**
-- **3-h-Takt (ab +12 h)**
+## Lösung
+Das Label wird nicht mehr absolut über dem Slot-Rand platziert, sondern als sichtbares, statisches Element **innerhalb** des ersten 3h-Slots oberhalb der Uhrzeit angezeigt. Dadurch bleibt es im sichtbaren Bereich und wird nicht von `overflow-hidden` abgeschnitten.
 
-Zusätzlich gibt es bereits ein Inline-Label `ab +12 h · 3-h-Takt`, das oberhalb des ersten 3h-Slots erscheint (bei `isCadenceBreak`).
+## Technische Umsetzung
+- In `weather-widget.tsx`:
+  1. Den `absolute -top-px -translate-y-full`-Block (Zeile 864–868) entfernen.
+  2. Stattdessen direkt über der `<div>` mit der Uhrzeit (Zeile 869–875) ein kleines, statisches Label `"3-h-Takt"` im gleichen Stil (`text-[9px] font-bold uppercase tracking-wider text-zinc-500`) einfügen, wenn `isCadenceBreak === true`.
+  3. Optional: Den Platz innerhalb des Slots um ein paar Pixel vergrößern, damit das Label nicht alles quetscht.
 
-### Änderungen
-
-1. **Header-Label "1-h-Takt" entfernen**
-   - Datei: `src/components/weather-widget.tsx`
-   - Zeile ~739–748: Den `<span>` mit dem Text `1-h-Takt` und seinem visuellen Trenner komplett entfernen.
-
-2. **Header-Label "3-h-Takt (ab +12 h)" entfernen**
-   - Zeile ~744–747: Den `<span>` mit dem Text `3-h-Takt (ab +12 h)` und seinem visuellen Trenner entfernen.
-   - Damit verschwindet die gesamte Legende aus dem Header.
-
-3. **Inline-Label am 3h-Übergang anpassen**
-   - Zeile ~874–878: Das bestehende Label oberhalb des ersten 3h-Slots ändern von:
-     ```
-     ab +12 h · 3-h-Takt
-     ```
-     auf:
-     ```
-     3-h-Takt
-     ```
-   - Der Text soll also nur noch `3-h-Takt` lauten und direkt über dem Slot stehen, an dem der Taktwechsel stattfindet.
-
-### Keine weiteren Änderungen
-- Layout, Farben, Schriftgrößen und Logik der Slots bleiben unverändert.
-- Die Darstellung der Wetterdaten (Temperatur, Niederschlag, Wind etc.) bleibt identisch.
+Keine weiteren Dateien betroffen.
