@@ -203,13 +203,13 @@ function ModelsSection() {
           Merge-Reihenfolge
         </h3>
         <p>
-          <code className="font-mono">CH1 → CH2 → MOSMIX (ab Tag 6) → IFS → best_match</code>.
-          Fehlt in der höher priorisierten Quelle ein Wert, übernimmt die
-          nächste den Platz. Daily-Aggregate (Max/Min-Temp, Niederschlagssumme,
-          Wind, Sonne, Schnee) werden clientseitig aus den gemergten stündlichen
-          Arrays berechnet, da die Ensemble-API keine fertigen Tageswerte
-          liefert. Sonnenauf-/-untergang und maximale Niederschlagswahrscheinlichkeit
-          kommen aus <code className="font-mono">best_match</code>.
+          <code className="font-mono">icon_seamless → MOSMIX (ab Tag 6) → IFS-EPS → best_match</code>.
+          Primärquelle ist deterministisch (keine Ensemble-Mittelung); IFS-EPS dient
+          als Ensemble-Fallback. Fehlt in der höher priorisierten Quelle ein Wert,
+          übernimmt die nächste den Platz. Daily-Aggregate (Max/Min-Temp,
+          Niederschlagssumme, Wind, Sonne, Schnee) werden clientseitig aus den
+          gemergten stündlichen Arrays berechnet. Sonnenauf-/-untergang und maximale
+          Niederschlagswahrscheinlichkeit kommen aus <code className="font-mono">best_match</code>.
         </p>
 
       </div>
