@@ -182,7 +182,7 @@ export function LokalNoscript({ data }: { data: LokalNoscriptData }) {
       )}
 
       <footer className="text-[10px] text-muted-foreground">
-        Quelle: Oberthurgauer Wetter · Modelle: MeteoSchweiz ICON-CH1/CH2 &amp; ECMWF IFS via Open-Meteo
+        Quelle: Oberthurgauer Wetter · Modelle: MeteoSchweiz ICON-seamless &amp; ECMWF IFS via Open-Meteo
         {data.generatedAt ? ` · Stand ${fmtTime(data.generatedAt)}` : ""}
       </footer>
     </div>

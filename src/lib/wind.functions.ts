@@ -4,10 +4,10 @@ import { getOpenMeteoCache } from "./openmeteo-cache.server";
 
 /**
  * Windprognose-Frames für die Region Oberthurgau.
- * Quelle: ICON-CH1 hourly (`phase1`) als primäre Quelle. Wo CH1 für eine
- * Stunde keine Werte liefert (Run-Verzögerung, Modellausfall, jenseits des
- * CH1-Horizonts), füllt ICON-CH2 hourly (`phase2`) nahtlos auf — gleicher
- * Grid, gleicher Zeitstempel, kein Sprung in der Timeline.
+ * Quelle: ICON-seamless hourly aus `phase2` (deterministisch, CH1 → CH2 →
+ * ICON-EU/global, nahtlos verkettet). Die alte CH1-Hourly-Schiene (`phase1`)
+ * enthält keine Wind-Felder mehr; der Lookup auf `phase1` bleibt defensiv
+ * als Fallback erhalten, ist im Normalbetrieb aber leer.
  *
  * Horizont: +0 … +48 h, stündlich. Keine Messdaten.
  */
@@ -74,8 +74,8 @@ function gridFromPoints(points: { lat: number; lon: number }[] | undefined) {
 }
 
 /**
- * Baut für eine Phasen-Quelle (CH1 oder CH2) einen Index `tMs -> ti`
- * über die ersten Location-Hourly-Times.
+ * Baut für eine Phasen-Quelle (phase1 legacy / phase2 icon_seamless) einen
+ * Index `tMs -> ti` über die ersten Location-Hourly-Times.
  */
 function buildTimeIndex(arr: LocResponseArray | undefined): Map<number, number> {
   const idx = new Map<number, number>();
@@ -90,9 +90,9 @@ function buildTimeIndex(arr: LocResponseArray | undefined): Map<number, number> 
 }
 
 /**
- * Liest Gust/Speed/Dir für (ti, allePunkte) aus einer Phasen-Quelle.
- * Gibt `null` zurück, wenn alle drei Felder leer/null sind (keine sinnvolle
- * Stunde) — Caller fällt dann auf die nächste Quelle zurück.
+ * Liest Gust/Speed/Dir für (ti, allePunkte) aus einer Phasen-Quelle
+ * (phase1 legacy / phase2 icon_seamless). Gibt `null` zurück, wenn alle
+ * drei Felder leer/null sind — Caller fällt dann auf die nächste Quelle zurück.
  */
 function readHour(
   arr: LocResponseArray,
@@ -162,7 +162,7 @@ export const getWindFrames = createServerFn({ method: "GET" }).handler(async () 
       frames.push({ t: new Date(tMs).toISOString(), ...hour });
     }
     if (ch2Used > 0) {
-      console.info(`[wind] CH2-Fallback für ${ch2Used} Stunde(n) genutzt`);
+      console.info(`[wind] icon_seamless (phase2) für ${ch2Used} Stunde(n) genutzt`);
     }
   } else if (cache) {
     warnings.push("Open-Meteo-Cache enthält noch keine Windprognose; nach dem nächsten Ingest verfügbar");

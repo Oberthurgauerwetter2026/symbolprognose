@@ -116,24 +116,24 @@ interface ModelInfo {
 
 const MODELS: ModelInfo[] = [
   {
-    name: "ICON-CH1-EPS",
-    provider: "MeteoSchweiz via Open-Meteo Ensemble-API",
-    resolution: "1 km",
-    members: "11",
-    range: "~33 h",
-    usage: "Tag 1–2 (Primärquelle), Ensemble-Mittel",
+    name: "ICON-seamless",
+    provider: "MeteoSchweiz via Open-Meteo Forecast-API",
+    resolution: "1 km (0–33 h) → 2 km (bis 120 h) → 6–13 km (bis 168 h)",
+    members: "— (deterministisch)",
+    range: "bis 168 h",
+    usage: "Tag 1–7 Primärquelle (hourly)",
     endpoint:
-      "https://ensemble-api.open-meteo.com/v1/ensemble?models=icon_ch1_eps",
+      "https://api.open-meteo.com/v1/forecast?models=icon_seamless",
   },
   {
-    name: "ICON-CH2-EPS",
-    provider: "MeteoSchweiz via Open-Meteo Ensemble-API",
-    resolution: "2 km",
-    members: "21",
-    range: "~120 h",
-    usage: "Tag 1–5, Ensemble-Mittel",
+    name: "ICON-CH1 (minutely_15)",
+    provider: "MeteoSchweiz via Open-Meteo Forecast-API",
+    resolution: "1 km",
+    members: "—",
+    range: "−12 h … +33 h, 15-min",
+    usage: "Radar-Nowcast & Niederschlagskarten",
     endpoint:
-      "https://ensemble-api.open-meteo.com/v1/ensemble?models=icon_ch2_eps",
+      "https://api.open-meteo.com/v1/forecast?models=meteoswiss_icon_ch1&minutely_15=...",
   },
   {
     name: "ECMWF IFS Ensemble",
@@ -203,13 +203,13 @@ function ModelsSection() {
           Merge-Reihenfolge
         </h3>
         <p>
-          <code className="font-mono">CH1 → CH2 → MOSMIX (ab Tag 6) → IFS → best_match</code>.
-          Fehlt in der höher priorisierten Quelle ein Wert, übernimmt die
-          nächste den Platz. Daily-Aggregate (Max/Min-Temp, Niederschlagssumme,
-          Wind, Sonne, Schnee) werden clientseitig aus den gemergten stündlichen
-          Arrays berechnet, da die Ensemble-API keine fertigen Tageswerte
-          liefert. Sonnenauf-/-untergang und maximale Niederschlagswahrscheinlichkeit
-          kommen aus <code className="font-mono">best_match</code>.
+          <code className="font-mono">icon_seamless → MOSMIX (ab Tag 6) → IFS-EPS → best_match</code>.
+          Primärquelle ist deterministisch (keine Ensemble-Mittelung); IFS-EPS dient
+          als Ensemble-Fallback. Fehlt in der höher priorisierten Quelle ein Wert,
+          übernimmt die nächste den Platz. Daily-Aggregate (Max/Min-Temp,
+          Niederschlagssumme, Wind, Sonne, Schnee) werden clientseitig aus den
+          gemergten stündlichen Arrays berechnet. Sonnenauf-/-untergang und maximale
+          Niederschlagswahrscheinlichkeit kommen aus <code className="font-mono">best_match</code>.
         </p>
 
       </div>

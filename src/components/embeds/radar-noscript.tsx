@@ -117,7 +117,7 @@ export function RadarNoscript({ data }: { data: RadarNoscriptData }) {
       )}
 
       <footer className="text-[10px] text-muted-foreground">
-        Quelle: Oberthurgauer Wetter · MeteoSchweiz Radar (CPC) &amp; ICON-CH1/CH2 via Open-Meteo
+        Quelle: Oberthurgauer Wetter · MeteoSchweiz Radar (CPC) &amp; ICON-CH1 / ICON-seamless via Open-Meteo
       </footer>
     </div>
   );

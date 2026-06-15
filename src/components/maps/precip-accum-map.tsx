@@ -479,7 +479,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
               maxZoom={18}
               opacity={0.85}
               crossOrigin="anonymous"
-              attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · ICON-CH1/CH2'
+              attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · ICON-seamless'
             />
             <GeoJSON
               data={LAKE}

@@ -12,9 +12,10 @@ import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache
  *     Darstellung ausserhalb des CombiPrecip-Ausschnitts (gleiche Farbskala).
  *
  * Vorhersage (> now):
- *   - ICON-CH1 stündlich (bis +24 h) — ein Frame pro voller Stunde,
- *     direkt aus dem nativen Modell-Output. Keine Advektion, keine
- *     15-min-Interpolation, keine Wind-Glättung — ehrliche Stundenanzeige
+ *   - ICON-CH1 `minutely_15` für die nächste Stunde (Nowcast-Schiene),
+ *     danach ICON-seamless hourly (`phase2`, bis +48 h) — ein Frame pro
+ *     voller Stunde, direkt aus dem nativen Modell-Output. Keine Advektion,
+ *     keine 15-min-Interpolation, keine Wind-Glättung — ehrliche Stundenanzeige
  *     mit weichem Crossfade im Client.
  *
  * Kein Nowcast, keine Zell-Extrapolation.
@@ -337,10 +338,12 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   // ---- Stündliche Prognose-Frames (+1 … +48 h) ----
   // Reihenfolge der Quellen pro Stunde:
   //  1) ICON-CH1 minutely_15 :00-Sample (`r1`) — präzisester CH1-Stundenwert
-  //  2) ICON-CH1 hourly                       — wenn minutely-Slot fehlt
-  //  3) ICON-CH2 hourly (`r2`)                — wenn auch CH1-hourly leer ist
-  //                                              (Run-Lücke / jenseits CH1-Horizont)
-  // Bias-Korrektur wird nur auf CH1-Quellen angewandt; CH2 hat eigene Skalierung.
+  //  2) ICON-CH1 hourly                       — Legacy-Fallback (phase1 enthält
+  //                                              im Normalbetrieb keine Hourly-
+  //                                              Niederschläge mehr)
+  //  3) ICON-seamless hourly (phase2, `r2`)   — Hauptquelle ab +1 h, deckt
+  //                                              komplette 48 h zuverlässig ab
+  // Bias-Korrektur wird nur auf CH1-Quellen angewandt; phase2 hat eigene Skalierung.
   const nPts = pts.length;
   const r1Min = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
   const r1Hour = r1 ? (r1[0] as LocResponse | undefined)?.hourly : undefined;
@@ -492,7 +495,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   }
 
 
-  console.info(`[radar] forecast: ch1=${ch1Count} ch2=${ch2Count}`);
+  console.info(`[radar] forecast: ch1Minutely=${ch1Count} iconSeamless=${ch2Count}`);
 
 
 
