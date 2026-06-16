@@ -293,27 +293,11 @@ function overwriteFromIndex(
   return { ...primary, hourly: outHourly };
 }
 
-const ENSEMBLE_HOURLY_VARS = [
-  "weathercode",
-  "temperature_2m",
-  "precipitation",
-  "windspeed_10m",
-  "windgusts_10m",
-  "winddirection_10m",
-  "snowfall",
-  "sunshine_duration",
-  "cloud_cover_low",
-  "cloud_cover_mid",
-  "cloud_cover_high",
-] as const;
+// IFS-EPS wurde entfernt: ECMWF-Ensemble-Mittel kollidierte ab Tag 6 mit der
+// deterministischen MOSMIX-Quelle (zwei verschiedene Modellwelten an der Naht).
+// Tag 6–10 läuft jetzt ausschliesslich über DWD-MOSMIX.
 
-type EnsembleHourly = Partial<HourlyData> & { time: string[]; utc_offset_seconds?: number };
 
-type EnsembleModel = "ecmwf_ifs025";
-
-const ENSEMBLE_DAYS: Record<EnsembleModel, number> = {
-  ecmwf_ifs025: 7,
-};
 
 
 // WMO-Code → Kategorie (höher = "nasser/schwerer", für Tie-Break).
