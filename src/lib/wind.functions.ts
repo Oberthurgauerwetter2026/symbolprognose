@@ -4,10 +4,9 @@ import { getOpenMeteoCache } from "./openmeteo-cache.server";
 
 /**
  * Windprognose-Frames für die Region Oberthurgau.
- * Quelle: ICON-seamless hourly aus `phase2` (deterministisch, CH1 → CH2 →
- * ICON-EU/global, nahtlos verkettet). Die alte CH1-Hourly-Schiene (`phase1`)
- * enthält keine Wind-Felder mehr; der Lookup auf `phase1` bleibt defensiv
- * als Fallback erhalten, ist im Normalbetrieb aber leer.
+ * Quelle: ICON-CH1 hourly (`phase1`) für +0…+33 h, danach nahtlos
+ * ICON-CH2 hourly (`phase2`) bis +48 h. Kein icon_seamless mehr — der
+ * Übergang ist deterministisch auf den MeteoSchweiz-CH-Stack festgenagelt.
  *
  * Horizont: +0 … +48 h, stündlich. Keine Messdaten.
  */
@@ -144,12 +143,16 @@ export const getWindFrames = createServerFn({ method: "GET" }).handler(async () 
     const startMs = Math.floor(now / 3600_000) * 3600_000;
     const cutoff = now + FORECAST_HOURS * 3600 * 1000;
 
+    let ch1Used = 0;
     let ch2Used = 0;
     for (let tMs = startMs; tMs <= cutoff; tMs += 3600_000) {
       let hour: { gust: number[]; speed: number[]; dir: number[] } | null = null;
       if (ch1Ok) {
         const ti1 = ch1Idx.get(tMs);
-        if (typeof ti1 === "number") hour = readHour(ch1!, ti1, nPts);
+        if (typeof ti1 === "number") {
+          hour = readHour(ch1!, ti1, nPts);
+          if (hour) ch1Used++;
+        }
       }
       if (!hour && ch2Ok) {
         const ti2 = ch2Idx.get(tMs);
@@ -161,9 +164,7 @@ export const getWindFrames = createServerFn({ method: "GET" }).handler(async () 
       if (!hour) continue;
       frames.push({ t: new Date(tMs).toISOString(), ...hour });
     }
-    if (ch2Used > 0) {
-      console.info(`[wind] icon_seamless (phase2) für ${ch2Used} Stunde(n) genutzt`);
-    }
+    console.info(`[wind] CH1: ${ch1Used} h, CH2: ${ch2Used} h`);
   } else if (cache) {
     warnings.push("Open-Meteo-Cache enthält noch keine Windprognose; nach dem nächsten Ingest verfügbar");
   }
