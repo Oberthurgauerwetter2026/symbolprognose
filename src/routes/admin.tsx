@@ -136,25 +136,16 @@ const MODELS: ModelInfo[] = [
       "https://api.open-meteo.com/v1/forecast?models=meteoswiss_icon_ch1&minutely_15=...",
   },
   {
-    name: "ECMWF IFS Ensemble",
-    provider: "ECMWF via Open-Meteo Ensemble-API",
-    resolution: "0.25°",
-    members: "51",
-    range: "bis 15 Tage",
-    usage: "Tag 6–7, Fallback nach MOSMIX",
-    endpoint:
-      "https://ensemble-api.open-meteo.com/v1/ensemble?models=ecmwf_ifs025",
-  },
-  {
     name: "DWD-MOSMIX-L",
     provider: "Deutscher Wetterdienst (opendata.dwd.de) via Server Function",
-    resolution: "stationsbasiert (Punktprognose, MOS)",
-    members: "— (statistisch)",
-    range: "~10 Tage, 3-stündlich",
-    usage: "ab Tag 6, vor IFS gemerged (Tag 6–7)",
+    resolution: "stationsbasiert (Punktprognose, MOS auf ICON-Basis)",
+    members: "— (deterministisch, statistisch nachkalibriert)",
+    range: "~10 Tage, stündlich",
+    usage: "ab Tag 6 alleinige Quelle (überschreibt icon_seamless)",
     endpoint:
       "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/{ID}/kml/MOSMIX_L_LATEST_{ID}.kmz",
   },
+
 
   {
     name: "Open-Meteo best_match",
