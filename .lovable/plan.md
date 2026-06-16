@@ -1,37 +1,70 @@
-## Open-Meteo Ingest: phase1 weiter stabilisieren
+## Open-Meteo Ingest: Job-Cancellation durch Cron-Überlappung beheben
 
-Der Log zeigt: mit `CHUNK_PHASE1=15` / `OM_READ_TIMEOUT=300` / `FETCH_WORKERS=1` laufen Batches 1–13 sauber durch, ab Batch 14 fängt Open-Meteo wieder an zu warnen. Der Hauptlauf ist also deutlich besser, aber Open-Meteo throttelt unsere IP nach ~13 Batches in Folge.
+### Diagnose
 
-Da der Durchsatz vorher kein Problem war (53 Batches × ~1 s passen locker in 45 min Timeout), drosseln wir gezielt weiter — kleiner und langsamer.
+Der eigentliche Fehler im neuen Log ist **nicht** der Timeout — Batch 10 hatte 1 WARN, aber 8/9 liefen danach weiter. Der Abbruch kommt von GitHub selbst:
 
-### Edit
-
-Nur `.github/workflows/openmeteo-ingest.yml`, env-Block:
-
-```yaml
-CHUNK_PHASE1: "10"        # war 15 — weniger Payload pro Request
-CHUNK_PHASEC: "60"        # unverändert
-BATCH_SLEEP_S: "6"        # war 3 — doppelte Pause zwischen Batches
-OM_CONNECT_TIMEOUT: "30"  # unverändert
-OM_READ_TIMEOUT: "300"    # unverändert
-FETCH_WORKERS: "1"        # unverändert
+```
+Error: The operation was canceled.
 ```
 
-Hinweis: `BATCH_SLEEP_S` wird im aktuellen `scripts/ingest_openmeteo.py` nicht direkt zwischen Batches gerespektet (Threadpool feuert parallel). Bei `FETCH_WORKERS=1` ist das Verhalten effektiv seriell, aber ohne Sleep dazwischen. Falls die ENV-Änderung allein nicht reicht, kommt im zweiten Schritt ein kleiner Code-Patch in `chunk_fetch`: nach jedem `fut.result()` ein `time.sleep(int(os.environ.get("BATCH_SLEEP_S","0")))`, damit die Pause real wirkt.
+Ursache: In `.github/workflows/openmeteo-ingest.yml` steht
 
-### Kein Risiko für andere Pfade
+```yaml
+concurrency:
+  group: openmeteo-ingest
+  cancel-in-progress: true
+```
 
-- `scripts/ingest_mch_local_forecast.py` und `openmeteo-symbol.yml` bleiben unberührt.
-- UI-Quellenangaben in `weather-widget.tsx` warten weiterhin auf grünen `mch/local_forecast.json`-Lauf.
+und der **Cloudflare-Cron-Worker triggert den Workflow alle 5 min** via `workflow_dispatch`. Mit den neuen Settings dauert phase1 jetzt deutlich länger:
+
+- 80 Batches × (~1 s Request + 6 s Sleep) ≈ **9+ min** nur für phase1
+- + phase2 (CH2 hourly) + phaseC (Lookback) → Gesamt ~12–15 min
+
+Sobald der nächste 5-min-Cron eintrifft, killt `cancel-in-progress: true` den laufenden Job mitten in phase1. Daher der saubere "operation was canceled" direkt nach Batch 9.
+
+Der Hinweis "read timeout=30.0" in Batch 10 ist sekundär: ein einzelner Slow-Response, der vom 7-stufigen Backoff sowieso aufgefangen worden wäre — nicht der Grund für den Abbruch.
+
+### Edit 1 — Cron-Überlappung verhindern
+
+`.github/workflows/openmeteo-ingest.yml`:
+
+```yaml
+concurrency:
+  group: openmeteo-ingest
+  cancel-in-progress: false   # war: true
+```
+
+Damit queued GitHub neue Trigger oder verwirft sie sauber, ohne den laufenden Job zu killen. Bei `workflow_dispatch` heisst das praktisch: max. 1 Folge-Run wartet, weitere werden zusammengefasst.
+
+### Edit 2 — Laufzeit zurück unter 5 min bringen
+
+`BATCH_SLEEP_S=6` war für den Fall gedacht, dass Open-Meteo bei Parallelität throttelt. Mit `FETCH_WORKERS=1` ist der Stream eh seriell — 6 s zusätzlich pro Batch sind übertrieben.
+
+`.github/workflows/openmeteo-ingest.yml`, env-Block:
+
+```yaml
+CHUNK_PHASE1: "10"          # unverändert
+BATCH_SLEEP_S: "2"          # war 6 — bei workers=1 reicht 2 s
+OM_CONNECT_TIMEOUT: "30"    # unverändert
+OM_READ_TIMEOUT: "300"      # unverändert
+FETCH_WORKERS: "1"          # unverändert
+```
+
+Geschätzte phase1-Laufzeit: 80 × (1 s + 2 s) ≈ **4 min**, Gesamt-Job ~6–8 min — passt deutlich besser zwischen zwei 5-min-Cron-Trigger, und falls doch mal eng → `cancel-in-progress: false` puffert.
+
+### Kein Code-Change
+
+`scripts/ingest_openmeteo.py` (inkl. neu gepatchtem `BATCH_SLEEP_S`-Respekt aus letzter Runde) bleibt unverändert. Exponential-Backoff existiert bereits 7-stufig im `fetch()`.
 
 ### Verifikation
 
-1. GitHub Actions → **Open-Meteo Cache Ingest** → **Run workflow**.
-2. Log: erwartet ≤ 1–2 vereinzelte WARNs, kein endgültiger Fail; ~79 statt 53 Batches.
-3. R2 `openmeteo/forecast.json` hat frisches `generatedAt`.
-4. Falls weiterhin > 5 WARNs/Run → zweiter Schritt: `chunk_fetch`-Patch für echtes `BATCH_SLEEP_S`.
+1. GitHub Actions → **Open-Meteo Cache Ingest** → **Run workflow** manuell.
+2. Log läuft komplett durch: phase1 80/80 ok, phase2 ok, phaseC ok, `uploaded openmeteo/forecast.json`, `done`.
+3. Kein "operation was canceled" mehr, selbst wenn parallel der Cloudflare-Cron tickert.
+4. R2 `openmeteo/forecast.json` `generatedAt` frisch.
 
 ### Nicht im Scope
 
-- `weather-widget.tsx` Quellenangaben (kommt nach grünem MCH-local-forecast-Run).
-- phaseA / Symbolprognose (eigener Workflow, separater Schedule).
+- `weather-widget.tsx` Quellenangaben — warten weiterhin auf grünen `mch/local_forecast.json`-Lauf.
+- `phaseA` / Symbolprognose-Workflow.
