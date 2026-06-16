@@ -1,54 +1,39 @@
-# Local-Forecast Ingest fixen
+## Open-Meteo Ingest: Timeout-Failures in phase1 fixen
 
-## Status quo
+**Symptom:** Workflow-Log zeigt `phase1 batch 17/27 … Read timed out. (read timeout=15.0)` für mehrere Batches gleichzeitig. Backoff-Retries laufen, kosten aber Zeit und Tageskontingent.
 
-- Cron-Worker + GitHub-Actions-Workflow triggern korrekt: `mch/local_forecast.json` wird stündlich frisch nach R2 geschrieben (`generatedAt` aktuell, Stand vor ~10 Min).
-- **Aber:** Für jeden der 8 Spots sind `hourly.time = []` und `daily.time = []`. Die App zeigt deshalb weiterhin den Open-Meteo/MOSMIX-Fallback.
-- Ursache reproduziert: in `scripts/ingest_mch_local_forecast.py` schließt `io.TextIOWrapper(r.raw, …)` den darunterliegenden Stream nach dem ersten Chunk (Header), die folgende `for row in reader`-Schleife wirft `ValueError: I/O operation on closed file`. Die Retry-Logik fängt das ab — in einem der Retries läuft der Stream offenbar nur bis zum Header und wird als Erfolg mit leerem `out` zurückgegeben.
-- Die Point-IDs (`932600`, `858000`, `922301`, `859601`, `859000`, `922500`, `858508`, `931500`) sind in der MCH-CSV vorhanden — das Mapping selbst ist korrekt.
+**Ursachen:**
+- Connect-Timeout-Default 15 s zu knapp, wenn Open-Meteo unter Last ist.
+- Read-Timeout 120 s zu knapp für 30-Punkt-Batches mit minutely_15 (132 Forecast-Steps × 2 Vars + 33 h hourly Wind).
+- 2 parallele 30er-Batches verschärfen die Backend-Last.
 
-## Was geändert wird
+### Edit
 
-**Nur `scripts/ingest_mch_local_forecast.py`** — Streaming-Logik in `stream_csv()` ersetzen:
+Nur `.github/workflows/openmeteo-ingest.yml`, env-Block des `ingest`-Jobs:
 
-1. Statt `io.TextIOWrapper(r.raw, …)` `response.iter_lines(decode_unicode=True, chunk_size=64*1024)` verwenden und mit `csv.reader` über einen Generator füttern. Das hält den HTTP-Stream sauber bis zum Schluss offen.
-2. Header über die erste Zeile parsen, Länge prüfen, dann zeilenweise filtern.
-3. Bei tatsächlich leerem Ergebnis (`sum(len(v) for v in out.values()) == 0` nach erfolgreichem Durchlauf): `RuntimeError` werfen statt stillschweigend leer zurückgeben — damit der Workflow rot wird und wir es sofort sehen.
-4. `r.raw.decode_content = True` entfällt (nicht mehr nötig — requests dekodiert gzip selbst bei `iter_lines`).
+```yaml
+CHUNK_PHASE1: "15"        # war 30
+CHUNK_PHASEC: "60"        # unverändert
+BATCH_SLEEP_S: "3"        # unverändert
+OM_CONNECT_TIMEOUT: "30"  # NEU (Default war 15)
+OM_READ_TIMEOUT: "300"    # war 120
+FETCH_WORKERS: "1"        # war 2
+```
 
-Backoff/Retry-Wrapper bleibt unverändert.
+Alle anderen ENVs (BBOX, GRID, SKIP_PHASEA=1) bleiben.
 
-## Verifikation
+### Kein Code-Change
 
-1. Workflow `MCH Local-Forecast (OGD)` manuell triggern (GitHub Actions → Run workflow).
-2. `curl https://pub-2273d12392334ebd9bdba291a60d5398.r2.dev/mch/local_forecast.json | head` — prüfen dass `hourly.time` und `daily.time` gefüllt sind (~120 Stunden, ~5 Tage pro Spot).
-3. Preview `/karten/lokal` öffnen und kontrollieren, dass das Widget die MeteoSchweiz-Werte zeigt (Datenstand-Footer in `weather-widget.tsx` zeigt aktuelle Zeit).
+`scripts/ingest_openmeteo.py` liest `OM_CONNECT_TIMEOUT` / `OM_READ_TIMEOUT` bereits und hat 7-stufigen Backoff — keine Anpassung nötig.
 
-## Quellenangaben
+### Verifikation
 
-**Bleiben in diesem Schritt unverändert.** Aktuell stehen sie korrekt — `MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX` ist bereits in `karten.lokal.tsx` und `lokal-noscript.tsx` gesetzt; der Footer im Widget (`weather-widget.tsx:354`) sagt noch `Modelle: ICON-seamless, DWD-MOSMIX` — das ändern wir erst, sobald Schritt 1 verifiziert tatsächlich MCH-Daten liefert, damit die UI nichts Falsches behauptet.
+1. GitHub → Actions → **Open-Meteo Cache Ingest** → **Run workflow**.
+2. Log: erwartet `phase1 batch N/54 ok` durchgehend ohne `Read timed out`.
+3. Laufzeit phase1 ~4–5 min (war ~2 min ohne Retries, ~10+ min mit Retries).
+4. R2-Datei `openmeteo/forecast.json` hat frisches `generatedAt`.
 
-## Technische Details
+### Nicht im Scope
 
-- Datei: `scripts/ingest_mch_local_forecast.py`, Funktion `stream_csv(url, wanted_pids)`.
-- Neue Schleife (Skizze):
-  ```python
-  with requests.get(url, stream=True, timeout=(15, 300)) as r:
-      r.raise_for_status()
-      lines = r.iter_lines(decode_unicode=True, chunk_size=64*1024)
-      reader = csv.reader(lines, delimiter=";")
-      header = next(reader, None)
-      if not header or len(header) < 4:
-          raise RuntimeError(f"unexpected header: {header}")
-      for row in reader:
-          if len(row) < 4: continue
-          try: pid = int(row[0])
-          except ValueError: continue
-          if pid in wanted_pids:
-              out[pid].append((row[2], row[3]))
-  if sum(len(v) for v in out.values()) == 0:
-      raise RuntimeError(f"stream_csv returned 0 rows for any wanted pid: {url}")
-  return out
-  ```
-- Read-Timeout auf 300 s erhöht (Datei ist ~36 MB, läuft auf GitHub-Runner deutlich unter 60 s, aber Sicherheit für peak-times).
-- Keine anderen Dateien, keine UI-, Worker- oder Workflow-Änderungen.
+- `scripts/ingest_mch_local_forecast.py` (separater Workflow, vorherige Runde gefixt).
+- UI-Quellenangaben in `weather-widget.tsx` (warten bis local_forecast verifiziert Daten liefert).
