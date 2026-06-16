@@ -437,11 +437,30 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
         console.error("[aggregated-forecast-batch] cache read failed", err);
       }
 
+      // MOSMIX dedupliziert pro Punkt holen: viele Punkte teilen sich denselben
+      // Loc-Eintrag aus dem Symbol-Cache (gleiche utc_offset). MOSMIX selbst
+      // schnappt auf eine von 2 erlaubten Stationen → max. 2 echte Fetches.
+      const mosmixCache = new Map<string, Promise<MosmixHourly | null>>();
+      const getMosmix = (lat: number, lon: number) => {
+        const key = `${lat.toFixed(2)}|${lon.toFixed(2)}`;
+        let p = mosmixCache.get(key);
+        if (!p) {
+          p = fetchMosmix({ data: { latitude: lat, longitude: lon } }).catch((e) => {
+            console.warn("[aggregated-forecast-batch] MOSMIX nicht verfügbar:", e);
+            return null;
+          });
+          mosmixCache.set(key, p);
+        }
+        return p;
+      };
+
       for (const p of data.points) {
         if (locs) {
           const best = pickNearest(locs, p.lat, p.lon);
           if (best?.hourly?.time?.length) {
-            out[p.id] = buildForecastFromCacheLoc(best);
+            const fc = buildForecastFromCacheLoc(best);
+            const mosmix = await getMosmix(p.lat, p.lon);
+            out[p.id] = applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
             continue;
           }
         }
@@ -455,3 +474,4 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
       return out;
     },
   );
+
