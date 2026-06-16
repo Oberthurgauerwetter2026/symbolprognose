@@ -30,6 +30,7 @@ const lastEps: RunRecord = { at: null, status: null, body: null };
 const lastSymbol: RunRecord = { at: null, status: null, body: null };
 const lastOpenmeteo: RunRecord = { at: null, status: null, body: null };
 const lastArome: RunRecord = { at: null, status: null, body: null };
+const lastMch: RunRecord = { at: null, status: null, body: null };
 
 async function triggerEndpoint(
   url: string,
