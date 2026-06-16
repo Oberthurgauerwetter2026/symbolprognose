@@ -15,6 +15,7 @@ export interface Env {
   SYMBOL_TARGET_URL?: string;
   OPENMETEO_TARGET_URL?: string;
   AROME_TARGET_URL?: string;
+  MCH_TARGET_URL?: string;
   RADAR_TRIGGER_SECRET: string;
 }
 
