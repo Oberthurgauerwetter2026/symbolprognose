@@ -1155,17 +1155,17 @@ export function RadarMap({
 
               return (
                 <>
-                  {hasGrid && !hasPng && (
+                  {hasGrid && (
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
                       nextFrame={blendNext}
                       progress={progress}
                       opacity={opacityVal}
-                      contour={currentFrame.source !== "radar"}
+                      contour={true}
                     />
                   )}
-                  {hasPng && (
+                  {!hasGrid && hasPng && (
                     <ImageOverlay
                       key="precip-main"
                       url={currentFrame.precipUrl!}
