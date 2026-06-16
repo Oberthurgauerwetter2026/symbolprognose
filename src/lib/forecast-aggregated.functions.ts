@@ -11,7 +11,11 @@ import {
   type HourlyData,
 } from "./weather";
 import { fetchMosmix, type MosmixHourly } from "./mosmix.functions";
-import { getSymbolCache } from "./openmeteo-cache.server";
+import {
+  getMchLocalForecastCache,
+  getSymbolCache,
+  type MchLocalForecastLocation,
+} from "./openmeteo-cache.server";
 
 /**
  * Serverseitiges Multi-Modell-Aggregat.
