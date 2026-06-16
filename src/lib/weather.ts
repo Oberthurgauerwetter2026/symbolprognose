@@ -564,12 +564,13 @@ export async function fetchForecast(
   longitude: number,
 ): Promise<ForecastResponse> {
   // ICON-seamless (deterministisch, CH1 → CH2 → ICON-EU/global) als Primärquelle
-  // für 0–168 h. ECMWF IFS-EPS bleibt als Fallback, MOSMIX überschreibt ab Tag 6.
-  // best_match nur als Restfallback für Felder, die icon_seamless nicht liefert
-  // (Probability, Sunrise/Sunset).
-  const [iconSeamless, ifsRaw, bestMatch, mosmixRaw] = await Promise.all([
+  // für 0–168 h. Ab Tag 6 überschreibt DWD-MOSMIX (ebenfalls deterministisch,
+  // statistisch nachkalibriert) die ICON-Werte — saubere Naht zwischen zwei
+  // verwandten Modellwelten (ICON → MOS auf ICON-Basis). best_match nur als
+  // Restfallback für Felder, die icon_seamless nicht liefert (Probability,
+  // Sunrise/Sunset).
+  const [iconSeamless, bestMatch, mosmixRaw] = await Promise.all([
     fetchModel(latitude, longitude, "icon_seamless").catch(() => null),
-    fetchEnsembleMean(latitude, longitude, "ecmwf_ifs025").catch(() => null),
     fetchModel(latitude, longitude, "best_match").catch(() => null),
     fetchMosmix({ data: { latitude, longitude } }).catch((e) => {
       console.warn("MOSMIX nicht verfügbar:", e);
@@ -577,34 +578,30 @@ export async function fetchForecast(
     }),
   ]);
 
-  // Primärquelle ist icon_seamless; falls nicht verfügbar, nimm IFS → best_match.
-  type PrimarySource = "icon_seamless" | "ifs" | "best_match";
+  // Primärquelle ist icon_seamless; falls nicht verfügbar, nimm best_match.
+  type PrimarySource = "icon_seamless" | "best_match";
   let primary: ForecastResponse | null = null;
   let primarySource: PrimarySource | null = null;
   if (iconSeamless) { primary = iconSeamless; primarySource = "icon_seamless"; }
-  else if (ifsRaw) { primary = wrapEnsembleAsForecast(ifsRaw); primarySource = "ifs"; }
   else if (bestMatch) { primary = bestMatch; primarySource = "best_match"; }
   if (!primary) throw new Error("Keine Wettermodelle erreichbar");
 
   // utc_offset_seconds aus einer Quelle ableiten (für MOSMIX-Alignment).
   const offsetSec =
     (iconSeamless as unknown as { utc_offset_seconds?: number } | null)?.utc_offset_seconds ??
-    ifsRaw?.utc_offset_seconds ??
     (bestMatch as unknown as { utc_offset_seconds?: number } | null)?.utc_offset_seconds ??
     0;
 
   let merged = primary;
 
-  // IFS zuerst mergen, damit die Timeline 168h umfasst — sonst hat MOSMIX keine Slots ab Index 120.
-  if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
-
-  // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt icon_seamless/IFS/best_match.
+  // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt icon_seamless/best_match.
   if (mosmixRaw) {
     const mosmixForecast = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 5 * 24);
     if (mosmixForecast) merged = overwriteFromIndex(merged, mosmixForecast, 5 * 24);
   }
 
   if (bestMatch && primarySource !== "best_match") merged = fillGaps(merged, bestMatch);
+
 
 
   // Gewitter-Override: Ensemble-Mittel glättet seltene Gewittercodes (95/96/99) weg.
