@@ -347,11 +347,11 @@ function DataStamp({ updatedAt }: { updatedAt: number }) {
     minute: "2-digit",
   }).format(new Date(updatedAt));
   const tip =
-    "Wettermodelle (ICON-seamless, ECMWF IFS, DWD-MOSMIX) werden ca. alle 6 Stunden " +
+    "Wettermodelle (ICON-seamless, DWD-MOSMIX) werden ca. alle 6 Stunden " +
     "(00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 15–30 Min. zwischengespeichert.";
   return (
     <p className="text-[11px] text-zinc-500 text-center pt-1" title={tip}>
-      Datenstand: {fmt} · Quelle: Oberthurgauer Wetter · Modelle: ICON-seamless, ECMWF IFS, DWD-MOSMIX
+      Datenstand: {fmt} · Quelle: Oberthurgauer Wetter · Modelle: ICON-seamless, DWD-MOSMIX
     </p>
   );
 }
@@ -1163,7 +1163,7 @@ function Footer({
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
       <div className="text-xs text-zinc-700 font-medium">
-        MeteoSchweiz ICON-seamless · Tag 6–7: DWD-MOSMIX + ECMWF IFS Ensemble · Rest: Open-Meteo best_match · aktualisiert{" "}
+        MeteoSchweiz ICON-seamless · Tag 6–10: DWD-MOSMIX · Rest: Open-Meteo best_match · aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>

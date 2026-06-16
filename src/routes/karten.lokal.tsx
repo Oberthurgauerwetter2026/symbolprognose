@@ -34,7 +34,7 @@ function KartenLokalPage() {
       ? { name, latitude: lat, longitude: lon }
       : undefined;
   return (
-    <DashboardLayout title="Lokalprognose" subtitle="5-Tage-Prognose · ICON-seamless · ECMWF IFS">
+    <DashboardLayout title="Lokalprognose" subtitle="5-Tage-Prognose · ICON-seamless · DWD-MOSMIX">
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="lokal" />
         <WeatherWidget initialDayIdx={day} initialLocation={initialLocation} />
