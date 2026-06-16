@@ -267,6 +267,110 @@ async function loadSymbolLocs(): Promise<Loc[] | null> {
   return locs?.length ? locs : null;
 }
 
+/** Numerischer Cleaner: null/undefined/NaN → 0, sonst Zahl. */
+function num(v: number | null | undefined, fill = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fill;
+}
+
+function pickNearestMch(
+  locs: MchLocalForecastLocation[],
+  lat: number,
+  lon: number,
+): MchLocalForecastLocation | null {
+  let best: MchLocalForecastLocation | null = null;
+  let bestD = Infinity;
+  for (const l of locs) {
+    const dLat = lat - l.latitude;
+    const dLon = lon - l.longitude;
+    const d = dLat * dLat + dLon * dLon;
+    if (d < bestD) {
+      bestD = d;
+      best = l;
+    }
+  }
+  return best;
+}
+
+/**
+ * Baut aus einem MCH-Local-Forecast-Eintrag eine ForecastResponse im
+ * Open-Meteo-Schema. Daily-Aggregate (Wind/Sonne/Niederschlagsstunden/
+ * Symbol) werden aus dem Hourly nach-aggregiert — analog zur phaseA-Branch.
+ */
+function buildForecastFromMchLoc(loc: MchLocalForecastLocation): ForecastResponse {
+  const h = loc.hourly;
+  const hLen = h.time.length;
+  const hourly: HourlyData = {
+    time: h.time.slice(),
+    weathercode: h.weathercode.map((v) => num(v, 3)),
+    temperature_2m: h.temperature_2m.map((v) => num(v)),
+    precipitation: h.precipitation.map((v) => num(v)),
+    precipitation_probability: h.precipitation_probability.map((v) => num(v)),
+    windspeed_10m: h.windspeed_10m.map((v) => num(v)),
+    windgusts_10m: h.windgusts_10m.map((v) => num(v)),
+    winddirection_10m: h.winddirection_10m.map((v) => num(v)),
+    snowfall: h.snowfall.map((v) => num(v)),
+    sunshine_duration: h.sunshine_duration.map((v) => num(v)),
+    cloud_cover_low: h.cloud_cover_low.map((v) => num(v)),
+    cloud_cover_mid: h.cloud_cover_mid.map((v) => num(v)),
+    cloud_cover_high: h.cloud_cover_high.map((v) => num(v)),
+  };
+  if (hourly.time.length !== hLen) hourly.time = hourly.time.slice(0, hLen);
+
+  const d = loc.daily;
+  const dLen = d.time.length;
+  const daily: DailyData = {
+    time: d.time.slice(),
+    weathercode: d.weathercode.map((v) => num(v, 3)),
+    temperature_2m_max: d.temperature_2m_max.map((v) => num(v)),
+    temperature_2m_min: d.temperature_2m_min.map((v) => num(v)),
+    precipitation_sum: d.precipitation_sum.map((v) => num(v)),
+    precipitation_probability_max: new Array(dLen).fill(0),
+    windspeed_10m_max: new Array(dLen).fill(0),
+    windgusts_10m_max: new Array(dLen).fill(0),
+    winddirection_10m_dominant: new Array(dLen).fill(0),
+    sunshine_duration: new Array(dLen).fill(0),
+    sunrise: new Array(dLen).fill(""),
+    sunset: new Array(dLen).fill(""),
+    snowfall_sum: new Array(dLen).fill(0),
+    precipitation_hours: new Array(dLen).fill(0),
+  };
+
+  for (let i = 0; i < daily.time.length; i++) {
+    const agg = aggregateDailyFromHourly(hourly, daily.time[i] ?? "");
+    const wc = agg.weathercode;
+    if (typeof wc === "number" && Number.isFinite(wc)) daily.weathercode[i] = wc;
+    const ps = agg.precipitation_sum;
+    if (typeof ps === "number" && Number.isFinite(ps)) daily.precipitation_sum[i] = ps;
+    const ph = agg.precipitation_hours;
+    if (typeof ph === "number" && Number.isFinite(ph)) daily.precipitation_hours[i] = ph;
+    const sd = agg.sunshine_duration;
+    if (typeof sd === "number" && Number.isFinite(sd)) daily.sunshine_duration[i] = sd;
+  }
+
+  return sanitizeForecast({
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    timezone: loc.timezone ?? "Europe/Zurich",
+    hourly,
+    daily,
+  });
+}
+
+/**
+ * Versucht eine MCH-local-forecast-basierte Prognose für (lat,lon) zu
+ * bauen. Gibt `null` zurück, wenn der MCH-Cache fehlt oder der nächste
+ * Punkt eine leere Zeitreihe hat (z. B. STAC-Item ohne Asset).
+ */
+async function forecastFromMchCache(
+  lat: number,
+  lon: number,
+  mchLocs: MchLocalForecastLocation[],
+): Promise<{ fc: ForecastResponse; loc: MchLocalForecastLocation } | null> {
+  const best = pickNearestMch(mchLocs, lat, lon);
+  if (!best?.hourly?.time?.length) return null;
+  return { fc: buildForecastFromMchLoc(best), loc: best };
+}
+
 async function forecastFromCache(
   lat: number,
   lon: number,
@@ -284,6 +388,7 @@ async function forecastFromCache(
   );
   return applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
 }
+
 
 
 /**
