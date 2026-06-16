@@ -29,6 +29,7 @@ import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/p
 import { Route as ApiPublicSnapshotMapRouteImport } from './routes/api/public/snapshot/$map'
 import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
 import { Route as ApiPublicOpenmeteoIngestTriggerRouteImport } from './routes/api/public/openmeteo/ingest-trigger'
+import { Route as ApiPublicMchIngestTriggerRouteImport } from './routes/api/public/mch/ingest-trigger'
 import { Route as ApiPublicEmbedRegionLokalStaticRouteImport } from './routes/api/public/embed/region-lokal-static'
 import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 import { Route as ApiPublicAromeIngestTriggerRouteImport } from './routes/api/public/arome/ingest-trigger'
@@ -136,6 +137,12 @@ const ApiPublicOpenmeteoIngestTriggerRoute =
     path: '/api/public/openmeteo/ingest-trigger',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicMchIngestTriggerRoute =
+  ApiPublicMchIngestTriggerRouteImport.update({
+    id: '/api/public/mch/ingest-trigger',
+    path: '/api/public/mch/ingest-trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicEmbedRegionLokalStaticRoute =
   ApiPublicEmbedRegionLokalStaticRouteImport.update({
     id: '/api/public/embed/region-lokal-static',
@@ -174,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
+  '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
@@ -199,6 +207,7 @@ export interface FileRoutesByTo {
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
+  '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
@@ -225,6 +234,7 @@ export interface FileRoutesById {
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
+  '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
@@ -252,6 +262,7 @@ export interface FileRouteTypes {
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
+    | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
     | '/api/public/snapshot/$map'
@@ -277,6 +288,7 @@ export interface FileRouteTypes {
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
+    | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
     | '/api/public/snapshot/$map'
@@ -302,6 +314,7 @@ export interface FileRouteTypes {
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
+    | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
     | '/api/public/snapshot/$map'
@@ -328,6 +341,7 @@ export interface RootRouteChildren {
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
   ApiPublicEmbedRegionLokalStaticRoute: typeof ApiPublicEmbedRegionLokalStaticRoute
+  ApiPublicMchIngestTriggerRoute: typeof ApiPublicMchIngestTriggerRoute
   ApiPublicOpenmeteoIngestTriggerRoute: typeof ApiPublicOpenmeteoIngestTriggerRoute
   ApiPublicRadarIngestTriggerRoute: typeof ApiPublicRadarIngestTriggerRoute
   ApiPublicSnapshotMapRoute: typeof ApiPublicSnapshotMapRoute
@@ -476,6 +490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOpenmeteoIngestTriggerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/mch/ingest-trigger': {
+      id: '/api/public/mch/ingest-trigger'
+      path: '/api/public/mch/ingest-trigger'
+      fullPath: '/api/public/mch/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicMchIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/embed/region-lokal-static': {
       id: '/api/public/embed/region-lokal-static'
       path: '/api/public/embed/region-lokal-static'
@@ -520,6 +541,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
   ApiPublicEmbedRegionLokalStaticRoute: ApiPublicEmbedRegionLokalStaticRoute,
+  ApiPublicMchIngestTriggerRoute: ApiPublicMchIngestTriggerRoute,
   ApiPublicOpenmeteoIngestTriggerRoute: ApiPublicOpenmeteoIngestTriggerRoute,
   ApiPublicRadarIngestTriggerRoute: ApiPublicRadarIngestTriggerRoute,
   ApiPublicSnapshotMapRoute: ApiPublicSnapshotMapRoute,
