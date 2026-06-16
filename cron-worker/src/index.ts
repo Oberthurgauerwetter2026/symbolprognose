@@ -164,18 +164,28 @@ export default {
           symbol: env.SYMBOL_TARGET_URL ?? null,
           openmeteo: env.OPENMETEO_TARGET_URL ?? null,
           arome: env.AROME_TARGET_URL ?? null,
+          mch: env.MCH_TARGET_URL ?? null,
         },
         lastRadar,
         lastEps,
         lastSymbol,
         lastOpenmeteo,
         lastArome,
+        lastMch,
       });
     }
 
     if (url.pathname === "/run" && request.method === "POST") {
       await triggerAll(env);
-      return Response.json({ ok: true, lastRadar, lastEps, lastSymbol, lastOpenmeteo, lastArome });
+      return Response.json({
+        ok: true,
+        lastRadar,
+        lastEps,
+        lastSymbol,
+        lastOpenmeteo,
+        lastArome,
+        lastMch,
+      });
     }
 
     if (url.pathname === "/run/eps" && request.method === "POST") {
