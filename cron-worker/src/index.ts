@@ -73,7 +73,7 @@ async function triggerEndpoint(
 
 async function triggerFiveMin(
   env: Env,
-  opts: { includeOpenmeteo: boolean; includeArome: boolean },
+  opts: { includeOpenmeteo: boolean; includeArome: boolean; includeMch: boolean },
 ): Promise<void> {
   const tasks: Promise<void>[] = [];
   tasks.push(
@@ -104,6 +104,11 @@ async function triggerFiveMin(
       ),
     );
   }
+  if (opts.includeMch && env.MCH_TARGET_URL) {
+    tasks.push(
+      triggerEndpoint(env.MCH_TARGET_URL, env.RADAR_TRIGGER_SECRET, "mch", lastMch),
+    );
+  }
   await Promise.all(tasks);
 }
 
@@ -122,7 +127,7 @@ async function triggerSymbol(env: Env): Promise<void> {
 
 async function triggerAll(env: Env): Promise<void> {
   await Promise.all([
-    triggerFiveMin(env, { includeOpenmeteo: true, includeArome: true }),
+    triggerFiveMin(env, { includeOpenmeteo: true, includeArome: true, includeMch: true }),
     triggerSymbol(env),
   ]);
 }
