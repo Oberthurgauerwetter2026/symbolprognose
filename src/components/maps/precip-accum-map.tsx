@@ -93,18 +93,20 @@ function CityMarkers() {
   );
 }
 
-// Klassengrenzen mm (radar-ähnlich, Kachelmann/MeteoSchweiz). Harte Bänder, keine Interpolation.
+// Niederschlagssummen-Farbskala (mm) — identische MeteoSchweiz-CombiPrecip-
+// Palette wie `radar-map.tsx` SCALE (gleiche RGB-Tripel, gleiche Reihenfolge),
+// nur an mm-Summen statt mm/h gehängt. Harte Bänder, keine Interpolation —
+// dadurch sehen Radar-Animation, ICON-CH-Forecast-Frames und Summen-Karte
+// farblich konsistent aus.
 const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; label: string }[] = [
-  { min: 0.3, max: 1,    rgb: [150, 195, 235], label: "0.3" },
-  { min: 1,   max: 2,    rgb: [95, 155, 220],  label: "1" },
-  { min: 2,   max: 5,    rgb: [40, 90, 195],   label: "2" },
-  { min: 5,   max: 10,   rgb: [20, 40, 150],   label: "5" },
-  { min: 10,  max: 20,   rgb: [55, 170, 75],   label: "10" },
-  { min: 20,  max: 30,   rgb: [245, 220, 55],  label: "20" },
-  { min: 30,  max: 50,   rgb: [240, 140, 35],  label: "30" },
-  { min: 50,  max: 75,   rgb: [220, 40, 40],   label: "50" },
-  { min: 75,  max: 100,  rgb: [170, 40, 180],  label: "75" },
-  { min: 100, max: 9999, rgb: [110, 20, 130],  label: "100+" },
+  { min:   0.3, max:    1, rgb: [150, 195, 235], label: "0.3" },
+  { min:   1,   max:    3, rgb: [ 95, 155, 220], label: "1"   },
+  { min:   3,   max:   10, rgb: [ 40,  90, 195], label: "3"   },
+  { min:  10,   max:   20, rgb: [ 55, 170,  75], label: "10"  },
+  { min:  20,   max:   40, rgb: [245, 220,  55], label: "20"  },
+  { min:  40,   max:   60, rgb: [240, 140,  35], label: "40"  },
+  { min:  60,   max:  100, rgb: [220,  40,  40], label: "60"  },
+  { min: 100,   max: 9999, rgb: [170,  40, 180], label: "100+"},
 ];
 
 function classIndexForAccum(mm: number): number {
@@ -132,6 +134,13 @@ interface AccumResult {
   framesUsed: number;
 }
 
+/**
+ * Aggregiert die ICON-CH-Niederschlagsfelder aus `getRadarFrames()` zu einer
+ * mm-Summe über `hours` Stunden ab jetzt. Quelle pro Frame ist identisch zum
+ * Radar-Forecast: ICON-CH1 minutely_15 :00 → ICON-CH1 hourly → ICON-CH2 hourly
+ * (`source === "icon-ch1" | "icon-ch2"`). `values` sind mm/h und werden mit
+ * Δh zwischen aufeinanderfolgenden Frame-Zeitstempeln multipliziert.
+ */
 export function accumulatePrecip(
   frames: RadarFrame[],
   nPts: number,
@@ -479,7 +488,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
               maxZoom={18}
               opacity={0.85}
               crossOrigin="anonymous"
-              attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · ICON-seamless'
+              attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz ICON-CH1 → ICON-CH2'
             />
             <GeoJSON
               data={LAKE}
