@@ -136,25 +136,16 @@ const MODELS: ModelInfo[] = [
       "https://api.open-meteo.com/v1/forecast?models=meteoswiss_icon_ch1&minutely_15=...",
   },
   {
-    name: "ECMWF IFS Ensemble",
-    provider: "ECMWF via Open-Meteo Ensemble-API",
-    resolution: "0.25°",
-    members: "51",
-    range: "bis 15 Tage",
-    usage: "Tag 6–7, Fallback nach MOSMIX",
-    endpoint:
-      "https://ensemble-api.open-meteo.com/v1/ensemble?models=ecmwf_ifs025",
-  },
-  {
     name: "DWD-MOSMIX-L",
     provider: "Deutscher Wetterdienst (opendata.dwd.de) via Server Function",
-    resolution: "stationsbasiert (Punktprognose, MOS)",
-    members: "— (statistisch)",
-    range: "~10 Tage, 3-stündlich",
-    usage: "ab Tag 6, vor IFS gemerged (Tag 6–7)",
+    resolution: "stationsbasiert (Punktprognose, MOS auf ICON-Basis)",
+    members: "— (deterministisch, statistisch nachkalibriert)",
+    range: "~10 Tage, stündlich",
+    usage: "ab Tag 6 alleinige Quelle (überschreibt icon_seamless)",
     endpoint:
       "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/{ID}/kml/MOSMIX_L_LATEST_{ID}.kmz",
   },
+
 
   {
     name: "Open-Meteo best_match",
@@ -203,14 +194,15 @@ function ModelsSection() {
           Merge-Reihenfolge
         </h3>
         <p>
-          <code className="font-mono">icon_seamless → MOSMIX (ab Tag 6) → IFS-EPS → best_match</code>.
-          Primärquelle ist deterministisch (keine Ensemble-Mittelung); IFS-EPS dient
-          als Ensemble-Fallback. Fehlt in der höher priorisierten Quelle ein Wert,
-          übernimmt die nächste den Platz. Daily-Aggregate (Max/Min-Temp,
-          Niederschlagssumme, Wind, Sonne, Schnee) werden clientseitig aus den
-          gemergten stündlichen Arrays berechnet. Sonnenauf-/-untergang und maximale
+          <code className="font-mono">icon_seamless → MOSMIX (ab Tag 6) → best_match</code>.
+          Beide Hauptquellen sind deterministisch und stammen aus derselben
+          Modellfamilie (ICON bzw. MOS auf ICON-Basis) — keine Naht zwischen
+          Ensemble-Mittel und Punktprognose. Daily-Aggregate (Max/Min-Temp,
+          Niederschlagssumme, Wind, Sonne, Schnee) werden aus den gemergten
+          stündlichen Arrays berechnet. Sonnenauf-/-untergang und maximale
           Niederschlagswahrscheinlichkeit kommen aus <code className="font-mono">best_match</code>.
         </p>
+
 
       </div>
     </section>

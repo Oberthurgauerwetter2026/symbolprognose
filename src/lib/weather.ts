@@ -251,7 +251,7 @@ function fillGaps(
  * aus `source.hourly`. Lücken (NaN) in `source` lassen `primary` unverändert.
  * Daily bleibt unberührt (wird später aus dem neuen Hourly aggregiert).
  */
-function overwriteFromIndex(
+export function overwriteFromIndex(
   primary: ForecastResponse,
   source: ForecastResponse,
   fromIndex: number,
@@ -293,27 +293,11 @@ function overwriteFromIndex(
   return { ...primary, hourly: outHourly };
 }
 
-const ENSEMBLE_HOURLY_VARS = [
-  "weathercode",
-  "temperature_2m",
-  "precipitation",
-  "windspeed_10m",
-  "windgusts_10m",
-  "winddirection_10m",
-  "snowfall",
-  "sunshine_duration",
-  "cloud_cover_low",
-  "cloud_cover_mid",
-  "cloud_cover_high",
-] as const;
+// IFS-EPS wurde entfernt: ECMWF-Ensemble-Mittel kollidierte ab Tag 6 mit der
+// deterministischen MOSMIX-Quelle (zwei verschiedene Modellwelten an der Naht).
+// Tag 6–10 läuft jetzt ausschliesslich über DWD-MOSMIX.
 
-type EnsembleHourly = Partial<HourlyData> & { time: string[]; utc_offset_seconds?: number };
 
-type EnsembleModel = "ecmwf_ifs025";
-
-const ENSEMBLE_DAYS: Record<EnsembleModel, number> = {
-  ecmwf_ifs025: 7,
-};
 
 
 // WMO-Code → Kategorie (höher = "nasser/schwerer", für Tie-Break).
@@ -369,105 +353,13 @@ function representativeWeathercode(
   return bestCode;
 }
 
-async function fetchEnsembleMean(
-  latitude: number,
-  longitude: number,
-  model: EnsembleModel,
-): Promise<EnsembleHourly> {
-  const url = new URL("https://ensemble-api.open-meteo.com/v1/ensemble");
-  url.searchParams.set("latitude", String(latitude));
-  url.searchParams.set("longitude", String(longitude));
-  url.searchParams.set("models", model);
-  url.searchParams.set("timezone", "auto");
-  url.searchParams.set("forecast_days", String(ENSEMBLE_DAYS[model]));
-  url.searchParams.set("wind_speed_unit", "kmh");
-  url.searchParams.set("precipitation_unit", "mm");
-  url.searchParams.set("temperature_unit", "celsius");
-  url.searchParams.set("hourly", ENSEMBLE_HOURLY_VARS.join(","));
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`Ensemble ${model} nicht erreichbar`);
-  const data = (await res.json()) as { hourly?: Record<string, unknown>; utc_offset_seconds?: number };
-  const h = data.hourly ?? {};
-  const time = (h.time as string[] | undefined) ?? [];
-  const out: EnsembleHourly = { time, utc_offset_seconds: data.utc_offset_seconds };
-  for (const v of ENSEMBLE_HOURLY_VARS) {
-    const series: number[][] = [];
-    for (const key of Object.keys(h)) {
-      if (key === v || key.startsWith(`${v}_member`)) {
-        const arr = h[key];
-        if (Array.isArray(arr)) series.push(arr as number[]);
-      }
-    }
-    if (series.length === 0) continue;
-    const mean: number[] = new Array(time.length);
-    for (let i = 0; i < time.length; i++) {
-      if (v === "weathercode") {
-        const codes: number[] = [];
-        for (const s of series) {
-          const x = s[i];
-          if (typeof x === "number" && Number.isFinite(x)) codes.push(x);
-        }
-        const rep = representativeWeathercode(codes);
-        mean[i] = rep ?? (NaN as number);
-        continue;
-      }
-      let sum = 0;
-      let count = 0;
-      for (const s of series) {
-        const x = s[i];
-        if (typeof x === "number" && Number.isFinite(x)) {
-          sum += x;
-          count++;
-        }
-      }
-      mean[i] = count > 0 ? sum / count : (NaN as number);
-    }
-    (out as Record<string, unknown>)[v] = mean;
-  }
-  return out;
-}
-
-function wrapEnsembleAsForecast(ens: EnsembleHourly): ForecastResponse {
-  const empty: HourlyData = {
-    time: ens.time,
-    weathercode: (ens.weathercode ?? []) as number[],
-    temperature_2m: (ens.temperature_2m ?? []) as number[],
-    precipitation: (ens.precipitation ?? []) as number[],
-    precipitation_probability: [],
-    windspeed_10m: (ens.windspeed_10m ?? []) as number[],
-    windgusts_10m: (ens.windgusts_10m ?? []) as number[],
-    winddirection_10m: (ens.winddirection_10m ?? []) as number[],
-    snowfall: (ens.snowfall ?? []) as number[],
-    sunshine_duration: (ens.sunshine_duration ?? []) as number[],
-    cloud_cover_low: (ens.cloud_cover_low ?? []) as number[],
-    cloud_cover_mid: (ens.cloud_cover_mid ?? []) as number[],
-    cloud_cover_high: (ens.cloud_cover_high ?? []) as number[],
-  };
-  const emptyDaily: DailyData = {
-    time: [],
-    weathercode: [],
-    temperature_2m_max: [],
-    temperature_2m_min: [],
-    precipitation_sum: [],
-    precipitation_probability_max: [],
-    windspeed_10m_max: [],
-    windgusts_10m_max: [],
-    winddirection_10m_dominant: [],
-    sunshine_duration: [],
-    sunrise: [],
-    sunset: [],
-    snowfall_sum: [],
-    precipitation_hours: [],
-  };
-  return { latitude: 0, longitude: 0, timezone: "", hourly: empty, daily: emptyDaily };
-}
 
 /**
  * Richtet MOSMIX-Stundenwerte (UTC) auf die OM-lokale Zeitachse aus.
  * Werte vor `minLocalHourIndex` (Tag-6-Beginn) werden mit NaN maskiert,
  * damit fillGaps sie nicht in den ICON-Bereich injiziert.
  */
-function alignMosmixToTimeline(
+export function alignMosmixToTimeline(
   mosmix: MosmixHourly,
   localTimes: string[],
   offsetSeconds: number,
@@ -672,12 +564,13 @@ export async function fetchForecast(
   longitude: number,
 ): Promise<ForecastResponse> {
   // ICON-seamless (deterministisch, CH1 → CH2 → ICON-EU/global) als Primärquelle
-  // für 0–168 h. ECMWF IFS-EPS bleibt als Fallback, MOSMIX überschreibt ab Tag 6.
-  // best_match nur als Restfallback für Felder, die icon_seamless nicht liefert
-  // (Probability, Sunrise/Sunset).
-  const [iconSeamless, ifsRaw, bestMatch, mosmixRaw] = await Promise.all([
+  // für 0–168 h. Ab Tag 6 überschreibt DWD-MOSMIX (ebenfalls deterministisch,
+  // statistisch nachkalibriert) die ICON-Werte — saubere Naht zwischen zwei
+  // verwandten Modellwelten (ICON → MOS auf ICON-Basis). best_match nur als
+  // Restfallback für Felder, die icon_seamless nicht liefert (Probability,
+  // Sunrise/Sunset).
+  const [iconSeamless, bestMatch, mosmixRaw] = await Promise.all([
     fetchModel(latitude, longitude, "icon_seamless").catch(() => null),
-    fetchEnsembleMean(latitude, longitude, "ecmwf_ifs025").catch(() => null),
     fetchModel(latitude, longitude, "best_match").catch(() => null),
     fetchMosmix({ data: { latitude, longitude } }).catch((e) => {
       console.warn("MOSMIX nicht verfügbar:", e);
@@ -685,34 +578,30 @@ export async function fetchForecast(
     }),
   ]);
 
-  // Primärquelle ist icon_seamless; falls nicht verfügbar, nimm IFS → best_match.
-  type PrimarySource = "icon_seamless" | "ifs" | "best_match";
+  // Primärquelle ist icon_seamless; falls nicht verfügbar, nimm best_match.
+  type PrimarySource = "icon_seamless" | "best_match";
   let primary: ForecastResponse | null = null;
   let primarySource: PrimarySource | null = null;
   if (iconSeamless) { primary = iconSeamless; primarySource = "icon_seamless"; }
-  else if (ifsRaw) { primary = wrapEnsembleAsForecast(ifsRaw); primarySource = "ifs"; }
   else if (bestMatch) { primary = bestMatch; primarySource = "best_match"; }
   if (!primary) throw new Error("Keine Wettermodelle erreichbar");
 
   // utc_offset_seconds aus einer Quelle ableiten (für MOSMIX-Alignment).
   const offsetSec =
     (iconSeamless as unknown as { utc_offset_seconds?: number } | null)?.utc_offset_seconds ??
-    ifsRaw?.utc_offset_seconds ??
     (bestMatch as unknown as { utc_offset_seconds?: number } | null)?.utc_offset_seconds ??
     0;
 
   let merged = primary;
 
-  // IFS zuerst mergen, damit die Timeline 168h umfasst — sonst hat MOSMIX keine Slots ab Index 120.
-  if (ifsRaw && primarySource !== "ifs") merged = fillGaps(merged, wrapEnsembleAsForecast(ifsRaw));
-
-  // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt icon_seamless/IFS/best_match.
+  // MOSMIX ist ab Tag 6 die priorisierte Quelle und überschreibt icon_seamless/best_match.
   if (mosmixRaw) {
     const mosmixForecast = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 5 * 24);
     if (mosmixForecast) merged = overwriteFromIndex(merged, mosmixForecast, 5 * 24);
   }
 
   if (bestMatch && primarySource !== "best_match") merged = fillGaps(merged, bestMatch);
+
 
 
   // Gewitter-Override: Ensemble-Mittel glättet seltene Gewittercodes (95/96/99) weg.

@@ -4,10 +4,13 @@ import {
   fetchForecast,
   sanitizeForecast,
   aggregateDailyFromHourly,
+  alignMosmixToTimeline,
+  overwriteFromIndex,
   type DailyData,
   type ForecastResponse,
   type HourlyData,
 } from "./weather";
+import { fetchMosmix, type MosmixHourly } from "./mosmix.functions";
 import { getSymbolCache } from "./openmeteo-cache.server";
 
 /**
@@ -37,7 +40,6 @@ const CACHE_MODEL_SUFFIXES = [
   "icon_seamless",
   "icon_d2",
   "arpege_europe",
-  "ecmwf_ifs025",
   "gfs_global",
 ] as const;
 
@@ -269,8 +271,46 @@ async function forecastFromCache(
   if (!locs) return null;
   const best = pickNearest(locs, lat, lon);
   if (!best?.hourly?.time?.length) return null;
-  return buildForecastFromCacheLoc(best);
+  const fc = buildForecastFromCacheLoc(best);
+  const mosmix = await fetchMosmix({ data: { latitude: lat, longitude: lon } }).catch(
+    (e) => {
+      console.warn("[aggregated-forecast] MOSMIX nicht verfügbar:", e);
+      return null;
+    },
+  );
+  return applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
 }
+
+
+/**
+ * Overlay DWD-MOSMIX ab Tag 6 (Index 5*24). MOSMIX ist eine deterministische,
+ * statistisch nachkalibrierte Punktprognose auf ICON-Basis — saubere Naht zu
+ * icon_seamless ohne Modellsprung zu einem Ensemble-Mittel.
+ */
+function applyMosmixOverlay(
+  forecast: ForecastResponse,
+  mosmix: MosmixHourly | null,
+  offsetSec: number,
+): ForecastResponse {
+  if (!mosmix) return forecast;
+  const aligned = alignMosmixToTimeline(mosmix, forecast.hourly.time, offsetSec, 5 * 24);
+  if (!aligned) return forecast;
+  const merged = overwriteFromIndex(forecast, aligned, 5 * 24);
+  // Daily aus dem überschriebenen Hourly neu aggregieren.
+  for (let i = 0; i < merged.daily.time.length; i++) {
+    const agg = aggregateDailyFromHourly(merged.hourly, merged.daily.time[i] ?? "");
+    const wc = agg.weathercode;
+    if (typeof wc === "number" && Number.isFinite(wc)) merged.daily.weathercode[i] = wc;
+    const ps = agg.precipitation_sum;
+    if (typeof ps === "number" && Number.isFinite(ps)) merged.daily.precipitation_sum[i] = ps;
+    const ph = agg.precipitation_hours;
+    if (typeof ph === "number" && Number.isFinite(ph)) merged.daily.precipitation_hours[i] = ph;
+    const sd = agg.sunshine_duration;
+    if (typeof sd === "number" && Number.isFinite(sd)) merged.daily.sunshine_duration[i] = sd;
+  }
+  return merged;
+}
+
 
 function setCdnCacheHeaders() {
   setResponseHeaders(
@@ -397,11 +437,30 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
         console.error("[aggregated-forecast-batch] cache read failed", err);
       }
 
+      // MOSMIX dedupliziert pro Punkt holen: viele Punkte teilen sich denselben
+      // Loc-Eintrag aus dem Symbol-Cache (gleiche utc_offset). MOSMIX selbst
+      // schnappt auf eine von 2 erlaubten Stationen → max. 2 echte Fetches.
+      const mosmixCache = new Map<string, Promise<MosmixHourly | null>>();
+      const getMosmix = (lat: number, lon: number) => {
+        const key = `${lat.toFixed(2)}|${lon.toFixed(2)}`;
+        let p = mosmixCache.get(key);
+        if (!p) {
+          p = fetchMosmix({ data: { latitude: lat, longitude: lon } }).catch((e) => {
+            console.warn("[aggregated-forecast-batch] MOSMIX nicht verfügbar:", e);
+            return null;
+          });
+          mosmixCache.set(key, p);
+        }
+        return p;
+      };
+
       for (const p of data.points) {
         if (locs) {
           const best = pickNearest(locs, p.lat, p.lon);
           if (best?.hourly?.time?.length) {
-            out[p.id] = buildForecastFromCacheLoc(best);
+            const fc = buildForecastFromCacheLoc(best);
+            const mosmix = await getMosmix(p.lat, p.lon);
+            out[p.id] = applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
             continue;
           }
         }
@@ -415,3 +474,4 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
       return out;
     },
   );
+
