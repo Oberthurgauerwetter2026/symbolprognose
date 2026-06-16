@@ -11,7 +11,11 @@ import {
   type HourlyData,
 } from "./weather";
 import { fetchMosmix, type MosmixHourly } from "./mosmix.functions";
-import { getSymbolCache } from "./openmeteo-cache.server";
+import {
+  getMchLocalForecastCache,
+  getSymbolCache,
+  type MchLocalForecastLocation,
+} from "./openmeteo-cache.server";
 
 /**
  * Serverseitiges Multi-Modell-Aggregat.
@@ -263,6 +267,110 @@ async function loadSymbolLocs(): Promise<Loc[] | null> {
   return locs?.length ? locs : null;
 }
 
+/** Numerischer Cleaner: null/undefined/NaN → 0, sonst Zahl. */
+function num(v: number | null | undefined, fill = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fill;
+}
+
+function pickNearestMch(
+  locs: MchLocalForecastLocation[],
+  lat: number,
+  lon: number,
+): MchLocalForecastLocation | null {
+  let best: MchLocalForecastLocation | null = null;
+  let bestD = Infinity;
+  for (const l of locs) {
+    const dLat = lat - l.latitude;
+    const dLon = lon - l.longitude;
+    const d = dLat * dLat + dLon * dLon;
+    if (d < bestD) {
+      bestD = d;
+      best = l;
+    }
+  }
+  return best;
+}
+
+/**
+ * Baut aus einem MCH-Local-Forecast-Eintrag eine ForecastResponse im
+ * Open-Meteo-Schema. Daily-Aggregate (Wind/Sonne/Niederschlagsstunden/
+ * Symbol) werden aus dem Hourly nach-aggregiert — analog zur phaseA-Branch.
+ */
+function buildForecastFromMchLoc(loc: MchLocalForecastLocation): ForecastResponse {
+  const h = loc.hourly;
+  const hLen = h.time.length;
+  const hourly: HourlyData = {
+    time: h.time.slice(),
+    weathercode: h.weathercode.map((v) => num(v, 3)),
+    temperature_2m: h.temperature_2m.map((v) => num(v)),
+    precipitation: h.precipitation.map((v) => num(v)),
+    precipitation_probability: h.precipitation_probability.map((v) => num(v)),
+    windspeed_10m: h.windspeed_10m.map((v) => num(v)),
+    windgusts_10m: h.windgusts_10m.map((v) => num(v)),
+    winddirection_10m: h.winddirection_10m.map((v) => num(v)),
+    snowfall: h.snowfall.map((v) => num(v)),
+    sunshine_duration: h.sunshine_duration.map((v) => num(v)),
+    cloud_cover_low: h.cloud_cover_low.map((v) => num(v)),
+    cloud_cover_mid: h.cloud_cover_mid.map((v) => num(v)),
+    cloud_cover_high: h.cloud_cover_high.map((v) => num(v)),
+  };
+  if (hourly.time.length !== hLen) hourly.time = hourly.time.slice(0, hLen);
+
+  const d = loc.daily;
+  const dLen = d.time.length;
+  const daily: DailyData = {
+    time: d.time.slice(),
+    weathercode: d.weathercode.map((v) => num(v, 3)),
+    temperature_2m_max: d.temperature_2m_max.map((v) => num(v)),
+    temperature_2m_min: d.temperature_2m_min.map((v) => num(v)),
+    precipitation_sum: d.precipitation_sum.map((v) => num(v)),
+    precipitation_probability_max: new Array(dLen).fill(0),
+    windspeed_10m_max: new Array(dLen).fill(0),
+    windgusts_10m_max: new Array(dLen).fill(0),
+    winddirection_10m_dominant: new Array(dLen).fill(0),
+    sunshine_duration: new Array(dLen).fill(0),
+    sunrise: new Array(dLen).fill(""),
+    sunset: new Array(dLen).fill(""),
+    snowfall_sum: new Array(dLen).fill(0),
+    precipitation_hours: new Array(dLen).fill(0),
+  };
+
+  for (let i = 0; i < daily.time.length; i++) {
+    const agg = aggregateDailyFromHourly(hourly, daily.time[i] ?? "");
+    const wc = agg.weathercode;
+    if (typeof wc === "number" && Number.isFinite(wc)) daily.weathercode[i] = wc;
+    const ps = agg.precipitation_sum;
+    if (typeof ps === "number" && Number.isFinite(ps)) daily.precipitation_sum[i] = ps;
+    const ph = agg.precipitation_hours;
+    if (typeof ph === "number" && Number.isFinite(ph)) daily.precipitation_hours[i] = ph;
+    const sd = agg.sunshine_duration;
+    if (typeof sd === "number" && Number.isFinite(sd)) daily.sunshine_duration[i] = sd;
+  }
+
+  return sanitizeForecast({
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    timezone: loc.timezone ?? "Europe/Zurich",
+    hourly,
+    daily,
+  });
+}
+
+/**
+ * Versucht eine MCH-local-forecast-basierte Prognose für (lat,lon) zu
+ * bauen. Gibt `null` zurück, wenn der MCH-Cache fehlt oder der nächste
+ * Punkt eine leere Zeitreihe hat (z. B. STAC-Item ohne Asset).
+ */
+async function forecastFromMchCache(
+  lat: number,
+  lon: number,
+  mchLocs: MchLocalForecastLocation[],
+): Promise<{ fc: ForecastResponse; loc: MchLocalForecastLocation } | null> {
+  const best = pickNearestMch(mchLocs, lat, lon);
+  if (!best?.hourly?.time?.length) return null;
+  return { fc: buildForecastFromMchLoc(best), loc: best };
+}
+
 async function forecastFromCache(
   lat: number,
   lon: number,
@@ -280,6 +388,7 @@ async function forecastFromCache(
   );
   return applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
 }
+
 
 
 /**
@@ -373,17 +482,37 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<ForecastResponse> => {
     setCdnCacheHeaders();
+
+    // 1) Primärquelle: MCH OGD local_forecast.
+    try {
+      const mch = await getMchLocalForecastCache();
+      if (mch?.locations?.length) {
+        const built = await forecastFromMchCache(data.lat, data.lon, mch.locations);
+        if (built) {
+          const mosmix = await fetchMosmix({
+            data: { latitude: data.lat, longitude: data.lon },
+          }).catch((e) => {
+            console.warn("[aggregated-forecast] MOSMIX nicht verfügbar:", e);
+            return null;
+          });
+          return applyMosmixOverlay(built.fc, mosmix, built.loc.utc_offset_seconds ?? 0);
+        }
+      }
+    } catch (err) {
+      console.error("[aggregated-forecast] MCH cache read failed", err);
+    }
+
+    // 2) Fallback: alter phaseA-Cache (Open-Meteo Multi-Modell).
     try {
       const cached = await forecastFromCache(data.lat, data.lon);
       if (cached) return cached;
     } catch (err) {
-      console.error("[aggregated-forecast] cache read failed", err);
+      console.error("[aggregated-forecast] phaseA cache read failed", err);
     }
 
-    // Fallback: R2 leer / nicht erreichbar → direkter Open-Meteo-Call
-    // (kann am Worker-IP-Rate-Limit scheitern, deshalb nur Last Resort).
+    // 3) Last Resort: direkter Open-Meteo-Call.
     console.warn(
-      "[aggregated-forecast] R2 cache miss for",
+      "[aggregated-forecast] all caches missed for",
       data.lat,
       data.lon,
       "— falling back to direct Open-Meteo",
@@ -430,16 +559,23 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
     async ({ data }): Promise<Record<string, ForecastResponse>> => {
       setCdnCacheHeaders();
       const out: Record<string, ForecastResponse> = {};
+
+      // Beide Caches einmal lesen — MCH primär, phaseA als Fallback pro Punkt.
+      let mchLocs: MchLocalForecastLocation[] | null = null;
       let locs: Loc[] | null = null;
+      try {
+        const mch = await getMchLocalForecastCache();
+        mchLocs = mch?.locations?.length ? mch.locations : null;
+      } catch (err) {
+        console.error("[aggregated-forecast-batch] MCH cache read failed", err);
+      }
       try {
         locs = await loadSymbolLocs();
       } catch (err) {
-        console.error("[aggregated-forecast-batch] cache read failed", err);
+        console.error("[aggregated-forecast-batch] phaseA cache read failed", err);
       }
 
-      // MOSMIX dedupliziert pro Punkt holen: viele Punkte teilen sich denselben
-      // Loc-Eintrag aus dem Symbol-Cache (gleiche utc_offset). MOSMIX selbst
-      // schnappt auf eine von 2 erlaubten Stationen → max. 2 echte Fetches.
+      // MOSMIX dedupliziert pro Punkt holen.
       const mosmixCache = new Map<string, Promise<MosmixHourly | null>>();
       const getMosmix = (lat: number, lon: number) => {
         const key = `${lat.toFixed(2)}|${lon.toFixed(2)}`;
@@ -455,6 +591,20 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
       };
 
       for (const p of data.points) {
+        // 1) MCH primär
+        if (mchLocs) {
+          const built = await forecastFromMchCache(p.lat, p.lon, mchLocs);
+          if (built) {
+            const mosmix = await getMosmix(p.lat, p.lon);
+            out[p.id] = applyMosmixOverlay(
+              built.fc,
+              mosmix,
+              built.loc.utc_offset_seconds ?? 0,
+            );
+            continue;
+          }
+        }
+        // 2) phaseA fallback
         if (locs) {
           const best = pickNearest(locs, p.lat, p.lon);
           if (best?.hourly?.time?.length) {
@@ -464,6 +614,7 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
             continue;
           }
         }
+        // 3) Direkter Open-Meteo-Call als letzte Reissleine
         try {
           out[p.id] = await fetchForecast(p.lat, p.lon);
         } catch (err) {

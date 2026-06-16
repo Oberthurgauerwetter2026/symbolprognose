@@ -21,7 +21,7 @@ export const Route = createFileRoute("/karten/lokal")({
       {
         name: "description",
         content:
-          "5-Tage Lokalprognose im 3-Stunden-Takt mit Modelldaten von MeteoSchweiz (ICON-seamless).",
+          "5-Tage Lokalprognose im 3-Stunden-Takt mit MeteoSchweiz local_forecast (OGD) und DWD-MOSMIX-Erweiterung.",
       },
     ],
   }),
@@ -34,7 +34,7 @@ function KartenLokalPage() {
       ? { name, latitude: lat, longitude: lon }
       : undefined;
   return (
-    <DashboardLayout title="Lokalprognose" subtitle="5-Tage-Prognose · ICON-seamless · DWD-MOSMIX">
+    <DashboardLayout title="Lokalprognose" subtitle="5-Tage-Prognose · MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX">
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="lokal" />
         <WeatherWidget initialDayIdx={day} initialLocation={initialLocation} />

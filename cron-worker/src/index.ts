@@ -15,6 +15,7 @@ export interface Env {
   SYMBOL_TARGET_URL?: string;
   OPENMETEO_TARGET_URL?: string;
   AROME_TARGET_URL?: string;
+  MCH_TARGET_URL?: string;
   RADAR_TRIGGER_SECRET: string;
 }
 
@@ -29,6 +30,7 @@ const lastEps: RunRecord = { at: null, status: null, body: null };
 const lastSymbol: RunRecord = { at: null, status: null, body: null };
 const lastOpenmeteo: RunRecord = { at: null, status: null, body: null };
 const lastArome: RunRecord = { at: null, status: null, body: null };
+const lastMch: RunRecord = { at: null, status: null, body: null };
 
 async function triggerEndpoint(
   url: string,
@@ -71,7 +73,7 @@ async function triggerEndpoint(
 
 async function triggerFiveMin(
   env: Env,
-  opts: { includeOpenmeteo: boolean; includeArome: boolean },
+  opts: { includeOpenmeteo: boolean; includeArome: boolean; includeMch: boolean },
 ): Promise<void> {
   const tasks: Promise<void>[] = [];
   tasks.push(
@@ -102,6 +104,11 @@ async function triggerFiveMin(
       ),
     );
   }
+  if (opts.includeMch && env.MCH_TARGET_URL) {
+    tasks.push(
+      triggerEndpoint(env.MCH_TARGET_URL, env.RADAR_TRIGGER_SECRET, "mch", lastMch),
+    );
+  }
   await Promise.all(tasks);
 }
 
@@ -120,7 +127,7 @@ async function triggerSymbol(env: Env): Promise<void> {
 
 async function triggerAll(env: Env): Promise<void> {
   await Promise.all([
-    triggerFiveMin(env, { includeOpenmeteo: true, includeArome: true }),
+    triggerFiveMin(env, { includeOpenmeteo: true, includeArome: true, includeMch: true }),
     triggerSymbol(env),
   ]);
 }
@@ -134,11 +141,13 @@ export default {
     if (event.cron === "0 2,8,14,20 * * *") {
       ctx.waitUntil(triggerSymbol(env));
     } else {
-      // Open-Meteo nur alle 10 min, AROME-HD nur stündlich, Radar/EPS alle 5 min.
+      // Open-Meteo nur alle 10 min, AROME-HD und MCH-Local-Forecast stündlich,
+      // Radar/EPS alle 5 min.
       const minute = new Date(event.scheduledTime).getUTCMinutes();
       const includeOpenmeteo = minute % 10 === 0;
       const includeArome = minute === 0;
-      ctx.waitUntil(triggerFiveMin(env, { includeOpenmeteo, includeArome }));
+      const includeMch = minute === 0;
+      ctx.waitUntil(triggerFiveMin(env, { includeOpenmeteo, includeArome, includeMch }));
     }
   },
 
@@ -155,18 +164,28 @@ export default {
           symbol: env.SYMBOL_TARGET_URL ?? null,
           openmeteo: env.OPENMETEO_TARGET_URL ?? null,
           arome: env.AROME_TARGET_URL ?? null,
+          mch: env.MCH_TARGET_URL ?? null,
         },
         lastRadar,
         lastEps,
         lastSymbol,
         lastOpenmeteo,
         lastArome,
+        lastMch,
       });
     }
 
     if (url.pathname === "/run" && request.method === "POST") {
       await triggerAll(env);
-      return Response.json({ ok: true, lastRadar, lastEps, lastSymbol, lastOpenmeteo, lastArome });
+      return Response.json({
+        ok: true,
+        lastRadar,
+        lastEps,
+        lastSymbol,
+        lastOpenmeteo,
+        lastArome,
+        lastMch,
+      });
     }
 
     if (url.pathname === "/run/eps" && request.method === "POST") {
@@ -204,6 +223,14 @@ export default {
       }
       await triggerEndpoint(env.AROME_TARGET_URL, env.RADAR_TRIGGER_SECRET, "arome", lastArome);
       return Response.json({ ok: true, lastArome });
+    }
+
+    if (url.pathname === "/run/mch" && request.method === "POST") {
+      if (!env.MCH_TARGET_URL) {
+        return Response.json({ ok: false, error: "MCH_TARGET_URL not configured" }, { status: 500 });
+      }
+      await triggerEndpoint(env.MCH_TARGET_URL, env.RADAR_TRIGGER_SECRET, "mch", lastMch);
+      return Response.json({ ok: true, lastMch });
     }
 
     return new Response("Not found", { status: 404 });
