@@ -44,7 +44,7 @@ export const MAPS: MapDefinition[] = [
     id: "wind",
     label: "Windprognose",
     shortLabel: "Wind",
-    description: "Animierte Windböen aus ICON-seamless — Farb-Layer, Strömungs-Partikel und Pfeile beim Zoom.",
+    description: "Animierte Windböen aus MeteoSchweiz ICON-CH1 (+0…+33 h) und ICON-CH2 (bis +48 h) — Farb-Layer, Strömungs-Partikel und Pfeile beim Zoom.",
     icon: Wind,
     routePath: "/karten/wind",
     embedPath: "/embed/wind",
