@@ -141,11 +141,13 @@ export default {
     if (event.cron === "0 2,8,14,20 * * *") {
       ctx.waitUntil(triggerSymbol(env));
     } else {
-      // Open-Meteo nur alle 10 min, AROME-HD nur stündlich, Radar/EPS alle 5 min.
+      // Open-Meteo nur alle 10 min, AROME-HD und MCH-Local-Forecast stündlich,
+      // Radar/EPS alle 5 min.
       const minute = new Date(event.scheduledTime).getUTCMinutes();
       const includeOpenmeteo = minute % 10 === 0;
       const includeArome = minute === 0;
-      ctx.waitUntil(triggerFiveMin(env, { includeOpenmeteo, includeArome }));
+      const includeMch = minute === 0;
+      ctx.waitUntil(triggerFiveMin(env, { includeOpenmeteo, includeArome, includeMch }));
     }
   },
 
