@@ -359,7 +359,7 @@ function representativeWeathercode(
  * Werte vor `minLocalHourIndex` (Tag-6-Beginn) werden mit NaN maskiert,
  * damit fillGaps sie nicht in den ICON-Bereich injiziert.
  */
-function alignMosmixToTimeline(
+export function alignMosmixToTimeline(
   mosmix: MosmixHourly,
   localTimes: string[],
   offsetSeconds: number,
