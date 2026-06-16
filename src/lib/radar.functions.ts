@@ -13,8 +13,9 @@ import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache
  *
  * Vorhersage (> now):
  *   - ICON-CH1 `minutely_15` für die nächste Stunde (Nowcast-Schiene),
- *     danach ICON-seamless hourly (`phase2`, bis +48 h) — ein Frame pro
- *     voller Stunde, direkt aus dem nativen Modell-Output. Keine Advektion,
+ *     danach ICON-CH1 hourly bis +33 h, nahtlos verlängert durch
+ *     ICON-CH2 hourly (`phase2`, bis +48 h Render-Horizont) — ein Frame
+ *     pro voller Stunde, direkt aus dem nativen Modell-Output.
  *     keine 15-min-Interpolation, keine Wind-Glättung — ehrliche Stundenanzeige
  *     mit weichem Crossfade im Client.
  *
