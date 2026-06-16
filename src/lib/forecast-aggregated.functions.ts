@@ -37,7 +37,6 @@ const CACHE_MODEL_SUFFIXES = [
   "icon_seamless",
   "icon_d2",
   "arpege_europe",
-  "ecmwf_ifs025",
   "gfs_global",
 ] as const;
 
