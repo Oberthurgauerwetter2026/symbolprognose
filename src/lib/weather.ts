@@ -251,7 +251,7 @@ function fillGaps(
  * aus `source.hourly`. Lücken (NaN) in `source` lassen `primary` unverändert.
  * Daily bleibt unberührt (wird später aus dem neuen Hourly aggregiert).
  */
-function overwriteFromIndex(
+export function overwriteFromIndex(
   primary: ForecastResponse,
   source: ForecastResponse,
   fromIndex: number,
