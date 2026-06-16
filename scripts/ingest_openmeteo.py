@@ -34,7 +34,7 @@ from datetime import datetime, timezone
 import boto3
 import requests
 
-VERSION = "oberthurgau-openmeteo-cache-v3-arome"
+VERSION = "oberthurgau-openmeteo-cache-v4-ch1-wind"
 API = "https://api.open-meteo.com/v1/forecast"
 
 
@@ -198,12 +198,16 @@ def main() -> None:
     pts = build_grid()
     print(f"grid points: {len(pts)}")
 
-    # phase1: ICON-CH1 minutely_15 (-12h … +33h) — Radar/Nowcast (15-min-Schiene
-    # gibt es nur bei CH1, nicht bei icon_seamless).
+    # phase1: ICON-CH1 — minutely_15 für Radar/Nowcast (15-min-Schiene gibt es
+    # nur bei CH1), zusätzlich hourly Wind-Felder für die nahtlose
+    # CH1→CH2-Verkettung der Windanimation (+0…+33h).
     p1 = {
         "minutely_15": "precipitation,snowfall",
         "past_minutely_15": 48,
         "forecast_minutely_15": 132,
+        "hourly": "wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+        "past_hours": 12,
+        "forecast_hours": 33,
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
