@@ -482,17 +482,37 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<ForecastResponse> => {
     setCdnCacheHeaders();
+
+    // 1) Primärquelle: MCH OGD local_forecast.
+    try {
+      const mch = await getMchLocalForecastCache();
+      if (mch?.locations?.length) {
+        const built = await forecastFromMchCache(data.lat, data.lon, mch.locations);
+        if (built) {
+          const mosmix = await fetchMosmix({
+            data: { latitude: data.lat, longitude: data.lon },
+          }).catch((e) => {
+            console.warn("[aggregated-forecast] MOSMIX nicht verfügbar:", e);
+            return null;
+          });
+          return applyMosmixOverlay(built.fc, mosmix, built.loc.utc_offset_seconds ?? 0);
+        }
+      }
+    } catch (err) {
+      console.error("[aggregated-forecast] MCH cache read failed", err);
+    }
+
+    // 2) Fallback: alter phaseA-Cache (Open-Meteo Multi-Modell).
     try {
       const cached = await forecastFromCache(data.lat, data.lon);
       if (cached) return cached;
     } catch (err) {
-      console.error("[aggregated-forecast] cache read failed", err);
+      console.error("[aggregated-forecast] phaseA cache read failed", err);
     }
 
-    // Fallback: R2 leer / nicht erreichbar → direkter Open-Meteo-Call
-    // (kann am Worker-IP-Rate-Limit scheitern, deshalb nur Last Resort).
+    // 3) Last Resort: direkter Open-Meteo-Call.
     console.warn(
-      "[aggregated-forecast] R2 cache miss for",
+      "[aggregated-forecast] all caches missed for",
       data.lat,
       data.lon,
       "— falling back to direct Open-Meteo",
