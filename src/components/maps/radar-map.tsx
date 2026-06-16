@@ -379,9 +379,10 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        // Prognose: keine Filter — Pixel-Raster soll sichtbar bleiben.
-        // Messung-Fallback (contour=false): leichter Blur wie bisher.
-        cv.style.filter = contour ? "none" : "blur(0.8px) contrast(2.2)";
+        // Beide Layer (Messung-Fallback und Prognose) bekommen denselben
+        // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
+        // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
+        cv.style.filter = "contrast(1.1)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = contour
           ? "pixelated"
           : "auto";
