@@ -1,84 +1,54 @@
-## Ziel
+# Local-Forecast Ingest fixen
 
-Primärquelle für Symbol- (Region) und Lokalprognose (Amriswil) ist neu die MeteoSwiss-Punktprognose aus der OGD-STAC-Kollektion `ch.meteoschweiz.ogd-forecast` (pro Gemeinde-JSON). Open-Meteo `icon_seamless` wird aus diesen Karten entfernt. MOSMIX bleibt als Ergänzung jenseits des local_forecast-Horizonts.
+## Status quo
 
-Nicht betroffen: Radar-Karte, Wind-Karte, Niederschlagssummen-Karte — die laufen weiter auf ICON-CH1/CH2 via Open-Meteo (das war separat festgelegt).
+- Cron-Worker + GitHub-Actions-Workflow triggern korrekt: `mch/local_forecast.json` wird stündlich frisch nach R2 geschrieben (`generatedAt` aktuell, Stand vor ~10 Min).
+- **Aber:** Für jeden der 8 Spots sind `hourly.time = []` und `daily.time = []`. Die App zeigt deshalb weiterhin den Open-Meteo/MOSMIX-Fallback.
+- Ursache reproduziert: in `scripts/ingest_mch_local_forecast.py` schließt `io.TextIOWrapper(r.raw, …)` den darunterliegenden Stream nach dem ersten Chunk (Header), die folgende `for row in reader`-Schleife wirft `ValueError: I/O operation on closed file`. Die Retry-Logik fängt das ab — in einem der Retries läuft der Stream offenbar nur bis zum Header und wird als Erfolg mit leerem `out` zurückgegeben.
+- Die Point-IDs (`932600`, `858000`, `922301`, `859601`, `859000`, `922500`, `858508`, `931500`) sind in der MCH-CSV vorhanden — das Mapping selbst ist korrekt.
 
-## Was bleibt, was geht
+## Was geändert wird
 
-| Bereich | Bisher | Neu |
-|---|---|---|
-| Region (8 Spots) Symbolprognose | Open-Meteo Multi-Modell (`icon_seamless` Lead) + MOSMIX ab Tag 6 | MCH `local_forecast` pro Gemeinde + MOSMIX ab Tag 6/Horizont |
-| Lokalprognose Amriswil | dito | dito |
-| Embeds `lokal` / `region-lokal` | dito | dito |
-| Snapshot/Noscript-Quellzeilen | "ICON-seamless via Open-Meteo" | "MeteoSchweiz local_forecast (OGD)" |
-| Radar / Wind / Niederschlagssumme | ICON-CH1 → ICON-CH2 | unverändert |
+**Nur `scripts/ingest_mch_local_forecast.py`** — Streaming-Logik in `stream_csv()` ersetzen:
 
-## Architektur (R2 + GitHub-Workflow, wie bestehend)
+1. Statt `io.TextIOWrapper(r.raw, …)` `response.iter_lines(decode_unicode=True, chunk_size=64*1024)` verwenden und mit `csv.reader` über einen Generator füttern. Das hält den HTTP-Stream sauber bis zum Schluss offen.
+2. Header über die erste Zeile parsen, Länge prüfen, dann zeilenweise filtern.
+3. Bei tatsächlich leerem Ergebnis (`sum(len(v) for v in out.values()) == 0` nach erfolgreichem Durchlauf): `RuntimeError` werfen statt stillschweigend leer zurückgeben — damit der Workflow rot wird und wir es sofort sehen.
+4. `r.raw.decode_content = True` entfällt (nicht mehr nötig — requests dekodiert gzip selbst bei `iter_lines`).
 
-```text
-GitHub Workflow (cron-worker, stündlich)
-  └─ scripts/ingest_mch_local_forecast.py
-       ├─ STAC: holt für jede Spot-Gemeinde das aktuelle local_forecast-JSON-Asset
-       ├─ mappt MCH-Felder → ForecastResponse-Schema (hourly + daily)
-       └─ schreibt R2: mch/local_forecast.json
-            { generatedAt, locations: { [spotId]: { hourly, daily, communeId, … } } }
+Backoff/Retry-Wrapper bleibt unverändert.
 
-Server-Funktion (Cloudflare Worker)
-  getAggregatedForecast(lat,lon) / getAggregatedForecastBatch(points)
-   1. neuer Reader getMchLocalForecastCache() liest mch/local_forecast.json
-   2. picknearest by spot-ID (oder lat/lon → nearest spot)
-   3. MOSMIX-Overlay ab Tag-Index = local_forecast-Horizont (in der Regel Index 5*24)
-   4. Fallback-Kette wenn MCH-Cache leer/stale:
-        a) bestehender openmeteo/symbol.json (phaseA)
-        b) direkter Open-Meteo-Call (letzte Reissleine)
-```
+## Verifikation
 
-## Schritte
+1. Workflow `MCH Local-Forecast (OGD)` manuell triggern (GitHub Actions → Run workflow).
+2. `curl https://pub-2273d12392334ebd9bdba291a60d5398.r2.dev/mch/local_forecast.json | head` — prüfen dass `hourly.time` und `daily.time` gefüllt sind (~120 Stunden, ~5 Tage pro Spot).
+3. Preview `/karten/lokal` öffnen und kontrollieren, dass das Widget die MeteoSchweiz-Werte zeigt (Datenstand-Footer in `weather-widget.tsx` zeigt aktuelle Zeit).
 
-1. **Spot-zu-Gemeinde-Mapping**
-   - In `src/data/spots.ts` jedem Spot eine `bfsId` (BFS-Gemeindenummer) zuordnen. Hardcodiert, keine Runtime-Lookups.
-   - Horn TG `4486`, Amriswil `4461`, Bischofszell `4476`, Münsterlingen `4506`, Romanshorn `4511`, Hauptwil-Gottshaus `4491`, Langrickenbach `4501`, Egnach `4481` (BFS-Nummern beim Implementieren verifizieren).
+## Quellenangaben
 
-2. **Ingest-Script `scripts/ingest_mch_local_forecast.py`** (neu)
-   - STAC-Root: `https://data.geo.admin.ch/api/stac/v1/collections/ch.meteoschweiz.ogd-forecast`.
-   - Pro Spot: jüngstes Item suchen, Asset-URL `forecast_<bfsId>.json` (oder von STAC-Items items-Endpoint geliefert) laden.
-   - Felder mappen:
-     - hourly: `temperature_2m`, `precipitation`, `precipitation_probability`, `weather_code` (MCH-Icon → WMO-Weathercode-Lookup-Tabelle), `wind_speed_10m`, `wind_gusts_10m`, `wind_direction_10m`, `snowfall`, `sunshine_duration`, `cloud_cover_*`.
-     - daily: aus hourly aggregieren (vorhandenes `aggregateDailyFromHourly` wird im Reader sowieso erneut angewandt).
-   - Payload `{ version, generatedAt, locations: {spotId: {bfsId, latitude, longitude, utc_offset_seconds, hourly, daily}} }` als `mch/local_forecast.json` nach R2.
-   - Retry-Logik analog `ingest_openmeteo.py`.
+**Bleiben in diesem Schritt unverändert.** Aktuell stehen sie korrekt — `MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX` ist bereits in `karten.lokal.tsx` und `lokal-noscript.tsx` gesetzt; der Footer im Widget (`weather-widget.tsx:354`) sagt noch `Modelle: ICON-seamless, DWD-MOSMIX` — das ändern wir erst, sobald Schritt 1 verifiziert tatsächlich MCH-Daten liefert, damit die UI nichts Falsches behauptet.
 
-3. **Workflow `.github/workflows/mch-local-forecast.yml`** (neu)
-   - `workflow_dispatch`, triggert vom bestehenden `cron-worker/` (Eintrag dort hinzufügen, stündlich).
-   - Secrets identisch zu `openmeteo-symbol.yml`.
+## Technische Details
 
-4. **Reader `src/lib/openmeteo-cache.server.ts`**
-   - Neue Funktion `getMchLocalForecastCache()` mit eigenem 30-s-Memo, holt `mch/local_forecast.json`.
-
-5. **`src/lib/forecast-aggregated.functions.ts`**
-   - Neue Loader-Branch `forecastFromMchCache(lat, lon)`: nimmt Spot by Distanz, baut `ForecastResponse` aus den vorgemappten Feldern, läuft durch `sanitizeForecast` und die bestehende Daily-Re-Aggregation.
-   - In `getAggregatedForecast` und `getAggregatedForecastBatch`: zuerst MCH-Cache, dann altes phaseA-Cache, dann direkter Open-Meteo-Call.
-   - MOSMIX-Overlay-Index dynamisch: `Math.min(5*24, mchHourly.time.length)` damit MOSMIX direkt am MCH-Horizont anschliesst.
-
-6. **Copy/Quellangaben aktualisieren**
-   - `src/routes/karten.lokal.tsx`: "ICON-seamless" → "MeteoSchweiz local_forecast (OGD)" in Title-Description und Subtitle.
-   - `src/components/weather-widget.tsx` Zeile 1166.
-   - `src/components/embeds/lokal-noscript.tsx` Zeile 185.
-   - `src/components/embeds/radar-noscript.tsx` Zeile 120 (nur Symbol-Teil; Radar-Teil bleibt ICON-CH).
-   - `src/routes/admin.tsx`: Provider-Zeilen für Symbol-/Lokalprognose.
-   - `src/lib/snapshot.server.ts`: Snapshot-Quelle, falls Symbolprognose dort serverseitig erzeugt wird.
-
-7. **Smoke-Test**
-   - Workflow einmal manuell laufen lassen, R2-Datei prüfen.
-   - Region- und Lokalprognose-Karte rendern, sicherstellen dass Hourly-Reihe und Tageskacheln plausibel sind und MOSMIX nahtlos anschliesst.
-
-## Offene Punkte für die Umsetzung
-
-- Exaktes STAC-Asset-Pattern und Feldnamen werden beim Schreiben des Python-Scripts gegen die Live-API verifiziert; falls MCH ein anderes ID-Schema (z. B. `forecast-<id>.json` oder gepackt in einer Sammlung) liefert, wird das Mapping dort angepasst.
-- MCH-Icon-Codes (1–35 Tag/Nacht) → WMO-Weathercodes: kleine Lookup-Tabelle im Python-Script, damit das Frontend unverändert mit `weathercode` arbeitet.
-- Wenn `local_forecast` für eine Gemeinde temporär fehlt, fällt der einzelne Spot automatisch auf phaseA zurück (keine Karten-Lücken).
-
-## Keine Änderung
-
-- `routeTree.gen.ts`, `src/integrations/supabase/*`, `src/components/maps/wind-map.tsx`, `radar-map.tsx`, `precip-accum-map.tsx` (bleiben ICON-CH).
+- Datei: `scripts/ingest_mch_local_forecast.py`, Funktion `stream_csv(url, wanted_pids)`.
+- Neue Schleife (Skizze):
+  ```python
+  with requests.get(url, stream=True, timeout=(15, 300)) as r:
+      r.raise_for_status()
+      lines = r.iter_lines(decode_unicode=True, chunk_size=64*1024)
+      reader = csv.reader(lines, delimiter=";")
+      header = next(reader, None)
+      if not header or len(header) < 4:
+          raise RuntimeError(f"unexpected header: {header}")
+      for row in reader:
+          if len(row) < 4: continue
+          try: pid = int(row[0])
+          except ValueError: continue
+          if pid in wanted_pids:
+              out[pid].append((row[2], row[3]))
+  if sum(len(v) for v in out.values()) == 0:
+      raise RuntimeError(f"stream_csv returned 0 rows for any wanted pid: {url}")
+  return out
+  ```
+- Read-Timeout auf 300 s erhöht (Datei ist ~36 MB, läuft auf GitHub-Runner deutlich unter 60 s, aber Sicherheit für peak-times).
+- Keine anderen Dateien, keine UI-, Worker- oder Workflow-Änderungen.

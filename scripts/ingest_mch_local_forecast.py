@@ -138,15 +138,18 @@ def stream_csv(url: str, wanted_pids: set[int]) -> dict[int, list[tuple[str, str
     CSV-Format: point_id;point_type_id;Date;<param>
     Wir behalten nur Zeilen mit point_id in `wanted_pids`. Memory ≈ kB.
     """
-    out: dict[int, list[tuple[str, str]]] = {pid: [] for pid in wanted_pids}
     backoff = [5, 15, 30, 60]
     for attempt in range(len(backoff) + 1):
+        out: dict[int, list[tuple[str, str]]] = {pid: [] for pid in wanted_pids}
         try:
-            with requests.get(url, stream=True, timeout=(15, 120)) as r:
+            with requests.get(url, stream=True, timeout=(15, 300)) as r:
                 if not r.ok:
                     raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
-                r.raw.decode_content = True
-                reader = csv.reader(io.TextIOWrapper(r.raw, encoding="utf-8", newline=""), delimiter=";")
+                # iter_lines() hält den HTTP-Stream sauber offen bis EOF.
+                # io.TextIOWrapper(r.raw) hatte den Stream nach dem ersten
+                # Chunk geschlossen → leeres Resultat (vgl. plan.md).
+                lines = r.iter_lines(decode_unicode=True, chunk_size=64 * 1024)
+                reader = csv.reader(lines, delimiter=";")
                 header = next(reader, None)
                 if not header or len(header) < 4:
                     raise RuntimeError(f"unexpected header: {header}")
@@ -159,6 +162,11 @@ def stream_csv(url: str, wanted_pids: set[int]) -> dict[int, list[tuple[str, str
                         continue
                     if pid in wanted_pids:
                         out[pid].append((row[2], row[3]))
+                total = sum(len(v) for v in out.values())
+                if total == 0:
+                    raise RuntimeError(
+                        f"stream_csv returned 0 rows for any wanted pid: {url}"
+                    )
                 return out
         except Exception as e:
             if attempt >= len(backoff):
