@@ -67,8 +67,10 @@ ASSET_PREFIX_FALLBACK = {
 # Erweiterte Bbox (WGS84) — Oberthurgau + ~50 km in alle Richtungen, deckt CH-Mitte/Ost, Süd-Schwarzwald, Bodensee/Allgäu, Vorarlberg ab.
 BBOX_WGS = {"minLon": 8.15, "maxLon": 10.55, "minLat": 46.85, "maxLat": 48.30}
 
-# Output PNG resolution (Web Mercator pixels). 1024×768 hält ~1 km/px bei der grösseren Fläche.
-OUT_W, OUT_H = 1024, 768
+# Output PNG resolution — native CombiPrecip-Auflösung (~1 km/Pixel) für die Bbox
+# 8.15°–10.55° E × 46.85°–48.30° N, damit die MCH-typischen quadratischen
+# 1km-Rasterzellen sichtbar bleiben (statt geglätteter Heatmap).
+OUT_W, OUT_H = 240, 144
 
 LOOKBACK = int(os.environ.get("RADAR_LOOKBACK_HOURS", "12"))
 RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
