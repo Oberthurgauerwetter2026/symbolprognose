@@ -379,8 +379,12 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        cv.style.filter = contour ? "contrast(1.55) saturate(1.05)" : "blur(0.8px) contrast(2.2)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
+        // Prognose: keine Filter — Pixel-Raster soll sichtbar bleiben.
+        // Messung-Fallback (contour=false): leichter Blur wie bisher.
+        cv.style.filter = contour ? "none" : "blur(0.8px) contrast(2.2)";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = contour
+          ? "pixelated"
+          : "auto";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -438,9 +442,8 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // STEP=2: Off-screen-Buffer auf halber Auflösung pro Achse (1/4 Pixel)
-    // → deutlich schnellere Redraws, stabile 60fps Animation.
-    const STEP = 2;
+    // Prognose: chunky 3-Pixel-Raster (Wetter-Modell-Look). Messung: feiner.
+    const STEP = contour ? 3 : 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -472,6 +475,40 @@ function PrecipOverlay({
       );
     };
 
+    // -------- Deterministisches Value-Noise + fBm (fraktales Rauschen) --------
+    // Pro Frame stabil (Seed aus frame.t), damit Animation nicht flackert.
+    const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
+    const hash = (ix: number, iy: number) => {
+      let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
+      h = (h ^ (h >>> 13)) * 1274126177;
+      h = h ^ (h >>> 16);
+      return ((h >>> 0) % 10000) / 10000; // 0..1
+    };
+    const smooth = (u: number) => u * u * (3 - 2 * u);
+    const valueNoise = (x: number, y: number) => {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fx = smooth(x - ix);
+      const fy = smooth(y - iy);
+      const a = hash(ix, iy);
+      const b = hash(ix + 1, iy);
+      const c = hash(ix, iy + 1);
+      const d = hash(ix + 1, iy + 1);
+      return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
+    };
+    // fBm: 3 Oktaven → räumlich korreliert mit eingebetteten Kernen.
+    const fbm = (x: number, y: number) => {
+      let v = 0;
+      let amp = 0.5;
+      let freq = 1;
+      for (let o = 0; o < 3; o++) {
+        v += valueNoise(x * freq, y * freq) * amp;
+        amp *= 0.5;
+        freq *= 2.1;
+      }
+      return v; // ~0..1
+    };
+
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
         const px = lx * STEP;
@@ -484,9 +521,21 @@ function PrecipOverlay({
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
 
         const vCur = sampleAt(vals, fxRaw, fyRaw);
-        const v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
-        // Prognose: weicher Alpha-Ramp unter dem ersten Band, damit einzelne
-        // ICON-CH1-Modellzellen nicht als isolierte Punkte erscheinen.
+        let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
+
+        // Prognose: fraktale Modulation → grossflächige, organische Felder
+        // mit eingebetteten Niederschlagskernen. Modulation am Grid-Raster
+        // (~Modellauflösung), nicht am Pixel.
+        if (contour && v > 0) {
+          // Grobe Oktave folgt der Modellauflösung (≈ alle 2 Grid-Punkte
+          // ein Noise-Lobus); feine Oktaven liefern die Kerne.
+          const n = fbm(fxRaw * 0.6, fyRaw * 0.6); // 0..1
+          // Multiplikator 0.35 … 1.65 → Iso-Kanten werden fraktal verformt,
+          // Spitzen können in die nächste Farbstufe „aufflammen".
+          const mod = 0.35 + n * 1.3;
+          v = v * mod;
+        }
+
         const minV = contour ? 0.05 : 0.1;
         if (v < minV) continue;
 
@@ -497,15 +546,11 @@ function PrecipOverlay({
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
-        // contour=true (Prognose): log-interpolierte Bänder (colorForSmooth),
-        // damit ICON-CH1-Felder nicht als Cartoon-Blöcke wirken.
-        // contour=false: gleiche weiche Skala für Messung-Canvas-Fallback.
-        let [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorForSmooth(v);
-        // Unter erstem Band (nur Prognose): Alpha sanft auf 0 ausblenden.
-        if (contour && v < 0.1) {
-          const ramp = (v - 0.05) / (0.1 - 0.05);
-          a = a * Math.max(0, Math.min(1, ramp));
-        }
+        // Prognose: diskrete Bänder (colorFor) für harte Iso-Kanten — wirkt
+        // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
+        let [r, g, b, a] = snowFrac > 0.3
+          ? snowColorFor(v)
+          : (contour ? colorFor(v) : colorForSmooth(v));
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -530,9 +575,9 @@ function PrecipOverlay({
     // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = contour ? "medium" : "high";
-    // Prognose: kein zusätzlicher Blur — Strukturen der ICON-CH1-Zellen sichtbar lassen.
+    // Prognose: nearest-neighbour upscaling → sichtbare Pixel-Kanten.
+    ctx.imageSmoothingEnabled = !contour;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };

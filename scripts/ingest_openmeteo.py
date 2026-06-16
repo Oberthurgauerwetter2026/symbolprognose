@@ -207,15 +207,16 @@ def main() -> None:
         "timezone": "UTC",
         "models": "meteoswiss_icon_ch1",
     }
-    # phase2: ICON-seamless hourly (-12h … +168h) — deterministische,
-    # nahtlose Verkettung CH1 → CH2 → ICON-EU/global. Ersetzt die frühere
-    # zweistufige CH1/CH2-Kaskade.
+    # phase2: ICON-CH2 hourly (-12h … +120h) — nahtlose CH1-Verlängerung
+    # (CH1 deckt ~+33h ab, CH2 schliesst lückenlos bis +120h an). Bewusst NICHT
+    # icon_seamless, damit Radar-Prognose ausschliesslich aus dem ICON-CH-Stack
+    # kommt (kein Übergang nach ICON-EU/global im Sichtfenster).
     p2 = {
         "hourly": "precipitation,snowfall,wind_speed_10m,wind_direction_10m,wind_gusts_10m,wind_speed_700hPa,wind_direction_700hPa",
         "past_hours": 12,
-        "forecast_hours": 168,
+        "forecast_hours": 120,
         "timezone": "UTC",
-        "models": "icon_seamless",
+        "models": "meteoswiss_icon_ch2",
     }
     # phaseA: Multi-Modell hourly+daily 7 d — Symbolprognose Hot-Path
     pa = {
