@@ -559,16 +559,23 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
     async ({ data }): Promise<Record<string, ForecastResponse>> => {
       setCdnCacheHeaders();
       const out: Record<string, ForecastResponse> = {};
+
+      // Beide Caches einmal lesen — MCH primär, phaseA als Fallback pro Punkt.
+      let mchLocs: MchLocalForecastLocation[] | null = null;
       let locs: Loc[] | null = null;
+      try {
+        const mch = await getMchLocalForecastCache();
+        mchLocs = mch?.locations?.length ? mch.locations : null;
+      } catch (err) {
+        console.error("[aggregated-forecast-batch] MCH cache read failed", err);
+      }
       try {
         locs = await loadSymbolLocs();
       } catch (err) {
-        console.error("[aggregated-forecast-batch] cache read failed", err);
+        console.error("[aggregated-forecast-batch] phaseA cache read failed", err);
       }
 
-      // MOSMIX dedupliziert pro Punkt holen: viele Punkte teilen sich denselben
-      // Loc-Eintrag aus dem Symbol-Cache (gleiche utc_offset). MOSMIX selbst
-      // schnappt auf eine von 2 erlaubten Stationen → max. 2 echte Fetches.
+      // MOSMIX dedupliziert pro Punkt holen.
       const mosmixCache = new Map<string, Promise<MosmixHourly | null>>();
       const getMosmix = (lat: number, lon: number) => {
         const key = `${lat.toFixed(2)}|${lon.toFixed(2)}`;
@@ -584,6 +591,20 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
       };
 
       for (const p of data.points) {
+        // 1) MCH primär
+        if (mchLocs) {
+          const built = await forecastFromMchCache(p.lat, p.lon, mchLocs);
+          if (built) {
+            const mosmix = await getMosmix(p.lat, p.lon);
+            out[p.id] = applyMosmixOverlay(
+              built.fc,
+              mosmix,
+              built.loc.utc_offset_seconds ?? 0,
+            );
+            continue;
+          }
+        }
+        // 2) phaseA fallback
         if (locs) {
           const best = pickNearest(locs, p.lat, p.lon);
           if (best?.hourly?.time?.length) {
@@ -593,6 +614,7 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
             continue;
           }
         }
+        // 3) Direkter Open-Meteo-Call als letzte Reissleine
         try {
           out[p.id] = await fetchForecast(p.lat, p.lon);
         } catch (err) {
