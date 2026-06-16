@@ -134,6 +134,13 @@ interface AccumResult {
   framesUsed: number;
 }
 
+/**
+ * Aggregiert die ICON-CH-Niederschlagsfelder aus `getRadarFrames()` zu einer
+ * mm-Summe über `hours` Stunden ab jetzt. Quelle pro Frame ist identisch zum
+ * Radar-Forecast: ICON-CH1 minutely_15 :00 → ICON-CH1 hourly → ICON-CH2 hourly
+ * (`source === "icon-ch1" | "icon-ch2"`). `values` sind mm/h und werden mit
+ * Δh zwischen aufeinanderfolgenden Frame-Zeitstempeln multipliziert.
+ */
 export function accumulatePrecip(
   frames: RadarFrame[],
   nPts: number,
