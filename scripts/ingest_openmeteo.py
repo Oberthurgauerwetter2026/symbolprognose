@@ -152,15 +152,22 @@ def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optio
         res = fetch(sub_label, params, optional=optional)
         return bi, sub_label, res
 
+    try:
+        batch_sleep = float(os.environ.get("BATCH_SLEEP_S", "0"))
+    except ValueError:
+        batch_sleep = 0.0
+
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = [ex.submit(run, bi) for bi in range(n_batches)]
-        for fut in futures:
+        for idx, fut in enumerate(futures):
             bi, sub_label, res = fut.result()
             if res is None:
                 print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
                 return None
             results[bi] = res
             print(f"  {sub_label} ok")
+            if batch_sleep > 0 and idx < len(futures) - 1:
+                time.sleep(batch_sleep)
 
     out: list = []
     for r in results:
