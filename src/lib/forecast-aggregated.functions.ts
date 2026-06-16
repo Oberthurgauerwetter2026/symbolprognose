@@ -274,6 +274,36 @@ async function forecastFromCache(
   return buildForecastFromCacheLoc(best);
 }
 
+/**
+ * Overlay DWD-MOSMIX ab Tag 6 (Index 5*24). MOSMIX ist eine deterministische,
+ * statistisch nachkalibrierte Punktprognose auf ICON-Basis — saubere Naht zu
+ * icon_seamless ohne Modellsprung zu einem Ensemble-Mittel.
+ */
+function applyMosmixOverlay(
+  forecast: ForecastResponse,
+  mosmix: MosmixHourly | null,
+  offsetSec: number,
+): ForecastResponse {
+  if (!mosmix) return forecast;
+  const aligned = alignMosmixToTimeline(mosmix, forecast.hourly.time, offsetSec, 5 * 24);
+  if (!aligned) return forecast;
+  const merged = overwriteFromIndex(forecast, aligned, 5 * 24);
+  // Daily aus dem überschriebenen Hourly neu aggregieren.
+  for (let i = 0; i < merged.daily.time.length; i++) {
+    const agg = aggregateDailyFromHourly(merged.hourly, merged.daily.time[i] ?? "");
+    const wc = agg.weathercode;
+    if (typeof wc === "number" && Number.isFinite(wc)) merged.daily.weathercode[i] = wc;
+    const ps = agg.precipitation_sum;
+    if (typeof ps === "number" && Number.isFinite(ps)) merged.daily.precipitation_sum[i] = ps;
+    const ph = agg.precipitation_hours;
+    if (typeof ph === "number" && Number.isFinite(ph)) merged.daily.precipitation_hours[i] = ph;
+    const sd = agg.sunshine_duration;
+    if (typeof sd === "number" && Number.isFinite(sd)) merged.daily.sunshine_duration[i] = sd;
+  }
+  return merged;
+}
+
+
 function setCdnCacheHeaders() {
   setResponseHeaders(
     new Headers({
