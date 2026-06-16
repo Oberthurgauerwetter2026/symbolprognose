@@ -116,14 +116,14 @@ interface ModelInfo {
 
 const MODELS: ModelInfo[] = [
   {
-    name: "ICON-seamless",
-    provider: "MeteoSchweiz via Open-Meteo Forecast-API",
-    resolution: "1 km (0–33 h) → 2 km (bis 120 h) → 6–13 km (bis 168 h)",
-    members: "— (deterministisch)",
-    range: "bis 168 h",
-    usage: "Tag 1–7 Primärquelle (hourly)",
+    name: "MeteoSchweiz local_forecast (OGD)",
+    provider: "MeteoSchweiz STAC ch.meteoschweiz.ogd-local-forecasting",
+    resolution: "Punktprognose pro PLZ (INCA + ICON-CH1/CH2 + ECMWF)",
+    members: "— (deterministischer Mix)",
+    range: "bis +192 h, stündlich",
+    usage: "Tag 1–7 Primärquelle (Symbol- & Lokalprognose)",
     endpoint:
-      "https://api.open-meteo.com/v1/forecast?models=icon_seamless",
+      "https://data.geo.admin.ch/api/stac/v1/collections/ch.meteoschweiz.ogd-local-forecasting",
   },
   {
     name: "ICON-CH1 (minutely_15)",
@@ -141,7 +141,7 @@ const MODELS: ModelInfo[] = [
     resolution: "stationsbasiert (Punktprognose, MOS auf ICON-Basis)",
     members: "— (deterministisch, statistisch nachkalibriert)",
     range: "~10 Tage, stündlich",
-    usage: "ab Tag 6 alleinige Quelle (überschreibt icon_seamless)",
+    usage: "ab Tag 6 alleinige Quelle (überschreibt local_forecast)",
     endpoint:
       "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/{ID}/kml/MOSMIX_L_LATEST_{ID}.kmz",
   },
