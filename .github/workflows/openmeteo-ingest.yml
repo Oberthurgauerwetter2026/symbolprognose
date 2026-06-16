@@ -36,7 +36,7 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           CHUNK_PHASE1: "10"
           CHUNK_PHASEC: "60"
-          BATCH_SLEEP_S: "6"
+          BATCH_SLEEP_S: "2"
           OM_CONNECT_TIMEOUT: "30"
           OM_READ_TIMEOUT: "300"
           FETCH_WORKERS: "1"
