@@ -23,6 +23,76 @@ export interface OpenMeteoCachePayload {
 const MEMO_TTL_MS = 30_000;
 let memo: { at: number; data: OpenMeteoCachePayload } | null = null;
 let symbolMemo: { at: number; data: OpenMeteoCachePayload } | null = null;
+let mchLocalMemo: { at: number; data: MchLocalForecastPayload } | null = null;
+
+export interface MchLocalForecastLocation {
+  id: string;
+  mchPointId: number;
+  name?: string;
+  latitude: number;
+  longitude: number;
+  utc_offset_seconds: number;
+  timezone?: string;
+  hourly: {
+    time: string[];
+    weathercode: (number | null)[];
+    temperature_2m: (number | null)[];
+    precipitation: (number | null)[];
+    precipitation_probability: (number | null)[];
+    windspeed_10m: (number | null)[];
+    windgusts_10m: (number | null)[];
+    winddirection_10m: (number | null)[];
+    snowfall: (number | null)[];
+    sunshine_duration: (number | null)[];
+    cloud_cover_low: (number | null)[];
+    cloud_cover_mid: (number | null)[];
+    cloud_cover_high: (number | null)[];
+  };
+  daily: {
+    time: string[];
+    weathercode: (number | null)[];
+    temperature_2m_min: (number | null)[];
+    temperature_2m_max: (number | null)[];
+    precipitation_sum: (number | null)[];
+  };
+}
+
+export interface MchLocalForecastPayload {
+  version?: string;
+  generatedAt: string;
+  stacItemId?: string;
+  stacItemDatetime?: string;
+  locations: MchLocalForecastLocation[];
+}
+
+/**
+ * Lädt mch/local_forecast.json — primäre Quelle der Symbol- und
+ * Lokalprognose (MeteoSchweiz OGD `ch.meteoschweiz.ogd-local-forecasting`).
+ */
+export async function getMchLocalForecastCache(): Promise<MchLocalForecastPayload | null> {
+  if (mchLocalMemo && Date.now() - mchLocalMemo.at < MEMO_TTL_MS) return mchLocalMemo.data;
+  const base = r2BaseUrl();
+  if (!base) {
+    console.warn("[mch-local-forecast] R2_PUBLIC_URL not set");
+    return null;
+  }
+  try {
+    const res = await fetch(`${base}/mch/local_forecast.json`, {
+      cf: { cacheTtl: 30, cacheEverything: true } as unknown as undefined,
+    } as RequestInit);
+    if (!res.ok) {
+      console.warn(`[mch-local-forecast] ${res.status} on ${base}/mch/local_forecast.json`);
+      return null;
+    }
+    const data = (await res.json()) as MchLocalForecastPayload;
+    if (!data?.locations?.length) return null;
+    mchLocalMemo = { at: Date.now(), data };
+    return data;
+  } catch (e) {
+    console.warn(`[mch-local-forecast] fetch error: ${(e as Error).message}`);
+    return null;
+  }
+}
 
 /**
  * Lädt NUR symbol.json (phaseA — Symbolprognose). Eigener Memo,
