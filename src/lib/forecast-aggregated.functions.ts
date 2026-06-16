@@ -271,8 +271,16 @@ async function forecastFromCache(
   if (!locs) return null;
   const best = pickNearest(locs, lat, lon);
   if (!best?.hourly?.time?.length) return null;
-  return buildForecastFromCacheLoc(best);
+  const fc = buildForecastFromCacheLoc(best);
+  const mosmix = await fetchMosmix({ data: { latitude: lat, longitude: lon } }).catch(
+    (e) => {
+      console.warn("[aggregated-forecast] MOSMIX nicht verfügbar:", e);
+      return null;
+    },
+  );
+  return applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
 }
+
 
 /**
  * Overlay DWD-MOSMIX ab Tag 6 (Index 5*24). MOSMIX ist eine deterministische,
