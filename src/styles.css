@@ -185,11 +185,13 @@
   filter: brightness(0) saturate(100%);
 }
 
-/* Radar: MeteoSchweiz-PNG mit identischem Filter wie das Forecast-Canvas,
-   damit Messung und Prognose dieselbe visuelle Intensität haben. */
+/* Radar: MeteoSchweiz-CombiPrecip-PNG in nativer ~1km-Auflösung — Pixel
+   bleiben scharf, damit der typische MCH-Rasterlook (quadratische Zellen,
+   harte Bandkanten) auch bei hohem Zoom erhalten bleibt. */
 .mch-precip {
-  image-rendering: auto;
-  filter: blur(0.8px) contrast(2.2);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: contrast(1.1);
   will-change: filter;
 }
 
