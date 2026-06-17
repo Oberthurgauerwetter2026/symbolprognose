@@ -36,6 +36,9 @@ export interface DailyData {
 export interface HourlyData {
   time: string[];
   weathercode: number[];
+  /** MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht). Nur gesetzt, wenn
+   *  Primärquelle MeteoSchweiz `local_forecast` ist; sonst undefined. */
+  weathercode_mch?: number[];
   temperature_2m: number[];
   precipitation: number[];
   precipitation_probability: number[];
@@ -726,6 +729,13 @@ export function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     cloud_cover_mid: fixNumArr(h?.cloud_cover_mid as (number | null)[] | undefined),
     cloud_cover_high: fixNumArr(h?.cloud_cover_high as (number | null)[] | undefined),
   };
+  // MCH-Original-Icon-Codes als NaN-für-fehlt durchreichen, damit das Frontend
+  // pro Stunde entscheiden kann: vorhanden → Tag/Nacht aus MCH; sonst Fallback.
+  if (h?.weathercode_mch) {
+    sanitizedHourly.weathercode_mch = (h.weathercode_mch as (number | null)[]).map(
+      (v) => (typeof v === "number" && Number.isFinite(v) ? v : NaN),
+    );
+  }
 
 
   const sanitizedDaily: DailyData = {

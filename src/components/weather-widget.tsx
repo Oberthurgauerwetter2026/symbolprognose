@@ -879,6 +879,7 @@ function DetailPanel({
                     >
                       <WeatherIcon
                         code={h.weathercode?.[idx] ?? 0}
+                        mchCode={h.weathercode_mch?.[idx]}
                         isDay={t.getHours() >= 6 && t.getHours() < 20}
                         size={cadence === "1h" ? 48 : 64}
                         precip={h.precipitation?.[idx]}

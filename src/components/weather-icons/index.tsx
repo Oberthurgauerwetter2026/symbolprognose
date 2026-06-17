@@ -403,6 +403,7 @@ function pickWetDailyIcon({
 
 export function WeatherIcon({
   code,
+  mchCode,
   isDay = true,
   size = 48,
   className,
@@ -418,6 +419,10 @@ export function WeatherIcon({
   cloudHigh,
 }: {
   code: number;
+  /** MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht). Wenn vorhanden,
+   *  überschreibt er die Tag/Nacht-Heuristik mit der modell-eigenen
+   *  MeteoSchweiz-Klassifikation. */
+  mchCode?: number;
   isDay?: boolean;
   size?: number;
   className?: string;
@@ -434,6 +439,11 @@ export function WeatherIcon({
   cloudHigh?: number;
 
 }) {
+  // MCH-Override: liefert das MeteoSchweiz-Modell selbst eine Nacht-Variante
+  // (Code ≥ 100), zwingen wir isDay=false — unabhängig von der Uhrzeit.
+  if (typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 100) {
+    isDay = false;
+  }
   const props = { size, className };
 
   // Override: Wenn das Modell selbst klaren Niederschlag prognostiziert,

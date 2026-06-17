@@ -156,6 +156,7 @@ function MarkerPill({
   tMax,
   tNow,
   code,
+  mchCode,
   isDay,
   precip,
   precipProb,
@@ -173,6 +174,7 @@ function MarkerPill({
   tMax: number;
   tNow: number;
   code: number;
+  mchCode?: number;
   isDay: boolean;
   precip?: number;
   precipProb?: number;
@@ -221,6 +223,7 @@ function MarkerPill({
         <span style={{ display: "inline-flex", filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.45)) drop-shadow(0 1px 2px rgba(0,0,0,0.35))" }}>
           <WeatherIcon
             code={code}
+            mchCode={mchCode}
             isDay={isDay}
             size={71}
             scope={mode}
@@ -336,6 +339,8 @@ function SpotMarker({
         : data.hourly.weathercode[absoluteHour] ??
           data.daily.weathercode[dayIdx] ??
           0;
+    const mchCode =
+      mode === "hourly" ? data.hourly.weathercode_mch?.[absoluteHour] : undefined;
     const tMin = data.daily.temperature_2m_min[dayIdx] ?? NaN;
     const tMax = data.daily.temperature_2m_max[dayIdx] ?? NaN;
     const tNow = data.hourly.temperature_2m[absoluteHour] ?? tMax;
@@ -381,6 +386,7 @@ function SpotMarker({
           tMax={tMax}
           tNow={tNow}
           code={code}
+          mchCode={mchCode}
           isDay={effectiveIsDay}
           precip={precip}
           precipProb={precipProb}

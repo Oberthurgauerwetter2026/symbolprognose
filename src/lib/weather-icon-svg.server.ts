@@ -230,6 +230,8 @@ function pickWetDaily(opts: {
 
 export interface RenderIconOpts {
   code: number;
+  /** MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht). ≥100 → Nacht-Override. */
+  mchCode?: number;
   isDay?: boolean;
   size?: number;
   precip?: number;
@@ -247,7 +249,7 @@ export interface RenderIconOpts {
 export function renderWeatherIconSvg(o: RenderIconOpts): string {
   const {
     code,
-    isDay = true,
+    mchCode,
     size = 48,
     precip,
     precipProb,
@@ -260,6 +262,10 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
     cloudMid,
     cloudHigh,
   } = o;
+  const isDay =
+    typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 100
+      ? false
+      : o.isDay ?? true;
 
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
   const wmoIsThunder = code === 95 || code === 96 || code === 99;

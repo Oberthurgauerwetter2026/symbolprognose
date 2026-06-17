@@ -36,6 +36,7 @@ export interface MchLocalForecastLocation {
   hourly: {
     time: string[];
     weathercode: (number | null)[];
+    weathercode_mch?: (number | null)[];
     temperature_2m: (number | null)[];
     precipitation: (number | null)[];
     precipitation_probability: (number | null)[];
@@ -51,6 +52,7 @@ export interface MchLocalForecastLocation {
   daily: {
     time: string[];
     weathercode: (number | null)[];
+    weathercode_mch?: (number | null)[];
     temperature_2m_min: (number | null)[];
     temperature_2m_max: (number | null)[];
     precipitation_sum: (number | null)[];

@@ -314,6 +314,11 @@ function buildForecastFromMchLoc(loc: MchLocalForecastLocation): ForecastRespons
     cloud_cover_mid: h.cloud_cover_mid.map((v) => num(v)),
     cloud_cover_high: h.cloud_cover_high.map((v) => num(v)),
   };
+  if (h.weathercode_mch) {
+    hourly.weathercode_mch = h.weathercode_mch.map((v) =>
+      typeof v === "number" && Number.isFinite(v) ? v : NaN,
+    );
+  }
   if (hourly.time.length !== hLen) hourly.time = hourly.time.slice(0, hLen);
 
   const d = loc.daily;
