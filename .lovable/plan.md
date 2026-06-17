@@ -1,70 +1,53 @@
-## Open-Meteo Ingest: Job-Cancellation durch Cron-Überlappung beheben
+## Open-Meteo Ingest: Queue-Cancel durch zu enge Cron-Frequenz vermeiden
 
-### Diagnose
+### Ursache
 
-Der eigentliche Fehler im neuen Log ist **nicht** der Timeout — Batch 10 hatte 1 WARN, aber 8/9 liefen danach weiter. Der Abbruch kommt von GitHub selbst:
+`cancel-in-progress: false` lässt **genau 1** Run warten. Ein dritter Trigger killt den wartenden mit der Meldung „higher priority waiting request". Der Cron-Worker triggert `openmeteo` alle 10 min, der Job läuft aktuell ~8–12 min → 3 Runs überlappen sich regelmässig.
 
-```
-Error: The operation was canceled.
-```
+Zwei Hebel gleichzeitig: **Trigger entzerren** + **Laufzeit kürzen**, beides mit Sicherheitsmarge gegen Open-Meteo-429.
 
-Ursache: In `.github/workflows/openmeteo-ingest.yml` steht
+### Edit 1 — Cron-Worker: Open-Meteo nur alle 15 min
 
-```yaml
-concurrency:
-  group: openmeteo-ingest
-  cancel-in-progress: true
+`cron-worker/src/index.ts` (Zeile 147):
+
+```ts
+const includeOpenmeteo = minute % 15 === 0;   // war: minute % 10 === 0
 ```
 
-und der **Cloudflare-Cron-Worker triggert den Workflow alle 5 min** via `workflow_dispatch`. Mit den neuen Settings dauert phase1 jetzt deutlich länger:
+→ 96 Trigger/Tag statt 144. Open-Meteo-Daten sind ohnehin Modell-stündlich, 15 min Cache-Alter ist für die Wetter-Widgets unkritisch.
 
-- 80 Batches × (~1 s Request + 6 s Sleep) ≈ **9+ min** nur für phase1
-- + phase2 (CH2 hourly) + phaseC (Lookback) → Gesamt ~12–15 min
+Anschliessend `cron-worker-deploy.yml` durchlaufen lassen (Push auf main reicht).
 
-Sobald der nächste 5-min-Cron eintrifft, killt `cancel-in-progress: true` den laufenden Job mitten in phase1. Daher der saubere "operation was canceled" direkt nach Batch 9.
-
-Der Hinweis "read timeout=30.0" in Batch 10 ist sekundär: ein einzelner Slow-Response, der vom 7-stufigen Backoff sowieso aufgefangen worden wäre — nicht der Grund für den Abbruch.
-
-### Edit 1 — Cron-Überlappung verhindern
-
-`.github/workflows/openmeteo-ingest.yml`:
-
-```yaml
-concurrency:
-  group: openmeteo-ingest
-  cancel-in-progress: false   # war: true
-```
-
-Damit queued GitHub neue Trigger oder verwirft sie sauber, ohne den laufenden Job zu killen. Bei `workflow_dispatch` heisst das praktisch: max. 1 Folge-Run wartet, weitere werden zusammengefasst.
-
-### Edit 2 — Laufzeit zurück unter 5 min bringen
-
-`BATCH_SLEEP_S=6` war für den Fall gedacht, dass Open-Meteo bei Parallelität throttelt. Mit `FETCH_WORKERS=1` ist der Stream eh seriell — 6 s zusätzlich pro Batch sind übertrieben.
+### Edit 2 — Ingest-Laufzeit zuverlässig unter 6 min
 
 `.github/workflows/openmeteo-ingest.yml`, env-Block:
 
 ```yaml
-CHUNK_PHASE1: "10"          # unverändert
-BATCH_SLEEP_S: "2"          # war 6 — bei workers=1 reicht 2 s
-OM_CONNECT_TIMEOUT: "30"    # unverändert
-OM_READ_TIMEOUT: "300"      # unverändert
-FETCH_WORKERS: "1"          # unverändert
+CHUNK_PHASE1: "15"     # zurück auf 15 (war 10) — 53 batches statt 80
+BATCH_SLEEP_S: "1"     # war 2 — bei workers=1 reicht 1 s
+CHUNK_PHASEC: "60"     # unverändert
+OM_CONNECT_TIMEOUT: "30"
+OM_READ_TIMEOUT: "300"
+FETCH_WORKERS: "1"     # unverändert (kein Parallel-Druck auf Open-Meteo)
 ```
 
-Geschätzte phase1-Laufzeit: 80 × (1 s + 2 s) ≈ **4 min**, Gesamt-Job ~6–8 min — passt deutlich besser zwischen zwei 5-min-Cron-Trigger, und falls doch mal eng → `cancel-in-progress: false` puffert.
+Geschätzte phase1-Laufzeit: 53 × (1.2 s + 1 s) ≈ **2 min**, Gesamt-Job inkl. phase2 + phaseC ≈ **5–6 min**. Selbst bei einem slow-Batch mit Retry bleibt Puffer zu 15 min.
 
-### Kein Code-Change
+Begründung für `CHUNK_PHASE1=15` trotz vorheriger 429-Sorge: Der eigentliche WARN damals war ein **Read-Timeout**, kein 429. Mit `FETCH_WORKERS=1` ist die Request-Rate Richtung Open-Meteo identisch zu `CHUNK=10` — nur die Payload pro Request wächst. Open-Meteo schickt 15 Punkte problemlos in einer Antwort (Limit liegt deutlich höher).
 
-`scripts/ingest_openmeteo.py` (inkl. neu gepatchtem `BATCH_SLEEP_S`-Respekt aus letzter Runde) bleibt unverändert. Exponential-Backoff existiert bereits 7-stufig im `fetch()`.
+### Edit 3 — Kein Code-Change am Python-Script
+
+`scripts/ingest_openmeteo.py` bleibt unverändert. Der 7-stufige Backoff fängt Einzel-Timeouts ab; `BATCH_SLEEP_S`-Respekt aus der vorherigen Runde bleibt aktiv.
 
 ### Verifikation
 
-1. GitHub Actions → **Open-Meteo Cache Ingest** → **Run workflow** manuell.
-2. Log läuft komplett durch: phase1 80/80 ok, phase2 ok, phaseC ok, `uploaded openmeteo/forecast.json`, `done`.
-3. Kein "operation was canceled" mehr, selbst wenn parallel der Cloudflare-Cron tickert.
-4. R2 `openmeteo/forecast.json` `generatedAt` frisch.
+1. Cron-Worker-Deploy abwarten (GitHub Actions → `cron-worker-deploy`).
+2. `openmeteo-ingest` manuell triggern, Log: phase1 53/53 ok, phase2 ok, phaseC ok, `uploaded openmeteo/forecast.json`, Gesamtlaufzeit < 6 min.
+3. 30 min beobachten: keine „higher priority waiting request"-Cancels mehr, `lastOpenmeteo.at` im Worker-`/status` aktualisiert sich alle 15 min.
+4. R2 `openmeteo/forecast.json` `generatedAt` max. 15 min alt.
 
 ### Nicht im Scope
 
-- `weather-widget.tsx` Quellenangaben — warten weiterhin auf grünen `mch/local_forecast.json`-Lauf.
-- `phaseA` / Symbolprognose-Workflow.
+- `weather-widget.tsx` Quellenangaben.
+- `phaseA` / Symbol-Workflow (eigener Takt, eigener Workflow).
+- Wechsel auf `FETCH_WORKERS>1` — erst dann nötig, wenn Open-Meteo-Punkte deutlich wachsen.
