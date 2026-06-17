@@ -1,54 +1,55 @@
-# Ziel
+# Befund
 
-Wenn `weathercode_mch` vorhanden ist, soll das Frontend **genau das MeteoSwiss-Pictogramm** zur jeweiligen Code-Nummer rendern — keine Interpretation, keine Reduktion auf unsere generischen Icons, kein WMO-Umweg.
+Die MCH-Pictogramme (inkl. 12/13/24/25 Gewitter, 35 Schneesturm) sind in `mch-spec.ts` korrekt definiert. Das Problem liegt **vor** dem Icon-Dispatcher: in `mch/local_forecast.json` (R2) sind **alle Stunden- und Tagesarrays für alle 8 Orte komplett leer**.
 
-# Status heute
+Beleg (frisch aus R2 gezogen, `generatedAt 2026-06-17T20:00:27Z`):
 
-`pickMchIcon` in `src/components/weather-icons/index.tsx` (und Spiegelung in `weather-icon-svg.server.ts`) mappt die 35 MCH-Codes auf unser bestehendes generisches Icon-Set (Clear, PartlyCloudy, Rain, Snow, Thunderstorm, …). Das ist eine Heuristik: Schnee-Regen-Mix (6/8/18/23), Schauer (9/11/19/32), variabel bewölkt (28/29), Schnee-Gewitter (35) etc. werden auf Nachbarsymbole abgebildet, weil keine eigenen Komponenten existieren.
+```text
+Horn                 mchId=932600  n=0  unique=[]
+Amriswil             mchId=858000  n=0  unique=[]
+Bischofszell         mchId=922301  n=0  unique=[]
+… (alle 8 Spots identisch: 0 Stunden, 0 Tage)
+```
+
+Folge: `getAggregatedForecast` findet kein `weathercode_mch`, das Frontend fällt auf den Open-Meteo/WMO-Pfad zurück. Open-Meteo gibt für die aktuelle Wetterlage in Amriswil keine 95er-Codes (Gewitter) aus → der Dispatcher rendert Sonne / Wolken statt `IconThunderstorm` oder MCH-12. Es fehlen also nicht „die Gewittercodes im Icon-Set", sondern die MCH-Daten insgesamt.
+
+# Ursache der leeren Daten
+
+Die Original-CSV (`vnut12.lssw.202606150000.jww003i0.csv` aus STAC) enthält für jeden unserer 8 MCH-Punkte ~217 Stunden inkl. Codes wie `2, 102, 1, …`. Manuell durchgereicht durch dieselbe Filter-Logik wie `stream_csv` kommen 217 Rows pro Spot heraus.
+
+Der Workflow läuft, lädt frisch hoch (`Last-Modified 20:00:27`), produziert aber leere Arrays. Das passiert nur, wenn entweder
+1. eine veraltete Script-Version im `main`-Branch lief (alte SPOT-IDs, anderes Parameter-Mapping), oder
+2. `stream_csv` für *einzelne* Params Zeilen ausschließlich für andere `point_type_id` lieferte und so `times` aus der Vereinigung leer blieb.
+
+Beides muss das Ingest selbst nachweisbar machen, statt still eine leere Payload zu deployen.
 
 # Plan
 
-## 1. MCH-Symbol-Set als Assets ablegen
+## 1. Ingest absichern (`scripts/ingest_mch_local_forecast.py`)
 
-- Set mit **70 SVGs** anlegen: `mch-01.svg` … `mch-35.svg` (Tag) und `mch-101.svg` … `mch-135.svg` (Nacht).
-- Stil: dem aktuellen Vektor-Stil (Sonne/Mond, Wolken, Tropfen, Blitze) treu bleiben, aber **jeder Code ein eigenes Bild**, das exakt der MeteoSwiss-Pictogramm-Bedeutung entspricht (siehe Legende: Klar, leicht/mässig/dicht bewölkt, Nebel, Niesel, leichter/mässiger/starker Regen, Schnee, Schnee-Regen-Mix, Schauer, Gewitter, Schnee-Gewitter, variabel, Sturm).
-- Ablage: `src/assets/mch-icons/` als echte SVG-Dateien (klein, <2 KB pro Stück → in Repo halten, kein CDN nötig). Wenn das Set später wächst, optional über `lovable-assets` auf CDN auslagern.
-- Generierungsweg: SVGs werden von mir per Skript/Hand erstellt; **keine** Übernahme proprietärer MeteoSwiss-Bilddateien.
+- **Pro Param Treffer pro Wunsch-PID loggen** statt nur `total`: nach `stream_csv` ausgeben, wie viele Rows pro PID gefunden wurden (`{858000: 217, 932600: 217, …}`).
+- **Hartes Abbruchkriterium am Ende von `main()`**: wenn alle Locations `len(hourly.time) == 0` haben → `sys.exit("no hourly rows for any spot — refusing to upload empty payload")`. So überschreibt ein kaputter Lauf nie wieder die letzte gute Datei in R2.
+- **Min-Treffer pro Wunsch-PID**: wenn für eine konkrete `wanted_pid` in einem hourly-Param 0 Rows zurückkommen, im Log explizit warnen (`WARN: pid 858000 has 0 rows in jww003i0`). Diese Warnung war bisher hinter dem `total>0`-Aggregat versteckt.
 
-## 2. Komponente `MchPictogram`
+## 2. Manuell triggern und verifizieren
 
-- Neue Komponente in `src/components/weather-icons/mch-pictogram.tsx`:
-  ```tsx
-  <MchPictogram code={mchCode} size={48} className="…" />
-  ```
-- Intern: `import` aller 70 SVGs als URLs (Vite `?url`) in einer Lookup-Map `{ 1: url, 2: url, …, 135: url }`. Render als `<img src={map[code]} width={size} height={size} alt="" role="img" aria-label={mchLabel(code)} />`.
-- Label-Tabelle `mchLabel(code)` mit deutschen Texten („leicht bewölkt", „Schnee-Regen-Schauer", „Gewitter", …) für a11y/Title.
+- Workflow `MCH Local-Forecast (OGD)` per `workflow_dispatch` neu starten (über bestehenden `cron-worker` oder direkt im GitHub-UI).
+- Nach Run: `https://pub-…r2.dev/mch/local_forecast.json` ziehen und prüfen, dass `locations[*].hourly.time.length > 0` und dass `weathercode_mch` echte Werte enthält (1–35 / 101–135).
+- Stichprobe für Samstag 20.06.: erwarten Codes 12/24 (Gewitter) zu erkennen, da Open-Meteo für diesen Tag bereits hohe Niederschlagswahrscheinlichkeit liefert.
 
-## 3. Dispatcher umstellen
+## 3. Frontend-Verifikation
 
-- `WeatherIcon` in `src/components/weather-icons/index.tsx`:
-  - Wenn `mchCode` gesetzt und in `[1..35] ∪ [101..135]`: **direkt `<MchPictogram code={mchCode} … />` zurückgeben**.
-  - `pickMchIcon` und der ganze Heuristik-Block entfallen.
-  - WMO-Pfad bleibt unverändert als Fallback für Quellen ohne MCH-Code (Open-Meteo).
-- Day/Night-Flip ist nicht mehr nötig: der MCH-Code trägt die Nacht-Variante (≥ 100) schon selbst.
+Sobald `mch/local_forecast.json` wieder gefüllt ist:
+- `getAggregatedForecast` reicht `weathercode_mch` durch (siehe `forecast-aggregated.functions.ts:317–318`, unverändert).
+- `WeatherIcon` rendert dann direkt `<MchPictogram>` für jeden Stundenslot mit MCH-Code — Gewitter-Stunden zeigen den Blitz aus `mch-spec.ts` (`composeDay(12|13|24|25)`).
+- Im Icon-Katalog `/intern/icons` zusätzlich einen Abschnitt **„MCH-Pictogramme (1–35 Tag / 101–135 Nacht)"** ergänzen, der alle 70 Codes mit Label rendert — dort sind Gewitter (12/13/24/25), Schneesturm (35) etc. unmittelbar sichtbar.
 
-## 4. Server-SVG-Pfad
+## 4. Kein Eingriff in `mch-spec.ts`
 
-- `src/lib/weather-icon-svg.server.ts`: bei vorhandenem MCH-Code das passende SVG **inline einbetten** (Datei beim Build per `fs.readFileSync` in eine Map ziehen), damit noscript-/Snapshot-Embeds dieselbe Symbolik liefern.
-- `pickMchSvg`/Heuristik-Mapping entfällt.
-
-## 5. Geltungsbereich
-
-- Stündliche Icons in `weather-widget.tsx` und `region-map.tsx` (beides reicht `mchCode` bereits durch).
-- Daily-Icons: dort umstellen, wo `daily.weathercode_mch` durchgereicht wird; sonst kleiner Folge-PR, der das Feld analog zur Hourly-Pipeline weitergibt.
-- Keine Änderung an `scripts/ingest_mch_local_forecast.py`.
+Die Symbolik selbst ist korrekt — keine Code-Änderung am Pictogramm-Set. Falls nach dem Refresh in der Live-Vorhersage trotzdem nie ein 12/13/24/25/35 auftaucht, ist das eine Aussage der MeteoSwiss-Daten, kein Frontend-Bug.
 
 # Erwartetes Ergebnis
 
-- Jeder MCH-Code rendert sein eigenes, dediziertes Pictogramm — 1:1, ohne Reduktion.
-- Tag/Nacht direkt aus dem Code (≥ 100 = Nacht).
-- Generisches Icon-Set (`IconRain`, `IconThunderstorm`, …) bleibt für Open-Meteo/WMO-Fallback bestehen.
-
-# Offene Punkte
-
-- **Bestätigung des Vorgehens „eigene SVGs nachbauen":** MeteoSwiss-Original-PNGs darf ich nicht ungefragt einbinden. Wenn du explizit die Original-Bilddateien willst, brauchst du eine Quelle/Lizenz dafür — dann lade ich sie als Assets hoch statt eigene SVGs zu bauen.
+- `mch/local_forecast.json` enthält für jeden Spot vollständige Stunden- und Tagesserien inkl. `weathercode_mch`.
+- Frontend zeigt für Gewitter-Stunden das MCH-Gewitter-Pictogramm.
+- Künftige fehlgeschlagene Ingests überschreiben die R2-Datei nicht mehr leise.

@@ -351,6 +351,14 @@ def main() -> None:
 
     wanted_pids = {s["mch"] for s in SPOTS}
 
+    def _log_hits(label: str, param: str, key: str, data: dict[int, list]) -> None:
+        per_pid = {pid: len(rows) for pid, rows in data.items()}
+        total = sum(per_pid.values())
+        print(f"    {label} {param} ({key}) total={total} per_pid={per_pid}", flush=True)
+        for pid, n in per_pid.items():
+            if n == 0:
+                print(f"    WARN: pid {pid} has 0 rows in {param} ({key})", flush=True)
+
     hourly_data: dict[str, dict[int, list[tuple[str, str]]]] = {}
     for key, param in HOURLY_PARAMS.items():
         url = asset_url(item, param)
@@ -360,6 +368,7 @@ def main() -> None:
             continue
         print(f"  hourly {param} ({key}) …", flush=True)
         hourly_data[key] = stream_csv(url, wanted_pids)
+        _log_hits("hourly", param, key, hourly_data[key])
 
     daily_data: dict[str, dict[int, list[tuple[str, str]]]] = {}
     for key, param in DAILY_PARAMS.items():
@@ -370,12 +379,21 @@ def main() -> None:
             continue
         print(f"  daily {param} ({key}) …", flush=True)
         daily_data[key] = stream_csv(url, wanted_pids)
+        _log_hits("daily", param, key, daily_data[key])
 
     locations = [build_spot(s, hourly_data, daily_data) for s in SPOTS]
     for loc in locations:
         print(
             f"  {loc['id']:18} hourly={len(loc['hourly']['time']):>3}  "
             f"daily={len(loc['daily']['time']):>2}"
+        )
+
+    # Hartes Abbruchkriterium: niemals eine leere Payload nach R2 schreiben —
+    # sonst überschreibt ein kaputter Lauf still die letzte gute Datei.
+    if all(len(loc["hourly"]["time"]) == 0 for loc in locations):
+        sys.exit(
+            "no hourly rows for any spot — refusing to upload empty payload "
+            "(check per-PID WARNs above)"
         )
 
     payload = {
