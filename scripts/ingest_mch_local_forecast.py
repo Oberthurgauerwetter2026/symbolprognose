@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 import boto3
 import requests
 
-VERSION = "mch-local-forecast-v1"
+VERSION = "mch-local-forecast-v2"
 STAC_ITEMS = "https://data.geo.admin.ch/api/stac/v1/collections/ch.meteoschweiz.ogd-local-forecasting/items"
 # Per Spot lokaler UTC-Offset (CH = Europe/Zurich → +1h Winter / +2h Sommer).
 # Wir setzen den Wert dynamisch beim Build anhand des aktuellen Datums.
@@ -253,6 +253,11 @@ def build_spot(spot: dict, hourly_data: dict[str, dict], daily_data: dict[str, d
     cc_high = series_for("cloud_cover_high")
 
     weathercode = [map_weathercode(v) for v in wcode_raw]
+    # MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht) als gerundeter Int
+    # behalten — Frontend liest daraus die modell-eigene Tag/Nacht-Info.
+    weathercode_mch = [
+        int(round(v)) if v is not None else None for v in wcode_raw
+    ]
     sunshine_seconds = [v * 60.0 if v is not None else None for v in sunshine_min]
     # MCH Cloud-Cover ist 0..1 Bedeckungsanteil → in % umrechnen.
     def to_percent(v: float | None) -> float | None:
@@ -294,6 +299,9 @@ def build_spot(spot: dict, hourly_data: dict[str, dict], daily_data: dict[str, d
     d_psum = daily_series("precipitation_sum")
     d_wcode_raw = daily_series("weathercode_mch")
     d_weathercode = [map_weathercode(v) for v in d_wcode_raw]
+    d_weathercode_mch = [
+        int(round(v)) if v is not None else None for v in d_wcode_raw
+    ]
 
     now = datetime.now(timezone.utc)
     offset = utc_offset_seconds_zurich(now)
@@ -309,6 +317,7 @@ def build_spot(spot: dict, hourly_data: dict[str, dict], daily_data: dict[str, d
         "hourly": {
             "time": time_iso,
             "weathercode": weathercode,
+            "weathercode_mch": weathercode_mch,
             "temperature_2m": temperature_2m,
             "precipitation": precipitation,
             "precipitation_probability": precip_prob,
@@ -324,6 +333,7 @@ def build_spot(spot: dict, hourly_data: dict[str, dict], daily_data: dict[str, d
         "daily": {
             "time": sorted_daily,
             "weathercode": d_weathercode,
+            "weathercode_mch": d_weathercode_mch,
             "temperature_2m_min": d_tmin,
             "temperature_2m_max": d_tmax,
             "precipitation_sum": d_psum,
