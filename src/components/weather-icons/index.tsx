@@ -2,6 +2,7 @@
 // All icons share viewBox 0 0 64 64 and use currentColor for the stroke.
 
 import type { ReactNode, SVGProps } from "react";
+import { MchPictogram } from "./mch-pictogram";
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
