@@ -15,7 +15,11 @@
  */
 
 let lastDispatchAt = 0;
-const MIN_INTERVAL_MS = 30_000;
+// Cron triggert alle 15 min. Ein Open-Meteo-Ingest dauert oft >5 min;
+// wenn ein zweiter Dispatch zu früh kommt und der erste noch wartet,
+// verwirft GitHub den wartenden Run mit „higher priority waiting request".
+// Daher mindestens 14 min Pause zwischen Dispatches aus derselben Instanz.
+const MIN_INTERVAL_MS = 14 * 60_000;
 
 const ACTIVE_STATUSES = new Set([
   "queued",
@@ -102,6 +106,11 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
     };
   }
 
+  // Throttle sofort setzen, damit ein zweiter Request aus derselben
+  // Instanz, der parallel ankommt, sicher geblockt wird — auch wenn
+  // der GitHub-POST unten noch in-flight ist.
+  lastDispatchAt = now;
+
   const url = `https://api.github.com/repos/${repo}/actions/workflows/openmeteo-ingest.yml/dispatches`;
   const res = await fetch(url, {
     method: "POST",
@@ -116,10 +125,12 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
   });
 
   if (!res.ok) {
+    // Dispatch fehlgeschlagen → Throttle wieder freigeben, damit der
+    // nächste Cron-Tick einen neuen Versuch starten darf.
+    lastDispatchAt = 0;
     const text = await res.text();
     return { ok: false, status: res.status, error: text.slice(0, 500) };
   }
 
-  lastDispatchAt = now;
   return { ok: true, dispatchedAt: new Date(now).toISOString(), ref };
 }
