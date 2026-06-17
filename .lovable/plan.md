@@ -1,35 +1,38 @@
 ## Ziel
-Der Open-Meteo Cache Ingest soll nicht mehr bei jedem zweiten Lauf als „leer“/abgebrochen enden mit:
+Einzelne unnötig leere Open‑Meteo Cache Ingest Runs wie `#2634` sollen nicht mehr entstehen.
 
-```text
-Canceling since a higher priority waiting request for openmeteo-ingest exists
-```
-
-## Ursache
-Der Trigger kommt regelmäßig rein, während ein vorheriger GitHub-Workflow noch läuft oder bereits wartet. Die aktuelle Prüfung sucht zwar aktive Runs, aber GitHub Actions kann zwischen `workflow_dispatch` und sichtbarem `queued`-Run kurzzeitig mehrere Dispatches annehmen. Dadurch verdrängt GitHub wartende Runs trotz `cancel-in-progress: false`.
+## Vermutete Restursache
+Die bisherige Sperre ist noch zu lokal:
+- `lastDispatchAt` ist nur In‑Memory pro Serverinstanz wirksam.
+- Der GitHub-Check blockiert aktuell nur aktive Runs (`queued`, `in_progress`, usw.), aber nicht zuverlässig einen sehr kürzlich erzeugten oder gerade gecancelten Run.
+- Der Cron triggert Open‑Meteo weiterhin alle 15 Minuten; wenn ein Lauf länger braucht oder GitHub Dispatch/Queue verzögert sichtbar wird, entstehen weiterhin einzelne unnötige Workflow-Runs.
 
 ## Plan
-1. **Open-Meteo-Trigger robuster machen**
-   - `src/lib/openmeteo-dispatch.server.ts` bekommt eine deutlich längere Mindestpause zwischen Dispatches, passend zur realen Ingest-Dauer.
-   - Statt 30 Sekunden: ca. 14 Minuten, weil der Cron aktuell alle 15 Minuten Open-Meteo anstößt.
-   - So wird höchstens ein Open-Meteo-Run pro Intervall ausgelöst.
+1. **Globalen GitHub-Recent-Run-Guard einbauen**
+   - In `src/lib/openmeteo-dispatch.server.ts` nicht nur aktive Runs prüfen.
+   - Zusätzlich den neuesten Open‑Meteo-Workflow-Run aus GitHub auswerten, unabhängig vom Status.
+   - Wenn der letzte Run jünger als ca. 28 Minuten ist, keinen neuen Dispatch senden.
+   - Antwort sauber als `429 throttled` mit neuem Grund `recent-run` zurückgeben, inklusive Run-ID, Status, Conclusion und CreatedAt.
 
-2. **Race-Condition direkt nach Dispatch schließen**
-   - `lastDispatchAt` wird bereits vor bzw. unmittelbar um den GitHub-Dispatch gesetzt, nicht erst ganz am Ende.
-   - Damit blockiert auch ein zweiter nahezu gleichzeitiger Request aus derselben Serverinstanz sofort.
+2. **Open‑Meteo-Takt auf 30 Minuten setzen**
+   - In `cron-worker/src/index.ts` `includeOpenmeteo` von `minute % 15 === 0` auf `minute % 30 === 0` ändern.
+   - Kommentare und Statusbeschreibung entsprechend auf 30 Minuten korrigieren.
+   - Damit werden die unnötigen Zwischen-Trigger gar nicht mehr angeboten, statt nur serverseitig abgewiesen.
 
-3. **Aktive-Run-Prüfung präzisieren**
-   - Die GitHub-API-Abfrage bleibt erhalten.
-   - Zusätzlich werden die neuesten Runs sortiert/ausgewertet, damit `queued`, `waiting`, `requested`, `pending`, `in_progress` zuverlässig als Sperre wirken.
+3. **Lokalen Sofortschutz angleichen**
+   - `MIN_INTERVAL_MS` in `openmeteo-dispatch.server.ts` auf denselben Guard-Zeitraum setzen.
+   - Die In‑Memory-Sperre bleibt als schneller Schutz gegen Doppelrequests derselben Instanz erhalten, ist aber nicht mehr die Hauptsperre.
 
-4. **Cron-Kommentar korrigieren**
-   - In `cron-worker/src/index.ts` steht noch „Open-Meteo nur alle 10 min“, der Code macht `minute % 15 === 0`.
-   - Kommentar auf 15 Minuten korrigieren, ohne das Laufintervall zu ändern.
+4. **Aktive-Run-Prüfung robuster machen**
+   - Workflow-Runs explizit nach `created_at` sortieren.
+   - Zuerst aktive Runs blockieren.
+   - Danach den neuesten Run als Recent-Run-Guard prüfen.
 
-5. **Keine Änderung an Wetterdaten oder UI**
-   - Keine Änderung am eigentlichen Ingest-Script, Cache-Format, Symbol-/Lokalprognose oder MCH-Code-Logik.
+5. **Keine Änderung an Wetterdaten/UI**
+   - Keine Änderung an `scripts/ingest_openmeteo.py`.
+   - Keine Änderung an Cache-Format, MCH/local_forecast, Symbolprognose oder Wettercodes.
 
 ## Erwartetes Ergebnis
-- Wenn noch ein Open-Meteo-Workflow läuft oder wartet, antwortet der Trigger sauber mit `429 throttled` statt einen neuen GitHub-Run zu dispatchen.
-- GitHub Actions erzeugt keine „higher priority waiting request“-Abbrüche mehr für `openmeteo-ingest`.
-- Der nächste reguläre 15-Minuten-Slot startet wieder normal, sobald kein aktiver Run mehr blockiert.
+- Maximal ein Open‑Meteo Cache Ingest pro ca. 30 Minuten.
+- Keine unnötigen leeren Zwischenläufe mehr durch 15‑Minuten-Dispatches.
+- Falls doch ein Trigger zu früh kommt, endet er als kontrolliertes `429 throttled` am Trigger-Endpoint, ohne einen GitHub-Workflow-Run anzulegen.
