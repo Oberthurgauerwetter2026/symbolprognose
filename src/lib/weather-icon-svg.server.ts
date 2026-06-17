@@ -226,75 +226,16 @@ function pickWetDaily(opts: {
   return IDrizzle(opts.size);
 }
 
-// ---------- MCH icon dispatcher ----------
+// ---------- MCH pictogram (1:1) ----------
 
-function pickMchSvg(
-  mchBase: number,
-  isDay: boolean,
-  ctx: { size: number; precip?: number; sunshineRatio?: number; isSnow?: boolean },
-): string | null {
-  const { size, precip, sunshineRatio, isSnow } = ctx;
-  const sunny = (sunshineRatio ?? 0) >= 0.3;
-  switch (mchBase) {
-    case 1:
-      return isDay ? IClear(size) : IClearNight(size);
-    case 2:
-    case 26:
-      return IMostlyClear(size, isDay);
-    case 3:
-    case 27:
-    case 28:
-    case 29:
-    case 4:
-      return IPartlyCloudy(size, isDay);
-    case 5:
-      return ICloudy(size);
-    case 30:
-      return IFog(size);
-    case 6:
-    case 14:
-    case 21:
-      return IDrizzle(size);
-    case 15:
-    case 17:
-      return IRain(size);
-    case 9:
-    case 11:
-    case 19:
-    case 32:
-      if (isDay && sunny && (precip ?? 0) < 1) return ISunShower(size);
-      return (precip ?? 0) >= 1.5 ? IRain(size) : IDrizzle(size);
-    case 7:
-    case 10:
-    case 16:
-    case 20:
-    case 22:
-    case 34:
-      return ISnow(size);
-    case 8:
-    case 18:
-    case 23:
-      return isSnow ? ISnow(size) : IRain(size);
-    case 12:
-    case 24:
-      if (isDay && sunny) return ISunThunder(size, 2);
-      return IThunderstorm(size);
-    case 13:
-    case 25:
-    case 31:
-    case 33:
-    case 35:
-      return isSnow ? ISnowThunder(size) : IThunderstorm(size);
-    default:
-      return null;
-  }
-}
+import { renderMchSvg } from "@/components/weather-icons/mch-spec";
 
 // ---------- Dispatcher (mirrors WeatherIcon) ----------
 
 export interface RenderIconOpts {
   code: number;
-  /** MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht). ≥100 → Nacht-Override. */
+  /** MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht). Wenn vorhanden,
+   *  rendert das offizielle MCH-Pictogramm direkt. */
   mchCode?: number;
   isDay?: boolean;
   size?: number;
@@ -331,16 +272,11 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   const isDay =
     hasMch && (mchCode as number) >= 100 ? false : o.isDay ?? true;
 
-  // MCH-Pictogramme haben Vorrang.
+  // MCH-Pictogramm hat Vorrang — 1:1 das MeteoSwiss-Symbol.
   if (hasMch) {
-    const picked = pickMchSvg((mchCode as number) % 100, isDay, {
-      size,
-      precip,
-      sunshineRatio,
-      isSnow,
-    });
-    if (picked) return picked;
+    return renderMchSvg(mchCode as number, size);
   }
+
 
 
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;

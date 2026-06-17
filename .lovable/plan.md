@@ -1,48 +1,54 @@
-## Ziel
+# Ziel
 
-Wenn der MCH-Original-Icon-Code vorhanden ist (`weathercode_mch`, 1–35 Tag / 101–135 Nacht), soll er die Icon-Wahl im Widget direkt bestimmen — nicht erst über den WMO-Umweg und nur als Tag/Nacht-Flip.
+Wenn `weathercode_mch` vorhanden ist, soll das Frontend **genau das MeteoSwiss-Pictogramm** zur jeweiligen Code-Nummer rendern — keine Interpretation, keine Reduktion auf unsere generischen Icons, kein WMO-Umweg.
 
-## Status heute
+# Status heute
 
-- Ingest behält `weathercode_mch` korrekt (1–35 / 101–135).
-- Frontend reicht `mchCode` bis in `<WeatherIcon>` durch.
-- Aber: Icon-Auswahl läuft weiterhin über `code` (WMO), das aus `MCH_ICON_TO_WMO` gemappt wird (mit Fallback „bewölkt"). `mchCode` beeinflusst nur `isDay`.
+`pickMchIcon` in `src/components/weather-icons/index.tsx` (und Spiegelung in `weather-icon-svg.server.ts`) mappt die 35 MCH-Codes auf unser bestehendes generisches Icon-Set (Clear, PartlyCloudy, Rain, Snow, Thunderstorm, …). Das ist eine Heuristik: Schnee-Regen-Mix (6/8/18/23), Schauer (9/11/19/32), variabel bewölkt (28/29), Schnee-Gewitter (35) etc. werden auf Nachbarsymbole abgebildet, weil keine eigenen Komponenten existieren.
 
-Folge: MCH-Differenzierungen wie 6 (Schnee-Regen-Mix), 8, 10, 18, 22, 28/29 (variabel), 31/33/35 (Sturm) gehen verloren, weil sie im WMO-Mapping flachgedrückt werden. WMO-MApping entfernen und nur MCH-Codes verwenden
+# Plan
 
-## Plan
+## 1. MCH-Symbol-Set als Assets ablegen
 
-1. **Direkten MCH→Icon-Dispatcher einbauen**
-  - Neue Funktion `pickMchIcon(mchBase, isDay, props, ctx)` in `src/components/weather-icons/index.tsx`.
-  - `mchBase` ist `mchCode % 100` (Tag/Nacht-Spiegelung), `isDay` schon korrekt gesetzt.
-  - Mapping pro MCH-Nummer auf bestehende `Icon*`-Komponenten:
-    - 1 → Clear / ClearNight
-    - 2, 26 → MostlyClear
-    - 3, 27, 28, 29 → PartlyCloudy
-    - 4 → PartlyCloudy bzw. Cloudy je nach Bedeckung
-    - 5 → Cloudy
-    - 30 → Fog
-    - 6, 14, 21 → Drizzle
-    - 15 → Rain
-    - 9, 11, 17, 19, 32 → Drizzle/Rain (Schauer) — bei Sonne `SunShower`
-    - 7, 10, 16, 20, 22, 34 → Snow
-    - 8, 18, 23 → Rain (Schnee-Regen-Mix als Rain)
-    - 12, 13, 24, 25, 31, 33, 35 → Thunderstorm bzw. `SunThunder` bei Sonne; Schnee-Gewitter (z. B. 35 mit Schnee-Signal) → `SnowThunder`.
-  - `sunshineRatio`, `precip`, `precipProb`, `isSnow` weiter als Kontext nutzen für Sun-Varianten und Schnee-Override.
-2. **Dispatcher zuerst auslösen**
-  - In `WeatherIcon` direkt nach dem `mchCode`-Day/Night-Flip: wenn `mchCode` gültig (`Number.isFinite`, `>= 1`), `pickMchIcon` aufrufen und Ergebnis zurückgeben.
-  - Fällt `pickMchIcon` auf `null` (unbekannte Nummer), wie heute auf die WMO-Logik zurückfallen.
-3. **Server-SVG-Pfad spiegeln**
-  - Dieselbe MCH-Tabelle in `src/lib/weather-icon-svg.server.ts` einsetzen, damit die noscript-/Snapshot-Embeds dieselbe Symbolik liefern.
-4. **Keine Änderung an Daten/Ingest**
-  - `scripts/ingest_mch_local_forecast.py` bleibt unverändert: `weathercode_mch` (roh) und `weathercode` (WMO-Mapping) wie heute.
-  - Kein neuer Workflow-Run nötig; das Frontend nutzt die schon vorhandenen Felder direkt.
-5. **Geltungsbereich**
-  - Stündliche Icons in `weather-widget.tsx` und `region-map.tsx` (beides schon `mchCode`-fähig).
-  - Daily-Icons: nur dort umstellen, wo `daily.weathercode_mch` tatsächlich durchgereicht wird. Falls nicht, in einem kleinen Folgeschritt analog zur Hourly-Pipeline mitgeben (gleiche Felder existieren in `MchLocalForecastLocation.daily`).
+- Set mit **70 SVGs** anlegen: `mch-01.svg` … `mch-35.svg` (Tag) und `mch-101.svg` … `mch-135.svg` (Nacht).
+- Stil: dem aktuellen Vektor-Stil (Sonne/Mond, Wolken, Tropfen, Blitze) treu bleiben, aber **jeder Code ein eigenes Bild**, das exakt der MeteoSwiss-Pictogramm-Bedeutung entspricht (siehe Legende: Klar, leicht/mässig/dicht bewölkt, Nebel, Niesel, leichter/mässiger/starker Regen, Schnee, Schnee-Regen-Mix, Schauer, Gewitter, Schnee-Gewitter, variabel, Sturm).
+- Ablage: `src/assets/mch-icons/` als echte SVG-Dateien (klein, <2 KB pro Stück → in Repo halten, kein CDN nötig). Wenn das Set später wächst, optional über `lovable-assets` auf CDN auslagern.
+- Generierungsweg: SVGs werden von mir per Skript/Hand erstellt; **keine** Übernahme proprietärer MeteoSwiss-Bilddateien.
 
-## Erwartetes Ergebnis
+## 2. Komponente `MchPictogram`
 
-- Symbol entspricht 1:1 dem MeteoSwiss-Icon, inkl. Sturm/Gewitter, Schauer, Schnee-Regen-Mix, Cirrus.
-- Tag/Nacht-Flip kommt weiter direkt aus MCH (Code ≥ 100 = Nacht).
-- WMO-Pfad bleibt als Fallback für Quellen ohne MCH-Code (Open‑Meteo) bestehen.
+- Neue Komponente in `src/components/weather-icons/mch-pictogram.tsx`:
+  ```tsx
+  <MchPictogram code={mchCode} size={48} className="…" />
+  ```
+- Intern: `import` aller 70 SVGs als URLs (Vite `?url`) in einer Lookup-Map `{ 1: url, 2: url, …, 135: url }`. Render als `<img src={map[code]} width={size} height={size} alt="" role="img" aria-label={mchLabel(code)} />`.
+- Label-Tabelle `mchLabel(code)` mit deutschen Texten („leicht bewölkt", „Schnee-Regen-Schauer", „Gewitter", …) für a11y/Title.
+
+## 3. Dispatcher umstellen
+
+- `WeatherIcon` in `src/components/weather-icons/index.tsx`:
+  - Wenn `mchCode` gesetzt und in `[1..35] ∪ [101..135]`: **direkt `<MchPictogram code={mchCode} … />` zurückgeben**.
+  - `pickMchIcon` und der ganze Heuristik-Block entfallen.
+  - WMO-Pfad bleibt unverändert als Fallback für Quellen ohne MCH-Code (Open-Meteo).
+- Day/Night-Flip ist nicht mehr nötig: der MCH-Code trägt die Nacht-Variante (≥ 100) schon selbst.
+
+## 4. Server-SVG-Pfad
+
+- `src/lib/weather-icon-svg.server.ts`: bei vorhandenem MCH-Code das passende SVG **inline einbetten** (Datei beim Build per `fs.readFileSync` in eine Map ziehen), damit noscript-/Snapshot-Embeds dieselbe Symbolik liefern.
+- `pickMchSvg`/Heuristik-Mapping entfällt.
+
+## 5. Geltungsbereich
+
+- Stündliche Icons in `weather-widget.tsx` und `region-map.tsx` (beides reicht `mchCode` bereits durch).
+- Daily-Icons: dort umstellen, wo `daily.weathercode_mch` durchgereicht wird; sonst kleiner Folge-PR, der das Feld analog zur Hourly-Pipeline weitergibt.
+- Keine Änderung an `scripts/ingest_mch_local_forecast.py`.
+
+# Erwartetes Ergebnis
+
+- Jeder MCH-Code rendert sein eigenes, dediziertes Pictogramm — 1:1, ohne Reduktion.
+- Tag/Nacht direkt aus dem Code (≥ 100 = Nacht).
+- Generisches Icon-Set (`IconRain`, `IconThunderstorm`, …) bleibt für Open-Meteo/WMO-Fallback bestehen.
+
+# Offene Punkte
+
+- **Bestätigung des Vorgehens „eigene SVGs nachbauen":** MeteoSwiss-Original-PNGs darf ich nicht ungefragt einbinden. Wenn du explizit die Original-Bilddateien willst, brauchst du eine Quelle/Lizenz dafür — dann lade ich sie als Assets hoch statt eigene SVGs zu bauen.

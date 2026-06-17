@@ -2,6 +2,7 @@
 // All icons share viewBox 0 0 64 64 and use currentColor for the stroke.
 
 import type { ReactNode, SVGProps } from "react";
+import { MchPictogram } from "./mch-pictogram";
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number };
 
@@ -398,92 +399,6 @@ function pickWetDailyIcon({
   return <IconDrizzle {...props} />;
 }
 
-/* ---------- MCH icon dispatcher ----------
- *
- * MeteoSwiss-Pictogramme 1–35 (Tag) bzw. 101–135 (Nacht) direkt auf
- * unsere Icon-Komponenten abbilden, ohne Umweg über WMO. Wenn das
- * Modell selbst etwas Spezifisches sagt (Schnee-Regen-Mix, Sturm,
- * variabel, …), wird genau das angezeigt.
- */
-function pickMchIcon(
-  mchBase: number,
-  isDay: boolean,
-  ctx: {
-    size?: number;
-    className?: string;
-    precip?: number;
-    sunshineRatio?: number;
-    isSnow?: boolean;
-  },
-): ReactNode | null {
-  const { size, className, precip, sunshineRatio, isSnow } = ctx;
-  const props = { size, className };
-  const sunny = (sunshineRatio ?? 0) >= 0.3;
-
-  switch (mchBase) {
-    case 1:
-      return isDay ? <IconClear {...props} /> : <IconClearNight {...props} />;
-    case 2:
-    case 26:
-      return <IconMostlyClear isDay={isDay} {...props} />;
-    case 3:
-    case 27:
-    case 28:
-    case 29:
-      return <IconPartlyCloudy isDay={isDay} {...props} />;
-    case 4:
-      return <IconPartlyCloudy isDay={isDay} {...props} />;
-    case 5:
-      return <IconCloudy {...props} />;
-    case 30:
-      return <IconFog {...props} />;
-    // Niesel / leichter Regen
-    case 6:
-    case 14:
-    case 21:
-      return <IconDrizzle {...props} />;
-    // Regen
-    case 15:
-      return <IconRain {...props} />;
-    // Schauer (Drizzle/Rain) — bei Sonne SunShower
-    case 9:
-    case 11:
-    case 19:
-    case 32:
-      if (isDay && sunny && (precip ?? 0) < 1) return <IconSunShower {...props} />;
-      return (precip ?? 0) >= 1.5 ? <IconRain {...props} /> : <IconDrizzle {...props} />;
-    case 17:
-      return <IconRain {...props} />;
-    // Schnee
-    case 7:
-    case 10:
-    case 16:
-    case 20:
-    case 22:
-    case 34:
-      return <IconSnow {...props} />;
-    // Schnee-Regen-Mix → Regen-Icon (kein dediziertes Mix-Icon vorhanden)
-    case 8:
-    case 18:
-    case 23:
-      return isSnow ? <IconSnow {...props} /> : <IconRain {...props} />;
-    // Gewitter
-    case 12:
-    case 24:
-      if (isDay && sunny) return <IconSunThunder {...props} intensity={2} />;
-      return <IconThunderstorm {...props} />;
-    case 13:
-    case 25:
-    case 31:
-    case 33:
-    case 35:
-      if (isSnow) return <IconSnowThunder {...props} />;
-      return <IconThunderstorm {...props} />;
-    default:
-      return null;
-  }
-}
-
 /* ---------- Dispatcher ---------- */
 
 
@@ -506,7 +421,7 @@ export function WeatherIcon({
 }: {
   code: number;
   /** MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht). Wenn vorhanden,
-   *  treibt er die Icon-Wahl direkt; der WMO-`code` ist nur Fallback. */
+   *  rendert das offizielle MCH-Pictogramm direkt. */
   mchCode?: number;
   isDay?: boolean;
   size?: number;
@@ -524,26 +439,16 @@ export function WeatherIcon({
   cloudHigh?: number;
 
 }) {
-  // MCH-Override: liefert das MeteoSchweiz-Modell selbst eine Nacht-Variante
-  // (Code ≥ 100), zwingen wir isDay=false — unabhängig von der Uhrzeit.
+  // MCH-Pictogramme haben absoluten Vorrang: 1:1 das MeteoSwiss-Symbol
+  // zur jeweiligen Code-Nummer, ohne Umweg über WMO oder Heuristik.
   const hasMch =
     typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
-  if (hasMch && (mchCode as number) >= 100) {
-    isDay = false;
-  }
-  // MCH-Pictogramme haben Vorrang: das Modell weiß selbst am besten,
-  // welche Symbolik es meint (Sturm, Mix, variabel, …).
   if (hasMch) {
-    const mchBase = (mchCode as number) % 100;
-    const picked = pickMchIcon(mchBase, isDay, {
-      size,
-      className,
-      precip,
-      sunshineRatio,
-      isSnow,
-    });
-    if (picked) return picked;
+    return (
+      <MchPictogram code={mchCode as number} size={size} className={className} />
+    );
   }
+
 
   const props = { size, className };
 
