@@ -1,25 +1,26 @@
 /**
  * GitHub workflow_dispatch helper for the openmeteo-ingest workflow.
- * Aufgerufen vom Cloudflare Worker Cron Trigger (alle 15 min).
+ * Aufgerufen vom Cloudflare Worker Cron Trigger (alle 30 min).
  *
  * Schutzmechanismen, in dieser Reihenfolge:
- *   1. In-Memory-Throttle (30 s) gegen Doppelklicks / Race-Bursts.
+ *   1. In-Memory-Throttle gegen Doppelklicks / Race-Bursts derselben Instanz.
  *   2. Aktive-Run-Check via GitHub API: existiert bereits ein Run im
  *      Status queued/waiting/pending/requested/in_progress für
  *      `openmeteo-ingest.yml`, wird KEIN neuer Dispatch ausgelöst.
- *
- * Hintergrund: `concurrency.cancel-in-progress: false` erlaubt nur
- * EINEN wartenden Run. Ein dritter Dispatch killt den wartenden mit
- * „Canceling since a higher priority waiting request …". Wir dürfen
- * also gar nicht erst dispatchen, wenn schon einer wartet.
+ *   3. Recent-Run-Guard via GitHub API: war der letzte Run (egal mit
+ *      welchem Status/Conclusion) jünger als RECENT_RUN_GUARD_MS, wird
+ *      ebenfalls NICHT dispatcht. Schützt instanzübergreifend gegen
+ *      doppelte Cron-Trigger und gegen unnötige Leerläufe.
  */
 
+// Cron triggert Open-Meteo alle 30 min. Der Ingest dauert oft mehrere
+// Minuten; ein zweiter Dispatch innerhalb desselben Slots würde GitHub
+// veranlassen, einen wartenden Run mit "higher priority waiting request"
+// abzubrechen.
+const RECENT_RUN_GUARD_MS = 28 * 60_000;
+const MIN_INTERVAL_MS = RECENT_RUN_GUARD_MS;
+
 let lastDispatchAt = 0;
-// Cron triggert alle 15 min. Ein Open-Meteo-Ingest dauert oft >5 min;
-// wenn ein zweiter Dispatch zu früh kommt und der erste noch wartet,
-// verwirft GitHub den wartenden Run mit „higher priority waiting request".
-// Daher mindestens 14 min Pause zwischen Dispatches aus derselben Instanz.
-const MIN_INTERVAL_MS = 14 * 60_000;
 
 const ACTIVE_STATUSES = new Set([
   "queued",
@@ -38,6 +39,19 @@ export type DispatchResult =
       reason: "active-run";
       activeRun: { id: number; status: string; htmlUrl: string; createdAt: string };
     }
+  | {
+      ok: false;
+      throttled: true;
+      reason: "recent-run";
+      recentRun: {
+        id: number;
+        status: string;
+        conclusion: string | null;
+        htmlUrl: string;
+        createdAt: string;
+        ageMs: number;
+      };
+    }
   | { ok: false; status: number; error: string }
   | { ok: false; error: string };
 
@@ -49,10 +63,10 @@ interface GhRun {
   created_at: string;
 }
 
-async function findActiveRun(
+async function fetchRecentRuns(
   repo: string,
   token: string,
-): Promise<GhRun | null> {
+): Promise<GhRun[] | null> {
   const url =
     `https://api.github.com/repos/${repo}/actions/workflows/openmeteo-ingest.yml/runs` +
     `?per_page=10`;
@@ -64,12 +78,13 @@ async function findActiveRun(
       "User-Agent": "lovable-openmeteo-trigger",
     },
   });
-  if (!res.ok) return null; // fail-open: lieber dispatchen als gar nichts
+  if (!res.ok) return null;
   const data = (await res.json()) as { workflow_runs?: GhRun[] };
-  for (const run of data.workflow_runs ?? []) {
-    if (ACTIVE_STATUSES.has(run.status)) return run;
-  }
-  return null;
+  const runs = (data.workflow_runs ?? []).slice();
+  runs.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  return runs;
 }
 
 export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
@@ -91,19 +106,41 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
     };
   }
 
-  const active = await findActiveRun(repo, token);
-  if (active) {
-    return {
-      ok: false,
-      throttled: true,
-      reason: "active-run",
-      activeRun: {
-        id: active.id,
-        status: active.status,
-        htmlUrl: active.html_url,
-        createdAt: active.created_at,
-      },
-    };
+  const runs = await fetchRecentRuns(repo, token);
+  if (runs) {
+    const active = runs.find((r) => ACTIVE_STATUSES.has(r.status));
+    if (active) {
+      return {
+        ok: false,
+        throttled: true,
+        reason: "active-run",
+        activeRun: {
+          id: active.id,
+          status: active.status,
+          htmlUrl: active.html_url,
+          createdAt: active.created_at,
+        },
+      };
+    }
+    const latest = runs[0];
+    if (latest) {
+      const ageMs = now - new Date(latest.created_at).getTime();
+      if (ageMs < RECENT_RUN_GUARD_MS) {
+        return {
+          ok: false,
+          throttled: true,
+          reason: "recent-run",
+          recentRun: {
+            id: latest.id,
+            status: latest.status,
+            conclusion: latest.conclusion,
+            htmlUrl: latest.html_url,
+            createdAt: latest.created_at,
+            ageMs,
+          },
+        };
+      }
+    }
   }
 
   // Throttle sofort setzen, damit ein zweiter Request aus derselben
@@ -134,3 +171,4 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
 
   return { ok: true, dispatchedAt: new Date(now).toISOString(), ref };
 }
+
