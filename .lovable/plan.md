@@ -1,54 +1,35 @@
-## Plan: MCH-Original-Wettercodes (1–35 Tag / 101–135 Nacht) durchreichen
+## Ziel
+Der Open-Meteo Cache Ingest soll nicht mehr bei jedem zweiten Lauf als „leer“/abgebrochen enden mit:
 
-Ziel: Die MCH-Symbol-Nuancen (z. B. Code 30 = Hochnebel, 13/24/25/33 = unterschiedliche Gewitterspielarten, 26–29 = Spezial-Bewölkungsstufen) und die **modell-eigene** Tag/Nacht-Information nicht mehr im WMO-Mapping verlieren.
+```text
+Canceling since a higher priority waiting request for openmeteo-ingest exists
+```
 
-### 1. Ingest: MCH-Code zusätzlich speichern, nicht ersetzen
+## Ursache
+Der Trigger kommt regelmäßig rein, während ein vorheriger GitHub-Workflow noch läuft oder bereits wartet. Die aktuelle Prüfung sucht zwar aktive Runs, aber GitHub Actions kann zwischen `workflow_dispatch` und sichtbarem `queued`-Run kurzzeitig mehrere Dispatches annehmen. Dadurch verdrängt GitHub wartende Runs trotz `cancel-in-progress: false`.
 
-`scripts/ingest_mch_local_forecast.py`:
-- Neues Feld `weathercode_mch` (raw, 1–199) in `hourly` und `daily` aufnehmen.
-- Bestehendes `weathercode` (WMO) bleibt als Fallback erhalten — gemappt wie heute. Begründung: das Frontend hat viele WMO-basierte Heuristiken (Wet/Thunder/Shower-Overrides), die wir nicht doppelt pflegen wollen.
-- Output-Schemaversion auf `mch-local-forecast-v2` hochziehen.
+## Plan
+1. **Open-Meteo-Trigger robuster machen**
+   - `src/lib/openmeteo-dispatch.server.ts` bekommt eine deutlich längere Mindestpause zwischen Dispatches, passend zur realen Ingest-Dauer.
+   - Statt 30 Sekunden: ca. 14 Minuten, weil der Cron aktuell alle 15 Minuten Open-Meteo anstößt.
+   - So wird höchstens ein Open-Meteo-Run pro Intervall ausgelöst.
 
-### 2. Typen + Cache
+2. **Race-Condition direkt nach Dispatch schließen**
+   - `lastDispatchAt` wird bereits vor bzw. unmittelbar um den GitHub-Dispatch gesetzt, nicht erst ganz am Ende.
+   - Damit blockiert auch ein zweiter nahezu gleichzeitiger Request aus derselben Serverinstanz sofort.
 
-`src/lib/openmeteo-cache.server.ts`:
-- `MchLocalForecastLocation.hourly` und `.daily` erhalten optional `weathercode_mch: (number | null)[]`.
+3. **Aktive-Run-Prüfung präzisieren**
+   - Die GitHub-API-Abfrage bleibt erhalten.
+   - Zusätzlich werden die neuesten Runs sortiert/ausgewertet, damit `queued`, `waiting`, `requested`, `pending`, `in_progress` zuverlässig als Sperre wirken.
 
-`src/lib/weather.ts`:
-- `HourlyData` und `DailyData` erhalten optional `weathercode_mch?: number[]`.
-- Merge-Helfer (`mergeArr`, Aggregation) reichen das Feld 1:1 durch, ohne in die WMO-Logik einzugreifen.
+4. **Cron-Kommentar korrigieren**
+   - In `cron-worker/src/index.ts` steht noch „Open-Meteo nur alle 10 min“, der Code macht `minute % 15 === 0`.
+   - Kommentar auf 15 Minuten korrigieren, ohne das Laufintervall zu ändern.
 
-### 3. Forecast-Builder
+5. **Keine Änderung an Wetterdaten oder UI**
+   - Keine Änderung am eigentlichen Ingest-Script, Cache-Format, Symbol-/Lokalprognose oder MCH-Code-Logik.
 
-`src/lib/forecast-aggregated.functions.ts`, `buildForecastFromMchLoc`:
-- `hourly.weathercode_mch` und `daily.weathercode_mch` aus dem MCH-Cache übernehmen.
-- WMO bleibt parallel im Feld `weathercode` — andere Quellen (Open-Meteo-Fallback, MOSMIX-Anhang) setzen `weathercode_mch` nicht und der Code kennt das undefined.
-
-### 4. Icon-Dispatcher
-
-`src/components/weather-icons/index.tsx`:
-- `<WeatherIcon>` bekommt optional `mchCode?: number`.
-- Neuer Helper `resolveMchIcon(mchCode)`:
-  - Erkennt Nacht aus dem Code selbst (≥ 100) → überschreibt `isDay`.
-  - Mappt MCH-spezifische Codes auf die bestehenden Icon-Komponenten (z. B. 30 → `IconFog` mit Hochnebel-Variante falls vorhanden, 26–29 → differenzierte Cloudy/PartlyCloudy, 13/24/25/33 → Gewitter-Subtypen wie heute über `IconSunThunder`/`IconThunderstorm`).
-  - Fällt auf den WMO-Pfad zurück, wenn der Code unbekannt ist.
-- Wet/Thunder/Shower-Overrides (precip, sunshineRatio, thunderHours) bleiben unangetastet und greifen weiterhin auf Basis der Begleitfelder.
-
-### 5. Konsumenten
-
-`src/components/weather-widget.tsx` und alle Stellen, die `<WeatherIcon>` rendern:
-- Beim Bauen der Props zusätzlich `mchCode={hourly.weathercode_mch?.[i]}` bzw. `daily.weathercode_mch?.[i]` durchreichen (undefined-safe).
-- Footer-Quellenangabe bleibt.
-
-### Nicht im Scope
-
-- Eigene neue SVG-Icons für MCH-only-Symbole (Hochnebel, Schneegestöber-Subtyp). Falls gewünscht später als separater Schritt — vorerst reusen wir die bestehenden Icons.
-- Änderung der Symbol-Map-/Aggregations-Logik (MOSMIX-Anhang, Gewitter-Override). Diese arbeiten weiter auf WMO.
-- Open-Meteo-Pfad — der bleibt WMO-only.
-
-### Verifikation
-
-1. Nach Ingest-Lauf: `mch/local-forecast.json` enthält `weathercode_mch`-Arrays gleicher Länge wie `weathercode`.
-2. Lokalprognose-Widget: Nachts wird Mond-Icon angezeigt auch ohne dass das Frontend die Sonnenstand-Heuristik braucht (sichtbar bei Spot Romanshorn 03:00).
-3. Tag mit MCH-Code 30 (Hochnebel) zeigt Fog/Cloudy statt — wie bisher — Fallback „bewölkt".
-4. Tag, an dem der MCH-Cache leer ist: Open-Meteo-Fallback rendert weiterhin identisch (kein Regressionseffekt).
+## Erwartetes Ergebnis
+- Wenn noch ein Open-Meteo-Workflow läuft oder wartet, antwortet der Trigger sauber mit `429 throttled` statt einen neuen GitHub-Run zu dispatchen.
+- GitHub Actions erzeugt keine „higher priority waiting request“-Abbrüche mehr für `openmeteo-ingest`.
+- Der nächste reguläre 15-Minuten-Slot startet wieder normal, sobald kein aktiver Run mehr blockiert.
