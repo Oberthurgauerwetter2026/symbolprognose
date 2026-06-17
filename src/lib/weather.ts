@@ -36,6 +36,9 @@ export interface DailyData {
 export interface HourlyData {
   time: string[];
   weathercode: number[];
+  /** MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht). Nur gesetzt, wenn
+   *  Primärquelle MeteoSchweiz `local_forecast` ist; sonst undefined. */
+  weathercode_mch?: number[];
   temperature_2m: number[];
   precipitation: number[];
   precipitation_probability: number[];
