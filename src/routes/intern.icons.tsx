@@ -16,6 +16,8 @@ import {
   IconSunSnowThunder,
   IconSnowThunder,
 } from "@/components/weather-icons";
+import { MchPictogram } from "@/components/weather-icons/mch-pictogram";
+import { mchLabel } from "@/components/weather-icons/mch-spec";
 import type { ReactNode } from "react";
 
 export const Route = createFileRoute("/intern/icons")({
