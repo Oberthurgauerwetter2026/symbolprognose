@@ -262,10 +262,22 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
     cloudMid,
     cloudHigh,
   } = o;
+  const hasMch =
+    typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
   const isDay =
-    typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 100
-      ? false
-      : o.isDay ?? true;
+    hasMch && (mchCode as number) >= 100 ? false : o.isDay ?? true;
+
+  // MCH-Pictogramme haben Vorrang.
+  if (hasMch) {
+    const picked = pickMchSvg((mchCode as number) % 100, isDay, {
+      size,
+      precip,
+      sunshineRatio,
+      isSnow,
+    });
+    if (picked) return picked;
+  }
+
 
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
   const wmoIsThunder = code === 95 || code === 96 || code === 99;
