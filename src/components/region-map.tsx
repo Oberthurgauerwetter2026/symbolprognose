@@ -427,7 +427,7 @@ function SpotMarker({
       iconSize: [ICON_W, ICON_H],
       iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
-  }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
+  }, [data, mode, dayIdx, absoluteHour, spot]);
 
 
   return (
