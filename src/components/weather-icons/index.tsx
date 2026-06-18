@@ -439,13 +439,12 @@ export function WeatherIcon({
 
 }) {
   // MCH-Pictogramme haben absoluten Vorrang: 1:1 das MeteoSwiss-Symbol
-  // zur jeweiligen Code-Nummer, ohne Umweg über WMO oder Heuristik.
+  // zur jeweiligen Code-Nummer — gerendert im bestehenden Icon-Stil
+  // (Mondsichel, puffige Wolken, Tropfen, dicker Blitz).
   const hasMch =
     typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
   if (hasMch) {
-    return (
-      <MchPictogram code={mchCode as number} size={size} className={className} />
-    );
+    return mchToIcon(mchCode as number, size, className);
   }
 
 
