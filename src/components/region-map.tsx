@@ -797,7 +797,6 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               mode={viewMode}
               dayIdx={dayIndex}
               absoluteHour={absoluteHour}
-              isDay={isDay}
               onClick={() => goToLokal(s)}
               data={forecasts?.[s.id]}
             />
