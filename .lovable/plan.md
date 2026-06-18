@@ -1,30 +1,20 @@
-## Ursache
+## Plan
 
-Die Regionskarte berechnet `effectiveIsDay` bereits korrekt aus den Sonnenauf-/-untergangs-Zeiten und reicht es als `isDay` an `WeatherIcon`. ABER: Wenn ein `mchCode` vorhanden ist, ignoriert der neue `mchToIcon`-Dispatcher das `isDay`-Prop komplett und leitet Tag/Nacht ausschließlich aus dem 100er-Offset des MCH-Codes ab (`isNight = mchCode >= 100`).
+Der Fehler entsteht, weil der neueste STAC-Item `20260619-ch` zwar als aktuellster Lauf erscheint, aber aktuell `0` Assets enthält. Das Script nimmt ihn trotzdem und findet deshalb keinen einzigen Parameter.
 
-Im MCH-Stream können Nacht-Codes (101–135) auch noch in den ersten Stunden nach Sonnenaufgang vorkommen (Zeitraster, Zonengrenzen) — dadurch erscheint um 07:00 weiter die Mondsichel, obwohl die Sonne längst aufgegangen ist.
+Ich werde den Ingest so anpassen:
 
-## Fix
+1. **STAC-Auswahl robuster machen**
+   - `latest_item()` wählt nicht mehr blind den neuesten Item.
+   - Es prüft die neuesten Items der Sammlung und nimmt den neuesten, der tatsächlich CSV-Assets enthält.
+   - Zusätzlich wird validiert, dass mindestens zentrale Forecast-Parameter wie Temperatur oder Wettercode vorhanden sind.
 
-### `src/components/weather-icons/index.tsx`
+2. **Logging verbessern**
+   - Wenn ein leerer Item übersprungen wird, wird das klar geloggt.
+   - Der gewählte Fallback-Item wird mit ID, Datum und Asset-Anzahl ausgegeben.
 
-`mchToIcon` nimmt zusätzlich `isDay` entgegen. Wenn `isDay` explizit übergeben wurde, hat es Vorrang vor dem 100er-Offset:
+3. **Abbruchlogik beibehalten**
+   - Falls gar kein brauchbarer Item gefunden wird oder weiterhin keine Hourly-Daten entstehen, bricht das Script weiterhin ab und überschreibt keinen funktionierenden Cache.
 
-```ts
-function mchToIcon(mchCode: number, isDay: boolean | undefined, size?, className?) {
-  const baseCode = mchCode >= 100 ? mchCode - 100 : mchCode;
-  const isNight = typeof isDay === "boolean" ? !isDay : mchCode >= 100;
-  // ... switch(baseCode) — wie bisher, mit isDay = !isNight
-}
-```
-
-Der Aufruf in `WeatherIcon` reicht das `isDay`-Prop durch.
-
-### `src/lib/weather-icon-svg.server.ts`
-
-`renderMchIconSvg` analog: zusätzliches `isDay`-Argument, gleiche Vorrang-Regel. Aufruf in `renderWeatherIconSvg` reicht das berechnete `isDay` weiter.
-
-## Out of Scope
-
-- Keine Änderung an der MCH-Datenpipeline.
-- Tag/Nacht-Logik bei den restlichen Komponenten bleibt unverändert (Icon-Katalog reicht weiter `isDay` via mchCode-Offset).
+4. **Kurztest ohne Upload**
+   - Den relevanten STAC-Auswahlteil lokal prüfen, damit der aktuell leere `20260619-ch` übersprungen und `20260618-ch` gewählt wird.
