@@ -226,9 +226,41 @@ function pickWetDaily(opts: {
   return IDrizzle(opts.size);
 }
 
-// ---------- MCH pictogram (1:1) ----------
+// ---------- MCH → existing icon set mapping (mirrors mchToIcon) ----------
 
-import { renderMchSvg } from "@/components/weather-icons/mch-spec";
+function renderMchIconSvg(mchCode: number, size: number): string {
+  const isNight = mchCode >= 100;
+  const code = isNight ? mchCode - 100 : mchCode;
+  const isDay = !isNight;
+  switch (code) {
+    case 1: return isDay ? IClear(size) : IClearNight(size);
+    case 2: return IMostlyClear(size, isDay);
+    case 3:
+    case 4: return IPartlyCloudy(size, isDay);
+    case 5: return ICloudy(size);
+    case 6: return IDrizzle(size);
+    case 7:
+    case 8: return IRain(size);
+    case 9: return isDay ? ISunShower(size) : IRain(size);
+    case 10:
+    case 11:
+    case 14: case 15: case 16:
+    case 17: case 18: case 19: case 20:
+    case 21: case 22: case 23: return ISnow(size);
+    case 12: case 13: case 24: case 25: return IThunderstorm(size);
+    case 26: return IMostlyClear(size, isDay);
+    case 27: return IPartlyCloudy(size, isDay);
+    case 28: return ICloudy(size);
+    case 29: return IDrizzle(size);
+    case 30: return IFog(size);
+    case 31: return IThunderstorm(size);
+    case 32: return ICloudy(size);
+    case 33:
+    case 34: return IFog(size);
+    case 35: return ISnowThunder(size);
+    default: return ICloudy(size);
+  }
+}
 
 // ---------- Dispatcher (mirrors WeatherIcon) ----------
 
