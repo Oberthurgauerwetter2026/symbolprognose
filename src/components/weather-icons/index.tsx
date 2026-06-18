@@ -513,7 +513,7 @@ export function WeatherIcon({
   const hasMch =
     typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
   if (hasMch) {
-    return mchToIcon(mchCode as number, size, className);
+    return mchToIcon(mchCode as number, isDay, size, className);
   }
 
 
