@@ -105,10 +105,14 @@ def make_s3():
 
 
 def latest_item():
-    """Letztes STAC-Item (jüngster Run) — STAC liefert nach datetime DESC sortiert."""
-    # `sortby=-properties.datetime` ist verlässlich; Default-Sortierung ist
-    # asc. Wir holen die ersten 3 und nehmen das mit max datetime.
-    r = requests.get(STAC_ITEMS, params={"limit": 5}, timeout=30)
+    """Jüngstes STAC-Item mit tatsächlich vorhandenen Forecast-Assets.
+
+    Der neueste Item kann temporär 0 Assets enthalten (Lauf gerade
+    publiziert, Assets noch nicht hochgeladen). In dem Fall fällt die
+    Auswahl auf den nächstälteren Item zurück, der mindestens die
+    zentralen Parameter (Temperatur und Wettercode-Icon) enthält.
+    """
+    r = requests.get(STAC_ITEMS, params={"limit": 10}, timeout=30)
     r.raise_for_status()
     feats = r.json().get("features", [])
     if not feats:
@@ -118,7 +122,35 @@ def latest_item():
         return f.get("properties", {}).get("datetime", "")
 
     feats.sort(key=dt, reverse=True)
-    return feats[0]
+
+    required = ("tre200h0", "jww003i0")
+    for f in feats:
+        assets = f.get("assets", {}) or {}
+        n = len(assets)
+        if n == 0:
+            print(
+                f"  skip STAC item {f.get('id')} ({dt(f)}): 0 assets",
+                flush=True,
+            )
+            continue
+        missing = [p for p in required if asset_url(f, p) is None]
+        if missing:
+            print(
+                f"  skip STAC item {f.get('id')} ({dt(f)}): "
+                f"{n} assets, missing required {missing}",
+                flush=True,
+            )
+            continue
+        print(
+            f"  selected STAC item {f.get('id')} ({dt(f)}) with {n} assets",
+            flush=True,
+        )
+        return f
+
+    sys.exit(
+        "STAC: kein Item mit den erforderlichen Forecast-Assets "
+        f"({required}) in den letzten {len(feats)} Items gefunden"
+    )
 
 
 def asset_url(item: dict, param: str) -> str | None:
