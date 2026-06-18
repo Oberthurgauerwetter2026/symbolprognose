@@ -400,9 +400,9 @@ function pickWetDailyIcon({
 
 /* ---------- MCH → existing icon set mapping ---------- */
 
-function mchToIcon(mchCode: number, size?: number, className?: string) {
-  const isNight = mchCode >= 100;
-  const code = isNight ? mchCode - 100 : mchCode;
+function mchToIcon(mchCode: number, isDayOverride: boolean | undefined, size?: number, className?: string) {
+  const code = mchCode >= 100 ? mchCode - 100 : mchCode;
+  const isNight = typeof isDayOverride === "boolean" ? !isDayOverride : mchCode >= 100;
   const isDay = !isNight;
   const p = { size, className };
   switch (code) {
@@ -513,7 +513,7 @@ export function WeatherIcon({
   const hasMch =
     typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
   if (hasMch) {
-    return mchToIcon(mchCode as number, size, className);
+    return mchToIcon(mchCode as number, isDay, size, className);
   }
 
 

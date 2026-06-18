@@ -228,9 +228,9 @@ function pickWetDaily(opts: {
 
 // ---------- MCH → existing icon set mapping (mirrors mchToIcon) ----------
 
-function renderMchIconSvg(mchCode: number, size: number): string {
-  const isNight = mchCode >= 100;
-  const code = isNight ? mchCode - 100 : mchCode;
+function renderMchIconSvg(mchCode: number, size: number, isDayOverride?: boolean): string {
+  const code = mchCode >= 100 ? mchCode - 100 : mchCode;
+  const isNight = typeof isDayOverride === "boolean" ? !isDayOverride : mchCode >= 100;
   const isDay = !isNight;
   switch (code) {
     case 1: return isDay ? IClear(size) : IClearNight(size);
@@ -301,13 +301,12 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   } = o;
   const hasMch =
     typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
-  const isDay =
-    hasMch && (mchCode as number) >= 100 ? false : o.isDay ?? true;
+  const isDay = o.isDay ?? (hasMch ? (mchCode as number) < 100 : true);
 
   // MCH-Pictogramm hat Vorrang — 1:1 das MeteoSwiss-Symbol, gerendert
   // im bestehenden Icon-Stil (Mondsichel, puffige Wolken).
   if (hasMch) {
-    return renderMchIconSvg(mchCode as number, size);
+    return renderMchIconSvg(mchCode as number, size, o.isDay);
   }
 
 
