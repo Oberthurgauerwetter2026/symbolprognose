@@ -646,7 +646,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
     );
   }
 
-  const hourLabel = `${String(hourOfDay).padStart(2, "0")}:00`;
+  const hourLabel = `${String(absoluteHour % 24).padStart(2, "0")}:00`;
   const activeDayLabel = formatDayLabel(
     days[Math.min(dayIndex, days.length - 1)],
     dayIndex,
