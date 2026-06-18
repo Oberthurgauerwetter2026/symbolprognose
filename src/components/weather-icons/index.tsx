@@ -398,7 +398,76 @@ function pickWetDailyIcon({
   return <IconDrizzle {...props} />;
 }
 
+/* ---------- MCH → existing icon set mapping ---------- */
+
+function mchToIcon(mchCode: number, size?: number, className?: string) {
+  const isNight = mchCode >= 100;
+  const code = isNight ? mchCode - 100 : mchCode;
+  const isDay = !isNight;
+  const p = { size, className };
+  switch (code) {
+    case 1:
+      return isDay ? <IconClear {...p} /> : <IconClearNight {...p} />;
+    case 2:
+      return <IconMostlyClear isDay={isDay} {...p} />;
+    case 3:
+      return <IconPartlyCloudy isDay={isDay} {...p} />;
+    case 4:
+      return <IconPartlyCloudy isDay={isDay} {...p} />;
+    case 5:
+      return <IconCloudy {...p} />;
+    case 6:
+      return <IconDrizzle {...p} />;
+    case 7:
+    case 8:
+      return <IconRain {...p} />;
+    case 9:
+      return isDay ? <IconSunShower {...p} /> : <IconRain {...p} />;
+    case 10:
+    case 11:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+    case 20:
+    case 21:
+    case 22:
+    case 23:
+      return <IconSnow {...p} />;
+    case 12:
+    case 13:
+    case 24:
+    case 25:
+      return <IconThunderstorm {...p} />;
+    case 26:
+      return <IconMostlyClear isDay={isDay} {...p} />;
+    case 27:
+      return <IconPartlyCloudy isDay={isDay} {...p} />;
+    case 28:
+      return <IconCloudy {...p} />;
+    case 29:
+      return <IconDrizzle {...p} />;
+    case 30:
+      return <IconFog {...p} />;
+    case 31:
+      return <IconThunderstorm {...p} />;
+    case 32:
+      return <IconCloudy {...p} />;
+    case 33:
+    case 34:
+      return <IconFog {...p} />;
+    case 35:
+      return <IconSnowThunder {...p} />;
+    default:
+      return <IconCloudy {...p} />;
+  }
+}
+
 /* ---------- Dispatcher ---------- */
+
+
 
 
 export function WeatherIcon({
