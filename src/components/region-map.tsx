@@ -589,8 +589,6 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   const absoluteHour = baseHour + stepOffset;
   const hourlyDayIndex = Math.floor(absoluteHour / 24);
   const dayIndex = viewMode === "daily" ? selectedDayIdx : hourlyDayIndex;
-  const hourOfDay = absoluteHour % 24;
-  const isDay = hourOfDay >= 6 && hourOfDay < 20;
 
 
   // Eine einzige Server-Anfrage für alle Spots (Batch + Edge-Cache).
