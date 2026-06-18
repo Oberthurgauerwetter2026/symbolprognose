@@ -278,12 +278,31 @@ function MarkerPill({
 }
 
 
+function computeIsDayFromSun(
+  absoluteHour: number,
+  dayIdx: number,
+  daily: ForecastResponse["daily"] | undefined,
+): boolean {
+  const sr = daily?.sunrise?.[dayIdx];
+  const ss = daily?.sunset?.[dayIdx];
+  const hourOfDay = ((absoluteHour % 24) + 24) % 24;
+  if (!sr || !ss) return hourOfDay >= 6 && hourOfDay < 20;
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const t = base.getTime() + absoluteHour * 3600_000;
+  const srT = new Date(sr).getTime();
+  const ssT = new Date(ss).getTime();
+  if (!Number.isFinite(srT) || !Number.isFinite(ssT)) {
+    return hourOfDay >= 6 && hourOfDay < 20;
+  }
+  return t >= srT && t < ssT;
+}
+
 function SpotMarker({
   spot,
   mode,
   dayIdx,
   absoluteHour,
-  isDay,
   onClick,
   data,
 }: {
@@ -291,7 +310,6 @@ function SpotMarker({
   mode: "hourly" | "daily";
   dayIdx: number;
   absoluteHour: number;
-  isDay: boolean;
   onClick: () => void;
   data: ForecastResponse | undefined;
 }) {
