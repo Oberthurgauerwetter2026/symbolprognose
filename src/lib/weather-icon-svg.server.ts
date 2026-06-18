@@ -304,9 +304,10 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   const isDay =
     hasMch && (mchCode as number) >= 100 ? false : o.isDay ?? true;
 
-  // MCH-Pictogramm hat Vorrang — 1:1 das MeteoSwiss-Symbol.
+  // MCH-Pictogramm hat Vorrang — 1:1 das MeteoSwiss-Symbol, gerendert
+  // im bestehenden Icon-Stil (Mondsichel, puffige Wolken).
   if (hasMch) {
-    return renderMchSvg(mchCode as number, size);
+    return renderMchIconSvg(mchCode as number, size);
   }
 
 
