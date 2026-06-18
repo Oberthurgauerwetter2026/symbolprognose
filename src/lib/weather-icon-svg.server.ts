@@ -228,9 +228,9 @@ function pickWetDaily(opts: {
 
 // ---------- MCH → existing icon set mapping (mirrors mchToIcon) ----------
 
-function renderMchIconSvg(mchCode: number, size: number): string {
-  const isNight = mchCode >= 100;
-  const code = isNight ? mchCode - 100 : mchCode;
+function renderMchIconSvg(mchCode: number, size: number, isDayOverride?: boolean): string {
+  const code = mchCode >= 100 ? mchCode - 100 : mchCode;
+  const isNight = typeof isDayOverride === "boolean" ? !isDayOverride : mchCode >= 100;
   const isDay = !isNight;
   switch (code) {
     case 1: return isDay ? IClear(size) : IClearNight(size);
