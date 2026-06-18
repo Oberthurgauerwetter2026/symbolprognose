@@ -278,12 +278,31 @@ function MarkerPill({
 }
 
 
+function computeIsDayFromSun(
+  absoluteHour: number,
+  dayIdx: number,
+  daily: ForecastResponse["daily"] | undefined,
+): boolean {
+  const sr = daily?.sunrise?.[dayIdx];
+  const ss = daily?.sunset?.[dayIdx];
+  const hourOfDay = ((absoluteHour % 24) + 24) % 24;
+  if (!sr || !ss) return hourOfDay >= 6 && hourOfDay < 20;
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  const t = base.getTime() + absoluteHour * 3600_000;
+  const srT = new Date(sr).getTime();
+  const ssT = new Date(ss).getTime();
+  if (!Number.isFinite(srT) || !Number.isFinite(ssT)) {
+    return hourOfDay >= 6 && hourOfDay < 20;
+  }
+  return t >= srT && t < ssT;
+}
+
 function SpotMarker({
   spot,
   mode,
   dayIdx,
   absoluteHour,
-  isDay,
   onClick,
   data,
 }: {
@@ -291,7 +310,6 @@ function SpotMarker({
   mode: "hourly" | "daily";
   dayIdx: number;
   absoluteHour: number;
-  isDay: boolean;
   onClick: () => void;
   data: ForecastResponse | undefined;
 }) {
@@ -344,7 +362,8 @@ function SpotMarker({
     const tMin = data.daily.temperature_2m_min[dayIdx] ?? NaN;
     const tMax = data.daily.temperature_2m_max[dayIdx] ?? NaN;
     const tNow = data.hourly.temperature_2m[absoluteHour] ?? tMax;
-    const effectiveIsDay = mode === "daily" ? true : isDay;
+    const effectiveIsDay =
+      mode === "daily" ? true : computeIsDayFromSun(absoluteHour, dayIdx, data.daily);
     const precip =
       mode === "daily"
         ? data.daily.precipitation_sum?.[dayIdx]
@@ -408,7 +427,7 @@ function SpotMarker({
       iconSize: [ICON_W, ICON_H],
       iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
-  }, [data, mode, dayIdx, absoluteHour, isDay, spot]);
+  }, [data, mode, dayIdx, absoluteHour, spot]);
 
 
   return (
@@ -570,8 +589,6 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   const absoluteHour = baseHour + stepOffset;
   const hourlyDayIndex = Math.floor(absoluteHour / 24);
   const dayIndex = viewMode === "daily" ? selectedDayIdx : hourlyDayIndex;
-  const hourOfDay = absoluteHour % 24;
-  const isDay = hourOfDay >= 6 && hourOfDay < 20;
 
 
   // Eine einzige Server-Anfrage für alle Spots (Batch + Edge-Cache).
@@ -629,7 +646,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
     );
   }
 
-  const hourLabel = `${String(hourOfDay).padStart(2, "0")}:00`;
+  const hourLabel = `${String(absoluteHour % 24).padStart(2, "0")}:00`;
   const activeDayLabel = formatDayLabel(
     days[Math.min(dayIndex, days.length - 1)],
     dayIndex,
@@ -778,7 +795,6 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               mode={viewMode}
               dayIdx={dayIndex}
               absoluteHour={absoluteHour}
-              isDay={isDay}
               onClick={() => goToLokal(s)}
               data={forecasts?.[s.id]}
             />
