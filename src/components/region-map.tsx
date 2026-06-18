@@ -362,7 +362,8 @@ function SpotMarker({
     const tMin = data.daily.temperature_2m_min[dayIdx] ?? NaN;
     const tMax = data.daily.temperature_2m_max[dayIdx] ?? NaN;
     const tNow = data.hourly.temperature_2m[absoluteHour] ?? tMax;
-    const effectiveIsDay = mode === "daily" ? true : isDay;
+    const effectiveIsDay =
+      mode === "daily" ? true : computeIsDayFromSun(absoluteHour, dayIdx, data.daily);
     const precip =
       mode === "daily"
         ? data.daily.precipitation_sum?.[dayIdx]
