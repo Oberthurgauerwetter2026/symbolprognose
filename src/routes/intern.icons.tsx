@@ -177,7 +177,7 @@ function IconsPage() {
       <Section title="MCH-Pictogramme · Tag (1–35)">
         {Array.from({ length: 35 }, (_, i) => i + 1).map((code) => (
           <Tile key={`d-${code}`} label={`MCH ${code}`} hint={mchLabel(code)}>
-            <MchPictogram code={code} size={SIZE} />
+            <WeatherIcon code={0} mchCode={code} size={SIZE} />
           </Tile>
         ))}
       </Section>
@@ -185,7 +185,7 @@ function IconsPage() {
       <Section title="MCH-Pictogramme · Nacht (101–135)">
         {Array.from({ length: 35 }, (_, i) => 100 + i + 1).map((code) => (
           <Tile key={`n-${code}`} label={`MCH ${code}`} hint={mchLabel(code)}>
-            <MchPictogram code={code} size={SIZE} />
+            <WeatherIcon code={0} mchCode={code} size={SIZE} />
           </Tile>
         ))}
       </Section>
