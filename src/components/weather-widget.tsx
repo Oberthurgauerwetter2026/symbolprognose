@@ -42,6 +42,57 @@ function WindsockIcon({ className, "aria-label": ariaLabel }: { className?: stri
 }
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
+/**
+ * TapTooltip — Radix-Tooltip mit Tap-Support für Touch-Geräte.
+ * Desktop: Hover öffnet/schliesst wie gewohnt.
+ * Mobile: Tap auf den Trigger toggelt; Tap ausserhalb schliesst.
+ */
+function TapTooltip({
+  children,
+  content,
+  side = "top",
+}: {
+  children: React.ReactElement;
+  content: React.ReactNode;
+  side?: "top" | "bottom" | "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node | null;
+      if (triggerRef.current && t && triggerRef.current.contains(t)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [open]);
+  const childOnClick = (children.props as { onClick?: (e: React.MouseEvent) => void }).onClick;
+  const trigger = (
+    <span
+      ref={(el) => {
+        triggerRef.current = el;
+      }}
+      onClick={(e) => {
+        setOpen((o) => !o);
+        childOnClick?.(e);
+      }}
+      style={{ display: "contents" }}
+    >
+      {children}
+    </span>
+  );
+  return (
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+      <TooltipContent side={side} className="text-xs">
+        {content}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 interface StoredLocation {
   name: string;
   latitude: number;
