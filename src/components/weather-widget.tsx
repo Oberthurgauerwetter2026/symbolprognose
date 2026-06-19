@@ -737,27 +737,34 @@ function DetailPanel({
 
   const selectedDay = days[selectedDayIdx];
 
-  // Scroll to first slot of the selected day when user picks a day in the strip.
+  // Initial mount: scroll once to the current hour. Do NOT auto-scroll on
+  // subsequent selectedDayIdx changes — the user navigates the strip and the
+  // panel independently.
+  const didInitialScroll = useRef(false);
   useEffect(() => {
-    if (!selectedDay) return;
-    const firstIso = hourlyIndices
-      .map((s) => h.time[s.idx])
-      .find((iso) => iso.slice(0, 10) === selectedDay.iso);
-    if (!firstIso) return;
-    const el = slotRefs.current.get(firstIso);
+    if (didInitialScroll.current) return;
+    if (!hourlyIndices.length) return;
     const scroller = scrollerRef.current;
-    if (!el || !scroller) return;
-    // Mark as programmatic scroll so onScroll doesn't override the selection.
+    if (!scroller) return;
+    const nowMs = now.getTime();
+    // Find slot whose start is closest to (but <=) now.
+    let targetIso: string | null = null;
+    for (const s of hourlyIndices) {
+      const iso = h.time[s.idx];
+      if (new Date(iso).getTime() <= nowMs) targetIso = iso;
+      else break;
+    }
+    if (!targetIso) targetIso = h.time[hourlyIndices[0].idx];
+    const el = slotRefs.current.get(targetIso);
+    if (!el) return;
     userScrolling.current = false;
-    scroller.scrollTo({
-      left: el.offsetLeft - scroller.offsetLeft,
-      behavior: "smooth",
-    });
+    scroller.scrollTo({ left: el.offsetLeft - scroller.offsetLeft, behavior: "auto" });
+    didInitialScroll.current = true;
     const t = window.setTimeout(() => {
       userScrolling.current = true;
-    }, 700);
+    }, 200);
     return () => window.clearTimeout(t);
-  }, [selectedDayIdx, selectedDay, hourlyIndices, h.time]);
+  }, [hourlyIndices, h.time, now]);
 
   // Track which day is currently visible on scroll and reflect it in the day strip.
   useEffect(() => {
