@@ -853,7 +853,7 @@ function DetailPanel({
                       if (el) slotRefs.current.set(iso, el);
                       else slotRefs.current.delete(iso);
                     }}
-                    className={`relative flex-shrink-0 ${slotWidthClass(cadence)} p-3 @[640px]:p-4 space-y-3 snap-start ${
+                    className={`relative flex-shrink-0 ${slotWidthClass(cadence)} p-2 @[640px]:p-4 space-y-2 @[640px]:space-y-3 snap-start ${
                       isCadenceBreak
                         ? "border-l-2 border-zinc-400"
                         : isDayStart
