@@ -17,7 +17,29 @@ import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+import { Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+
+/* Inline windsock icon — Lucide-style stroke. */
+function WindsockIcon({ className, "aria-label": ariaLabel }: { className?: string; "aria-label"?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-label={ariaLabel}
+      role={ariaLabel ? "img" : undefined}
+    >
+      <line x1="4" y1="3" x2="4" y2="21" />
+      <path d="M4 6 L20 8 L17 13 L4 14 Z" />
+      <line x1="9" y1="6.6" x2="9" y2="13.7" />
+      <line x1="14" y1="7.3" x2="14" y2="13.4" />
+    </svg>
+  );
+}
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 interface StoredLocation {
