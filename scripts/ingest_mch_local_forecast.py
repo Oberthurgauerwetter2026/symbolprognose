@@ -277,6 +277,8 @@ def build_spot(spot: dict, hourly_data: dict[str, dict], daily_data: dict[str, d
     temperature_2m = series_for("temperature_2m")
     precipitation = series_for("precipitation")
     precip_prob_3h = series_for("precipitation_probability")
+    precip_q10 = series_for("precipitation_q10")
+    precip_q90 = series_for("precipitation_q90")
     windspeed = series_for("windspeed_10m")
     windgusts = series_for("windgusts_10m")
     winddir = series_for("winddirection_10m")
