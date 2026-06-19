@@ -18,6 +18,7 @@ import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
 import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 interface StoredLocation {
   name: string;
@@ -627,39 +628,46 @@ function DayRainSparkline({
   const maxMm = buckets.reduce((m, b) => Math.max(m, b.mm), 0);
   const scale = Math.max(2, maxMm * 1.1);
   return (
-    <div className="flex h-8 w-full items-end gap-px">
-      {buckets.map((b, k) => {
-        const hasMm = b.mm > 0;
-        // Opake mm-Säule (Median-Menge)
-        const mmHeight = hasMm ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
-        // Transparente Wahrscheinlichkeits-Säule (Restrisiko) — ab 5%
-        const probVisible = b.prob >= 5;
-        const probTop = probVisible ? Math.max(mmHeight, Math.min(100, b.prob)) : mmHeight;
-        const probExtra = Math.max(0, probTop - mmHeight);
-        const from = String(k * 3).padStart(2, "0");
-        const to = String(k * 3 + 3).padStart(2, "0");
-        return (
-          <div
-            key={k}
-            className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden"
-            title={`${from}–${to} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}% Wahrscheinlichkeit`}
-          >
-            {probExtra > 0 && (
-              <div
-                className="w-full bg-[var(--wx-rain)]"
-                style={{ height: `${probExtra}%`, opacity: 0.25 }}
-              />
-            )}
-            {hasMm && (
-              <div
-                className="w-full bg-[var(--wx-rain)] rounded-sm"
-                style={{ height: `${mmHeight}%`, minHeight: 2 }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
+    <TooltipProvider delayDuration={150}>
+      <div className="flex h-8 w-full items-end gap-px">
+        {buckets.map((b, k) => {
+          const hasMm = b.mm > 0;
+          const mmHeight = hasMm ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
+          const probVisible = b.prob >= 5;
+          const probTop = probVisible ? Math.max(mmHeight, Math.min(100, b.prob)) : mmHeight;
+          const probExtra = Math.max(0, probTop - mmHeight);
+          const from = String(k * 3).padStart(2, "0");
+          const to = String(k * 3 + 3).padStart(2, "0");
+          return (
+            <Tooltip key={k}>
+              <TooltipTrigger asChild>
+                <span
+                  className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden cursor-help"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {probExtra > 0 && (
+                    <div
+                      className="w-full bg-[var(--wx-rain)]"
+                      style={{ height: `${probExtra}%`, opacity: 0.25 }}
+                    />
+                  )}
+                  {hasMm && (
+                    <div
+                      className="w-full bg-[var(--wx-rain)] rounded-sm"
+                      style={{ height: `${mmHeight}%`, minHeight: 2 }}
+                    />
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-semibold">{from}–{to} Uhr</div>
+                <div>{b.mm.toFixed(1)} mm · {b.prob}% Regenrisiko</div>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -1103,21 +1111,30 @@ function DetailPanel({
                         <div className={`absolute top-0 bottom-0 left-0 ${isCadenceBreak ? "w-0.5 bg-zinc-400" : "w-px bg-zinc-300"}`} />
                       )}
                       <div className="absolute inset-0 flex items-end justify-around px-1">
-                        {perHour.map(({ mm, prob }, k) => {
-                          const pct = Math.min(mm / 5, 1) * 100;
-                          const opacity = mm > 0 ? 0.35 + (prob / 100) * 0.65 : 0;
-                          const hh = (startHour + k) % 24;
-                          const hh2 = (hh + 1) % 24;
-                          return (
-                            <div
-                              key={k}
-                              className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)]`}
-                              style={{ height: `${pct}%`, opacity }}
-                              title={`${String(hh).padStart(2, "0")}–${String(hh2).padStart(2, "0")} Uhr · ${mm.toFixed(1)} mm · ${prob}%`}
-                            />
-                          );
-                        })}
+                        <TooltipProvider delayDuration={150}>
+                          {perHour.map(({ mm, prob }, k) => {
+                            const pct = Math.min(mm / 5, 1) * 100;
+                            const opacity = mm > 0 ? 0.35 + (prob / 100) * 0.65 : 0;
+                            const hh = (startHour + k) % 24;
+                            const hh2 = (hh + 1) % 24;
+                            return (
+                              <Tooltip key={k}>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)] cursor-help`}
+                                    style={{ height: `${pct}%`, opacity }}
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  <div className="font-semibold">{String(hh).padStart(2, "0")}–{String(hh2).padStart(2, "0")} Uhr</div>
+                                  <div>{mm.toFixed(1)} mm · {prob}% Regenrisiko</div>
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })}
+                        </TooltipProvider>
                       </div>
+
                     </div>
                     <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
                       <div className="font-bold flex justify-around px-1">
