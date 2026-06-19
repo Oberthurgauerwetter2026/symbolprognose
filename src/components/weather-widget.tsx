@@ -1135,17 +1135,32 @@ function DetailPanel({
                       <div className="absolute inset-0 flex items-end justify-around px-1">
                         <TooltipProvider delayDuration={150}>
                           {perHour.map(({ mm, prob }, k) => {
-                            const pct = Math.min(mm / 5, 1) * 100;
-                            const opacity = mm > 0 ? 0.35 + (prob / 100) * 0.65 : 0;
+                            const mmHeight = mm > 0 ? Math.min(100, (mm / 5) * 100) : 0;
+                            const probVisible = prob >= 5;
+                            const probTop = probVisible ? Math.max(mmHeight, Math.min(100, prob)) : mmHeight;
+                            const probExtra = Math.max(0, probTop - mmHeight);
+                            const widthCls = cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5";
                             const hh = (startHour + k) % 24;
                             const hh2 = (hh + 1) % 24;
                             return (
                               <Tooltip key={k}>
                                 <TooltipTrigger asChild>
                                   <span
-                                    className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)]`}
-                                    style={{ height: `${pct}%`, opacity }}
-                                  />
+                                    className={`${widthCls} h-full flex flex-col justify-end rounded-sm overflow-hidden`}
+                                  >
+                                    {probExtra > 0 && (
+                                      <div
+                                        className="w-full bg-[var(--wx-rain)]"
+                                        style={{ height: `${probExtra}%`, opacity: 0.25 }}
+                                      />
+                                    )}
+                                    {mm > 0 && (
+                                      <div
+                                        className="w-full bg-[var(--wx-rain)] rounded-sm"
+                                        style={{ height: `${mmHeight}%`, minHeight: 2 }}
+                                      />
+                                    )}
+                                  </span>
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="text-xs">
                                   <div className="font-semibold">{String(hh).padStart(2, "0")}–{String(hh2).padStart(2, "0")} Uhr</div>
@@ -1156,6 +1171,7 @@ function DetailPanel({
                           })}
                         </TooltipProvider>
                       </div>
+
 
                     </div>
                     <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
