@@ -643,7 +643,7 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
       for (const p of data.points) {
         // 1) MCH primär
         if (mchLocs) {
-          const built = await forecastFromMchCache(p.lat, p.lon, mchLocs);
+          const built = await forecastFromMchCache(p.lat, p.lon, mchLocs, locs);
           if (built) {
             const mosmix = await getMosmix(p.lat, p.lon);
             out[p.id] = applyMosmixOverlay(
