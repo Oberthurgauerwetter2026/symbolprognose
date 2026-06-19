@@ -1323,8 +1323,8 @@ function DetailPanel({
         </div>
       </div>
       <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-800 font-bold flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="inline-flex items-center gap-1.5"><span className="inline-flex items-end w-2.5 h-3 align-middle overflow-hidden rounded-sm"><span className="w-full bg-[var(--wx-rain)]" style={{ height: "40%", opacity: 0.25 }} /></span><span className="inline-block w-2.5 h-3 align-middle rounded-sm overflow-hidden flex items-end"><span className="block w-full bg-[var(--wx-rain)]" style={{ height: "70%" }} /></span><CloudRain className="w-3.5 h-3.5" aria-label="Regen" /> mm (sicher) · % (Risiko)</span>
-        <span className="inline-flex items-center gap-1.5"><Wind className="w-3.5 h-3.5" aria-label="Wind" /> km/h (Wind / Böen)</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-flex items-end w-2.5 h-3 align-middle overflow-hidden rounded-sm"><span className="w-full bg-[var(--wx-rain)]" style={{ height: "40%", opacity: 0.25 }} /></span><span className="inline-block w-2.5 h-3 align-middle rounded-sm overflow-hidden flex items-end"><span className="block w-full bg-[var(--wx-rain)]" style={{ height: "70%" }} /></span><Droplet className="w-3.5 h-3.5 text-[var(--wx-rain)] fill-[var(--wx-rain)]" aria-label="Regen" /> mm (sicher) · % (Risiko)</span>
+        <span className="inline-flex items-center gap-1.5"><WindsockIcon className="w-3.5 h-3.5" aria-label="Wind" /> km/h (Wind / Böen)</span>
         {extended && (
           <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] align-middle" /><Sun className="w-3.5 h-3.5" aria-label="Sonne" /> min/h · <Sunrise className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenaufgang" /> · <Sunset className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenuntergang" /></span>
         )}
