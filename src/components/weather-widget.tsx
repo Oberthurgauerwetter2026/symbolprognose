@@ -630,24 +630,30 @@ function DayRainSparkline({
     <div className="flex h-8 w-full items-end gap-px">
       {buckets.map((b, k) => {
         const hasMm = b.mm > 0;
-        const visible = hasMm || b.prob >= 10;
-        const heightPct = hasMm
-          ? Math.max(6, Math.min(100, (b.mm / scale) * 100))
-          : visible
-            ? Math.max(8, Math.min(60, b.prob))
-            : 0;
+        // Opake mm-Säule (Median-Menge)
+        const mmHeight = hasMm ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
+        // Transparente Wahrscheinlichkeits-Säule (Restrisiko) — ab 5%
+        const probVisible = b.prob >= 5;
+        const probTop = probVisible ? Math.max(mmHeight, Math.min(100, b.prob)) : mmHeight;
+        const probExtra = Math.max(0, probTop - mmHeight);
         const from = String(k * 3).padStart(2, "0");
         const to = String(k * 3 + 3).padStart(2, "0");
         return (
           <div
             key={k}
-            className="flex-1 h-full flex items-end bg-zinc-300/40 rounded-sm overflow-hidden"
-            title={`${from}–${to} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}%`}
+            className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden"
+            title={`${from}–${to} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}% Wahrscheinlichkeit`}
           >
-            {visible && (
+            {probExtra > 0 && (
+              <div
+                className="w-full bg-[var(--wx-rain)]"
+                style={{ height: `${probExtra}%`, opacity: 0.25 }}
+              />
+            )}
+            {hasMm && (
               <div
                 className="w-full bg-[var(--wx-rain)] rounded-sm"
-                style={{ height: `${heightPct}%`, minHeight: 2, opacity: hasMm ? 1 : 0.45 }}
+                style={{ height: `${mmHeight}%`, minHeight: 2 }}
               />
             )}
           </div>
