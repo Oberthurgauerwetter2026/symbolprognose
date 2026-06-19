@@ -17,7 +17,29 @@ import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+import { Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+
+/* Inline windsock icon — Lucide-style stroke. */
+function WindsockIcon({ className, "aria-label": ariaLabel }: { className?: string; "aria-label"?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-label={ariaLabel}
+      role={ariaLabel ? "img" : undefined}
+    >
+      <line x1="4" y1="3" x2="4" y2="21" />
+      <path d="M4 6 L20 8 L17 13 L4 14 Z" />
+      <line x1="9" y1="6.6" x2="9" y2="13.7" />
+      <line x1="14" y1="7.3" x2="14" y2="13.4" />
+    </svg>
+  );
+}
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 interface StoredLocation {
@@ -642,7 +664,7 @@ function DayRainSparkline({
             <Tooltip key={k}>
               <TooltipTrigger asChild>
                 <span
-                  className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden cursor-help"
+                  className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {probExtra > 0 && (
@@ -701,7 +723,7 @@ function DaySummaryBar({
         {weekdayLong(date)} <span className="text-zinc-700 font-semibold">{formatDateShort(date)}</span>
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
-        <CloudRain className="w-4 h-4 text-zinc-700" aria-label="Niederschlag" />
+        <Droplet className="w-4 h-4 text-[var(--wx-rain)] fill-[var(--wx-rain)]" aria-label="Niederschlag" />
         {Number.isFinite(mm) ? `${mm.toFixed(1)} mm` : "– mm"}
         <span className="text-zinc-500">/</span>
         <span className="text-zinc-800">{probLabel}</span>
@@ -711,7 +733,7 @@ function DaySummaryBar({
         {sunH == null ? "–" : `${sunH} h`}
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
-        <Wind className="w-4 h-4 text-zinc-700" aria-label="Wind" />
+        <WindsockIcon className="w-4 h-4 text-zinc-700" aria-label="Wind" />
         <WindArrow deg={d.winddirection_10m_dominant?.[i] ?? 0} size="md" />
         <span className="font-medium text-zinc-700">{wind}</span>
         <span className="text-zinc-500">|</span>
@@ -918,7 +940,7 @@ function DetailPanel({
             ))}
           </div>
           <div className="text-[10px] text-zinc-900 font-bold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
-            <CloudRain className="w-3.5 h-3.5" aria-label="Regen" /> mm/3h
+            <Droplet className="w-3.5 h-3.5 text-[var(--wx-rain)] fill-[var(--wx-rain)]" aria-label="Regen" /> mm/3h
           </div>
           {extended && (
             <>
@@ -1121,7 +1143,7 @@ function DetailPanel({
                               <Tooltip key={k}>
                                 <TooltipTrigger asChild>
                                   <span
-                                    className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)] cursor-help`}
+                                    className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)]`}
                                     style={{ height: `${pct}%`, opacity }}
                                   />
                                 </TooltipTrigger>
@@ -1301,8 +1323,8 @@ function DetailPanel({
         </div>
       </div>
       <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-800 font-bold flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="inline-flex items-center gap-1.5"><span className="inline-flex items-end w-2.5 h-3 align-middle overflow-hidden rounded-sm"><span className="w-full bg-[var(--wx-rain)]" style={{ height: "40%", opacity: 0.25 }} /></span><span className="inline-block w-2.5 h-3 align-middle rounded-sm overflow-hidden flex items-end"><span className="block w-full bg-[var(--wx-rain)]" style={{ height: "70%" }} /></span><CloudRain className="w-3.5 h-3.5" aria-label="Regen" /> mm (sicher) · % (Risiko)</span>
-        <span className="inline-flex items-center gap-1.5"><Wind className="w-3.5 h-3.5" aria-label="Wind" /> km/h (Wind / Böen)</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-flex items-end w-2.5 h-3 align-middle overflow-hidden rounded-sm"><span className="w-full bg-[var(--wx-rain)]" style={{ height: "40%", opacity: 0.25 }} /></span><span className="inline-block w-2.5 h-3 align-middle rounded-sm overflow-hidden flex items-end"><span className="block w-full bg-[var(--wx-rain)]" style={{ height: "70%" }} /></span><Droplet className="w-3.5 h-3.5 text-[var(--wx-rain)] fill-[var(--wx-rain)]" aria-label="Regen" /> mm (sicher) · % (Risiko)</span>
+        <span className="inline-flex items-center gap-1.5"><WindsockIcon className="w-3.5 h-3.5" aria-label="Wind" /> km/h (Wind / Böen)</span>
         {extended && (
           <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] align-middle" /><Sun className="w-3.5 h-3.5" aria-label="Sonne" /> min/h · <Sunrise className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenaufgang" /> · <Sunset className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenuntergang" /></span>
         )}
