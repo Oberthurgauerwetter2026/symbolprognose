@@ -114,6 +114,7 @@ export function WeatherWidget({
   const [extended, setExtended] = useState(false);
   const [snow, setSnow] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(initialDayIdx ?? 0);
+  const [panelTarget, setPanelTarget] = useState<{ idx: number; tick: number }>({ idx: initialDayIdx ?? 0, tick: 0 });
   useEffect(() => {
     if (initialDayIdx != null && initialDayIdx >= 0 && initialDayIdx < 7) {
       setSelectedDayIdx(initialDayIdx);
@@ -236,6 +237,8 @@ export function WeatherWidget({
               days={days}
               selectedDayIdx={selectedDayIdx}
               onVisibleDayChange={setSelectedDayIdx}
+              targetDayIdx={panelTarget.idx}
+              targetTick={panelTarget.tick}
               now={now}
               extended={false}
               snow={false}
@@ -306,7 +309,10 @@ export function WeatherWidget({
               forecast={forecast.data}
               days={days}
               selectedIdx={selectedDayIdx}
-              onSelect={setSelectedDayIdx}
+              onSelect={(i) => {
+                setSelectedDayIdx(i);
+                setPanelTarget((p) => ({ idx: i, tick: p.tick + 1 }));
+              }}
               extended={extended}
             />
 
@@ -321,6 +327,8 @@ export function WeatherWidget({
               days={days}
               selectedDayIdx={selectedDayIdx}
               onVisibleDayChange={setSelectedDayIdx}
+              targetDayIdx={panelTarget.idx}
+              targetTick={panelTarget.tick}
               now={now}
               extended={extended}
               snow={snow}
@@ -617,15 +625,16 @@ function DayRainSparkline({
     buckets[b].prob = Math.max(buckets[b].prob, hourly.precipitation_probability?.[i] ?? 0);
   }
   return (
-    <div className="flex items-end gap-px h-3.5 w-full border-b border-zinc-300/70">
+    <div className="flex items-end gap-px h-4 w-full border-b border-zinc-300/70">
       {buckets.map((b, k) => {
-        const pct = Math.min(b.mm / 5, 1) * 100;
+        const rawPct = Math.min(b.mm / 5, 1) * 100;
+        const pct = b.mm > 0 ? Math.max(rawPct, 12) : 0;
         const opacity = b.mm > 0 ? 0.35 + (b.prob / 100) * 0.65 : 0;
         return (
           <div
             key={k}
             className="flex-1 bg-[var(--wx-rain)] rounded-t-sm"
-            style={{ height: `${pct}%`, opacity, minHeight: b.mm > 0 ? 1 : 0 }}
+            style={{ height: `${pct}%`, opacity, minHeight: b.mm > 0 ? 2 : 0 }}
             title={`${k * 3}–${k * 3 + 3} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}%`}
           />
         );
@@ -647,12 +656,16 @@ function DaySummaryBar({
   const i = selectedDayIdx;
   if (i < 0 || i >= d.time.length) return null;
   const date = new Date(d.time[i] + "T12:00:00");
-  const sunH = Math.round((d.sunshine_duration?.[i] ?? 0) / 3600);
+  const sunRaw = d.sunshine_duration?.[i];
+  const sunH = sunRaw == null || !Number.isFinite(sunRaw) ? null : Math.round(sunRaw / 3600);
   const wind = Math.round(d.windspeed_10m_max?.[i] ?? 0);
-  const gust = Math.round(d.windgusts_10m_max?.[i] ?? 0);
+  const rawGust = d.windgusts_10m_max?.[i] ?? 0;
+  const gust = Math.round(rawGust > 0 ? rawGust : wind > 0 ? wind * 1.4 : 0);
   const mm = d.precipitation_sum?.[i];
   const prob = d.precipitation_probability_max?.[i] ?? 0;
   const probLabel = prob === 0 ? "0 %" : prob < 5 ? "<5 %" : `${prob} %`;
+  const riseStr = formatTimeHHMM(d.sunrise?.[i] ?? "") || "–";
+  const setStr = formatTimeHHMM(d.sunset?.[i] ?? "") || "–";
   return (
     <div className="rounded-md border border-accent/20 bg-[color-mix(in_oklab,var(--accent)_18%,white)] px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
       <span className="font-bold text-zinc-900 font-[family-name:var(--font-display)]">
@@ -666,7 +679,7 @@ function DaySummaryBar({
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
         <Sun className="w-4 h-4 text-zinc-700" aria-label="Sonnenschein" />
-        {sunH} h
+        {sunH == null ? "–" : `${sunH} h`}
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
         <Wind className="w-4 h-4 text-zinc-700" aria-label="Wind" />
@@ -678,11 +691,11 @@ function DaySummaryBar({
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
         <Sunrise className="w-4 h-4 text-amber-700" aria-label="Sonnenaufgang" />
-        {formatTimeHHMM(d.sunrise?.[i] ?? "")}
+        {riseStr}
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
         <Sunset className="w-4 h-4 text-amber-700" aria-label="Sonnenuntergang" />
-        {formatTimeHHMM(d.sunset?.[i] ?? "")}
+        {setStr}
       </span>
     </div>
   );
@@ -696,6 +709,8 @@ function DetailPanel({
   days,
   selectedDayIdx,
   onVisibleDayChange,
+  targetDayIdx,
+  targetTick,
   now,
   extended,
   snow,
@@ -705,6 +720,8 @@ function DetailPanel({
   days: { iso: string; date: Date; idx: number }[];
   selectedDayIdx: number;
   onVisibleDayChange: (i: number) => void;
+  targetDayIdx?: number;
+  targetTick?: number;
   now: Date;
   extended: boolean;
   snow: boolean;
@@ -765,6 +782,28 @@ function DetailPanel({
     }, 200);
     return () => window.clearTimeout(t);
   }, [hourlyIndices, h.time, now]);
+
+  // Explicit day-tile click → smooth scroll to first slot of target day.
+  // Skipped on first render (targetTick === 0) so initial-mount logic owns it.
+  useEffect(() => {
+    if (!targetTick) return;
+    if (targetDayIdx == null) return;
+    const day = days[targetDayIdx];
+    if (!day) return;
+    const firstIso = hourlyIndices
+      .map((s) => h.time[s.idx])
+      .find((iso) => iso.slice(0, 10) === day.iso);
+    if (!firstIso) return;
+    const el = slotRefs.current.get(firstIso);
+    const scroller = scrollerRef.current;
+    if (!el || !scroller) return;
+    userScrolling.current = false;
+    scroller.scrollTo({ left: el.offsetLeft - scroller.offsetLeft, behavior: "smooth" });
+    const t = window.setTimeout(() => {
+      userScrolling.current = true;
+    }, 700);
+    return () => window.clearTimeout(t);
+  }, [targetTick, targetDayIdx, days, hourlyIndices, h.time]);
 
   // Track which day is currently visible on scroll and reflect it in the day strip.
   useEffect(() => {
