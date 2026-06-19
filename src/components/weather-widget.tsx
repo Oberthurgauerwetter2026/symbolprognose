@@ -309,7 +309,10 @@ export function WeatherWidget({
               forecast={forecast.data}
               days={days}
               selectedIdx={selectedDayIdx}
-              onSelect={setSelectedDayIdx}
+              onSelect={(i) => {
+                setSelectedDayIdx(i);
+                setPanelTarget((p) => ({ idx: i, tick: p.tick + 1 }));
+              }}
               extended={extended}
             />
 
@@ -324,6 +327,8 @@ export function WeatherWidget({
               days={days}
               selectedDayIdx={selectedDayIdx}
               onVisibleDayChange={setSelectedDayIdx}
+              targetDayIdx={panelTarget.idx}
+              targetTick={panelTarget.tick}
               now={now}
               extended={extended}
               snow={snow}
