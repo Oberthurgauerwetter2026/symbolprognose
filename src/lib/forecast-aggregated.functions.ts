@@ -322,6 +322,12 @@ function pickNearestMch(
  * Baut aus einem MCH-Local-Forecast-Eintrag eine ForecastResponse im
  * Open-Meteo-Schema. Daily-Aggregate (Wind/Sonne/Niederschlagsstunden/
  * Symbol) werden aus dem Hourly nach-aggregiert — analog zur phaseA-Branch.
+ *
+ * Achtung: Felder, die MCH-STAC oft nicht liefert (rre150h0/Niederschlag,
+ * Schneefall, Niederschlagswahrscheinlichkeit), werden als NaN gehalten —
+ * damit `aggregateDailyFromHourly` sie aus der Tagessumme ausklammert und
+ * der korrekte MCH-Tageswert (rka150p0) nicht durch eine künstliche 0
+ * überschrieben wird. Die Lücken füllt anschließend `overlayHourlyFromOpenMeteo`.
  */
 function buildForecastFromMchLoc(loc: MchLocalForecastLocation): ForecastResponse {
   const h = loc.hourly;
@@ -330,12 +336,12 @@ function buildForecastFromMchLoc(loc: MchLocalForecastLocation): ForecastRespons
     time: h.time.slice(),
     weathercode: h.weathercode.map((v) => num(v, 3)),
     temperature_2m: h.temperature_2m.map((v) => num(v)),
-    precipitation: h.precipitation.map((v) => num(v)),
-    precipitation_probability: h.precipitation_probability.map((v) => num(v)),
+    precipitation: h.precipitation.map((v) => num(v, NaN)),
+    precipitation_probability: h.precipitation_probability.map((v) => num(v, NaN)),
     windspeed_10m: h.windspeed_10m.map((v) => num(v)),
     windgusts_10m: h.windgusts_10m.map((v) => num(v)),
     winddirection_10m: h.winddirection_10m.map((v) => num(v)),
-    snowfall: h.snowfall.map((v) => num(v)),
+    snowfall: h.snowfall.map((v) => num(v, NaN)),
     sunshine_duration: h.sunshine_duration.map((v) => num(v)),
     cloud_cover_low: h.cloud_cover_low.map((v) => num(v)),
     cloud_cover_mid: h.cloud_cover_mid.map((v) => num(v)),
@@ -367,16 +373,39 @@ function buildForecastFromMchLoc(loc: MchLocalForecastLocation): ForecastRespons
     precipitation_hours: new Array(dLen).fill(0),
   };
 
-  const fc: ForecastResponse = {
+  return {
     latitude: loc.latitude,
     longitude: loc.longitude,
     timezone: loc.timezone ?? "Europe/Zurich",
     hourly,
     daily,
   };
-  enrichDailyFromHourly(fc, loc.latitude, loc.longitude, loc.utc_offset_seconds ?? 0);
+}
 
-  return sanitizeForecast(fc);
+/**
+ * Füllt fehlende Stunden-Niederschlagswerte (mm, Wahrscheinlichkeit, Schnee)
+ * aus dem Open-Meteo-phaseA-Cache nach. MCH-STAC liefert oft nur die Tages-
+ * summe; ohne diesen Overlay bleiben die Regenbalken in den Tageskacheln leer.
+ */
+function overlayHourlyFromOpenMeteo(fc: ForecastResponse, omLoc: Loc | null): void {
+  if (!omLoc?.hourly) return;
+  const om = buildForecastFromCacheLoc(omLoc);
+  const idx = new Map<string, number>();
+  for (let i = 0; i < om.hourly.time.length; i++) idx.set(om.hourly.time[i], i);
+  const h = fc.hourly;
+  const fillIfMissing = (target: number[], src: number[]) => {
+    for (let i = 0; i < h.time.length; i++) {
+      const cur = target[i];
+      if (typeof cur === "number" && Number.isFinite(cur)) continue;
+      const j = idx.get(h.time[i]);
+      if (j == null) continue;
+      const s = src[j];
+      if (typeof s === "number" && Number.isFinite(s)) target[i] = s;
+    }
+  };
+  fillIfMissing(h.precipitation, om.hourly.precipitation);
+  fillIfMissing(h.precipitation_probability, om.hourly.precipitation_probability);
+  fillIfMissing(h.snowfall, om.hourly.snowfall);
 }
 
 /**
@@ -388,11 +417,17 @@ async function forecastFromMchCache(
   lat: number,
   lon: number,
   mchLocs: MchLocalForecastLocation[],
+  omLocs: Loc[] | null,
 ): Promise<{ fc: ForecastResponse; loc: MchLocalForecastLocation } | null> {
   const best = pickNearestMch(mchLocs, lat, lon);
   if (!best?.hourly?.time?.length) return null;
-  return { fc: buildForecastFromMchLoc(best), loc: best };
+  const fc = buildForecastFromMchLoc(best);
+  const omLoc = omLocs ? pickNearest(omLocs, lat, lon) : null;
+  overlayHourlyFromOpenMeteo(fc, omLoc);
+  enrichDailyFromHourly(fc, best.latitude, best.longitude, best.utc_offset_seconds ?? 0);
+  return { fc: sanitizeForecast(fc), loc: best };
 }
+
 
 async function forecastFromCache(
   lat: number,
