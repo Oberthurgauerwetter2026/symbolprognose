@@ -1,17 +1,49 @@
-## Diagnose
+## Recherche-Befund
 
-Server-Antwort für Amriswil ist OK: `precipitation` ist überall 0 (weder MCH-STAC noch Open-Meteo melden Regen-mm für heute), `precipitation_probability` liegt aber bei 24 %. Die `DayRainSparkline` (`src/components/weather-widget.tsx:609`) blendet eine Säule jedoch nur ein, wenn `mm > 0 || prob >= 30`. Damit bleiben alle 8 Buckets unsichtbar (nur die grauen Tracks), obwohl der Wert "24 %" in der Kachel angezeigt wird. MCH/Meteo­Schweiz zeigt für denselben Punkt eine niedrige Regenwahrscheinlichkeits-Säule, die unser Widget verschluckt.
+Die führenden europäischen Wetterdienste (MeteoSchweiz, Yr.no, Meteoblue) verwenden ein **Zwei-Schichten-Säulen-Modell**:
 
-## Fix in `src/components/weather-widget.tsx` (`DayRainSparkline`)
+- **Opake Säule** = erwartete Regenmenge (mm, Median)
+- **Transparente/hellblaue Erweiterung darüber** = Unsicherheit / Restrisiko (Q10–Q90-Ensemble bzw. min–max-Intervall)
+- "0 mm aber 24 % Wahrscheinlichkeit" wird **explizit** als nur-transparente Säule dargestellt → klares Signal "kein sicherer Regen, aber Restrisiko"
+- Schwelle: transparente Säule ab jedem Wert > 0, opake ab jeder mm > 0
+- Quellen u. a. MeteoSchweiz-Blog Nov 2025, Yr.no Help Center, Meteoblue Spec, Nightingale DVS Dark-Sky-Analyse
 
-1. Schwelle senken: Säule wird sichtbar, sobald `mm > 0 || prob >= 10`.
-2. Höhenformel zweistufig:
-   - Wenn `mm > 0`: Höhe wie bisher aus mm (Skala `max(2, maxMm * 1.1)`), volle Deckkraft.
-   - Sonst (`mm == 0`, `prob >= 10`): Höhe = `prob`-Anteil eines fixen 100 %-Maßstabs (z. B. `max(8, Math.min(60, prob))`), reduzierte Deckkraft (~0.45) damit klar zwischen „Regen-mm" und „nur Wahrscheinlichkeit" unterschieden wird.
-3. Tooltip bleibt gleich (`mm` + `prob`); Track-Hintergrund bleibt grau.
+Consumer-Apps (Apple, AccuWeather) nutzen stattdessen reine %-Balken; das ist intuitiver für Laien, verliert aber die Menge.
 
-Keine weiteren Dateien, keine Aggregations- oder Cache-Änderungen, kein `FORECAST_VERSION`-Bump nötig — rein visuell.
+Da unser Datenstrom Open-Meteo + MeteoSchweiz ist und exakt zur MCH-Konvention passt, übernehmen wir das **MeteoSchweiz/Yr.no-Schema** (Menge + Unsicherheit).
+
+## Fix: `DayRainSparkline` in `src/components/weather-widget.tsx`
+
+Pro 3h-Bucket zwei gestapelte Rechtecke im selben grauen Track:
+
+```text
+┌────────┐   100 %
+│░░░░░░░░│   ← transparente Säule, Höhe ∝ prob  (hellblau, ~0.25 Opacity)
+│░░░░░░░░│
+│████████│   ← opake Säule, Höhe ∝ mm           (--wx-rain, 1.0 Opacity)
+└────────┘   0 %
+```
+
+Konkret:
+
+1. **mm-Säule** (opak): wie bisher, Höhe `(mm / scale) * 100 %`, `scale = max(2, maxMm * 1.1)`. Min 6 %, bei `mm == 0` keine opake Säule.
+2. **Wahrscheinlichkeits-Säule** (transparent, **darüber** gestapelt): Höhe `max(mmHeight, prob %)` minus `mmHeight`, d. h. wir füllen den Track vom Top der mm-Säule bis zu `max(mmHeight, prob %)` mit `bg-[var(--wx-rain)]` und `opacity 0.25`. Sichtbar ab `prob >= 5 %`.
+3. **Schwelle gesenkt** auf `prob >= 5` (statt 30/10), denn die transparente Schicht ist visuell zurückhaltend genug, um auch sehr niedrige Wahrscheinlichkeiten anzuzeigen ohne zu „schreien".
+4. **Tooltip** erweitern: `"12–15 Uhr · 0.0 mm · 24 % Wahrscheinlichkeit"` bleibt; zusätzlich am Anfang der Sparkline beim Wochenkacheln-Layout unverändert.
+5. **Legende** (Footer-Zeile bei `mm · %`, Zeile ~1276) ergänzen: ein kleiner Doppelbalken-Indikator (opak + transparent) mit Label `mm (sicher) · % (Risiko)`.
+
+Keine Datenpipeline-Änderung, kein `FORECAST_VERSION`-Bump, kein Aggregations-Code. Rein Präsentation.
+
+## Geltungsbereich
+
+- Die analoge Logik wird auch im großen Stunden-Detail (Zeilen ~1075–1110, `perHour`-Map) konsistent gespiegelt: dort heute bereits opake Säule mit Opacity-Modulation via prob; wir lassen das unverändert, da dort die Werte deutlich detaillierter sind und die jetzige Lösung bereits sichtbare Hinweise gibt.
 
 ## Prüfung
 
-`/karten/lokal?lat=47.5428&lon=9.2871&name=Amriswil` — Heute-Kachel zeigt 8 niedrige, halbtransparente Säulen passend zu 24 % Regenwahrscheinlichkeit; an Tagen mit mm bleibt das bisherige Verhalten (volle Säulen aus mm) erhalten.
+`/karten/lokal?lat=47.5428&lon=9.2871&name=Amriswil` — heute (0 mm, 24 %) zeigt 8 niedrige, hellblau-transparente Säulen (~24 % Höhe); an Tagen mit Regen volle opake Säulen, ggf. mit transparenter Erweiterung wenn prob > mm-relative Höhe. Tooltip nennt mm + %.
+
+## Quellen
+
+- [MeteoSchweiz: Probabilistische Niederschlagsprognosen (Nov. 2025)](https://www.meteoschweiz.admin.ch/ueber-uns/meteoschweiz-blog/de/2025/11/wie-interpretiere-ich-probabilistische-niederschlagsprognosen.html)
+- [Yr.no Help: Weather Forecasts and Uncertainty](https://hjelp.yr.no/hc/en-us/articles/4402772811026-Weather-forecasts-and-uncertainty)
+- [Meteoblue: Precipitation Specification](https://content.meteoblue.com/en/research-education/specifications/weather-variables/precipitation/)
