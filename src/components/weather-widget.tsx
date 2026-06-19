@@ -613,29 +613,39 @@ function DayRainSparkline({
   hourly: import("@/lib/weather").HourlyData;
   dayIso: string;
 }) {
-  // 24 Stunden-Slots des Tages dayIso als horizontale Zeitachse 00–24 Uhr.
-  const slots: { mm: number; prob: number }[] = Array.from({ length: 24 }, () => ({ mm: 0, prob: 0 }));
+  // 8 vertikale Säulen à 3 Stunden (00–03, 03–06, …, 21–24).
+  const buckets: { mm: number; prob: number }[] = Array.from({ length: 8 }, () => ({ mm: 0, prob: 0 }));
   for (let i = 0; i < hourly.time.length; i++) {
     const iso = hourly.time[i];
     if (iso.slice(0, 10) !== dayIso) continue;
     const hr = Number(iso.slice(11, 13));
     if (!Number.isFinite(hr) || hr < 0 || hr > 23) continue;
-    slots[hr].mm += hourly.precipitation?.[i] ?? 0;
-    slots[hr].prob = Math.max(slots[hr].prob, hourly.precipitation_probability?.[i] ?? 0);
+    const b = Math.floor(hr / 3);
+    buckets[b].mm += hourly.precipitation?.[i] ?? 0;
+    buckets[b].prob = Math.max(buckets[b].prob, hourly.precipitation_probability?.[i] ?? 0);
   }
+  const maxMm = buckets.reduce((m, b) => Math.max(m, b.mm), 0);
+  const scale = Math.max(2, maxMm * 1.1);
   return (
-    <div className="relative flex h-1.5 w-full overflow-hidden rounded-sm bg-zinc-300/60">
-      {slots.map((s, k) => {
-        const isRain = s.mm > 0 || s.prob >= 50;
-        const opacity = isRain ? Math.min(1, 0.4 + Math.min(s.mm, 3) / 3 * 0.6 + (s.prob / 100) * 0.2) : 0;
-        const borderRight = k % 6 === 5 && k !== 23 ? "1px solid rgba(255,255,255,0.55)" : undefined;
+    <div className="flex h-8 w-full items-end gap-px">
+      {buckets.map((b, k) => {
+        const visible = b.mm > 0 || b.prob >= 30;
+        const heightPct = visible ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
+        const from = String(k * 3).padStart(2, "0");
+        const to = String(k * 3 + 3).padStart(2, "0");
         return (
           <div
             key={k}
-            className="flex-1 bg-[var(--wx-rain)]"
-            style={{ opacity, borderRight }}
-            title={`${String(k).padStart(2, "0")}–${String(k + 1).padStart(2, "0")} Uhr · ${s.mm.toFixed(1)} mm · ${s.prob}%`}
-          />
+            className="flex-1 h-full flex items-end bg-zinc-300/40 rounded-sm overflow-hidden"
+            title={`${from}–${to} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}%`}
+          >
+            {visible && (
+              <div
+                className="w-full bg-[var(--wx-rain)] rounded-sm"
+                style={{ height: `${heightPct}%`, minHeight: 2 }}
+              />
+            )}
+          </div>
         );
       })}
     </div>
