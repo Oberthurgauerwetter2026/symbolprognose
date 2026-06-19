@@ -48,6 +48,8 @@ HOURLY_PARAMS = {
     "temperature_2m":            "tre200h0",
     "precipitation":             "rre150h0",
     "precipitation_probability": "rp0003i0",   # 3h-Wahrscheinlichkeit, wird auf jede Stunde repliziert
+    "precipitation_q10":         "rreq10h0",   # 10 %-Quantil Stundensumme (mm)
+    "precipitation_q90":         "rreq90h0",   # 90 %-Quantil Stundensumme (mm)
     "windspeed_10m":             "fu3010h0",
     "windgusts_10m":             "fu3010h1",
     "winddirection_10m":         "dkl010h0",
