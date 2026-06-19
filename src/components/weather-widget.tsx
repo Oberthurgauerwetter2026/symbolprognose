@@ -1206,45 +1206,47 @@ function DetailPanel({
                             const hh = (startHour + k) % 24;
                             const hh2 = (hh + 1) % 24;
                             return (
-                              <Tooltip key={k}>
-                                <TooltipTrigger asChild>
-                                  <span
-                                    className={`${widthCls} h-full flex flex-col justify-end rounded-sm overflow-hidden`}
-                                  >
-                                    {probExtra > 0 && (
-                                      <div
-                                        className="w-full bg-[var(--wx-rain)]"
-                                        style={{ height: `${probExtra}%`, opacity: 0.25 }}
-                                      />
+                              <TapTooltip
+                                key={k}
+                                content={
+                                  <>
+                                    <div className="font-semibold">{String(hh).padStart(2, "0")}–{String(hh2).padStart(2, "0")} Uhr</div>
+                                    <div>{mm.toFixed(1)} mm · {prob}% Regenrisiko</div>
+                                    {hasBand && (
+                                      <div className="text-zinc-600">10–90 %: {Math.max(0, q10).toFixed(1)}–{q90.toFixed(1)} mm</div>
                                     )}
-                                    {hasBand && bandExtra > 0 && (
-                                      <div
-                                        className="w-full bg-[var(--wx-rain)]"
-                                        style={{ height: `${bandExtra}%`, opacity: 0.18 }}
-                                      />
-                                    )}
-                                    {hasBand && q10H > 0 && (
-                                      <div
-                                        className="w-full bg-[var(--wx-rain)]"
-                                        style={{ height: `${Math.max(0, q10H - mmHeight)}%`, opacity: 0.18 }}
-                                      />
-                                    )}
-                                    {mm > 0 && (
-                                      <div
-                                        className="w-full bg-[var(--wx-rain)] rounded-sm"
-                                        style={{ height: `${mmHeight}%`, minHeight: 2 }}
-                                      />
-                                    )}
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="text-xs">
-                                  <div className="font-semibold">{String(hh).padStart(2, "0")}–{String(hh2).padStart(2, "0")} Uhr</div>
-                                  <div>{mm.toFixed(1)} mm · {prob}% Regenrisiko</div>
-                                  {hasBand && (
-                                    <div className="text-zinc-600">10–90 %: {Math.max(0, q10).toFixed(1)}–{q90.toFixed(1)} mm</div>
+                                  </>
+                                }
+                              >
+                                <span
+                                  className={`${widthCls} h-full flex flex-col justify-end rounded-sm overflow-hidden`}
+                                >
+                                  {probExtra > 0 && (
+                                    <div
+                                      className="w-full bg-[var(--wx-rain)]"
+                                      style={{ height: `${probExtra}%`, opacity: 0.25 }}
+                                    />
                                   )}
-                                </TooltipContent>
-                              </Tooltip>
+                                  {hasBand && bandExtra > 0 && (
+                                    <div
+                                      className="w-full bg-[var(--wx-rain)]"
+                                      style={{ height: `${bandExtra}%`, opacity: 0.18 }}
+                                    />
+                                  )}
+                                  {hasBand && q10H > 0 && (
+                                    <div
+                                      className="w-full bg-[var(--wx-rain)]"
+                                      style={{ height: `${Math.max(0, q10H - mmHeight)}%`, opacity: 0.18 }}
+                                    />
+                                  )}
+                                  {mm > 0 && (
+                                    <div
+                                      className="w-full bg-[var(--wx-rain)] rounded-sm"
+                                      style={{ height: `${mmHeight}%`, minHeight: 2 }}
+                                    />
+                                  )}
+                                </span>
+                              </TapTooltip>
                             );
                           })}
                         </TooltipProvider>
