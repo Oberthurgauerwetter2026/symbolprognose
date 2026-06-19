@@ -543,7 +543,7 @@ function DayStrip({
                 </span>
               </div>
               <div
-                className="py-1 select-none text-zinc-900"
+                className="py-1 select-none text-zinc-900 [&_svg]:h-14 [&_svg]:w-14 @[640px]:[&_svg]:h-20 @[640px]:[&_svg]:w-20"
                 aria-label={weatherLabel(d.weathercode[i])}
                 title={weatherLabel(d.weathercode[i])}
               >
