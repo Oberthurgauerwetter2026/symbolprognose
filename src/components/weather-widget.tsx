@@ -625,15 +625,16 @@ function DayRainSparkline({
     buckets[b].prob = Math.max(buckets[b].prob, hourly.precipitation_probability?.[i] ?? 0);
   }
   return (
-    <div className="flex items-end gap-px h-3.5 w-full border-b border-zinc-300/70">
+    <div className="flex items-end gap-px h-4 w-full border-b border-zinc-300/70">
       {buckets.map((b, k) => {
-        const pct = Math.min(b.mm / 5, 1) * 100;
+        const rawPct = Math.min(b.mm / 5, 1) * 100;
+        const pct = b.mm > 0 ? Math.max(rawPct, 12) : 0;
         const opacity = b.mm > 0 ? 0.35 + (b.prob / 100) * 0.65 : 0;
         return (
           <div
             key={k}
             className="flex-1 bg-[var(--wx-rain)] rounded-t-sm"
-            style={{ height: `${pct}%`, opacity, minHeight: b.mm > 0 ? 1 : 0 }}
+            style={{ height: `${pct}%`, opacity, minHeight: b.mm > 0 ? 2 : 0 }}
             title={`${k * 3}–${k * 3 + 3} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}%`}
           />
         );
