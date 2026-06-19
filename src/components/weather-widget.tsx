@@ -114,6 +114,7 @@ export function WeatherWidget({
   const [extended, setExtended] = useState(false);
   const [snow, setSnow] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(initialDayIdx ?? 0);
+  const [panelTarget, setPanelTarget] = useState<{ idx: number; tick: number }>({ idx: initialDayIdx ?? 0, tick: 0 });
   useEffect(() => {
     if (initialDayIdx != null && initialDayIdx >= 0 && initialDayIdx < 7) {
       setSelectedDayIdx(initialDayIdx);
