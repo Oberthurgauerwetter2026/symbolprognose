@@ -1,47 +1,64 @@
-## Problem
+## Ziel
 
-Im Stunden-Panel werden Regen-Säulen nur gezeichnet, wenn `mm > 0`. Bei reiner Regen­wahrscheinlichkeit (z. B. 24 %, aber 0 mm) bleibt die Achse leer — obwohl die Legende „mm (sicher) · % (Risiko)" beides verspricht. Die Tages-Sparkline (`DayRainSparkline`) macht es bereits richtig: voller Balken für mm, transparenter Aufsatz für %.
+MCH-Quantil-Band (10 %–90 %) für stündlichen Niederschlag visualisieren — analog zur MCH-Webseite. Zeigt „so viel könnte es minimal/maximal regnen", auch wenn der Median (`rre150h0`) 0 mm ist.
 
-## Fix
+## 1. Ingest erweitern (`scripts/ingest_mch_local_forecast.py`)
 
-In `src/components/weather-widget.tsx`, Stunden-Säulen-Block (ca. Z. 1135–1158), dieselbe Zwei-Schicht-Logik wie in `DayRainSparkline` anwenden:
+`HOURLY_PARAMS` zusätzlich:
+```py
+"precipitation_q10": "rreq10h0",  # 10 %-Quantil Stundensumme (mm)
+"precipitation_q90": "rreq90h0",  # 90 %-Quantil Stundensumme (mm)
+```
+In `build_spot` neu auslesen und in `hourly` mitschreiben.
 
-- `mmHeight = (mm / 5) * 100` (gedeckelt 100, kleine `minHeight` wenn mm>0).
-- `probTop = max(mmHeight, prob)` wenn `prob ≥ 5`.
-- `probExtra = probTop − mmHeight` → wird oben mit `opacity: 0.25` gezeichnet.
-- `mm`-Balken voll deckend in `var(--wx-rain)`.
+## 2. Typen / Cache (`src/lib/openmeteo-cache.server.ts`)
 
-Ergebnis: Bei 0 mm + 24 % erscheint ein schwacher, transparenter Balken auf 24 % Höhe; bei z. B. 1 mm + 80 % ein voller Balken bis 20 % plus transparenter Aufsatz bis 80 %.
-
-Tooltip-Inhalt und Beschriftung darunter bleiben unverändert.
-
-### Technisch
-
-```tsx
-{perHour.map(({ mm, prob }, k) => {
-  const mmHeight = mm > 0 ? Math.min(100, (mm / 5) * 100) : 0;
-  const probVisible = prob >= 5;
-  const probTop = probVisible ? Math.max(mmHeight, Math.min(100, prob)) : mmHeight;
-  const probExtra = Math.max(0, probTop - mmHeight);
-  const widthCls = cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5";
-  return (
-    <Tooltip key={k}>
-      <TooltipTrigger asChild>
-        <span className={`${widthCls} h-full flex flex-col justify-end rounded-sm overflow-hidden`}>
-          {probExtra > 0 && (
-            <div className="w-full bg-[var(--wx-rain)]" style={{ height: `${probExtra}%`, opacity: 0.25 }} />
-          )}
-          {mm > 0 && (
-            <div className="w-full bg-[var(--wx-rain)] rounded-sm" style={{ height: `${mmHeight}%`, minHeight: 2 }} />
-          )}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent ...>...</TooltipContent>
-    </Tooltip>
-  );
-})}
+`MchLocalForecastLocation.hourly` um die zwei optionalen Felder ergänzen:
+```ts
+precipitation_q10?: (number | null)[];
+precipitation_q90?: (number | null)[];
 ```
 
-Container der Balken (`.flex items-end justify-around`) bleibt; die Spans müssen jedoch `h-full` haben statt `height: pct%`, damit die innere Zwei-Schicht-Aufteilung relativ zum 72 px-Plot funktioniert.
+## 3. Forecast-Schema (`src/lib/weather.ts`)
 
-Wird das so auch bei Wetterdiensten gemahct?
+`HourlyData` um optionale Felder erweitern:
+```ts
+precipitation_q10?: number[];
+precipitation_q90?: number[];
+```
+Merge-/Sanitize-Helpers ergänzen (analog `precipitation`). Open-Meteo liefert diese Felder nicht — bleiben dort leer/NaN.
+
+## 4. Aggregator (`src/lib/forecast-aggregated.functions.ts`)
+
+In `buildForecastFromMchLoc` die zwei Quantil-Arrays übernehmen (mit NaN-Fallback). Kein Overlay aus Open-Meteo — wenn MCH nichts liefert, bleibt das Band einfach weg.
+
+## 5. Darstellung (`src/components/weather-widget.tsx`, Stunden-Säulen)
+
+Im Stunden-Panel (Block ab Z. 1135) pro Slot zusätzlich:
+- `q10`/`q90` aus `h.precipitation_q10[idx+k]` / `h.precipitation_q90[idx+k]` lesen.
+- Wenn beide finite und `q90 > 0`:
+  - Hintergrund-Band von `q10`- bis `q90`-Höhe in `var(--wx-rain)` mit `opacity: 0.18` (heller als der Risiko-Aufsatz, damit Layer unterscheidbar bleiben).
+- Darüber wie bisher: probabilistischer Aufsatz (Risiko, opacity 0.25) und mm-Balken (deckend).
+- Tooltip ergänzt eine dritte Zeile, wenn das Band existiert:
+  `q10–q90: 0.0 – 1.2 mm`.
+
+Legende unter dem Panel (Z. 1326) bekommt einen zusätzlichen Token:
+```
+[hellblaues schmales Band] 10–90 % Bereich
+```
+
+## 6. Tages-Sparkline (`DayRainSparkline`)
+
+Optional dieselbe Logik anwenden: max-Wert des Buckets aus `q90`-Summe statt nur aus mm — sodass bei Wahrscheinlichkeits-Tagen ein Band sichtbar ist. (Kann auch in einem späteren Schritt erfolgen; im jetzigen Plan: **nicht** anpassen, nur Stunden-Panel, weil das die direkte MCH-Analogie ist.)
+
+## Verifikation
+
+- `npx tsc --noEmit` läuft sauber.
+- In der Vorschau für Amriswil: Stunden mit 0 mm + 20 % Risiko + q90>0 zeigen ein helles Band; Tooltip enthält die q10–q90-Zeile.
+- Im Ingest-Log erscheinen `hourly rreq10h0` und `hourly rreq90h0` mit nonzero-Counts > 0 für mindestens einen Spot.
+
+## Nicht im Scope
+
+- `rka150p0`-Beschriftung als „MCH P50" (Option 2) — separat behandeln.
+- Anpassung der Tages-Sparkline (siehe Punkt 6).
+- Backfill historischer R2-Daten — der nächste stündliche Cron-Lauf füllt automatisch.

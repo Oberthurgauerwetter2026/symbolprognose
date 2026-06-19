@@ -48,6 +48,8 @@ HOURLY_PARAMS = {
     "temperature_2m":            "tre200h0",
     "precipitation":             "rre150h0",
     "precipitation_probability": "rp0003i0",   # 3h-Wahrscheinlichkeit, wird auf jede Stunde repliziert
+    "precipitation_q10":         "rreq10h0",   # 10 %-Quantil Stundensumme (mm)
+    "precipitation_q90":         "rreq90h0",   # 90 %-Quantil Stundensumme (mm)
     "windspeed_10m":             "fu3010h0",
     "windgusts_10m":             "fu3010h1",
     "winddirection_10m":         "dkl010h0",
@@ -275,6 +277,8 @@ def build_spot(spot: dict, hourly_data: dict[str, dict], daily_data: dict[str, d
     temperature_2m = series_for("temperature_2m")
     precipitation = series_for("precipitation")
     precip_prob_3h = series_for("precipitation_probability")
+    precip_q10 = series_for("precipitation_q10")
+    precip_q90 = series_for("precipitation_q90")
     windspeed = series_for("windspeed_10m")
     windgusts = series_for("windgusts_10m")
     winddir = series_for("winddirection_10m")
@@ -353,6 +357,8 @@ def build_spot(spot: dict, hourly_data: dict[str, dict], daily_data: dict[str, d
             "temperature_2m": temperature_2m,
             "precipitation": precipitation,
             "precipitation_probability": precip_prob,
+            "precipitation_q10": precip_q10,
+            "precipitation_q90": precip_q90,
             "windspeed_10m": windspeed,
             "windgusts_10m": windgusts,
             "winddirection_10m": winddir,

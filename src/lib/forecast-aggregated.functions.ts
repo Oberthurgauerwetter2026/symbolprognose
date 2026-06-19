@@ -338,6 +338,8 @@ function buildForecastFromMchLoc(loc: MchLocalForecastLocation): ForecastRespons
     temperature_2m: h.temperature_2m.map((v) => num(v)),
     precipitation: h.precipitation.map((v) => num(v, NaN)),
     precipitation_probability: h.precipitation_probability.map((v) => num(v, NaN)),
+    ...(h.precipitation_q10 ? { precipitation_q10: h.precipitation_q10.map((v) => num(v, NaN)) } : {}),
+    ...(h.precipitation_q90 ? { precipitation_q90: h.precipitation_q90.map((v) => num(v, NaN)) } : {}),
     windspeed_10m: h.windspeed_10m.map((v) => num(v)),
     windgusts_10m: h.windgusts_10m.map((v) => num(v)),
     winddirection_10m: h.winddirection_10m.map((v) => num(v)),

@@ -1112,10 +1112,16 @@ function DetailPanel({
                   !!prev && prev.cadence === "1h" && cadence === "3h";
                 const startHour = Number(iso.slice(11, 13));
                 const nHrs = cadence === "1h" ? 1 : 3;
-                const perHour = Array.from({ length: nHrs }, (_, k) => ({
-                  mm: h.precipitation[idx + k] ?? 0,
-                  prob: h.precipitation_probability[idx + k] ?? 0,
-                }));
+                const perHour = Array.from({ length: nHrs }, (_, k) => {
+                  const q10v = h.precipitation_q10?.[idx + k];
+                  const q90v = h.precipitation_q90?.[idx + k];
+                  return {
+                    mm: h.precipitation[idx + k] ?? 0,
+                    prob: h.precipitation_probability[idx + k] ?? 0,
+                    q10: Number.isFinite(q10v) ? (q10v as number) : NaN,
+                    q90: Number.isFinite(q90v) ? (q90v as number) : NaN,
+                  };
+                });
                 return (
                   <div
                     key={iso}
@@ -1134,11 +1140,15 @@ function DetailPanel({
                       )}
                       <div className="absolute inset-0 flex items-end justify-around px-1">
                         <TooltipProvider delayDuration={150}>
-                          {perHour.map(({ mm, prob }, k) => {
+                          {perHour.map(({ mm, prob, q10, q90 }, k) => {
                             const mmHeight = mm > 0 ? Math.min(100, (mm / 5) * 100) : 0;
                             const probVisible = prob >= 5;
                             const probTop = probVisible ? Math.max(mmHeight, Math.min(100, prob)) : mmHeight;
                             const probExtra = Math.max(0, probTop - mmHeight);
+                            const hasBand = Number.isFinite(q10) && Number.isFinite(q90) && q90 > 0;
+                            const q10H = hasBand ? Math.min(100, (Math.max(0, q10) / 5) * 100) : 0;
+                            const q90H = hasBand ? Math.min(100, (q90 / 5) * 100) : 0;
+                            const bandExtra = hasBand ? Math.max(0, q90H - q10H) : 0;
                             const widthCls = cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5";
                             const hh = (startHour + k) % 24;
                             const hh2 = (hh + 1) % 24;
@@ -1154,6 +1164,18 @@ function DetailPanel({
                                         style={{ height: `${probExtra}%`, opacity: 0.25 }}
                                       />
                                     )}
+                                    {hasBand && bandExtra > 0 && (
+                                      <div
+                                        className="w-full bg-[var(--wx-rain)]"
+                                        style={{ height: `${bandExtra}%`, opacity: 0.18 }}
+                                      />
+                                    )}
+                                    {hasBand && q10H > 0 && (
+                                      <div
+                                        className="w-full bg-[var(--wx-rain)]"
+                                        style={{ height: `${Math.max(0, q10H - mmHeight)}%`, opacity: 0.18 }}
+                                      />
+                                    )}
                                     {mm > 0 && (
                                       <div
                                         className="w-full bg-[var(--wx-rain)] rounded-sm"
@@ -1165,12 +1187,16 @@ function DetailPanel({
                                 <TooltipContent side="top" className="text-xs">
                                   <div className="font-semibold">{String(hh).padStart(2, "0")}–{String(hh2).padStart(2, "0")} Uhr</div>
                                   <div>{mm.toFixed(1)} mm · {prob}% Regenrisiko</div>
+                                  {hasBand && (
+                                    <div className="text-zinc-600">10–90 %: {Math.max(0, q10).toFixed(1)}–{q90.toFixed(1)} mm</div>
+                                  )}
                                 </TooltipContent>
                               </Tooltip>
                             );
                           })}
                         </TooltipProvider>
                       </div>
+
 
 
                     </div>
@@ -1340,6 +1366,7 @@ function DetailPanel({
       </div>
       <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-800 font-bold flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="inline-flex items-center gap-1.5"><Droplet className="w-3.5 h-3.5 text-[var(--wx-rain)] fill-[var(--wx-rain)]" aria-label="Regen" /> mm (sicher) · % (Risiko)</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2.5 h-3 rounded-sm bg-[var(--wx-rain)] align-middle" style={{ opacity: 0.18 }} /> 10–90 % Bereich (MCH)</span>
         <span className="inline-flex items-center gap-1.5"><WindsockIcon className="w-3.5 h-3.5" aria-label="Wind" /> km/h (Wind / Böen)</span>
         {extended && (
           <span className="inline-flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-sm bg-[var(--wx-sun)] align-middle" /><Sun className="w-3.5 h-3.5" aria-label="Sonne" /> min/h · <Sunrise className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenaufgang" /> · <Sunset className="w-3.5 h-3.5 text-amber-700" aria-label="Sonnenuntergang" /></span>

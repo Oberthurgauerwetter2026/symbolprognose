@@ -40,6 +40,10 @@ export interface MchLocalForecastLocation {
     temperature_2m: (number | null)[];
     precipitation: (number | null)[];
     precipitation_probability: (number | null)[];
+    /** 10 %-Quantil Stundensumme (mm). MCH `rreq10h0`. */
+    precipitation_q10?: (number | null)[];
+    /** 90 %-Quantil Stundensumme (mm). MCH `rreq90h0`. */
+    precipitation_q90?: (number | null)[];
     windspeed_10m: (number | null)[];
     windgusts_10m: (number | null)[];
     winddirection_10m: (number | null)[];
