@@ -733,7 +733,7 @@ function DaySummaryBar({
         {sunH == null ? "–" : `${sunH} h`}
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
-        <Wind className="w-4 h-4 text-zinc-700" aria-label="Wind" />
+        <WindsockIcon className="w-4 h-4 text-zinc-700" aria-label="Wind" />
         <WindArrow deg={d.winddirection_10m_dominant?.[i] ?? 0} size="md" />
         <span className="font-medium text-zinc-700">{wind}</span>
         <span className="text-zinc-500">|</span>
