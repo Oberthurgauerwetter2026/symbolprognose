@@ -1111,21 +1111,30 @@ function DetailPanel({
                         <div className={`absolute top-0 bottom-0 left-0 ${isCadenceBreak ? "w-0.5 bg-zinc-400" : "w-px bg-zinc-300"}`} />
                       )}
                       <div className="absolute inset-0 flex items-end justify-around px-1">
-                        {perHour.map(({ mm, prob }, k) => {
-                          const pct = Math.min(mm / 5, 1) * 100;
-                          const opacity = mm > 0 ? 0.35 + (prob / 100) * 0.65 : 0;
-                          const hh = (startHour + k) % 24;
-                          const hh2 = (hh + 1) % 24;
-                          return (
-                            <div
-                              key={k}
-                              className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)]`}
-                              style={{ height: `${pct}%`, opacity }}
-                              title={`${String(hh).padStart(2, "0")}–${String(hh2).padStart(2, "0")} Uhr · ${mm.toFixed(1)} mm · ${prob}%`}
-                            />
-                          );
-                        })}
+                        <TooltipProvider delayDuration={150}>
+                          {perHour.map(({ mm, prob }, k) => {
+                            const pct = Math.min(mm / 5, 1) * 100;
+                            const opacity = mm > 0 ? 0.35 + (prob / 100) * 0.65 : 0;
+                            const hh = (startHour + k) % 24;
+                            const hh2 = (hh + 1) % 24;
+                            return (
+                              <Tooltip key={k}>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)] cursor-help`}
+                                    style={{ height: `${pct}%`, opacity }}
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  <div className="font-semibold">{String(hh).padStart(2, "0")}–{String(hh2).padStart(2, "0")} Uhr</div>
+                                  <div>{mm.toFixed(1)} mm · {prob}% Regenrisiko</div>
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })}
+                        </TooltipProvider>
                       </div>
+
                     </div>
                     <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
                       <div className="font-bold flex justify-around px-1">
