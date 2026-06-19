@@ -273,6 +273,46 @@ function num(v: number | null | undefined, fill = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fill;
 }
 
+/**
+ * Re-Aggregation aller Tagesfelder aus dem (gemergten) Hourly inkl.
+ * Wind/Böen/Richtung/NS-Wahrscheinlichkeit. Lückenhafte Sonnenauf-/
+ * Sonnenuntergangs-Zeiten (Primärquelle MCH liefert sie nicht) werden
+ * astronomisch berechnet.
+ */
+function enrichDailyFromHourly(
+  fc: ForecastResponse,
+  lat: number,
+  lon: number,
+  offsetSec: number,
+): void {
+  const d = fc.daily;
+  for (let i = 0; i < d.time.length; i++) {
+    const agg = aggregateDailyFromHourly(fc.hourly, d.time[i] ?? "");
+    const apply = (key: keyof DailyData) => {
+      const v = agg[key as string];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        (d[key] as number[])[i] = v as number;
+      }
+    };
+    apply("weathercode");
+    apply("precipitation_sum");
+    apply("precipitation_hours");
+    apply("precipitation_probability_max");
+    apply("windspeed_10m_max");
+    apply("windgusts_10m_max");
+    apply("winddirection_10m_dominant");
+    apply("sunshine_duration");
+    apply("snowfall_sum");
+    // Sonnenauf/-untergang astronomisch ergänzen, wenn Quelle nichts liefert.
+    if (!d.sunrise[i] || !d.sunset[i]) {
+      const s = computeSunTimesLocal(lat, lon, d.time[i] ?? "", offsetSec);
+      if (!d.sunrise[i] && s.sunrise) d.sunrise[i] = s.sunrise;
+      if (!d.sunset[i] && s.sunset) d.sunset[i] = s.sunset;
+    }
+  }
+}
+
+
 function pickNearestMch(
   locs: MchLocalForecastLocation[],
   lat: number,
