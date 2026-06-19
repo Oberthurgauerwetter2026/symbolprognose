@@ -1,23 +1,25 @@
-# Regenbalken als Zeitachsen-Leiste
+## Ziel
 
-Aktuell zeigt `DayRainSparkline` 8 vertikale Säulen (3-h-Buckets). Der Screenshot zeigt aber eine schmale **horizontale Leiste** am unteren Kachelrand mit einem farbigen Segment dort, wo Regen fällt – also eine Tages-Zeitachse von 00:00 bis 24:00 Uhr. Regen, der über Mitternacht hinausreicht, wird in der Kachel des Folgetags am Beginn fortgesetzt dargestellt.
+In `src/components/weather-widget.tsx` die Funktion `DayRainSparkline` von der horizontalen 24-Stunden-Leiste zurück auf die ursprüngliche Darstellung mit **8 vertikalen Säulen** (3-h-Buckets, 00–03, 03–06, …, 21–24 Uhr) umstellen — und sicherstellen, dass tatsächlich Regen sichtbar wird.
 
-## Änderungen
+## Warum aktuell nichts sichtbar ist
 
-**Nur** `src/components/weather-widget.tsx`, Komponente `DayRainSparkline`:
+Die horizontale Variante färbt eine Stunde nur dann ein, wenn `mm > 0 || prob >= 50`. Da die Open-Meteo-Stunden-Niederschlagsmengen oft `0.0` mm sind und Wahrscheinlichkeiten häufig unter 50 % liegen, bleibt die Leiste komplett blass. Bei den vertikalen Säulen wird stattdessen die **mm-Summe pro 3h-Bucket** als Höhe gerendert — auch sehr kleine Werte (>0.05 mm) sind sichtbar, weil die Höhe linear skaliert und eine `minHeight` gesetzt wird.
 
-1. **Darstellung umbauen**: statt 8 vertikalen Säulen eine horizontale Leiste mit 24 nebeneinander liegenden Stunden-Segmenten (volle Breite, ca. 6 px hoch). Hintergrund = dünne Linie in `zinc-300/70`, vordergrund = Regen-Segment in `var(--wx-rain)`.
-2. **Datenquelle pro Stunde**: für jede der 24 Stunden des `dayIso`-Tages prüfen, ob `hourly.precipitation[i] > 0` ODER `precipitation_probability[i] >= Schwelle` (z. B. ≥ 50 %). Wenn ja → Segment einfärben, Deckkraft skaliert mit mm (0.4–1.0).
-3. **Fortlaufend in den Folgetag**: Da jede Kachel ihren eigenen Tag rendert, ergibt sich die Fortsetzung automatisch – Regen ab 22 Uhr erscheint am Ende der Freitags-Kachel und ab 00 Uhr am Anfang der Samstags-Kachel. Keine zusätzliche Logik nötig, nur sicherstellen, dass der erste/letzte Slot bündig ohne Lücke beginnt (kein `gap` zwischen Segmenten, dafür 1 px Border-Trenner alle 6 h als dezente Zeitmarken).
-4. **Tooltip**: pro Segment "HH–HH+1 Uhr · X.X mm · YY %".
-5. **Höhe der Kachelzeile**: aktuelle `h-4`-Box auf eine flache Leiste (`h-1.5`) reduzieren, damit Optik dem Screenshot entspricht; mm/% bleiben darüber in eigener Zeile.
+## Änderungen (nur `DayRainSparkline`)
+
+1. Container: `flex h-8 w-full items-end gap-px` (vertikal, unten ausgerichtet).
+2. 8 Buckets à 3 Stunden aus `hourly.precipitation`/`hourly.precipitation_probability` aggregieren (Summe mm, Max prob) — Tagesfilter via `iso.slice(0,10) === dayIso`.
+3. Höhenskala: `height = clamp(mm / scale, 0, 1) * 100%`, wobei `scale = max(2 mm, maxBucketMm * 1.1)` — so wachsen Balken bei mehr Regen mit, schwacher Regen bleibt aber sichtbar.
+4. Sichtbarkeit: jede Säule mit `bg-[var(--wx-rain)]`, `minHeight: 2px` wenn `mm > 0 || prob >= 30`, sonst leerer Hintergrund-Slot `bg-zinc-300/40`.
+5. Tooltip pro Säule: `HH–HH+3 Uhr · X.X mm · YY %`.
+6. Keine Backend-/Aggregations-Änderungen, `FORECAST_VERSION` bleibt `v10`.
 
 ## Nicht geändert
 
-- Keine Backend-/Aggregations-Änderungen.
-- `DaySummaryBar`, `DetailPanel`, Tile-Layout (Symbol/Temp/mm/%) bleiben unverändert.
-- `FORECAST_VERSION` bleibt gleich (reine Darstellungsänderung).
+- `DaySummaryBar`, `DetailPanel`, Tile-Layout (Symbol/Temp/mm/%).
+- Plan-Datei `.lovable/plan.md` wird auf die neue Beschreibung angepasst.
 
 ## Prüfung
 
-`/karten/lokal?lat=47.5428&lon=9.2871&name=Amriswil` – sichtprüfen, dass Tageskacheln eine Zeitachsen-Leiste zeigen und ein Regenereignis, das z. B. um 23 Uhr beginnt, in der Folgekachel bei 00 Uhr nahtlos fortgeführt wird.
+`/karten/lokal?lat=47.5428&lon=9.2871&name=Amriswil` – sichtprüfen: pro Kachel 8 vertikale blaue Säulen, schwacher Regen ergibt mindestens eine dünne 2-px-Säule, stärkerer Regen entsprechend höhere Säulen.
