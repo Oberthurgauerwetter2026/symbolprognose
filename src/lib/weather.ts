@@ -546,6 +546,7 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     temperature_2m_min: min(finiteAll(h.temperature_2m)),
     precipitation_sum: sum(precipFinite),
     precipitation_hours: precipHours,
+    precipitation_probability_max: max(finiteAll(h.precipitation_probability)),
     windspeed_10m_max: max(finiteAll(h.windspeed_10m)),
     windgusts_10m_max: max(finiteAll(h.windgusts_10m)),
     winddirection_10m_dominant: dominantDir,
@@ -848,4 +849,56 @@ export function formatTimeHHMM(iso: string): string {
 }
 export function secondsToHours(sec: number): string {
   return (sec / 3600).toFixed(1);
+}
+
+/**
+ * Astronomische Sonnenauf-/Sonnenuntergangszeiten (NOAA-Algorithmus,
+ * Zenith 90.833°). Liefert ISO-Strings in lokaler Zeit (ohne Zonen-Suffix),
+ * konsistent mit dem Open-Meteo-Format (`YYYY-MM-DDTHH:mm`).
+ * Wird verwendet, wenn die Primärquelle (z. B. MCH local_forecast) keine
+ * Sonnenzeiten ausliefert.
+ */
+export function computeSunTimesLocal(
+  lat: number,
+  lon: number,
+  dayIso: string,
+  offsetSec: number,
+): { sunrise: string; sunset: string } {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dayIso);
+  if (!m) return { sunrise: "", sunset: "" };
+  const Y = +m[1], M = +m[2], D = +m[3];
+  const N = Math.floor((Date.UTC(Y, M - 1, D) - Date.UTC(Y, 0, 0)) / 86400000);
+  const lngHour = lon / 15;
+  const toRad = Math.PI / 180;
+  const toDeg = 180 / Math.PI;
+  const compute = (rising: boolean): string => {
+    const t = N + ((rising ? 6 : 18) - lngHour) / 24;
+    const Mdeg = 0.9856 * t - 3.289;
+    let L = Mdeg + 1.916 * Math.sin(Mdeg * toRad) + 0.020 * Math.sin(2 * Mdeg * toRad) + 282.634;
+    L = ((L % 360) + 360) % 360;
+    let RA = toDeg * Math.atan(0.91764 * Math.tan(L * toRad));
+    RA = ((RA % 360) + 360) % 360;
+    const Lq = Math.floor(L / 90) * 90;
+    const RAq = Math.floor(RA / 90) * 90;
+    RA = (RA + (Lq - RAq)) / 15;
+    const sinDec = 0.39782 * Math.sin(L * toRad);
+    const cosDec = Math.cos(Math.asin(sinDec));
+    const zenith = 90.833;
+    const cosH =
+      (Math.cos(zenith * toRad) - sinDec * Math.sin(lat * toRad)) /
+      (cosDec * Math.cos(lat * toRad));
+    if (cosH > 1 || cosH < -1) return "";
+    let H = rising ? 360 - toDeg * Math.acos(cosH) : toDeg * Math.acos(cosH);
+    H = H / 15;
+    const T = H + RA - 0.06571 * t - 6.622;
+    let UT = ((T - lngHour) % 24 + 24) % 24;
+    let local = UT + offsetSec / 3600;
+    local = ((local % 24) + 24) % 24;
+    let hh = Math.floor(local);
+    let mm = Math.round((local - hh) * 60);
+    if (mm === 60) { mm = 0; hh = (hh + 1) % 24; }
+    const dd = `${Y}-${String(M).padStart(2, "0")}-${String(D).padStart(2, "0")}`;
+    return `${dd}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  };
+  return { sunrise: compute(true), sunset: compute(false) };
 }

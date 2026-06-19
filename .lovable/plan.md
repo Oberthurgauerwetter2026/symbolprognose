@@ -1,31 +1,23 @@
-## 1. Fehlende Daten in Kacheln & Tagesübersicht
+Ich werde die fehlenden Werte an der Datenquelle beheben, nicht nur im Layout.
 
-`src/components/weather-widget.tsx`:
+## Plan
 
-- **`DayRainSparkline`**: kleine Regenmengen (< 0.25 mm) ergeben mit `Math.min(mm/5,1)*100` Balken < 4 % der 14-px-Höhe und wirken leer. Fix:
-  - `minHeight` für mm > 0 von 1 → 2 px
-  - Balkenhöhe für mm > 0 auf mindestens 12 % floor’en
-  - Containerhöhe von `h-3.5` → `h-4` (16 px), damit auch volle Balken erkennbar sind
-- **`DaySummaryBar`**:
-  - `formatTimeHHMM(d.sunrise?.[i] ?? "")` → wenn leer, „–" anzeigen statt leeren String
-  - `windgusts_10m_max` Fallback auf `Math.round(wind * 1.4)`, wenn 0 oder undefined (MOSMIX-Tage liefern teilweise keine Böen)
-  - Falls `sunshine_duration` 0/undefined ist (Tag 6–10 aus MOSMIX), „–" statt „0 h"
+1. **Tagesaggregation korrigieren**
+   - Regenmenge als echte 24h-Tagessumme berechnen.
+   - Niederschlagswahrscheinlichkeit als Tagesmaximum aus den Stundenwerten berechnen.
+   - Windmittel/Maximum, Böen und dominante Windrichtung aus den Stundenwerten in die Tagesdaten übernehmen.
 
-## 2. Panel folgt Tagesauswahl wieder
+2. **MeteoSchweiz-Lokalquelle vollständig anreichern**
+   - Die lokale Primärquelle liefert aktuell nicht alle Tagesfelder; deshalb werden Wind/Regenwahrscheinlichkeit sauber aus `hourly` abgeleitet.
+   - Sonnenaufgang und Sonnenuntergang werden aus der vorhandenen Fallback-Prognose übernommen, wenn sie in der lokalen Quelle leer sind.
 
-Neues Verhalten: Klick auf eine Kachel im Strip → Detail-Panel scrollt smooth zum ersten Slot (00:00 bzw. erster verfügbarer) des gewählten Tages. Scrollen im Panel selbst markiert weiterhin den sichtbaren Tag im Strip, löst aber **keinen** Re-Scroll aus.
+3. **MOSMIX-Overlay konsistent halten**
+   - Nach dem MOSMIX-Merge werden die Tageswerte erneut vollständig berechnet, damit späte Tage ebenfalls Wind/Regenwerte bekommen.
+   - Sonnenzeiten bleiben erhalten bzw. werden aus dem Fallback gefüllt.
 
-Umsetzung:
+4. **Frontend-Cache aktualisieren**
+   - Die Forecast-Version im Widget wird erhöht, damit der Browser nicht weiter alte `v9`-Daten anzeigt.
 
-- In `WeatherWidget` zweiten State `panelTargetTick` (Zähler) plus `panelTargetDayIdx` einführen. `DayStrip.onSelect(i)` setzt `setSelectedDayIdx(i)` **und** `setPanelTargetDayIdx(i); setPanelTargetTick(t => t+1)`.
-- `DetailPanel` bekommt `targetDayIdx` und `targetTick` als Props. Ein `useEffect` mit Dep `[targetTick]` führt den smooth-Scroll auf den ersten Slot von `days[targetDayIdx]` aus (gleiche Logik wie zuvor entfernt).
-- Initial-Mount-Scroll zur aktuellen Stunde bleibt, greift nur wenn `targetTick === 0`.
-- `onVisibleDayChange` (vom Panel-Scroll ausgelöst) setzt **nur** `selectedDayIdx`, nicht `panelTargetTick` — Strip-Highlight folgt, kein Auto-Re-Scroll.
-
-## 3. Unverändert
-
-Kachel-Aufbau (Wochentag / Datum / Icon / min|max / mm + % + Sparkline), DaySummaryBar-Felder/Layout, alle Datenquellen, Server-Funktionen.
-
-## Test
-
-`browser--view_preview /karten/lokal` mit Ortung, mehrere Tage durchklicken (Panel scrollt mit), dann manuell scrollen (Strip-Highlight folgt, Panel scrollt nicht zurück), Sparkline und Sun/Wind in der Übersicht prüfen.
+5. **Prüfung**
+   - `/karten/lokal?lat=47.5466&lon=9.2958&name=Amriswil` prüfen.
+   - Erwartung: Übersicht zeigt Regenwert/NS-Wahrscheinlichkeit, Wind/Böen, Sonnenschein sowie Sonnenauf-/untergang. Bei trockener Prognose bleibt Regen korrekt `0.0 mm / 0 %`, aber nicht wegen fehlender Daten.

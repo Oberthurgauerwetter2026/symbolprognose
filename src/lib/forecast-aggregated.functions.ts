@@ -5,6 +5,7 @@ import {
   sanitizeForecast,
   aggregateDailyFromHourly,
   alignMosmixToTimeline,
+  computeSunTimesLocal,
   overwriteFromIndex,
   type DailyData,
   type ForecastResponse,
@@ -228,37 +229,23 @@ function buildForecastFromCacheLoc(loc: Loc): ForecastResponse {
     precipitation_hours: padNum(mergeArr(d, "precipitation_hours") as number[], dLen),
   };
 
-  // Daily-Symbol & abgeleitete Niederschlagsfelder aus dem gemergten Hourly
-  // neu aggregieren. Sonst kann der per-Modell-Daily-Code aus dem R2-Cache
-  // (z. B. ICON-CH2 zeigt Schauer 80/81) im Widget erscheinen, obwohl die
-  // gemergte Stundenkurve über alle Modelle den Tag trocken sieht.
-  for (let i = 0; i < daily.time.length; i++) {
-    const agg = aggregateDailyFromHourly(hourly, daily.time[i] ?? "");
-    const wc = agg.weathercode;
-    if (typeof wc === "number" && Number.isFinite(wc)) {
-      daily.weathercode[i] = wc;
-    }
-    const ps = agg.precipitation_sum;
-    if (typeof ps === "number" && Number.isFinite(ps)) {
-      daily.precipitation_sum[i] = ps;
-    }
-    const ph = agg.precipitation_hours;
-    if (typeof ph === "number" && Number.isFinite(ph)) {
-      daily.precipitation_hours[i] = ph;
-    }
-    const sd = agg.sunshine_duration;
-    if (typeof sd === "number" && Number.isFinite(sd)) {
-      daily.sunshine_duration[i] = sd;
-    }
-  }
-
-  return sanitizeForecast({
+  // Daily-Felder vollständig aus dem gemergten Hourly nach-aggregieren —
+  // inkl. Wind/Böen/NS-Wahrscheinlichkeit; Sonnenzeiten ggf. astronomisch.
+  const fc: ForecastResponse = {
     latitude: loc.latitude ?? 0,
     longitude: loc.longitude ?? 0,
     timezone: loc.timezone ?? "Europe/Zurich",
     hourly,
     daily,
-  });
+  };
+  enrichDailyFromHourly(
+    fc,
+    loc.latitude ?? 0,
+    loc.longitude ?? 0,
+    loc.utc_offset_seconds ?? 0,
+  );
+
+  return sanitizeForecast(fc);
 }
 
 async function loadSymbolLocs(): Promise<Loc[] | null> {
@@ -271,6 +258,46 @@ async function loadSymbolLocs(): Promise<Loc[] | null> {
 function num(v: number | null | undefined, fill = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fill;
 }
+
+/**
+ * Re-Aggregation aller Tagesfelder aus dem (gemergten) Hourly inkl.
+ * Wind/Böen/Richtung/NS-Wahrscheinlichkeit. Lückenhafte Sonnenauf-/
+ * Sonnenuntergangs-Zeiten (Primärquelle MCH liefert sie nicht) werden
+ * astronomisch berechnet.
+ */
+function enrichDailyFromHourly(
+  fc: ForecastResponse,
+  lat: number,
+  lon: number,
+  offsetSec: number,
+): void {
+  const d = fc.daily;
+  for (let i = 0; i < d.time.length; i++) {
+    const agg = aggregateDailyFromHourly(fc.hourly, d.time[i] ?? "");
+    const apply = (key: keyof DailyData) => {
+      const v = agg[key as string];
+      if (typeof v === "number" && Number.isFinite(v)) {
+        (d[key] as number[])[i] = v as number;
+      }
+    };
+    apply("weathercode");
+    apply("precipitation_sum");
+    apply("precipitation_hours");
+    apply("precipitation_probability_max");
+    apply("windspeed_10m_max");
+    apply("windgusts_10m_max");
+    apply("winddirection_10m_dominant");
+    apply("sunshine_duration");
+    apply("snowfall_sum");
+    // Sonnenauf/-untergang astronomisch ergänzen, wenn Quelle nichts liefert.
+    if (!d.sunrise[i] || !d.sunset[i]) {
+      const s = computeSunTimesLocal(lat, lon, d.time[i] ?? "", offsetSec);
+      if (!d.sunrise[i] && s.sunrise) d.sunrise[i] = s.sunrise;
+      if (!d.sunset[i] && s.sunset) d.sunset[i] = s.sunset;
+    }
+  }
+}
+
 
 function pickNearestMch(
   locs: MchLocalForecastLocation[],
@@ -340,25 +367,16 @@ function buildForecastFromMchLoc(loc: MchLocalForecastLocation): ForecastRespons
     precipitation_hours: new Array(dLen).fill(0),
   };
 
-  for (let i = 0; i < daily.time.length; i++) {
-    const agg = aggregateDailyFromHourly(hourly, daily.time[i] ?? "");
-    const wc = agg.weathercode;
-    if (typeof wc === "number" && Number.isFinite(wc)) daily.weathercode[i] = wc;
-    const ps = agg.precipitation_sum;
-    if (typeof ps === "number" && Number.isFinite(ps)) daily.precipitation_sum[i] = ps;
-    const ph = agg.precipitation_hours;
-    if (typeof ph === "number" && Number.isFinite(ph)) daily.precipitation_hours[i] = ph;
-    const sd = agg.sunshine_duration;
-    if (typeof sd === "number" && Number.isFinite(sd)) daily.sunshine_duration[i] = sd;
-  }
-
-  return sanitizeForecast({
+  const fc: ForecastResponse = {
     latitude: loc.latitude,
     longitude: loc.longitude,
     timezone: loc.timezone ?? "Europe/Zurich",
     hourly,
     daily,
-  });
+  };
+  enrichDailyFromHourly(fc, loc.latitude, loc.longitude, loc.utc_offset_seconds ?? 0);
+
+  return sanitizeForecast(fc);
 }
 
 /**
@@ -410,18 +428,9 @@ function applyMosmixOverlay(
   const aligned = alignMosmixToTimeline(mosmix, forecast.hourly.time, offsetSec, 5 * 24);
   if (!aligned) return forecast;
   const merged = overwriteFromIndex(forecast, aligned, 5 * 24);
-  // Daily aus dem überschriebenen Hourly neu aggregieren.
-  for (let i = 0; i < merged.daily.time.length; i++) {
-    const agg = aggregateDailyFromHourly(merged.hourly, merged.daily.time[i] ?? "");
-    const wc = agg.weathercode;
-    if (typeof wc === "number" && Number.isFinite(wc)) merged.daily.weathercode[i] = wc;
-    const ps = agg.precipitation_sum;
-    if (typeof ps === "number" && Number.isFinite(ps)) merged.daily.precipitation_sum[i] = ps;
-    const ph = agg.precipitation_hours;
-    if (typeof ph === "number" && Number.isFinite(ph)) merged.daily.precipitation_hours[i] = ph;
-    const sd = agg.sunshine_duration;
-    if (typeof sd === "number" && Number.isFinite(sd)) merged.daily.sunshine_duration[i] = sd;
-  }
+  // Daily ab Tag 6 vollständig aus überschriebenem Hourly neu aggregieren
+  // (inkl. Wind/Böen/Probability); Sonnenzeiten astronomisch ergänzen.
+  enrichDailyFromHourly(merged, forecast.latitude, forecast.longitude, offsetSec);
   return merged;
 }
 
