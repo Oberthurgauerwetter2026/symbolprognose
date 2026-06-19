@@ -704,6 +704,8 @@ function DetailPanel({
   days,
   selectedDayIdx,
   onVisibleDayChange,
+  targetDayIdx,
+  targetTick,
   now,
   extended,
   snow,
@@ -713,6 +715,8 @@ function DetailPanel({
   days: { iso: string; date: Date; idx: number }[];
   selectedDayIdx: number;
   onVisibleDayChange: (i: number) => void;
+  targetDayIdx?: number;
+  targetTick?: number;
   now: Date;
   extended: boolean;
   snow: boolean;
