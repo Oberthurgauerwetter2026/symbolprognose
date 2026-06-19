@@ -567,11 +567,11 @@ function DayStrip({
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-base font-medium tabular-nums text-zinc-600 inline-flex items-center gap-1">
+                  <span className="text-sm @[640px]:text-base font-medium tabular-nums text-zinc-600 inline-flex items-center gap-1">
                     <Thermometer className="w-3.5 h-3.5 text-zinc-600" aria-hidden />
                     {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
                   </span>
-                  <span className="text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900 font-[family-name:var(--font-display)]">
+                  <span className="text-lg @[640px]:text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900 font-[family-name:var(--font-display)]">
                     {Number.isFinite(d.temperature_2m_max[i]) ? `${Math.round(d.temperature_2m_max[i])}°` : "–"}
                   </span>
                 </div>
@@ -583,7 +583,7 @@ function DayStrip({
                   <span>{d.precipitation_probability_max[i] ?? 0}%</span>
                 </div>
               </div>
-              <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
+              <div className="pt-2 @[640px]:pt-3 border-t border-zinc-200/70 space-y-1 @[640px]:space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-zinc-700 font-semibold">
                   <Wind className="w-4 h-4 text-zinc-700" aria-label="Wind" />
                   <span className="tabular-nums flex items-center gap-1">
