@@ -237,6 +237,8 @@ export function WeatherWidget({
               days={days}
               selectedDayIdx={selectedDayIdx}
               onVisibleDayChange={setSelectedDayIdx}
+              targetDayIdx={panelTarget.idx}
+              targetTick={panelTarget.tick}
               now={now}
               extended={false}
               snow={false}
