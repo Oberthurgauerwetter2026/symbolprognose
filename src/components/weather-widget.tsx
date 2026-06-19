@@ -1143,7 +1143,7 @@ function DetailPanel({
                               <Tooltip key={k}>
                                 <TooltipTrigger asChild>
                                   <span
-                                    className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)] cursor-help`}
+                                    className={`${cadence === "1h" ? "w-3 @[640px]:w-3.5" : "w-2 @[640px]:w-2.5"} rounded-t-sm bg-[var(--wx-rain)]`}
                                     style={{ height: `${pct}%`, opacity }}
                                   />
                                 </TooltipTrigger>
