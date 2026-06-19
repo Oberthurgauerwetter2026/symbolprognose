@@ -723,7 +723,7 @@ function DaySummaryBar({
         {weekdayLong(date)} <span className="text-zinc-700 font-semibold">{formatDateShort(date)}</span>
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
-        <CloudRain className="w-4 h-4 text-zinc-700" aria-label="Niederschlag" />
+        <Droplet className="w-4 h-4 text-[var(--wx-rain)] fill-[var(--wx-rain)]" aria-label="Niederschlag" />
         {Number.isFinite(mm) ? `${mm.toFixed(1)} mm` : "– mm"}
         <span className="text-zinc-500">/</span>
         <span className="text-zinc-800">{probLabel}</span>
