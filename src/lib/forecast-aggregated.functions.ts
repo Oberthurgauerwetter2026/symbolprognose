@@ -245,13 +245,7 @@ function buildForecastFromCacheLoc(loc: Loc): ForecastResponse {
     loc.utc_offset_seconds ?? 0,
   );
 
-  return sanitizeForecast({
-    latitude: loc.latitude ?? 0,
-    longitude: loc.longitude ?? 0,
-    timezone: loc.timezone ?? "Europe/Zurich",
-    hourly,
-    daily,
-  });
+  return sanitizeForecast(fc);
 }
 
 async function loadSymbolLocs(): Promise<Loc[] | null> {
