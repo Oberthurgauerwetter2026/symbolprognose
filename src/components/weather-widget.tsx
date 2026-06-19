@@ -712,31 +712,33 @@ function DayRainSparkline({
           const from = String(k * 3).padStart(2, "0");
           const to = String(k * 3 + 3).padStart(2, "0");
           return (
-            <Tooltip key={k}>
-              <TooltipTrigger asChild>
-                <span
-                  className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {probExtra > 0 && (
-                    <div
-                      className="w-full bg-[var(--wx-rain)]"
-                      style={{ height: `${probExtra}%`, opacity: 0.25 }}
-                    />
-                  )}
-                  {hasMm && (
-                    <div
-                      className="w-full bg-[var(--wx-rain)] rounded-sm"
-                      style={{ height: `${mmHeight}%`, minHeight: 2 }}
-                    />
-                  )}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                <div className="font-semibold">{from}–{to} Uhr</div>
-                <div>{b.mm.toFixed(1)} mm · {b.prob}% Regenrisiko</div>
-              </TooltipContent>
-            </Tooltip>
+            <TapTooltip
+              key={k}
+              content={
+                <>
+                  <div className="font-semibold">{from}–{to} Uhr</div>
+                  <div>{b.mm.toFixed(1)} mm · {b.prob}% Regenrisiko</div>
+                </>
+              }
+            >
+              <span
+                className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {probExtra > 0 && (
+                  <div
+                    className="w-full bg-[var(--wx-rain)]"
+                    style={{ height: `${probExtra}%`, opacity: 0.25 }}
+                  />
+                )}
+                {hasMm && (
+                  <div
+                    className="w-full bg-[var(--wx-rain)] rounded-sm"
+                    style={{ height: `${mmHeight}%`, minHeight: 2 }}
+                  />
+                )}
+              </span>
+            </TapTooltip>
           );
         })}
       </div>
