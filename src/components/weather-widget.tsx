@@ -521,7 +521,7 @@ function DayStrip({
               key={day.iso}
               type="button"
               onClick={() => onSelect(i)}
-              className={`relative text-left p-3 @[640px]:p-4 @[1000px]:p-3 space-y-3 snap-start shrink-0 basis-[70%] @[420px]:basis-[45%] @[640px]:basis-[calc(100%/4-1px)] @[820px]:basis-[calc(100%/5-1px)] @[1000px]:basis-[calc(100%/7-1px)] transition-colors ${
+              className={`relative text-left p-2 @[640px]:p-4 @[1000px]:p-3 space-y-2 @[640px]:space-y-3 snap-start shrink-0 basis-[70%] @[420px]:basis-[45%] @[640px]:basis-[calc(100%/4-1px)] @[820px]:basis-[calc(100%/5-1px)] @[1000px]:basis-[calc(100%/7-1px)] transition-colors ${
                 selected
                   ? "bg-[var(--accent-soft)]"
                   : "bg-zinc-50 hover:bg-zinc-100"
@@ -543,7 +543,7 @@ function DayStrip({
                 </span>
               </div>
               <div
-                className="py-1 select-none text-zinc-900"
+                className="py-1 select-none text-zinc-900 [&_svg]:h-14 [&_svg]:w-14 @[640px]:[&_svg]:h-20 @[640px]:[&_svg]:w-20"
                 aria-label={weatherLabel(d.weathercode[i])}
                 title={weatherLabel(d.weathercode[i])}
               >
@@ -567,11 +567,11 @@ function DayStrip({
               </div>
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-base font-medium tabular-nums text-zinc-600 inline-flex items-center gap-1">
+                  <span className="text-sm @[640px]:text-base font-medium tabular-nums text-zinc-600 inline-flex items-center gap-1">
                     <Thermometer className="w-3.5 h-3.5 text-zinc-600" aria-hidden />
                     {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
                   </span>
-                  <span className="text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900 font-[family-name:var(--font-display)]">
+                  <span className="text-lg @[640px]:text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900 font-[family-name:var(--font-display)]">
                     {Number.isFinite(d.temperature_2m_max[i]) ? `${Math.round(d.temperature_2m_max[i])}°` : "–"}
                   </span>
                 </div>
@@ -583,7 +583,7 @@ function DayStrip({
                   <span>{d.precipitation_probability_max[i] ?? 0}%</span>
                 </div>
               </div>
-              <div className="pt-3 border-t border-zinc-200/70 space-y-1.5">
+              <div className="pt-2 @[640px]:pt-3 border-t border-zinc-200/70 space-y-1 @[640px]:space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-zinc-700 font-semibold">
                   <Wind className="w-4 h-4 text-zinc-700" aria-label="Wind" />
                   <span className="tabular-nums flex items-center gap-1">
@@ -853,7 +853,7 @@ function DetailPanel({
                       if (el) slotRefs.current.set(iso, el);
                       else slotRefs.current.delete(iso);
                     }}
-                    className={`relative flex-shrink-0 ${slotWidthClass(cadence)} p-3 @[640px]:p-4 space-y-3 snap-start ${
+                    className={`relative flex-shrink-0 ${slotWidthClass(cadence)} p-2 @[640px]:p-4 space-y-2 @[640px]:space-y-3 snap-start ${
                       isCadenceBreak
                         ? "border-l-2 border-zinc-400"
                         : isDayStart
