@@ -9,7 +9,7 @@ import {
   
   weatherLabel,
   weekdayLong,
-  weekdayShort,
+  
   windDirectionLabel,
   type GeoLocation,
 } from "@/lib/weather";
