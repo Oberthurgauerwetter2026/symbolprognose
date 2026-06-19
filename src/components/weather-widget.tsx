@@ -778,6 +778,28 @@ function DetailPanel({
     return () => window.clearTimeout(t);
   }, [hourlyIndices, h.time, now]);
 
+  // Explicit day-tile click → smooth scroll to first slot of target day.
+  // Skipped on first render (targetTick === 0) so initial-mount logic owns it.
+  useEffect(() => {
+    if (!targetTick) return;
+    if (targetDayIdx == null) return;
+    const day = days[targetDayIdx];
+    if (!day) return;
+    const firstIso = hourlyIndices
+      .map((s) => h.time[s.idx])
+      .find((iso) => iso.slice(0, 10) === day.iso);
+    if (!firstIso) return;
+    const el = slotRefs.current.get(firstIso);
+    const scroller = scrollerRef.current;
+    if (!el || !scroller) return;
+    userScrolling.current = false;
+    scroller.scrollTo({ left: el.offsetLeft - scroller.offsetLeft, behavior: "smooth" });
+    const t = window.setTimeout(() => {
+      userScrolling.current = true;
+    }, 700);
+    return () => window.clearTimeout(t);
+  }, [targetTick, targetDayIdx, days, hourlyIndices, h.time]);
+
   // Track which day is currently visible on scroll and reflect it in the day strip.
   useEffect(() => {
     const scroller = scrollerRef.current;
