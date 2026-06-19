@@ -1,64 +1,33 @@
-## Ziel
+# Tooltips im Wetter-Widget mobil per Tap nutzbar machen
 
-MCH-Quantil-Band (10 %–90 %) für stündlichen Niederschlag visualisieren — analog zur MCH-Webseite. Zeigt „so viel könnte es minimal/maximal regnen", auch wenn der Median (`rre150h0`) 0 mm ist.
+## Problem
+Die Radix `Tooltip`-Komponenten im Stunden-Niederschlagspanel (und in der Legende darüber) öffnen sich nur per Hover. Auf Touch-Geräten gibt es keinen Hover → die Tooltips mit `mm`, `Regenrisiko` und `10–90 %`-Band sind nicht erreichbar.
 
-## 1. Ingest erweitern (`scripts/ingest_mch_local_forecast.py`)
+## Lösung
+Die bestehenden Radix-`Tooltip`-Instanzen in `src/components/weather-widget.tsx` so erweitern, dass sie zusätzlich per Tap geöffnet werden. Optisch und desktopseitig bleibt alles wie heute.
 
-`HOURLY_PARAMS` zusätzlich:
-```py
-"precipitation_q10": "rreq10h0",  # 10 %-Quantil Stundensumme (mm)
-"precipitation_q90": "rreq90h0",  # 90 %-Quantil Stundensumme (mm)
-```
-In `build_spot` neu auslesen und in `hourly` mitschreiben.
+### Betroffene Stellen
+1. Stunden-Bars (~Z. 1142–1197): Tooltip pro Stunde mit mm / Risiko / Quantilband.
+2. Legende darüber (~Z. 653–692): gleiche Komponente, dieselbe Behandlung für Konsistenz.
 
-## 2. Typen / Cache (`src/lib/openmeteo-cache.server.ts`)
+### Mechanik
+- Lokaler State `openIdx: number | null` pro Panel-Block (Stundenleiste bzw. Legende, jeweils eigener State).
+- Jeder `Tooltip` wird controlled:
+  - `open={openIdx === k}`
+  - `onOpenChange` setzt/löscht `openIdx` (damit Hover auf Desktop weiter funktioniert).
+- Auf dem Trigger-`<span>`:
+  - `onClick`: toggelt `openIdx` (öffnet bei Tap, schließt beim erneuten Tap).
+  - `onPointerDown` mit `e.preventDefault()` für `pointerType === 'touch'`, damit Radix den Tap nicht sofort wieder als „outside" interpretiert und schließt.
+  - `role="button"`, `tabIndex={0}`, `aria-expanded` für A11y.
+- `TooltipProvider` bekommt zusätzlich `disableHoverableContent={false}`; `delayDuration` bleibt 150.
+- Outside-Tap: ein globaler `onPointerDown`-Listener auf dem umschließenden Stunden-Container setzt `openIdx` zurück, wenn das Target keine Bar ist. Für die Legende identisch.
 
-`MchLocalForecastLocation.hourly` um die zwei optionalen Felder ergänzen:
-```ts
-precipitation_q10?: (number | null)[];
-precipitation_q90?: (number | null)[];
-```
-
-## 3. Forecast-Schema (`src/lib/weather.ts`)
-
-`HourlyData` um optionale Felder erweitern:
-```ts
-precipitation_q10?: number[];
-precipitation_q90?: number[];
-```
-Merge-/Sanitize-Helpers ergänzen (analog `precipitation`). Open-Meteo liefert diese Felder nicht — bleiben dort leer/NaN.
-
-## 4. Aggregator (`src/lib/forecast-aggregated.functions.ts`)
-
-In `buildForecastFromMchLoc` die zwei Quantil-Arrays übernehmen (mit NaN-Fallback). Kein Overlay aus Open-Meteo — wenn MCH nichts liefert, bleibt das Band einfach weg.
-
-## 5. Darstellung (`src/components/weather-widget.tsx`, Stunden-Säulen)
-
-Im Stunden-Panel (Block ab Z. 1135) pro Slot zusätzlich:
-- `q10`/`q90` aus `h.precipitation_q10[idx+k]` / `h.precipitation_q90[idx+k]` lesen.
-- Wenn beide finite und `q90 > 0`:
-  - Hintergrund-Band von `q10`- bis `q90`-Höhe in `var(--wx-rain)` mit `opacity: 0.18` (heller als der Risiko-Aufsatz, damit Layer unterscheidbar bleiben).
-- Darüber wie bisher: probabilistischer Aufsatz (Risiko, opacity 0.25) und mm-Balken (deckend).
-- Tooltip ergänzt eine dritte Zeile, wenn das Band existiert:
-  `q10–q90: 0.0 – 1.2 mm`.
-
-Legende unter dem Panel (Z. 1326) bekommt einen zusätzlichen Token:
-```
-[hellblaues schmales Band] 10–90 % Bereich
-```
-
-## 6. Tages-Sparkline (`DayRainSparkline`)
-
-Optional dieselbe Logik anwenden: max-Wert des Buckets aus `q90`-Summe statt nur aus mm — sodass bei Wahrscheinlichkeits-Tagen ein Band sichtbar ist. (Kann auch in einem späteren Schritt erfolgen; im jetzigen Plan: **nicht** anpassen, nur Stunden-Panel, weil das die direkte MCH-Analogie ist.)
+### Nicht im Scope
+- Keine Änderung an Daten, Aggregation, Farben, Layout oder Desktop-Verhalten.
+- Keine Umstellung auf `Popover`/`HoverCard` (würde Markup/Styling unnötig ändern).
+- Andere `title=`-Attribute (Tages-Sparkline, Sonnenstunden, Schnee) bleiben unangetastet — separate Folgeaufgabe falls gewünscht.
 
 ## Verifikation
-
-- `npx tsc --noEmit` läuft sauber.
-- In der Vorschau für Amriswil: Stunden mit 0 mm + 20 % Risiko + q90>0 zeigen ein helles Band; Tooltip enthält die q10–q90-Zeile.
-- Im Ingest-Log erscheinen `hourly rreq10h0` und `hourly rreq90h0` mit nonzero-Counts > 0 für mindestens einen Spot.
-
-## Nicht im Scope
-
-- `rka150p0`-Beschriftung als „MCH P50" (Option 2) — separat behandeln.
-- Anpassung der Tages-Sparkline (siehe Punkt 6).
-- Backfill historischer R2-Daten — der nächste stündliche Cron-Lauf füllt automatisch.
+- Desktop: Hover öffnet Tooltip wie bisher, Klick toggelt zusätzlich.
+- Mobile-Viewport im Preview: Tap auf eine Stundenbar öffnet Tooltip mit mm / Risiko / 10–90 %; Tap daneben schließt; Tap auf andere Bar wechselt.
+- `npx tsc --noEmit` bleibt grün.
