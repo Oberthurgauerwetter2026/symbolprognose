@@ -9,7 +9,7 @@ import {
   
   weatherLabel,
   weekdayLong,
-  weekdayShort,
+  
   windDirectionLabel,
   type GeoLocation,
 } from "@/lib/weather";
@@ -17,7 +17,7 @@ import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon, Thermometer } from "lucide-react";
+import { Sun, Snowflake, CloudRain, Wind, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
 
 interface StoredLocation {
   name: string;
@@ -310,6 +310,11 @@ export function WeatherWidget({
               extended={extended}
             />
 
+            <DaySummaryBar
+              forecast={forecast.data}
+              selectedDayIdx={selectedDayIdx}
+            />
+
             <DetailPanel
               forecast={forecast.data}
               hourlyIndices={allHourly}
@@ -511,11 +516,14 @@ function DayStrip({
 }) {
   const d = forecast.daily;
 
+  const h = forecast.hourly;
   return (
     <div className="space-y-2">
       <div className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
         {days.map((day, i) => {
           const selected = i === selectedIdx;
+          const prob = d.precipitation_probability_max?.[i] ?? 0;
+          const probLabel = prob === 0 ? "0 %" : prob < 5 ? "<5 %" : `${prob} %`;
           return (
             <button
               key={day.iso}
@@ -530,7 +538,7 @@ function DayStrip({
               {selected && (
                 <div className="absolute top-0 left-0 right-0 h-1 bg-accent" />
               )}
-              <div className="flex flex-col">
+              <div className="flex flex-col items-center text-center">
                 <span
                   className={`text-base font-bold font-[family-name:var(--font-display)] ${
                     selected ? "text-accent" : "text-zinc-900"
@@ -538,12 +546,12 @@ function DayStrip({
                 >
                   {i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
                 </span>
-                <span className="text-sm text-zinc-800 font-semibold">
-                  {weekdayShort(day.date)} {formatDateShort(day.date)}
+                <span className="text-xs text-zinc-700 font-semibold">
+                  {formatDateShort(day.date)}
                 </span>
               </div>
               <div
-                className="py-1 select-none text-zinc-900 [&_svg]:h-14 [&_svg]:w-14 @[640px]:[&_svg]:h-20 @[640px]:[&_svg]:w-20"
+                className="py-1 select-none text-zinc-900 flex justify-center [&_svg]:h-14 [&_svg]:w-14 @[640px]:[&_svg]:h-20 @[640px]:[&_svg]:w-20"
                 aria-label={weatherLabel(d.weathercode[i])}
                 title={weatherLabel(d.weathercode[i])}
               >
@@ -561,48 +569,121 @@ function DayStrip({
                   cloudMid={d.cloud_cover_mid_mean?.[i]}
                   cloudHigh={d.cloud_cover_high_mean?.[i]}
                 />
-
-
-
               </div>
-              <div className="space-y-1">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm @[640px]:text-base font-medium tabular-nums text-zinc-600 inline-flex items-center gap-1">
-                    <Thermometer className="w-3.5 h-3.5 text-zinc-600" aria-hidden />
-                    {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
-                  </span>
-                  <span className="text-lg @[640px]:text-xl @[1100px]:text-2xl font-bold tabular-nums text-zinc-900 font-[family-name:var(--font-display)]">
-                    {Number.isFinite(d.temperature_2m_max[i]) ? `${Math.round(d.temperature_2m_max[i])}°` : "–"}
-                  </span>
-                </div>
-                <div className="text-xs text-zinc-800 font-semibold flex justify-between tabular-nums">
-                  <span className="inline-flex items-center gap-1">
-                    <CloudRain className="w-3.5 h-3.5 text-zinc-600" aria-hidden />
+              <div className="flex items-baseline justify-center gap-2 tabular-nums font-[family-name:var(--font-display)]">
+                <span className="text-base @[640px]:text-lg font-semibold text-zinc-700">
+                  {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
+                </span>
+                <span className="text-zinc-400 font-normal">|</span>
+                <span className="text-lg @[640px]:text-xl @[1100px]:text-2xl font-bold text-zinc-900">
+                  {Number.isFinite(d.temperature_2m_max[i]) ? `${Math.round(d.temperature_2m_max[i])}°` : "–"}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-zinc-200/70 space-y-1">
+                <div className="flex items-baseline justify-between tabular-nums">
+                  <span className="text-sm font-bold text-zinc-900">
                     {Number.isFinite(d.precipitation_sum[i]) ? `${d.precipitation_sum[i].toFixed(1)} mm` : "– mm"}
                   </span>
-                  <span>{d.precipitation_probability_max[i] ?? 0}%</span>
+                  <span className="text-xs font-semibold text-zinc-700">{probLabel}</span>
                 </div>
-              </div>
-              <div className="pt-2 @[640px]:pt-3 border-t border-zinc-200/70 space-y-1 @[640px]:space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-zinc-700 font-semibold">
-                  <Wind className="w-4 h-4 text-zinc-700" aria-label="Wind" />
-                  <span className="tabular-nums flex items-center gap-1">
-                    <WindArrow deg={d.winddirection_10m_dominant[i]} size="md" />
-                    <span className="font-medium text-zinc-700">
-                      {Math.round(d.windspeed_10m_max[i])}
-                    </span>
-                    <span className="text-zinc-700 font-medium">/</span>
-                    <span className="font-bold text-zinc-900">
-                      {Math.round(d.windgusts_10m_max[i])}
-                    </span>{" "}
-                    <span className="font-medium text-zinc-700">km/h</span>
-                  </span>
-                </div>
+                <DayRainSparkline hourly={h} dayIso={day.iso} />
               </div>
             </button>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* ---------------- Per-day rain sparkline ---------------- */
+
+function DayRainSparkline({
+  hourly,
+  dayIso,
+}: {
+  hourly: import("@/lib/weather").HourlyData;
+  dayIso: string;
+}) {
+  // Aggregate the 24 h of `dayIso` into 8 × 3-h buckets.
+  const buckets: { mm: number; prob: number }[] = Array.from({ length: 8 }, () => ({ mm: 0, prob: 0 }));
+  for (let i = 0; i < hourly.time.length; i++) {
+    const iso = hourly.time[i];
+    if (iso.slice(0, 10) !== dayIso) continue;
+    const hr = Number(iso.slice(11, 13));
+    if (!Number.isFinite(hr)) continue;
+    const b = Math.min(7, Math.floor(hr / 3));
+    buckets[b].mm += hourly.precipitation?.[i] ?? 0;
+    buckets[b].prob = Math.max(buckets[b].prob, hourly.precipitation_probability?.[i] ?? 0);
+  }
+  return (
+    <div className="flex items-end gap-px h-3.5 w-full border-b border-zinc-300/70">
+      {buckets.map((b, k) => {
+        const pct = Math.min(b.mm / 5, 1) * 100;
+        const opacity = b.mm > 0 ? 0.35 + (b.prob / 100) * 0.65 : 0;
+        return (
+          <div
+            key={k}
+            className="flex-1 bg-[var(--wx-rain)] rounded-t-sm"
+            style={{ height: `${pct}%`, opacity, minHeight: b.mm > 0 ? 1 : 0 }}
+            title={`${k * 3}–${k * 3 + 3} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}%`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------------- DaySummaryBar ---------------- */
+
+function DaySummaryBar({
+  forecast,
+  selectedDayIdx,
+}: {
+  forecast: import("@/lib/weather").ForecastResponse;
+  selectedDayIdx: number;
+}) {
+  const d = forecast.daily;
+  const i = selectedDayIdx;
+  if (i < 0 || i >= d.time.length) return null;
+  const date = new Date(d.time[i] + "T12:00:00");
+  const sunH = Math.round((d.sunshine_duration?.[i] ?? 0) / 3600);
+  const wind = Math.round(d.windspeed_10m_max?.[i] ?? 0);
+  const gust = Math.round(d.windgusts_10m_max?.[i] ?? 0);
+  const mm = d.precipitation_sum?.[i];
+  const prob = d.precipitation_probability_max?.[i] ?? 0;
+  const probLabel = prob === 0 ? "0 %" : prob < 5 ? "<5 %" : `${prob} %`;
+  return (
+    <div className="rounded-md border border-accent/20 bg-[color-mix(in_oklab,var(--accent)_18%,white)] px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
+      <span className="font-bold text-zinc-900 font-[family-name:var(--font-display)]">
+        {weekdayLong(date)} <span className="text-zinc-700 font-semibold">{formatDateShort(date)}</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
+        <CloudRain className="w-4 h-4 text-zinc-700" aria-label="Niederschlag" />
+        {Number.isFinite(mm) ? `${mm.toFixed(1)} mm` : "– mm"}
+        <span className="text-zinc-500">/</span>
+        <span className="text-zinc-800">{probLabel}</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
+        <Sun className="w-4 h-4 text-zinc-700" aria-label="Sonnenschein" />
+        {sunH} h
+      </span>
+      <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
+        <Wind className="w-4 h-4 text-zinc-700" aria-label="Wind" />
+        <WindArrow deg={d.winddirection_10m_dominant?.[i] ?? 0} size="md" />
+        <span className="font-medium text-zinc-700">{wind}</span>
+        <span className="text-zinc-500">|</span>
+        <span className="font-bold">{gust}</span>
+        <span className="font-medium text-zinc-700">km/h</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
+        <Sunrise className="w-4 h-4 text-amber-700" aria-label="Sonnenaufgang" />
+        {formatTimeHHMM(d.sunrise?.[i] ?? "")}
+      </span>
+      <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
+        <Sunset className="w-4 h-4 text-amber-700" aria-label="Sonnenuntergang" />
+        {formatTimeHHMM(d.sunset?.[i] ?? "")}
+      </span>
     </div>
   );
 }
@@ -656,27 +737,34 @@ function DetailPanel({
 
   const selectedDay = days[selectedDayIdx];
 
-  // Scroll to first slot of the selected day when user picks a day in the strip.
+  // Initial mount: scroll once to the current hour. Do NOT auto-scroll on
+  // subsequent selectedDayIdx changes — the user navigates the strip and the
+  // panel independently.
+  const didInitialScroll = useRef(false);
   useEffect(() => {
-    if (!selectedDay) return;
-    const firstIso = hourlyIndices
-      .map((s) => h.time[s.idx])
-      .find((iso) => iso.slice(0, 10) === selectedDay.iso);
-    if (!firstIso) return;
-    const el = slotRefs.current.get(firstIso);
+    if (didInitialScroll.current) return;
+    if (!hourlyIndices.length) return;
     const scroller = scrollerRef.current;
-    if (!el || !scroller) return;
-    // Mark as programmatic scroll so onScroll doesn't override the selection.
+    if (!scroller) return;
+    const nowMs = now.getTime();
+    // Find slot whose start is closest to (but <=) now.
+    let targetIso: string | null = null;
+    for (const s of hourlyIndices) {
+      const iso = h.time[s.idx];
+      if (new Date(iso).getTime() <= nowMs) targetIso = iso;
+      else break;
+    }
+    if (!targetIso) targetIso = h.time[hourlyIndices[0].idx];
+    const el = slotRefs.current.get(targetIso);
+    if (!el) return;
     userScrolling.current = false;
-    scroller.scrollTo({
-      left: el.offsetLeft - scroller.offsetLeft,
-      behavior: "smooth",
-    });
+    scroller.scrollTo({ left: el.offsetLeft - scroller.offsetLeft, behavior: "auto" });
+    didInitialScroll.current = true;
     const t = window.setTimeout(() => {
       userScrolling.current = true;
-    }, 700);
+    }, 200);
     return () => window.clearTimeout(t);
-  }, [selectedDayIdx, selectedDay, hourlyIndices, h.time]);
+  }, [hourlyIndices, h.time, now]);
 
   // Track which day is currently visible on scroll and reflect it in the day strip.
   useEffect(() => {
