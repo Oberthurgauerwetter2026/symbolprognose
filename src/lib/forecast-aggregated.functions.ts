@@ -229,29 +229,21 @@ function buildForecastFromCacheLoc(loc: Loc): ForecastResponse {
     precipitation_hours: padNum(mergeArr(d, "precipitation_hours") as number[], dLen),
   };
 
-  // Daily-Symbol & abgeleitete Niederschlagsfelder aus dem gemergten Hourly
-  // neu aggregieren. Sonst kann der per-Modell-Daily-Code aus dem R2-Cache
-  // (z. B. ICON-CH2 zeigt Schauer 80/81) im Widget erscheinen, obwohl die
-  // gemergte Stundenkurve über alle Modelle den Tag trocken sieht.
-  for (let i = 0; i < daily.time.length; i++) {
-    const agg = aggregateDailyFromHourly(hourly, daily.time[i] ?? "");
-    const wc = agg.weathercode;
-    if (typeof wc === "number" && Number.isFinite(wc)) {
-      daily.weathercode[i] = wc;
-    }
-    const ps = agg.precipitation_sum;
-    if (typeof ps === "number" && Number.isFinite(ps)) {
-      daily.precipitation_sum[i] = ps;
-    }
-    const ph = agg.precipitation_hours;
-    if (typeof ph === "number" && Number.isFinite(ph)) {
-      daily.precipitation_hours[i] = ph;
-    }
-    const sd = agg.sunshine_duration;
-    if (typeof sd === "number" && Number.isFinite(sd)) {
-      daily.sunshine_duration[i] = sd;
-    }
-  }
+  // Daily-Felder vollständig aus dem gemergten Hourly nach-aggregieren —
+  // inkl. Wind/Böen/NS-Wahrscheinlichkeit; Sonnenzeiten ggf. astronomisch.
+  const fc: ForecastResponse = {
+    latitude: loc.latitude ?? 0,
+    longitude: loc.longitude ?? 0,
+    timezone: loc.timezone ?? "Europe/Zurich",
+    hourly,
+    daily,
+  };
+  enrichDailyFromHourly(
+    fc,
+    loc.latitude ?? 0,
+    loc.longitude ?? 0,
+    loc.utc_offset_seconds ?? 0,
+  );
 
   return sanitizeForecast({
     latitude: loc.latitude ?? 0,
