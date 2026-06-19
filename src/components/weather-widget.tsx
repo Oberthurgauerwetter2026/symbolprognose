@@ -629,8 +629,13 @@ function DayRainSparkline({
   return (
     <div className="flex h-8 w-full items-end gap-px">
       {buckets.map((b, k) => {
-        const visible = b.mm > 0 || b.prob >= 30;
-        const heightPct = visible ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
+        const hasMm = b.mm > 0;
+        const visible = hasMm || b.prob >= 10;
+        const heightPct = hasMm
+          ? Math.max(6, Math.min(100, (b.mm / scale) * 100))
+          : visible
+            ? Math.max(8, Math.min(60, b.prob))
+            : 0;
         const from = String(k * 3).padStart(2, "0");
         const to = String(k * 3 + 3).padStart(2, "0");
         return (
@@ -642,7 +647,7 @@ function DayRainSparkline({
             {visible && (
               <div
                 className="w-full bg-[var(--wx-rain)] rounded-sm"
-                style={{ height: `${heightPct}%`, minHeight: 2 }}
+                style={{ height: `${heightPct}%`, minHeight: 2, opacity: hasMm ? 1 : 0.45 }}
               />
             )}
           </div>
