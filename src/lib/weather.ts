@@ -42,6 +42,10 @@ export interface HourlyData {
   temperature_2m: number[];
   precipitation: number[];
   precipitation_probability: number[];
+  /** 10 %-Quantil stündl. Niederschlag (mm). Nur MCH-Quelle. */
+  precipitation_q10?: number[];
+  /** 90 %-Quantil stündl. Niederschlag (mm). Nur MCH-Quelle. */
+  precipitation_q90?: number[];
   windspeed_10m: number[];
   windgusts_10m: number[];
   winddirection_10m: number[];
