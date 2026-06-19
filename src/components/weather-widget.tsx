@@ -656,12 +656,16 @@ function DaySummaryBar({
   const i = selectedDayIdx;
   if (i < 0 || i >= d.time.length) return null;
   const date = new Date(d.time[i] + "T12:00:00");
-  const sunH = Math.round((d.sunshine_duration?.[i] ?? 0) / 3600);
+  const sunRaw = d.sunshine_duration?.[i];
+  const sunH = sunRaw == null || !Number.isFinite(sunRaw) ? null : Math.round(sunRaw / 3600);
   const wind = Math.round(d.windspeed_10m_max?.[i] ?? 0);
-  const gust = Math.round(d.windgusts_10m_max?.[i] ?? 0);
+  const rawGust = d.windgusts_10m_max?.[i] ?? 0;
+  const gust = Math.round(rawGust > 0 ? rawGust : wind > 0 ? wind * 1.4 : 0);
   const mm = d.precipitation_sum?.[i];
   const prob = d.precipitation_probability_max?.[i] ?? 0;
   const probLabel = prob === 0 ? "0 %" : prob < 5 ? "<5 %" : `${prob} %`;
+  const riseStr = formatTimeHHMM(d.sunrise?.[i] ?? "") || "–";
+  const setStr = formatTimeHHMM(d.sunset?.[i] ?? "") || "–";
   return (
     <div className="rounded-md border border-accent/20 bg-[color-mix(in_oklab,var(--accent)_18%,white)] px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
       <span className="font-bold text-zinc-900 font-[family-name:var(--font-display)]">
@@ -675,7 +679,7 @@ function DaySummaryBar({
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
         <Sun className="w-4 h-4 text-zinc-700" aria-label="Sonnenschein" />
-        {sunH} h
+        {sunH == null ? "–" : `${sunH} h`}
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
         <Wind className="w-4 h-4 text-zinc-700" aria-label="Wind" />
@@ -687,11 +691,11 @@ function DaySummaryBar({
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
         <Sunrise className="w-4 h-4 text-amber-700" aria-label="Sonnenaufgang" />
-        {formatTimeHHMM(d.sunrise?.[i] ?? "")}
+        {riseStr}
       </span>
       <span className="inline-flex items-center gap-1.5 tabular-nums font-semibold text-zinc-900">
         <Sunset className="w-4 h-4 text-amber-700" aria-label="Sonnenuntergang" />
-        {formatTimeHHMM(d.sunset?.[i] ?? "")}
+        {setStr}
       </span>
     </div>
   );
