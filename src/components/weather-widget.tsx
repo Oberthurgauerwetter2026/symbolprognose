@@ -310,6 +310,11 @@ export function WeatherWidget({
               extended={extended}
             />
 
+            <DaySummaryBar
+              forecast={forecast.data}
+              selectedDayIdx={selectedDayIdx}
+            />
+
             <DetailPanel
               forecast={forecast.data}
               hourlyIndices={allHourly}
