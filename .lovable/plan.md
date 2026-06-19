@@ -1,20 +1,38 @@
-## Plan
+Plan: Lokalprognose-Kacheln auf Mobile verdichten
 
-Der Fehler entsteht, weil der neueste STAC-Item `20260619-ch` zwar als aktuellster Lauf erscheint, aber aktuell `0` Assets enthält. Das Script nimmt ihn trotzdem und findet deshalb keinen einzigen Parameter.
+Ziel
+---
+Die Tages- und Stunden-Kacheln der Lokalprognose sollen auf mobilen Viewports (<640 px) kompakter dargestellt werden — gleiche Informationen, weniger Platzverbrauch.
 
-Ich werde den Ingest so anpassen:
+Änderungen
+---
 
-1. **STAC-Auswahl robuster machen**
-   - `latest_item()` wählt nicht mehr blind den neuesten Item.
-   - Es prüft die neuesten Items der Sammlung und nimmt den neuesten, der tatsächlich CSV-Assets enthält.
-   - Zusätzlich wird validiert, dass mindestens zentrale Forecast-Parameter wie Temperatur oder Wettercode vorhanden sind.
+### 1. DayStrip (Tageskacheln)
+- Icon-Größe: `80` → `56` auf Mobile (`@[640px]:size={80}`)
+- Padding: `p-3` → `p-2` auf Mobile (`@[640px]:p-3`)
+- Innenabstände: `space-y-3` → `space-y-2` auf Mobile
+- Temperatur-Range: Schrift etwas kleiner (`text-sm` statt `text-base` für Min, `text-lg` statt `text-xl` für Max auf Mobile)
+- Regen/Wind-Zeile: `text-xs` bleibt, aber weniger vertikaler Abstand
+- Wind-Block am Kachelfuß: Padding `pt-3` → `pt-2` auf Mobile, `space-y-1.5` → `space-y-1`
 
-2. **Logging verbessern**
-   - Wenn ein leerer Item übersprungen wird, wird das klar geloggt.
-   - Der gewählte Fallback-Item wird mit ID, Datum und Asset-Anzahl ausgegeben.
+### 2. DetailPanel (Stundenkacheln)
+- Padding: `p-3` → `p-2` auf Mobile (`@[640px]:p-3` oder `@[640px]:p-4`)
+- Icon-Größe: `48`/`64` bleibt, aber ggf. `40`/`52` auf Mobile prüfen
+- Vertikaler Abstand: `space-y-3` → `space-y-2` auf Mobile
+- Zeitangabe und Temperatur: ggf. `text-sm` bleiben
 
-3. **Abbruchlogik beibehalten**
-   - Falls gar kein brauchbarer Item gefunden wird oder weiterhin keine Hourly-Daten entstehen, bricht das Script weiterhin ab und überschreibt keinen funktionierenden Cache.
+### 3. Header-Bereich
+- Weniger Abstand unter dem Header: `pb-5` → `pb-3` auf Mobile
+- Ortungs-Button-Label "Ortung" bleibt auf `sm:inline` ausgeblendet (bereits OK)
 
-4. **Kurztest ohne Upload**
-   - Den relevanten STAC-Auswahlteil lokal prüfen, damit der aktuell leere `20260619-ch` übersprungen und `20260618-ch` gewählt wird.
+Technische Umsetzung
+---
+- Tailwind-Container-Queries (`@[]`) für die Breakpoints nutzen, da das Widget bereits mit `@container` arbeitet
+- Keine neuen Abhängigkeiten nötig
+- Keine Logikänderungen, nur CSS/Tailwind-Utility-Änderungen in `weather-widget.tsx`
+
+Test
+---
+- Preview auf Mobile-Viewport (390×844) prüfen
+- Scrollverhalten der DayStrip bleibt unverändert
+- Snap-Verhalten bleibt unverändert
