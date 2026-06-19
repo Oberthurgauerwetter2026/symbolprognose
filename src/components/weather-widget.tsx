@@ -940,7 +940,7 @@ function DetailPanel({
             ))}
           </div>
           <div className="text-[10px] text-zinc-900 font-bold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
-            <CloudRain className="w-3.5 h-3.5" aria-label="Regen" /> mm/3h
+            <Droplet className="w-3.5 h-3.5 text-[var(--wx-rain)] fill-[var(--wx-rain)]" aria-label="Regen" /> mm/3h
           </div>
           {extended && (
             <>
