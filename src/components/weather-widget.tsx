@@ -628,39 +628,46 @@ function DayRainSparkline({
   const maxMm = buckets.reduce((m, b) => Math.max(m, b.mm), 0);
   const scale = Math.max(2, maxMm * 1.1);
   return (
-    <div className="flex h-8 w-full items-end gap-px">
-      {buckets.map((b, k) => {
-        const hasMm = b.mm > 0;
-        // Opake mm-Säule (Median-Menge)
-        const mmHeight = hasMm ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
-        // Transparente Wahrscheinlichkeits-Säule (Restrisiko) — ab 5%
-        const probVisible = b.prob >= 5;
-        const probTop = probVisible ? Math.max(mmHeight, Math.min(100, b.prob)) : mmHeight;
-        const probExtra = Math.max(0, probTop - mmHeight);
-        const from = String(k * 3).padStart(2, "0");
-        const to = String(k * 3 + 3).padStart(2, "0");
-        return (
-          <div
-            key={k}
-            className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden"
-            title={`${from}–${to} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}% Wahrscheinlichkeit`}
-          >
-            {probExtra > 0 && (
-              <div
-                className="w-full bg-[var(--wx-rain)]"
-                style={{ height: `${probExtra}%`, opacity: 0.25 }}
-              />
-            )}
-            {hasMm && (
-              <div
-                className="w-full bg-[var(--wx-rain)] rounded-sm"
-                style={{ height: `${mmHeight}%`, minHeight: 2 }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
+    <TooltipProvider delayDuration={150}>
+      <div className="flex h-8 w-full items-end gap-px">
+        {buckets.map((b, k) => {
+          const hasMm = b.mm > 0;
+          const mmHeight = hasMm ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
+          const probVisible = b.prob >= 5;
+          const probTop = probVisible ? Math.max(mmHeight, Math.min(100, b.prob)) : mmHeight;
+          const probExtra = Math.max(0, probTop - mmHeight);
+          const from = String(k * 3).padStart(2, "0");
+          const to = String(k * 3 + 3).padStart(2, "0");
+          return (
+            <Tooltip key={k}>
+              <TooltipTrigger asChild>
+                <span
+                  className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden cursor-help"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {probExtra > 0 && (
+                    <div
+                      className="w-full bg-[var(--wx-rain)]"
+                      style={{ height: `${probExtra}%`, opacity: 0.25 }}
+                    />
+                  )}
+                  {hasMm && (
+                    <div
+                      className="w-full bg-[var(--wx-rain)] rounded-sm"
+                      style={{ height: `${mmHeight}%`, minHeight: 2 }}
+                    />
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-semibold">{from}–{to} Uhr</div>
+                <div>{b.mm.toFixed(1)} mm · {b.prob}% Regenrisiko</div>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </TooltipProvider>
   );
 }
 
