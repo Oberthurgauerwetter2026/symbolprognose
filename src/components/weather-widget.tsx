@@ -613,35 +613,35 @@ function DayRainSparkline({
   hourly: import("@/lib/weather").HourlyData;
   dayIso: string;
 }) {
-  // Aggregate the 24 h of `dayIso` into 8 × 3-h buckets.
-  const buckets: { mm: number; prob: number }[] = Array.from({ length: 8 }, () => ({ mm: 0, prob: 0 }));
+  // 24 Stunden-Slots des Tages dayIso als horizontale Zeitachse 00–24 Uhr.
+  const slots: { mm: number; prob: number }[] = Array.from({ length: 24 }, () => ({ mm: 0, prob: 0 }));
   for (let i = 0; i < hourly.time.length; i++) {
     const iso = hourly.time[i];
     if (iso.slice(0, 10) !== dayIso) continue;
     const hr = Number(iso.slice(11, 13));
-    if (!Number.isFinite(hr)) continue;
-    const b = Math.min(7, Math.floor(hr / 3));
-    buckets[b].mm += hourly.precipitation?.[i] ?? 0;
-    buckets[b].prob = Math.max(buckets[b].prob, hourly.precipitation_probability?.[i] ?? 0);
+    if (!Number.isFinite(hr) || hr < 0 || hr > 23) continue;
+    slots[hr].mm += hourly.precipitation?.[i] ?? 0;
+    slots[hr].prob = Math.max(slots[hr].prob, hourly.precipitation_probability?.[i] ?? 0);
   }
   return (
-    <div className="flex items-end gap-px h-4 w-full border-b border-zinc-300/70">
-      {buckets.map((b, k) => {
-        const rawPct = Math.min(b.mm / 5, 1) * 100;
-        const pct = b.mm > 0 ? Math.max(rawPct, 12) : 0;
-        const opacity = b.mm > 0 ? 0.35 + (b.prob / 100) * 0.65 : 0;
+    <div className="relative flex h-1.5 w-full overflow-hidden rounded-sm bg-zinc-300/60">
+      {slots.map((s, k) => {
+        const isRain = s.mm > 0 || s.prob >= 50;
+        const opacity = isRain ? Math.min(1, 0.4 + Math.min(s.mm, 3) / 3 * 0.6 + (s.prob / 100) * 0.2) : 0;
+        const borderRight = k % 6 === 5 && k !== 23 ? "1px solid rgba(255,255,255,0.55)" : undefined;
         return (
           <div
             key={k}
-            className="flex-1 bg-[var(--wx-rain)] rounded-t-sm"
-            style={{ height: `${pct}%`, opacity, minHeight: b.mm > 0 ? 2 : 0 }}
-            title={`${k * 3}–${k * 3 + 3} Uhr · ${b.mm.toFixed(1)} mm · ${b.prob}%`}
+            className="flex-1 bg-[var(--wx-rain)]"
+            style={{ opacity, borderRight }}
+            title={`${String(k).padStart(2, "0")}–${String(k + 1).padStart(2, "0")} Uhr · ${s.mm.toFixed(1)} mm · ${s.prob}%`}
           />
         );
       })}
     </div>
   );
 }
+
 
 /* ---------------- DaySummaryBar ---------------- */
 
