@@ -664,7 +664,7 @@ function DayRainSparkline({
             <Tooltip key={k}>
               <TooltipTrigger asChild>
                 <span
-                  className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden cursor-help"
+                  className="flex-1 h-full flex flex-col justify-end bg-zinc-300/40 rounded-sm overflow-hidden"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {probExtra > 0 && (
