@@ -546,6 +546,7 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     temperature_2m_min: min(finiteAll(h.temperature_2m)),
     precipitation_sum: sum(precipFinite),
     precipitation_hours: precipHours,
+    precipitation_probability_max: max(finiteAll(h.precipitation_probability)),
     windspeed_10m_max: max(finiteAll(h.windspeed_10m)),
     windgusts_10m_max: max(finiteAll(h.windgusts_10m)),
     winddirection_10m_dominant: dominantDir,
