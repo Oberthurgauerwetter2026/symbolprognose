@@ -536,7 +536,8 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
     try {
       const mch = await getMchLocalForecastCache();
       if (mch?.locations?.length) {
-        const built = await forecastFromMchCache(data.lat, data.lon, mch.locations);
+        const omLocs = await loadSymbolLocs().catch(() => null);
+        const built = await forecastFromMchCache(data.lat, data.lon, mch.locations, omLocs);
         if (built) {
           const mosmix = await fetchMosmix({
             data: { latitude: data.lat, longitude: data.lon },
