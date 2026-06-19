@@ -1,25 +1,47 @@
-## Ziel
+## Diagnose
 
-In `src/components/weather-widget.tsx` die Funktion `DayRainSparkline` von der horizontalen 24-Stunden-Leiste zurück auf die ursprüngliche Darstellung mit **8 vertikalen Säulen** (3-h-Buckets, 00–03, 03–06, …, 21–24 Uhr) umstellen — und sicherstellen, dass tatsächlich Regen sichtbar wird.
+Im Aggregations-Pfad `buildForecastFromMchLoc` (`src/lib/forecast-aggregated.functions.ts`) gibt es eine stille Datenverlust-Kette:
 
-## Warum aktuell nichts sichtbar ist
+1. **MCH-STAC liefert oft kein stündliches `rre150h0`** (Niederschlag-mm). Die Ingest-Skripte machen dann `precipitation: [null, null, …]`.
+2. Beim Aufbau der Aggregate wird das Array via `h.precipitation.map((v) => num(v))` in **lauter `0.0`** umgewandelt (`num(null, 0) → 0`).
+3. `aggregateDailyFromHourly` rechnet daraus `precipitation_sum = 0` (statt `null`, da `0` `Number.isFinite` besteht).
+4. `enrichDailyFromHourly` **überschreibt** den korrekten MCH-Tageswert aus `rka150p0` (z. B. 5 mm) mit der 0.
+5. Ergebnis: `hourly.precipitation` ist überall 0 → `DayRainSparkline` zeichnet nichts. Auch die Tages-mm-Zahl wird auf 0 gedrückt.
 
-Die horizontale Variante färbt eine Stunde nur dann ein, wenn `mm > 0 || prob >= 50`. Da die Open-Meteo-Stunden-Niederschlagsmengen oft `0.0` mm sind und Wahrscheinlichkeiten häufig unter 50 % liegen, bleibt die Leiste komplett blass. Bei den vertikalen Säulen wird stattdessen die **mm-Summe pro 3h-Bucket** als Höhe gerendert — auch sehr kleine Werte (>0.05 mm) sind sichtbar, weil die Höhe linear skaliert und eine `minHeight` gesetzt wird.
+MCH zeigt für Amriswil mehrere mm/Stunde — wir zeigen 0, obwohl die Quelle dieselbe ist.
 
-## Änderungen (nur `DayRainSparkline`)
+## Fix (zwei kleine Änderungen in `src/lib/forecast-aggregated.functions.ts`)
 
-1. Container: `flex h-8 w-full items-end gap-px` (vertikal, unten ausgerichtet).
-2. 8 Buckets à 3 Stunden aus `hourly.precipitation`/`hourly.precipitation_probability` aggregieren (Summe mm, Max prob) — Tagesfilter via `iso.slice(0,10) === dayIso`.
-3. Höhenskala: `height = clamp(mm / scale, 0, 1) * 100%`, wobei `scale = max(2 mm, maxBucketMm * 1.1)` — so wachsen Balken bei mehr Regen mit, schwacher Regen bleibt aber sichtbar.
-4. Sichtbarkeit: jede Säule mit `bg-[var(--wx-rain)]`, `minHeight: 2px` wenn `mm > 0 || prob >= 30`, sonst leerer Hintergrund-Slot `bg-zinc-300/40`.
-5. Tooltip pro Säule: `HH–HH+3 Uhr · X.X mm · YY %`.
-6. Keine Backend-/Aggregations-Änderungen, `FORECAST_VERSION` bleibt `v10`.
+### 1) Nullen statt 0 für fehlende MCH-Stundenwerte
+
+In `buildForecastFromMchLoc` die Mapper für `precipitation` (und analog `snowfall`) so ändern, dass `null` erhalten bleibt:
+
+```ts
+precipitation: h.precipitation.map((v) => (v == null ? null : num(v))),
+snowfall:      h.snowfall.map((v) => (v == null ? null : num(v))),
+```
+
+Damit fließt `null` ungehindert in `aggregateDailyFromHourly`; `finite()` filtert sie raus; `sum([])` liefert `null`; `enrichDailyFromHourly` lässt das MCH-`rka150p0` stehen → die mm-Zahl in der Kachel ist wieder korrekt.
+
+### 2) Stunden-Niederschlag aus Open-Meteo nachziehen, wenn MCH keine Stundenwerte hat
+
+Damit die Sparkline-Säulen tatsächlich Regen zeigen (MCH liefert oft nur Tagessumme), in der phaseA→Open-Meteo-Überlagerung pro Stunde:
+
+- Wenn `merged.hourly.precipitation[i] == null` (kein MCH-Wert), den Open-Meteo-Wert übernehmen.
+- Analog für `precipitation_probability` (MCH hat keine Wahrscheinlichkeit; bereits heute aus OM).
+
+Das passt in den bestehenden Overlay-Loop ab `forecast-aggregated.functions.ts:617`; nur das Befüll-Kriterium ändert sich von „leer/NaN" auf „null oder NaN".
+
+### 3) Re-aggregieren erst nach der OM-Überlagerung
+
+Sicherstellen, dass `enrichDailyFromHourly` **nach** dem Overlay läuft (bereits der Fall), damit die Tages-mm aus den jetzt befüllten Stundenwerten wieder konsistent sind — und beim Fallback aus OM die Säulen plus Tagessumme matchen.
 
 ## Nicht geändert
 
-- `DaySummaryBar`, `DetailPanel`, Tile-Layout (Symbol/Temp/mm/%).
-- Plan-Datei `.lovable/plan.md` wird auf die neue Beschreibung angepasst.
+- `DayRainSparkline` selbst bleibt unverändert (vertikale 8 × 3h-Säulen).
+- Keine Änderung am MCH-Ingest-Skript oder an der STAC-Required-Liste.
+- `FORECAST_VERSION` auf `v11` bumpen, damit Browser-Cache verworfen wird.
 
 ## Prüfung
 
-`/karten/lokal?lat=47.5428&lon=9.2871&name=Amriswil` – sichtprüfen: pro Kachel 8 vertikale blaue Säulen, schwacher Regen ergibt mindestens eine dünne 2-px-Säule, stärkerer Regen entsprechend höhere Säulen.
+`/karten/lokal?lat=47.5428&lon=9.2871&name=Amriswil` – Amriswil-Kacheln zeigen wieder Regen-Säulen und plausible mm-Werte, vergleichbar mit der MeteoSchweiz-Lokalprognose-Seite (#forecast-tab=detail-view).
