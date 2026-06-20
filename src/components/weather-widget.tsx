@@ -68,21 +68,23 @@ function TapTooltip({
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, [open]);
-  const childOnClick = (children.props as { onClick?: (e: React.MouseEvent) => void }).onClick;
-  const trigger = (
-    <span
-      ref={(el) => {
-        triggerRef.current = el;
-      }}
-      onClick={(e) => {
-        setOpen((o) => !o);
-        childOnClick?.(e);
-      }}
-      style={{ display: "contents" }}
-    >
-      {children}
-    </span>
-  );
+  const childProps = children.props as {
+    onClick?: (e: React.MouseEvent) => void;
+    ref?: React.Ref<HTMLElement>;
+  };
+  const setRef = (el: HTMLElement | null) => {
+    triggerRef.current = el;
+    const r = childProps.ref;
+    if (typeof r === "function") r(el);
+    else if (r && typeof r === "object") (r as React.MutableRefObject<HTMLElement | null>).current = el;
+  };
+  const trigger = React.cloneElement(children, {
+    ref: setRef,
+    onClick: (e: React.MouseEvent) => {
+      setOpen((o) => !o);
+      childProps.onClick?.(e);
+    },
+  } as Partial<typeof childProps>);
   return (
     <Tooltip open={open} onOpenChange={setOpen}>
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
@@ -92,6 +94,7 @@ function TapTooltip({
     </Tooltip>
   );
 }
+
 
 interface StoredLocation {
   name: string;
