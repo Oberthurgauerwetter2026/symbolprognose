@@ -454,7 +454,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
             zoomSnap={0.5}
             zoomDelta={0.5}
             minZoom={8}
-            maxZoom={13}
+            maxZoom={15}
             maxBounds={MAP_BOUNDS}
             maxBoundsViscosity={1.0}
             scrollWheelZoom
