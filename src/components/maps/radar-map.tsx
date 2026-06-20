@@ -26,6 +26,7 @@ import thurgauData from "@/data/thurgau.json";
 
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { cn } from "@/lib/utils";
+import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 
 
 
@@ -36,30 +37,8 @@ const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const THURGAU = thurgauData as unknown as FeatureCollection;
 
-const RADAR_CITIES: { name: string; lat: number; lon: number; minZoom?: number }[] = [
-  // Tier A — Hauptorte (ab Zoom 10.5)
-  { name: "Amriswil", lat: 47.5469, lon: 9.2986 },
-  { name: "Romanshorn", lat: 47.5667, lon: 9.3786 },
-  { name: "Arbon", lat: 47.5158, lon: 9.4339 },
-  { name: "Horn", lat: 47.4986, lon: 9.4470 },
-  { name: "Münsterlingen", lat: 47.6306, lon: 9.2378 },
-  { name: "Egnach", lat: 47.5444, lon: 9.3833 },
-  { name: "Güttingen", lat: 47.6011, lon: 9.2917 },
-  // Tier B — mittelgrosse Gemeinden (ab Zoom 11.5)
-  { name: "Roggwil", lat: 47.4769, lon: 9.3922, minZoom: 11.5 },
-  { name: "Uttwil", lat: 47.5907, lon: 9.3367, minZoom: 11.5 },
-  { name: "Salmsach", lat: 47.5503, lon: 9.3725, minZoom: 11.5 },
-  { name: "Sommeri", lat: 47.5775, lon: 9.3194, minZoom: 11.5 },
-  { name: "Erlen", lat: 47.5375, lon: 9.2378, minZoom: 11.5 },
-  { name: "Langrickenbach", lat: 47.5947, lon: 9.2406, minZoom: 11.5 },
-  // Tier C — kleine Gemeinden / Ortsteile (ab Zoom 12.5)
-  { name: "Hefenhofen", lat: 47.5722, lon: 9.3289, minZoom: 12.5 },
-  { name: "Dozwil", lat: 47.5867, lon: 9.3047, minZoom: 12.5 },
-  { name: "Kesswil", lat: 47.6022, lon: 9.3217, minZoom: 12.5 },
-  { name: "Hauptwil-Gottshaus", lat: 47.4894, lon: 9.2806, minZoom: 12.5 },
-  { name: "Zihlschlacht-Sitterdorf", lat: 47.5158, lon: 9.2750, minZoom: 12.5 },
-  { name: "Bischofszell", lat: 47.4944, lon: 9.2389, minZoom: 12.5 },
-];
+const RADAR_CITIES = OBERTHURGAU_PLACES;
+
 
 function cityIcon(name: string): L.DivIcon {
   const bullet =
@@ -1152,7 +1131,7 @@ export function RadarMap({
               const hasPng = !!currentFrame.precipUrl;
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
-              const opacityVal = 0.75;
+              const opacityVal = 0.6;
 
               return (
                 <>
