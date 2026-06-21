@@ -620,7 +620,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       </div>
 
       {/* Map */}
-      <div className={cn("relative", bare ? "h-full min-h-[400px]" : "h-[620px]")}>
+      <div ref={mapBoxRef} className={cn("relative", bare ? "h-full min-h-[400px]" : "h-[620px]")}>
         <MapContainer
           center={region.center}
           zoom={region.zoom}
@@ -639,13 +639,16 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           <FlyToRegion regionId={regionId} />
           {frames.length > 0 && (
             <FrameStack
-              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}-${pixelSize.w}x${pixelSize.h}`}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               frames={frames}
+              bbox={data?.bbox ?? region.bbox}
+              pixelSize={pixelSize}
               activeIndex={index}
               initialIndex={initialIndexRef.current}
               onProgress={(l) => setLoaded(l)}
+              onActiveReady={() => setActiveReady(true)}
             />
           )}
           {showSwiss && <SwissOutline />}
