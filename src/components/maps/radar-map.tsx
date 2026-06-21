@@ -556,7 +556,9 @@ function PrecipOverlay({
     // Bilineares Upscaling für beide Modi → weiche, geschwungene Iso-Kanten.
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
+    if (contour) ctx.filter = "blur(1px)";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+    if (contour) ctx.filter = "none";
     ctx.restore();
   };
 
