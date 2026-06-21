@@ -1336,6 +1336,9 @@ export function RadarMap({
               className="hail-blackdots"
             />
           )}
+          {data && currentFrame && showHail && currentFrame.source === "radar" && (
+            <MeasurementHailDotsLayer payload={data} frame={currentFrame} />
+          )}
 
 
 
