@@ -516,15 +516,20 @@ function PrecipOverlay({
           const sy0 = fyRaw * 0.85;
           const rx0 = sx0 * COS - sy0 * SIN;
           const ry0 = sx0 * SIN + sy0 * COS;
-          // Grosse, niedrigfrequente Verschiebung der Abtastpunkte
-          const dxL = (fbm(rx0 * 0.18 + 3.1, ry0 * 0.18 - 7.7) - 0.5) * 5.5;
-          const dyL = (fbm(rx0 * 0.18 - 12.3, ry0 * 0.18 + 4.9) - 0.5) * 5.5;
-          // Feine, hochfrequente Kanten-Wellung
-          const dxH = (fbm(rx0 * 0.75 + 21.4, ry0 * 0.75 - 1.2) - 0.5) * 1.8;
-          const dyH = (fbm(rx0 * 0.75 - 5.6, ry0 * 0.75 + 18.7) - 0.5) * 1.8;
+          // Sehr grosse Grundverlagerung ganzer Niederschlagsareale.
+          const dxXL = (fbm(rx0 * 0.08 - 19.2, ry0 * 0.08 + 13.6) - 0.5) * 9.0;
+          const dyXL = (fbm(rx0 * 0.08 + 8.4, ry0 * 0.08 - 16.8) - 0.5) * 9.0;
+          // Grosse, niedrigfrequente Verschiebung der Abtastpunkte.
+          const dxL = (fbm(rx0 * 0.22 + 3.1, ry0 * 0.22 - 7.7) - 0.5) * 11.0;
+          const dyL = (fbm(rx0 * 0.22 - 12.3, ry0 * 0.22 + 4.9) - 0.5) * 11.0;
+          // Feine, hochfrequente Kanten-Wellung.
+          const dxH = (fbm(rx0 * 0.9 + 21.4, ry0 * 0.9 - 1.2) - 0.5) * 3.8;
+          const dyH = (fbm(rx0 * 0.9 - 5.6, ry0 * 0.9 + 18.7) - 0.5) * 3.8;
           // Rückrotation in fx/fy-Achsen, damit Verschiebung nicht achsparallel ist
-          const dX = (dxL + dxH) * COS + (dyL + dyH) * SIN;
-          const dY = -(dxL + dxH) * SIN + (dyL + dyH) * COS;
+          const wx = dxXL + dxL + dxH;
+          const wy = dyXL + dyL + dyH;
+          const dX = wx * COS + wy * SIN;
+          const dY = -wx * SIN + wy * COS;
           fxS = fxRaw + dX;
           fyS = fyRaw + dY;
         }
@@ -539,13 +544,15 @@ function PrecipOverlay({
           const sy = fyRaw * 0.85;
           const rx = sx * COS - sy * SIN;
           const ry = sx * SIN + sy * COS;
-          const n = fbm(rx * 0.55 + 4.2, ry * 0.55 - 9.8);
-          const mod = 0.2 + n * 1.6;
-          const env1 = fbm(rx * 0.32 - 5.7, ry * 0.32 + 11.2);
-          const env2 = fbm(rx * 1.1 + 31.1, ry * 1.1 - 7.4);
-          const env3 = fbm(rx * 2.3 - 14.6, ry * 2.3 + 2.8);
-          const envRaw = env1 * 0.6 + env2 * 0.28 + env3 * 0.12;
-          const envelope = Math.max(0, envRaw * 3.0 - 1.15);
+          const n = fbm(rx * 0.7 + 4.2, ry * 0.7 - 9.8);
+          const mod = 0.12 + n * 1.9;
+          const env1 = fbm(rx * 0.38 - 5.7, ry * 0.38 + 11.2);
+          const env2 = fbm(rx * 1.35 + 31.1, ry * 1.35 - 7.4);
+          const env3 = fbm(rx * 3.0 - 14.6, ry * 3.0 + 2.8);
+          const env4 = fbm(rx * 5.4 + 6.9, ry * 5.4 - 22.5);
+          const envRaw = env1 * 0.5 + env2 * 0.27 + env3 * 0.15 + env4 * 0.08;
+          const fracture = fbm(rx * 4.2 - 28.1, ry * 4.2 + 17.3) > 0.36 ? 1 : 0;
+          const envelope = Math.max(0, envRaw * 3.45 - 1.38) * fracture;
           v = v * mod * envelope;
         }
 
