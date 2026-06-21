@@ -361,8 +361,10 @@ function PrecipOverlay({
         // Beide Layer (Messung-Fallback und Prognose) bekommen denselben
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
-        cv.style.filter = contour ? "contrast(1.1) blur(1.2px)" : "contrast(1.1)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
+        cv.style.filter = "contrast(1.1)";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = contour
+          ? "pixelated"
+          : "auto";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -420,8 +422,8 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Prognose: feines 2-Pixel-Raster mit Smoothing → organische Iso-Konturen.
-    const STEP = 2;
+    // Prognose: chunky 3-Pixel-Raster (Wetter-Modell-Look). Messung: feiner.
+    const STEP = contour ? 3 : 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -553,8 +555,8 @@ function PrecipOverlay({
     // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    // Bilineares Upscaling für beide Modi → weiche, geschwungene Iso-Kanten.
-    ctx.imageSmoothingEnabled = true;
+    // Prognose: nearest-neighbour upscaling → sichtbare Pixel-Kanten.
+    ctx.imageSmoothingEnabled = !contour;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
