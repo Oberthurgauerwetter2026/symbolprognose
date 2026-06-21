@@ -515,11 +515,14 @@ function PrecipOverlay({
           const sy = fyRaw * 0.85;
           const rx = sx * COS - sy * SIN;
           const ry = sx * SIN + sy * COS;
-          const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.2;
-          const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.2;
+          const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
+          const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
           const n = fbm(rx + warpX, ry + warpY);
-          const mod = 0.3 + n * 1.45;
-          v = v * mod;
+          const mod = 0.25 + n * 1.55;
+          // Grossräumiger Envelope-Noise → bricht die Daten-Bbox auf, ohne zu glätten.
+          const env = fbm(rx * 0.12 - 5.7, ry * 0.12 + 11.2);
+          const envelope = Math.max(0, env * 1.9 - 0.18);
+          v = v * mod * envelope;
         }
 
 
