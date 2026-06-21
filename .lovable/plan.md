@@ -1,44 +1,106 @@
-## Ziel
 
-In **Prognose-Frames** (und Mess-Frames ohne POH-PNG) sollen automatisch schwarze Hagel-Punkte erscheinen, wo die Niederschlagsintensität ein gewitter-/hageltypisches Niveau erreicht. Optisch gleich wie der bestehende POH-Layer (`.hail-blackdots`).
+# Satellitenanimation (EUMETView WMS)
 
-## Änderungen (nur `src/components/maps/radar-map.tsx`, `CanvasPrecipLayer`/`redrawRef`)
+Neuer Karten-Tab `/karten/satellit` mit professioneller Zeitraffer-Animation, modelliert nach dem bestehenden Radar-Tab. Datenquelle ist der offene EUMETView WMS-Service von EUMETSAT — kein API-Key, kein eigener Ingest, kein Cloud-Worker nötig.
 
-### 1. Hagel-Schwellen aus Intensität ableiten
+## Regionen (Auswahlmenü)
 
-Nach der bestehenden `v = v * mod`-Modulation (Zeile 522) wird `v` (mm/h, äquivalent zu dBZ-Stufen) gegen zwei Schwellen geprüft:
+Standard: **Schweiz** (Bounding-Box ca. 5.5–11.0°E / 45.5–48.0°N, Layer auf Alpen-Subset gezoomt).
 
-- `HAIL_LOW = 25 mm/h` → leichte Hagel-Wahrscheinlichkeit
-- `HAIL_HIGH = 50 mm/h` → hohe Wahrscheinlichkeit
+| Label                | EUMETView Layer (WMS `LAYERS`)                                                     | Default-Zentrum / Zoom |
+|----------------------|-------------------------------------------------------------------------------------|------------------------|
+| Schweiz              | `mtg_fd:rgb_truecolor` (MTG FCI True Color, Vollscheibe, Schweiz-Ausschnitt)        | 46.8 / 8.2, z6         |
+| Alpen True Colour    | `mtg_fd:rgb_truecolor`                                                              | 46.5 / 10.0, z5        |
+| Europa GeoColour     | `mtg_fd:rgb_geocolour` (Fallback: `msg_iodc:rgb_naturalenhncd`)                     | 50 / 10, z4            |
+| Europa Infrarot      | `mtg_fd:ir105` (10.5 µm, invertiert, Standard-Colormap)                             | 50 / 10, z4            |
+| Global Infrarot      | `mumi:wideareacoverage_ir` (globale IR-Mosaik aus mehreren Geo-Satelliten)          | 20 / 0, z2             |
 
-`hailProb = smoothstep(HAIL_LOW, HAIL_HIGH, v)` → 0..1.
+Beim Wechsel der Region wird `map.flyTo(...)` ausgeführt und die WMS-Layer-URL ersetzt; Animationsindex bleibt erhalten.
 
-Nur aktiv, wenn `contour === true` (Prognose-/Modell-Frames). Mess-Frames mit echtem `hailUrl` bleiben unverändert; Mess-Frames ohne `hailUrl` bekommen die abgeleiteten Punkte ebenfalls (Flag `useDerivedHail = contour || !frame.hailUrl`).
+## Daten- und Zeit-Logik
 
-Nur in den Messungen! Nicht in Prognose
+`src/lib/satellite.functions.ts` (neue Datei):
+- `getSatelliteManifest({ region })` — `createServerFn`, gibt Frame-Liste der letzten 5h zurück.
+- Server-seitige Helper berechnen die Frame-Zeitachse (kein Netzwerk-Call nötig):
+  - `now` auf nächste 10-Min-Grenze abrunden (MTG FCI publiziert alle 10 min, MSG/IR/Global alle 15 min).
+  - Pro Region eigener `stepMinutes`: `mtg_truecolor`/`geocolour` = 10 min, `ir` = 15 min, `global_ir` = 30 min → 30/20/10 Frames für 5 h.
+  - Latency-Puffer: aktuelle Zeit minus `latencyMinutes` pro Layer (MTG ~20 min, Global ~45 min), damit der jüngste Frame existiert.
+- Rückgabe: `{ region, layer, frames: [{ time: ISO, label: "HH:mm" }], updatedAt }`.
+- Caching: 60s in-memory + `Cache-Control: public, max-age=60` Response-Header.
 
-### 2. Punkte zeichnen
+Kein Ingest, kein R2, kein pg_cron — der Browser holt Tiles direkt von `https://view.eumetsat.int/geoserver/wms`.
 
-Nach `drawImage(off, ...)` (Zeile 568) ein zweiter Pass in voller Canvas-Auflösung:
+## Route & Komponenten
 
-- Raster ≈ alle **6 CSS-Pixel** (in `dpr`-skaliertem ctx).
-- Pro Rasterpunkt: identische Lat/Lng → fx/fy → Sample wie oben; `hailProb` berechnen.
-- Deterministischer `hash(ix, iy, seed)` (bereits vorhanden) → wenn `hash < hailProb * 0.55`, einen Punkt setzen.
-- Punkt: `ctx.fillStyle = "rgba(0,0,0,0.85)"`, `ctx.beginPath(); ctx.arc(px, py, 1.1, 0, 2π); ctx.fill();`
-- Stabil pro Frame (gleicher Seed wie Noise), kein Flackern; Crossfade zwischen Frames via gleichem Seed-Schema.
+```
+src/routes/karten.satellit.tsx                neuer Tab, lädt Manifest via useSuspenseQuery
+src/components/maps/satellite-map.tsx          Leaflet-Karte + WMS-Layer + Steuerung
+src/components/maps/satellite-controls.tsx     Play/Pause/Step/Speed/Timeline UI
+src/lib/satellite.functions.ts                 Server-Fn + Regions-Config
+src/lib/maps-config.ts                         neuen Eintrag `satellit` ergänzen
+src/components/map-tabs.tsx                    Tab aktiv schalten (Status `live`)
+src/components/embeds/satellit-noscript.tsx    Noscript-Fallback (analog Radar)
+src/routes/embed.satellit.tsx                  Embed-Variante
+```
 
-Hinweis: kein separates Canvas/Overlay — derselbe Layer, nach dem Niederschlag gezeichnet, damit Z-Order konsistent ist (`zIndex 440`, Punkte sichtbar über Farbflächen).
+### Leaflet-Setup
 
-### 3. Toggle wiederverwenden
+- `MapContainer` mit `zoomControl`, `attribution` (EUMETSAT/EUMETView gemäss Nutzungsbedingungen).
+- Hintergrund-Basemap: CartoDB Dark Matter (wie Radar) für Konsistenz.
+- 2 vorgeladene `L.TileLayer.WMS`-Instanzen, die per Frame-Step gecrossfaded werden (`opacity` 0↔1, 250 ms) — verhindert Flackern beim Frame-Wechsel.
+- WMS-Request:
+  ```
+  https://view.eumetsat.int/geoserver/wms
+    ?service=WMS&version=1.3.0&request=GetMap
+    &layers={layer}&styles=&format=image/png&transparent=true
+    &time={ISO}&tiled=true&width=256&height=256
+    &crs=EPSG:3857&bbox={...}
+  ```
+- Frame-Preloading: nächste 3 Frames vorausladen via `new Image()` + Browser-Cache.
 
-Sichtbarkeit des abgeleiteten Hagels über bestehenden `showHail`-State. Dafür `showHail` als Prop in `CanvasPrecipLayer` reinreichen (aktuell nicht vorhanden) und nur dann den Dot-Pass laufen lassen. `data.hasHail` im Reducer auf `true` setzen, sobald irgendein Mess-ODER Forecast-Frame existiert (damit das UI-Toggle nicht disabled bleibt) — kleinste Anpassung in `radar.functions.ts` (`hasHail = hasRealRadar || forecast vorhanden`).
+### Optional-Layer (Toggles)
 
-### 4. Legende
+- Ländergrenzen: vorhandenes `src/data/` enthält bereits Thurgau/Lake; für Welt nutzen wir `world-atlas/countries-50m.json` (npm: `world-atlas`, ~50 kB), gezeichnet als `L.GeoJSON` Linie.
+- Kantonsgrenzen CH: vorhandene Schweiz-Datei wiederverwenden (falls vorhanden, sonst klein nachladen aus `swissBOUNDARIES` simplified GeoJSON, on-demand).
+- Ortsnamen: kleine kuratierte Liste der grössten CH/EU-Städte als `L.Marker` mit Text-Label (kein externer Service).
+- Höhenrelief: optionaler Hillshade-Tile-Layer von ESRI (`World_Hillshade`) als zusätzliche transparente Layer mit Opacity-Slider.
 
-`"Hagel (POH)"` → `"Hagel (POH / abgeleitet bei Gewitter)"` im Tooltip-Text. Legenden-Punkte und Farbskala unverändert.
+Alle Toggles in einer Popover-Liste oben rechts, identisch zur Radar-Karten-Optik.
 
-## Nicht enthalten
+### Steuerung (satellite-controls.tsx)
 
-- Keine neuen Datenquellen / API-Calls.
-- Keine Änderung des Forecast-Farbschemas, der Konturen, der Noise-Parameter.
-- Kein neuer Layer-Komponententyp.
+- Play / Pause Button (Space-Shortcut).
+- Vorwärts / Rückwärts Step (Pfeiltasten).
+- Geschwindigkeit Select: 0.5× / 1× / 2× / 4× (Basis-Intervall 500 ms).
+- Timeline: shadcn `Slider`, Tick pro Frame, Tooltip mit Uhrzeit beim Hover.
+- Vollbild-Button: Browser Fullscreen API auf Map-Container.
+- Anzeige oben: `Region · 21.06.2026 · 14:35 · Frame 18/30`.
+- Auto-Refresh: alle 60s `router.invalidate()` der Manifest-Query; bei neuen Frames werden ältere am Anfang verworfen, Wiedergabeposition bleibt auf aktuellem Zeitstempel (nicht Index).
+- Auto-Play beim Mount aktiviert.
+
+### Responsive
+
+- Desktop: Steuerleiste unter der Karte, volle Höhe nutzen.
+- Tablet/Mobile: Steuerleiste kompakt überlagert (`absolute bottom-0`), Touch-Gesten von Leaflet (pinch zoom, drag), Vollbild-Button prominent.
+- Verwendung des bestehenden `useIsMobile()`-Hooks.
+
+### Fallback
+
+- Wenn ein WMS-Request 404/500 liefert (Tile fehlt), Frame überspringen und im Timeline-Tick ausgrauen.
+- Wenn das ganze Manifest leer ist: Card mit Hinweis "Satellitenbilder vorübergehend nicht verfügbar".
+
+## Navigation
+
+- `src/lib/maps-config.ts`: neuer Eintrag `{ id: "satellit", label: "Satellit", routePath: "/karten/satellit", status: "live", icon: Satellite }`.
+- `map-tabs.tsx` zeigt den Tab automatisch (über MAPS-Array).
+
+## SEO
+
+`head()` der neuen Route: Title "Satellitenbild Schweiz – Zeitraffer", Description, OG-Tags. Embed-Route bleibt `noindex`.
+
+## Was NICHT gemacht wird
+
+- Kein neuer GitHub-Action-Ingest, kein R2-Bucket, kein Cron — EUMETView serviert direkt.
+- Kein API-Key, kein neues Secret.
+- Keine Änderungen an Radar/Wind/Niederschlag.
+- Keine Datenbanktabellen.
