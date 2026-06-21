@@ -106,11 +106,12 @@ function renderStaticForecast(data: StaticForecastData): string {
     .join("");
 
   const dailyRows = data.daily
+    .slice(0, 3)
     .map((d) => {
       const code = d.weathercode ?? 0;
       const sym = renderWeatherIconSvg({
         code,
-        size: 32,
+        size: 28,
         scope: "daily",
         precip: n(d.precipSum),
         precipProb: n(d.precipProb),
