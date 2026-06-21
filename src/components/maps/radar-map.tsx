@@ -654,10 +654,14 @@ function MeasurementHailDotsLayer({
     if (!ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
 
-    // Nur für Mess-Frames (Radar) — Prognose ist explizit ausgeschlossen.
-    if (frame.source !== "radar") return;
+    // Mess- und Forecast-Frames: bei intensivem Ns (Gewittersignal) Hagelpunkte.
     const vals = frame.values;
     if (!vals || vals.length === 0) return;
+    let vmax = 0;
+    for (let i = 0; i < vals.length; i++) if (vals[i] > vmax) vmax = vals[i];
+    if (import.meta.env.DEV) {
+      console.debug("[hail-dots]", frame.t, frame.source, "max mm/h:", vmax.toFixed(2));
+    }
 
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
