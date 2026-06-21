@@ -420,8 +420,8 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Prognose: feines 2-Pixel-Raster mit Smoothing → organische Iso-Konturen.
-    const STEP = 2;
+    // Prognose: grobes 4-px-Raster + bilineares Smoothing → runde Iso-Konturen.
+    const STEP = contour ? 4 : 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
