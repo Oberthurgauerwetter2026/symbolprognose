@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v22-native-raster"
+RADAR_INGEST_VERSION = "v23-native-raster-nodata"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # RZC instant rate, mm/h
@@ -425,9 +425,15 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
                 image_time = None
 
         arr = data.astype(np.float32)
-        mask = (arr == nodata) | (arr == undetect) | ~np.isfinite(arr)
+        # nodata = ausserhalb Radar-Abdeckung → NaN (bleibt transparent).
+        # undetect = innerhalb Abdeckung, aber kein Niederschlag erkannt → 0 mm/h
+        # (NICHT NaN, sonst entsteht entlang trockener Bereiche eine künstliche
+        # Kante zwischen "Abdeckung 0" und "Abdeckung Regen".)
+        nodata_mask = (arr == nodata) | ~np.isfinite(arr)
+        undetect_mask = (arr == undetect)
         arr = arr * gain + offset
-        arr[mask | ~np.isfinite(arr)] = np.nan
+        arr[nodata_mask] = np.nan
+        arr[undetect_mask & ~nodata_mask] = 0.0
 
         meta = {
             "projdef": (top_where.get("projdef") or b"").decode("ascii", "ignore")
@@ -469,15 +475,20 @@ def sample_to_bbox(values: np.ndarray, meta: dict) -> np.ndarray:
     dx = (ur_x - ll_x) / w
     dy = (ur_y - ll_y) / h
 
-    # Output pixel grid in WGS84 → reproject to native → index lookup.
-    lons = np.linspace(BBOX_WGS["minLon"], BBOX_WGS["maxLon"], OUT_W)
-    lats = np.linspace(BBOX_WGS["maxLat"], BBOX_WGS["minLat"], OUT_H)  # top→bottom
+    # Output-Pixel-Zentren (nicht Kanten) in WGS84 → reproject → Index.
+    # Sample-Punkt = Mitte jedes Output-Pixels: vermeidet halbpixelige
+    # Verschiebungen, die am Coverage-Rand zu zusätzlichen Treppen-Kanten
+    # führen können. Niederschlagswerte werden NICHT interpoliert.
+    lon_step = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / OUT_W
+    lat_step = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / OUT_H
+    lons = BBOX_WGS["minLon"] + (np.arange(OUT_W) + 0.5) * lon_step
+    lats = BBOX_WGS["maxLat"] - (np.arange(OUT_H) + 0.5) * lat_step  # top→bottom
     lon_grid, lat_grid = np.meshgrid(lons, lats)
     xs, ys = to_native.transform(lon_grid.ravel(), lat_grid.ravel())
 
-    # Index into native array (row 0 is top in numpy; ODIM stores top→bottom).
-    cols = ((xs - ll_x) / dx).astype(np.int32)
-    rows = ((ur_y - ys) / dy).astype(np.int32)
+    # Nearest-neighbour: Pixelzentren in native Grid (row 0 = top).
+    cols = np.floor((xs - ll_x) / dx).astype(np.int32)
+    rows = np.floor((ur_y - ys) / dy).astype(np.int32)
     valid = (cols >= 0) & (cols < w) & (rows >= 0) & (rows < h)
 
     out = np.full(OUT_W * OUT_H, np.nan, dtype=np.float32)
