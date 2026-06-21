@@ -553,8 +553,8 @@ function PrecipOverlay({
     // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    // Prognose: nearest-neighbour upscaling → sichtbare Pixel-Kanten.
-    ctx.imageSmoothingEnabled = !contour;
+    // Bilineares Upscaling für beide Modi → weiche, geschwungene Iso-Kanten.
+    ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
