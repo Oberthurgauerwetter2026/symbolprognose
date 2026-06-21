@@ -102,7 +102,12 @@ export interface SatelliteManifest {
   updatedAt: string;
 }
 
-const TOTAL_HOURS = 5;
+function totalHoursFor(region: SatelliteRegion): number {
+  // HRFI-Layer: kürzeres Fenster = schnellere Ladezeit, da pro Frame ~6 Tiles à ~40 KB.
+  // Global-IR: 5 h, da Step 180 min sonst zu wenig Frames.
+  if (region.id === "global-ir") return 5;
+  return 3;
+}
 
 function floorToStep(date: Date, stepMin: number): Date {
   const ms = stepMin * 60_000;
@@ -112,7 +117,7 @@ function floorToStep(date: Date, stepMin: number): Date {
 function buildFrames(region: SatelliteRegion, now: Date): SatelliteFrame[] {
   const latestMs = now.getTime() - region.latencyMinutes * 60_000;
   const latest = floorToStep(new Date(latestMs), region.stepMinutes);
-  const count = Math.floor((TOTAL_HOURS * 60) / region.stepMinutes);
+  const count = Math.floor((totalHoursFor(region) * 60) / region.stepMinutes);
   const frames: SatelliteFrame[] = [];
   for (let i = count - 1; i >= 0; i--) {
     const t = new Date(latest.getTime() - i * region.stepMinutes * 60_000);
