@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      EXPECTED_RADAR_INGEST_VERSION: "v22-native-raster"
+      EXPECTED_RADAR_INGEST_VERSION: "v23-native-raster-nodata"
       RADAR_LOOKBACK_HOURS: "6"
     steps:
       - uses: actions/checkout@v4
