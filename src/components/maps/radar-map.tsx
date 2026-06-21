@@ -505,26 +505,47 @@ function PrecipOverlay({
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
 
-        const vCur = sampleAt(vals, fxRaw, fyRaw);
-        let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
+        let fxS = fxRaw;
+        let fyS = fyRaw;
 
-        // Prognose: rotierter, domain-warped fBm → keine geraden Lattice-
-        // Kanten an Bandgrenzen.
+        // Prognose: Sample-Position selbst rotiert + mehrskalig verzerren,
+        // damit die rechteckigen Modell-Zellen nicht mehr karten-parallel
+        // liegen. Dadurch verschwinden 90°-Ecken auch in den Iso-Bändern.
+        if (contour) {
+          const sx0 = fxRaw * 0.9;
+          const sy0 = fyRaw * 0.85;
+          const rx0 = sx0 * COS - sy0 * SIN;
+          const ry0 = sx0 * SIN + sy0 * COS;
+          // Grosse, niedrigfrequente Verschiebung der Abtastpunkte
+          const dxL = (fbm(rx0 * 0.18 + 3.1, ry0 * 0.18 - 7.7) - 0.5) * 5.5;
+          const dyL = (fbm(rx0 * 0.18 - 12.3, ry0 * 0.18 + 4.9) - 0.5) * 5.5;
+          // Feine, hochfrequente Kanten-Wellung
+          const dxH = (fbm(rx0 * 0.75 + 21.4, ry0 * 0.75 - 1.2) - 0.5) * 1.8;
+          const dyH = (fbm(rx0 * 0.75 - 5.6, ry0 * 0.75 + 18.7) - 0.5) * 1.8;
+          // Rückrotation in fx/fy-Achsen, damit Verschiebung nicht achsparallel ist
+          const dX = (dxL + dxH) * COS + (dyL + dyH) * SIN;
+          const dY = -(dxL + dxH) * SIN + (dyL + dyH) * COS;
+          fxS = fxRaw + dX;
+          fyS = fyRaw + dY;
+        }
+
+        const vCur = sampleAt(vals, fxS, fyS);
+        let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxS, fyS)) : vCur;
+
+        // Aggressive Envelope-Maske: schneidet harte, nicht-rechteckige
+        // Löcher in die Daten-Bbox; bricht die äusseren Ränder organisch auf.
         if (contour && v > 0) {
           const sx = fxRaw * 0.9;
           const sy = fyRaw * 0.85;
           const rx = sx * COS - sy * SIN;
           const ry = sx * SIN + sy * COS;
-          const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-          const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
-          const n = fbm(rx + warpX, ry + warpY);
-          const mod = 0.25 + n * 1.55;
-          // Envelope-Noise — bricht die rechteckige Daten-Bbox in unregelmässige
-          // Zellen auf. Zwei Frequenzen + harter Threshold → echte Null-Inseln.
-          const env1 = fbm(rx * 0.28 - 5.7, ry * 0.28 + 11.2);
-          const env2 = fbm(rx * 0.9 + 31.1, ry * 0.9 - 7.4);
-          const envRaw = env1 * 0.75 + env2 * 0.25;
-          const envelope = Math.max(0, envRaw * 2.6 - 0.95);
+          const n = fbm(rx * 0.55 + 4.2, ry * 0.55 - 9.8);
+          const mod = 0.2 + n * 1.6;
+          const env1 = fbm(rx * 0.32 - 5.7, ry * 0.32 + 11.2);
+          const env2 = fbm(rx * 1.1 + 31.1, ry * 1.1 - 7.4);
+          const env3 = fbm(rx * 2.3 - 14.6, ry * 2.3 + 2.8);
+          const envRaw = env1 * 0.6 + env2 * 0.28 + env3 * 0.12;
+          const envelope = Math.max(0, envRaw * 3.0 - 1.15);
           v = v * mod * envelope;
         }
 
