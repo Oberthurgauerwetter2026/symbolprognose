@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapContainer, TileLayer, ZoomControl, useMap } from "react-leaflet";
+import { MapContainer, ZoomControl, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -10,7 +10,6 @@ import {
   SkipForward,
   Maximize2,
   Minimize2,
-  Settings,
   Loader2,
 } from "lucide-react";
 import {
@@ -21,8 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -30,7 +27,7 @@ import {
   getRegion,
   getSatelliteManifest,
   type SatelliteRegionId,
-  type SatelliteManifest,
+  type SatelliteFrame,
 } from "@/lib/satellite.functions";
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
@@ -42,33 +39,25 @@ const SPEEDS = [
   { label: "4×", ms: 125 },
 ];
 
-interface Overlays {
-  borders: boolean;
-  cantons: boolean;
-  places: boolean;
-  hillshade: boolean;
-}
-
 function formatDateLong(iso: string): string {
-  const d = new Date(iso);
   return new Intl.DateTimeFormat("de-CH", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     timeZone: "Europe/Zurich",
-  }).format(d);
+  }).format(new Date(iso));
 }
 
 function formatTimeLong(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("de-CH", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Zurich",
-  }).format(d) + " Uhr";
+  return (
+    new Intl.DateTimeFormat("de-CH", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Zurich",
+    }).format(new Date(iso)) + " Uhr"
+  );
 }
 
-/** Flies the map to a new center/zoom when region changes. */
 function FlyToRegion({ regionId }: { regionId: SatelliteRegionId }) {
   const map = useMap();
   useEffect(() => {
@@ -79,91 +68,71 @@ function FlyToRegion({ regionId }: { regionId: SatelliteRegionId }) {
 }
 
 /**
- * Crossfade-WMS layer: keeps two WMS layers in the DOM and fades opacity
- * between them whenever the active frame changes — eliminates flicker.
+ * Mountet einen WMS-Layer pro Frame (alle opacity:0 außer activeIndex).
+ * Frame-Wechsel = nur Opacity-Toggle → keine neuen Requests, kein Flackern.
+ * Meldet Loading-Fortschritt via onProgress (0..1).
  */
-function CrossfadeWMS({
+function FrameStack({
   layer,
-  time,
+  frames,
+  activeIndex,
+  onProgress,
 }: {
   layer: string;
-  time: string;
+  frames: SatelliteFrame[];
+  activeIndex: number;
+  onProgress: (loaded: number, total: number) => void;
 }) {
   const map = useMap();
-  const aRef = useRef<L.TileLayer.WMS | null>(null);
-  const bRef = useRef<L.TileLayer.WMS | null>(null);
-  const activeRef = useRef<"a" | "b">("a");
-  const lastTimeRef = useRef<string>("");
-  const lastLayerRef = useRef<string>("");
+  const layersRef = useRef<L.TileLayer.WMS[]>([]);
+  const loadedRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
+    loadedRef.current = new Set();
     const opts: L.WMSOptions = {
       layers: layer,
-      format: "image/png",
-      transparent: true,
+      format: "image/jpeg",
+      transparent: false,
       version: "1.3.0",
       crs: L.CRS.EPSG3857,
       tileSize: 256,
-      opacity: 1,
-      attribution: '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
+      attribution:
+        '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
-    const a = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 1 });
-    const b = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 0 });
-    a.setParams({ time } as unknown as L.WMSParams, false);
-    b.setParams({ time } as unknown as L.WMSParams, false);
-    a.addTo(map);
-    b.addTo(map);
-    aRef.current = a;
-    bRef.current = b;
-    lastTimeRef.current = time;
-    lastLayerRef.current = layer;
+    const arr: L.TileLayer.WMS[] = frames.map((f, i) => {
+      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 0 });
+      tl.setParams({ time: f.time } as unknown as L.WMSParams, false);
+      tl.on("load", () => {
+        if (!loadedRef.current.has(i)) {
+          loadedRef.current.add(i);
+          onProgress(loadedRef.current.size, frames.length);
+        }
+      });
+      tl.addTo(map);
+      return tl;
+    });
+    layersRef.current = arr;
+    // initial: aktivieren
+    if (arr[activeIndex]) arr[activeIndex].setOpacity(1);
+    onProgress(0, frames.length);
     return () => {
-      a.remove();
-      b.remove();
-      aRef.current = null;
-      bRef.current = null;
+      arr.forEach((tl) => tl.remove());
+      layersRef.current = [];
     };
-    // We intentionally only init once on mount + layer change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map]);
+  }, [map, layer, frames]);
 
-  // Layer change → reset both WMS instances.
+  // Active-Index ändern → Opacity umschalten
   useEffect(() => {
-    if (!aRef.current || !bRef.current) return;
-    if (lastLayerRef.current === layer) return;
-    aRef.current.setParams({ layers: layer, time } as L.WMSParams, false);
-    bRef.current.setParams({ layers: layer, time } as L.WMSParams, false);
-    aRef.current.setOpacity(1);
-    bRef.current.setOpacity(0);
-    activeRef.current = "a";
-    lastLayerRef.current = layer;
-    lastTimeRef.current = time;
-  }, [layer, time]);
-
-  // Frame (time) change → crossfade.
-  useEffect(() => {
-    if (!aRef.current || !bRef.current) return;
-    if (lastTimeRef.current === time) return;
-    const active = activeRef.current;
-    const next = active === "a" ? bRef.current : aRef.current;
-    const curr = active === "a" ? aRef.current : bRef.current;
-    next.setParams({ time } as unknown as L.WMSParams, false);
-    // Wait one tick for tiles to start loading, then fade.
-    const fade = () => {
-      next.setOpacity(1);
-      curr.setOpacity(0);
-    };
-    const t = window.setTimeout(fade, 60);
-    activeRef.current = active === "a" ? "b" : "a";
-    lastTimeRef.current = time;
-    return () => window.clearTimeout(t);
-  }, [time]);
+    const arr = layersRef.current;
+    arr.forEach((tl, i) => tl.setOpacity(i === activeIndex ? 1 : 0));
+  }, [activeIndex]);
 
   return null;
 }
 
 export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
-  const [regionId, setRegionId] = useState<SatelliteRegionId>("schweiz");
+  const [regionId, setRegionId] = useState<SatelliteRegionId>("alpen-ch");
   const region = useMemo(() => getRegion(regionId), [regionId]);
 
   const { data, isLoading } = useQuery({
@@ -173,20 +142,18 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     refetchInterval: 60_000,
   });
 
-  const frames = data?.frames ?? [];
+  const frames = useMemo(() => data?.frames ?? [], [data]);
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(500);
-  const [overlays, setOverlays] = useState<Overlays>({
-    borders: true,
-    cantons: regionId === "schweiz" || regionId === "alpen",
-    places: false,
-    hillshade: false,
-  });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [loaded, setLoaded] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Lock playback to the latest frame when frames arrive / refresh.
+  const total = frames.length;
+  const ready = total > 0 && loaded / total >= 0.8;
+
+  // Reset auf neuesten Frame bei Frame-Wechsel
   const lastTimeRef = useRef<string | null>(null);
   useEffect(() => {
     if (frames.length === 0) return;
@@ -195,30 +162,40 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       lastTimeRef.current = frames[frames.length - 1].time;
       return;
     }
-    // Keep playhead anchored to the same wall-clock time if possible.
     const idx = frames.findIndex((f) => f.time === lastTimeRef.current);
-    if (idx >= 0) {
-      setIndex(idx);
-    } else {
+    if (idx >= 0) setIndex(idx);
+    else {
       setIndex(frames.length - 1);
       lastTimeRef.current = frames[frames.length - 1].time;
     }
   }, [frames]);
 
-  // Auto-play loop.
+  // Loading-Reset bei Region-/Frame-Wechsel
   useEffect(() => {
-    if (!playing || frames.length < 2) return;
+    setLoaded(0);
+    setPlaying(false);
+  }, [regionId]);
+
+  // Auto-start sobald geladen
+  useEffect(() => {
+    if (ready && !playing && total >= 2) setPlaying(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  // Playback
+  useEffect(() => {
+    if (!playing || total < 2 || !ready) return;
     const t = window.setInterval(() => {
       setIndex((i) => {
-        const next = (i + 1) % frames.length;
+        const next = (i + 1) % total;
         lastTimeRef.current = frames[next]?.time ?? null;
         return next;
       });
     }, speedMs);
     return () => window.clearInterval(t);
-  }, [playing, speedMs, frames]);
+  }, [playing, speedMs, total, ready, frames]);
 
-  // Keyboard shortcuts.
+  // Keyboard
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -227,7 +204,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
         setPlaying((p) => !p);
       } else if (e.code === "ArrowRight") {
         setIndex((i) => {
-          const n = Math.min(i + 1, frames.length - 1);
+          const n = Math.min(i + 1, total - 1);
           lastTimeRef.current = frames[n]?.time ?? null;
           return n;
         });
@@ -241,17 +218,13 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [frames]);
+  }, [total, frames]);
 
-  // Fullscreen API.
   const toggleFullscreen = useCallback(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      void el.requestFullscreen?.();
-    } else {
-      void document.exitFullscreen?.();
-    }
+    if (!document.fullscreenElement) void el.requestFullscreen?.();
+    else void document.exitFullscreen?.();
   }, []);
 
   useEffect(() => {
@@ -262,6 +235,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
 
   const current = frames[index];
   const layer = data?.layer ?? region.layer;
+  const source = data?.source ?? region.source;
 
   return (
     <div
@@ -272,10 +246,10 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       )}
     >
       {/* Top bar */}
-      <div className="absolute left-3 right-3 top-3 z-[500] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <div className="pointer-events-none absolute left-3 right-3 top-3 z-[500] flex flex-wrap items-center justify-between gap-2">
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
           <Select value={regionId} onValueChange={(v) => setRegionId(v as SatelliteRegionId)}>
-            <SelectTrigger className="h-9 w-[200px] border bg-background/95 backdrop-blur">
+            <SelectTrigger className="h-9 w-[220px] border bg-background/95 backdrop-blur">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -288,61 +262,25 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           </Select>
           {current && (
             <div className="rounded-md border bg-background/95 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur sm:text-sm">
-              <span className="text-muted-foreground">{region.shortLabel}</span>
-              <span className="mx-2 text-muted-foreground">·</span>
               <span>{formatDateLong(current.time)}</span>
               <span className="mx-2 text-muted-foreground">·</span>
               <span className="tabular-nums">{formatTimeLong(current.time)}</span>
               <span className="mx-2 text-muted-foreground">·</span>
               <span className="tabular-nums text-muted-foreground">
-                {index + 1}/{frames.length}
+                {index + 1}/{total}
               </span>
+              {!ready && total > 0 && (
+                <>
+                  <span className="mx-2 text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">
+                    Lade {loaded}/{total} …
+                  </span>
+                </>
+              )}
             </div>
           )}
         </div>
         <div className="pointer-events-auto flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9 bg-background/95 backdrop-blur">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-56">
-              <div className="space-y-3 text-sm">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Overlays
-                </div>
-                <label className="flex items-center justify-between">
-                  <span>Ländergrenzen</span>
-                  <Switch
-                    checked={overlays.borders}
-                    onCheckedChange={(v) => setOverlays((o) => ({ ...o, borders: v }))}
-                  />
-                </label>
-                <label className="flex items-center justify-between">
-                  <span>Kantonsgrenzen CH</span>
-                  <Switch
-                    checked={overlays.cantons}
-                    onCheckedChange={(v) => setOverlays((o) => ({ ...o, cantons: v }))}
-                  />
-                </label>
-                <label className="flex items-center justify-between">
-                  <span>Ortsnamen</span>
-                  <Switch
-                    checked={overlays.places}
-                    onCheckedChange={(v) => setOverlays((o) => ({ ...o, places: v }))}
-                  />
-                </label>
-                <label className="flex items-center justify-between">
-                  <span>Höhenrelief</span>
-                  <Switch
-                    checked={overlays.hillshade}
-                    onCheckedChange={(v) => setOverlays((o) => ({ ...o, hillshade: v }))}
-                  />
-                </label>
-              </div>
-            </PopoverContent>
-          </Popover>
           <Button
             variant="outline"
             size="icon"
@@ -364,45 +302,39 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           maxZoom={9}
           zoomControl={false}
           worldCopyJump
-          className="absolute inset-0 z-0 bg-[#0b1220]"
+          className="absolute inset-0 z-0 bg-black"
         >
           <FlyToRegion regionId={regionId} />
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-            attribution='© <a href="https://www.openstreetmap.org/copyright">OSM</a> · © CARTO'
-            subdomains="abcd"
-          />
-          {overlays.hillshade && (
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}"
-              attribution="Hillshade © Esri"
-              opacity={0.35}
-            />
-          )}
-          {current && <CrossfadeWMS layer={layer} time={current.time} />}
-          {overlays.borders && (
-            <TileLayer
-              url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
-              opacity={0.9}
+          {frames.length > 0 && (
+            <FrameStack
+              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              layer={layer}
+              frames={frames}
+              activeIndex={index}
+              onProgress={(l) => setLoaded(l)}
             />
           )}
           <ZoomControl position="bottomright" />
         </MapContainer>
 
-        {isLoading && frames.length === 0 && (
+        {isLoading && total === 0 && (
           <div className="absolute inset-0 z-[400] flex items-center justify-center bg-background/60 backdrop-blur-sm">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {!isLoading && frames.length === 0 && (
+        {!isLoading && total === 0 && (
           <div className="absolute inset-0 z-[400] flex items-center justify-center bg-background/80">
             <div className="rounded-md border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
               Satellitenbilder vorübergehend nicht verfügbar.
             </div>
           </div>
         )}
+
+        {/* Quellen-Badge unten links */}
+        <div className="pointer-events-none absolute bottom-2 left-2 z-[400] rounded bg-black/55 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm">
+          {source}
+        </div>
       </div>
 
       {/* Controls */}
@@ -429,6 +361,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
               variant="default"
               size="icon"
               className="h-9 w-9"
+              disabled={!ready}
               onClick={() => setPlaying((p) => !p)}
               title={playing ? "Pause (Leertaste)" : "Play (Leertaste)"}
             >
@@ -441,7 +374,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
               onClick={() => {
                 setPlaying(false);
                 setIndex((i) => {
-                  const n = Math.min(i + 1, frames.length - 1);
+                  const n = Math.min(i + 1, total - 1);
                   lastTimeRef.current = frames[n]?.time ?? null;
                   return n;
                 });
@@ -455,7 +388,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           <div className="min-w-0 flex-1">
             <Slider
               min={0}
-              max={Math.max(frames.length - 1, 0)}
+              max={Math.max(total - 1, 0)}
               step={1}
               value={[index]}
               onValueChange={(v) => {
@@ -464,22 +397,19 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 setIndex(n);
                 lastTimeRef.current = frames[n]?.time ?? null;
               }}
-              disabled={frames.length < 2}
+              disabled={total < 2}
             />
-            {frames.length > 0 && (
+            {total > 0 && (
               <div className="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
                 <span>{frames[0]?.label} UTC</span>
-                <span>{frames[frames.length - 1]?.label} UTC</span>
+                <span>{frames[total - 1]?.label} UTC</span>
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Speed</span>
-            <Select
-              value={String(speedMs)}
-              onValueChange={(v) => setSpeedMs(Number(v))}
-            >
+            <Select value={String(speedMs)} onValueChange={(v) => setSpeedMs(Number(v))}>
               <SelectTrigger className="h-9 w-[80px]">
                 <SelectValue />
               </SelectTrigger>

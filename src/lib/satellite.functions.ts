@@ -3,17 +3,12 @@ import { setResponseHeader } from "@tanstack/react-start/server";
 
 /**
  * Satellitenbild-Animation auf Basis des offenen EUMETView WMS-Service.
- *
- * Datenquelle: https://view.eumetsat.int/geoserver/wms
- * Kein API-Key, kein Ingest — der Browser holt jedes Frame direkt als WMS-Tile.
- *
- * Frames werden serverseitig nur als Zeitachse berechnet (alle 5 Stunden
- * rückwirkend ab "jetzt", abzüglich produkt-spezifischem Latency-Puffer).
+ * Datenquelle: https://view.eumetsat.int/geoserver/wms (kein API-Key).
+ * Frames werden serverseitig nur als Zeitachse berechnet (rollierend 5 h).
  */
 
 export type SatelliteRegionId =
-  | "schweiz"
-  | "alpen"
+  | "alpen-ch"
   | "europa-geocolour"
   | "europa-ir"
   | "global-ir";
@@ -22,46 +17,30 @@ export interface SatelliteRegion {
   id: SatelliteRegionId;
   label: string;
   shortLabel: string;
-  /** EUMETView WMS LAYERS value */
   layer: string;
-  /** Fallback-Layer falls primärer Layer leer ist */
   fallbackLayer?: string;
-  /** Default-Kartenzentrum [lat, lon] */
   center: [number, number];
-  /** Default-Zoomstufe */
   zoom: number;
-  /** Frame-Intervall in Minuten */
   stepMinutes: number;
-  /** Publikations-Latenz in Minuten (jüngster Frame = now - latency) */
   latencyMinutes: number;
-  /** Kurze Beschreibung für UI-Tooltip */
+  /** Quellen-/Sensor-Bezeichnung für UI-Badge */
+  source: string;
   description: string;
 }
 
 export const SATELLITE_REGIONS: SatelliteRegion[] = [
   {
-    id: "schweiz",
-    label: "Schweiz",
-    shortLabel: "Schweiz",
+    id: "alpen-ch",
+    label: "Schweiz & Alpen",
+    shortLabel: "Schweiz & Alpen",
     layer: "mtg_fd:rgb_truecolour",
     fallbackLayer: "msg_fes:rgb_naturalenhncd",
-    center: [46.8, 8.2],
+    center: [46.7, 8.5],
     zoom: 7,
     stepMinutes: 10,
     latencyMinutes: 20,
-    description: "MTG FCI True Colour über der Schweiz",
-  },
-  {
-    id: "alpen",
-    label: "Alpen True Colour",
-    shortLabel: "Alpen",
-    layer: "mtg_fd:rgb_truecolour",
-    fallbackLayer: "msg_fes:rgb_naturalenhncd",
-    center: [46.5, 10.5],
-    zoom: 6,
-    stepMinutes: 10,
-    latencyMinutes: 20,
-    description: "Echtfarbige Wolkenansicht des Alpenraums",
+    source: "EUMETSAT · Meteosat-12 (MTG-FCI) True Colour",
+    description: "MTG FCI True Colour über Schweiz und Alpen",
   },
   {
     id: "europa-geocolour",
@@ -73,6 +52,7 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     zoom: 4,
     stepMinutes: 15,
     latencyMinutes: 25,
+    source: "EUMETSAT · Meteosat-12 (MTG-FCI) GeoColour",
     description: "GeoColour-Komposit über Europa (Tag/Nacht)",
   },
   {
@@ -85,7 +65,8 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     zoom: 4,
     stepMinutes: 15,
     latencyMinutes: 25,
-    description: "10.5 µm Infrarot — Wolkentemperatur bei Tag und Nacht",
+    source: "EUMETSAT · Meteosat-12 (MTG-FCI) IR 10.5 µm",
+    description: "10.5 µm Infrarot — Wolkentemperatur",
   },
   {
     id: "global-ir",
@@ -96,6 +77,7 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     zoom: 2,
     stepMinutes: 180,
     latencyMinutes: 60,
+    source: "EUMETSAT · Globales IR-Composite",
     description: "Globales IR-Mosaik (3-stündliches Welt-Composite)",
   },
 ];
@@ -107,14 +89,15 @@ export function getRegion(id: SatelliteRegionId): SatelliteRegion {
 }
 
 export interface SatelliteFrame {
-  time: string; // ISO
-  label: string; // HH:mm
+  time: string;
+  label: string;
 }
 
 export interface SatelliteManifest {
   region: SatelliteRegionId;
   layer: string;
   fallbackLayer?: string;
+  source: string;
   frames: SatelliteFrame[];
   updatedAt: string;
 }
@@ -123,8 +106,7 @@ const TOTAL_HOURS = 5;
 
 function floorToStep(date: Date, stepMin: number): Date {
   const ms = stepMin * 60_000;
-  const t = Math.floor(date.getTime() / ms) * ms;
-  return new Date(t);
+  return new Date(Math.floor(date.getTime() / ms) * ms);
 }
 
 function buildFrames(region: SatelliteRegion, now: Date): SatelliteFrame[] {
@@ -151,6 +133,7 @@ export const getSatelliteManifest = createServerFn({ method: "GET" })
       region: region.id,
       layer: region.layer,
       fallbackLayer: region.fallbackLayer,
+      source: region.source,
       frames: buildFrames(region, now),
       updatedAt: now.toISOString(),
     };
