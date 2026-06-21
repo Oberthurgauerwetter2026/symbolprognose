@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v22-native-raster"
+RADAR_INGEST_VERSION = "v23-smooth-bands"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # RZC instant rate, mm/h
@@ -490,12 +490,57 @@ def sample_to_bbox(values: np.ndarray, meta: dict) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
+def _smooth_nan(values: np.ndarray, sigma: float = 0.6) -> np.ndarray:
+    """NaN-sicherer Gauß-Filter. NaN-Pixel bleiben NaN (Maske wird nicht
+    aufgeweicht), aber gültige Pixel werden leicht geglättet, damit das
+    Mikro-Rauschen der nativen ~1 km-Auflösung nicht in Treppenkanten an
+    den mm/h-Schwellen umschlägt."""
+    from scipy.ndimage import gaussian_filter  # lokal: scipy nur hier nötig
+
+    mask = np.isnan(values)
+    filled = np.where(mask, 0.0, values).astype(np.float32)
+    weight = (~mask).astype(np.float32)
+    num = gaussian_filter(filled, sigma=sigma, mode="nearest")
+    den = gaussian_filter(weight, sigma=sigma, mode="nearest")
+    out = np.where(den > 1e-6, num / np.maximum(den, 1e-6), np.nan)
+    out[mask] = np.nan
+    return out.astype(np.float32)
+
+
 def render_png(values: np.ndarray, scale: list[tuple[float, tuple[int, int, int, int]]]) -> bytes:
     h, w = values.shape
+    # 1) leicht glätten → weiche Übergänge zwischen den diskreten Bändern
+    smoothed = _smooth_nan(values, sigma=0.6)
+
     rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    for thresh, color in scale:
-        mask = (~np.isnan(values)) & (values >= thresh)
+    # Schwellen aufsteigend; pro Band die höchste passende Farbe vergeben.
+    sorted_scale = sorted(scale, key=lambda x: x[0])
+    thresholds = [t for t, _ in sorted_scale]
+    for thresh, color in sorted_scale:
+        mask = (~np.isnan(smoothed)) & (smoothed >= thresh)
         rgba[mask] = color
+
+    # 2) weicher Alpha-Ramp an den Bandgrenzen: Pixel knapp über einer
+    #    Schwelle bekommen reduzierte Deckkraft, damit Kanten zwischen zwei
+    #    Farbbändern nicht 0→255 springen. Skaliert linear über die unteren
+    #    ~40 % des jeweiligen Bandes.
+    valid = ~np.isnan(smoothed)
+    if valid.any() and len(thresholds) >= 2:
+        alpha = rgba[..., 3].astype(np.float32)
+        for i, t in enumerate(thresholds):
+            if i + 1 < len(thresholds):
+                t_next = thresholds[i + 1]
+            else:
+                t_next = t * 2.0 if t > 0 else t + 1.0
+            band_width = max(t_next - t, 1e-3)
+            ramp_end = t + band_width * 0.4
+            in_ramp = valid & (smoothed >= t) & (smoothed < ramp_end)
+            if in_ramp.any():
+                frac = (smoothed[in_ramp] - t) / (ramp_end - t)
+                # Alpha von 60 % → 100 % über den Ramp-Bereich.
+                alpha[in_ramp] = alpha[in_ramp] * (0.6 + 0.4 * frac)
+        rgba[..., 3] = np.clip(alpha, 0, 255).astype(np.uint8)
+
     img = Image.fromarray(rgba, mode="RGBA")
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
