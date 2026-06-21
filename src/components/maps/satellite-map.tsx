@@ -65,29 +65,38 @@ function SwissOutline() {
 }
 
 /**
- * Mountet zuerst nur den aktiven Frame, dann inkrementell die übrigen
- * (radial vom aktiven Index aus).
+ * Mountet pro Frame EIN ImageOverlay (ein einziger GetMap-Request via
+ * unseren cachenden Edge-Proxy /api/public/satellite/frame).
+ * Aktiver Frame wird sofort gemountet, übrige radial mit Versatz.
  */
 function FrameStack({
   layer,
   fallbackLayer,
   frames,
+  bbox,
+  pixelSize,
   activeIndex,
   initialIndex,
   onProgress,
+  onActiveReady,
 }: {
   layer: string;
   fallbackLayer?: string;
   frames: SatelliteFrame[];
+  bbox: [number, number, number, number];
+  pixelSize: { w: number; h: number };
   activeIndex: number;
   initialIndex: number;
   onProgress: (loaded: number, total: number) => void;
+  onActiveReady: () => void;
 }) {
   const map = useMap();
-  const layersRef = useRef<(L.TileLayer.WMS | null)[]>([]);
+  const layersRef = useRef<(L.ImageOverlay | null)[]>([]);
   const loadedRef = useRef<Set<number>>(new Set());
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
+  const activeIndexRef = useRef(activeIndex);
+  activeIndexRef.current = activeIndex;
 
   useEffect(() => {
     setEffectiveLayer(layer);
@@ -98,38 +107,48 @@ function FrameStack({
     loadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
 
-    const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean } = {
-      layers: effectiveLayer,
-      format: "image/jpeg",
-      transparent: false,
-      version: "1.3.0",
-      crs: L.CRS.EPSG3857,
-      tileSize: 512,
-      keepBuffer: 0,
-      updateWhenZooming: false,
-      attribution:
-        '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
+    const [west, south, east, north] = bbox;
+    const bounds = L.latLngBounds([south, west], [north, east]);
+
+    const frameUrl = (time: string) => {
+      const p = new URLSearchParams({
+        layer: effectiveLayer,
+        time,
+        west: String(west),
+        south: String(south),
+        east: String(east),
+        north: String(north),
+        w: String(pixelSize.w),
+        h: String(pixelSize.h),
+      });
+      return `/api/public/satellite/frame?${p.toString()}`;
     };
 
     const mountFrame = (i: number) => {
       if (i < 0 || i >= frames.length || layersRef.current[i]) return;
       const f = frames[i];
-      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: i === activeIndex ? 1 : 0 });
-      tl.setParams({ time: f.time } as unknown as L.WMSParams, false);
-      tl.on("load", () => {
+      const ov = L.imageOverlay(frameUrl(f.time), bounds, {
+        opacity: i === activeIndexRef.current ? 1 : 0,
+        interactive: false,
+        crossOrigin: true,
+        attribution:
+          '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
+      });
+      ov.on("load", () => {
         if (!loadedRef.current.has(i)) {
           loadedRef.current.add(i);
           onProgress(loadedRef.current.size, frames.length);
+          if (i === activeIndexRef.current) onActiveReady();
         }
       });
-      tl.on("tileerror", () => {
+      ov.on("error", () => {
         if (!triedFallbackRef.current && fallbackLayer && fallbackLayer !== effectiveLayer) {
           triedFallbackRef.current = true;
           setEffectiveLayer(fallbackLayer);
         }
       });
-      tl.addTo(map);
-      layersRef.current[i] = tl;
+      ov.addTo(map);
+      layersRef.current[i] = ov;
     };
 
     mountFrame(initialIndex);
@@ -148,21 +167,21 @@ function FrameStack({
       const t = window.setTimeout(() => {
         if (cancelled) return;
         mountFrame(i);
-      }, 80 + k * 40);
+      }, 60 + k * 30);
       timers.push(t);
     });
 
     return () => {
       cancelled = true;
       timers.forEach((t) => window.clearTimeout(t));
-      layersRef.current.forEach((tl) => tl?.remove());
+      layersRef.current.forEach((ov) => ov?.remove());
       layersRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, effectiveLayer, frames]);
+  }, [map, effectiveLayer, frames, bbox, pixelSize.w, pixelSize.h]);
 
   useEffect(() => {
-    layersRef.current.forEach((tl, i) => tl?.setOpacity(i === activeIndex ? 1 : 0));
+    layersRef.current.forEach((ov, i) => ov?.setOpacity(i === activeIndex ? 1 : 0));
   }, [activeIndex]);
 
   return null;
