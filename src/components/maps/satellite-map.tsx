@@ -480,8 +480,31 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
 
   useEffect(() => {
     setLoaded(0);
+    setActiveReady(false);
     setPlaying(false);
   }, [regionId]);
+
+  // Container-Grösse messen → bestimmt Bildauflösung des Frame-Proxys
+  useEffect(() => {
+    const el = mapBoxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+    const apply = () => {
+      const w = Math.max(320, Math.min(1600, Math.round(el.clientWidth * dpr)));
+      const h = Math.max(240, Math.min(1600, Math.round(el.clientHeight * dpr)));
+      // Auf 64-er Raster runden, damit Edge-Cache trifft (gleicher URL für ähnliche Grössen)
+      const snap = (n: number) => Math.round(n / 64) * 64;
+      setPixelSize((prev) => {
+        const next = { w: snap(w), h: snap(h) };
+        if (prev.w === next.w && prev.h === next.h) return prev;
+        return next;
+      });
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     if (ready && !playing && total >= 2) setPlaying(true);
