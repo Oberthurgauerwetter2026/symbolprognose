@@ -422,10 +422,9 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
-    // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
-    // Messung: 2-Pixel-Raster (Performance).
-    const STEP = contour ? 1 : 2;
+    // Prognose: 2-Pixel-Raster (Iso-Bänder sind diskret, kein sichtbarer
+    // Qualitätsverlust). Messung: ebenfalls 2-Pixel-Raster.
+    const STEP = 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -458,13 +457,12 @@ function PrecipOverlay({
     };
 
     // -------- Deterministisches Value-Noise + fBm (fraktales Rauschen) --------
-    // Pro Frame stabil (Seed aus frame.t), damit Animation nicht flackert.
     const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
     const hash = (ix: number, iy: number) => {
       let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
       h = (h ^ (h >>> 13)) * 1274126177;
       h = h ^ (h >>> 16);
-      return ((h >>> 0) % 10000) / 10000; // 0..1
+      return ((h >>> 0) % 10000) / 10000;
     };
     const smooth = (u: number) => u * u * (3 - 2 * u);
     const valueNoise = (x: number, y: number) => {
@@ -478,7 +476,6 @@ function PrecipOverlay({
       const d = hash(ix + 1, iy + 1);
       return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
     };
-    // fBm: 5 Oktaven → mehr feine Wellung an Bandkanten.
     const fbm = (x: number, y: number) => {
       let v = 0;
       let amp = 0.5;
@@ -488,11 +485,88 @@ function PrecipOverlay({
         amp *= 0.5;
         freq *= 2.1;
       }
-      return v; // ~0..1
+      return v;
     };
-    // Rotation ~30° → Lattice-Achsen liegen nicht mehr karten-parallel.
     const COS = 0.866;
     const SIN = 0.5;
+
+    // -------- Distortion-Cache (nur Prognose) --------
+    // fBm ist räumlich glatt → einmal auf grobem DSTEP-Gitter rechnen,
+    // pro Pixel bilinear interpolieren. ~50–100× schneller als per-pixel fBm.
+    const DSTEP = 8;
+    const gW = Math.ceil(lowW / DSTEP) + 2;
+    const gH = Math.ceil(lowH / DSTEP) + 2;
+    let dxGrid: Float32Array | null = null;
+    let dyGrid: Float32Array | null = null;
+    let modGrid: Float32Array | null = null;
+    let envGrid: Float32Array | null = null;
+
+    if (contour) {
+      dxGrid = new Float32Array(gW * gH);
+      dyGrid = new Float32Array(gW * gH);
+      modGrid = new Float32Array(gW * gH);
+      envGrid = new Float32Array(gW * gH);
+      for (let gy = 0; gy < gH; gy++) {
+        for (let gx = 0; gx < gW; gx++) {
+          const px = gx * DSTEP * STEP;
+          const py = gy * DSTEP * STEP;
+          const ll = map.containerPointToLatLng([px, py]);
+          const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+          const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+
+          const sx0 = fxRaw * 0.9;
+          const sy0 = fyRaw * 0.85;
+          const rx0 = sx0 * COS - sy0 * SIN;
+          const ry0 = sx0 * SIN + sy0 * COS;
+          const dxXL = (fbm(rx0 * 0.08 - 19.2, ry0 * 0.08 + 13.6) - 0.5) * 9.0;
+          const dyXL = (fbm(rx0 * 0.08 + 8.4, ry0 * 0.08 - 16.8) - 0.5) * 9.0;
+          const dxL = (fbm(rx0 * 0.22 + 3.1, ry0 * 0.22 - 7.7) - 0.5) * 11.0;
+          const dyL = (fbm(rx0 * 0.22 - 12.3, ry0 * 0.22 + 4.9) - 0.5) * 11.0;
+          const dxH = (fbm(rx0 * 0.9 + 21.4, ry0 * 0.9 - 1.2) - 0.5) * 3.8;
+          const dyH = (fbm(rx0 * 0.9 - 5.6, ry0 * 0.9 + 18.7) - 0.5) * 3.8;
+          const wx = dxXL + dxL + dxH;
+          const wy = dyXL + dyL + dyH;
+          dxGrid[gy * gW + gx] = wx * COS + wy * SIN;
+          dyGrid[gy * gW + gx] = -wx * SIN + wy * COS;
+
+          const sx = fxRaw * 0.9;
+          const sy = fyRaw * 0.85;
+          const rx = sx * COS - sy * SIN;
+          const ry = sx * SIN + sy * COS;
+          const n = fbm(rx * 0.7 + 4.2, ry * 0.7 - 9.8);
+          const env1 = fbm(rx * 0.38 - 5.7, ry * 0.38 + 11.2);
+          const env2 = fbm(rx * 1.35 + 31.1, ry * 1.35 - 7.4);
+          const env3 = fbm(rx * 3.0 - 14.6, ry * 3.0 + 2.8);
+          const env4 = fbm(rx * 5.4 + 6.9, ry * 5.4 - 22.5);
+          const envRaw = env1 * 0.5 + env2 * 0.27 + env3 * 0.15 + env4 * 0.08;
+          const fracture = fbm(rx * 4.2 - 28.1, ry * 4.2 + 17.3) > 0.36 ? 1 : 0;
+          modGrid[gy * gW + gx] = 0.12 + n * 1.9;
+          envGrid[gy * gW + gx] = Math.max(0, envRaw * 3.45 - 1.38) * fracture;
+        }
+      }
+    }
+
+    const bilerpGrid = (grid: Float32Array, lx: number, ly: number) => {
+      const gx = lx / DSTEP;
+      const gy = ly / DSTEP;
+      const gx0 = Math.floor(gx);
+      const gy0 = Math.floor(gy);
+      const tx = gx - gx0;
+      const ty = gy - gy0;
+      const gx1 = gx0 + 1;
+      const gy1 = gy0 + 1;
+      const v00 = grid[gy0 * gW + gx0];
+      const v10 = grid[gy0 * gW + gx1];
+      const v01 = grid[gy1 * gW + gx0];
+      const v11 = grid[gy1 * gW + gx1];
+      return (
+        v00 * (1 - tx) * (1 - ty) +
+        v10 * tx * (1 - ty) +
+        v01 * (1 - tx) * ty +
+        v11 * tx * ty
+      );
+    };
+
 
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
@@ -507,55 +581,19 @@ function PrecipOverlay({
 
         let fxS = fxRaw;
         let fyS = fyRaw;
-
-        // Prognose: Sample-Position selbst rotiert + mehrskalig verzerren,
-        // damit die rechteckigen Modell-Zellen nicht mehr karten-parallel
-        // liegen. Dadurch verschwinden 90°-Ecken auch in den Iso-Bändern.
-        if (contour) {
-          const sx0 = fxRaw * 0.9;
-          const sy0 = fyRaw * 0.85;
-          const rx0 = sx0 * COS - sy0 * SIN;
-          const ry0 = sx0 * SIN + sy0 * COS;
-          // Sehr grosse Grundverlagerung ganzer Niederschlagsareale.
-          const dxXL = (fbm(rx0 * 0.08 - 19.2, ry0 * 0.08 + 13.6) - 0.5) * 9.0;
-          const dyXL = (fbm(rx0 * 0.08 + 8.4, ry0 * 0.08 - 16.8) - 0.5) * 9.0;
-          // Grosse, niedrigfrequente Verschiebung der Abtastpunkte.
-          const dxL = (fbm(rx0 * 0.22 + 3.1, ry0 * 0.22 - 7.7) - 0.5) * 11.0;
-          const dyL = (fbm(rx0 * 0.22 - 12.3, ry0 * 0.22 + 4.9) - 0.5) * 11.0;
-          // Feine, hochfrequente Kanten-Wellung.
-          const dxH = (fbm(rx0 * 0.9 + 21.4, ry0 * 0.9 - 1.2) - 0.5) * 3.8;
-          const dyH = (fbm(rx0 * 0.9 - 5.6, ry0 * 0.9 + 18.7) - 0.5) * 3.8;
-          // Rückrotation in fx/fy-Achsen, damit Verschiebung nicht achsparallel ist
-          const wx = dxXL + dxL + dxH;
-          const wy = dyXL + dyL + dyH;
-          const dX = wx * COS + wy * SIN;
-          const dY = -wx * SIN + wy * COS;
-          fxS = fxRaw + dX;
-          fyS = fyRaw + dY;
+        if (contour && dxGrid && dyGrid) {
+          fxS = fxRaw + bilerpGrid(dxGrid, lx, ly);
+          fyS = fyRaw + bilerpGrid(dyGrid, lx, ly);
         }
 
         const vCur = sampleAt(vals, fxS, fyS);
         let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxS, fyS)) : vCur;
 
-        // Aggressive Envelope-Maske: schneidet harte, nicht-rechteckige
-        // Löcher in die Daten-Bbox; bricht die äusseren Ränder organisch auf.
-        if (contour && v > 0) {
-          const sx = fxRaw * 0.9;
-          const sy = fyRaw * 0.85;
-          const rx = sx * COS - sy * SIN;
-          const ry = sx * SIN + sy * COS;
-          const n = fbm(rx * 0.7 + 4.2, ry * 0.7 - 9.8);
-          const mod = 0.12 + n * 1.9;
-          const env1 = fbm(rx * 0.38 - 5.7, ry * 0.38 + 11.2);
-          const env2 = fbm(rx * 1.35 + 31.1, ry * 1.35 - 7.4);
-          const env3 = fbm(rx * 3.0 - 14.6, ry * 3.0 + 2.8);
-          const env4 = fbm(rx * 5.4 + 6.9, ry * 5.4 - 22.5);
-          const envRaw = env1 * 0.5 + env2 * 0.27 + env3 * 0.15 + env4 * 0.08;
-          const fracture = fbm(rx * 4.2 - 28.1, ry * 4.2 + 17.3) > 0.36 ? 1 : 0;
-          const envelope = Math.max(0, envRaw * 3.45 - 1.38) * fracture;
+        if (contour && v > 0 && modGrid && envGrid) {
+          const mod = bilerpGrid(modGrid, lx, ly);
+          const envelope = bilerpGrid(envGrid, lx, ly);
           v = v * mod * envelope;
         }
-
 
         const minV = contour ? 0.05 : 0.1;
         if (v < minV) continue;
@@ -567,8 +605,6 @@ function PrecipOverlay({
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
-        // Prognose: diskrete Bänder (colorFor) für harte Iso-Kanten — wirkt
-        // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
         let [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
           : (contour ? colorFor(v) : colorForSmooth(v));
@@ -582,6 +618,7 @@ function PrecipOverlay({
         data[idx + 3] = alpha;
       }
     }
+
 
 
     // Off-screen Buffer für putImageData (ignoriert Transformationen/Clip).
@@ -603,10 +640,13 @@ function PrecipOverlay({
     ctx.restore();
   };
 
-  // Bei Frame-/Progress-Wechsel neu zeichnen.
+  // Bei Frame-/Progress-Wechsel neu zeichnen — via rAF gedrosselt, damit
+  // schnelle Slider-Updates nicht mehrere Full-Redraws pro Frame triggern.
   useEffect(() => {
-    redrawRef.current();
+    let raf = requestAnimationFrame(() => redrawRef.current());
+    return () => cancelAnimationFrame(raf);
   }, [frame, nextFrame, progress, payload]);
+
 
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
