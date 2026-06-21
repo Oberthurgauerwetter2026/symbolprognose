@@ -714,31 +714,25 @@ function PrecipOverlay({
           rBase[p] = 0.65 + 0.7 * n;
         }
 
-        // Pixel-Halbachsen (a, b in Grid-Einheiten → Lat/Lng → Pixel-Distanz).
+        // Basis-Vektoren: 1 Grid-Schritt entlang Grid-x bzw. Grid-y in PX.
         const cLL = gridToLatLng(cell.cxGrid, cell.cyGrid);
         const cPx = map.latLngToContainerPoint(cLL);
-        const pxA = map.latLngToContainerPoint(
-          gridToLatLng(cell.cxGrid + cell.a, cell.cyGrid),
+        const eaPx = map.latLngToContainerPoint(
+          gridToLatLng(cell.cxGrid + 1, cell.cyGrid),
         );
-        const pxB = map.latLngToContainerPoint(
-          gridToLatLng(cell.cxGrid, cell.cyGrid + cell.b),
+        const ebPx = map.latLngToContainerPoint(
+          gridToLatLng(cell.cxGrid, cell.cyGrid + 1),
         );
-        const aPxX = pxA.x - cPx.x;
-        const aPxY = pxA.y - cPx.y;
-        const bPxX = pxB.x - cPx.x;
-        const bPxY = pxB.y - cPx.y;
-        // Effektive Pixel-Halbachsen (orthogonal in Bildschirm-Koords).
-        let aPx = Math.hypot(aPxX, aPxY);
-        let bPx = Math.hypot(bPxX, bPxY);
-        // Karten-Rotation aus Grid-x-Achse.
-        const phiPx = Math.atan2(aPxY, aPxX) + cell.phi;
-        // cell.phi rotiert in Grid-Koords; weil unsere Achsen schon im PX-Frame
-        // liegen, addieren wir cell.phi als Drehung des Ellipsen-Frames.
-        const cphi = Math.cos(phiPx);
-        const sphi = Math.sin(phiPx);
+        const eax = eaPx.x - cPx.x;
+        const eay = eaPx.y - cPx.y;
+        const ebx = ebPx.x - cPx.x;
+        const eby = ebPx.y - cPx.y;
+        const gridUnitPx = Math.max(Math.hypot(eax, eay), Math.hypot(ebx, eby));
+        const cphi = Math.cos(cell.phi);
+        const sphi = Math.sin(cell.phi);
 
-        // Sichtprüfung: ist die Ellipse irgendwo im sichtbaren Canvas?
-        const maxR = Math.max(aPx, bPx) * 1.4;
+        // Sichtprüfung: grober Bounding-Radius in PX.
+        const maxR = Math.max(cell.a, cell.b) * 1.4 * gridUnitPx;
         if (
           cPx.x + maxR < 0 ||
           cPx.x - maxR > size.x ||
@@ -748,9 +742,10 @@ function PrecipOverlay({
           continue;
         }
 
-        // Mindestgrösse für sichtbare Stilisierung.
-        aPx = Math.max(aPx, 6);
-        bPx = Math.max(bPx, 6);
+        // Mindestgrösse in Grid-Einheiten (relativ zur Pixel-Skala).
+        const minGrid = 6 / Math.max(1, gridUnitPx);
+        const aG = Math.max(cell.a, minGrid);
+        const bG = Math.max(cell.b, minGrid);
 
         // Bänder: äusserstes zuerst.
         const bandThresholds = THRESH.filter((mm) => mm <= cell.vMax * 1.001);
@@ -774,15 +769,19 @@ function PrecipOverlay({
             const dn =
               vnoise(cos[p] * 3.1, sin[p] * 3.1, cell.seed + bi * 977) - 0.5;
             const r = sScale * rBase[p] + eps * dn;
-            // Ellipse im lokalen Frame.
-            const lx = aPx * r * cos[p];
-            const ly = bPx * r * sin[p];
-            // Rotation um phiPx + Translation.
+            // Ellipse im lokalen Ellipsen-Frame (in Grid-Einheiten).
+            const lx = aG * r * cos[p];
+            const ly = bG * r * sin[p];
+            // Rotation um cell.phi → Verschiebung in Grid-Koords.
+            const ug = lx * cphi - ly * sphi;
+            const vg = lx * sphi + ly * cphi;
+            // Grid-Offset → PX über Basis-Vektoren.
             pts[p] = {
-              x: cPx.x + lx * cphi - ly * sphi,
-              y: cPx.y + lx * sphi + ly * cphi,
+              x: cPx.x + ug * eax + vg * ebx,
+              y: cPx.y + ug * eay + vg * eby,
             };
           }
+
 
           drawClosedSpline(pts);
           const col = cell.snowFrac > 0.3 ? snowColorFor(v_i) : colorFor(v_i);
