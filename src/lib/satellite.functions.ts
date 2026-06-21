@@ -23,6 +23,8 @@ export interface SatelliteRegion {
   zoom: number;
   stepMinutes: number;
   latencyMinutes: number;
+  /** Bounding box in EPSG:4326 (lon/lat): [west, south, east, north] */
+  bbox: [number, number, number, number];
   /** Quellen-/Sensor-Bezeichnung für UI-Badge */
   source: string;
   description: string;
@@ -37,8 +39,9 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     fallbackLayer: "mtg_fd:rgb_truecolour",
     center: [46.7, 8.5],
     zoom: 7,
-    stepMinutes: 10,
+    stepMinutes: 15,
     latencyMinutes: 20,
+    bbox: [5.5, 45.5, 11.5, 48.0],
     source: "EUMETSAT · Meteosat-12 (MTG-FCI HRFI) True Colour",
     description: "MTG FCI HRFI True Colour über Schweiz und Alpen (~1 km)",
   },
@@ -52,6 +55,7 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     zoom: 4,
     stepMinutes: 15,
     latencyMinutes: 25,
+    bbox: [-15, 35, 35, 65],
     source: "EUMETSAT · Meteosat-12 (MTG-FCI HRFI) GeoColour",
     description: "HRFI GeoColour-Komposit über Europa (Tag/Nacht)",
   },
@@ -65,6 +69,7 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     zoom: 4,
     stepMinutes: 15,
     latencyMinutes: 25,
+    bbox: [-15, 35, 35, 65],
     source: "EUMETSAT · Meteosat-12 (MTG-FCI HRFI) IR 10.5 µm",
     description: "10.5 µm Infrarot HRFI — Wolkentemperatur",
   },
@@ -77,6 +82,7 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     zoom: 2,
     stepMinutes: 180,
     latencyMinutes: 60,
+    bbox: [-180, -75, 180, 75],
     source: "EUMETSAT · Globales IR-Composite",
     description: "Globales IR-Mosaik (3-stündliches Welt-Composite)",
   },
@@ -98,13 +104,12 @@ export interface SatelliteManifest {
   layer: string;
   fallbackLayer?: string;
   source: string;
+  bbox: [number, number, number, number];
   frames: SatelliteFrame[];
   updatedAt: string;
 }
 
 function totalHoursFor(region: SatelliteRegion): number {
-  // HRFI-Layer: kürzeres Fenster = schnellere Ladezeit, da pro Frame ~6 Tiles à ~40 KB.
-  // Global-IR: 5 h, da Step 180 min sonst zu wenig Frames.
   if (region.id === "global-ir") return 5;
   return 3;
 }
@@ -139,6 +144,7 @@ export const getSatelliteManifest = createServerFn({ method: "GET" })
       layer: region.layer,
       fallbackLayer: region.fallbackLayer,
       source: region.source,
+      bbox: region.bbox,
       frames: buildFrames(region, now),
       updatedAt: now.toISOString(),
     };

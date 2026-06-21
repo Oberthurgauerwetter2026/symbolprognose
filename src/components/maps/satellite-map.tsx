@@ -26,7 +26,7 @@ import {
   type SatelliteFrame,
 } from "@/lib/satellite.functions";
 
-const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
+
 const BRAND = "#2561a1";
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
@@ -65,29 +65,38 @@ function SwissOutline() {
 }
 
 /**
- * Mountet zuerst nur den aktiven Frame, dann inkrementell die übrigen
- * (radial vom aktiven Index aus).
+ * Mountet pro Frame EIN ImageOverlay (ein einziger GetMap-Request via
+ * unseren cachenden Edge-Proxy /api/public/satellite/frame).
+ * Aktiver Frame wird sofort gemountet, übrige radial mit Versatz.
  */
 function FrameStack({
   layer,
   fallbackLayer,
   frames,
+  bbox,
+  pixelSize,
   activeIndex,
   initialIndex,
   onProgress,
+  onActiveReady,
 }: {
   layer: string;
   fallbackLayer?: string;
   frames: SatelliteFrame[];
+  bbox: [number, number, number, number];
+  pixelSize: { w: number; h: number };
   activeIndex: number;
   initialIndex: number;
   onProgress: (loaded: number, total: number) => void;
+  onActiveReady: () => void;
 }) {
   const map = useMap();
-  const layersRef = useRef<(L.TileLayer.WMS | null)[]>([]);
+  const layersRef = useRef<(L.ImageOverlay | null)[]>([]);
   const loadedRef = useRef<Set<number>>(new Set());
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
+  const activeIndexRef = useRef(activeIndex);
+  activeIndexRef.current = activeIndex;
 
   useEffect(() => {
     setEffectiveLayer(layer);
@@ -98,38 +107,48 @@ function FrameStack({
     loadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
 
-    const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean } = {
-      layers: effectiveLayer,
-      format: "image/jpeg",
-      transparent: false,
-      version: "1.3.0",
-      crs: L.CRS.EPSG3857,
-      tileSize: 512,
-      keepBuffer: 0,
-      updateWhenZooming: false,
-      attribution:
-        '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
+    const [west, south, east, north] = bbox;
+    const bounds = L.latLngBounds([south, west], [north, east]);
+
+    const frameUrl = (time: string) => {
+      const p = new URLSearchParams({
+        layer: effectiveLayer,
+        time,
+        west: String(west),
+        south: String(south),
+        east: String(east),
+        north: String(north),
+        w: String(pixelSize.w),
+        h: String(pixelSize.h),
+      });
+      return `/api/public/satellite/frame?${p.toString()}`;
     };
 
     const mountFrame = (i: number) => {
       if (i < 0 || i >= frames.length || layersRef.current[i]) return;
       const f = frames[i];
-      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: i === activeIndex ? 1 : 0 });
-      tl.setParams({ time: f.time } as unknown as L.WMSParams, false);
-      tl.on("load", () => {
+      const ov = L.imageOverlay(frameUrl(f.time), bounds, {
+        opacity: i === activeIndexRef.current ? 1 : 0,
+        interactive: false,
+        crossOrigin: true,
+        attribution:
+          '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
+      });
+      ov.on("load", () => {
         if (!loadedRef.current.has(i)) {
           loadedRef.current.add(i);
           onProgress(loadedRef.current.size, frames.length);
+          if (i === activeIndexRef.current) onActiveReady();
         }
       });
-      tl.on("tileerror", () => {
+      ov.on("error", () => {
         if (!triedFallbackRef.current && fallbackLayer && fallbackLayer !== effectiveLayer) {
           triedFallbackRef.current = true;
           setEffectiveLayer(fallbackLayer);
         }
       });
-      tl.addTo(map);
-      layersRef.current[i] = tl;
+      ov.addTo(map);
+      layersRef.current[i] = ov;
     };
 
     mountFrame(initialIndex);
@@ -148,21 +167,21 @@ function FrameStack({
       const t = window.setTimeout(() => {
         if (cancelled) return;
         mountFrame(i);
-      }, 80 + k * 40);
+      }, 60 + k * 30);
       timers.push(t);
     });
 
     return () => {
       cancelled = true;
       timers.forEach((t) => window.clearTimeout(t));
-      layersRef.current.forEach((tl) => tl?.remove());
+      layersRef.current.forEach((ov) => ov?.remove());
       layersRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, effectiveLayer, frames]);
+  }, [map, effectiveLayer, frames, bbox, pixelSize.w, pixelSize.h]);
 
   useEffect(() => {
-    layersRef.current.forEach((tl, i) => tl?.setOpacity(i === activeIndex ? 1 : 0));
+    layersRef.current.forEach((ov, i) => ov?.setOpacity(i === activeIndex ? 1 : 0));
   }, [activeIndex]);
 
   return null;
@@ -428,10 +447,13 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   const [speedMs, setSpeedMs] = useState(500);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loaded, setLoaded] = useState(0);
+  const [activeReady, setActiveReady] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const mapBoxRef = useRef<HTMLDivElement>(null);
+  const [pixelSize, setPixelSize] = useState<{ w: number; h: number }>({ w: 1024, h: 700 });
 
   const total = frames.length;
-  const ready = total > 0 && loaded / total >= 0.8;
+  const ready = activeReady;
 
   const lastTimeRef = useRef<string | null>(null);
   const initialIndexRef = useRef<number>(0);
@@ -458,8 +480,31 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
 
   useEffect(() => {
     setLoaded(0);
+    setActiveReady(false);
     setPlaying(false);
   }, [regionId]);
+
+  // Container-Grösse messen → bestimmt Bildauflösung des Frame-Proxys
+  useEffect(() => {
+    const el = mapBoxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+    const apply = () => {
+      const w = Math.max(320, Math.min(1600, Math.round(el.clientWidth * dpr)));
+      const h = Math.max(240, Math.min(1600, Math.round(el.clientHeight * dpr)));
+      // Auf 64-er Raster runden, damit Edge-Cache trifft (gleicher URL für ähnliche Grössen)
+      const snap = (n: number) => Math.round(n / 64) * 64;
+      setPixelSize((prev) => {
+        const next = { w: snap(w), h: snap(h) };
+        if (prev.w === next.w && prev.h === next.h) return prev;
+        return next;
+      });
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     if (ready && !playing && total >= 2) setPlaying(true);
@@ -575,7 +620,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       </div>
 
       {/* Map */}
-      <div className={cn("relative", bare ? "h-full min-h-[400px]" : "h-[620px]")}>
+      <div ref={mapBoxRef} className={cn("relative", bare ? "h-full min-h-[400px]" : "h-[620px]")}>
         <MapContainer
           center={region.center}
           zoom={region.zoom}
@@ -594,13 +639,16 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           <FlyToRegion regionId={regionId} />
           {frames.length > 0 && (
             <FrameStack
-              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}-${pixelSize.w}x${pixelSize.h}`}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               frames={frames}
+              bbox={data?.bbox ?? region.bbox}
+              pixelSize={pixelSize}
               activeIndex={index}
               initialIndex={initialIndexRef.current}
               onProgress={(l) => setLoaded(l)}
+              onActiveReady={() => setActiveReady(true)}
             />
           )}
           {showSwiss && <SwissOutline />}
