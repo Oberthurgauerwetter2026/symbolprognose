@@ -108,7 +108,7 @@ function FrameStack({
       keepBuffer: 0,
       updateWhenZooming: false,
       attribution:
-        '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
+        'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
 
     const mountFrame = (i: number) => {
