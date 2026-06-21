@@ -422,8 +422,10 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Prognose: chunky 3-Pixel-Raster (Wetter-Modell-Look). Messung: feiner.
-    const STEP = contour ? 3 : 2;
+    // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
+    // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
+    // Messung: 2-Pixel-Raster (Performance).
+    const STEP = contour ? 1 : 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
