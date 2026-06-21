@@ -85,11 +85,12 @@ function renderStaticForecast(data: StaticForecastData): string {
   const current = data.current;
 
   const hourlyRows = data.hourly
+    .slice(0, 6)
     .map((h) => {
       const code = h.weathercode ?? 0;
       const sym = renderWeatherIconSvg({
         code,
-        size: 32,
+        size: 28,
         scope: "hourly",
         precip: n(h.precipitation),
         precipProb: n(h.precipProb),
