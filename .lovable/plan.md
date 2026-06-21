@@ -1,29 +1,32 @@
+## Ziel
 
-# Fix: EUMETView Layer-Namen korrigieren
+Nur das reine Satellitenbild zeigen — keine Karten-Basemap, keine Grenzen, keine Ortsnamen, kein Relief, keine Overlays. Animation soll flüssig laufen (Vorab-Laden aller Frames + sauberer Crossfade). Schweiz und Alpen werden zu einer Region zusammengefasst. Quelle ist Meteosat Third Generation (MTG-FCI von Meteosat-12) über EUMETView WMS.
 
-Die Bilder erscheinen nicht, weil die WMS-Layer-Namen im Code falsch geraten sind. Ich habe die echten Namen aus dem Live-`GetCapabilities` von `view.eumetsat.int/geoserver/wms` geprüft.
+## Änderungen
 
-## Korrekturen in `src/lib/satellite.functions.ts`
+### 1. Regionen (`src/lib/satellite.functions.ts`)
+- "Schweiz" und "Alpen True Colour" zu einer Region zusammenführen:
+  - `id: "alpen-ch"`, Label: `"Schweiz & Alpen"`, Layer: `mtg_fd:rgb_truecolour` (MTG-FCI / Meteosat-12), Zoom 7, Zentrum [46.7, 8.5]
+- Übrige Regionen unverändert: Europa GeoColour, Europa IR, Global IR
+- Default-Region: `alpen-ch`
 
-| Region          | Falsch (jetzt im Code)         | Korrekt (laut Capabilities)        |
-|-----------------|---------------------------------|------------------------------------|
-| Schweiz         | `mtg_fd:rgb_truecolor`          | `mtg_fd:rgb_truecolour`            |
-| Alpen           | `mtg_fd:rgb_truecolor`          | `mtg_fd:rgb_truecolour`            |
-| Europa GeoColour| `mtg_fd:rgb_geocolour`          | `mtg_fd:rgb_geocolour` (passt)     |
-| Europa IR       | `mtg_fd:ir105`                  | `mtg_fd:ir105_hrfi`                |
-| Global IR       | `mumi:wideareacoverage_ir`      | `mumi:worldcloudmap_ir108`         |
+### 2. Karte (`src/components/maps/satellite-map.tsx`)
+- Basemap (CARTO dark) **entfernen** — Karte zeigt nur den WMS-Layer auf neutralem dunklem Hintergrund (`bg-[#000]`).
+- Label-Layer (CARTO `dark_only_labels`) **entfernen**.
+- Hillshade-TileLayer **entfernen**.
+- Overlay-Toggles und Settings-Popover komplett **entfernen** (Grenzen, Kantone, Orte, Relief).
+- WMS-Layer auf `transparent: false`, `format: "image/jpeg"` umstellen (kleiner, schneller, kein Alpha nötig ohne Basemap).
+- Topbar behält nur: Regions-Select, Zeit-Badge, Vollbild-Button.
 
-Fallbacks ebenfalls anpassen: `msg_fes:rgb_naturalenhncd` (existiert) und `msg_fes:ir108` (existiert).
+### 3. Flüssige Animation
+- Frames **vorab laden**: beim Manifest-Empfang einmalig pro Frame ein verstecktes `L.tileLayer.wms` mit `opacity: 0` instanziieren und auf die Karte legen, damit Leaflet die Tiles cached. Erst wenn alle (oder die ersten N) Frames das `load`-Event gefeuert haben, startet die Playback-Loop.
+- `CrossfadeWMS` umbauen zu **N-Layer-Stack** (ein WMS-Layer pro Frame, alle gemountet, alle mit `opacity:0` außer dem aktiven). Frame-Wechsel = nur Opacity-Umschalten → keine neuen Tile-Requests während Playback, kein Flackern.
+- Während Vorab-Laden: kleiner Loading-Indikator + "Lade Frames …" im Zeit-Badge. Play-Button erst aktiv, wenn ≥ 80 % der Frames geladen sind.
+- Default-Speed bleibt 1× (500 ms); Speed-Select unverändert.
 
-## Zusätzliche Härtung
+### 4. Attributions-/Quellen-Hinweis
+- Im Zeit-Badge kleinen Zusatz: `EUMETSAT · Meteosat-12 (MTG-FCI)` für True-Colour-Regionen, entsprechend für GeoColour/IR.
 
-- WMS-Cache-Verlauf: EUMETView publiziert pro Layer eigene `TIME`-Dimension. Für MTG FCI sind 10 Min plausibel, für MSG 15 Min, für `worldcloudmap_ir108` (3-stündliches Welt-Mosaik) dagegen nur alle 3 Stunden ein neuer Frame. Ich passe in der Regions-Konfig die `stepMinutes`/`latencyMinutes` an:
-  - `global-ir`: `stepMinutes: 180`, `latencyMinutes: 60` → ergibt 2 Frames in 5 h. Da der Nutzer 5 h Rückblick will, erweitere ich für `global-ir` auf 24 h, damit 8 Frames entstehen — sonst ist das eine sehr kurze Animation.
-- `tileSize: 512`: einige EUMETView-Layer mögen kein 512er-Tiling. Auf `256` zurücksetzen.
-- Falls ein WMS-Tile 404/500 liefert, fängt Leaflet das stillschweigend ab; Frame bleibt sichtbar.
-
-## Was sich NICHT ändert
-
-- Keine neuen Dateien, kein Ingest, kein Key — nur Strings in `satellite.functions.ts` und das `tileSize`-Feld in `satellite-map.tsx`.
-
-Nach den Edits sollten die Bilder beim Reload sofort erscheinen.
+## Nicht im Scope
+- Keine Änderungen an `karten.satellit.tsx`, `embed.satellit.tsx`, `maps-config.ts`.
+- Keine neuen Datenquellen — weiterhin EUMETView WMS ohne Key.
