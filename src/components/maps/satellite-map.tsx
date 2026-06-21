@@ -26,7 +26,7 @@ import {
   type SatelliteFrame,
 } from "@/lib/satellite.functions";
 
-const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
+const BRAND_OUTLINE = "#ffffff";
 const BRAND = "#2561a1";
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
