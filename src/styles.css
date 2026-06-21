@@ -191,8 +191,8 @@
 .mch-precip {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  /* Kein zusätzlicher Kontrast-Filter: verstärkt sonst Coverage-Kanten,
-     ohne dem Niederschlagsbild Information hinzuzufügen. */
+  filter: contrast(1.1);
+  will-change: filter;
 }
 
 /* Embed-Fallback: server-gerenderter statischer Inhalt bleibt sichtbar,
