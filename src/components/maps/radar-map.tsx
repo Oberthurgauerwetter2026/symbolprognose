@@ -568,6 +568,32 @@ function PrecipOverlay({
     };
 
 
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const px = lx * STEP;
+        const py = ly * STEP;
+        const ll = map.containerPointToLatLng([px, py]);
+        const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+        const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+        const BUFFER = 3;
+        if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
+        if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
+
+        let fxS = fxRaw;
+        let fyS = fyRaw;
+        if (contour && dxGrid && dyGrid) {
+          fxS = fxRaw + bilerpGrid(dxGrid, lx, ly);
+          fyS = fyRaw + bilerpGrid(dyGrid, lx, ly);
+        }
+
+        const vCur = sampleAt(vals, fxS, fyS);
+        let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxS, fyS)) : vCur;
+
+        if (contour && v > 0 && modGrid && envGrid) {
+          const mod = bilerpGrid(modGrid, lx, ly);
+          const envelope = bilerpGrid(envGrid, lx, ly);
+          v = v * mod * envelope;
+        }
 
         const minV = contour ? 0.05 : 0.1;
         if (v < minV) continue;
@@ -579,8 +605,6 @@ function PrecipOverlay({
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
-        // Prognose: diskrete Bänder (colorFor) für harte Iso-Kanten — wirkt
-        // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
         let [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
           : (contour ? colorFor(v) : colorForSmooth(v));
@@ -594,6 +618,7 @@ function PrecipOverlay({
         data[idx + 3] = alpha;
       }
     }
+
 
 
     // Off-screen Buffer für putImageData (ignoriert Transformationen/Clip).
