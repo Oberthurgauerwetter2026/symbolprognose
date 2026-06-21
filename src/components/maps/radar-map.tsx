@@ -358,10 +358,8 @@ function PrecipOverlay({
         cv.style.willChange = "transform";
         cv.style.opacity = "1";
         cv.style.zIndex = "440";
-        // Beide Layer (Messung-Fallback und Prognose) bekommen denselben
-        // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
-        // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
-        cv.style.filter = "contrast(1.1)";
+        // Kein Kontrast-Filter — verstärkt sonst Coverage-/Iso-Kanten
+        // ohne zusätzliche Information.
         (cv.style as unknown as { imageRendering: string }).imageRendering = contour
           ? "pixelated"
           : "auto";
