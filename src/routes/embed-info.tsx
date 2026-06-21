@@ -36,7 +36,7 @@ function buildSimpleSnippet(url: string, path: string, height = 600) {
  * Monitor-stabiles Snippet für Lokalprognose Amriswil: statische HTML-Route,
  * kein postMessage, keine Client-Hydration, keine blauen Ladeflächen.
  */
-function buildAmriswilSnippet(url: string, path: string, height = 640) {
+function buildAmriswilSnippet(url: string, path: string, height = 520) {
   const full = `${url}${path}`;
   const origin = new URL(url).origin;
   return `<link rel="preconnect" href="${origin}" crossorigin>
@@ -106,9 +106,9 @@ function EmbedInfo() {
             Lokalprognose Amriswil
           </h2>
           <p className="text-sm text-muted-foreground">
-            Kompakte Monitor-Version mit Wettersymbolen: reine HTML-Prognose ohne JavaScript, passt neben die TWINT-Spalte. Der Wert <code>height:640px</code> kann bei Bedarf angepasst werden.
+            Kompakte Monitor-Version mit Wettersymbolen: reine HTML-Prognose ohne JavaScript, passt neben die TWINT-Spalte. Die Höhe <code>520px</code> ist auf die Unterkante des TWINT-Labels abgestimmt und kann bei Bedarf angepasst werden.
           </p>
-          <SnippetBlock snippet={buildAmriswilSnippet(url, "/api/public/embed/region-lokal-static", 640)} />
+          <SnippetBlock snippet={buildAmriswilSnippet(url, "/api/public/embed/region-lokal-static", 520)} />
         </section>
 
         <section className="space-y-6">
