@@ -1,6 +1,6 @@
-import { Map as MapIcon, MapPin, Wind, CloudRain, Droplets, type LucideIcon } from "lucide-react";
+import { Map as MapIcon, MapPin, Wind, CloudRain, Droplets, Satellite, type LucideIcon } from "lucide-react";
 
-export type MapId = "region" | "lokal" | "wind" | "radar" | "niederschlag";
+export type MapId = "region" | "lokal" | "wind" | "radar" | "niederschlag" | "satellit";
 
 export interface MapDefinition {
   id: MapId;
@@ -13,8 +13,9 @@ export interface MapDefinition {
     | "/karten/lokal"
     | "/karten/wind"
     | "/karten/radar"
-    | "/karten/niederschlag";
-  embedPath?: "/embed/region" | "/embed/lokal" | "/embed/wind" | "/embed/radar";
+    | "/karten/niederschlag"
+    | "/karten/satellit";
+  embedPath?: "/embed/region" | "/embed/lokal" | "/embed/wind" | "/embed/radar" | "/embed/satellit";
   status: "live" | "coming-soon";
   internal?: boolean;
 }
@@ -67,6 +68,16 @@ export const MAPS: MapDefinition[] = [
     description: "Akkumulierter Niederschlag der nächsten 12, 24 und 48 Stunden – stündliche Aktualisierung.",
     icon: Droplets,
     routePath: "/karten/niederschlag",
+    status: "live",
+  },
+  {
+    id: "satellit",
+    label: "Satellitenbild",
+    shortLabel: "Satellit",
+    description: "Zeitraffer der letzten 5 Stunden — Schweiz, Alpen, Europa und Global aus EUMETSAT-Daten.",
+    icon: Satellite,
+    routePath: "/karten/satellit",
+    embedPath: "/embed/satellit",
     status: "live",
   },
 ];
