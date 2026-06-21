@@ -1528,7 +1528,7 @@ export function RadarMap({
                               Hagel (POH)
                             </p>
                             <p className="text-[10px] text-neutral-500">
-                              {data?.hasHail ? "Wahrscheinlichkeit einblenden" : "Aktuell nicht verfügbar"}
+                              {data?.hasHail ? "POH-Daten & bei Gewitter abgeleitet" : "Aktuell nicht verfügbar"}
                             </p>
                           </div>
                           <Switch
