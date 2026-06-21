@@ -362,7 +362,9 @@ function PrecipOverlay({
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
         cv.style.filter = "contrast(1.1)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = contour
+          ? "pixelated"
+          : "auto";
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -420,7 +422,15 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // ----- Gemeinsame Hilfsfunktionen -----
+    // Prognose: chunky 3-Pixel-Raster (Wetter-Modell-Look). Messung: feiner.
+    const STEP = contour ? 3 : 2;
+    const lowW = Math.max(1, Math.ceil(size.x / STEP));
+    const lowH = Math.max(1, Math.ceil(size.y / STEP));
+
+    const img = ctx.createImageData(lowW, lowH);
+    const data = img.data;
+
+    // Bilineare Sample-Funktion.
     const sampleAt = (arr: number[], fx: number, fy: number) => {
       const x0 = Math.floor(fx);
       const y0 = Math.floor(fy);
@@ -445,364 +455,39 @@ function PrecipOverlay({
       );
     };
 
-    // Deterministisches Value-Noise + fBm.
+    // -------- Deterministisches Value-Noise + fBm (fraktales Rauschen) --------
+    // Pro Frame stabil (Seed aus frame.t), damit Animation nicht flackert.
     const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
-    const hash2 = (ix: number, iy: number, s: number) => {
-      let h = (ix * 374761393 + iy * 668265263 + s * 1442695041) | 0;
+    const hash = (ix: number, iy: number) => {
+      let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
       h = (h ^ (h >>> 13)) * 1274126177;
       h = h ^ (h >>> 16);
-      return ((h >>> 0) % 10000) / 10000;
+      return ((h >>> 0) % 10000) / 10000; // 0..1
     };
     const smooth = (u: number) => u * u * (3 - 2 * u);
-    const vnoise = (x: number, y: number, s: number) => {
+    const valueNoise = (x: number, y: number) => {
       const ix = Math.floor(x);
       const iy = Math.floor(y);
       const fx = smooth(x - ix);
       const fy = smooth(y - iy);
-      const a = hash2(ix, iy, s);
-      const b = hash2(ix + 1, iy, s);
-      const c = hash2(ix, iy + 1, s);
-      const d = hash2(ix + 1, iy + 1, s);
+      const a = hash(ix, iy);
+      const b = hash(ix + 1, iy);
+      const c = hash(ix, iy + 1);
+      const d = hash(ix + 1, iy + 1);
       return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
     };
-
-    // ============================================================
-    // VEKTOR-BLOBS für Prognose (contour === true)
-    // ============================================================
-    if (contour) {
-      // 1) Interpoliertes + leicht geglättetes Feld auf dem Grid.
-      const field = new Float32Array(nLat * nLon);
-      for (let j = 0; j < nLat; j++) {
-        for (let i = 0; i < nLon; i++) {
-          const k = j * nLon + i;
-          const a = vals[k] ?? 0;
-          const b = nextVals ? (nextVals[k] ?? 0) : a;
-          field[k] = nextVals ? a + (b - a) * t : a;
-        }
+    // fBm: 3 Oktaven → räumlich korreliert mit eingebetteten Kernen.
+    const fbm = (x: number, y: number) => {
+      let v = 0;
+      let amp = 0.5;
+      let freq = 1;
+      for (let o = 0; o < 3; o++) {
+        v += valueNoise(x * freq, y * freq) * amp;
+        amp *= 0.5;
+        freq *= 2.1;
       }
-      // 3x3 Box-Blur (1 Durchlauf).
-      const blurred = new Float32Array(nLat * nLon);
-      for (let j = 0; j < nLat; j++) {
-        for (let i = 0; i < nLon; i++) {
-          let sum = 0;
-          let n = 0;
-          for (let dj = -1; dj <= 1; dj++) {
-            for (let di = -1; di <= 1; di++) {
-              const ii = i + di;
-              const jj = j + dj;
-              if (ii < 0 || ii >= nLon || jj < 0 || jj >= nLat) continue;
-              sum += field[jj * nLon + ii];
-              n++;
-            }
-          }
-          blurred[j * nLon + i] = sum / Math.max(1, n);
-        }
-      }
-
-      const MIN_V = 0.05;
-      // 2) Connected components (4-Nachbarschaft, iterative BFS).
-      const visited = new Uint8Array(nLat * nLon);
-      type Cell = {
-        idxs: number[];
-        cxGrid: number; // Spalte (i)
-        cyGrid: number; // Zeile (j)
-        a: number; // Halbachse in Grid-Einheiten (Spalten)
-        b: number; // Halbachse in Grid-Einheiten (Zeilen)
-        phi: number; // Rotation (rad), in Grid-Koords (x=Spalte, y=Zeile)
-        vMax: number;
-        seed: number;
-        snowFrac: number;
-      };
-      const cells: Cell[] = [];
-      const queue: number[] = [];
-      for (let j0 = 0; j0 < nLat; j0++) {
-        for (let i0 = 0; i0 < nLon; i0++) {
-          const k0 = j0 * nLon + i0;
-          if (visited[k0]) continue;
-          if (blurred[k0] < MIN_V) {
-            visited[k0] = 1;
-            continue;
-          }
-          // BFS
-          queue.length = 0;
-          queue.push(k0);
-          visited[k0] = 1;
-          const idxs: number[] = [];
-          let qh = 0;
-          while (qh < queue.length) {
-            const kk = queue[qh++];
-            idxs.push(kk);
-            const ii = kk % nLon;
-            const jj = (kk - ii) / nLon;
-            // 4 Nachbarn
-            if (ii > 0) {
-              const nk = kk - 1;
-              if (!visited[nk] && blurred[nk] >= MIN_V) {
-                visited[nk] = 1;
-                queue.push(nk);
-              }
-            }
-            if (ii < nLon - 1) {
-              const nk = kk + 1;
-              if (!visited[nk] && blurred[nk] >= MIN_V) {
-                visited[nk] = 1;
-                queue.push(nk);
-              }
-            }
-            if (jj > 0) {
-              const nk = kk - nLon;
-              if (!visited[nk] && blurred[nk] >= MIN_V) {
-                visited[nk] = 1;
-                queue.push(nk);
-              }
-            }
-            if (jj < nLat - 1) {
-              const nk = kk + nLon;
-              if (!visited[nk] && blurred[nk] >= MIN_V) {
-                visited[nk] = 1;
-                queue.push(nk);
-              }
-            }
-          }
-          if (idxs.length < 4) continue;
-
-          // Schwerpunkt + Kovarianz (gewichtet mit v).
-          let wSum = 0;
-          let cx = 0;
-          let cy = 0;
-          let vMax = 0;
-          for (const kk of idxs) {
-            const ii = kk % nLon;
-            const jj = (kk - ii) / nLon;
-            const w = blurred[kk];
-            wSum += w;
-            cx += ii * w;
-            cy += jj * w;
-            if (w > vMax) vMax = w;
-          }
-          cx /= wSum;
-          cy /= wSum;
-          let sxx = 0;
-          let syy = 0;
-          let sxy = 0;
-          for (const kk of idxs) {
-            const ii = kk % nLon;
-            const jj = (kk - ii) / nLon;
-            const w = blurred[kk];
-            const dx = ii - cx;
-            const dy = jj - cy;
-            sxx += w * dx * dx;
-            syy += w * dy * dy;
-            sxy += w * dx * dy;
-          }
-          sxx /= wSum;
-          syy /= wSum;
-          sxy /= wSum;
-          // Eigenwerte 2x2.
-          const tr = sxx + syy;
-          const det = sxx * syy - sxy * sxy;
-          const disc = Math.max(0, (tr * tr) / 4 - det);
-          const s = Math.sqrt(disc);
-          const lam1 = tr / 2 + s;
-          const lam2 = Math.max(1e-6, tr / 2 - s);
-          // 2σ-Halbachsen + Minimum, damit Punktzellen nicht degenerieren.
-          let aAx = 2 * Math.sqrt(Math.max(lam1, 0.05));
-          let bAx = 2 * Math.sqrt(Math.max(lam2, 0.05));
-          aAx = Math.max(aAx, 0.7);
-          bAx = Math.max(bAx, 0.7);
-          // Rotation: Eigenvektor zu lam1.
-          let phi = 0;
-          if (Math.abs(sxy) > 1e-9 || Math.abs(sxx - syy) > 1e-9) {
-            phi = 0.5 * Math.atan2(2 * sxy, sxx - syy);
-          }
-
-          // Snow-Fraktion am Zentrum.
-          let snowFrac = 0;
-          if (snowVals && vMax > 0.01) {
-            const svCur = sampleAt(snowVals, cx, cy);
-            const sv = nextSnowVals
-              ? svCur + (sampleAt(nextSnowVals, cx, cy) - svCur) * t
-              : svCur;
-            const vc = sampleAt(field as unknown as number[], cx, cy);
-            if (vc > 0.01) snowFrac = Math.max(0, Math.min(1, sv / vc));
-          }
-
-          cells.push({
-            idxs,
-            cxGrid: cx,
-            cyGrid: cy,
-            a: aAx,
-            b: bAx,
-            phi,
-            vMax,
-            seed: seed ^ (((cx * 73856093) | 0) ^ ((cy * 19349663) | 0)),
-            snowFrac,
-          });
-        }
-      }
-
-      // 3) Grid → Pixel-Hilfsfunktion (für Halbachsen-Skalierung in PX).
-      const gridToLatLng = (gx: number, gy: number): L.LatLng => {
-        const lon = gridLon[0] + (gx / (nLon - 1)) * (gridLon[nLon - 1] - gridLon[0]);
-        const lat = gridLat[0] + (gy / (nLat - 1)) * (gridLat[nLat - 1] - gridLat[0]);
-        return L.latLng(lat, lon);
-      };
-
-      // 4) Pro Zelle: äußere Hülle + nach innen geschachtelte Bänder zeichnen.
-      const NPTS = 128;
-      const cos = new Float32Array(NPTS);
-      const sin = new Float32Array(NPTS);
-      for (let p = 0; p < NPTS; p++) {
-        const th = (p / NPTS) * Math.PI * 2;
-        cos[p] = Math.cos(th);
-        sin[p] = Math.sin(th);
-      }
-      // fBm in 2D mit 4 Oktaven.
-      const fbm2 = (x: number, y: number, s: number) => {
-        let v = 0;
-        let amp = 0.5;
-        let freq = 1;
-        for (let o = 0; o < 4; o++) {
-          v += vnoise(x * freq, y * freq, s + o * 131) * amp;
-          amp *= 0.55;
-          freq *= 2.07;
-        }
-        return v; // ~0..1
-      };
-
-      // Schwellen, die wir als innere Bänder zeichnen.
-      const THRESH = SCALE.map((b) => b.mmh);
-
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.lineWidth = 0;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-
-      // Catmull-Rom → kubische Bézier (geschlossen).
-      const drawClosedSpline = (pts: { x: number; y: number }[]) => {
-        const n = pts.length;
-        if (n < 3) return;
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 0; i < n; i++) {
-          const p0 = pts[(i - 1 + n) % n];
-          const p1 = pts[i];
-          const p2 = pts[(i + 1) % n];
-          const p3 = pts[(i + 2) % n];
-          const cp1x = p1.x + (p2.x - p0.x) / 6;
-          const cp1y = p1.y + (p2.y - p0.y) / 6;
-          const cp2x = p2.x - (p3.x - p1.x) / 6;
-          const cp2y = p2.y - (p3.y - p1.y) / 6;
-          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
-        }
-        ctx.closePath();
-      };
-
-      // Sortiere Zellen nach Größe → grosse zuerst, damit kleinere oben liegen.
-      cells.sort((u, w) => w.idxs.length - u.idxs.length);
-
-      for (const cell of cells) {
-        // Grundform r(θ): periodisch via cos/sin → keine Naht, C¹-stetig.
-        const rBase = new Float32Array(NPTS);
-        for (let p = 0; p < NPTS; p++) {
-          const nx = cos[p];
-          const ny = sin[p];
-          // 4 Oktaven, eingebaut in fbm2 — zusätzlich grobe Lobus-Amplitude.
-          const n = fbm2(nx * 1.3, ny * 1.3, cell.seed);
-          // Range ~0..1 → 0.65..1.35 (markante, aber gemässigte Lobi).
-          rBase[p] = 0.65 + 0.7 * n;
-        }
-
-        // Basis-Vektoren: 1 Grid-Schritt entlang Grid-x bzw. Grid-y in PX.
-        const cLL = gridToLatLng(cell.cxGrid, cell.cyGrid);
-        const cPx = map.latLngToContainerPoint(cLL);
-        const eaPx = map.latLngToContainerPoint(
-          gridToLatLng(cell.cxGrid + 1, cell.cyGrid),
-        );
-        const ebPx = map.latLngToContainerPoint(
-          gridToLatLng(cell.cxGrid, cell.cyGrid + 1),
-        );
-        const eax = eaPx.x - cPx.x;
-        const eay = eaPx.y - cPx.y;
-        const ebx = ebPx.x - cPx.x;
-        const eby = ebPx.y - cPx.y;
-        const gridUnitPx = Math.max(Math.hypot(eax, eay), Math.hypot(ebx, eby));
-        const cphi = Math.cos(cell.phi);
-        const sphi = Math.sin(cell.phi);
-
-        // Sichtprüfung: grober Bounding-Radius in PX.
-        const maxR = Math.max(cell.a, cell.b) * 1.4 * gridUnitPx;
-        if (
-          cPx.x + maxR < 0 ||
-          cPx.x - maxR > size.x ||
-          cPx.y + maxR < 0 ||
-          cPx.y - maxR > size.y
-        ) {
-          continue;
-        }
-
-        // Mindestgrösse in Grid-Einheiten (relativ zur Pixel-Skala).
-        const minGrid = 6 / Math.max(1, gridUnitPx);
-        const aG = Math.max(cell.a, minGrid);
-        const bG = Math.max(cell.b, minGrid);
-
-        // Bänder: äusserstes zuerst.
-        const bandThresholds = THRESH.filter((mm) => mm <= cell.vMax * 1.001);
-        if (bandThresholds.length === 0) continue;
-
-        for (let bi = 0; bi < bandThresholds.length; bi++) {
-          const v_i = bandThresholds[bi];
-          // s_i: aussen=1 (für niedrigste Schwelle), innen→0.
-          const s_i =
-            cell.vMax > v_i
-              ? Math.sqrt(Math.max(0, (cell.vMax - v_i) / cell.vMax))
-              : 0;
-          if (s_i < 0.05) continue;
-          // Sicher: aussen-Schwelle bekommt vollen Radius.
-          const sScale = bi === 0 ? 1 : s_i;
-          const eps = 0.045 * sScale;
-
-          const pts: { x: number; y: number }[] = new Array(NPTS);
-          for (let p = 0; p < NPTS; p++) {
-            // Zusätzliche kleine Band-Deformation.
-            const dn =
-              vnoise(cos[p] * 3.1, sin[p] * 3.1, cell.seed + bi * 977) - 0.5;
-            const r = sScale * rBase[p] + eps * dn;
-            // Ellipse im lokalen Ellipsen-Frame (in Grid-Einheiten).
-            const lx = aG * r * cos[p];
-            const ly = bG * r * sin[p];
-            // Rotation um cell.phi → Verschiebung in Grid-Koords.
-            const ug = lx * cphi - ly * sphi;
-            const vg = lx * sphi + ly * cphi;
-            // Grid-Offset → PX über Basis-Vektoren.
-            pts[p] = {
-              x: cPx.x + ug * eax + vg * ebx,
-              y: cPx.y + ug * eay + vg * eby,
-            };
-          }
-
-
-          drawClosedSpline(pts);
-          const col = cell.snowFrac > 0.3 ? snowColorFor(v_i) : colorFor(v_i);
-          if (col[3] === 0) continue;
-          ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${col[3]})`;
-          ctx.fill();
-        }
-      }
-      ctx.restore();
-      return;
-    }
-
-    // ============================================================
-    // PIXEL-PFAD (Messung-Fallback ohne PNG, contour === false)
-    // ============================================================
-    const STEP = 2;
-    const lowW = Math.max(1, Math.ceil(size.x / STEP));
-    const lowH = Math.max(1, Math.ceil(size.y / STEP));
-
-    const img = ctx.createImageData(lowW, lowH);
-    const data = img.data;
+      return v; // ~0..1
+    };
 
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
@@ -816,9 +501,23 @@ function PrecipOverlay({
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
 
         const vCur = sampleAt(vals, fxRaw, fyRaw);
-        const v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
+        let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
 
-        if (v < 0.1) continue;
+        // Prognose: fraktale Modulation → grossflächige, organische Felder
+        // mit eingebetteten Niederschlagskernen. Modulation am Grid-Raster
+        // (~Modellauflösung), nicht am Pixel.
+        if (contour && v > 0) {
+          // Grobe Oktave folgt der Modellauflösung (≈ alle 2 Grid-Punkte
+          // ein Noise-Lobus); feine Oktaven liefern die Kerne.
+          const n = fbm(fxRaw * 0.6, fyRaw * 0.6); // 0..1
+          // Multiplikator 0.35 … 1.65 → Iso-Kanten werden fraktal verformt,
+          // Spitzen können in die nächste Farbstufe „aufflammen".
+          const mod = 0.35 + n * 1.3;
+          v = v * mod;
+        }
+
+        const minV = contour ? 0.05 : 0.1;
+        if (v < minV) continue;
 
         let snowFrac = 0;
         if (snowVals) {
@@ -827,7 +526,11 @@ function PrecipOverlay({
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
-        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorForSmooth(v);
+        // Prognose: diskrete Bänder (colorFor) für harte Iso-Kanten — wirkt
+        // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
+        let [r, g, b, a] = snowFrac > 0.3
+          ? snowColorFor(v)
+          : (contour ? colorFor(v) : colorForSmooth(v));
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -839,6 +542,8 @@ function PrecipOverlay({
       }
     }
 
+
+    // Off-screen Buffer für putImageData (ignoriert Transformationen/Clip).
     const off = document.createElement("canvas");
     off.width = lowW;
     off.height = lowH;
@@ -846,13 +551,15 @@ function PrecipOverlay({
     if (!offCtx) return;
     offCtx.putImageData(img, 0, 0);
 
+    // Kein Clip auf imageBbox — Prognose deckt das volle Daten-Grid ab,
+    // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
+    // Prognose: nearest-neighbour upscaling → sichtbare Pixel-Kanten.
+    ctx.imageSmoothingEnabled = !contour;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
-
   };
 
   // Bei Frame-/Progress-Wechsel neu zeichnen.
