@@ -23,6 +23,8 @@ export interface SatelliteRegion {
   zoom: number;
   stepMinutes: number;
   latencyMinutes: number;
+  /** Bounding box in EPSG:4326 (lon/lat): [west, south, east, north] */
+  bbox: [number, number, number, number];
   /** Quellen-/Sensor-Bezeichnung für UI-Badge */
   source: string;
   description: string;
