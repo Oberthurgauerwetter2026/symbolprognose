@@ -1,45 +1,72 @@
-# Niederschlag transparenter & Ortenetz im Oberthurgau verdichten
+## Ziel
 
-## 1. Radar-Karte: Niederschlag transparenter
+Die Prognose-Frames der Radarkarte (`contour=true` in `PrecipOverlay`, d.h. alle ICON-CH1/CH2-Frames) sollen nicht mehr als pixelgerasterte Bänder gezeichnet werden, sondern als radarähnliche, organische Niederschlagsfelder: **eine unregelmäßige Ellipse pro Zelle als äußere Hülle, darin nach innen geschachtelte, leicht zufällig deformierte Skalierungen derselben Grundform für jede Intensitätsstufe** — keine geraden Linien, keine 90°-Ecken.
 
-`src/components/maps/radar-map.tsx` — `opacityVal` (aktuell `0.75`, Zeile 1155) auf **`0.60`** senken. Wirkt sowohl auf das `PrecipOverlay` (Canvas, ICON-Forecast) als auch auf das `ImageOverlay` mit den MeteoSchweiz-PNGs.
+Messung-Frames (Radar-PNG, `source === "radar"`) bleiben unverändert.
 
-Hageldots (`0.8`, Zeile 1193) bleiben unverändert — sie sind ohnehin selten und sollen weiterhin auffallen.
+## Umsetzung in `src/components/maps/radar-map.tsx`
 
-## 2. Mehr Orte beim Reinzoomen — auf Radar, Wind, Niederschlagssumme
+### 1. Niederschlags-Zellen aus dem Grid extrahieren
 
-Heute existieren drei nahezu identische Listen (`RADAR_CITIES`, `WIND_CITIES`, `CITIES` in `precip-accum-map.tsx`) mit 19 Orten in drei Zoomstufen (10.5 / 11.5 / 12.5). Die Region Oberthurgau umfasst aber **21 Gemeinden** plus zahlreiche Ortsteile/Weiler — und davon ist aktuell nur ein Teil als Marker hinterlegt.
+Innerhalb von `PrecipOverlay.redraw` (nur wenn `contour === true`):
 
-### Vorgehen
+1. Aus `frame.values` (+ optional `nextFrame.values` interpoliert mit `progress`) ein geglättetes 2D-Feld auf dem Modell-Grid bauen (1× Box-Blur, 3×3).
+2. Connected-Components-Suche auf der Maske `v > 0.05 mm/h`. Zellen mit Fläche `< 4` Grid-Zellen verwerfen (Rauschen).
+3. Pro Zelle berechnen:
+   - gewichteter Schwerpunkt `(cx, cy)` (Gewicht = `v`),
+   - Kovarianzmatrix → Eigenwerte/-vektoren → Rotation `φ`, Halbachsen `a`, `b` (skaliert so, dass die 2σ-Ellipse die Zelle umschließt),
+   - Maximum-Intensität `vMax`, Summe `vSum` (für spätere Scoring/Sortierung).
 
-1. **Eine zentrale Quelle** für Ortsnamen anlegen: `src/data/oberthurgau-places.ts`
-   ```ts
-   export type Place = { name: string; lat: number; lon: number; minZoom?: number };
-   export const OBERTHURGAU_PLACES: Place[] = [ ... ];
-   ```
-   Alle drei Map-Komponenten importieren diese Liste statt eigene Arrays zu pflegen.
+### 2. Grundform: unregelmäßige Ellipse via mehrskaligem Noise
 
-2. **Liste vollständig befüllen** — nur Punkte **innerhalb des Region-Polygons** (`src/data/region.json`, 21 Gemeinden). Ablauf bei der Umsetzung:
-   - **Tier A (zoom ≥ 10.5)** — alle 21 Gemeinde-Hauptorte, inkl. der bisher fehlenden **Hohentannen** und **Altnau**.
-   - **Tier B (zoom ≥ 12)** — grössere Ortsteile/Fraktionen: Neukirch (Egnach), Steinebrunn, Winden, Hagenwil bei Amriswil, Schocherswil, Mauren, Birwinken-Rand-Weiler, Hefenhofen-Heldswil, Sitterdorf, Zihlschlacht, Gottshaus, Sulgen-Rand etc.
-   - **Tier C (zoom ≥ 13)** — kleinere Weiler/Höfe-Cluster aus OSM (`place=hamlet`/`place=isolated_dwelling`/`place=suburb`), via Overpass-API innerhalb der Region-Polygone abgefragt und ins File gepinnt (keine Laufzeit-API-Calls).
-   - **Tier D (zoom ≥ 14)** — sehr kleine Weiler, sodass beim weiteren Reinzoomen sukzessive mehr Beschriftungen erscheinen.
+Pro Zelle eine Funktion `r(θ)` definieren:
 
-3. **Filter "nur Oberthurgau"**: Beim Aufbau der Liste jeder Kandidatpunkt per Point-in-Polygon gegen `region.json` prüfen. Punkte ausserhalb (z. B. Sulgen-Zentrum, Berg TG, Kreuzlingen, Münchwilen) werden verworfen.
+```
+r(θ) = 1 + Σ_{k=1..4} A_k · fbm( f_k · cos θ , f_k · sin θ , seed_zelle )
+```
 
-4. **Render-Logik unverändert** — die bestehenden `ZoomGate`/`CityMarkers`-Wrapper nutzen weiterhin `minZoom` pro Eintrag, sodass beim Reinzoomen automatisch dichter wird. Keine Layout-/Icon-Änderungen.
+- 4 Oktaven mit Frequenzen `f_k ∈ {1, 2.1, 4.3, 8.7}` und Amplituden `A_k ∈ {0.25, 0.12, 0.06, 0.03}` (→ markante Lobus-Struktur + feine Krümmung).
+- Eingabe in `cos/sin θ` statt direkt `θ`, damit `r` periodisch und C¹-stetig in `θ ist (keine Naht bei 0/2π).
+- `seed_zelle` aus Frame-Zeit + Zellindex, deterministisch (kein Flackern).
+- Wiederverwendung des vorhandenen `valueNoise`/`fbm`, aber mit 2D-Input.
 
-5. **Konsistenz**: identische Liste & identische `minZoom`-Werte in allen drei Karten — eine Quelle, drei Imports.
+Die äußere Kontur ist dann: `P_out(θ) = center + Rot(φ) · ( a · r(θ) · cos θ , b · r(θ) · sin θ )`.
 
-## Technische Details
+### 3. Innere Intensitätsstufen
 
-- Datei neu: `src/data/oberthurgau-places.ts` (statisches Array, ~80–120 Einträge).
-- Bearbeitet: `src/components/maps/radar-map.tsx`, `wind-map.tsx`, `precip-accum-map.tsx` — lokale Arrays löschen, Import setzen, `RADAR_CITIES`/`WIND_CITIES`/`CITIES`-Verwendung durch `OBERTHURGAU_PLACES` ersetzen.
-- Radar-`opacityVal`: `0.75` → `0.60`.
-- Keine Änderungen an Backend, Datenfetching, Layoutkomponenten, Tooltips oder Embeds.
+Für die Bänder (gleiche Schwellen wie `colorFor`, z. B. `0.1, 0.5, 2, 5, 10, 20 mm/h`, nur solange `≤ vMax`):
 
-## Verifikation
+- Skalierungsfaktor `s_i = sqrt( (vMax − v_i) / vMax )` (innerste Stufe ≈ 0, äußerste = 1) — so wachsen die Bänder physikalisch plausibel nach innen.
+- Pro Band `r_i(θ) = s_i · r(θ) + ε_i · noise2( θ, seed_band )` mit kleinem ε_i (≈ 0.04 · s_i). So bleibt die Grundform erhalten, jede Stufe bekommt aber eine eigene leichte Deformation.
+- Farbe = `colorFor(v_i)` (vorhandene Skala, inklusive Schnee via `snowColorFor`, basierend auf `snowFrac` am Zentrum der Zelle).
 
-- Build/TypeCheck grün.
-- Radar-Karte: PNG-Niederschlag deutlich durchscheinender, Gemeinde-Outlines & Marker lesbar.
-- Auf allen drei Karten: bei Zoom 10–11 nur Hauptorte, bei Zoom 12–14 sukzessive mehr Ortsteile, alle innerhalb der Region-Outline.
+### 4. Rendering ohne Geraden / 90°-Ecken
+
+- 128 Stützpunkte pro Ring (Schrittweite ~2.8°).
+- Pfad als **geschlossene Catmull-Rom-Spline → kubische Bézier-Konvertierung** zeichnen (Standardformel, Tension 0.5). Damit hat jede Kontur C¹-Stetigkeit und garantiert keine geraden Kanten / rechte Winkel.
+- Painter's-Order: äußerstes Band zuerst, innen drauf — keine Even-Odd-Tricks nötig.
+- Auf der Karte gerendert über `map.latLngToContainerPoint(...)` für jeden Stützpunkt; die Halbachsen `a, b` werden in Grad → Pixel via Differenz zweier projezierter Punkte umgerechnet, damit Zoom-Stufen sauber skalieren.
+
+### 5. Restliche Logik
+
+- `STEP`, `createImageData`, das gesamte Pixel-Loop und der Off-Screen-Buffer werden im `contour`-Pfad **durch Vektor-Rendering ersetzt**. Im `else`-Pfad (Messung-Fallback ohne PNG) bleibt der bisherige Pixel-Code.
+- `imageRendering: "pixelated"` für Contour-Modus entfernen (Vektor → `auto`).
+- `opacityVal = 0.60` (aktueller Wert) und Cross-Fade zwischen Frames bleiben.
+- Hagel-Dots (`hailValues`) unverändert.
+
+### Technische Notizen
+
+- Connected-Components: iterative BFS auf flachem Array, kein zusätzlicher Speicher außer einem `Uint8Array(nLat*nLon)` Besucht-Flag.
+- Kovarianz-Eigenwerte einer 2×2-Matrix in geschlossener Form (kein Lib-Abhängigkeit).
+- Catmull-Rom → Bézier: `cp1 = P1 + (P2 − P0)/6`, `cp2 = P2 − (P3 − P1)/6`.
+- Performance: maximal ~30–60 aktive Zellen, 128 Punkte, 5 Bänder → ~10k Bézier-Segmente pro Redraw → unkritisch im Vergleich zur jetzigen Per-Pixel-Schleife.
+
+### Verifikation
+
+- Build/TypeScript grün.
+- Visuelle Prüfung in `/karten/radar` während eines Prognose-Frames: weiche, blob-artige Felder, sichtbare innere Intensitätskerne, keine geraden Kanten oder Pixel-Treppen, Position der Felder konsistent mit ICON-CH1.
+- Messung-Frames (rückblickend) sehen aus wie bisher.
+
+## Dateien
+
+- `src/components/maps/radar-map.tsx` — `PrecipOverlay` (contour-Pfad neu) und Hilfsfunktionen für Komponenten-Erkennung, Ellipsen-Fit, Noise-Ring, Catmull-Rom-Pfad.
