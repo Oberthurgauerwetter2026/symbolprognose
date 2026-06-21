@@ -640,10 +640,13 @@ function PrecipOverlay({
     ctx.restore();
   };
 
-  // Bei Frame-/Progress-Wechsel neu zeichnen.
+  // Bei Frame-/Progress-Wechsel neu zeichnen — via rAF gedrosselt, damit
+  // schnelle Slider-Updates nicht mehrere Full-Redraws pro Frame triggern.
   useEffect(() => {
-    redrawRef.current();
+    let raf = requestAnimationFrame(() => redrawRef.current());
+    return () => cancelAnimationFrame(raf);
   }, [frame, nextFrame, progress, payload]);
+
 
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
