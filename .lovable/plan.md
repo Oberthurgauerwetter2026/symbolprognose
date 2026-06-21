@@ -1,16 +1,44 @@
-## Problem
+## Ziel
 
-Die äusseren Bandgrenzen der Prognose-Niederschlagsfelder zeigen weiterhin gerade Kanten / Ecken. Ursache: das fBm-Noise hat nur 3 Oktaven mit niedriger Basisfrequenz (`*0.6`) und ein **achsparalleles Integer-Gitter**. Die anisotrope Skalierung verschiebt die Lobi zwar, dreht das Gitter aber nicht — an der Aussenkante (wo `v*mod` knapp `minV` unterschreitet) bleibt die Lattice-Geometrie sichtbar als Kanten.
+In **Prognose-Frames** (und Mess-Frames ohne POH-PNG) sollen automatisch schwarze Hagel-Punkte erscheinen, wo die Niederschlagsintensität ein gewitter-/hageltypisches Niveau erreicht. Optisch gleich wie der bestehende POH-Layer (`.hail-blackdots`).
 
-## Plan
+## Änderungen (nur `src/components/maps/radar-map.tsx`, `CanvasPrecipLayer`/`redrawRef`)
 
-Nur `src/components/maps/radar-map.tsx`, Prognose-Branch in `PrecipOverlay`:
+### 1. Hagel-Schwellen aus Intensität ableiten
 
-1. **Noise-Gitter rotieren** (≈30°), bevor fBm gesampelt wird → die Lattice-Kanten liegen nicht mehr horizontal/vertikal und „verschwinden" optisch in den organischen Lobi.
-2. **Höhere Basisfrequenz + mehr Oktaven**: fBm von 3 → 5 Oktaven, Basisfrequenz von `0.6` → `0.9`, damit am Aussenrand feine Wellung statt einer langen geraden Kante entsteht.
-3. **Domain-Warp**: vor dem finalen fBm-Sample werden die Koordinaten mit einem zweiten, niederfrequenten fBm verzerrt (`x' = x + w*fbm(x,y)`, analog `y'`). Das ist die Standard-Technik gegen sichtbare Lattice-Grenzen und erzeugt verdrehte, organische Aussenkonturen.
-4. Modulator-Range und alles übrige bleiben gleich; **keine Farbglättung**, Pixel-Rendering bleibt.
+Nach der bestehenden `v = v * mod`-Modulation (Zeile 522) wird `v` (mm/h, äquivalent zu dBZ-Stufen) gegen zwei Schwellen geprüft:
 
-## Verifikation
+- `HAIL_LOW = 25 mm/h` → leichte Hagel-Wahrscheinlichkeit
+- `HAIL_HIGH = 50 mm/h` → hohe Wahrscheinlichkeit
 
-Visuell in `/karten/radar` auf Prognose-Frames: Aussenkante der Bänder ist gewellt/zerklüftet, keine geraden Segmente oder Ecken mehr.
+`hailProb = smoothstep(HAIL_LOW, HAIL_HIGH, v)` → 0..1.
+
+Nur aktiv, wenn `contour === true` (Prognose-/Modell-Frames). Mess-Frames mit echtem `hailUrl` bleiben unverändert; Mess-Frames ohne `hailUrl` bekommen die abgeleiteten Punkte ebenfalls (Flag `useDerivedHail = contour || !frame.hailUrl`).
+
+Nur in den Messungen! Nicht in Prognose
+
+### 2. Punkte zeichnen
+
+Nach `drawImage(off, ...)` (Zeile 568) ein zweiter Pass in voller Canvas-Auflösung:
+
+- Raster ≈ alle **6 CSS-Pixel** (in `dpr`-skaliertem ctx).
+- Pro Rasterpunkt: identische Lat/Lng → fx/fy → Sample wie oben; `hailProb` berechnen.
+- Deterministischer `hash(ix, iy, seed)` (bereits vorhanden) → wenn `hash < hailProb * 0.55`, einen Punkt setzen.
+- Punkt: `ctx.fillStyle = "rgba(0,0,0,0.85)"`, `ctx.beginPath(); ctx.arc(px, py, 1.1, 0, 2π); ctx.fill();`
+- Stabil pro Frame (gleicher Seed wie Noise), kein Flackern; Crossfade zwischen Frames via gleichem Seed-Schema.
+
+Hinweis: kein separates Canvas/Overlay — derselbe Layer, nach dem Niederschlag gezeichnet, damit Z-Order konsistent ist (`zIndex 440`, Punkte sichtbar über Farbflächen).
+
+### 3. Toggle wiederverwenden
+
+Sichtbarkeit des abgeleiteten Hagels über bestehenden `showHail`-State. Dafür `showHail` als Prop in `CanvasPrecipLayer` reinreichen (aktuell nicht vorhanden) und nur dann den Dot-Pass laufen lassen. `data.hasHail` im Reducer auf `true` setzen, sobald irgendein Mess-ODER Forecast-Frame existiert (damit das UI-Toggle nicht disabled bleibt) — kleinste Anpassung in `radar.functions.ts` (`hasHail = hasRealRadar || forecast vorhanden`).
+
+### 4. Legende
+
+`"Hagel (POH)"` → `"Hagel (POH / abgeleitet bei Gewitter)"` im Tooltip-Text. Legenden-Punkte und Farbskala unverändert.
+
+## Nicht enthalten
+
+- Keine neuen Datenquellen / API-Calls.
+- Keine Änderung des Forecast-Farbschemas, der Konturen, der Noise-Parameter.
+- Kein neuer Layer-Komponententyp.

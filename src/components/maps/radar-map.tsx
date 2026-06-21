@@ -583,6 +583,162 @@ function PrecipOverlay({
   return null;
 }
 
+/**
+ * Hagel-Punkt-Overlay für MESS-Frames: leitet aus der Niederschlagsintensität
+ * (ICON-CH1 past_minutely_15, im Frame als `values` enthalten) eine
+ * Hagel-Wahrscheinlichkeit ab und zeichnet schwarze Punkte im POH-Stil dort,
+ * wo Intensität ein gewittertypisches Niveau erreicht. Nur aktiv für
+ * frame.source === "radar". Forecast-Frames bleiben unberührt.
+ */
+function MeasurementHailDotsLayer({
+  payload,
+  frame,
+}: {
+  payload: RadarPayload;
+  frame: RadarFrame | null;
+}) {
+  const map = useMap();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const layerRef = useRef<L.Layer | null>(null);
+
+  useEffect(() => {
+    const CanvasLayer = L.Layer.extend({
+      onAdd(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+        const pane = map.getPanes().overlayPane;
+        const cv = L.DomUtil.create("canvas", "radar-hail-canvas") as HTMLCanvasElement;
+        cv.style.position = "absolute";
+        cv.style.pointerEvents = "none";
+        cv.style.willChange = "transform";
+        cv.style.zIndex = "470";
+        pane.appendChild(cv);
+        this._canvas = cv;
+        canvasRef.current = cv;
+        map.on("moveend zoomend resize", redraw);
+        redraw();
+        return this;
+      },
+      onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+        if (this._canvas) this._canvas.remove();
+        map.off("moveend zoomend resize", redraw);
+        canvasRef.current = null;
+        return this;
+      },
+    });
+    const layer = new (CanvasLayer as unknown as new () => L.Layer)();
+    layer.addTo(map);
+    layerRef.current = layer;
+    return () => {
+      layer.remove();
+      layerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  const redrawRef = useRef<() => void>(() => {});
+  function redraw() {
+    redrawRef.current();
+  }
+
+  redrawRef.current = () => {
+    const cv = canvasRef.current;
+    if (!cv || !frame) return;
+    const size = map.getSize();
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = size.x * dpr;
+    cv.height = size.y * dpr;
+    cv.style.width = size.x + "px";
+    cv.style.height = size.y + "px";
+    const topLeft = map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(cv, topLeft);
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    // Nur für Mess-Frames (Radar) — Prognose ist explizit ausgeschlossen.
+    if (frame.source !== "radar") return;
+    const vals = frame.values;
+    if (!vals || vals.length === 0) return;
+
+    const { gridLat, gridLon } = payload;
+    const nLat = gridLat.length;
+    const nLon = gridLon.length;
+
+    const sampleAt = (arr: number[], fx: number, fy: number) => {
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const txL = fx - x0;
+      const tyL = fy - y0;
+      const inX0 = x0 >= 0 && x0 < nLon;
+      const inX1 = x1 >= 0 && x1 < nLon;
+      const inY0 = y0 >= 0 && y0 < nLat;
+      const inY1 = y1 >= 0 && y1 < nLat;
+      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      return (
+        v00 * (1 - txL) * (1 - tyL) +
+        v01 * txL * (1 - tyL) +
+        v10 * (1 - txL) * tyL +
+        v11 * txL * tyL
+      );
+    };
+
+    // Stabiler Seed pro Frame (kein Flackern beim Step).
+    const seed = (Date.parse(frame.t) / 60000) | 0;
+    const hash = (ix: number, iy: number) => {
+      let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
+      h = (h ^ (h >>> 13)) * 1274126177;
+      h = h ^ (h >>> 16);
+      return ((h >>> 0) % 10000) / 10000;
+    };
+
+    // Hagel ab ca. 25 mm/h wahrscheinlich (Starkregen → konvektive Zelle),
+    // praktisch sicher ab 50 mm/h.
+    const HAIL_LOW = 25;
+    const HAIL_HIGH = 50;
+    const smoothstep = (a: number, b: number, x: number) => {
+      const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+      return t * t * (3 - 2 * t);
+    };
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+
+    // Raster ~6 CSS-Pixel.
+    const STEP = 6;
+    for (let py = 0; py < size.y; py += STEP) {
+      for (let px = 0; px < size.x; px += STEP) {
+        const ll = map.containerPointToLatLng([px, py]);
+        const fx = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+        const fy = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+        if (fx < 0 || fx > nLon - 1 || fy < 0 || fy > nLat - 1) continue;
+        const v = sampleAt(vals, fx, fy);
+        if (v < HAIL_LOW) continue;
+        const prob = smoothstep(HAIL_LOW, HAIL_HIGH, v);
+        // Deterministisches Stippling → Dichte ~ prob.
+        const ix = Math.round(px / STEP);
+        const iy = Math.round(py / STEP);
+        if (hash(ix, iy) > prob * 0.55) continue;
+        ctx.beginPath();
+        ctx.arc(px, py, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  };
+
+  useEffect(() => {
+    redrawRef.current();
+  }, [frame, payload]);
+
+  return null;
+}
+
 function useNowFrameIndex(frames: RadarFrame[]): number {
   return useMemo(() => {
     if (frames.length === 0) return 0;
@@ -1180,6 +1336,9 @@ export function RadarMap({
               className="hail-blackdots"
             />
           )}
+          {data && currentFrame && showHail && currentFrame.source === "radar" && (
+            <MeasurementHailDotsLayer payload={data} frame={currentFrame} />
+          )}
 
 
 
@@ -1369,7 +1528,7 @@ export function RadarMap({
                               Hagel (POH)
                             </p>
                             <p className="text-[10px] text-neutral-500">
-                              {data?.hasHail ? "Wahrscheinlichkeit einblenden" : "Aktuell nicht verfügbar"}
+                              {data?.hasHail ? "POH-Daten & bei Gewitter abgeleitet" : "Aktuell nicht verfügbar"}
                             </p>
                           </div>
                           <Switch
