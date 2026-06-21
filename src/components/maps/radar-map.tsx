@@ -361,7 +361,7 @@ function PrecipOverlay({
         // Beide Layer (Messung-Fallback und Prognose) bekommen denselben
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
-        cv.style.filter = contour ? "contrast(1.1) blur(3px)" : "contrast(1.1)";
+        cv.style.filter = contour ? "contrast(1.1) blur(1.2px)" : "contrast(1.1)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
@@ -420,8 +420,8 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Prognose: grobes 4-px-Raster + bilineares Smoothing → runde Iso-Konturen.
-    const STEP = contour ? 4 : 2;
+    // Prognose: feines 2-Pixel-Raster mit Smoothing → organische Iso-Konturen.
+    const STEP = 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -556,9 +556,7 @@ function PrecipOverlay({
     // Bilineares Upscaling für beide Modi → weiche, geschwungene Iso-Kanten.
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (contour) ctx.filter = "blur(1px)";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-    if (contour) ctx.filter = "none";
     ctx.restore();
   };
 
