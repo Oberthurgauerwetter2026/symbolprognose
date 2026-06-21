@@ -323,6 +323,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
             <FrameStack
               key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
               layer={layer}
+              fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               frames={frames}
               activeIndex={index}
               onProgress={(l) => setLoaded(l)}
