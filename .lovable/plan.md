@@ -1,45 +1,31 @@
-# Niederschlag transparenter & Ortenetz im Oberthurgau verdichten
+## Ziel
 
-## 1. Radar-Karte: Niederschlag transparenter
+Die Niederschlags-Prognose im Ns-Radar wird aktuell als sichtbar gegriddetes Pixelraster gezeichnet (3-px-Blöcke, nearest-neighbour upscaling, `image-rendering: pixelated`). Das ergibt rechteckige Stufen und 90°-Ecken statt organischer, ellipsenartiger Niederschlagsfelder.
 
-`src/components/maps/radar-map.tsx` — `opacityVal` (aktuell `0.75`, Zeile 1155) auf **`0.60`** senken. Wirkt sowohl auf das `PrecipOverlay` (Canvas, ICON-Forecast) als auch auf das `ImageOverlay` mit den MeteoSchweiz-PNGs.
+Die fraktale fBm-Modulation, die für unregelmässige Formen sorgt, ist schon vorhanden — nur das "blockige" Rendering überdeckt sie.
 
-Hageldots (`0.8`, Zeile 1193) bleiben unverändert — sie sind ohnehin selten und sollen weiterhin auffallen.
+## Änderungen
 
-## 2. Mehr Orte beim Reinzoomen — auf Radar, Wind, Niederschlagssumme
+Datei: `src/components/maps/radar-map.tsx`, Funktion `PrecipOverlay` (Prognose-Modus, `contour=true`).
 
-Heute existieren drei nahezu identische Listen (`RADAR_CITIES`, `WIND_CITIES`, `CITIES` in `precip-accum-map.tsx`) mit 19 Orten in drei Zoomstufen (10.5 / 11.5 / 12.5). Die Region Oberthurgau umfasst aber **21 Gemeinden** plus zahlreiche Ortsteile/Weiler — und davon ist aktuell nur ein Teil als Marker hinterlegt.
+1. **Pixelig → glatt rendern**
+   - `cv.style.imageRendering` immer `"auto"` (nicht mehr `"pixelated"` im contour-Modus).
+   - `ctx.imageSmoothingEnabled = true` auch im contour-Modus, `imageSmoothingQuality = "high"` → bilineares Upscaling glättet die Stufen zu Kurven.
 
-### Vorgehen
+2. **Feineres Raster**
+   - `STEP` im contour-Modus von `3` auf `2` reduzieren. Etwas teurer, aber die Iso-Kanten werden detaillierter und die fBm-Modulation kommt besser zur Geltung.
 
-1. **Eine zentrale Quelle** für Ortsnamen anlegen: `src/data/oberthurgau-places.ts`
-   ```ts
-   export type Place = { name: string; lat: number; lon: number; minZoom?: number };
-   export const OBERTHURGAU_PLACES: Place[] = [ ... ];
-   ```
-   Alle drei Map-Komponenten importieren diese Liste statt eigene Arrays zu pflegen.
+3. **Leichter Soft-Blur für organische Ränder**
+   - CSS-Filter auf dem Canvas erweitern: `filter: "contrast(1.1) blur(1.2px)"` (statt nur `contrast(1.1)`). Sehr dezent — eliminiert Rest-Treppchen, ohne die Farbskala zu verfälschen.
+   - Gilt nur im contour-Modus; für die Messungsanzeige bleibt es wie bisher (`contrast(1.1)` ohne Blur), damit die Radar-Pixel scharf bleiben.
 
-2. **Liste vollständig befüllen** — nur Punkte **innerhalb des Region-Polygons** (`src/data/region.json`, 21 Gemeinden). Ablauf bei der Umsetzung:
-   - **Tier A (zoom ≥ 10.5)** — alle 21 Gemeinde-Hauptorte, inkl. der bisher fehlenden **Hohentannen** und **Altnau**.
-   - **Tier B (zoom ≥ 12)** — grössere Ortsteile/Fraktionen: Neukirch (Egnach), Steinebrunn, Winden, Hagenwil bei Amriswil, Schocherswil, Mauren, Birwinken-Rand-Weiler, Hefenhofen-Heldswil, Sitterdorf, Zihlschlacht, Gottshaus, Sulgen-Rand etc.
-   - **Tier C (zoom ≥ 13)** — kleinere Weiler/Höfe-Cluster aus OSM (`place=hamlet`/`place=isolated_dwelling`/`place=suburb`), via Overpass-API innerhalb der Region-Polygone abgefragt und ins File gepinnt (keine Laufzeit-API-Calls).
-   - **Tier D (zoom ≥ 14)** — sehr kleine Weiler, sodass beim weiteren Reinzoomen sukzessive mehr Beschriftungen erscheinen.
+4. **fBm-Modulation unverändert**
+   - Die Frequenz (`0.6`) und Amplitude (`0.35 + n * 1.3`) bleibt. Damit bleiben die Felder unregelmässig wie Ellipsen mit eingebetteten Kernen — nur ohne Kanten-Aliasing.
 
-3. **Filter "nur Oberthurgau"**: Beim Aufbau der Liste jeder Kandidatpunkt per Point-in-Polygon gegen `region.json` prüfen. Punkte ausserhalb (z. B. Sulgen-Zentrum, Berg TG, Kreuzlingen, Münchwilen) werden verworfen.
-
-4. **Render-Logik unverändert** — die bestehenden `ZoomGate`/`CityMarkers`-Wrapper nutzen weiterhin `minZoom` pro Eintrag, sodass beim Reinzoomen automatisch dichter wird. Keine Layout-/Icon-Änderungen.
-
-5. **Konsistenz**: identische Liste & identische `minZoom`-Werte in allen drei Karten — eine Quelle, drei Imports.
-
-## Technische Details
-
-- Datei neu: `src/data/oberthurgau-places.ts` (statisches Array, ~80–120 Einträge).
-- Bearbeitet: `src/components/maps/radar-map.tsx`, `wind-map.tsx`, `precip-accum-map.tsx` — lokale Arrays löschen, Import setzen, `RADAR_CITIES`/`WIND_CITIES`/`CITIES`-Verwendung durch `OBERTHURGAU_PLACES` ersetzen.
-- Radar-`opacityVal`: `0.75` → `0.60`.
-- Keine Änderungen an Backend, Datenfetching, Layoutkomponenten, Tooltips oder Embeds.
+Keine Änderungen an Farbskala, Frames, Timeline, Legende, anderen Karten (Wind, Niederschlagssumme).
 
 ## Verifikation
 
 - Build/TypeCheck grün.
-- Radar-Karte: PNG-Niederschlag deutlich durchscheinender, Gemeinde-Outlines & Marker lesbar.
-- Auf allen drei Karten: bei Zoom 10–11 nur Hauptorte, bei Zoom 12–14 sukzessive mehr Ortsteile, alle innerhalb der Region-Outline.
+- Prognose-Frames in `/karten/radar` zeigen geschwungene, ellipsenartige Niederschlagsbänder ohne sichtbare 90°-Ecken.
+- Messungs-Frames (Radar) bleiben optisch unverändert (scharf, nicht verwischt).
