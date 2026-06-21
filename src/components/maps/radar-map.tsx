@@ -739,6 +739,7 @@ function MeasurementHailDotsLayer({
   return null;
 }
 
+function useNowFrameIndex(frames: RadarFrame[]): number {
   return useMemo(() => {
     if (frames.length === 0) return 0;
     const now = Date.now();
