@@ -104,13 +104,12 @@ export interface SatelliteManifest {
   layer: string;
   fallbackLayer?: string;
   source: string;
+  bbox: [number, number, number, number];
   frames: SatelliteFrame[];
   updatedAt: string;
 }
 
 function totalHoursFor(region: SatelliteRegion): number {
-  // HRFI-Layer: kürzeres Fenster = schnellere Ladezeit, da pro Frame ~6 Tiles à ~40 KB.
-  // Global-IR: 5 h, da Step 180 min sonst zu wenig Frames.
   if (region.id === "global-ir") return 5;
   return 3;
 }
@@ -145,6 +144,7 @@ export const getSatelliteManifest = createServerFn({ method: "GET" })
       layer: region.layer,
       fallbackLayer: region.fallbackLayer,
       source: region.source,
+      bbox: region.bbox,
       frames: buildFrames(region, now),
       updatedAt: now.toISOString(),
     };
