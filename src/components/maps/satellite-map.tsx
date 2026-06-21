@@ -1,27 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapContainer, ZoomControl, useMap } from "react-leaflet";
+import { MapContainer, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import type { FeatureCollection } from "geojson";
 import {
   Pause,
   Play,
-  SkipBack,
-  SkipForward,
+  ChevronLeft,
+  ChevronRight,
+  Settings,
   Maximize2,
   Minimize2,
   Loader2,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import switzerlandData from "@/data/switzerland.json";
 import {
   SATELLITE_REGIONS,
   getRegion,
@@ -32,6 +28,7 @@ import {
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#2561a1";
+const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
 const SPEEDS = [
@@ -45,15 +42,31 @@ function FlyToRegion({ regionId }: { regionId: SatelliteRegionId }) {
   const map = useMap();
   useEffect(() => {
     const r = getRegion(regionId);
-    map.flyTo(r.center, r.zoom, { duration: 0.8 });
+    map.setMinZoom(r.zoom);
+    map.setMaxZoom(r.zoom);
+    map.setView(r.center, r.zoom, { animate: true });
   }, [regionId, map]);
   return null;
 }
 
+function SwissOutline() {
+  return (
+    <GeoJSON
+      data={SWITZERLAND}
+      style={{
+        color: "#ffffff",
+        weight: 1.5,
+        opacity: 0.9,
+        fill: false,
+        interactive: false,
+      }}
+    />
+  );
+}
+
 /**
  * Mountet zuerst nur den aktiven Frame, dann inkrementell die übrigen
- * (radial vom aktiven Index aus). So sieht der User sofort ein Bild,
- * statt auf alle 18–30 WMS-Layer zu warten.
+ * (radial vom aktiven Index aus).
  */
 function FrameStack({
   layer,
@@ -119,11 +132,9 @@ function FrameStack({
       layersRef.current[i] = tl;
     };
 
-    // Phase 1: aktiven Frame sofort mounten
     mountFrame(initialIndex);
     onProgress(0, frames.length);
 
-    // Phase 2: restliche Frames radial nach außen, jeweils mit kurzem Versatz
     let cancelled = false;
     const order: number[] = [];
     for (let d = 1; d < frames.length; d++) {
@@ -150,7 +161,6 @@ function FrameStack({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, effectiveLayer, frames]);
 
-  // Active-Index → Opacity-Toggle
   useEffect(() => {
     layersRef.current.forEach((tl, i) => tl?.setOpacity(i === activeIndex ? 1 : 0));
   }, [activeIndex]);
@@ -158,7 +168,7 @@ function FrameStack({
   return null;
 }
 
-// ---------- Timeline (analog zu MeteoTimeline in radar-map.tsx) ----------
+// ---------- Timeline (analog MeteoTimeline) ----------
 
 function fmtDayLong(d: Date): string {
   const wd = WEEKDAY_LONG[d.getDay()];
@@ -288,7 +298,6 @@ function SatelliteTimeline({
   return (
     <div className="select-none">
       <div className="relative pt-5 pb-4">
-        {/* Stundenlabels über dem Track */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-4">
           {hourTicks.map((t, i) => {
             if (i % labelStep !== 0) return null;
@@ -328,14 +337,11 @@ function SatelliteTimeline({
           className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded sm:h-6"
           style={{ ['--tw-ring-color' as never]: BRAND }}
         >
-          {/* Track */}
           <div className="relative h-[4px] w-full overflow-hidden rounded-full bg-neutral-200">
-            {/* Vergangenheit (gesamter Bereich, brand-Farbe leicht) */}
             <div
               className="absolute inset-y-0 left-0 right-0"
               style={{ background: BRAND, opacity: 0.25 }}
             />
-            {/* Hour-Ticks */}
             {hourTicks.map((t) => (
               <span
                 key={`ht-${t.ms}`}
@@ -345,7 +351,6 @@ function SatelliteTimeline({
             ))}
           </div>
 
-          {/* Day-Break-Linien */}
           {dayBreaks.map((b) => (
             <span
               key={`db-${b.ms}`}
@@ -354,7 +359,6 @@ function SatelliteTimeline({
             />
           ))}
 
-          {/* Handle */}
           <div
             className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${handlePct}%` }}
@@ -384,7 +388,6 @@ function SatelliteTimeline({
           </div>
         </div>
 
-        {/* Tages-Labels */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4">
           {daySegments.map((s, i) => {
             const width = Math.max(0, s.endPct - s.startPct);
@@ -511,6 +514,8 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     [frames],
   );
 
+  const showSwiss = regionId === "alpen-ch";
+
   return (
     <div
       ref={wrapperRef}
@@ -520,37 +525,52 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       )}
     >
       {/* Top bar */}
-      <div className="pointer-events-none absolute left-3 right-3 top-3 z-[500] flex flex-wrap items-center justify-between gap-2">
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2">
-          <Select value={regionId} onValueChange={(v) => setRegionId(v as SatelliteRegionId)}>
-            <SelectTrigger className="h-9 w-[220px] border bg-background/95 backdrop-blur">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SATELLITE_REGIONS.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  {r.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="pointer-events-none absolute left-3 right-3 top-3 z-[500] flex items-start justify-between gap-2">
+        <div className="pointer-events-auto flex min-w-0 items-center gap-2">
+          <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-neutral-200/80 bg-white/90 p-0.5 shadow-sm backdrop-blur">
+            {SATELLITE_REGIONS.map((r) => {
+              const active = r.id === regionId;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setRegionId(r.id)}
+                  className={cn(
+                    "whitespace-nowrap rounded-full px-3 h-8 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2",
+                    active
+                      ? "text-white shadow-sm"
+                      : "text-neutral-700 hover:bg-neutral-100",
+                  )}
+                  style={
+                    active
+                      ? { background: BRAND, ['--tw-ring-color' as never]: BRAND }
+                      : { ['--tw-ring-color' as never]: BRAND }
+                  }
+                  aria-pressed={active}
+                >
+                  {r.shortLabel}
+                </button>
+              );
+            })}
+          </div>
           {!ready && total > 0 && (
-            <div className="rounded-md border bg-background/95 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur">
-              <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />
-              Lade {loaded}/{total} …
+            <div className="hidden sm:inline-flex items-center rounded-full border border-neutral-200/80 bg-white/90 px-3 h-8 text-xs font-medium shadow-sm backdrop-blur">
+              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+              {loaded}/{total}
             </div>
           )}
         </div>
-        <div className="pointer-events-auto flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 bg-background/95 backdrop-blur"
+        <div className="pointer-events-auto">
+          <button
+            type="button"
             onClick={toggleFullscreen}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200/80 bg-white/90 text-neutral-700 shadow-sm backdrop-blur transition hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2"
+            style={{ ['--tw-ring-color' as never]: BRAND }}
             title={isFullscreen ? "Vollbild verlassen" : "Vollbild"}
+            aria-label={isFullscreen ? "Vollbild verlassen" : "Vollbild"}
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -559,9 +579,15 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
         <MapContainer
           center={region.center}
           zoom={region.zoom}
-          minZoom={2}
-          maxZoom={9}
+          minZoom={region.zoom}
+          maxZoom={region.zoom}
           zoomControl={false}
+          scrollWheelZoom={false}
+          doubleClickZoom={false}
+          touchZoom={false}
+          boxZoom={false}
+          keyboard={false}
+          dragging={false}
           worldCopyJump
           className="absolute inset-0 z-0 bg-black"
         >
@@ -577,7 +603,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
               onProgress={(l) => setLoaded(l)}
             />
           )}
-          <ZoomControl position="bottomright" />
+          {showSwiss && <SwissOutline />}
         </MapContainer>
 
         {isLoading && total === 0 && (
@@ -594,72 +620,100 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           </div>
         )}
 
-        <div className="pointer-events-none absolute bottom-2 left-2 z-[400] rounded bg-black/55 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm">
+        {/* Quellen-Badge — über dem Steuerpanel */}
+        <div className="pointer-events-none absolute bottom-20 left-2 z-[440] rounded bg-black/55 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm sm:bottom-24">
           {source}
         </div>
-      </div>
 
-      {/* Controls */}
-      <div className="border-t bg-background/95 px-3 py-3 backdrop-blur sm:px-4">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              onClick={() => handleTimelineChange(Math.max(index - 1, 0))}
-              title="Vorheriger Frame (←)"
-            >
-              <SkipBack className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="default"
-              size="icon"
-              className="h-9 w-9"
-              disabled={!ready}
-              onClick={() => setPlaying((p) => !p)}
-              title={playing ? "Pause (Leertaste)" : "Play (Leertaste)"}
-            >
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              onClick={() => handleTimelineChange(Math.min(index + 1, total - 1))}
-              title="Nächster Frame (→)"
-            >
-              <SkipForward className="h-4 w-4" />
-            </Button>
-          </div>
+        {/* Steuerpanel — schwebend unten in der Karte (analog Radar) */}
+        {total > 0 && (
+          <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3">
+            <div className="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white/90 p-2 text-neutral-900 shadow-lg backdrop-blur sm:p-2.5">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPlaying((p) => !p)}
+                  disabled={!ready}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 sm:h-7 sm:w-7"
+                  style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
+                  aria-label={playing ? "Pause" : "Play"}
+                >
+                  {playing ? <Pause className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Play className="h-4 w-4 translate-x-px sm:h-3.5 sm:w-3.5" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTimelineChange(Math.max(index - 1, 0))}
+                  className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
+                  aria-label="Vorheriger Frame"
+                >
+                  <ChevronLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                </button>
 
-          <div className="min-w-0 flex-1">
-            {total > 0 && (
-              <SatelliteTimeline
-                frames={frames}
-                idx={index}
-                onChange={handleTimelineChange}
-                isMobile={isMobile}
-              />
-            )}
-          </div>
+                <div className="min-w-0 flex-1">
+                  <SatelliteTimeline
+                    frames={frames}
+                    idx={index}
+                    onChange={handleTimelineChange}
+                    isMobile={isMobile}
+                  />
+                </div>
 
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs text-muted-foreground sm:inline">Speed</span>
-            <Select value={String(speedMs)} onValueChange={(v) => setSpeedMs(Number(v))}>
-              <SelectTrigger className="h-9 w-[80px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SPEEDS.map((s) => (
-                  <SelectItem key={s.ms} value={String(s.ms)}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <button
+                  type="button"
+                  onClick={() => handleTimelineChange(Math.min(index + 1, total - 1))}
+                  className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
+                  aria-label="Nächster Frame"
+                >
+                  <ChevronRight className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                </button>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
+                      aria-label="Wiedergabe-Einstellungen"
+                    >
+                      <Settings className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="top"
+                    align="end"
+                    sideOffset={8}
+                    collisionPadding={12}
+                    className="z-[1000] w-56 border-neutral-200 bg-white p-3 text-neutral-900 shadow-xl"
+                  >
+                    <p className="mb-1.5 text-[11px] font-semibold text-neutral-600">
+                      Geschwindigkeit
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SPEEDS.map((s) => {
+                        const active = s.ms === speedMs;
+                        return (
+                          <button
+                            key={s.ms}
+                            type="button"
+                            onClick={() => setSpeedMs(s.ms)}
+                            className={cn(
+                              "rounded-full px-3 h-7 text-xs font-medium transition",
+                              active
+                                ? "text-white"
+                                : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
+                            )}
+                            style={active ? { background: BRAND } : undefined}
+                          >
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
