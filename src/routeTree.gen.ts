@@ -14,12 +14,14 @@ import { Route as EmbedInfoRouteImport } from './routes/embed-info'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
+import { Route as KartenSatellitRouteImport } from './routes/karten.satellit'
 import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
 import { Route as KartenNiederschlagRouteImport } from './routes/karten.niederschlag'
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
+import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
@@ -59,6 +61,11 @@ const KartenWindRoute = KartenWindRouteImport.update({
   path: '/karten/wind',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KartenSatellitRoute = KartenSatellitRouteImport.update({
+  id: '/karten/satellit',
+  path: '/karten/satellit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KartenRegionRoute = KartenRegionRouteImport.update({
   id: '/karten/region',
   path: '/karten/region',
@@ -87,6 +94,11 @@ const InternIconsRoute = InternIconsRouteImport.update({
 const EmbedWindRoute = EmbedWindRouteImport.update({
   id: '/embed/wind',
   path: '/embed/wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedSatellitRoute = EmbedSatellitRouteImport.update({
+  id: '/embed/satellit',
+  path: '/embed/satellit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedRegionLokalRoute = EmbedRegionLokalRouteImport.update({
@@ -171,12 +183,14 @@ export interface FileRoutesByFullPath {
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
+  '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
+  '/karten/satellit': typeof KartenSatellitRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -197,12 +211,14 @@ export interface FileRoutesByTo {
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
+  '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
+  '/karten/satellit': typeof KartenSatellitRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -224,12 +240,14 @@ export interface FileRoutesById {
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
+  '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
+  '/karten/satellit': typeof KartenSatellitRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -252,12 +270,14 @@ export interface FileRouteTypes {
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
+    | '/embed/satellit'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
     | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
+    | '/karten/satellit'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -278,12 +298,14 @@ export interface FileRouteTypes {
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
+    | '/embed/satellit'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
     | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
+    | '/karten/satellit'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -304,12 +326,14 @@ export interface FileRouteTypes {
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
+    | '/embed/satellit'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
     | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
+    | '/karten/satellit'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -331,12 +355,14 @@ export interface RootRouteChildren {
   EmbedRadarRoute: typeof EmbedRadarRoute
   EmbedRegionRoute: typeof EmbedRegionRoute
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
+  EmbedSatellitRoute: typeof EmbedSatellitRoute
   EmbedWindRoute: typeof EmbedWindRoute
   InternIconsRoute: typeof InternIconsRoute
   KartenLokalRoute: typeof KartenLokalRoute
   KartenNiederschlagRoute: typeof KartenNiederschlagRoute
   KartenRadarRoute: typeof KartenRadarRoute
   KartenRegionRoute: typeof KartenRegionRoute
+  KartenSatellitRoute: typeof KartenSatellitRoute
   KartenWindRoute: typeof KartenWindRoute
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
@@ -385,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KartenWindRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/karten/satellit': {
+      id: '/karten/satellit'
+      path: '/karten/satellit'
+      fullPath: '/karten/satellit'
+      preLoaderRoute: typeof KartenSatellitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/karten/region': {
       id: '/karten/region'
       path: '/karten/region'
@@ -425,6 +458,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/wind'
       fullPath: '/embed/wind'
       preLoaderRoute: typeof EmbedWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/satellit': {
+      id: '/embed/satellit'
+      path: '/embed/satellit'
+      fullPath: '/embed/satellit'
+      preLoaderRoute: typeof EmbedSatellitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/region-lokal': {
@@ -531,12 +571,14 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedRadarRoute: EmbedRadarRoute,
   EmbedRegionRoute: EmbedRegionRoute,
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
+  EmbedSatellitRoute: EmbedSatellitRoute,
   EmbedWindRoute: EmbedWindRoute,
   InternIconsRoute: InternIconsRoute,
   KartenLokalRoute: KartenLokalRoute,
   KartenNiederschlagRoute: KartenNiederschlagRoute,
   KartenRadarRoute: KartenRadarRoute,
   KartenRegionRoute: KartenRegionRoute,
+  KartenSatellitRoute: KartenSatellitRoute,
   KartenWindRoute: KartenWindRoute,
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
