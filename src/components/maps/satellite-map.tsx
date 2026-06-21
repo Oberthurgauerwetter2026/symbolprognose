@@ -447,10 +447,13 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   const [speedMs, setSpeedMs] = useState(500);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loaded, setLoaded] = useState(0);
+  const [activeReady, setActiveReady] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const mapBoxRef = useRef<HTMLDivElement>(null);
+  const [pixelSize, setPixelSize] = useState<{ w: number; h: number }>({ w: 1024, h: 700 });
 
   const total = frames.length;
-  const ready = total > 0 && loaded / total >= 0.8;
+  const ready = activeReady;
 
   const lastTimeRef = useRef<string | null>(null);
   const initialIndexRef = useRef<number>(0);
