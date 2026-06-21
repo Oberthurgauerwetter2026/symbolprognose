@@ -509,12 +509,13 @@ function PrecipOverlay({
         // mit eingebetteten Niederschlagskernen. Modulation am Grid-Raster
         // (~Modellauflösung), nicht am Pixel.
         if (contour && v > 0) {
-          // Grobe Oktave folgt der Modellauflösung (≈ alle 2 Grid-Punkte
-          // ein Noise-Lobus); feine Oktaven liefern die Kerne.
-          const n = fbm(fxRaw * 0.6, fyRaw * 0.6); // 0..1
-          // Multiplikator 0.35 … 1.65 → Iso-Kanten werden fraktal verformt,
-          // Spitzen können in die nächste Farbstufe „aufflammen".
-          const mod = 0.35 + n * 1.3;
+          // Anisotrope Sample-Achsen → Lobi liegen schief zur Karte,
+          // keine achsparallelen Bandgrenzen mehr.
+          const nx = fxRaw * 0.6 + fyRaw * 0.3;
+          const ny = fyRaw * 0.55 - fxRaw * 0.2;
+          const n = fbm(nx, ny); // 0..1
+          // Etwas weiterer Range → Bandgrenzen wandern unregelmässiger.
+          const mod = 0.3 + n * 1.45;
           v = v * mod;
         }
 
