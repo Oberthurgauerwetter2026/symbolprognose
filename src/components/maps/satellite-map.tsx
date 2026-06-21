@@ -109,8 +109,8 @@ function CrossfadeWMS({
     };
     const a = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 1 });
     const b = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 0 });
-    a.setParams({ time } as L.WMSParams, false);
-    b.setParams({ time } as L.WMSParams, false);
+    a.setParams({ time } as unknown as L.WMSParams, false);
+    b.setParams({ time } as unknown as L.WMSParams, false);
     a.addTo(map);
     b.addTo(map);
     aRef.current = a;
@@ -147,7 +147,7 @@ function CrossfadeWMS({
     const active = activeRef.current;
     const next = active === "a" ? bRef.current : aRef.current;
     const curr = active === "a" ? aRef.current : bRef.current;
-    next.setParams({ time } as L.WMSParams, false);
+    next.setParams({ time } as unknown as L.WMSParams, false);
     // Wait one tick for tiles to start loading, then fade.
     const fade = () => {
       next.setOpacity(1);
