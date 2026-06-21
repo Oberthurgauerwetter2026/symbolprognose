@@ -103,7 +103,7 @@ function CrossfadeWMS({
       transparent: true,
       version: "1.3.0",
       crs: L.CRS.EPSG3857,
-      tileSize: 512,
+      tileSize: 256,
       opacity: 1,
       attribution: '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
