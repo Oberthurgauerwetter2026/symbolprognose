@@ -1,17 +1,15 @@
-Ich werde die Radar-Prognose nicht weichzeichnen, sondern die Geometrie der Niederschlagsflächen deutlich stärker verändern:
+Ich verstärke die Verzerrung der Ns-Radar-Prognose noch deutlicher, weiterhin ohne Weichzeichnen:
 
-1. **Quadratische Prognose-Zellen eliminieren**
-   - Die Niederschlagswerte werden für Prognose-Frames nicht mehr exakt auf den ursprünglichen Karten-/Modellachsen ausgewertet.
-   - Stattdessen wird die Abtastposition selbst stärker, mehrskalig und nicht achsparallel verzogen.
+1. **Sample-Verschiebung deutlich grösser**
+   - Die niederfrequente Verschiebung der Abtastpunkte wird stark erhöht (ca. ×2), die hochfrequente Wellung etwa verdoppelt. Dadurch werden die quadratischen Modell-Zellen massiv auseinandergezogen und verbogen.
 
-2. **Harte, radarähnliche Konturen behalten**
-   - Kein Blur, kein Canvas-Smoothing, keine weichen Übergänge.
-   - Die Farbbänder bleiben diskret und kantig, aber die Konturlinien verlaufen unregelmässig statt rechteckig.
+2. **Zusätzliche dritte Verzerrungs-Skala**
+   - Eine sehr niederfrequente Grossstruktur verschiebt ganze Niederschlagsareale, sodass die ursprüngliche Gitterausrichtung komplett verschwindet.
 
-3. **Aggressivere Rand-Auflösung**
-   - Die bestehende Envelope-Maske wird nochmals härter eingestellt, sodass Niederschlagsflächen stärker ausfransen und keine rechteckigen Begrenzungen behalten.
-   - Zusätzlich wird eine lokale Zell-Unterdrückung eingebaut, die gerade Kanten/90°-Ecken bricht.
+3. **Härtere, fraktale Ausfransung**
+   - Die Envelope-Maske wird nochmals aggressiver (mehr echte Null-Inseln, fasrigere Ränder), zusätzlich mit einer kleinskaligen Bruch-Komponente, die 90°-Kanten an Bandgrenzen zerschlägt.
 
-4. **Nur Prognose betroffen**
-   - Messradar-Frames bleiben unverändert.
-   - Die Änderung betrifft nur `contour={currentFrame.source !== "radar"}` bzw. die Ns-Radar-Prognose.
+4. **Konturen bleiben hart**
+   - Kein Blur, kein Smoothing, kein Anti-Aliasing — die Iso-Bänder bleiben scharf, aber ihre Verläufe sind organisch.
+
+5. **Nur Prognose betroffen, Messradar bleibt unverändert.**
