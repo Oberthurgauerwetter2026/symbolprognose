@@ -361,7 +361,7 @@ function PrecipOverlay({
         // Beide Layer (Messung-Fallback und Prognose) bekommen denselben
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
-        cv.style.filter = contour ? "contrast(1.1) blur(1.2px)" : "contrast(1.1)";
+        cv.style.filter = contour ? "contrast(1.1) blur(3px)" : "contrast(1.1)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
         pane.appendChild(cv);
         this._canvas = cv;
