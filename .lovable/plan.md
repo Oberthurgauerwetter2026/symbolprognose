@@ -1,47 +1,39 @@
-## Ziel
+# Ursache
 
-Das Snippet **"Lokalprognose Amriswil"** so anpassen, dass das eingebettete Panel in WordPress nicht über die Unterkante des TWINT-Labels in der rechten Spalte hinausragt (siehe Screenshot).
+Die scharfe Kante stammt **nicht aus den MeteoSchweiz-Rohdaten**, sondern aus der PNG-Erzeugung in `scripts/ingest_radar.py` (`render_png`, Zeile 493-502):
 
-## Analyse
+- Pro Schwellwert (0.1, 0.3, 0.8, 2, 5, 15, 40, 80 mm/h) wird die Fläche in **eine** RGBA-Farbe gemalt.
+- Dort, wo die echte Intensität knapp unter eine Schwelle fällt, bricht die Farbe schlagartig um → typische "Stufen-/Kantenartefakte" wie im Screenshot (helles Blau endet abrupt mitten im Niederschlagsgebiet).
+- Ich habe das mit dem letzten R2-PNG (`/radar/precip/20260621T1830.png`, 240×144, 4× vergrößert) verifiziert: dieselbe Kante ist bereits im PNG sichtbar — also reines Rendering, kein Karten-Layering.
 
-Heute liefert `buildAmriswilSnippet` (in `src/routes/embed-info.tsx`) ein iframe mit `height:640px`. Der Inhalt selbst (Route `/api/public/embed/region-lokal-static`) zeigt:
-- Aktuelles Wetter (Karte)
-- "Nächste Stunden" Tabelle (alle gelieferten Stundenzeilen)
-- Tagesprognose
+# Fix
 
-Bei `640px` läuft die Stunden-Tabelle bis ca. 02:00 Uhr — deutlich tiefer als die TWINT-Spalte, die auf ungefähr Höhe des TWINT-Buttons endet (~520–540 px).
+Zwei sich ergänzende Schritte:
 
-## Änderungen
+### 1. Glättung im PNG-Renderer (Python-Ingest)
 
-### 1. `src/routes/api/public/embed/region-lokal-static.ts`
-- Stunden-Tabelle visuell auf ein Panel limitieren, damit sie nicht endlos wächst:
-  - Max. **6 Stundenzeilen** rendern (bzw. per Inline-CSS `max-height` + `overflow:hidden` zuschneiden).
-  - Tagesprognose-Block bleibt erhalten, falls Platz; sonst per `@media`/Höhenbegrenzung ausgeblendet.
-- Body-Styling so anpassen, dass die Gesamthöhe konsistent ~**520 px** ergibt (Padding, Tabellen-Row-Höhe, Header-Margins), damit das iframe ohne Scroll bündig zur TWINT-Spalte schliesst.
-- Auto-Refresh-Script bleibt unverändert.
+In `scripts/ingest_radar.py`:
 
-### 2. `src/routes/embed-info.tsx`
-- `buildAmriswilSnippet`-Default-Höhe von `640` → **`520`**.
-- Aufruf in der Sektion "Lokalprognose Amriswil" ebenfalls auf `520` setzen.
-- Hinweis-Text aktualisieren: "Höhe `520px` ist auf die TWINT-Spalte abgestimmt und kann bei Bedarf angepasst werden."
+- Vor dem Schwellwert-Mapping ein **leichter Gauß-Filter** (`scipy.ndimage.gaussian_filter`, `sigma ≈ 0.6` Pixel) auf das `values`-Array (NaN-sicher: NaN→0, Filter, dann Maske zurücksetzen). Glättet Mikro-Rauschen, lässt Strukturen erhalten.
+- Optional zusätzlich: pro Pixel **Alpha aus dem Abstand zur Schwelle ableiten**, damit Übergänge zwischen zwei Farbbändern weicher werden statt 0→255 zu springen. Konservativer Wert: 60-Prozent-Alpha-Ramp über die Hälfte des Bandabstands.
 
-### 3. Keine Änderung an
-- `src/components/embeds/region-lokal-noscript.tsx` (interner JSX-Fallback, nicht von WP genutzt)
-- Karten-Seite `/karten/lokal` — die Bitte betrifft nur das WordPress-Embed-Snippet.
+Schwellen, Farben und Bbox bleiben unverändert → Legende stimmt weiterhin.
 
-## Technische Details
+### 2. CSS-Glättung im Frontend (sofort sichtbarer Effekt, ohne Re-Ingest)
 
-- Höhen-Budget bei 520 px (innerhalb iframe, padding 12 px):
-  - Aktuelles Wetter Card: ~90 px
-  - Section-Header "Nächste Stunden": ~20 px
-  - Tabellen-Kopf: ~28 px
-  - 6 Stundenzeilen × ~34 px ≈ 204 px
-  - Tagesprognose-Header + 2–3 Tage: ~140 px
-  - Footer / Quelle: ~20 px
-- Falls Tagesprognose nicht passt: `display:none` per Media-Query bei `max-height:520px` und stattdessen 1–2 zusätzliche Stunden zeigen — finale Tuning nach erstem Build per Browser-Screenshot.
+In `src/components/maps/radar-map.tsx` (oder zentralem CSS für `.mch-precip`):
 
-## Verifikation
+- `.mch-precip { image-rendering: auto; filter: blur(0.6px) contrast(1.05); }` — entfernt die letzte sichtbare Treppen-Kante beim Hochskalieren der 240×144-PNG auf Bildschirmauflösung.
+- Nur für Messung-PNG (`.mch-precip`), nicht für den Prognose-Canvas.
 
-Nach Implementation:
-1. `/embed-info` aufrufen, Snippet kopieren — Höhe = 520.
-2. `/api/public/embed/region-lokal-static` im Preview öffnen und Screenshot machen → prüfen, dass alle Inhalte ohne Scrollbar in 520 px passen und visuell auf TWINT-Höhe enden.
+# Verifikation
+
+1. Nach dem Edit Worker-Trigger anstoßen → neues PNG in R2 → `/api/public/debug/r2-cache` zeigt frischen `latestPrecipTs`.
+2. Karte `/karten/radar` öffnen, Slider auf "Messung" → die zuvor scharfe Kante sollte weich auslaufen.
+3. Screenshot vorher/nachher vergleichen.
+
+# Nicht-Ziele
+
+- Keine Änderung an Farb-Schwellen oder Legende.
+- Keine Änderung an Prognose-Frames (die rendern bereits über Canvas mit bilinearer Interpolation).
+- Kein Smoothing über NaN-Lücken hinweg (Land/Meer-Maske bleibt scharf).
