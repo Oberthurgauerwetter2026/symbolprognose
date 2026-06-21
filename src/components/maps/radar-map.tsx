@@ -519,9 +519,12 @@ function PrecipOverlay({
           const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
           const n = fbm(rx + warpX, ry + warpY);
           const mod = 0.25 + n * 1.55;
-          // Grossräumiger Envelope-Noise → bricht die Daten-Bbox auf, ohne zu glätten.
-          const env = fbm(rx * 0.12 - 5.7, ry * 0.12 + 11.2);
-          const envelope = Math.max(0, env * 1.9 - 0.18);
+          // Envelope-Noise — bricht die rechteckige Daten-Bbox in unregelmässige
+          // Zellen auf. Zwei Frequenzen + harter Threshold → echte Null-Inseln.
+          const env1 = fbm(rx * 0.28 - 5.7, ry * 0.28 + 11.2);
+          const env2 = fbm(rx * 0.9 + 31.1, ry * 0.9 - 7.4);
+          const envRaw = env1 * 0.75 + env2 * 0.25;
+          const envelope = Math.max(0, envRaw * 2.6 - 0.95);
           v = v * mod * envelope;
         }
 
