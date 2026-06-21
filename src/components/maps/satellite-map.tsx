@@ -108,7 +108,7 @@ function FrameStack({
       keepBuffer: 0,
       updateWhenZooming: false,
       attribution:
-        '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
+        'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
 
     const mountFrame = (i: number) => {
@@ -620,10 +620,6 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           </div>
         )}
 
-        {/* Quellen-Badge — über dem Steuerpanel */}
-        <div className="pointer-events-none absolute bottom-20 left-2 z-[440] rounded bg-black/55 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm sm:bottom-24">
-          {source}
-        </div>
 
         {/* Steuerpanel — schwebend unten in der Karte (analog Radar) */}
         {total > 0 && (
