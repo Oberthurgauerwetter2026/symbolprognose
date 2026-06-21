@@ -727,9 +727,9 @@ function MeasurementHailDotsLayer({
         // Deterministisches Stippling → Dichte ~ prob.
         const ix = Math.round(px / STEP);
         const iy = Math.round(py / STEP);
-        if (hash(ix, iy) > prob * 0.55) continue;
+        if (hash(ix, iy) > prob * 0.8) continue;
         ctx.beginPath();
-        ctx.arc(px, py, 1.1, 0, Math.PI * 2);
+        ctx.arc(px, py, 1.4, 0, Math.PI * 2);
         ctx.fill();
       }
     }
