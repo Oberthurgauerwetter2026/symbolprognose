@@ -185,13 +185,13 @@
   filter: brightness(0) saturate(100%);
 }
 
-/* Radar: MeteoSchweiz-CombiPrecip-PNG. Leichter Blur glättet die durch die
-   diskreten mm/h-Schwellen entstehenden Treppen-Kanten beim Hochskalieren
-   der ~240×144-PNG auf Bildschirmauflösung, ohne den Charakter (quadratische
-   Zellen) komplett zu verlieren. */
+/* Radar: MeteoSchweiz-CombiPrecip-PNG in nativer ~1km-Auflösung — Pixel
+   bleiben scharf, damit der typische MCH-Rasterlook (quadratische Zellen,
+   harte Bandkanten) auch bei hohem Zoom erhalten bleibt. */
 .mch-precip {
-  image-rendering: auto;
-  filter: blur(0.8px) contrast(1.08);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: contrast(1.1);
   will-change: filter;
 }
 
