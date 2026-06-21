@@ -213,7 +213,11 @@ export const getRadarFrames = createServerFn({ method: "GET" })
 
   // ---- Messung: MeteoSchweiz-Radar-PNGs (Vergangenheit) ----
   const hasRealRadar = !!manifest && manifest.frames.length > 0;
-  const hasHail = hasRealRadar && manifest!.frames.some((f) => f.hailUrl);
+  // Hagel-Layer verfügbar, sobald Mess-Frames existieren: zeigt entweder
+  // echte POH-Daten (sofern in einem Frame vorhanden) oder aus der
+  // Niederschlagsintensität abgeleitete Hagel-Punkte bei Gewitter.
+  const hasHail = hasRealRadar;
+
   const imageBbox = manifest?.bbox ?? BBOX;
 
   if (hasRealRadar) {
