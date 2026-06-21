@@ -422,8 +422,10 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Prognose: chunky 3-Pixel-Raster (Wetter-Modell-Look). Messung: feiner.
-    const STEP = contour ? 3 : 2;
+    // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
+    // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
+    // Messung: 2-Pixel-Raster (Performance).
+    const STEP = contour ? 1 : 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -507,12 +509,13 @@ function PrecipOverlay({
         // mit eingebetteten Niederschlagskernen. Modulation am Grid-Raster
         // (~Modellauflösung), nicht am Pixel.
         if (contour && v > 0) {
-          // Grobe Oktave folgt der Modellauflösung (≈ alle 2 Grid-Punkte
-          // ein Noise-Lobus); feine Oktaven liefern die Kerne.
-          const n = fbm(fxRaw * 0.6, fyRaw * 0.6); // 0..1
-          // Multiplikator 0.35 … 1.65 → Iso-Kanten werden fraktal verformt,
-          // Spitzen können in die nächste Farbstufe „aufflammen".
-          const mod = 0.35 + n * 1.3;
+          // Anisotrope Sample-Achsen → Lobi liegen schief zur Karte,
+          // keine achsparallelen Bandgrenzen mehr.
+          const nx = fxRaw * 0.6 + fyRaw * 0.3;
+          const ny = fyRaw * 0.55 - fxRaw * 0.2;
+          const n = fbm(nx, ny); // 0..1
+          // Etwas weiterer Range → Bandgrenzen wandern unregelmässiger.
+          const mod = 0.3 + n * 1.45;
           v = v * mod;
         }
 
