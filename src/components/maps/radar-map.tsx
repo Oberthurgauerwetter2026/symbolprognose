@@ -654,14 +654,10 @@ function MeasurementHailDotsLayer({
     if (!ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
 
-    // Mess- und Forecast-Frames: bei intensivem Ns (Gewittersignal) Hagelpunkte.
+    // Nur für Mess-Frames (Radar) — Prognose ist explizit ausgeschlossen.
+    if (frame.source !== "radar") return;
     const vals = frame.values;
     if (!vals || vals.length === 0) return;
-    let vmax = 0;
-    for (let i = 0; i < vals.length; i++) if (vals[i] > vmax) vmax = vals[i];
-    if (import.meta.env.DEV) {
-      console.debug("[hail-dots]", frame.t, frame.source, "max mm/h:", vmax.toFixed(2));
-    }
 
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
@@ -700,10 +696,10 @@ function MeasurementHailDotsLayer({
       return ((h >>> 0) % 10000) / 10000;
     };
 
-    // Schwellwerte bewusst niedrig: ab moderater konvektiver Aktivität
-    // werden Punkte sichtbar, dichter mit steigender Intensität.
-    const HAIL_LOW = 3;
-    const HAIL_HIGH = 20;
+    // Hagel ab ca. 25 mm/h wahrscheinlich (Starkregen → konvektive Zelle),
+    // praktisch sicher ab 50 mm/h.
+    const HAIL_LOW = 25;
+    const HAIL_HIGH = 50;
     const smoothstep = (a: number, b: number, x: number) => {
       const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
       return t * t * (3 - 2 * t);
@@ -727,9 +723,9 @@ function MeasurementHailDotsLayer({
         // Deterministisches Stippling → Dichte ~ prob.
         const ix = Math.round(px / STEP);
         const iy = Math.round(py / STEP);
-        if (hash(ix, iy) > prob * 0.8) continue;
+        if (hash(ix, iy) > prob * 0.55) continue;
         ctx.beginPath();
-        ctx.arc(px, py, 1.4, 0, Math.PI * 2);
+        ctx.arc(px, py, 1.1, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -1340,7 +1336,7 @@ export function RadarMap({
               className="hail-blackdots"
             />
           )}
-          {data && currentFrame && showHail && (
+          {data && currentFrame && showHail && currentFrame.source === "radar" && (
             <MeasurementHailDotsLayer payload={data} frame={currentFrame} />
           )}
 
