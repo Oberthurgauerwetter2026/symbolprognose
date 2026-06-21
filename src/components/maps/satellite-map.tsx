@@ -74,11 +74,13 @@ function FlyToRegion({ regionId }: { regionId: SatelliteRegionId }) {
  */
 function FrameStack({
   layer,
+  fallbackLayer,
   frames,
   activeIndex,
   onProgress,
 }: {
   layer: string;
+  fallbackLayer?: string;
   frames: SatelliteFrame[];
   activeIndex: number;
   onProgress: (loaded: number, total: number) => void;
@@ -86,16 +88,24 @@ function FrameStack({
   const map = useMap();
   const layersRef = useRef<L.TileLayer.WMS[]>([]);
   const loadedRef = useRef<Set<number>>(new Set());
+  const [effectiveLayer, setEffectiveLayer] = useState(layer);
+  const triedFallbackRef = useRef(false);
+
+  // Reset on layer prop change
+  useEffect(() => {
+    setEffectiveLayer(layer);
+    triedFallbackRef.current = false;
+  }, [layer]);
 
   useEffect(() => {
     loadedRef.current = new Set();
     const opts: L.WMSOptions = {
-      layers: layer,
-      format: "image/jpeg",
+      layers: effectiveLayer,
+      format: "image/png",
       transparent: false,
       version: "1.3.0",
       crs: L.CRS.EPSG3857,
-      tileSize: 256,
+      tileSize: 512,
       attribution:
         '© <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
@@ -108,11 +118,16 @@ function FrameStack({
           onProgress(loadedRef.current.size, frames.length);
         }
       });
+      tl.on("tileerror", () => {
+        if (!triedFallbackRef.current && fallbackLayer && fallbackLayer !== effectiveLayer) {
+          triedFallbackRef.current = true;
+          setEffectiveLayer(fallbackLayer);
+        }
+      });
       tl.addTo(map);
       return tl;
     });
     layersRef.current = arr;
-    // initial: aktivieren
     if (arr[activeIndex]) arr[activeIndex].setOpacity(1);
     onProgress(0, frames.length);
     return () => {
@@ -120,9 +135,8 @@ function FrameStack({
       layersRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, layer, frames]);
+  }, [map, effectiveLayer, frames]);
 
-  // Active-Index ändern → Opacity umschalten
   useEffect(() => {
     const arr = layersRef.current;
     arr.forEach((tl, i) => tl.setOpacity(i === activeIndex ? 1 : 0));
@@ -309,6 +323,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
             <FrameStack
               key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
               layer={layer}
+              fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               frames={frames}
               activeIndex={index}
               onProgress={(l) => setLoaded(l)}
