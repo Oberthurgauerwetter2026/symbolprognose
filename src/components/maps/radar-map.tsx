@@ -478,18 +478,21 @@ function PrecipOverlay({
       const d = hash(ix + 1, iy + 1);
       return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
     };
-    // fBm: 3 Oktaven → räumlich korreliert mit eingebetteten Kernen.
+    // fBm: 5 Oktaven → mehr feine Wellung an Bandkanten.
     const fbm = (x: number, y: number) => {
       let v = 0;
       let amp = 0.5;
       let freq = 1;
-      for (let o = 0; o < 3; o++) {
+      for (let o = 0; o < 5; o++) {
         v += valueNoise(x * freq, y * freq) * amp;
         amp *= 0.5;
         freq *= 2.1;
       }
       return v; // ~0..1
     };
+    // Rotation ~30° → Lattice-Achsen liegen nicht mehr karten-parallel.
+    const COS = 0.866;
+    const SIN = 0.5;
 
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
@@ -505,19 +508,20 @@ function PrecipOverlay({
         const vCur = sampleAt(vals, fxRaw, fyRaw);
         let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
 
-        // Prognose: fraktale Modulation → grossflächige, organische Felder
-        // mit eingebetteten Niederschlagskernen. Modulation am Grid-Raster
-        // (~Modellauflösung), nicht am Pixel.
+        // Prognose: rotierter, domain-warped fBm → keine geraden Lattice-
+        // Kanten an Bandgrenzen.
         if (contour && v > 0) {
-          // Anisotrope Sample-Achsen → Lobi liegen schief zur Karte,
-          // keine achsparallelen Bandgrenzen mehr.
-          const nx = fxRaw * 0.6 + fyRaw * 0.3;
-          const ny = fyRaw * 0.55 - fxRaw * 0.2;
-          const n = fbm(nx, ny); // 0..1
-          // Etwas weiterer Range → Bandgrenzen wandern unregelmässiger.
+          const sx = fxRaw * 0.9;
+          const sy = fyRaw * 0.85;
+          const rx = sx * COS - sy * SIN;
+          const ry = sx * SIN + sy * COS;
+          const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.2;
+          const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.2;
+          const n = fbm(rx + warpX, ry + warpY);
           const mod = 0.3 + n * 1.45;
           v = v * mod;
         }
+
 
         const minV = contour ? 0.05 : 0.1;
         if (v < minV) continue;
