@@ -700,10 +700,10 @@ function MeasurementHailDotsLayer({
       return ((h >>> 0) % 10000) / 10000;
     };
 
-    // Hagel ab ca. 25 mm/h wahrscheinlich (Starkregen → konvektive Zelle),
-    // praktisch sicher ab 50 mm/h.
-    const HAIL_LOW = 25;
-    const HAIL_HIGH = 50;
+    // Schwellwerte bewusst niedrig: ab moderater konvektiver Aktivität
+    // werden Punkte sichtbar, dichter mit steigender Intensität.
+    const HAIL_LOW = 3;
+    const HAIL_HIGH = 20;
     const smoothstep = (a: number, b: number, x: number) => {
       const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
       return t * t * (3 - 2 * t);
