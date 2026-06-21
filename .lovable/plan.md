@@ -1,35 +1,16 @@
-## Ziel
+## Problem
 
-Auf der Radar-Karte sehen die **Prognose-Niederschlagsfelder** (Forecast-Layer) aktuell aus wie axis-aligned Rechtecke/Quadrate mit harten 90°-Ecken. Sie sollen wie unregelmässige, organisch geformte Ellipsen wirken — die **harten Farbbänder bleiben aber erhalten** (keine Glättung der Farbskala).
-
-## Ursache
-
-In `src/components/maps/radar-map.tsx` rendert `PrecipOverlay` die Prognose mit:
-- `STEP = 3` Bildschirm-Pixel pro Sample → grobes Raster
-- Nearest-Neighbour-Upscaling (`imageSmoothingEnabled = false`, `imageRendering: pixelated`)
-- fBm-Noise-Modulation auf Grid-Koordinaten
-
-Die Iso-Kanten zwischen Farbklassen verlaufen dadurch entlang dieses 3-px-Rasters → sichtbare horizontale/vertikale Treppen und „quadratische" Ecken.
+Die äusseren Bandgrenzen der Prognose-Niederschlagsfelder zeigen weiterhin gerade Kanten / Ecken. Ursache: das fBm-Noise hat nur 3 Oktaven mit niedriger Basisfrequenz (`*0.6`) und ein **achsparalleles Integer-Gitter**. Die anisotrope Skalierung verschiebt die Lobi zwar, dreht das Gitter aber nicht — an der Aussenkante (wo `v*mod` knapp `minV` unterschreitet) bleibt die Lattice-Geometrie sichtbar als Kanten.
 
 ## Plan
 
-Nur `src/components/maps/radar-map.tsx`, nur die Prognose-Branch (`contour === true`):
+Nur `src/components/maps/radar-map.tsx`, Prognose-Branch in `PrecipOverlay`:
 
-1. **Feineres Sample-Raster für die Prognose**
-   - `STEP` für Prognose von `3` auf `1` (Messung bleibt `2`).
-   - Damit folgt die Iso-Kante pixelgenau dem (noise-modulierten) Wertefeld → geschwungene, organische Bandgrenzen statt 3-px-Treppe.
-   - Aufwand pro Frame steigt ~9×, ist aber tragbar (Canvas ist klein, alle 100–200 ms gezeichnet).
-
-2. **Noise stärker an der Form beteiligen**
-   - In der fBm-Modulation eine leicht **anisotrope** Komponente einbauen (z. B. `fbm(fxRaw*0.6 + 0.3*fyRaw, fyRaw*0.55 - 0.2*fxRaw)`), damit die Lobi nicht achsparallel ausgerichtet sind → mehr „schiefe Ellipsen".
-   - Modulator-Range minimal weiter (z. B. `0.30 … 1.75`), damit Bandgrenzen unregelmässiger wandern.
-
-3. **Pixel-Rendering belassen**
-   - `imageSmoothingEnabled = false` und `imageRendering: pixelated` bleiben → **keine Farbglättung**, harte Klassenkanten bleiben erhalten („nicht glätten").
-
-4. **Keine Änderung** an Farbskala, Opazitäten, Snow-Branch, Messungs-Branch, anderen Karten.
+1. **Noise-Gitter rotieren** (≈30°), bevor fBm gesampelt wird → die Lattice-Kanten liegen nicht mehr horizontal/vertikal und „verschwinden" optisch in den organischen Lobi.
+2. **Höhere Basisfrequenz + mehr Oktaven**: fBm von 3 → 5 Oktaven, Basisfrequenz von `0.6` → `0.9`, damit am Aussenrand feine Wellung statt einer langen geraden Kante entsteht.
+3. **Domain-Warp**: vor dem finalen fBm-Sample werden die Koordinaten mit einem zweiten, niederfrequenten fBm verzerrt (`x' = x + w*fbm(x,y)`, analog `y'`). Das ist die Standard-Technik gegen sichtbare Lattice-Grenzen und erzeugt verdrehte, organische Aussenkonturen.
+4. Modulator-Range und alles übrige bleiben gleich; **keine Farbglättung**, Pixel-Rendering bleibt.
 
 ## Verifikation
 
-- Build/Typecheck grün.
-- Visuell in `/karten/radar` (Prognose-Frames): Felder erscheinen als unregelmässig geformte, gerundete Lobi statt Rechtecken; Farbbänder bleiben scharf abgegrenzt.
+Visuell in `/karten/radar` auf Prognose-Frames: Aussenkante der Bänder ist gewellt/zerklüftet, keine geraden Segmente oder Ecken mehr.
