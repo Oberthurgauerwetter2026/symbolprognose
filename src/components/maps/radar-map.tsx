@@ -519,12 +519,20 @@ function PrecipOverlay({
           const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
           const n = fbm(rx + warpX, ry + warpY);
           const mod = 0.25 + n * 1.55;
-          // Envelope-Noise — bricht die rechteckige Daten-Bbox in unregelmässige
-          // Zellen auf. Zwei Frequenzen + harter Threshold → echte Null-Inseln.
-          const env1 = fbm(rx * 0.28 - 5.7, ry * 0.28 + 11.2);
-          const env2 = fbm(rx * 0.9 + 31.1, ry * 0.9 - 7.4);
-          const envRaw = env1 * 0.75 + env2 * 0.25;
-          const envelope = Math.max(0, envRaw * 2.6 - 0.95);
+          // Envelope-Noise — bricht die rechteckige Daten-Bbox in stark
+          // wellige Buchten/Halbinseln/Inseln auf (3 Frequenzen, harter Cut).
+          const env1 = fbm(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
+          const env2 = fbm(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
+          const env3 = fbm(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
+          const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
+          // Edge-Bias: normalisierter Abstand zur Bbox-Kante, noise-moduliert,
+          // damit die Daten-Rechteckkante zufällig „angeknabbert" wird.
+          const edgeNX = Math.min(fxRaw, nLon - 1 - fxRaw) / (nLon - 1);
+          const edgeNY = Math.min(fyRaw, nLat - 1 - fyRaw) / (nLat - 1);
+          const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
+          const edgeJitter = 0.55 + fbm(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
+          const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
+          const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
           v = v * mod * envelope;
         }
 

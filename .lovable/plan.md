@@ -1,35 +1,33 @@
 ## Ziel
 
-1. **Manuelles Ziehen** des Timesliders soll flüssig laufen (Griff + Zeit-Bubble folgen dem Finger/Cursor ohne Ruckeln).
-2. **Play-Animation** springt in **stündlichem Abstand** durch die Frames, statt jeden 15-min-Frame abzuspielen.
+Die noch sichtbare rechteckige Aussenkontur der Niederschlagsprognose soll durch ein deutlich welligeres, organisches Feld ersetzt werden — ohne Glättung, ohne Weichzeichnen, ohne Änderung der internen Farbbänder.
 
-## Änderungen in `src/components/maps/radar-map.tsx`
+## Ursache
 
-### A) Hourly Play-Loop (Zeilen ~1144–1176)
+In `src/components/maps/radar-map.tsx` (Z. 513–529) moduliert der aktuelle Envelope (`env1` 0.28 + `env2` 0.9, Threshold 0.95) die Werte innerhalb der Datengrid-Bbox. Die Frequenzen sind aber zu hoch und der Threshold zu schwach, um die *äusseren* Ränder der Bbox aufzubrechen — das Datenrechteck bleibt sichtbar. Zusätzlich erzwingt das niederfrequente Signal `env1` einen relativ gleichmässigen Trend, der nahe den Bbox-Kanten kaum unter den Threshold fällt.
 
-Statt blind `idx → idx+1` zu erhöhen, auf den nächsten **stündlichen** Frame springen.
+## Änderungen (nur Z. 513–529 von `radar-map.tsx`)
 
-- Neuer Memo `hourlyIndices`: für jede volle Stunde im Frame-Bereich den Frame mit `minute === 0` (oder zeitlich nächstgelegenen) — Array von Indizes in `frames`.
-- Play-Tick: aktuellen Frame im `hourlyIndices` lokalisieren (oder nächst-folgenden), bei `progress ≥ 1` auf den nächsten Eintrag setzen; am Ende loopen.
-- `FRAME_MS = 1800 / speed` bleibt (1 h-Schritt pro Tick); Cross-Fade zwischen Stundenframes ebenso.
-- `nextFrame` (Zeile 1182) entsprechend auf den nächsten **Stundenframe** zeigen lassen, damit die Überblendung passt.
+### 1) Stärker welliger Aussen-Envelope
 
-### B) Flüssigeres Scrubben in `MeteoTimeline` (Zeilen 831–1000)
+- `env1`-Frequenz von `0.28` → `0.11` (grosse Lappen statt feiner Variation).
+- `env2`-Frequenz von `0.9` → `0.45`, Gewicht von `0.25` → `0.35` (mittelgrosse Buchten/Halbinseln).
+- Dritte hochfrequente Lage `env3` (`~1.6`, Gewicht `0.15`) für gezackte Mikro-Ränder (kein Glätten).
+- Threshold von `0.95` → `1.05`, Verstärkung `2.6` → `2.9` → erzeugt deutlich grössere zusammenhängende Null-Zonen und damit eine welligere, nicht-rechteckige Aussenkontur.
 
-Problem: Griff bewegt sich nur in Frame-Snaps; bei seltener Frame-Dichte oder schweren Overlay-Rerenders wirkt es ruckelig.
+### 2) Edge-Bias gegen die Bbox-Kanten
 
-Plan:
-- **Handle/Bubble von Frame-Snap entkoppeln**: während `dragging` die rohe Pointer-Pct in lokalem State `dragPct` (rAF-aktualisiert) halten. Griff + Bubble-Label-Zeit nutzen `dragPct`; Karten-Overlay erhält den gesnappten `idx` weiter via `onChange` — aber nur, wenn er sich tatsächlich ändert (Vergleich mit letztem gesendeten Index, kein redundanter Aufruf).
-- Pointer-Move: `pendingXRef` setzen, im rAF sowohl `dragPct` updaten als auch ggf. `onChange(nearestIdx)`. So gleitet der Griff in jedem Frame, aber das schwere Overlay-Update läuft nur bei Indexwechsel.
-- Beim PointerUp: `dragPct = null`, Griff rastet wieder auf `pctForIdx(idx)`.
-- Bubble-Label: bei aktivem `dragPct` Zeit aus `tMin + dragPct·span` ableiten (auf 15 min runden für Anzeige), sonst wie bisher aus `currentFrame`.
+- Aus `fxRaw`/`fyRaw` einen normalisierten Abstand zur nächsten Bbox-Kante berechnen (`0` am Rand, `1` in der Mitte).
+- Diesen Abstand mit `fbm` moduliert in den Envelope multiplizieren, sodass die rechteckige Datenkante zufällig „angeknabbert" wird statt linear abzuschneiden.
+- Keine Änderung an `BUFFER`, `minV`, `colorFor`, `imageSmoothingEnabled` — Bänder und Härte bleiben identisch.
 
-### C) Keine Funktionsänderung außerhalb
+### 3) Nicht angefasst
 
-- `colorFor`, Overlays, Ingest, Forecast-Logik: unverändert.
-- Speed-Popover, Buttons, Layout: unverändert.
+- `colorFor` / `colorForSmooth` / `snowColorFor`
+- Domain-Warp (`warpX`/`warpY`) und `mod`
+- Timeline, Play-Loop, Ingest, Forecast-Pipeline
+- Messdaten-Pfad (`!contour`) bleibt unverändert
 
-## Erwartetes Verhalten
+## Erwartetes Resultat
 
-- Play: jede ~0.9 s (bei 2×) ein Stundenschritt mit weicher Crossfade.
-- Drag: Griff + Bubble folgen dem Cursor fließend, Niederschlagsfeld wechselt bei jedem überschrittenen Frame ohne sichtbares Ruckeln.
+Die Prognose-Felder enden in unregelmässigen, welligen Buchten mit Halbinseln und vorgelagerten Inseln; die rechteckige Datengrid-Kante ist nicht mehr erkennbar. Interne Iso-Bänder bleiben hart und gerastert.
