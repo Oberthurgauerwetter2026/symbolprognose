@@ -1089,6 +1089,12 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
   const [progress, setProgress] = useState(0);
   const [arrowsOn, setArrowsOn] = useState(false);
   const isMobile = useIsMobile();
+  const idxRef = useRef<number | null>(null);
+  const progressRef = useRef(0);
+
+  useEffect(() => {
+    idxRef.current = idx;
+  }, [idx]);
 
   useEffect(() => {
     if (idx === null && frames.length > 0) setIdx(0);
@@ -1096,8 +1102,15 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
 
   useEffect(() => {
     if (!playing || frames.length === 0) {
+      progressRef.current = 0;
       setProgress(0);
       return;
+    }
+    progressRef.current = 0;
+    setProgress(0);
+    if (idxRef.current === null) {
+      idxRef.current = 0;
+      setIdx(0);
     }
     const FRAME_MS = 1800 / speed;
     let raf = 0;
@@ -1105,22 +1118,23 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
-      setProgress((p) => {
-        const np = p + dt / FRAME_MS;
-        if (np >= 1) {
-          setIdx((cur) => {
-            if (cur === null) return 0;
-            const next = cur + 1;
-            if (next >= frames.length) {
-              return 0;
-            }
-            return next;
-
-          });
-          return np - 1;
+      let p = progressRef.current + dt / FRAME_MS;
+      if (p >= 1) {
+        p = p - 1;
+        if (p >= 1) p = 0;
+        const cur = idxRef.current ?? 0;
+        const next = cur + 1;
+        if (next >= frames.length) {
+          progressRef.current = 0;
+          setProgress(0);
+          setPlaying(false);
+          return;
         }
-        return np;
-      });
+        idxRef.current = next;
+        setIdx(next);
+      }
+      progressRef.current = p;
+      setProgress(p);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
