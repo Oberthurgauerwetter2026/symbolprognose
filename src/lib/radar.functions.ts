@@ -524,40 +524,21 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   let ch2Count = 0;
 
   // ---- Phase A: 15-min-Prognose-Frames für die ersten 24 h ----
-  // Quelle: ICON-CH1 minutely_15. Slots ohne Daten werden übersprungen
-  // (kein Hourly-Fallback im 15-min-Raster → keine Stufenkanten).
+  // Primär native 15-min-Slots, bei Datenlücken weiche Interpolation zwischen
+  // umliegenden Stundenwerten. So bleibt Play stabil und ohne große Sprünge.
   const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
   const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
   for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
-    const tiMin = min15Idx.get(tMs);
-    if (typeof tiMin !== "number" || !r1) continue;
-    const p = new Array<number>(nPts).fill(0);
-    const s = hasMinSnow ? new Array<number>(nPts).fill(0) : undefined;
-    let any = false;
-    for (let pi = 0; pi < nPts; pi++) {
-      const loc = r1[pi] as LocResponse | undefined;
-      const v = loc?.minutely_15?.precipitation?.[tiMin];
-      if (typeof v === "number") {
-        p[pi] = v * 4;
-        any = true;
-      }
-      if (s) {
-        const sv = loc?.minutely_15?.snowfall?.[tiMin];
-        if (typeof sv === "number") {
-          s[pi] = sv * 4;
-          any = true;
-        }
-      }
-    }
-    if (!any) continue;
-    applyBias(tMs, p, s);
+    const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);
+    if (!grid) continue;
     frames.push({
       t: new Date(tMs).toISOString(),
-      source: "icon-ch1",
-      values: p,
-      snowValues: emitSnow ? s ?? new Array<number>(nPts).fill(0) : undefined,
+      source: grid.source,
+      values: grid.precip,
+      snowValues: emitSnow ? grid.snow ?? new Array<number>(nPts).fill(0) : undefined,
     });
-    ch1QuarterCount++;
+    if (grid.source === "icon-ch1") ch1QuarterCount++;
+    else ch2Count++;
   }
 
   // ---- Phase B: stündliche Prognose-Frames für > +24 h … +48 h ----
