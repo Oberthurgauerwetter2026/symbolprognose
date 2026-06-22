@@ -1,33 +1,47 @@
-## Ziel
-
-Die noch sichtbare rechteckige Aussenkontur der Niederschlagsprognose soll durch ein deutlich welligeres, organisches Feld ersetzt werden — ohne Glättung, ohne Weichzeichnen, ohne Änderung der internen Farbbänder.
-
 ## Ursache
 
-In `src/components/maps/radar-map.tsx` (Z. 513–529) moduliert der aktuelle Envelope (`env1` 0.28 + `env2` 0.9, Threshold 0.95) die Werte innerhalb der Datengrid-Bbox. Die Frequenzen sind aber zu hoch und der Threshold zu schwach, um die *äusseren* Ränder der Bbox aufzubrechen — das Datenrechteck bleibt sichtbar. Zusätzlich erzwingt das niederfrequente Signal `env1` einen relativ gleichmässigen Trend, der nahe den Bbox-Kanten kaum unter den Threshold fällt.
+Backend-seitig sind die Prognose-Frames bereits stündlich (Radar: `radar.functions.ts` Z. 386 `tMs += 3600_000`; Wind: `wind.functions.ts` Z. 148 dito). Was als „5-min beim Scrubben" auffällt, kommt aus dem Bubble-Label: während `dragging` rechnet `MeteoTimeline` die Bubble-Uhrzeit aus der **kontinuierlichen** Cursor-Position (`tMin + dragPct/100 * span`) statt aus der tatsächlich angezeigten Frame-Zeit. Der gerenderte Frame snappt dabei korrekt auf den nächsten Frame — nur die Anzeige suggeriert 5-min-Auflösung.
 
-## Änderungen (nur Z. 513–529 von `radar-map.tsx`)
+Im Radar gibt es zusätzlich Vergangenheits-Frames im 5-min-Raster (MCH-Manifest). Beim Scrubben in den Forecast-Bereich kann `idxFromClientX` theoretisch einen Past-Frame wählen, wenn dieser zeitlich näher liegt — sollte fast nie passieren, ist aber nicht garantiert.
 
-### 1) Stärker welliger Aussen-Envelope
+Die „2-h"-Beobachtung im Play-Loop des Radars rührt daher, dass `hourlyIndices` bei Übergang Past→Forecast Lücken haben kann (z. B. fehlt der Stundenfilm zur „aktuellen" Stunde), wodurch der erste Sprung zwei Stunden überspringt.
 
-- `env1`-Frequenz von `0.28` → `0.11` (grosse Lappen statt feiner Variation).
-- `env2`-Frequenz von `0.9` → `0.45`, Gewicht von `0.25` → `0.35` (mittelgrosse Buchten/Halbinseln).
-- Dritte hochfrequente Lage `env3` (`~1.6`, Gewicht `0.15`) für gezackte Mikro-Ränder (kein Glätten).
-- Threshold von `0.95` → `1.05`, Verstärkung `2.6` → `2.9` → erzeugt deutlich grössere zusammenhängende Null-Zonen und damit eine welligere, nicht-rechteckige Aussenkontur.
+Ist es möglich, die Animation mit den Ns-Felder im 5 min-Takt darzustellen wie bei MCH [https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/niederschlag.html](https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/niederschlag.html)
 
-### 2) Edge-Bias gegen die Bbox-Kanten
+## Änderungen
 
-- Aus `fxRaw`/`fyRaw` einen normalisierten Abstand zur nächsten Bbox-Kante berechnen (`0` am Rand, `1` in der Mitte).
-- Diesen Abstand mit `fbm` moduliert in den Envelope multiplizieren, sodass die rechteckige Datenkante zufällig „angeknabbert" wird statt linear abzuschneiden.
-- Keine Änderung an `BUFFER`, `minV`, `colorFor`, `imageSmoothingEnabled` — Bänder und Härte bleiben identisch.
+### 1) `src/components/maps/radar-map.tsx` — Bubble während Scrub snappen
 
-### 3) Nicht angefasst
+- Z. 977–982 (`handlePct` / `currentMs` / `bubbleLabel`):
+  - `currentMs` während `dragPct != null` aus `times[idx]` lesen (snapped Frame-Zeit), nicht aus der kontinuierlichen Cursor-Position.
+  - `handlePct` weiterhin auf `dragPct` setzen, damit der Daumen flüssig folgt — aber das Label/Frame-Time strikt auf den gewählten Frame.
 
-- `colorFor` / `colorForSmooth` / `snowColorFor`
-- Domain-Warp (`warpX`/`warpY`) und `mod`
-- Timeline, Play-Loop, Ingest, Forecast-Pipeline
-- Messdaten-Pfad (`!contour`) bleibt unverändert
+### 2) `radar-map.tsx` — Scrub-Snap in Forecast strikt stündlich
+
+- `idxFromClientX` (Z. 863–879):
+  - Wenn `target > now`: Kandidaten auf Forecast-Frames (`f.source !== "radar"`) beschränken.
+  - Wenn `target <= now`: bisheriges Verhalten (Nearest-of-all) — Past bleibt 5-min-präzise.
+
+### 3) `radar-map.tsx` — `hourlyIndices` ohne Lücken am Past→Forecast-Übergang
+
+- Z. 1177–1196: zusätzlich „aktuelle Stunde" (= letzter Past-Frame, der noch in der aktuellen Stunde liegt) einfügen, damit Play den ersten Schritt sauber +1 h macht statt +2 h.
+- `nextFrame`-Lookup (Z. 1236) bleibt — funktioniert dann automatisch korrekt.
+
+### 4) `src/components/maps/wind-map.tsx` — Bubble während Scrub snappen
+
+- Analog zur Radar-Timeline: während Drag das Bubble-Label aus der snapped Frame-Zeit ableiten, nicht aus kontinuierlicher Position. Wind-Frames sind ohnehin nur stündlich, der Play-Loop (`cur + 1`) ist damit schon korrekt — keine weitere Änderung am Loop nötig.
+
+### Nicht angefasst
+
+- Backend-Frame-Erzeugung (Radar/Wind) — Cadenz ist korrekt.
+- `colorFor`, Overlays, Envelope-Noise, Ingest, Forecast-Pipeline.
+- Play-Geschwindigkeit (`speed`/`FRAME_MS`) bleibt unverändert.
 
 ## Erwartetes Resultat
 
-Die Prognose-Felder enden in unregelmässigen, welligen Buchten mit Halbinseln und vorgelagerten Inseln; die rechteckige Datengrid-Kante ist nicht mehr erkennbar. Interne Iso-Bänder bleiben hart und gerastert.
+- Scrub-Bubble zeigt im Forecast diskrete Stundenwerte (14:00 → 15:00 → 16:00).
+- Scrub-Bubble zeigt in der Vergangenheit weiterhin 5-min-Schritte (MCH-Radar-Auflösung).
+- Play springt im Forecast exakt stündlich, ohne 2-h-Erstschritt.
+- Gilt für Radar- und Wind-Karte gleichermassen.
+
+&nbsp;
