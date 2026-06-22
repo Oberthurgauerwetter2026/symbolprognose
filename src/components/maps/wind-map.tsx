@@ -70,6 +70,53 @@ function windColor(kmh: number): [number, number, number] {
   return cur.rgb;
 }
 
+const HOUR_MS = 3600_000;
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
+function lerpDirection(a: number, b: number, t: number) {
+  const diff = ((b - a + 540) % 360) - 180;
+  return (a + diff * t + 360) % 360;
+}
+
+function interpolateWindFrame(a: WindFrame, b: WindFrame, tMs: number): WindFrame {
+  const aMs = Date.parse(a.t);
+  const bMs = Date.parse(b.t);
+  const span = Math.max(1, bMs - aMs);
+  const t = Math.max(0, Math.min(1, (tMs - aMs) / span));
+  const n = Math.min(a.gust.length, b.gust.length, a.speed.length, b.speed.length, a.dir.length, b.dir.length);
+  const gust = new Array<number>(n);
+  const speed = new Array<number>(n);
+  const dir = new Array<number>(n);
+  for (let i = 0; i < n; i++) {
+    gust[i] = lerp(a.gust[i] ?? 0, b.gust[i] ?? 0, t);
+    speed[i] = lerp(a.speed[i] ?? 0, b.speed[i] ?? 0, t);
+    dir[i] = lerpDirection(a.dir[i] ?? 0, b.dir[i] ?? 0, t);
+  }
+  return { t: new Date(tMs).toISOString(), gust, speed, dir };
+}
+
+function buildHourlyWindFrames(frames: WindFrame[]): WindFrame[] {
+  if (frames.length < 2) return frames;
+  const times = frames.map((f) => Date.parse(f.t));
+  const start = Math.ceil(times[0] / HOUR_MS) * HOUR_MS;
+  const end = Math.floor(times[times.length - 1] / HOUR_MS) * HOUR_MS;
+  const out: WindFrame[] = [];
+  let cursor = 0;
+  for (let tMs = start; tMs <= end; tMs += HOUR_MS) {
+    while (cursor < times.length - 2 && times[cursor + 1] < tMs) cursor++;
+    const exact = times.indexOf(tMs);
+    if (exact >= 0) {
+      out.push(frames[exact]);
+    } else if (times[cursor] <= tMs && tMs <= times[cursor + 1]) {
+      out.push(interpolateWindFrame(frames[cursor], frames[cursor + 1], tMs));
+    }
+  }
+  return out;
+}
+
 // --- Outline / mask GeoJSON wie Radar ---
 const OUTSIDE_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
