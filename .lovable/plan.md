@@ -1,29 +1,35 @@
-# Niederschlags-Prognose: Envelope deutlich aggressiver
+## Ziel
 
-Vorige Änderung war zu schwach — `envelope = max(0, env·1.9 − 0.18)` liefert (mit `env`-Median ≈ 0.5) Werte im Bereich ~0.2–1.3 und erreicht praktisch nie 0. Resultat: die rechteckige Datengrid-Bbox bleibt sichtbar.
+1. **Manuelles Ziehen** des Timesliders soll flüssig laufen (Griff + Zeit-Bubble folgen dem Finger/Cursor ohne Ruckeln).
+2. **Play-Animation** springt in **stündlichem Abstand** durch die Frames, statt jeden 15-min-Frame abzuspielen.
 
-Zudem ist die Frequenz `0.12 · rx` über den sichtbaren Ausschnitt zu niedrig → kaum Wellen am Rand.
+## Änderungen in `src/components/maps/radar-map.tsx`
 
-## Änderung in `src/components/maps/radar-map.tsx`, Zeilen 522–525
+### A) Hourly Play-Loop (Zeilen ~1144–1176)
 
-```ts
-// Mittel-/Grossräumiger Envelope-Noise — erzeugt echte Null-Inseln und
-// reisst die Daten-Bbox in unregelmässige Zellen auf.
-const env1 = fbm(rx * 0.28 - 5.7, ry * 0.28 + 11.2);   // grobe Zellstruktur
-const env2 = fbm(rx * 0.9 + 31.1, ry * 0.9 - 7.4);     // feine Kantenfaserung
-const envRaw = env1 * 0.75 + env2 * 0.25;              // 0..1, leicht zugunsten gross
-// Threshold so wählen, dass ~30–40 % der Fläche auf Null fallen → wellige
-// Aussenkontur + organische Innen-Lücken.
-const envelope = Math.max(0, envRaw * 2.6 - 0.95);
-v = v * mod * envelope;
-```
+Statt blind `idx → idx+1` zu erhöhen, auf den nächsten **stündlichen** Frame springen.
 
-Wirkung:
-- `env1` (Freq 0.28) zerlegt die Bbox in mehrere wolkenartige Zellen.
-- `env2` (Freq 0.9) faserig die Kanten der Zellen.
-- Threshold `·2.6 − 0.95` → wirklich Null in ~⅓ der Fläche → keine geschlossene Rechteck-Hülle mehr.
-- `colorFor` + `imageSmoothingEnabled = false` unverändert → harte Bänder, keine Weichzeichnung.
+- Neuer Memo `hourlyIndices`: für jede volle Stunde im Frame-Bereich den Frame mit `minute === 0` (oder zeitlich nächstgelegenen) — Array von Indizes in `frames`.
+- Play-Tick: aktuellen Frame im `hourlyIndices` lokalisieren (oder nächst-folgenden), bei `progress ≥ 1` auf den nächsten Eintrag setzen; am Ende loopen.
+- `FRAME_MS = 1800 / speed` bleibt (1 h-Schritt pro Tick); Cross-Fade zwischen Stundenframes ebenso.
+- `nextFrame` (Zeile 1182) entsprechend auf den nächsten **Stundenframe** zeigen lassen, damit die Überblendung passt.
 
-## Verifikation
+### B) Flüssigeres Scrubben in `MeteoTimeline` (Zeilen 831–1000)
 
-`/karten/radar` Prognose-Frame: keine durchgehende rechteckige Aussenkontur mehr; statt einer geschlossenen Insel mehrere unregelmässige Zellen mit welligen Rändern; innere Iso-Bänder pixelig-hart wie bisher.
+Problem: Griff bewegt sich nur in Frame-Snaps; bei seltener Frame-Dichte oder schweren Overlay-Rerenders wirkt es ruckelig.
+
+Plan:
+- **Handle/Bubble von Frame-Snap entkoppeln**: während `dragging` die rohe Pointer-Pct in lokalem State `dragPct` (rAF-aktualisiert) halten. Griff + Bubble-Label-Zeit nutzen `dragPct`; Karten-Overlay erhält den gesnappten `idx` weiter via `onChange` — aber nur, wenn er sich tatsächlich ändert (Vergleich mit letztem gesendeten Index, kein redundanter Aufruf).
+- Pointer-Move: `pendingXRef` setzen, im rAF sowohl `dragPct` updaten als auch ggf. `onChange(nearestIdx)`. So gleitet der Griff in jedem Frame, aber das schwere Overlay-Update läuft nur bei Indexwechsel.
+- Beim PointerUp: `dragPct = null`, Griff rastet wieder auf `pctForIdx(idx)`.
+- Bubble-Label: bei aktivem `dragPct` Zeit aus `tMin + dragPct·span` ableiten (auf 15 min runden für Anzeige), sonst wie bisher aus `currentFrame`.
+
+### C) Keine Funktionsänderung außerhalb
+
+- `colorFor`, Overlays, Ingest, Forecast-Logik: unverändert.
+- Speed-Popover, Buttons, Layout: unverändert.
+
+## Erwartetes Verhalten
+
+- Play: jede ~0.9 s (bei 2×) ein Stundenschritt mit weicher Crossfade.
+- Drag: Griff + Bubble folgen dem Cursor fließend, Niederschlagsfeld wechselt bei jedem überschrittenen Frame ohne sichtbares Ruckeln.
