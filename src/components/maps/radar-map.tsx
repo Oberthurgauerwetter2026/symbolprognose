@@ -872,11 +872,27 @@ function MeteoTimeline({
 
   const rafRef = useRef<number | null>(null);
   const pendingXRef = useRef<number | null>(null);
+  const lastSentIdxRef = useRef<number>(idx);
+  const [dragPct, setDragPct] = useState<number | null>(null);
+
+  const pctFromClientX = (clientX: number): number => {
+    const el = trackRef.current;
+    if (!el) return 0;
+    const r = el.getBoundingClientRect();
+    return Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
+  };
+
   const flushPending = () => {
     rafRef.current = null;
     const x = pendingXRef.current;
     pendingXRef.current = null;
-    if (x != null) onChange(idxFromClientX(x));
+    if (x == null) return;
+    setDragPct(pctFromClientX(x));
+    const ni = idxFromClientX(x);
+    if (ni !== lastSentIdxRef.current) {
+      lastSentIdxRef.current = ni;
+      onChange(ni);
+    }
   };
   const cancelPending = () => {
     if (rafRef.current != null) {
@@ -893,7 +909,10 @@ function MeteoTimeline({
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       try { navigator.vibrate(8); } catch { /* ignore */ }
     }
-    onChange(idxFromClientX(e.clientX));
+    setDragPct(pctFromClientX(e.clientX));
+    const ni = idxFromClientX(e.clientX);
+    lastSentIdxRef.current = ni;
+    onChange(ni);
   };
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragging) return;
@@ -904,6 +923,7 @@ function MeteoTimeline({
   const handlePointerUp = (e: React.PointerEvent) => {
     setDragging(false);
     cancelPending();
+    setDragPct(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
