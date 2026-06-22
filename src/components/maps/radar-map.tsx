@@ -966,11 +966,13 @@ function MeteoTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tMin, tMax, dayBreaks.length]);
 
-  const handlePct = pctForIdx(idx);
-  const currentMs = times[idx] ?? now;
+  const handlePct = dragPct ?? pctForIdx(idx);
+  const currentMs =
+    dragPct != null ? tMin + (dragPct / 100) * span : times[idx] ?? now;
   const currentDate = new Date(currentMs);
   const currentFrame = frames[idx] ?? null;
   const bubbleLabel = fmtBubble(currentDate, currentFrame);
+
 
   // Auf Mobile nur jede 3. Stunde labeln, damit's nicht überlappt.
   const labelStep = isMobile ? 3 : 1;
