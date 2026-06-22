@@ -1186,10 +1186,12 @@ export function RadarMap({
     const times = frames.map((f) => Date.parse(f.t));
     const t0 = times[0];
     const tN = times[times.length - 1];
-    const startHour = Math.ceil(t0 / 3600000) * 3600000;
+    // Start bei der Stunde des ersten Frames (floor), nicht ceil — sonst
+    // fehlt die "aktuelle" Stunde am Past→Forecast-Übergang und der
+    // erste Play-Schritt überspringt 2 h.
+    const startHour = Math.floor(t0 / 3600000) * 3600000;
     let cursor = 0;
     for (let h = startHour; h <= tN; h += 3600000) {
-      // Advance cursor to nearest frame for hour h
       while (
         cursor + 1 < times.length &&
         Math.abs(times[cursor + 1] - h) <= Math.abs(times[cursor] - h)
