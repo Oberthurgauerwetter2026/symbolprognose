@@ -980,8 +980,9 @@ function MeteoTimeline({
   }, [tMin, tMax, dayBreaks.length]);
 
   const handlePct = dragPct ?? pctForIdx(idx);
-  const currentMs =
-    dragPct != null ? tMin + (dragPct / 100) * span : times[idx] ?? now;
+  // Bubble-Label & Frame-Zeit immer aus dem snapped Frame — auch während
+  // Drag — damit Forecast diskret stündlich erscheint statt 5-min suggeriert.
+  const currentMs = times[idx] ?? Date.now();
   const currentDate = new Date(currentMs);
   const currentFrame = frames[idx] ?? null;
   const bubbleLabel = fmtBubble(currentDate, currentFrame);
