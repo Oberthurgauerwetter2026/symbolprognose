@@ -1243,7 +1243,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
           )}
 
           {WIND_CITIES.map((c) => (
-            <ZoomGate key={c.name} minZoom={c.minZoom ?? 10.5}>
+            <ZoomGate key={`${c.name}-${c.lat}-${c.lon}`} minZoom={c.minZoom ?? 10.5}>
               <Marker
                 position={[c.lat, c.lon]}
                 icon={cityIcon(c.name)}
