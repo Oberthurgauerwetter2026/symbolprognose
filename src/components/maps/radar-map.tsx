@@ -866,9 +866,14 @@ function MeteoTimeline({
     const r = el.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
     const target = tMin + pct * span;
+    const nowMs = Date.now();
+    // In Forecast nur Forecast-Frames erlauben (sind stündlich) — verhindert
+    // Snap auf einen Past-5-min-Frame nahe der Gegenwart.
+    const restrictForecast = target > nowMs;
     let best = 0;
     let bestDt = Infinity;
     for (let i = 0; i < times.length; i++) {
+      if (restrictForecast && frames[i]?.source === "radar") continue;
       const dt = Math.abs(times[i] - target);
       if (dt < bestDt) {
         bestDt = dt;
