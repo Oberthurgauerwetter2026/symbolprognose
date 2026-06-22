@@ -1203,46 +1203,71 @@ export function RadarMap({
     return out;
   }, [frames]);
 
-  // Play-Loop mit Cross-Fade: rAF-getrieben, springt von Step zu Step.
+  // Hilfsfunktion: nächsten Play-Step nach `cur` finden. Wenn `cur` nicht
+  // exakt in der Step-Liste liegt (z. B. nach Scrub), den ersten Step > cur
+  // wählen. Am Ende der Timeline wird auf den ersten Step zurückgesetzt.
+  const nextStepIndexAfter = (cur: number | null): number | undefined => {
+    if (playStepIndices.length === 0) return undefined;
+    if (cur === null) return playStepIndices[0];
+    const nxt = playStepIndices.find((i) => i > cur);
+    return nxt ?? playStepIndices[0];
+  };
+
+  // Play-Loop: rAF-getrieben, Progress in Ref (kein React-State im Tick) →
+  // keine doppelten Schritte durch StrictMode-Doppelausführung, kein
+  // Springen bei Re-Renders.
+  const progressRef = useRef(0);
   useEffect(() => {
     if (!playing || playStepIndices.length === 0) {
+      progressRef.current = 0;
       setProgress(0);
       return;
     }
+    // Beim Play-Start: aktuellen Index auf nächsten gültigen Step snappen,
+    // damit der erste Sprung klein ist (kein "Hüpfer" beim Klick).
+    progressRef.current = 0;
+    setProgress(0);
+    setIdx((cur) => {
+      if (cur === null) return playStepIndices[0];
+      if (playStepIndices.includes(cur)) return cur;
+      // Nächsten Step ≤ cur als Anker wählen.
+      let anchor = playStepIndices[0];
+      for (const i of playStepIndices) {
+        if (i <= cur) anchor = i;
+        else break;
+      }
+      return anchor;
+    });
+
     const FRAME_MS = 1800 / speed;
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
-      setProgress((p) => {
-        const np = p + dt / FRAME_MS;
-        if (np >= 1) {
-          setIdx((cur) => {
-            if (cur === null) return playStepIndices[0];
-            const nextStep = playStepIndices.find((i) => i > cur);
-            if (nextStep === undefined) return playStepIndices[0];
-            return nextStep;
-          });
-          return np - 1;
-        }
-        return np;
-      });
+      let p = progressRef.current + dt / FRAME_MS;
+      if (p >= 1) {
+        // Genau einen Step weiter — auch wenn ein Frame mal länger dauert.
+        p = p - 1;
+        if (p >= 1) p = 0;
+        setIdx((cur) => nextStepIndexAfter(cur) ?? cur);
+      }
+      progressRef.current = p;
+      setProgress(p);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
-  // Crossfade nur während Auto-Play: zwischen zwei Step-Frames weich
-  // überblenden. Im Pause-Modus rastet jeder Frame fest — keine künstliche
-  // Bewegung, keine "atmende" Animation.
+  // Crossfade nur während Auto-Play.
   const nextFrame = useMemo(() => {
     if (!playing || idx === null || !currentFrame) return null;
-    const nextStep = playStepIndices.find((i) => i > idx);
-    const ni = nextStep !== undefined ? nextStep : playStepIndices[0];
+    const ni = nextStepIndexAfter(idx);
     return ni !== undefined ? frames[ni] ?? null : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, idx, currentFrame, playStepIndices, frames]);
 
   // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
