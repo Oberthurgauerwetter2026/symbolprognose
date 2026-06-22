@@ -1,22 +1,29 @@
-Ziel: Der Timeslider in der Radar-Prognose soll sofort reagieren, auch bei grossem Desktop-Viewport.
+# Niederschlags-Prognose: Envelope deutlich aggressiver
 
-Plan:
-1. `PrecipOverlay` renderseitig entlasten:
-   - Lat/Lon→Grid-Koordinaten (`fxRaw`, `fyRaw`) pro Viewport cachen statt bei jedem Slider-Schritt neu über Leaflet `containerPointToLatLng` zu berechnen.
-   - Die Cache-Struktur um `fxArr`/`fyArr` erweitern und diese im Farbpass wiederverwenden.
-2. Slider-Interaktion entkoppeln:
-   - Beim Ziehen nicht jedes Pointer-Move sofort als React-State und Voll-Canvas-Render ausführen.
-   - Den gewünschten Zielindex während Dragging lokal/gedrosselt sammeln und nur den letzten Wert pro Animation-Frame anwenden.
-   - `progress` beim manuellen Scrubben explizit auf `0` setzen, damit kein zusätzlicher Crossfade-Render hängen bleibt.
-3. Canvas-Zeichnung effizienter machen:
-   - Offscreen-Canvas nicht bei jedem Redraw neu erzeugen, sondern per `useRef` wiederverwenden.
-   - `createImageData`/Canvas-Grössen nur so oft wie nötig neu anlegen.
-4. Prognose-Qualität bewusst leicht reduzieren, nur wenn nötig:
-   - Für Prognose-Frames den Raster-Schritt adaptiv erhöhen (z. B. `STEP=3` bei sehr grossen Viewports), damit der Slider flüssig bleibt.
-   - Die kantige Radar-Optik bleibt erhalten, weil weiterhin nearest-neighbour hochskaliert wird.
-5. Nebenbefund beheben:
-   - Die Stadt-Marker nutzen aktuell `name` als React-Key und erzeugen Duplicate-Key-Warnungen; auf stabile eindeutige Keys aus Name+Koordinaten umstellen, damit React beim Bedienen weniger unnötig arbeitet.
+Vorige Änderung war zu schwach — `envelope = max(0, env·1.9 − 0.18)` liefert (mit `env`-Median ≈ 0.5) Werte im Bereich ~0.2–1.3 und erreicht praktisch nie 0. Resultat: die rechteckige Datengrid-Bbox bleibt sichtbar.
 
-Validierung:
-- Browser-Profiler erneut auf `/karten/radar` mit Slider-/Next-Interaktion laufen lassen.
-- Prüfen, dass `hash`/`fbm` nicht mehr pro Slider-Schritt dominieren und die Bedienung sichtbar direkter reagiert.
+Zudem ist die Frequenz `0.12 · rx` über den sichtbaren Ausschnitt zu niedrig → kaum Wellen am Rand.
+
+## Änderung in `src/components/maps/radar-map.tsx`, Zeilen 522–525
+
+```ts
+// Mittel-/Grossräumiger Envelope-Noise — erzeugt echte Null-Inseln und
+// reisst die Daten-Bbox in unregelmässige Zellen auf.
+const env1 = fbm(rx * 0.28 - 5.7, ry * 0.28 + 11.2);   // grobe Zellstruktur
+const env2 = fbm(rx * 0.9 + 31.1, ry * 0.9 - 7.4);     // feine Kantenfaserung
+const envRaw = env1 * 0.75 + env2 * 0.25;              // 0..1, leicht zugunsten gross
+// Threshold so wählen, dass ~30–40 % der Fläche auf Null fallen → wellige
+// Aussenkontur + organische Innen-Lücken.
+const envelope = Math.max(0, envRaw * 2.6 - 0.95);
+v = v * mod * envelope;
+```
+
+Wirkung:
+- `env1` (Freq 0.28) zerlegt die Bbox in mehrere wolkenartige Zellen.
+- `env2` (Freq 0.9) faserig die Kanten der Zellen.
+- Threshold `·2.6 − 0.95` → wirklich Null in ~⅓ der Fläche → keine geschlossene Rechteck-Hülle mehr.
+- `colorFor` + `imageSmoothingEnabled = false` unverändert → harte Bänder, keine Weichzeichnung.
+
+## Verifikation
+
+`/karten/radar` Prognose-Frame: keine durchgehende rechteckige Aussenkontur mehr; statt einer geschlossenen Insel mehrere unregelmässige Zellen mit welligen Rändern; innere Iso-Bänder pixelig-hart wie bisher.

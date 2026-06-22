@@ -391,24 +391,9 @@ function PrecipOverlay({
   }, [map]);
 
   const redrawRef = useRef<() => void>(() => {});
-  // Cache: Noise-Maske + Grid-Koordinaten (fx/fy) pro Viewport/Frame.
-  // Hängt NICHT von progress ab → keine Neuberechnung pro Slider-Tick.
-  const maskCacheRef = useRef<{
-    key: string;
-    lowW: number;
-    lowH: number;
-    fxArr: Float32Array;
-    fyArr: Float32Array;
-    dxArr: Float32Array | null;
-    dyArr: Float32Array | null;
-    maskArr: Float32Array | null;
-  } | null>(null);
-  // Wiederverwendbarer Offscreen-Canvas (vermeidet allocation pro Redraw).
-  const offCanvasRef = useRef<HTMLCanvasElement | null>(null);
   function redraw() {
     redrawRef.current();
   }
-
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
@@ -437,10 +422,10 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Adaptiver Raster-Schritt — bei grossen Viewports gröber, damit der
-    // Slider auch auf Desktop sofort reagiert. Optik bleibt durch
-    // imageSmoothingEnabled=false hart-pixelig.
-    const STEP = contour ? (size.x * size.y > 1_600_000 ? 3 : 2) : 2;
+    // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
+    // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
+    // Messung: 2-Pixel-Raster (Performance).
+    const STEP = contour ? 1 : 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -472,159 +457,118 @@ function PrecipOverlay({
       );
     };
 
-    // -------- Cache: Grid-Koords (fx/fy) + optional Noise-Maske --------
-    const bounds = map.getBounds();
-    const cacheKey = `${frame.t}|${lowW}x${lowH}|${map.getZoom()}|${bounds.toBBoxString()}|${contour ? 1 : 0}`;
-    let cache = maskCacheRef.current;
-    if (!cache || cache.key !== cacheKey) {
-      const fxArr = new Float32Array(lowW * lowH);
-      const fyArr = new Float32Array(lowW * lowH);
-      const lonSpan = gridLon[nLon - 1] - gridLon[0];
-      const latSpan = gridLat[nLat - 1] - gridLat[0];
-      const lon0 = gridLon[0];
-      const lat0 = gridLat[0];
-      for (let ly = 0; ly < lowH; ly++) {
-        for (let lx = 0; lx < lowW; lx++) {
-          const px = lx * STEP;
-          const py = ly * STEP;
-          const ll = map.containerPointToLatLng([px, py]);
-          const i = ly * lowW + lx;
-          fxArr[i] = ((ll.lng - lon0) / lonSpan) * (nLon - 1);
-          fyArr[i] = ((ll.lat - lat0) / latSpan) * (nLat - 1);
+    // -------- Deterministisches Value-Noise + fBm (fraktales Rauschen) --------
+    // Pro Frame stabil (Seed aus frame.t), damit Animation nicht flackert.
+    const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
+    const hash = (ix: number, iy: number) => {
+      let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
+      h = (h ^ (h >>> 13)) * 1274126177;
+      h = h ^ (h >>> 16);
+      return ((h >>> 0) % 10000) / 10000; // 0..1
+    };
+    const smooth = (u: number) => u * u * (3 - 2 * u);
+    const valueNoise = (x: number, y: number) => {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fx = smooth(x - ix);
+      const fy = smooth(y - iy);
+      const a = hash(ix, iy);
+      const b = hash(ix + 1, iy);
+      const c = hash(ix, iy + 1);
+      const d = hash(ix + 1, iy + 1);
+      return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
+    };
+    // fBm: 5 Oktaven → mehr feine Wellung an Bandkanten.
+    const fbm = (x: number, y: number) => {
+      let v = 0;
+      let amp = 0.5;
+      let freq = 1;
+      for (let o = 0; o < 5; o++) {
+        v += valueNoise(x * freq, y * freq) * amp;
+        amp *= 0.5;
+        freq *= 2.1;
+      }
+      return v; // ~0..1
+    };
+    // Rotation ~30° → Lattice-Achsen liegen nicht mehr karten-parallel.
+    const COS = 0.866;
+    const SIN = 0.5;
+
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const px = lx * STEP;
+        const py = ly * STEP;
+        const ll = map.containerPointToLatLng([px, py]);
+        const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+        const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+        const BUFFER = 3;
+        if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
+        if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
+
+        const vCur = sampleAt(vals, fxRaw, fyRaw);
+        let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
+
+        // Prognose: rotierter, domain-warped fBm → keine geraden Lattice-
+        // Kanten an Bandgrenzen.
+        if (contour && v > 0) {
+          const sx = fxRaw * 0.9;
+          const sy = fyRaw * 0.85;
+          const rx = sx * COS - sy * SIN;
+          const ry = sx * SIN + sy * COS;
+          const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
+          const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
+          const n = fbm(rx + warpX, ry + warpY);
+          const mod = 0.25 + n * 1.55;
+          // Envelope-Noise — bricht die rechteckige Daten-Bbox in unregelmässige
+          // Zellen auf. Zwei Frequenzen + harter Threshold → echte Null-Inseln.
+          const env1 = fbm(rx * 0.28 - 5.7, ry * 0.28 + 11.2);
+          const env2 = fbm(rx * 0.9 + 31.1, ry * 0.9 - 7.4);
+          const envRaw = env1 * 0.75 + env2 * 0.25;
+          const envelope = Math.max(0, envRaw * 2.6 - 0.95);
+          v = v * mod * envelope;
         }
-      }
-      let dxArr: Float32Array | null = null;
-      let dyArr: Float32Array | null = null;
-      let maskArr: Float32Array | null = null;
-      if (contour) {
-        const seed = (Date.parse(frame.t) / 60000) | 0;
-        const hash = (ix: number, iy: number) => {
-          let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
-          h = (h ^ (h >>> 13)) * 1274126177;
-          h = h ^ (h >>> 16);
-          return ((h >>> 0) % 10000) / 10000;
-        };
-        const smooth = (u: number) => u * u * (3 - 2 * u);
-        const valueNoise = (x: number, y: number) => {
-          const ix = Math.floor(x);
-          const iy = Math.floor(y);
-          const fx = smooth(x - ix);
-          const fy = smooth(y - iy);
-          const a = hash(ix, iy);
-          const b = hash(ix + 1, iy);
-          const c = hash(ix, iy + 1);
-          const d = hash(ix + 1, iy + 1);
-          return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
-        };
-        const fbm = (x: number, y: number) => {
-          let v = 0;
-          let amp = 0.5;
-          let freq = 1;
-          for (let o = 0; o < 3; o++) {
-            v += valueNoise(x * freq, y * freq) * amp;
-            amp *= 0.5;
-            freq *= 2.1;
-          }
-          return v;
-        };
-        const COS = 0.866;
-        const SIN = 0.5;
-        dxArr = new Float32Array(lowW * lowH);
-        dyArr = new Float32Array(lowW * lowH);
-        maskArr = new Float32Array(lowW * lowH);
-        for (let i = 0; i < lowW * lowH; i++) {
-          const fxRaw = fxArr[i];
-          const fyRaw = fyArr[i];
-          const sx0 = fxRaw * 0.9;
-          const sy0 = fyRaw * 0.85;
-          const rx0 = sx0 * COS - sy0 * SIN;
-          const ry0 = sx0 * SIN + sy0 * COS;
-          const dxL = (fbm(rx0 * 0.18 + 3.1, ry0 * 0.18 - 7.7) - 0.5) * 5.5;
-          const dyL = (fbm(rx0 * 0.18 - 12.3, ry0 * 0.18 + 4.9) - 0.5) * 5.5;
-          const dxH = (fbm(rx0 * 0.75 + 21.4, ry0 * 0.75 - 1.2) - 0.5) * 1.8;
-          const dyH = (fbm(rx0 * 0.75 - 5.6, ry0 * 0.75 + 18.7) - 0.5) * 1.8;
-          dxArr[i] = (dxL + dxH) * COS + (dyL + dyH) * SIN;
-          dyArr[i] = -(dxL + dxH) * SIN + (dyL + dyH) * COS;
-          const n = fbm(rx0 * 0.55 + 4.2, ry0 * 0.55 - 9.8);
-          const mod = 0.2 + n * 1.6;
-          const env1 = fbm(rx0 * 0.32 - 5.7, ry0 * 0.32 + 11.2);
-          const env2 = fbm(rx0 * 1.1 + 31.1, ry0 * 1.1 - 7.4);
-          const env3 = fbm(rx0 * 2.3 - 14.6, ry0 * 2.3 + 2.8);
-          const envRaw = env1 * 0.6 + env2 * 0.28 + env3 * 0.12;
-          const envelope = Math.max(0, envRaw * 3.0 - 1.15);
-          maskArr[i] = mod * envelope;
+
+
+        const minV = contour ? 0.05 : 0.1;
+        if (v < minV) continue;
+
+        let snowFrac = 0;
+        if (snowVals) {
+          const svCur = sampleAt(snowVals, fxRaw, fyRaw);
+          const sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
+          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
+
+        // Prognose: diskrete Bänder (colorFor) für harte Iso-Kanten — wirkt
+        // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
+        let [r, g, b, a] = snowFrac > 0.3
+          ? snowColorFor(v)
+          : (contour ? colorFor(v) : colorForSmooth(v));
+        if (a === 0) continue;
+        const alpha = Math.round(a * 255);
+        if (alpha === 0) continue;
+        const idx = (ly * lowW + lx) * 4;
+        data[idx] = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = alpha;
       }
-      cache = { key: cacheKey, lowW, lowH, fxArr, fyArr, dxArr, dyArr, maskArr };
-      maskCacheRef.current = cache;
-    }
-
-    const fxArr = cache.fxArr;
-    const fyArr = cache.fyArr;
-    const dxArr = cache.dxArr;
-    const dyArr = cache.dyArr;
-    const maskArr = cache.maskArr;
-
-    for (let i = 0; i < lowW * lowH; i++) {
-      const fxRaw = fxArr[i];
-      const fyRaw = fyArr[i];
-      const BUFFER = 3;
-      if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
-      if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
-
-      let fxS = fxRaw;
-      let fyS = fyRaw;
-      let mask = 1;
-      if (contour && dxArr && dyArr && maskArr) {
-        fxS = fxRaw + dxArr[i];
-        fyS = fyRaw + dyArr[i];
-        mask = maskArr[i];
-      }
-
-      const vCur = sampleAt(vals, fxS, fyS);
-      let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxS, fyS)) : vCur;
-      if (contour && v > 0) v = v * mask;
-
-      const minV = contour ? 0.05 : 0.1;
-      if (v < minV) continue;
-
-      let snowFrac = 0;
-      if (snowVals) {
-        const svCur = sampleAt(snowVals, fxRaw, fyRaw);
-        const sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
-        if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
-      }
-
-      const [r, g, b, a] = snowFrac > 0.3
-        ? snowColorFor(v)
-        : (contour ? colorFor(v) : colorForSmooth(v));
-      if (a === 0) continue;
-      const alpha = Math.round(a * 255);
-      if (alpha === 0) continue;
-      const idx = i * 4;
-      data[idx] = r;
-      data[idx + 1] = g;
-      data[idx + 2] = b;
-      data[idx + 3] = alpha;
     }
 
 
-    // Wiederverwendbarer Offscreen-Buffer.
-    let off = offCanvasRef.current;
-    if (!off) {
-      off = document.createElement("canvas");
-      offCanvasRef.current = off;
-    }
-    if (off.width !== lowW) off.width = lowW;
-    if (off.height !== lowH) off.height = lowH;
+    // Off-screen Buffer für putImageData (ignoriert Transformationen/Clip).
+    const off = document.createElement("canvas");
+    off.width = lowW;
+    off.height = lowH;
     const offCtx = off.getContext("2d");
     if (!offCtx) return;
     offCtx.putImageData(img, 0, 0);
 
-
-    // Kein Clip auf imageBbox — Prognose deckt das volle Daten-Grid ab.
+    // Kein Clip auf imageBbox — Prognose deckt das volle Daten-Grid ab,
+    // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
+    // Prognose: nearest-neighbour upscaling → sichtbare Pixel-Kanten.
     ctx.imageSmoothingEnabled = !contour;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
@@ -1406,7 +1350,7 @@ export function RadarMap({
 
 
           {RADAR_CITIES.map((c) => (
-            <ZoomGate key={`${c.name}-${c.lat}-${c.lon}`} minZoom={c.minZoom ?? 10.5}>
+            <ZoomGate key={c.name} minZoom={c.minZoom ?? 10.5}>
               <Marker
                 position={[c.lat, c.lon]}
                 icon={cityIcon(c.name)}
