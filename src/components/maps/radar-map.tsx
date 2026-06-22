@@ -866,9 +866,14 @@ function MeteoTimeline({
     const r = el.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
     const target = tMin + pct * span;
+    const nowMs = Date.now();
+    // In Forecast nur Forecast-Frames erlauben (sind stündlich) — verhindert
+    // Snap auf einen Past-5-min-Frame nahe der Gegenwart.
+    const restrictForecast = target > nowMs;
     let best = 0;
     let bestDt = Infinity;
     for (let i = 0; i < times.length; i++) {
+      if (restrictForecast && frames[i]?.source === "radar") continue;
       const dt = Math.abs(times[i] - target);
       if (dt < bestDt) {
         bestDt = dt;
@@ -975,8 +980,9 @@ function MeteoTimeline({
   }, [tMin, tMax, dayBreaks.length]);
 
   const handlePct = dragPct ?? pctForIdx(idx);
-  const currentMs =
-    dragPct != null ? tMin + (dragPct / 100) * span : times[idx] ?? now;
+  // Bubble-Label & Frame-Zeit immer aus dem snapped Frame — auch während
+  // Drag — damit Forecast diskret stündlich erscheint statt 5-min suggeriert.
+  const currentMs = times[idx] ?? Date.now();
   const currentDate = new Date(currentMs);
   const currentFrame = frames[idx] ?? null;
   const bubbleLabel = fmtBubble(currentDate, currentFrame);
@@ -1180,10 +1186,12 @@ export function RadarMap({
     const times = frames.map((f) => Date.parse(f.t));
     const t0 = times[0];
     const tN = times[times.length - 1];
-    const startHour = Math.ceil(t0 / 3600000) * 3600000;
+    // Start bei der Stunde des ersten Frames (floor), nicht ceil — sonst
+    // fehlt die "aktuelle" Stunde am Past→Forecast-Übergang und der
+    // erste Play-Schritt überspringt 2 h.
+    const startHour = Math.floor(t0 / 3600000) * 3600000;
     let cursor = 0;
     for (let h = startHour; h <= tN; h += 3600000) {
-      // Advance cursor to nearest frame for hour h
       while (
         cursor + 1 < times.length &&
         Math.abs(times[cursor + 1] - h) <= Math.abs(times[cursor] - h)
