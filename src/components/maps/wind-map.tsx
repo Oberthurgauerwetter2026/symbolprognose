@@ -1082,7 +1082,8 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
     gcTime: 30 * 60_000,
   });
 
-  const frames = data?.frames ?? [];
+  const rawFrames = data?.frames ?? [];
+  const frames = useMemo(() => buildHourlyWindFrames(rawFrames), [rawFrames]);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
