@@ -359,12 +359,16 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   const hasR2HourSnow = Array.isArray(r2Hour?.snowfall);
   const emitSnow = hasMinSnow || hasR1HourSnow || hasR2HourSnow;
 
+  // Map :00-Slots aus minutely_15 (für stündliche Phase als CH1-Quelle)
   const minIdx = new Map<number, number>();
+  // Map ALLE 15-min-Slots aus minutely_15 (für 15-min-Phase)
+  const min15Idx = new Map<number, number>();
   if (r1Min?.time) {
     for (let ti = 0; ti < r1Min.time.length; ti++) {
       const tIso = r1Min.time[ti];
-      if (!tIso.endsWith(":00")) continue;
-      minIdx.set(Date.parse(tIso + "Z"), ti);
+      const ms = Date.parse(tIso + "Z");
+      min15Idx.set(ms, ti);
+      if (tIso.endsWith(":00")) minIdx.set(ms, ti);
     }
   }
   const r1HourIdx = new Map<number, number>();
@@ -380,13 +384,67 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     }
   }
 
+  const applyBias = (
+    tMs: number,
+    precip: number[],
+    snow: number[] | undefined,
+  ) => {
+    if (biasFactor === 1) return;
+    const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
+    const biasWeight = Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
+    const correction = 1 + (biasFactor - 1) * biasWeight;
+    if (correction === 1) return;
+    for (let pi = 0; pi < nPts; pi++) precip[pi] *= correction;
+    if (snow) for (let pi = 0; pi < nPts; pi++) snow[pi] *= correction;
+  };
+
+  let ch1QuarterCount = 0;
   let ch1Count = 0;
   let ch2Count = 0;
-  const startMs = Math.floor(now / 3600_000) * 3600_000 + 3600_000;
-  for (let tMs = startMs; tMs <= forecastCutoff; tMs += 3600_000) {
+
+  // ---- Phase A: 15-min-Prognose-Frames für die ersten 24 h ----
+  // Quelle: ICON-CH1 minutely_15. Slots ohne Daten werden übersprungen
+  // (kein Hourly-Fallback im 15-min-Raster → keine Stufenkanten).
+  const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
+  const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
+  for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
+    const tiMin = min15Idx.get(tMs);
+    if (typeof tiMin !== "number" || !r1) continue;
+    const p = new Array<number>(nPts).fill(0);
+    const s = hasMinSnow ? new Array<number>(nPts).fill(0) : undefined;
+    let any = false;
+    for (let pi = 0; pi < nPts; pi++) {
+      const loc = r1[pi] as LocResponse | undefined;
+      const v = loc?.minutely_15?.precipitation?.[tiMin];
+      if (typeof v === "number") {
+        p[pi] = v * 4;
+        any = true;
+      }
+      if (s) {
+        const sv = loc?.minutely_15?.snowfall?.[tiMin];
+        if (typeof sv === "number") {
+          s[pi] = sv * 4;
+          any = true;
+        }
+      }
+    }
+    if (!any) continue;
+    applyBias(tMs, p, s);
+    frames.push({
+      t: new Date(tMs).toISOString(),
+      source: "icon-ch1",
+      values: p,
+      snowValues: emitSnow ? s ?? new Array<number>(nPts).fill(0) : undefined,
+    });
+    ch1QuarterCount++;
+  }
+
+  // ---- Phase B: stündliche Prognose-Frames für > +24 h … +48 h ----
+  const startHourly = Math.floor((now + 24 * 3600_000) / 3600_000) * 3600_000 + 3600_000;
+  for (let tMs = startHourly; tMs <= forecastCutoff; tMs += 3600_000) {
     const tIso = new Date(tMs).toISOString();
 
-    // 1) CH1 minutely_15
+    // 1) CH1 minutely_15 :00-Sample
     let precip: number[] | null = null;
     let snow: number[] | undefined;
     let source: "icon-ch1" | "icon-ch2" = "icon-ch1";
@@ -478,16 +536,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
 
     if (!precip) continue;
 
-    // Bias-Korrektur nur für CH1-Frames.
-    if (source === "icon-ch1" && biasFactor !== 1) {
-      const dtMinFromNow = Math.max(0, (tMs - now) / 60_000);
-      const biasWeight = Math.max(0, 1 - dtMinFromNow / BIAS_FADE_MIN);
-      const correction = 1 + (biasFactor - 1) * biasWeight;
-      if (correction !== 1) {
-        for (let pi = 0; pi < nPts; pi++) precip[pi] *= correction;
-        if (snow) for (let pi = 0; pi < nPts; pi++) snow[pi] *= correction;
-      }
-    }
+    if (source === "icon-ch1") applyBias(tMs, precip, snow);
 
     frames.push({
       t: tIso,
@@ -500,7 +549,9 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   }
 
 
-  console.info(`[radar] forecast: ch1Minutely=${ch1Count} iconCh2=${ch2Count}`);
+  console.info(
+    `[radar] forecast: ch1Quarter=${ch1QuarterCount} ch1Hourly=${ch1Count} ch2Hourly=${ch2Count}`,
+  );
 
 
 
