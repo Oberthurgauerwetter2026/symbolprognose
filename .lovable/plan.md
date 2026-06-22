@@ -1,47 +1,57 @@
-## Ursache
+## Ziel
 
-Backend-seitig sind die Prognose-Frames bereits stündlich (Radar: `radar.functions.ts` Z. 386 `tMs += 3600_000`; Wind: `wind.functions.ts` Z. 148 dito). Was als „5-min beim Scrubben" auffällt, kommt aus dem Bubble-Label: während `dragging` rechnet `MeteoTimeline` die Bubble-Uhrzeit aus der **kontinuierlichen** Cursor-Position (`tMin + dragPct/100 * span`) statt aus der tatsächlich angezeigten Frame-Zeit. Der gerenderte Frame snappt dabei korrekt auf den nächsten Frame — nur die Anzeige suggeriert 5-min-Auflösung.
+Im Play-Modus springt die Animation in den jeweils sinnvollen Schritten durch die Zeitachse:
 
-Im Radar gibt es zusätzlich Vergangenheits-Frames im 5-min-Raster (MCH-Manifest). Beim Scrubben in den Forecast-Bereich kann `idxFromClientX` theoretisch einen Past-Frame wählen, wenn dieser zeitlich näher liegt — sollte fast nie passieren, ist aber nicht garantiert.
+- **Messung (Vergangenheit):** 5-Minuten-Takt (MCH-Raster)
+- **Prognose, erste 24 h:** 15-Minuten-Takt
+- **Prognose, danach bis +48 h:** 1-Stunden-Takt
 
-Die „2-h"-Beobachtung im Play-Loop des Radars rührt daher, dass `hourlyIndices` bei Übergang Past→Forecast Lücken haben kann (z. B. fehlt der Stundenfilm zur „aktuellen" Stunde), wodurch der erste Sprung zwei Stunden überspringt.
-
-Ist es möglich, die Animation mit den Ns-Felder im 5 min-Takt darzustellen wie bei MCH [https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/niederschlag.html](https://www.meteoschweiz.admin.ch/service-und-publikationen/applikationen/niederschlag.html)
+Gilt für die Radar-Karte. Wind bleibt unverändert (Modell liefert nur stündliche Frames — 15-min/5-min existieren dort gar nicht).
 
 ## Änderungen
 
-### 1) `src/components/maps/radar-map.tsx` — Bubble während Scrub snappen
+### 1) Backend — `src/lib/radar.functions.ts`
 
-- Z. 977–982 (`handlePct` / `currentMs` / `bubbleLabel`):
-  - `currentMs` während `dragPct != null` aus `times[idx]` lesen (snapped Frame-Zeit), nicht aus der kontinuierlichen Cursor-Position.
-  - `handlePct` weiterhin auf `dragPct` setzen, damit der Daumen flüssig folgt — aber das Label/Frame-Time strikt auf den gewählten Frame.
+Forecast-Schleife liefert aktuell nur stündliche Frames (`tMs += 3600_000`). Anpassung:
 
-### 2) `radar-map.tsx` — Scrub-Snap in Forecast strikt stündlich
+- Erste 24 h ab `now`: 15-Minuten-Takt, ausschliesslich aus `minutely_15` (CH1). Falls `minutely_15` für einen Slot fehlt → Slot überspringen (kein Hourly-Fallback im 15-min-Raster, sonst Stufenkanten).
+- Danach (24 h … 48 h): stündlich wie heute, mit CH1-Hourly → CH2-Hourly Fallback.
+- Bias-Korrektur & Snow/Hail-Logik unverändert, nur an die feinere Auflösung durchgereicht.
+- Werte aus `minutely_15.precipitation` sind 15-min-Summen → korrekte Umrechnung auf mm/h (`*4`) bleibt wie heute.
 
-- `idxFromClientX` (Z. 863–879):
-  - Wenn `target > now`: Kandidaten auf Forecast-Frames (`f.source !== "radar"`) beschränken.
-  - Wenn `target <= now`: bisheriges Verhalten (Nearest-of-all) — Past bleibt 5-min-präzise.
+Die Past-Frames (MCH-Manifest, 5-min) werden weiterhin unverändert übernommen.
 
-### 3) `radar-map.tsx` — `hourlyIndices` ohne Lücken am Past→Forecast-Übergang
+### 2) Frontend — `src/components/maps/radar-map.tsx`
 
-- Z. 1177–1196: zusätzlich „aktuelle Stunde" (= letzter Past-Frame, der noch in der aktuellen Stunde liegt) einfügen, damit Play den ersten Schritt sauber +1 h macht statt +2 h.
-- `nextFrame`-Lookup (Z. 1236) bleibt — funktioniert dann automatisch korrekt.
+`hourlyIndices` (Zeilen ~1183–1204) wird durch `playStepIndices` ersetzt, das die Cadence-Regel oben umsetzt:
 
-### 4) `src/components/maps/wind-map.tsx` — Bubble während Scrub snappen
+- Iteriere Frames in Zeit-Reihenfolge.
+- Nimm den ersten Frame jeder „Bucket-Grenze":
+  - `t <= now`: Bucket = 5 min
+  - `now < t <= now + 24 h`: Bucket = 15 min
+  - `t > now + 24 h`: Bucket = 60 min
+- Dedup auf Frame-Index.
 
-- Analog zur Radar-Timeline: während Drag das Bubble-Label aus der snapped Frame-Zeit ableiten, nicht aus kontinuierlicher Position. Wind-Frames sind ohnehin nur stündlich, der Play-Loop (`cur + 1`) ist damit schon korrekt — keine weitere Änderung am Loop nötig.
+Play-Loop (Zeilen ~1207–1236):
 
-### Nicht angefasst
+- `nextStep = playStepIndices.find(i => i > cur)` statt `hourlyIndices`.
+- `FRAME_MS` (heute `1800/speed` ms pro Hop) bleibt konstant pro Hop — also unabhängig von der realen Bucket-Grösse. Das ergibt natürliches Verhalten: in Forecast „rauscht" die Animation schneller durch (kleinere Zeitsprünge), in der weiteren Zukunft langsamer pro Realzeit, aber gleich schnell pro Klick. (Falls du stattdessen konstante Realzeit-Geschwindigkeit willst → bitte sagen, das wäre eine andere Skalierung.)
 
-- Backend-Frame-Erzeugung (Radar/Wind) — Cadenz ist korrekt.
-- `colorFor`, Overlays, Envelope-Noise, Ingest, Forecast-Pipeline.
-- Play-Geschwindigkeit (`speed`/`FRAME_MS`) bleibt unverändert.
+Cross-Fade `nextFrame` (Zeilen ~1242–1247): analog auf `playStepIndices` umstellen.
 
-## Erwartetes Resultat
+Scrub bleibt wie zuletzt definiert: in Forecast strikt auf Forecast-Frames snappen, in Past 5-min-genau. Mit den neuen 15-min-Forecast-Frames bedeutet das automatisch, dass beim Scrubben in der ersten 24-h-Zone auf 15-min einrastet wird — keine zusätzliche Logik nötig.
 
-- Scrub-Bubble zeigt im Forecast diskrete Stundenwerte (14:00 → 15:00 → 16:00).
-- Scrub-Bubble zeigt in der Vergangenheit weiterhin 5-min-Schritte (MCH-Radar-Auflösung).
-- Play springt im Forecast exakt stündlich, ohne 2-h-Erstschritt.
-- Gilt für Radar- und Wind-Karte gleichermassen.
+### 3) Wind — unverändert
 
-&nbsp;
+`wind.functions.ts` liefert stündliche Frames, das passt zur User-Aussage „Prognose im 1-h-Takt". Keine Änderung.
+
+## Nicht angefasst
+
+- Farb-Skalen, Overlays, Hail/Snow-Anzeige
+- Past-Quelle (MCH), Caching, Ingest-Pipeline
+- `speed`-Regler, Slider-UI, Bubble-Label-Snapping (bleibt frame-basiert)
+- `wind-map.tsx`, `precip-accum-map.tsx`, `satellite-map.tsx`
+
+## Offen
+
+Wenn du möchtest, dass Play **echte Zeit konstant** abspielt (z. B. „1 h pro Sekunde" — dann wirkt Past extrem schnell und Forecast langsam), sag Bescheid; aktuell plane ich **konstante Hop-Dauer** (jeder Schritt dauert gleich lang, unabhängig davon ob es 5 min, 15 min oder 1 h realer Zeit sind).
