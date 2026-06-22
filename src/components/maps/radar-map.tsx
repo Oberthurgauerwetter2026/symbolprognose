@@ -1188,16 +1188,16 @@ export function RadarMap({
     const times = frames.map((f) => Date.parse(f.t));
     const nowMs = Date.now();
     const cutoff24 = nowMs + 24 * 3600_000;
-    let lastBucket: number | null = null;
+    let lastBucketKey: string | null = null;
     for (let i = 0; i < times.length; i++) {
       const t = times[i];
       const bucketSize =
         t <= nowMs ? 5 * 60_000 : t <= cutoff24 ? 15 * 60_000 : 60 * 60_000;
       const bucket = Math.floor(t / bucketSize);
-      const key = bucketSize * 1e13 + bucket; // bucket-size-aware Dedup-Key
-      if (key !== lastBucket) {
+      const key = `${bucketSize}:${bucket}`;
+      if (key !== lastBucketKey) {
         out.push(i);
-        lastBucket = key;
+        lastBucketKey = key;
       }
     }
     return out;
