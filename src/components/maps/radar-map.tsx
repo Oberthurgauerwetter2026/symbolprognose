@@ -391,17 +391,20 @@ function PrecipOverlay({
   }, [map]);
 
   const redrawRef = useRef<() => void>(() => {});
-  // Cache der teuren Noise-Maske (Distortion + Envelope). Hängt nur von
-  // Frame-Seed + Viewport ab, NICHT von progress → wird nicht pro
-  // Animations-Tick neu berechnet.
+  // Cache: Noise-Maske + Grid-Koordinaten (fx/fy) pro Viewport/Frame.
+  // Hängt NICHT von progress ab → keine Neuberechnung pro Slider-Tick.
   const maskCacheRef = useRef<{
     key: string;
     lowW: number;
     lowH: number;
-    dxArr: Float32Array;
-    dyArr: Float32Array;
-    maskArr: Float32Array;
+    fxArr: Float32Array;
+    fyArr: Float32Array;
+    dxArr: Float32Array | null;
+    dyArr: Float32Array | null;
+    maskArr: Float32Array | null;
   } | null>(null);
+  // Wiederverwendbarer Offscreen-Canvas (vermeidet allocation pro Redraw).
+  const offCanvasRef = useRef<HTMLCanvasElement | null>(null);
   function redraw() {
     redrawRef.current();
   }
