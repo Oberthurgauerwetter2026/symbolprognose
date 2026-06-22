@@ -1141,9 +1141,33 @@ export function RadarMap({
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
 
-  // Play-Loop mit Cross-Fade: rAF-getrieben, idx steigt erst wenn progress > 1.
+  // Stündliche Frame-Indizes — Play-Loop springt in 1-h-Schritten durch diese.
+  // Für jede volle Stunde im Frame-Bereich den zeitlich nächstgelegenen Frame
+  // (bevorzugt minute === 0).
+  const hourlyIndices = useMemo(() => {
+    if (frames.length === 0) return [] as number[];
+    const out: number[] = [];
+    const times = frames.map((f) => Date.parse(f.t));
+    const t0 = times[0];
+    const tN = times[times.length - 1];
+    const startHour = Math.ceil(t0 / 3600000) * 3600000;
+    let cursor = 0;
+    for (let h = startHour; h <= tN; h += 3600000) {
+      // Advance cursor to nearest frame for hour h
+      while (
+        cursor + 1 < times.length &&
+        Math.abs(times[cursor + 1] - h) <= Math.abs(times[cursor] - h)
+      ) {
+        cursor++;
+      }
+      if (out[out.length - 1] !== cursor) out.push(cursor);
+    }
+    return out;
+  }, [frames]);
+
+  // Play-Loop mit Cross-Fade: rAF-getrieben, springt in stündlichem Abstand.
   useEffect(() => {
-    if (!playing || frames.length === 0) {
+    if (!playing || hourlyIndices.length === 0) {
       setProgress(0);
       return;
     }
@@ -1157,13 +1181,11 @@ export function RadarMap({
         const np = p + dt / FRAME_MS;
         if (np >= 1) {
           setIdx((cur) => {
-            if (cur === null) return 0;
-            const next = cur + 1;
-            if (next >= frames.length) {
-              return 0;
-            }
-            return next;
-
+            if (cur === null) return hourlyIndices[0];
+            // Nächsten stündlichen Index finden, der > cur ist.
+            const nextHourly = hourlyIndices.find((i) => i > cur);
+            if (nextHourly === undefined) return hourlyIndices[0];
+            return nextHourly;
           });
           return np - 1;
         }
@@ -1173,16 +1195,18 @@ export function RadarMap({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, speed, frames.length]);
+  }, [playing, speed, hourlyIndices]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
   // Crossfade nur während Auto-Play: zwischen zwei Stundenframes weich
   // überblenden. Im Pause-Modus rastet jeder Frame fest auf seine Stunde —
   // keine künstliche Bewegung, keine "atmende" Animation.
-  const nextFrame =
-    playing && idx !== null && currentFrame
-      ? frames[(idx + 1) % frames.length] ?? null
-      : null;
+  const nextFrame = useMemo(() => {
+    if (!playing || idx === null || !currentFrame) return null;
+    const nextHourly = hourlyIndices.find((i) => i > idx);
+    const ni = nextHourly !== undefined ? nextHourly : hourlyIndices[0];
+    return ni !== undefined ? frames[ni] ?? null : null;
+  }, [playing, idx, currentFrame, hourlyIndices, frames]);
 
   // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
