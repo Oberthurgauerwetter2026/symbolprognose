@@ -478,90 +478,21 @@ function PrecipOverlay({
       const d = hash(ix + 1, iy + 1);
       return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
     };
-    // fBm: 3 Oktaven (wird nur auf dem groben Stützgitter ausgewertet).
+    // fBm: 5 Oktaven → mehr feine Wellung an Bandkanten.
     const fbm = (x: number, y: number) => {
       let v = 0;
       let amp = 0.5;
       let freq = 1;
-      for (let o = 0; o < 3; o++) {
+      for (let o = 0; o < 5; o++) {
         v += valueNoise(x * freq, y * freq) * amp;
         amp *= 0.5;
         freq *= 2.1;
       }
       return v; // ~0..1
     };
-    // Zwei Rotationsachsen → bricht jede verbleibende Vorzugsrichtung.
-    const COS1 = 0.866, SIN1 = 0.5;     // +30°
-    const COS2 = 0.574, SIN2 = -0.819;  // -55°
-
-    // -------- Coarse-Field: Warp & Envelope nur auf Stützgitter ----------
-    // Statt 8 fBm-Aufrufe pro Bildschirm-Pixel: 1× pro WARP_STEP Stützpunkt,
-    // dann bilinear interpolieren. Spart ~Faktor 30–40 an Noise-Lookups.
-    const WARP_STEP = 6;
-    const cW = Math.ceil(lowW / WARP_STEP) + 2;
-    const cH = Math.ceil(lowH / WARP_STEP) + 2;
-    let dXField: Float32Array | null = null;
-    let dYField: Float32Array | null = null;
-    let modField: Float32Array | null = null;
-    let envField: Float32Array | null = null;
-
-    if (contour) {
-      dXField = new Float32Array(cW * cH);
-      dYField = new Float32Array(cW * cH);
-      modField = new Float32Array(cW * cH);
-      envField = new Float32Array(cW * cH);
-      for (let cy = 0; cy < cH; cy++) {
-        for (let cx = 0; cx < cW; cx++) {
-          const px = cx * WARP_STEP * STEP;
-          const py = cy * WARP_STEP * STEP;
-          const ll = map.containerPointToLatLng([px, py]);
-          const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
-          const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-
-          // Warp-Felder in zwei rotierten Achsen
-          const sx0 = fxRaw * 0.9;
-          const sy0 = fyRaw * 0.85;
-          const rxA = sx0 * COS1 - sy0 * SIN1;
-          const ryA = sx0 * SIN1 + sy0 * COS1;
-          const rxB = sx0 * COS2 - sy0 * SIN2;
-          const ryB = sx0 * SIN2 + sy0 * COS2;
-          const dxL = (fbm(rxA * 0.18 + 3.1, ryA * 0.18 - 7.7) - 0.5) * 7.0;
-          const dyL = (fbm(rxB * 0.18 - 12.3, ryB * 0.18 + 4.9) - 0.5) * 7.0;
-          const dxH = (fbm(rxA * 0.75 + 21.4, ryA * 0.75 - 1.2) - 0.5) * 1.8;
-          const dyH = (fbm(rxB * 0.75 - 5.6, ryB * 0.75 + 18.7) - 0.5) * 1.8;
-          const ci = cy * cW + cx;
-          dXField[ci] = (dxL + dxH) * COS1 + (dyL + dyH) * SIN1;
-          dYField[ci] = -(dxL + dxH) * SIN1 + (dyL + dyH) * COS1;
-
-          // Envelope-Felder
-          const sx = fxRaw * 0.9;
-          const sy = fyRaw * 0.85;
-          const rx = sx * COS1 - sy * SIN1;
-          const ry = sx * SIN1 + sy * COS1;
-          const n = fbm(rx * 0.55 + 4.2, ry * 0.55 - 9.8);
-          modField[ci] = 0.2 + n * 1.6;
-          const env1 = fbm(rx * 0.32 - 5.7, ry * 0.32 + 11.2);
-          const env2 = fbm(rx * 1.1 + 31.1, ry * 1.1 - 7.4);
-          const env3 = fbm(rxB * 0.14 - 22.3, ryB * 0.14 + 6.1); // grosse Zell-Inseln
-          envField[ci] = env1 * 0.48 + env2 * 0.22 + env3 * 0.30;
-        }
-      }
-    }
-
-    const sampleField = (field: Float32Array, lx: number, ly: number) => {
-      const gx = lx / WARP_STEP;
-      const gy = ly / WARP_STEP;
-      const ix = Math.floor(gx);
-      const iy = Math.floor(gy);
-      const tx = gx - ix;
-      const ty = gy - iy;
-      const i00 = iy * cW + ix;
-      const a = field[i00];
-      const b = field[i00 + 1];
-      const c = field[i00 + cW];
-      const d = field[i00 + cW + 1];
-      return a * (1 - tx) * (1 - ty) + b * tx * (1 - ty) + c * (1 - tx) * ty + d * tx * ty;
-    };
+    // Rotation ~30° → Lattice-Achsen liegen nicht mehr karten-parallel.
+    const COS = 0.866;
+    const SIN = 0.5;
 
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
@@ -577,20 +508,47 @@ function PrecipOverlay({
         let fxS = fxRaw;
         let fyS = fyRaw;
 
-        if (contour && dXField && dYField) {
-          fxS = fxRaw + sampleField(dXField, lx, ly);
-          fyS = fyRaw + sampleField(dYField, lx, ly);
+        // Prognose: Sample-Position selbst rotiert + mehrskalig verzerren,
+        // damit die rechteckigen Modell-Zellen nicht mehr karten-parallel
+        // liegen. Dadurch verschwinden 90°-Ecken auch in den Iso-Bändern.
+        if (contour) {
+          const sx0 = fxRaw * 0.9;
+          const sy0 = fyRaw * 0.85;
+          const rx0 = sx0 * COS - sy0 * SIN;
+          const ry0 = sx0 * SIN + sy0 * COS;
+          // Grosse, niedrigfrequente Verschiebung der Abtastpunkte
+          const dxL = (fbm(rx0 * 0.18 + 3.1, ry0 * 0.18 - 7.7) - 0.5) * 5.5;
+          const dyL = (fbm(rx0 * 0.18 - 12.3, ry0 * 0.18 + 4.9) - 0.5) * 5.5;
+          // Feine, hochfrequente Kanten-Wellung
+          const dxH = (fbm(rx0 * 0.75 + 21.4, ry0 * 0.75 - 1.2) - 0.5) * 1.8;
+          const dyH = (fbm(rx0 * 0.75 - 5.6, ry0 * 0.75 + 18.7) - 0.5) * 1.8;
+          // Rückrotation in fx/fy-Achsen, damit Verschiebung nicht achsparallel ist
+          const dX = (dxL + dxH) * COS + (dyL + dyH) * SIN;
+          const dY = -(dxL + dxH) * SIN + (dyL + dyH) * COS;
+          fxS = fxRaw + dX;
+          fyS = fyRaw + dY;
         }
 
         const vCur = sampleAt(vals, fxS, fyS);
         let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxS, fyS)) : vCur;
 
-        if (contour && v > 0 && modField && envField) {
-          const mod = sampleField(modField, lx, ly);
-          const envRaw = sampleField(envField, lx, ly);
+        // Aggressive Envelope-Maske: schneidet harte, nicht-rechteckige
+        // Löcher in die Daten-Bbox; bricht die äusseren Ränder organisch auf.
+        if (contour && v > 0) {
+          const sx = fxRaw * 0.9;
+          const sy = fyRaw * 0.85;
+          const rx = sx * COS - sy * SIN;
+          const ry = sx * SIN + sy * COS;
+          const n = fbm(rx * 0.55 + 4.2, ry * 0.55 - 9.8);
+          const mod = 0.2 + n * 1.6;
+          const env1 = fbm(rx * 0.32 - 5.7, ry * 0.32 + 11.2);
+          const env2 = fbm(rx * 1.1 + 31.1, ry * 1.1 - 7.4);
+          const env3 = fbm(rx * 2.3 - 14.6, ry * 2.3 + 2.8);
+          const envRaw = env1 * 0.6 + env2 * 0.28 + env3 * 0.12;
           const envelope = Math.max(0, envRaw * 3.0 - 1.15);
           v = v * mod * envelope;
         }
+
 
         const minV = contour ? 0.05 : 0.1;
         if (v < minV) continue;
@@ -602,6 +560,8 @@ function PrecipOverlay({
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
+        // Prognose: diskrete Bänder (colorFor) für harte Iso-Kanten — wirkt
+        // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
         let [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
           : (contour ? colorFor(v) : colorForSmooth(v));
@@ -615,7 +575,6 @@ function PrecipOverlay({
         data[idx + 3] = alpha;
       }
     }
-
 
 
     // Off-screen Buffer für putImageData (ignoriert Transformationen/Clip).
