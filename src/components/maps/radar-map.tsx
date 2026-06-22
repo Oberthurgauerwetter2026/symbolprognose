@@ -391,9 +391,21 @@ function PrecipOverlay({
   }, [map]);
 
   const redrawRef = useRef<() => void>(() => {});
+  // Cache der teuren Noise-Maske (Distortion + Envelope). Hängt nur von
+  // Frame-Seed + Viewport ab, NICHT von progress → wird nicht pro
+  // Animations-Tick neu berechnet.
+  const maskCacheRef = useRef<{
+    key: string;
+    lowW: number;
+    lowH: number;
+    dxArr: Float32Array;
+    dyArr: Float32Array;
+    maskArr: Float32Array;
+  } | null>(null);
   function redraw() {
     redrawRef.current();
   }
+
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
