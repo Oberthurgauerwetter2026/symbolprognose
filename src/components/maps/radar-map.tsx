@@ -872,11 +872,27 @@ function MeteoTimeline({
 
   const rafRef = useRef<number | null>(null);
   const pendingXRef = useRef<number | null>(null);
+  const lastSentIdxRef = useRef<number>(idx);
+  const [dragPct, setDragPct] = useState<number | null>(null);
+
+  const pctFromClientX = (clientX: number): number => {
+    const el = trackRef.current;
+    if (!el) return 0;
+    const r = el.getBoundingClientRect();
+    return Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
+  };
+
   const flushPending = () => {
     rafRef.current = null;
     const x = pendingXRef.current;
     pendingXRef.current = null;
-    if (x != null) onChange(idxFromClientX(x));
+    if (x == null) return;
+    setDragPct(pctFromClientX(x));
+    const ni = idxFromClientX(x);
+    if (ni !== lastSentIdxRef.current) {
+      lastSentIdxRef.current = ni;
+      onChange(ni);
+    }
   };
   const cancelPending = () => {
     if (rafRef.current != null) {
@@ -893,7 +909,10 @@ function MeteoTimeline({
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       try { navigator.vibrate(8); } catch { /* ignore */ }
     }
-    onChange(idxFromClientX(e.clientX));
+    setDragPct(pctFromClientX(e.clientX));
+    const ni = idxFromClientX(e.clientX);
+    lastSentIdxRef.current = ni;
+    onChange(ni);
   };
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragging) return;
@@ -904,6 +923,7 @@ function MeteoTimeline({
   const handlePointerUp = (e: React.PointerEvent) => {
     setDragging(false);
     cancelPending();
+    setDragPct(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
@@ -946,11 +966,13 @@ function MeteoTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tMin, tMax, dayBreaks.length]);
 
-  const handlePct = pctForIdx(idx);
-  const currentMs = times[idx] ?? now;
+  const handlePct = dragPct ?? pctForIdx(idx);
+  const currentMs =
+    dragPct != null ? tMin + (dragPct / 100) * span : times[idx] ?? now;
   const currentDate = new Date(currentMs);
   const currentFrame = frames[idx] ?? null;
   const bubbleLabel = fmtBubble(currentDate, currentFrame);
+
 
   // Auf Mobile nur jede 3. Stunde labeln, damit's nicht überlappt.
   const labelStep = isMobile ? 3 : 1;
@@ -1141,9 +1163,33 @@ export function RadarMap({
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
 
-  // Play-Loop mit Cross-Fade: rAF-getrieben, idx steigt erst wenn progress > 1.
+  // Stündliche Frame-Indizes — Play-Loop springt in 1-h-Schritten durch diese.
+  // Für jede volle Stunde im Frame-Bereich den zeitlich nächstgelegenen Frame
+  // (bevorzugt minute === 0).
+  const hourlyIndices = useMemo(() => {
+    if (frames.length === 0) return [] as number[];
+    const out: number[] = [];
+    const times = frames.map((f) => Date.parse(f.t));
+    const t0 = times[0];
+    const tN = times[times.length - 1];
+    const startHour = Math.ceil(t0 / 3600000) * 3600000;
+    let cursor = 0;
+    for (let h = startHour; h <= tN; h += 3600000) {
+      // Advance cursor to nearest frame for hour h
+      while (
+        cursor + 1 < times.length &&
+        Math.abs(times[cursor + 1] - h) <= Math.abs(times[cursor] - h)
+      ) {
+        cursor++;
+      }
+      if (out[out.length - 1] !== cursor) out.push(cursor);
+    }
+    return out;
+  }, [frames]);
+
+  // Play-Loop mit Cross-Fade: rAF-getrieben, springt in stündlichem Abstand.
   useEffect(() => {
-    if (!playing || frames.length === 0) {
+    if (!playing || hourlyIndices.length === 0) {
       setProgress(0);
       return;
     }
@@ -1157,13 +1203,11 @@ export function RadarMap({
         const np = p + dt / FRAME_MS;
         if (np >= 1) {
           setIdx((cur) => {
-            if (cur === null) return 0;
-            const next = cur + 1;
-            if (next >= frames.length) {
-              return 0;
-            }
-            return next;
-
+            if (cur === null) return hourlyIndices[0];
+            // Nächsten stündlichen Index finden, der > cur ist.
+            const nextHourly = hourlyIndices.find((i) => i > cur);
+            if (nextHourly === undefined) return hourlyIndices[0];
+            return nextHourly;
           });
           return np - 1;
         }
@@ -1173,16 +1217,18 @@ export function RadarMap({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, speed, frames.length]);
+  }, [playing, speed, hourlyIndices]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
   // Crossfade nur während Auto-Play: zwischen zwei Stundenframes weich
   // überblenden. Im Pause-Modus rastet jeder Frame fest auf seine Stunde —
   // keine künstliche Bewegung, keine "atmende" Animation.
-  const nextFrame =
-    playing && idx !== null && currentFrame
-      ? frames[(idx + 1) % frames.length] ?? null
-      : null;
+  const nextFrame = useMemo(() => {
+    if (!playing || idx === null || !currentFrame) return null;
+    const nextHourly = hourlyIndices.find((i) => i > idx);
+    const ni = nextHourly !== undefined ? nextHourly : hourlyIndices[0];
+    return ni !== undefined ? frames[ni] ?? null : null;
+  }, [playing, idx, currentFrame, hourlyIndices, frames]);
 
   // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
