@@ -1177,35 +1177,35 @@ export function RadarMap({
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
 
-  // Stündliche Frame-Indizes — Play-Loop springt in 1-h-Schritten durch diese.
-  // Für jede volle Stunde im Frame-Bereich den zeitlich nächstgelegenen Frame
-  // (bevorzugt minute === 0).
-  const hourlyIndices = useMemo(() => {
+  // Play-Schritt-Indizes mit gemischter Cadence:
+  //   Past (t <= now)          : 5-min-Takt
+  //   Forecast bis +24 h       : 15-min-Takt
+  //   Forecast > +24 h         : 1-h-Takt
+  // Pro Bucket wird der erste passende Frame übernommen.
+  const playStepIndices = useMemo(() => {
     if (frames.length === 0) return [] as number[];
     const out: number[] = [];
     const times = frames.map((f) => Date.parse(f.t));
-    const t0 = times[0];
-    const tN = times[times.length - 1];
-    // Start bei der Stunde des ersten Frames (floor), nicht ceil — sonst
-    // fehlt die "aktuelle" Stunde am Past→Forecast-Übergang und der
-    // erste Play-Schritt überspringt 2 h.
-    const startHour = Math.floor(t0 / 3600000) * 3600000;
-    let cursor = 0;
-    for (let h = startHour; h <= tN; h += 3600000) {
-      while (
-        cursor + 1 < times.length &&
-        Math.abs(times[cursor + 1] - h) <= Math.abs(times[cursor] - h)
-      ) {
-        cursor++;
+    const nowMs = Date.now();
+    const cutoff24 = nowMs + 24 * 3600_000;
+    let lastBucket: number | null = null;
+    for (let i = 0; i < times.length; i++) {
+      const t = times[i];
+      const bucketSize =
+        t <= nowMs ? 5 * 60_000 : t <= cutoff24 ? 15 * 60_000 : 60 * 60_000;
+      const bucket = Math.floor(t / bucketSize);
+      const key = bucketSize * 1e13 + bucket; // bucket-size-aware Dedup-Key
+      if (key !== lastBucket) {
+        out.push(i);
+        lastBucket = key;
       }
-      if (out[out.length - 1] !== cursor) out.push(cursor);
     }
     return out;
   }, [frames]);
 
-  // Play-Loop mit Cross-Fade: rAF-getrieben, springt in stündlichem Abstand.
+  // Play-Loop mit Cross-Fade: rAF-getrieben, springt von Step zu Step.
   useEffect(() => {
-    if (!playing || hourlyIndices.length === 0) {
+    if (!playing || playStepIndices.length === 0) {
       setProgress(0);
       return;
     }
@@ -1219,11 +1219,10 @@ export function RadarMap({
         const np = p + dt / FRAME_MS;
         if (np >= 1) {
           setIdx((cur) => {
-            if (cur === null) return hourlyIndices[0];
-            // Nächsten stündlichen Index finden, der > cur ist.
-            const nextHourly = hourlyIndices.find((i) => i > cur);
-            if (nextHourly === undefined) return hourlyIndices[0];
-            return nextHourly;
+            if (cur === null) return playStepIndices[0];
+            const nextStep = playStepIndices.find((i) => i > cur);
+            if (nextStep === undefined) return playStepIndices[0];
+            return nextStep;
           });
           return np - 1;
         }
@@ -1233,18 +1232,18 @@ export function RadarMap({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, speed, hourlyIndices]);
+  }, [playing, speed, playStepIndices]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
-  // Crossfade nur während Auto-Play: zwischen zwei Stundenframes weich
-  // überblenden. Im Pause-Modus rastet jeder Frame fest auf seine Stunde —
-  // keine künstliche Bewegung, keine "atmende" Animation.
+  // Crossfade nur während Auto-Play: zwischen zwei Step-Frames weich
+  // überblenden. Im Pause-Modus rastet jeder Frame fest — keine künstliche
+  // Bewegung, keine "atmende" Animation.
   const nextFrame = useMemo(() => {
     if (!playing || idx === null || !currentFrame) return null;
-    const nextHourly = hourlyIndices.find((i) => i > idx);
-    const ni = nextHourly !== undefined ? nextHourly : hourlyIndices[0];
+    const nextStep = playStepIndices.find((i) => i > idx);
+    const ni = nextStep !== undefined ? nextStep : playStepIndices[0];
     return ni !== undefined ? frames[ni] ?? null : null;
-  }, [playing, idx, currentFrame, hourlyIndices, frames]);
+  }, [playing, idx, currentFrame, playStepIndices, frames]);
 
   // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
