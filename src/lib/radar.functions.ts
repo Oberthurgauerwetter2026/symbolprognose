@@ -398,45 +398,147 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     if (snow) for (let pi = 0; pi < nPts; pi++) snow[pi] *= correction;
   };
 
+  type ForecastGrid = { precip: number[]; snow?: number[]; source: "icon-ch1" | "icon-ch2" };
+
+  const readForecastExact = (tMs: number): ForecastGrid | null => {
+    let precip: number[] | null = null;
+    let snow: number[] | undefined;
+    let source: "icon-ch1" | "icon-ch2" = "icon-ch1";
+
+    const tiMin = min15Idx.get(tMs);
+    if (typeof tiMin === "number" && r1) {
+      const p = new Array<number>(nPts).fill(0);
+      const s = hasMinSnow ? new Array<number>(nPts).fill(0) : undefined;
+      let any = false;
+      for (let pi = 0; pi < nPts; pi++) {
+        const loc = r1[pi] as LocResponse | undefined;
+        const v = loc?.minutely_15?.precipitation?.[tiMin];
+        if (typeof v === "number") {
+          p[pi] = v * 4;
+          any = true;
+        }
+        if (s) {
+          const sv = loc?.minutely_15?.snowfall?.[tiMin];
+          if (typeof sv === "number") {
+            s[pi] = sv * 4;
+            any = true;
+          }
+        }
+      }
+      if (any) {
+        precip = p;
+        snow = s;
+      }
+    }
+
+    if (!precip) {
+      const tiH1 = r1HourIdx.get(tMs);
+      if (typeof tiH1 === "number" && r1) {
+        const p = new Array<number>(nPts).fill(0);
+        const s = hasR1HourSnow ? new Array<number>(nPts).fill(0) : undefined;
+        let any = false;
+        for (let pi = 0; pi < nPts; pi++) {
+          const loc = r1[pi] as LocResponse | undefined;
+          const v = loc?.hourly?.precipitation?.[tiH1];
+          if (typeof v === "number") {
+            p[pi] = v;
+            any = true;
+          }
+          if (s) {
+            const sv = loc?.hourly?.snowfall?.[tiH1];
+            if (typeof sv === "number") {
+              s[pi] = sv;
+              any = true;
+            }
+          }
+        }
+        if (any) {
+          precip = p;
+          snow = s;
+        }
+      }
+    }
+
+    if (!precip) {
+      const tiH2 = r2HourIdx.get(tMs);
+      if (typeof tiH2 === "number" && r2) {
+        const p = new Array<number>(nPts).fill(0);
+        const s = hasR2HourSnow ? new Array<number>(nPts).fill(0) : undefined;
+        let any = false;
+        for (let pi = 0; pi < nPts; pi++) {
+          const loc = r2[pi] as LocResponse | undefined;
+          const v = loc?.hourly?.precipitation?.[tiH2];
+          if (typeof v === "number") {
+            p[pi] = v;
+            any = true;
+          }
+          if (s) {
+            const sv = loc?.hourly?.snowfall?.[tiH2];
+            if (typeof sv === "number") {
+              s[pi] = sv;
+              any = true;
+            }
+          }
+        }
+        if (any) {
+          precip = p;
+          snow = s;
+          source = "icon-ch2";
+        }
+      }
+    }
+
+    if (!precip) return null;
+    if (source === "icon-ch1") applyBias(tMs, precip, snow);
+    return { precip, snow, source };
+  };
+
+  const exactCache = new Map<number, ForecastGrid | null>();
+  const getForecastExact = (tMs: number) => {
+    if (!exactCache.has(tMs)) exactCache.set(tMs, readForecastExact(tMs));
+    return exactCache.get(tMs) ?? null;
+  };
+
+  const interpolateForecast = (tMs: number): ForecastGrid | null => {
+    const aMs = Math.floor(tMs / 3600_000) * 3600_000;
+    const bMs = aMs + 3600_000;
+    const a = getForecastExact(aMs);
+    const b = getForecastExact(bMs);
+    if (!a || !b) return null;
+    const w = (tMs - aMs) / 3600_000;
+    const precip = new Array<number>(nPts);
+    const snow = emitSnow ? new Array<number>(nPts) : undefined;
+    for (let pi = 0; pi < nPts; pi++) {
+      precip[pi] = a.precip[pi] + (b.precip[pi] - a.precip[pi]) * w;
+      if (snow) {
+        const av = a.snow?.[pi] ?? 0;
+        const bv = b.snow?.[pi] ?? 0;
+        snow[pi] = av + (bv - av) * w;
+      }
+    }
+    return { precip, snow, source: a.source === "icon-ch2" && b.source === "icon-ch2" ? "icon-ch2" : "icon-ch1" };
+  };
+
   let ch1QuarterCount = 0;
   let ch1Count = 0;
   let ch2Count = 0;
 
   // ---- Phase A: 15-min-Prognose-Frames für die ersten 24 h ----
-  // Quelle: ICON-CH1 minutely_15. Slots ohne Daten werden übersprungen
-  // (kein Hourly-Fallback im 15-min-Raster → keine Stufenkanten).
+  // Primär native 15-min-Slots, bei Datenlücken weiche Interpolation zwischen
+  // umliegenden Stundenwerten. So bleibt Play stabil und ohne große Sprünge.
   const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
   const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
   for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
-    const tiMin = min15Idx.get(tMs);
-    if (typeof tiMin !== "number" || !r1) continue;
-    const p = new Array<number>(nPts).fill(0);
-    const s = hasMinSnow ? new Array<number>(nPts).fill(0) : undefined;
-    let any = false;
-    for (let pi = 0; pi < nPts; pi++) {
-      const loc = r1[pi] as LocResponse | undefined;
-      const v = loc?.minutely_15?.precipitation?.[tiMin];
-      if (typeof v === "number") {
-        p[pi] = v * 4;
-        any = true;
-      }
-      if (s) {
-        const sv = loc?.minutely_15?.snowfall?.[tiMin];
-        if (typeof sv === "number") {
-          s[pi] = sv * 4;
-          any = true;
-        }
-      }
-    }
-    if (!any) continue;
-    applyBias(tMs, p, s);
+    const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);
+    if (!grid) continue;
     frames.push({
       t: new Date(tMs).toISOString(),
-      source: "icon-ch1",
-      values: p,
-      snowValues: emitSnow ? s ?? new Array<number>(nPts).fill(0) : undefined,
+      source: grid.source,
+      values: grid.precip,
+      snowValues: emitSnow ? grid.snow ?? new Array<number>(nPts).fill(0) : undefined,
     });
-    ch1QuarterCount++;
+    if (grid.source === "icon-ch1") ch1QuarterCount++;
+    else ch2Count++;
   }
 
   // ---- Phase B: stündliche Prognose-Frames für > +24 h … +48 h ----

@@ -1188,56 +1188,56 @@ export function RadarMap({
     const times = frames.map((f) => Date.parse(f.t));
     const nowMs = Date.now();
     const cutoff24 = nowMs + 24 * 3600_000;
-    let lastBucket: number | null = null;
+    let lastBucketKey: string | null = null;
     for (let i = 0; i < times.length; i++) {
       const t = times[i];
       const bucketSize =
         t <= nowMs ? 5 * 60_000 : t <= cutoff24 ? 15 * 60_000 : 60 * 60_000;
       const bucket = Math.floor(t / bucketSize);
-      const key = bucketSize * 1e13 + bucket; // bucket-size-aware Dedup-Key
-      if (key !== lastBucket) {
+      const key = `${bucketSize}:${bucket}`;
+      if (key !== lastBucketKey) {
         out.push(i);
-        lastBucket = key;
+        lastBucketKey = key;
       }
     }
     return out;
   }, [frames]);
 
-  // Hilfsfunktion: nächsten Play-Step nach `cur` finden. Wenn `cur` nicht
-  // exakt in der Step-Liste liegt (z. B. nach Scrub), den ersten Step > cur
-  // wählen. Am Ende der Timeline wird auf den ersten Step zurückgesetzt.
-  const nextStepIndexAfter = (cur: number | null): number | undefined => {
-    if (playStepIndices.length === 0) return undefined;
-    if (cur === null) return playStepIndices[0];
-    const nxt = playStepIndices.find((i) => i > cur);
-    return nxt ?? playStepIndices[0];
+  const idxRef = useRef<number | null>(null);
+  useEffect(() => {
+    idxRef.current = idx;
+  }, [idx]);
+
+  const stepCursorForIndex = (cur: number | null): number => {
+    if (playStepIndices.length === 0 || cur === null) return 0;
+    const exact = playStepIndices.indexOf(cur);
+    if (exact >= 0) return exact;
+    let cursor = 0;
+    for (let i = 0; i < playStepIndices.length; i++) {
+      if (playStepIndices[i] <= cur) cursor = i;
+      else break;
+    }
+    return cursor;
   };
 
-  // Play-Loop: rAF-getrieben, Progress in Ref (kein React-State im Tick) →
-  // keine doppelten Schritte durch StrictMode-Doppelausführung, kein
-  // Springen bei Re-Renders.
+  // Play-Loop: fester Cursor in der Step-Liste. Kein Wrap von Prognose-Ende
+  // zurück zur Messung; am Ende stoppt Play sauber.
   const progressRef = useRef(0);
+  const playCursorRef = useRef(0);
   useEffect(() => {
     if (!playing || playStepIndices.length === 0) {
       progressRef.current = 0;
       setProgress(0);
       return;
     }
-    // Beim Play-Start: aktuellen Index auf nächsten gültigen Step snappen,
-    // damit der erste Sprung klein ist (kein "Hüpfer" beim Klick).
     progressRef.current = 0;
     setProgress(0);
-    setIdx((cur) => {
-      if (cur === null) return playStepIndices[0];
-      if (playStepIndices.includes(cur)) return cur;
-      // Nächsten Step ≤ cur als Anker wählen.
-      let anchor = playStepIndices[0];
-      for (const i of playStepIndices) {
-        if (i <= cur) anchor = i;
-        else break;
-      }
-      return anchor;
-    });
+    playCursorRef.current = stepCursorForIndex(idxRef.current);
+    const anchor = playStepIndices[playCursorRef.current];
+    if (typeof anchor === "number" && idxRef.current !== anchor) {
+      idxRef.current = anchor;
+      setIdx(anchor);
+    }
 
     const FRAME_MS = 1800 / speed;
     let raf = 0;
@@ -1247,10 +1247,19 @@ export function RadarMap({
       last = now;
       let p = progressRef.current + dt / FRAME_MS;
       if (p >= 1) {
-        // Genau einen Step weiter — auch wenn ein Frame mal länger dauert.
         p = p - 1;
         if (p >= 1) p = 0;
-        setIdx((cur) => nextStepIndexAfter(cur) ?? cur);
+        const nextCursor = playCursorRef.current + 1;
+        if (nextCursor >= playStepIndices.length) {
+          progressRef.current = 0;
+          setProgress(0);
+          setPlaying(false);
+          return;
+        }
+        playCursorRef.current = nextCursor;
+        const nextIdx = playStepIndices[nextCursor];
+        idxRef.current = nextIdx;
+        setIdx(nextIdx);
       }
       progressRef.current = p;
       setProgress(p);
@@ -1265,7 +1274,8 @@ export function RadarMap({
   // Crossfade nur während Auto-Play.
   const nextFrame = useMemo(() => {
     if (!playing || idx === null || !currentFrame) return null;
-    const ni = nextStepIndexAfter(idx);
+    const nextCursor = stepCursorForIndex(idx) + 1;
+    const ni = playStepIndices[nextCursor];
     return ni !== undefined ? frames[ni] ?? null : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, idx, currentFrame, playStepIndices, frames]);
@@ -1435,8 +1445,8 @@ export function RadarMap({
 
 
 
-          {RADAR_CITIES.map((c) => (
-            <ZoomGate key={c.name} minZoom={c.minZoom ?? 10.5}>
+          {RADAR_CITIES.map((c, i) => (
+            <ZoomGate key={`${c.name}-${c.lat}-${c.lon}-${i}`} minZoom={c.minZoom ?? 10.5}>
               <Marker
                 position={[c.lat, c.lon]}
                 icon={cityIcon(c.name)}

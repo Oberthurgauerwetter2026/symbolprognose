@@ -70,6 +70,53 @@ function windColor(kmh: number): [number, number, number] {
   return cur.rgb;
 }
 
+const HOUR_MS = 3600_000;
+
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+
+function lerpDirection(a: number, b: number, t: number) {
+  const diff = ((b - a + 540) % 360) - 180;
+  return (a + diff * t + 360) % 360;
+}
+
+function interpolateWindFrame(a: WindFrame, b: WindFrame, tMs: number): WindFrame {
+  const aMs = Date.parse(a.t);
+  const bMs = Date.parse(b.t);
+  const span = Math.max(1, bMs - aMs);
+  const t = Math.max(0, Math.min(1, (tMs - aMs) / span));
+  const n = Math.min(a.gust.length, b.gust.length, a.speed.length, b.speed.length, a.dir.length, b.dir.length);
+  const gust = new Array<number>(n);
+  const speed = new Array<number>(n);
+  const dir = new Array<number>(n);
+  for (let i = 0; i < n; i++) {
+    gust[i] = lerp(a.gust[i] ?? 0, b.gust[i] ?? 0, t);
+    speed[i] = lerp(a.speed[i] ?? 0, b.speed[i] ?? 0, t);
+    dir[i] = lerpDirection(a.dir[i] ?? 0, b.dir[i] ?? 0, t);
+  }
+  return { t: new Date(tMs).toISOString(), gust, speed, dir };
+}
+
+function buildHourlyWindFrames(frames: WindFrame[]): WindFrame[] {
+  if (frames.length < 2) return frames;
+  const times = frames.map((f) => Date.parse(f.t));
+  const start = Math.ceil(times[0] / HOUR_MS) * HOUR_MS;
+  const end = Math.floor(times[times.length - 1] / HOUR_MS) * HOUR_MS;
+  const out: WindFrame[] = [];
+  let cursor = 0;
+  for (let tMs = start; tMs <= end; tMs += HOUR_MS) {
+    while (cursor < times.length - 2 && times[cursor + 1] < tMs) cursor++;
+    const exact = times.indexOf(tMs);
+    if (exact >= 0) {
+      out.push(frames[exact]);
+    } else if (times[cursor] <= tMs && tMs <= times[cursor + 1]) {
+      out.push(interpolateWindFrame(frames[cursor], frames[cursor + 1], tMs));
+    }
+  }
+  return out;
+}
+
 // --- Outline / mask GeoJSON wie Radar ---
 const OUTSIDE_MASK: FeatureCollection = (() => {
   const holes: number[][][] = [];
@@ -1035,13 +1082,20 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
     gcTime: 30 * 60_000,
   });
 
-  const frames = data?.frames ?? [];
+  const rawFrames = data?.frames ?? [];
+  const frames = useMemo(() => buildHourlyWindFrames(rawFrames), [rawFrames]);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
   const [progress, setProgress] = useState(0);
   const [arrowsOn, setArrowsOn] = useState(false);
   const isMobile = useIsMobile();
+  const idxRef = useRef<number | null>(null);
+  const progressRef = useRef(0);
+
+  useEffect(() => {
+    idxRef.current = idx;
+  }, [idx]);
 
   useEffect(() => {
     if (idx === null && frames.length > 0) setIdx(0);
@@ -1049,8 +1103,15 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
 
   useEffect(() => {
     if (!playing || frames.length === 0) {
+      progressRef.current = 0;
       setProgress(0);
       return;
+    }
+    progressRef.current = 0;
+    setProgress(0);
+    if (idxRef.current === null) {
+      idxRef.current = 0;
+      setIdx(0);
     }
     const FRAME_MS = 1800 / speed;
     let raf = 0;
@@ -1058,22 +1119,23 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
-      setProgress((p) => {
-        const np = p + dt / FRAME_MS;
-        if (np >= 1) {
-          setIdx((cur) => {
-            if (cur === null) return 0;
-            const next = cur + 1;
-            if (next >= frames.length) {
-              return 0;
-            }
-            return next;
-
-          });
-          return np - 1;
+      let p = progressRef.current + dt / FRAME_MS;
+      if (p >= 1) {
+        p = p - 1;
+        if (p >= 1) p = 0;
+        const cur = idxRef.current ?? 0;
+        const next = cur + 1;
+        if (next >= frames.length) {
+          progressRef.current = 0;
+          setProgress(0);
+          setPlaying(false);
+          return;
         }
-        return np;
-      });
+        idxRef.current = next;
+        setIdx(next);
+      }
+      progressRef.current = p;
+      setProgress(p);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -1180,8 +1242,8 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
             </>
           )}
 
-          {WIND_CITIES.map((c) => (
-            <ZoomGate key={c.name} minZoom={c.minZoom ?? 10.5}>
+          {WIND_CITIES.map((c, i) => (
+            <ZoomGate key={`${c.name}-${c.lat}-${c.lon}-${i}`} minZoom={c.minZoom ?? 10.5}>
               <Marker
                 position={[c.lat, c.lon]}
                 icon={cityIcon(c.name)}
