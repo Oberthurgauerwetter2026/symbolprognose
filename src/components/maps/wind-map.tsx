@@ -485,7 +485,7 @@ function WindColorOverlay({
 
   useEffect(() => {
     redrawRef.current();
-  }, [frame, nextFrame, progress, opacity, payload]);
+  }, [frame, opacity, payload]);
 
   return null;
 }
