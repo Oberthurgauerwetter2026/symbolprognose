@@ -440,7 +440,7 @@ function WindColorOverlay({
     if (!ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
 
-    const sampler = makeSampler(payload, frame, nextFrame, progress);
+    const sampler = makeSampler(payload, frame, null, 0);
     const STEP = 1;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
