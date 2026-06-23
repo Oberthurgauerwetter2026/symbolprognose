@@ -1,25 +1,28 @@
-## Ziel
-Die Radar-Prognose soll beim Scrubben und beim Play flüssiger wirken, ohne den gewünschten Takt zu verlieren: Messung 5 min, Prognose erste 24 h 15 min, danach 1 h.
+Ich werde die Abspiel-Logik gezielt stabilisieren, ohne Scrubbing oder die bestehenden Layer-Optionen umzubauen.
 
-## Plan
-1. **Forecast-Scrubbing entkoppeln**
-   - Beim Ziehen des Sliders in der Prognose nicht mehr sofort hart auf den nächsten Frame springen.
-   - Stattdessen aus der Mausposition eine Zwischenzeit berechnen und zwischen den benachbarten Forecast-Frames blenden.
-   - Beim Loslassen wird sauber auf den passenden Frame eingerastet.
+1. Radar-Play deterministisch machen
+- Die Animation wird nicht mehr über `find(i > cur)` und Index-Snapping im laufenden Effect gesteuert.
+- Stattdessen bekommt Play eine feste Step-Position innerhalb der vorberechneten Zeitleiste.
+- Pro Tick wird höchstens ein Schritt weitergeschaltet; keine doppelten State-Updates, kein Rücksprung auf den Anfang während einer normalen Sequenz.
+- Der Fortschritt zwischen zwei Frames bleibt sauber bei `0…1` und wird beim Schrittwechsel kontrolliert zurückgesetzt.
 
-2. **Play-Crossfade stabilisieren**
-   - Den sichtbaren Forecast-Frame und den nächsten Forecast-Frame aus einer stabilen Zeit-/Step-Position ableiten, nicht aus asynchronem `idx` + `progress`.
-   - Dadurch vermeiden wir kurze Rücksprünge oder falsche `nextFrame`-Paare während React-State-Updates.
+2. Radar-Takt beibehalten
+- Messung: 5 Minuten.
+- Prognose erste 24 Stunden: 15 Minuten.
+- Prognose danach: 1 Stunde.
+- Scrubbing bleibt weiterhin fein über alle vorhandenen Frames möglich.
 
-3. **Forecast-Rendering weniger ruckelig machen**
-   - Den zeitabhängigen Noise/Contour-Anteil so anpassen, dass er zwischen Frames nicht neu „würfelt“.
-   - Dadurch bewegt sich die Prognose nicht sprunghaft durch wechselnde Muster, sondern blendet ruhiger.
+3. Wind-Play auf echte 1-Stunden-Schritte bringen
+- Die Windanimation bekommt ebenfalls eine eigene Play-Step-Zeitleiste.
+- Beim Abspielen wird stündlich weitergeschaltet, auch wenn die Rohdaten teilweise gröbere Abstände enthalten.
+- Fehlende Zwischenstunden werden für die Animation aus den umliegenden Windframes interpoliert: Böen und Windgeschwindigkeit linear, Windrichtung winkelkorrekt.
+- Timeline/Scrubbing bleiben unverändert an den geladenen Frames orientiert.
 
-4. **Performance beim Ziehen verbessern**
-   - Slider-Updates weiter per `requestAnimationFrame` drosseln.
-   - Nur die nötigen Overlay-Werte neu zeichnen, keine unnötigen Layer-Neuaufbauten.
+4. Flüssigkeit und Stabilität vereinheitlichen
+- Radar und Wind verwenden dieselbe robuste Play-Mechanik: Refs für laufenden Fortschritt, stabile Step-Position, sauberer `requestAnimationFrame`-Loop.
+- `nextFrame` wird aus derselben Step-Logik abgeleitet wie der sichtbare aktuelle Frame, damit Overlay, Label und Animation nicht auseinanderlaufen.
 
-5. **Prüfung**
-   - Radar-Prognose im Browser per Playwright öffnen.
-   - Forecast-Bereich scrubben und Play laufen lassen.
-   - Prüfen: keine rückwärts springende Uhrzeit, kein starkes Stocken beim Ziehen, Play läuft monoton und gleichmäßig.
+5. Prüfung
+- Radar Play starten und prüfen, dass Zeitlabel und Layer gleichmäßig vorwärtslaufen.
+- Übergänge Messung → 15-min-Prognose → 1-h-Prognose prüfen.
+- Wind Play starten und prüfen, dass die Zeit im 1-Stunden-Takt läuft statt 2 Stunden zu springen.
