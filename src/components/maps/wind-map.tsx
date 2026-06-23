@@ -419,10 +419,25 @@ function WindColorOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
+  // Frame-Canvas-Cache: pro Frame einmal rendern, danach nur blitten.
+  const cacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const viewKeyRef = useRef<string>("");
+  const CACHE_MAX = 64;
+
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
     redrawRef.current();
   }
+  useEffect(() => {
+    const clear = () => {
+      cacheRef.current.clear();
+      viewKeyRef.current = "";
+    };
+    map.on("zoomstart movestart resize", clear);
+    return () => {
+      map.off("zoomstart movestart resize", clear);
+    };
+  }, [map]);
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
@@ -440,41 +455,67 @@ function WindColorOverlay({
     if (!ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
 
-    const sampler = makeSampler(payload, frame, null, 0);
-    const STEP = 1;
-    const lowW = Math.max(1, Math.ceil(size.x / STEP));
-    const lowH = Math.max(1, Math.ceil(size.y / STEP));
-    const img = ctx.createImageData(lowW, lowH);
-    const data = img.data;
-
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const px = lx * STEP;
-        const py = ly * STEP;
-        const ll = map.containerPointToLatLng([px, py]);
-        if (
-          ll.lat < sampler.lat0 - 0.1 ||
-          ll.lat > sampler.latN + 0.1 ||
-          ll.lng < sampler.lon0 - 0.1 ||
-          ll.lng > sampler.lonN + 0.1
-        )
-          continue;
-        const g = sampler.gust(ll.lat, ll.lng);
-        const [r, gg, b] = windColor(g);
-        const idx = (ly * lowW + lx) * 4;
-        data[idx] = r;
-        data[idx + 1] = gg;
-        data[idx + 2] = b;
-        data[idx + 3] = 255;
-      }
+    const center = map.getCenter();
+    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}`;
+    if (viewKey !== viewKeyRef.current) {
+      cacheRef.current.clear();
+      viewKeyRef.current = viewKey;
     }
 
-    const off = document.createElement("canvas");
-    off.width = lowW;
-    off.height = lowH;
-    const offCtx = off.getContext("2d");
-    if (!offCtx) return;
-    offCtx.putImageData(img, 0, 0);
+    const cacheKey = frame.t;
+    let off = cacheRef.current.get(cacheKey) ?? null;
+    let lowW: number;
+    let lowH: number;
+
+    if (off) {
+      cacheRef.current.delete(cacheKey);
+      cacheRef.current.set(cacheKey, off);
+      lowW = off.width;
+      lowH = off.height;
+    } else {
+      const sampler = makeSampler(payload, frame, null, 0);
+      const STEP = 1;
+      lowW = Math.max(1, Math.ceil(size.x / STEP));
+      lowH = Math.max(1, Math.ceil(size.y / STEP));
+      const img = ctx.createImageData(lowW, lowH);
+      const data = img.data;
+
+      for (let ly = 0; ly < lowH; ly++) {
+        for (let lx = 0; lx < lowW; lx++) {
+          const px = lx * STEP;
+          const py = ly * STEP;
+          const ll = map.containerPointToLatLng([px, py]);
+          if (
+            ll.lat < sampler.lat0 - 0.1 ||
+            ll.lat > sampler.latN + 0.1 ||
+            ll.lng < sampler.lon0 - 0.1 ||
+            ll.lng > sampler.lonN + 0.1
+          )
+            continue;
+          const g = sampler.gust(ll.lat, ll.lng);
+          const [r, gg, b] = windColor(g);
+          const idx = (ly * lowW + lx) * 4;
+          data[idx] = r;
+          data[idx + 1] = gg;
+          data[idx + 2] = b;
+          data[idx + 3] = 255;
+        }
+      }
+
+      off = document.createElement("canvas");
+      off.width = lowW;
+      off.height = lowH;
+      const offCtx = off.getContext("2d");
+      if (!offCtx) return;
+      offCtx.putImageData(img, 0, 0);
+
+      cacheRef.current.set(cacheKey, off);
+      while (cacheRef.current.size > CACHE_MAX) {
+        const firstKey = cacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        cacheRef.current.delete(firstKey);
+      }
+    }
 
     ctx.save();
     ctx.scale(dpr, dpr);
