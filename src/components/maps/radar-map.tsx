@@ -1231,6 +1231,7 @@ export function RadarMap({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
+  const [scrubPreview, setScrubPreview] = useState<TimelinePreview | null>(null);
 
   const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
@@ -1345,8 +1346,15 @@ export function RadarMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, idx, currentFrame, playStepIndices, frames]);
 
+  const scrubFrame = scrubPreview ? frames[scrubPreview.baseIdx] ?? null : null;
+  const scrubNextFrame = scrubPreview?.nextIdx != null ? frames[scrubPreview.nextIdx] ?? null : null;
+  const displayFrame = scrubPreview ? scrubFrame ?? currentFrame : currentFrame;
+  const displayNextFrame = scrubPreview ? scrubNextFrame : nextFrame;
+  const displayProgress = scrubPreview ? scrubPreview.progress : progress;
+
   // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
-  const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
+  const blendNext =
+    displayNextFrame && !displayNextFrame.precipUrl && !displayFrame?.precipUrl ? displayNextFrame : null;
 
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
   // ihre URL via Leaflet `setUrl()` ohne Mount/Unmount, kein Leerframe.)
@@ -1376,7 +1384,7 @@ export function RadarMap({
     };
   }, [data]);
 
-  const meta = currentFrame ? sourceLabel(currentFrame) : null;
+  const meta = displayFrame ? sourceLabel(displayFrame) : null;
 
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
   // (true=trocken nur bei genau 0 values und keiner URL — wird hier vorsichtig
@@ -1456,11 +1464,11 @@ export function RadarMap({
             interactive={false}
           />
           {data &&
-            currentFrame &&
+            displayFrame &&
             (() => {
-              const hasPng = !!currentFrame.precipUrl;
-              const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
-              const ib = currentFrame.imageBbox ?? data.imageBbox;
+              const hasPng = !!displayFrame.precipUrl;
+              const hasGrid = Array.isArray(displayFrame.values) && displayFrame.values.length > 0;
+              const ib = displayFrame.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
               return (
@@ -1468,17 +1476,17 @@ export function RadarMap({
                   {hasGrid && !hasPng && (
                     <PrecipOverlay
                       payload={data}
-                      frame={currentFrame}
+                      frame={displayFrame}
                       nextFrame={blendNext}
-                      progress={progress}
+                      progress={displayProgress}
                       opacity={opacityVal}
-                      contour={currentFrame.source !== "radar"}
+                      contour={displayFrame.source !== "radar"}
                     />
                   )}
                   {hasPng && (
                     <ImageOverlay
                       key="precip-main"
-                      url={currentFrame.precipUrl!}
+                      url={displayFrame.precipUrl!}
                       bounds={[
                         [ib.minLat, ib.minLon],
                         [ib.maxLat, ib.maxLon],
@@ -1491,10 +1499,10 @@ export function RadarMap({
                 </>
               );
             })()}
-          {data && currentFrame && showHail && currentFrame.hailUrl && (
+          {data && displayFrame && showHail && displayFrame.hailUrl && (
             <ImageOverlay
               key="hail-main"
-              url={currentFrame.hailUrl}
+              url={displayFrame.hailUrl}
               bounds={[
                 [data.imageBbox.minLat, data.imageBbox.minLon],
                 [data.imageBbox.maxLat, data.imageBbox.maxLon],
@@ -1503,8 +1511,8 @@ export function RadarMap({
               className="hail-blackdots"
             />
           )}
-          {data && currentFrame && showHail && currentFrame.source === "radar" && (
-            <MeasurementHailDotsLayer payload={data} frame={currentFrame} />
+          {data && displayFrame && showHail && displayFrame.source === "radar" && (
+            <MeasurementHailDotsLayer payload={data} frame={displayFrame} />
           )}
 
 
@@ -1532,9 +1540,9 @@ export function RadarMap({
             >
               {meta.label}
             </span>
-            {currentFrame && (
+            {displayFrame && (
               <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
-                {fmtTime(currentFrame.t)}
+                {fmtTime(displayFrame.t)}
               </span>
             )}
           </div>
