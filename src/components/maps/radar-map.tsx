@@ -1222,11 +1222,9 @@ export function RadarMap({
   useEffect(() => {
     if (!playing || playStepIndices.length === 0) {
       progressRef.current = 0;
-      setProgress(0);
       return;
     }
     progressRef.current = 0;
-    setProgress(0);
     playCursorRef.current = stepCursorForIndex(idxRef.current);
     const anchor = playStepIndices[playCursorRef.current];
     if (typeof anchor === "number" && idxRef.current !== anchor) {
@@ -1247,7 +1245,6 @@ export function RadarMap({
         const nextCursor = playCursorRef.current + 1;
         if (nextCursor >= playStepIndices.length) {
           progressRef.current = 0;
-          setProgress(0);
           setPlaying(false);
           return;
         }
@@ -1257,7 +1254,6 @@ export function RadarMap({
         setIdx(nextIdx);
       }
       progressRef.current = p;
-      setProgress(p);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
