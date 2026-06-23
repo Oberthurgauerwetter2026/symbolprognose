@@ -415,12 +415,8 @@ function PrecipOverlay({
     const nLon = gridLon.length;
     const vals = frame.values;
     const snowVals = frame.snowValues;
-    const nextVals = nextFrame?.values;
-    const nextSnowVals = nextFrame?.snowValues;
-    const tRaw = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
-    // Smoothstep-Easing → weichere Übergänge zwischen 15-min-Frames.
-    const t = tRaw * tRaw * (3 - 2 * tRaw);
-    const lerp = (a: number, b: number) => a + (b - a) * t;
+    // Inter-Frame-Glättung entfernt: pro Step genau ein Repaint, harte
+    // Übergänge zwischen Frames (kein Crossfade/Lerp).
 
     // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
     // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
@@ -505,8 +501,7 @@ function PrecipOverlay({
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
 
-        const vCur = sampleAt(vals, fxRaw, fyRaw);
-        let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
+        let v = sampleAt(vals, fxRaw, fyRaw);
 
         // Prognose: rotierter, domain-warped fBm → keine geraden Lattice-
         // Kanten an Bandgrenzen.
@@ -542,8 +537,7 @@ function PrecipOverlay({
 
         let snowFrac = 0;
         if (snowVals) {
-          const svCur = sampleAt(snowVals, fxRaw, fyRaw);
-          const sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
+          const sv = sampleAt(snowVals, fxRaw, fyRaw);
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
@@ -583,10 +577,11 @@ function PrecipOverlay({
     ctx.restore();
   };
 
-  // Bei Frame-/Progress-Wechsel neu zeichnen.
+  // Nur bei tatsächlichem Frame-Wechsel neu zeichnen — keine Per-RAF-Repaints
+  // (Desktop-Performance). Kein Crossfade/Lerp mehr.
   useEffect(() => {
     redrawRef.current();
-  }, [frame, nextFrame, progress, payload]);
+  }, [frame, payload]);
 
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
@@ -1167,7 +1162,7 @@ export function RadarMap({
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
 
-  const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
+  // progress-State entfernt: PrecipOverlay zeichnet keine Inter-Frame-Lerp mehr.
   const isMobile = useIsMobile();
 
 
@@ -1227,11 +1222,9 @@ export function RadarMap({
   useEffect(() => {
     if (!playing || playStepIndices.length === 0) {
       progressRef.current = 0;
-      setProgress(0);
       return;
     }
     progressRef.current = 0;
-    setProgress(0);
     playCursorRef.current = stepCursorForIndex(idxRef.current);
     const anchor = playStepIndices[playCursorRef.current];
     if (typeof anchor === "number" && idxRef.current !== anchor) {
@@ -1252,7 +1245,6 @@ export function RadarMap({
         const nextCursor = playCursorRef.current + 1;
         if (nextCursor >= playStepIndices.length) {
           progressRef.current = 0;
-          setProgress(0);
           setPlaying(false);
           return;
         }
@@ -1262,7 +1254,6 @@ export function RadarMap({
         setIdx(nextIdx);
       }
       progressRef.current = p;
-      setProgress(p);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -1404,11 +1395,10 @@ export function RadarMap({
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
-                      nextFrame={blendNext}
-                      progress={progress}
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
                     />
+
                   )}
                   {hasPng && (
                     <ImageOverlay
