@@ -1,46 +1,46 @@
-# Play/Scrub: Desktop flüssig machen, ohne zu glätten
+## Ziel
+Manuelles Scrubbing auf Desktop soll flüssig laufen – ohne dass die per-Frame-Optik geglättet/verändert wird.
 
 ## Ursache
+Bei jedem Scrub-Schritt (idx-Wechsel) wird das gesamte Overlay neu berechnet:
 
-Beim Play läuft `progress` (0…1) pro `requestAnimationFrame` weiter und triggert in **Radar** (`src/components/maps/radar-map.tsx`, Effect Z. 587-589) und **Wind-Color-Overlay** (`src/components/maps/wind-map.tsx`, Effect Z. 486-488) bei jedem RAF ein vollständiges Pixel-Repaint:
+- `PrecipOverlay` (radar-map.tsx, redrawRef): bei Forecast STEP=1 → pro Pixel bilineares Sampling + 5-Oktaven fBm (Warp + Envelope + Edge-Mask). Auf einem grossen Desktop-Canvas (≈ 1.7 Mio Pixel) sind das zig Millisekunden pro Frame. Slider schickt rAF-getaktet neue idx → jeder Commit löst einen kompletten Repaint aus.
+- `WindColorOverlay` (wind-map.tsx, redrawRef): pro Pixel `containerPointToLatLng` + `sampler.gust` (bilinear). Ebenfalls full-repaint pro Frame-Wechsel.
 
-- Radar Forecast: `STEP=1`, pro Pixel bilineare Sample-Calls plus ~6× fBm (5 Oktaven) → bei Desktop-Viewport (z. B. 1700×1000 ≈ 1.7 Mio Pixel) ein Vielfaches der Mobile-Last
-- Wind: `STEP=1`, pro Pixel `containerPointToLatLng` + bilinearer Sampler
-- nur in der prognose. die messung ist niocht betroffen
+Slider/Throttling ist bereits ok (rAF + lastSentIdxRef). Engpass ist der Repaint selbst.
 
-Auf Mobile reicht der kleine Viewport, damit das pro Frame durchläuft. Auf Desktop frisst es das Frame-Budget → Stocken beim Play und Scrubbing.
+## Lösung: Frame-Canvas-Cache (keine Glättung)
 
-Der `progress`-Wert wird ausschliesslich für eine zeitliche Lerp-Überblendung zwischen `frame` und `nextFrame` benutzt. Diese Überblendung ist genau die „Glättung", die laut Anforderung **nicht** verbessert werden soll.
+Pro Frame wird das fertig kolorierte Low-Res-Bild einmal in einen Offscreen-`HTMLCanvasElement` gerendert und in einer LRU-Map gecacht. Beim Scrub/Play wird nur noch `drawImage(cachedCanvas)` aufgerufen → Repaint-Kosten gehen von ~30–80 ms auf <1 ms.
 
-## Änderungen
+Wichtig: An der Optik ändert sich nichts – gleicher fBm/Warp/Envelope-Code, gleiche STEP-Werte, gleiche Farb-Bänder, kein Crossfade, kein Lerp.
 
-### 1) Radar (`src/components/maps/radar-map.tsx`)
+### 1) Radar `PrecipOverlay` (src/components/maps/radar-map.tsx, ~Z. 320-593)
 
-- `PrecipOverlay`-Redraw nur noch bei `frame`/`payload`-Wechsel (Effect-Deps: `[frame, payload]`), `nextFrame` und `progress` aus den Deps entfernen.
-- Im `redrawRef.current`-Body die Inter-Frame-Lerp entfernen: `vals`/`snowVals` direkt aus `frame` zeichnen, `nextVals`/`nextSnowVals`/`tRaw`/`t`/`lerp` streichen. Smoothstep-Easing entfällt.
-- `progress`-State und `setProgress`-Aufrufe im Play-Loop entfernen (`progressRef` bleibt intern für das Step-Timing). `nextFrame`/`blendNext` werden nicht mehr an `PrecipOverlay` weitergereicht — Prop-Schnittstelle entsprechend kürzen.
-- Effekt: pro Step genau ein Repaint statt ~60/s. Übergänge bleiben hart (kein Glätten), Step-Cadence (5 min Messung / 15 min Forecast ≤+24 h / 1 h darüber) unverändert.
+- Cache-Key: `${frame.t}|${viewKey}` mit `viewKey = ${zoom}|${size.x}x${size.y}|${dpr}|${centerLat.toFixed(4)}|${centerLng.toFixed(4)}`. Karte verschoben/gezoomt → neuer Key → Neuberechnung.
+- LRU `Map<string, HTMLCanvasElement>` (Komponent-Ref), Limit z. B. 64 Frames; älteste Einträge raus.
+- Bei `move/zoom/resize` (Leaflet-Event) Cache leeren (alle Einträge betreffen alte View).
+- `redrawRef.current()` Ablauf:
+  1. View-Canvas (`cv`) wie bisher resizen + positionieren + clear.
+  2. Cache-Lookup. Hit → `ctx.drawImage(cached, 0, 0, size.x, size.y)` (mit dpr-scale wie heute), fertig.
+  3. Miss → bestehende Pixel-Schleife in den Offscreen-Canvas rendern (identischer Code, identische Parameter), in Cache legen, dann blitten.
+- Effekt-Dep bleibt `[frame, payload]`. Opacity weiterhin via `cv.style.opacity` (kein Repaint nötig).
+- `MeasurementHailDotsLayer`: gleiche Strategie nur falls Profiling zeigt, dass es relevant ist – sonst unverändert.
 
-### 2) Wind-Color-Overlay (`src/components/maps/wind-map.tsx`)
+### 2) Wind `WindColorOverlay` (src/components/maps/wind-map.tsx, ~Z. 372-491)
 
-- `WindColorOverlay`-Redraw-Effect (Z. 486-488) Deps auf `[frame, opacity, payload]` reduzieren, `nextFrame`/`progress` raus.
-- Im `redrawRef.current` `makeSampler(...)` ohne `nextFrame`/`progress` aufrufen (intern auf `progress=0` mappen, sodass nur `frame` gezeichnet wird).
-- Partikel-Layer bleibt unverändert (eigener RAF-Loop, kein Pixel-Grid-Repaint).
+Analog: LRU `Map<string, HTMLCanvasElement>`, Key `${frame.t}|${viewKey}`, Invalidierung bei `moveend/zoomend/resize`. Redraw-Dep bleibt `[frame, opacity, payload]`. Optik unverändert (STEP=1, identische `windColor`, identischer Sampler).
 
-### 3) Play-Loop-Aufräumung
+### 3) Was NICHT geändert wird
 
-- Radar Play-Loop (Z. 1227-1271): `setProgress`-Aufrufe entfernen, `progressRef` bleibt zur Step-Fortschaltung. Cadence/Cursor-Logik unverändert.
-- Wind Play-Loop (`wind-map.tsx` Z. 1090-1141): analog `setProgress` entfernen, `progressRef` behält Step-Timing. Stündliche Frames bleiben wie zuletzt implementiert.
+- Keine zusätzliche Glättung/Easing/Crossfade zwischen Frames.
+- Keine Reduktion der fBm-Oktaven, kein STEP-Wechsel, keine Auflösungsreduktion während Scrub.
+- Keine Änderung am Slider-Verhalten, an Step-Cadence (5 min/15 min/1 h) oder am Play-Loop.
+- Keine Änderung an Partikeln, Isobanden-Farben, Hagel-Punkten, Marker.
 
-### 4) Was bewusst NICHT geändert wird
+## Verifikation
 
-- Keine zusätzliche Glättung, Easing, Crossfade oder Bewegungsblur.
-- Keine Veränderung an Farben, Iso-Bändern, fBm-Noise, Partikelmenge oder Step-Cadence.
-- Keine Layout-/UI-Änderungen, kein Scrubbing-Verhalten ändern (Scrubbing setzt direkt `idx` → genau ein Repaint pro Slider-Bewegung, wird durch die Dep-Reduktion ebenfalls leichter).
-
-## Prüfung
-
-- Desktop: Play starten, sichtbar prüfen, dass Zeitanzeige in den definierten Schritten weiterläuft und der Canvas nicht ruckelt.
-- Scrubbing am Desktop: Slider zügig bewegen, Repaint pro Step ohne Hänger.
-- Mobile: Verhalten unverändert.
-- Wind: Play läuft im 1-h-Takt, Color-Layer wechselt hart pro Stunde, Partikel laufen weiter flüssig.
+- `bun run typecheck` (bzw. tsgo).
+- Playwright auf `/karten/radar`: Slider von links nach rechts ziehen, Screenshots an mehreren idx prüfen → identisches Bild zum aktuellen Zustand pro Frame.
+- Console: keine neuen Warnungen, keine Memory-Spitzen (LRU greift).
+- Sichtkontrolle Desktop (1737×1241): Scrub fühlt sich flüssig an, Frame-Bild wechselt hart (kein Crossfade), Map-Pan/Zoom rendert sauber neu.
