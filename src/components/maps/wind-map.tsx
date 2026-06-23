@@ -1087,7 +1087,8 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2);
-  const [progress, setProgress] = useState(0);
+  // progress-State entfernt: keine Per-RAF-Repaints im Color-Overlay/Arrows.
+  const progress = 0;
   const [arrowsOn, setArrowsOn] = useState(false);
   const isMobile = useIsMobile();
   const idxRef = useRef<number | null>(null);
@@ -1104,11 +1105,9 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
   useEffect(() => {
     if (!playing || frames.length === 0) {
       progressRef.current = 0;
-      setProgress(0);
       return;
     }
     progressRef.current = 0;
-    setProgress(0);
     if (idxRef.current === null) {
       idxRef.current = 0;
       setIdx(0);
@@ -1127,7 +1126,6 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
         const next = cur + 1;
         if (next >= frames.length) {
           progressRef.current = 0;
-          setProgress(0);
           setPlaying(false);
           return;
         }
@@ -1135,7 +1133,6 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
         setIdx(next);
       }
       progressRef.current = p;
-      setProgress(p);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
