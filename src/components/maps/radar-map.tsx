@@ -1162,7 +1162,7 @@ export function RadarMap({
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
 
-  const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
+  // progress-State entfernt: PrecipOverlay zeichnet keine Inter-Frame-Lerp mehr.
   const isMobile = useIsMobile();
 
 
