@@ -1399,11 +1399,10 @@ export function RadarMap({
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
-                      nextFrame={blendNext}
-                      progress={progress}
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
                     />
+
                   )}
                   {hasPng && (
                     <ImageOverlay
