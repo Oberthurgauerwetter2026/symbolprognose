@@ -537,8 +537,7 @@ function PrecipOverlay({
 
         let snowFrac = 0;
         if (snowVals) {
-          const svCur = sampleAt(snowVals, fxRaw, fyRaw);
-          const sv = nextSnowVals ? lerp(svCur, sampleAt(nextSnowVals, fxRaw, fyRaw)) : svCur;
+          const sv = sampleAt(snowVals, fxRaw, fyRaw);
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
