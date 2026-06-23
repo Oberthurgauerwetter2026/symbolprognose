@@ -916,6 +916,24 @@ function MeteoTimeline({
     return best;
   };
 
+  const idxFromMs = (target: number): number => {
+    const preview = previewFromTargetMs(target);
+    if (preview) return preview.baseIdx;
+    const nowMs = Date.now();
+    const restrictForecast = target > nowMs;
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < times.length; i++) {
+      if (restrictForecast && frames[i]?.source === "radar") continue;
+      const dt = Math.abs(times[i] - target);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
+      }
+    }
+    return best;
+  };
+
   const rafRef = useRef<number | null>(null);
   const pendingXRef = useRef<number | null>(null);
   const lastSentIdxRef = useRef<number>(idx);
@@ -1031,7 +1049,7 @@ function MeteoTimeline({
   const handlePct = dragPct ?? pctForIdx(idx);
   const currentMs = dragMs ?? times[idx] ?? Date.now();
   const currentDate = new Date(currentMs);
-  const currentFrame = dragMs === null ? frames[idx] ?? null : frames[idxFromClientXForMs(dragMs)] ?? null;
+  const currentFrame = dragMs === null ? frames[idx] ?? null : frames[idxFromMs(dragMs)] ?? null;
   const bubbleLabel = fmtBubble(currentDate, currentFrame);
 
 
