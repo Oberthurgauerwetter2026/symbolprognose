@@ -390,10 +390,27 @@ function PrecipOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
+  // Frame-Canvas-Cache: pro Frame wird das fertige Low-Res-Bild einmal
+  // gerendert und gecacht; Scrub/Play blittet nur noch. Optik unverändert.
+  const cacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const viewKeyRef = useRef<string>("");
+  const CACHE_MAX = 64;
+
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
     redrawRef.current();
   }
+  // Invalidiere Cache bei Pan/Zoom/Resize — alle Einträge betreffen alte View.
+  useEffect(() => {
+    const clear = () => {
+      cacheRef.current.clear();
+      viewKeyRef.current = "";
+    };
+    map.on("zoomstart movestart resize", clear);
+    return () => {
+      map.off("zoomstart movestart resize", clear);
+    };
+  }, [map]);
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
@@ -410,167 +427,175 @@ function PrecipOverlay({
     if (!ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
 
-    const { gridLat, gridLon } = payload;
-    const nLat = gridLat.length;
-    const nLon = gridLon.length;
-    const vals = frame.values;
-    const snowVals = frame.snowValues;
-    // Inter-Frame-Glättung entfernt: pro Step genau ein Repaint, harte
-    // Übergänge zwischen Frames (kein Crossfade/Lerp).
+    // View-Key — Cache invalidiert bei Pan/Zoom/Resize/DPR-Wechsel.
+    const center = map.getCenter();
+    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}|${contour ? "f" : "m"}`;
+    if (viewKey !== viewKeyRef.current) {
+      cacheRef.current.clear();
+      viewKeyRef.current = viewKey;
+    }
 
-    // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
-    // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
-    // Messung: 2-Pixel-Raster (Performance).
-    const STEP = contour ? 1 : 2;
-    const lowW = Math.max(1, Math.ceil(size.x / STEP));
-    const lowH = Math.max(1, Math.ceil(size.y / STEP));
+    const cacheKey = `${frame.t}|${frame.source ?? ""}`;
+    let off = cacheRef.current.get(cacheKey) ?? null;
+    let lowW: number;
+    let lowH: number;
 
-    const img = ctx.createImageData(lowW, lowH);
-    const data = img.data;
+    if (off) {
+      // LRU-Touch.
+      cacheRef.current.delete(cacheKey);
+      cacheRef.current.set(cacheKey, off);
+      lowW = off.width;
+      lowH = off.height;
+    } else {
+      const { gridLat, gridLon } = payload;
+      const nLat = gridLat.length;
+      const nLon = gridLon.length;
+      const vals = frame.values;
+      const snowVals = frame.snowValues;
 
-    // Bilineare Sample-Funktion.
-    const sampleAt = (arr: number[], fx: number, fy: number) => {
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = x0 + 1;
-      const y1 = y0 + 1;
-      const txL = fx - x0;
-      const tyL = fy - y0;
-      const inX0 = x0 >= 0 && x0 < nLon;
-      const inX1 = x1 >= 0 && x1 < nLon;
-      const inY0 = y0 >= 0 && y0 < nLat;
-      const inY1 = y1 >= 0 && y1 < nLat;
-      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-      return (
-        v00 * (1 - txL) * (1 - tyL) +
-        v01 * txL * (1 - tyL) +
-        v10 * (1 - txL) * tyL +
-        v11 * txL * tyL
-      );
-    };
+      // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
+      // Feld organisch. Messung: 2-Pixel-Raster (Performance).
+      const STEP = contour ? 1 : 2;
+      lowW = Math.max(1, Math.ceil(size.x / STEP));
+      lowH = Math.max(1, Math.ceil(size.y / STEP));
 
-    // -------- Deterministisches Value-Noise + fBm (fraktales Rauschen) --------
-    // Pro Frame stabil (Seed aus frame.t), damit Animation nicht flackert.
-    const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
-    const hash = (ix: number, iy: number) => {
-      let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
-      h = (h ^ (h >>> 13)) * 1274126177;
-      h = h ^ (h >>> 16);
-      return ((h >>> 0) % 10000) / 10000; // 0..1
-    };
-    const smooth = (u: number) => u * u * (3 - 2 * u);
-    const valueNoise = (x: number, y: number) => {
-      const ix = Math.floor(x);
-      const iy = Math.floor(y);
-      const fx = smooth(x - ix);
-      const fy = smooth(y - iy);
-      const a = hash(ix, iy);
-      const b = hash(ix + 1, iy);
-      const c = hash(ix, iy + 1);
-      const d = hash(ix + 1, iy + 1);
-      return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
-    };
-    // fBm: 5 Oktaven → mehr feine Wellung an Bandkanten.
-    const fbm = (x: number, y: number) => {
-      let v = 0;
-      let amp = 0.5;
-      let freq = 1;
-      for (let o = 0; o < 5; o++) {
-        v += valueNoise(x * freq, y * freq) * amp;
-        amp *= 0.5;
-        freq *= 2.1;
+      const img = ctx.createImageData(lowW, lowH);
+      const data = img.data;
+
+      // Bilineare Sample-Funktion.
+      const sampleAt = (arr: number[], fx: number, fy: number) => {
+        const x0 = Math.floor(fx);
+        const y0 = Math.floor(fy);
+        const x1 = x0 + 1;
+        const y1 = y0 + 1;
+        const txL = fx - x0;
+        const tyL = fy - y0;
+        const inX0 = x0 >= 0 && x0 < nLon;
+        const inX1 = x1 >= 0 && x1 < nLon;
+        const inY0 = y0 >= 0 && y0 < nLat;
+        const inY1 = y1 >= 0 && y1 < nLat;
+        if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+        const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+        const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+        const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+        const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+        return (
+          v00 * (1 - txL) * (1 - tyL) +
+          v01 * txL * (1 - tyL) +
+          v10 * (1 - txL) * tyL +
+          v11 * txL * tyL
+        );
+      };
+
+      // -------- Deterministisches Value-Noise + fBm --------
+      const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
+      const hash = (ix: number, iy: number) => {
+        let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
+        h = (h ^ (h >>> 13)) * 1274126177;
+        h = h ^ (h >>> 16);
+        return ((h >>> 0) % 10000) / 10000;
+      };
+      const smooth = (u: number) => u * u * (3 - 2 * u);
+      const valueNoise = (x: number, y: number) => {
+        const ix = Math.floor(x);
+        const iy = Math.floor(y);
+        const fx = smooth(x - ix);
+        const fy = smooth(y - iy);
+        const a = hash(ix, iy);
+        const b = hash(ix + 1, iy);
+        const c = hash(ix, iy + 1);
+        const d = hash(ix + 1, iy + 1);
+        return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
+      };
+      const fbm = (x: number, y: number) => {
+        let v = 0;
+        let amp = 0.5;
+        let freq = 1;
+        for (let o = 0; o < 5; o++) {
+          v += valueNoise(x * freq, y * freq) * amp;
+          amp *= 0.5;
+          freq *= 2.1;
+        }
+        return v;
+      };
+      const COS = 0.866;
+      const SIN = 0.5;
+
+      for (let ly = 0; ly < lowH; ly++) {
+        for (let lx = 0; lx < lowW; lx++) {
+          const px = lx * STEP;
+          const py = ly * STEP;
+          const ll = map.containerPointToLatLng([px, py]);
+          const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+          const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+          const BUFFER = 3;
+          if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
+          if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
+
+          let v = sampleAt(vals, fxRaw, fyRaw);
+
+          if (contour && v > 0) {
+            const sx = fxRaw * 0.9;
+            const sy = fyRaw * 0.85;
+            const rx = sx * COS - sy * SIN;
+            const ry = sx * SIN + sy * COS;
+            const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
+            const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
+            const n = fbm(rx + warpX, ry + warpY);
+            const mod = 0.25 + n * 1.55;
+            const env1 = fbm(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
+            const env2 = fbm(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
+            const env3 = fbm(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
+            const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
+            const edgeNX = Math.min(fxRaw, nLon - 1 - fxRaw) / (nLon - 1);
+            const edgeNY = Math.min(fyRaw, nLat - 1 - fyRaw) / (nLat - 1);
+            const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
+            const edgeJitter = 0.55 + fbm(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
+            const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
+            const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
+            v = v * mod * envelope;
+          }
+
+          const minV = contour ? 0.05 : 0.1;
+          if (v < minV) continue;
+
+          let snowFrac = 0;
+          if (snowVals) {
+            const sv = sampleAt(snowVals, fxRaw, fyRaw);
+            if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+          }
+
+          const [r, g, b, a] = snowFrac > 0.3
+            ? snowColorFor(v)
+            : (contour ? colorFor(v) : colorForSmooth(v));
+          if (a === 0) continue;
+          const alpha = Math.round(a * 255);
+          if (alpha === 0) continue;
+          const idx = (ly * lowW + lx) * 4;
+          data[idx] = r;
+          data[idx + 1] = g;
+          data[idx + 2] = b;
+          data[idx + 3] = alpha;
+        }
       }
-      return v; // ~0..1
-    };
-    // Rotation ~30° → Lattice-Achsen liegen nicht mehr karten-parallel.
-    const COS = 0.866;
-    const SIN = 0.5;
 
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const px = lx * STEP;
-        const py = ly * STEP;
-        const ll = map.containerPointToLatLng([px, py]);
-        const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
-        const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-        const BUFFER = 3;
-        if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
-        if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
+      off = document.createElement("canvas");
+      off.width = lowW;
+      off.height = lowH;
+      const offCtx = off.getContext("2d");
+      if (!offCtx) return;
+      offCtx.putImageData(img, 0, 0);
 
-        let v = sampleAt(vals, fxRaw, fyRaw);
-
-        // Prognose: rotierter, domain-warped fBm → keine geraden Lattice-
-        // Kanten an Bandgrenzen.
-        if (contour && v > 0) {
-          const sx = fxRaw * 0.9;
-          const sy = fyRaw * 0.85;
-          const rx = sx * COS - sy * SIN;
-          const ry = sx * SIN + sy * COS;
-          const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-          const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
-          const n = fbm(rx + warpX, ry + warpY);
-          const mod = 0.25 + n * 1.55;
-          // Envelope-Noise — bricht die rechteckige Daten-Bbox in stark
-          // wellige Buchten/Halbinseln/Inseln auf (3 Frequenzen, harter Cut).
-          const env1 = fbm(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
-          const env2 = fbm(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
-          const env3 = fbm(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
-          const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
-          // Edge-Bias: normalisierter Abstand zur Bbox-Kante, noise-moduliert,
-          // damit die Daten-Rechteckkante zufällig „angeknabbert" wird.
-          const edgeNX = Math.min(fxRaw, nLon - 1 - fxRaw) / (nLon - 1);
-          const edgeNY = Math.min(fyRaw, nLat - 1 - fyRaw) / (nLat - 1);
-          const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
-          const edgeJitter = 0.55 + fbm(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
-          const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
-          const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
-          v = v * mod * envelope;
-        }
-
-
-        const minV = contour ? 0.05 : 0.1;
-        if (v < minV) continue;
-
-        let snowFrac = 0;
-        if (snowVals) {
-          const sv = sampleAt(snowVals, fxRaw, fyRaw);
-          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
-        }
-
-        // Prognose: diskrete Bänder (colorFor) für harte Iso-Kanten — wirkt
-        // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
-        let [r, g, b, a] = snowFrac > 0.3
-          ? snowColorFor(v)
-          : (contour ? colorFor(v) : colorForSmooth(v));
-        if (a === 0) continue;
-        const alpha = Math.round(a * 255);
-        if (alpha === 0) continue;
-        const idx = (ly * lowW + lx) * 4;
-        data[idx] = r;
-        data[idx + 1] = g;
-        data[idx + 2] = b;
-        data[idx + 3] = alpha;
+      cacheRef.current.set(cacheKey, off);
+      while (cacheRef.current.size > CACHE_MAX) {
+        const firstKey = cacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        cacheRef.current.delete(firstKey);
       }
     }
 
-
-    // Off-screen Buffer für putImageData (ignoriert Transformationen/Clip).
-    const off = document.createElement("canvas");
-    off.width = lowW;
-    off.height = lowH;
-    const offCtx = off.getContext("2d");
-    if (!offCtx) return;
-    offCtx.putImageData(img, 0, 0);
-
-    // Kein Clip auf imageBbox — Prognose deckt das volle Daten-Grid ab,
-    // also auch Bereiche ausserhalb des MeteoSchweiz-Radar-Ausschnitts.
     ctx.save();
     ctx.scale(dpr, dpr);
-    // Prognose: nearest-neighbour upscaling → sichtbare Pixel-Kanten.
     ctx.imageSmoothingEnabled = !contour;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
