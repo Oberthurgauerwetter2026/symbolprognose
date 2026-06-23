@@ -415,12 +415,8 @@ function PrecipOverlay({
     const nLon = gridLon.length;
     const vals = frame.values;
     const snowVals = frame.snowValues;
-    const nextVals = nextFrame?.values;
-    const nextSnowVals = nextFrame?.snowValues;
-    const tRaw = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
-    // Smoothstep-Easing → weichere Übergänge zwischen 15-min-Frames.
-    const t = tRaw * tRaw * (3 - 2 * tRaw);
-    const lerp = (a: number, b: number) => a + (b - a) * t;
+    // Inter-Frame-Glättung entfernt: pro Step genau ein Repaint, harte
+    // Übergänge zwischen Frames (kein Crossfade/Lerp).
 
     // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
     // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
