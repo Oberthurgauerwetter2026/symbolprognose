@@ -1243,6 +1243,10 @@ export function RadarMap({
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
 
+  useEffect(() => {
+    setScrubPreview(null);
+  }, [frames]);
+
   // Play-Schritt-Indizes mit gemischter Cadence:
   //   Past (t <= now)          : 5-min-Takt
   //   Forecast bis +24 h       : 15-min-Takt
@@ -1605,7 +1609,10 @@ export function RadarMap({
                   {/* Play/Pause */}
                   <button
                     type="button"
-                    onClick={() => setPlaying((p) => !p)}
+                    onClick={() => {
+                      setScrubPreview(null);
+                      setPlaying((p) => !p);
+                    }}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
                     style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
                     aria-label={playing ? "Pause" : "Play"}
@@ -1617,6 +1624,7 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
+                      setScrubPreview(null);
                       setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
@@ -1631,9 +1639,12 @@ export function RadarMap({
                       frames={frames}
                       idx={idx}
                       isMobile={isMobile}
+                      onScrubStart={() => setPlaying(false)}
+                      onPreviewChange={setScrubPreview}
                       onChange={(i) => {
                         setIdx(i);
                         setPlaying(false);
+                        setScrubPreview(null);
                       }}
                     />
                   </div>
@@ -1643,6 +1654,7 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
+                      setScrubPreview(null);
                       setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
