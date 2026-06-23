@@ -836,15 +836,21 @@ function fmtBubble(d: Date, frame: RadarFrame | null): string {
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
+type TimelinePreview = { baseIdx: number; nextIdx: number | null; progress: number };
+
 function MeteoTimeline({
   frames,
   idx,
   onChange,
+  onPreviewChange,
+  onScrubStart,
   isMobile,
 }: {
   frames: RadarFrame[];
   idx: number;
   onChange: (i: number) => void;
+  onPreviewChange?: (preview: TimelinePreview | null) => void;
+  onScrubStart?: () => void;
   isMobile: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -860,12 +866,39 @@ function MeteoTimeline({
   const pctForMs = (ms: number) => Math.max(0, Math.min(100, ((ms - tMin) / span) * 100));
   const pctForIdx = (i: number) => pctForMs(times[i] ?? tMin);
 
-  const idxFromClientX = (clientX: number): number => {
+  const targetMsFromClientX = (clientX: number): number => {
     const el = trackRef.current;
-    if (!el) return idx;
+    if (!el) return times[idx] ?? tMin;
     const r = el.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    const target = tMin + pct * span;
+    return tMin + pct * span;
+  };
+
+  const previewFromTargetMs = (target: number): TimelinePreview | null => {
+    if (target <= Date.now()) return null;
+    let lo = -1;
+    let hi = -1;
+    for (let i = 0; i < times.length; i++) {
+      if (frames[i]?.source === "radar") continue;
+      if (times[i] <= target) lo = i;
+      if (times[i] > target) {
+        hi = i;
+        break;
+      }
+    }
+    if (lo < 0 && hi < 0) return null;
+    if (lo < 0) return { baseIdx: hi, nextIdx: null, progress: 0 };
+    if (hi < 0) return { baseIdx: lo, nextIdx: null, progress: 0 };
+    const frameSpan = Math.max(1, times[hi] - times[lo]);
+    return {
+      baseIdx: lo,
+      nextIdx: hi,
+      progress: Math.max(0, Math.min(1, (target - times[lo]) / frameSpan)),
+    };
+  };
+
+  const idxFromClientX = (clientX: number): number => {
+    const target = targetMsFromClientX(clientX);
     const nowMs = Date.now();
     // In Forecast nur Forecast-Frames erlauben (sind stündlich) — verhindert
     // Snap auf einen Past-5-min-Frame nahe der Gegenwart.
@@ -887,6 +920,7 @@ function MeteoTimeline({
   const pendingXRef = useRef<number | null>(null);
   const lastSentIdxRef = useRef<number>(idx);
   const [dragPct, setDragPct] = useState<number | null>(null);
+  const [dragMs, setDragMs] = useState<number | null>(null);
 
   const pctFromClientX = (clientX: number): number => {
     const el = trackRef.current;
@@ -901,7 +935,12 @@ function MeteoTimeline({
     pendingXRef.current = null;
     if (x == null) return;
     setDragPct(pctFromClientX(x));
+    const target = targetMsFromClientX(x);
+    setDragMs(target);
+    const preview = previewFromTargetMs(target);
+    onPreviewChange?.(preview);
     const ni = idxFromClientX(x);
+    if (preview) return;
     if (ni !== lastSentIdxRef.current) {
       lastSentIdxRef.current = ni;
       onChange(ni);
@@ -919,13 +958,18 @@ function MeteoTimeline({
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setDragging(true);
+    onScrubStart?.();
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       try { navigator.vibrate(8); } catch { /* ignore */ }
     }
     setDragPct(pctFromClientX(e.clientX));
+    const target = targetMsFromClientX(e.clientX);
+    setDragMs(target);
+    const preview = previewFromTargetMs(target);
+    onPreviewChange?.(preview);
     const ni = idxFromClientX(e.clientX);
     lastSentIdxRef.current = ni;
-    onChange(ni);
+    if (!preview) onChange(ni);
   };
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragging) return;
@@ -936,7 +980,12 @@ function MeteoTimeline({
   const handlePointerUp = (e: React.PointerEvent) => {
     setDragging(false);
     cancelPending();
+    const ni = idxFromClientX(e.clientX);
+    lastSentIdxRef.current = ni;
+    onPreviewChange?.(null);
+    onChange(ni);
     setDragPct(null);
+    setDragMs(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
@@ -980,11 +1029,9 @@ function MeteoTimeline({
   }, [tMin, tMax, dayBreaks.length]);
 
   const handlePct = dragPct ?? pctForIdx(idx);
-  // Bubble-Label & Frame-Zeit immer aus dem snapped Frame — auch während
-  // Drag — damit Forecast diskret stündlich erscheint statt 5-min suggeriert.
-  const currentMs = times[idx] ?? Date.now();
+  const currentMs = dragMs ?? times[idx] ?? Date.now();
   const currentDate = new Date(currentMs);
-  const currentFrame = frames[idx] ?? null;
+  const currentFrame = dragMs === null ? frames[idx] ?? null : frames[idxFromClientXForMs(dragMs)] ?? null;
   const bubbleLabel = fmtBubble(currentDate, currentFrame);
 
 
