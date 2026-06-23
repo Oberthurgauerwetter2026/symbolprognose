@@ -577,10 +577,11 @@ function PrecipOverlay({
     ctx.restore();
   };
 
-  // Bei Frame-/Progress-Wechsel neu zeichnen.
+  // Nur bei tatsächlichem Frame-Wechsel neu zeichnen — keine Per-RAF-Repaints
+  // (Desktop-Performance). Kein Crossfade/Lerp mehr.
   useEffect(() => {
     redrawRef.current();
-  }, [frame, nextFrame, progress, payload]);
+  }, [frame, payload]);
 
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
