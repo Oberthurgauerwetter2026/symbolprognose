@@ -418,6 +418,7 @@ function PrecipOverlay({
     const nextVals = nextFrame?.values;
     const nextSnowVals = nextFrame?.snowValues;
     const tRaw = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
+    const animatingForecast = contour && !!nextVals;
     // Smoothstep-Easing → weichere Übergänge zwischen 15-min-Frames.
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
@@ -510,7 +511,7 @@ function PrecipOverlay({
 
         // Prognose: rotierter, domain-warped fBm → keine geraden Lattice-
         // Kanten an Bandgrenzen.
-        if (contour && v > 0) {
+        if (contour && !animatingForecast && v > 0) {
           const sx = fxRaw * 0.9;
           const sy = fyRaw * 0.85;
           const rx = sx * COS - sy * SIN;
@@ -551,7 +552,7 @@ function PrecipOverlay({
         // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
         let [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
-          : (contour ? colorFor(v) : colorForSmooth(v));
+          : (contour && !animatingForecast ? colorFor(v) : colorForSmooth(v));
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
