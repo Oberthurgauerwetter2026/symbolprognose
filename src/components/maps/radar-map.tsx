@@ -422,10 +422,9 @@ function PrecipOverlay({
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
-    // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
-    // Messung: 2-Pixel-Raster (Performance).
-    const STEP = contour ? 1 : 2;
+    // Prognose bewusst leicht gröber rendern: bei jedem Crossfade-Frame wird
+    // neu gezeichnet, daher ist ein 3px-Raster deutlich flüssiger als 1px.
+    const STEP = contour ? 3 : 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -458,8 +457,9 @@ function PrecipOverlay({
     };
 
     // -------- Deterministisches Value-Noise + fBm (fraktales Rauschen) --------
-    // Pro Frame stabil (Seed aus frame.t), damit Animation nicht flackert.
-    const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
+    // Zeitunabhängiger Seed: beim Crossfade darf das Kontur-Muster nicht pro
+    // Frame neu springen, sonst wirkt die Prognose trotz Blending ruckelig.
+    const seed = contour ? 1337 : frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
     const hash = (ix: number, iy: number) => {
       let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
       h = (h ^ (h >>> 13)) * 1274126177;
@@ -478,12 +478,12 @@ function PrecipOverlay({
       const d = hash(ix + 1, iy + 1);
       return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
     };
-    // fBm: 5 Oktaven → mehr feine Wellung an Bandkanten.
+    // fBm: 3 Oktaven → genügend organische Kanten, aber schnell genug für Play/Scrub.
     const fbm = (x: number, y: number) => {
       let v = 0;
       let amp = 0.5;
       let freq = 1;
-      for (let o = 0; o < 5; o++) {
+      for (let o = 0; o < 3; o++) {
         v += valueNoise(x * freq, y * freq) * amp;
         amp *= 0.5;
         freq *= 2.1;
