@@ -501,8 +501,7 @@ function PrecipOverlay({
         if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
         if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
 
-        const vCur = sampleAt(vals, fxRaw, fyRaw);
-        let v = nextVals ? lerp(vCur, sampleAt(nextVals, fxRaw, fyRaw)) : vCur;
+        let v = sampleAt(vals, fxRaw, fyRaw);
 
         // Prognose: rotierter, domain-warped fBm → keine geraden Lattice-
         // Kanten an Bandgrenzen.
