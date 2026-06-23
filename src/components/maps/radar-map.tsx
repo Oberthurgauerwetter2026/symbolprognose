@@ -418,14 +418,14 @@ function PrecipOverlay({
     const nextVals = nextFrame?.values;
     const nextSnowVals = nextFrame?.snowValues;
     const tRaw = nextVals && typeof progress === "number" ? Math.max(0, Math.min(1, progress)) : 0;
+    const animatingForecast = contour && !!nextVals;
     // Smoothstep-Easing → weichere Übergänge zwischen 15-min-Frames.
     const t = tRaw * tRaw * (3 - 2 * tRaw);
     const lerp = (a: number, b: number) => a + (b - a) * t;
 
-    // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
-    // Feld organisch, statt entlang eines groben Rasters in 90°-Stufen.
-    // Messung: 2-Pixel-Raster (Performance).
-    const STEP = contour ? 1 : 2;
+    // Prognose bewusst leicht gröber rendern: bei jedem Crossfade-Frame wird
+    // neu gezeichnet, daher ist ein 3px-Raster deutlich flüssiger als 1px.
+    const STEP = contour ? 3 : 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -458,8 +458,9 @@ function PrecipOverlay({
     };
 
     // -------- Deterministisches Value-Noise + fBm (fraktales Rauschen) --------
-    // Pro Frame stabil (Seed aus frame.t), damit Animation nicht flackert.
-    const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
+    // Zeitunabhängiger Seed: beim Crossfade darf das Kontur-Muster nicht pro
+    // Frame neu springen, sonst wirkt die Prognose trotz Blending ruckelig.
+    const seed = contour ? 1337 : frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
     const hash = (ix: number, iy: number) => {
       let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
       h = (h ^ (h >>> 13)) * 1274126177;
@@ -478,12 +479,12 @@ function PrecipOverlay({
       const d = hash(ix + 1, iy + 1);
       return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
     };
-    // fBm: 5 Oktaven → mehr feine Wellung an Bandkanten.
+    // fBm: 3 Oktaven → genügend organische Kanten, aber schnell genug für Play/Scrub.
     const fbm = (x: number, y: number) => {
       let v = 0;
       let amp = 0.5;
       let freq = 1;
-      for (let o = 0; o < 5; o++) {
+      for (let o = 0; o < 3; o++) {
         v += valueNoise(x * freq, y * freq) * amp;
         amp *= 0.5;
         freq *= 2.1;
@@ -510,7 +511,7 @@ function PrecipOverlay({
 
         // Prognose: rotierter, domain-warped fBm → keine geraden Lattice-
         // Kanten an Bandgrenzen.
-        if (contour && v > 0) {
+        if (contour && !animatingForecast && v > 0) {
           const sx = fxRaw * 0.9;
           const sy = fyRaw * 0.85;
           const rx = sx * COS - sy * SIN;
@@ -551,7 +552,7 @@ function PrecipOverlay({
         // wie ein gegriddetes Wettermodell. Messung-Fallback: weiche Skala.
         let [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
-          : (contour ? colorFor(v) : colorForSmooth(v));
+          : (contour && !animatingForecast ? colorFor(v) : colorForSmooth(v));
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -836,15 +837,21 @@ function fmtBubble(d: Date, frame: RadarFrame | null): string {
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
+type TimelinePreview = { baseIdx: number; nextIdx: number | null; progress: number };
+
 function MeteoTimeline({
   frames,
   idx,
   onChange,
+  onPreviewChange,
+  onScrubStart,
   isMobile,
 }: {
   frames: RadarFrame[];
   idx: number;
   onChange: (i: number) => void;
+  onPreviewChange?: (preview: TimelinePreview | null) => void;
+  onScrubStart?: () => void;
   isMobile: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -860,15 +867,60 @@ function MeteoTimeline({
   const pctForMs = (ms: number) => Math.max(0, Math.min(100, ((ms - tMin) / span) * 100));
   const pctForIdx = (i: number) => pctForMs(times[i] ?? tMin);
 
-  const idxFromClientX = (clientX: number): number => {
+  const targetMsFromClientX = (clientX: number): number => {
     const el = trackRef.current;
-    if (!el) return idx;
+    if (!el) return times[idx] ?? tMin;
     const r = el.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    const target = tMin + pct * span;
+    return tMin + pct * span;
+  };
+
+  const previewFromTargetMs = (target: number): TimelinePreview | null => {
+    if (target <= Date.now()) return null;
+    let lo = -1;
+    let hi = -1;
+    for (let i = 0; i < times.length; i++) {
+      if (frames[i]?.source === "radar") continue;
+      if (times[i] <= target) lo = i;
+      if (times[i] > target) {
+        hi = i;
+        break;
+      }
+    }
+    if (lo < 0 && hi < 0) return null;
+    if (lo < 0) return { baseIdx: hi, nextIdx: null, progress: 0 };
+    if (hi < 0) return { baseIdx: lo, nextIdx: null, progress: 0 };
+    const frameSpan = Math.max(1, times[hi] - times[lo]);
+    return {
+      baseIdx: lo,
+      nextIdx: hi,
+      progress: Math.max(0, Math.min(1, (target - times[lo]) / frameSpan)),
+    };
+  };
+
+  const idxFromClientX = (clientX: number): number => {
+    const target = targetMsFromClientX(clientX);
     const nowMs = Date.now();
     // In Forecast nur Forecast-Frames erlauben (sind stündlich) — verhindert
     // Snap auf einen Past-5-min-Frame nahe der Gegenwart.
+    const restrictForecast = target > nowMs;
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < times.length; i++) {
+      if (restrictForecast && frames[i]?.source === "radar") continue;
+      const dt = Math.abs(times[i] - target);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
+      }
+    }
+    return best;
+  };
+
+  const idxFromMs = (target: number): number => {
+    const preview = previewFromTargetMs(target);
+    if (preview) return preview.baseIdx;
+    const nowMs = Date.now();
     const restrictForecast = target > nowMs;
     let best = 0;
     let bestDt = Infinity;
@@ -887,6 +939,7 @@ function MeteoTimeline({
   const pendingXRef = useRef<number | null>(null);
   const lastSentIdxRef = useRef<number>(idx);
   const [dragPct, setDragPct] = useState<number | null>(null);
+  const [dragMs, setDragMs] = useState<number | null>(null);
 
   const pctFromClientX = (clientX: number): number => {
     const el = trackRef.current;
@@ -901,7 +954,12 @@ function MeteoTimeline({
     pendingXRef.current = null;
     if (x == null) return;
     setDragPct(pctFromClientX(x));
+    const target = targetMsFromClientX(x);
+    setDragMs(target);
+    const preview = previewFromTargetMs(target);
+    onPreviewChange?.(preview);
     const ni = idxFromClientX(x);
+    if (preview) return;
     if (ni !== lastSentIdxRef.current) {
       lastSentIdxRef.current = ni;
       onChange(ni);
@@ -919,13 +977,18 @@ function MeteoTimeline({
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setDragging(true);
+    onScrubStart?.();
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       try { navigator.vibrate(8); } catch { /* ignore */ }
     }
     setDragPct(pctFromClientX(e.clientX));
+    const target = targetMsFromClientX(e.clientX);
+    setDragMs(target);
+    const preview = previewFromTargetMs(target);
+    onPreviewChange?.(preview);
     const ni = idxFromClientX(e.clientX);
     lastSentIdxRef.current = ni;
-    onChange(ni);
+    if (!preview) onChange(ni);
   };
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragging) return;
@@ -936,7 +999,12 @@ function MeteoTimeline({
   const handlePointerUp = (e: React.PointerEvent) => {
     setDragging(false);
     cancelPending();
+    const ni = idxFromClientX(e.clientX);
+    lastSentIdxRef.current = ni;
+    onPreviewChange?.(null);
+    onChange(ni);
     setDragPct(null);
+    setDragMs(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
@@ -980,11 +1048,9 @@ function MeteoTimeline({
   }, [tMin, tMax, dayBreaks.length]);
 
   const handlePct = dragPct ?? pctForIdx(idx);
-  // Bubble-Label & Frame-Zeit immer aus dem snapped Frame — auch während
-  // Drag — damit Forecast diskret stündlich erscheint statt 5-min suggeriert.
-  const currentMs = times[idx] ?? Date.now();
+  const currentMs = dragMs ?? times[idx] ?? Date.now();
   const currentDate = new Date(currentMs);
-  const currentFrame = frames[idx] ?? null;
+  const currentFrame = dragMs === null ? frames[idx] ?? null : frames[idxFromMs(dragMs)] ?? null;
   const bubbleLabel = fmtBubble(currentDate, currentFrame);
 
 
@@ -1166,6 +1232,7 @@ export function RadarMap({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
+  const [scrubPreview, setScrubPreview] = useState<TimelinePreview | null>(null);
 
   const [progress, setProgress] = useState(0); // 0…1 zwischen idx und idx+1
   const isMobile = useIsMobile();
@@ -1176,6 +1243,10 @@ export function RadarMap({
   useEffect(() => {
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
+
+  useEffect(() => {
+    setScrubPreview(null);
+  }, [frames]);
 
   // Play-Schritt-Indizes mit gemischter Cadence:
   //   Past (t <= now)          : 5-min-Takt
@@ -1280,8 +1351,15 @@ export function RadarMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, idx, currentFrame, playStepIndices, frames]);
 
+  const scrubFrame = scrubPreview ? frames[scrubPreview.baseIdx] ?? null : null;
+  const scrubNextFrame = scrubPreview?.nextIdx != null ? frames[scrubPreview.nextIdx] ?? null : null;
+  const displayFrame = scrubPreview ? scrubFrame ?? currentFrame : currentFrame;
+  const displayNextFrame = scrubPreview ? scrubNextFrame : nextFrame;
+  const displayProgress = scrubPreview ? scrubPreview.progress : progress;
+
   // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
-  const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
+  const blendNext =
+    displayNextFrame && !displayNextFrame.precipUrl && !displayFrame?.precipUrl ? displayNextFrame : null;
 
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
   // ihre URL via Leaflet `setUrl()` ohne Mount/Unmount, kein Leerframe.)
@@ -1311,7 +1389,7 @@ export function RadarMap({
     };
   }, [data]);
 
-  const meta = currentFrame ? sourceLabel(currentFrame) : null;
+  const meta = displayFrame ? sourceLabel(displayFrame) : null;
 
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
   // (true=trocken nur bei genau 0 values und keiner URL — wird hier vorsichtig
@@ -1391,11 +1469,11 @@ export function RadarMap({
             interactive={false}
           />
           {data &&
-            currentFrame &&
+            displayFrame &&
             (() => {
-              const hasPng = !!currentFrame.precipUrl;
-              const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
-              const ib = currentFrame.imageBbox ?? data.imageBbox;
+              const hasPng = !!displayFrame.precipUrl;
+              const hasGrid = Array.isArray(displayFrame.values) && displayFrame.values.length > 0;
+              const ib = displayFrame.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
               return (
@@ -1403,17 +1481,17 @@ export function RadarMap({
                   {hasGrid && !hasPng && (
                     <PrecipOverlay
                       payload={data}
-                      frame={currentFrame}
+                      frame={displayFrame}
                       nextFrame={blendNext}
-                      progress={progress}
+                      progress={displayProgress}
                       opacity={opacityVal}
-                      contour={currentFrame.source !== "radar"}
+                      contour={displayFrame.source !== "radar"}
                     />
                   )}
                   {hasPng && (
                     <ImageOverlay
                       key="precip-main"
-                      url={currentFrame.precipUrl!}
+                      url={displayFrame.precipUrl!}
                       bounds={[
                         [ib.minLat, ib.minLon],
                         [ib.maxLat, ib.maxLon],
@@ -1426,10 +1504,10 @@ export function RadarMap({
                 </>
               );
             })()}
-          {data && currentFrame && showHail && currentFrame.hailUrl && (
+          {data && displayFrame && showHail && displayFrame.hailUrl && (
             <ImageOverlay
               key="hail-main"
-              url={currentFrame.hailUrl}
+              url={displayFrame.hailUrl}
               bounds={[
                 [data.imageBbox.minLat, data.imageBbox.minLon],
                 [data.imageBbox.maxLat, data.imageBbox.maxLon],
@@ -1438,8 +1516,8 @@ export function RadarMap({
               className="hail-blackdots"
             />
           )}
-          {data && currentFrame && showHail && currentFrame.source === "radar" && (
-            <MeasurementHailDotsLayer payload={data} frame={currentFrame} />
+          {data && displayFrame && showHail && displayFrame.source === "radar" && (
+            <MeasurementHailDotsLayer payload={data} frame={displayFrame} />
           )}
 
 
@@ -1467,9 +1545,9 @@ export function RadarMap({
             >
               {meta.label}
             </span>
-            {currentFrame && (
+            {displayFrame && (
               <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
-                {fmtTime(currentFrame.t)}
+                {fmtTime(displayFrame.t)}
               </span>
             )}
           </div>
@@ -1532,7 +1610,10 @@ export function RadarMap({
                   {/* Play/Pause */}
                   <button
                     type="button"
-                    onClick={() => setPlaying((p) => !p)}
+                    onClick={() => {
+                      setScrubPreview(null);
+                      setPlaying((p) => !p);
+                    }}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
                     style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
                     aria-label={playing ? "Pause" : "Play"}
@@ -1544,6 +1625,7 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
+                      setScrubPreview(null);
                       setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
@@ -1558,9 +1640,12 @@ export function RadarMap({
                       frames={frames}
                       idx={idx}
                       isMobile={isMobile}
+                      onScrubStart={() => setPlaying(false)}
+                      onPreviewChange={setScrubPreview}
                       onChange={(i) => {
                         setIdx(i);
                         setPlaying(false);
+                        setScrubPreview(null);
                       }}
                     />
                   </div>
@@ -1570,6 +1655,7 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
+                      setScrubPreview(null);
                       setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
