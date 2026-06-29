@@ -759,7 +759,8 @@ function MeasurementCanvasOverlay({
         cv.style.willChange = "transform";
         cv.style.zIndex = "460";
         cv.style.filter = "contrast(1.1)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "pixelated";
+
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
