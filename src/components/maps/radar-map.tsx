@@ -1599,18 +1599,8 @@ export function RadarMap({
   }, [playing, speed, playStepIndices]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
-  // Crossfade nur während Auto-Play.
-  const nextFrame = useMemo(() => {
-    if (!playing || idx === null || !currentFrame) return null;
-    const nextCursor = stepCursorForIndex(idx) + 1;
-    const ni = playStepIndices[nextCursor];
-    return ni !== undefined ? frames[ni] ?? null : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, idx, currentFrame, playStepIndices, frames]);
+  // Kein Crossfade — jeder Frame schaltet hart auf den nächsten.
 
-  // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
-  const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
-  void blendNext;
 
   const timelineNextIdx = playing && idx !== null
     ? playStepIndices[stepCursorForIndex(idx) + 1] ?? null
