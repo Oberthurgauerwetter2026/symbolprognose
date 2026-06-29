@@ -937,7 +937,7 @@ function MeasurementCanvasOverlay({
   const layerRef = useRef<L.Layer | null>(null);
   const sourceRef = useRef<{ w: number; h: number; mmh: Float32Array } | null>(null);
   const cacheRef = useRef<Map<string, { w: number; h: number; mmh: Float32Array }>>(new Map());
-  const DECODE_CACHE_MAX = 8;
+  const DECODE_CACHE_MAX = 96;
 
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
