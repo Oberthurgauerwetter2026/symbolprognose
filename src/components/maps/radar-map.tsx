@@ -1898,6 +1898,22 @@ export function RadarMap({
                     <ChevronLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                   </button>
 
+                  {/* Jetzt — zurück auf aktuelle Messzeit */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlaying(false);
+                      setIdx(nowIdx);
+                    }}
+                    disabled={idx === nowIdx}
+                    className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"
+                    aria-label="Auf aktuelle Messzeit zurückspringen"
+                  >
+                    <Clock className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                    <span>Jetzt</span>
+                  </button>
+
+
                   {/* Track */}
                   <div className="min-w-0 flex-1">
                     <FilmstripTimeline
