@@ -1767,6 +1767,7 @@ export function RadarMap({
     if (!playing || playStepIndices.length === 0) {
       progressRef.current = 0;
       setPlayVisualMs(null);
+      setPlayCrossfade(null);
       return;
     }
     progressRef.current = 0;
@@ -1791,6 +1792,10 @@ export function RadarMap({
       const nMs = nFrame ? Date.parse(nFrame.t) : aMs;
       const p = progressRef.current;
       setPlayVisualMs(aMs + (nMs - aMs) * p);
+      setPlayCrossfade({
+        nextFrame: nFrame && nFrame.t !== aFrame.t ? nFrame : null,
+        progress: p,
+      });
     };
     const tick = (now: number) => {
       const dt = now - last;
@@ -1803,6 +1808,7 @@ export function RadarMap({
         if (nextCursor >= playStepIndices.length) {
           progressRef.current = 0;
           setPlayVisualMs(null);
+          setPlayCrossfade(null);
           setPlaying(false);
           return;
         }
@@ -1819,6 +1825,7 @@ export function RadarMap({
     return () => {
       cancelAnimationFrame(raf);
       setPlayVisualMs(null);
+      setPlayCrossfade(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices]);
