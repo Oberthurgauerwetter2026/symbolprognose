@@ -1120,15 +1120,15 @@ function MeasurementCanvasOverlay({
         let v = sampleAt(fx, fy);
         if (v <= 0) continue;
 
-        // fbm-Modulation: weiche, unregelmässige Kanten ohne Block-Optik.
-        const sx = fx * 0.9;
-        const sy = fy * 0.85;
+        // Dezente fbm-Modulation: organisch ohne starkes Weichmachen.
+        const sx = fx * 0.6;
+        const sy = fy * 0.55;
         const rx = sx * COS - sy * SIN;
         const ry = sx * SIN + sy * COS;
-        const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-        const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
+        const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 1.2;
+        const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 1.2;
         const n = fbm(rx + warpX, ry + warpY);
-        const mod = 0.55 + n * 1.0; // weniger aggressiv als Forecast-Contour
+        const mod = 0.85 + n * 0.30;
         v = v * mod;
 
         if (v < 0.05) continue;
