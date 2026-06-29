@@ -2212,21 +2212,7 @@ export function RadarMap({
                             disabled={!data?.hasHail}
                             aria-label="Hagel-Layer"
                           />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-[11px] font-semibold text-neutral-700">
-                              Wind-Drift (Prognose)
-                            </p>
-                            <p className="text-[10px] text-neutral-500">
-                              NS-Felder im 15-min-Takt mit Wind ziehen lassen
-                            </p>
-                          </div>
-                          <Switch
-                            checked={driftOn}
-                            onCheckedChange={setDriftOn}
-                            aria-label="Wind-Drift in der Prognose"
-                          />
+                      </div>
                         </div>
                       </div>
                     </PopoverContent>
