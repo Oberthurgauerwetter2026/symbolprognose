@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getOpenMeteoCache } from "@/lib/openmeteo-cache.server";
+import { r2ObjectUrlCandidates } from "@/lib/r2-url.server";
 
 /**
  * Debug-Endpoint: zeigt Meta-Infos zum R2-Open-Meteo-Cache + Radar-Manifest.
@@ -43,12 +44,10 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
           | null = null;
         if (base) {
           try {
-            const trimmed = base.replace(/\/+$/, "");
-            // R2_PUBLIC_URL kann entweder Basis-URL oder bereits die volle
-            // .../radar/frames.json sein — beide Varianten korrekt behandeln.
-            const url = /\/radar\/frames\.json$/i.test(trimmed)
-              ? trimmed
-              : `${trimmed.replace(/\/radar\/?$/i, "")}/radar/frames.json`;
+            // R2_PUBLIC_URL kann Root, ein Forecast-JSON, /radar oder bereits
+            // die volle .../radar/frames.json sein — alle Varianten testen.
+            const urls = r2ObjectUrlCandidates(base, "radar/frames.json");
+            const url = urls[0];
             const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
             if (res.ok) {
               const m = (await res.json()) as {
