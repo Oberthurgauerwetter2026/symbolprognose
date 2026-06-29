@@ -403,6 +403,7 @@ function PrecipOverlay({
   progress,
   opacity = 1,
   contour = false,
+  prewarmFrames,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
@@ -410,6 +411,7 @@ function PrecipOverlay({
   progress?: number;
   opacity?: number;
   contour?: boolean;
+  prewarmFrames?: RadarFrame[];
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
