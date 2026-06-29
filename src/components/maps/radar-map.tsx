@@ -1670,14 +1670,13 @@ export function RadarMap({
   bare?: boolean;
   initialFrames?: RadarPayload;
 }) {
-  const [driftOn, setDriftOn] = useState(false);
   const { data, isLoading, error } = useQuery({
-    queryKey: ["radar-frames", driftOn ? "drift" : "raw"],
-    queryFn: () => getRadarFrames({ data: { drift: driftOn } }),
+    queryKey: ["radar-frames"],
+    queryFn: () => getRadarFrames(),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
-    initialData: driftOn ? undefined : initialFrames,
-    initialDataUpdatedAt: !driftOn && initialFrames ? Date.now() : undefined,
+    initialData: initialFrames,
+    initialDataUpdatedAt: initialFrames ? Date.now() : undefined,
   });
 
   // Modellprognose bis +48 h: CH1 primär, CH2 nahtloser Fallback.
