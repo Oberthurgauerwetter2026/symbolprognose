@@ -649,20 +649,25 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   // Fallback, falls für einen Slot keine CH1-Daten vorliegen.
   const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
   const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
-  // Diagnose: mittlere precip-Intensität pro 15-min-Slot der ersten 6 h,
-  // um zu verifizieren, dass die ICON-CH1-Werte zwischen den Viertelstunden
-  // tatsächlich variieren (sonst läuft die Visualisierung als Plateau).
+  // Diagnose: mittlere Verschiebung in km pro 15-min-Slot der ersten 6 h
+  // (aus mittlerem ICON-Wind × dtSec). Beleg dafür, dass Zellen 15-minütig
+  // wandern, ohne dass Intensitäten verändert werden.
   {
     const samples: string[] = [];
     for (let tMs = start15; tMs <= cutoff24 && samples.length < 24; tMs += 900_000) {
-      const g = getForecastExact(tMs);
-      const mean = g ? g.precip.reduce((s, x) => s + x, 0) / Math.max(1, g.precip.length) : 0;
-      samples.push(`${new Date(tMs).toISOString().slice(11, 16)}=${mean.toFixed(2)}`);
+      const hMs = Math.floor(tMs / 3600_000) * 3600_000;
+      const dtSec = (tMs - hMs) / 1000;
+      const { u, v } = meanWindAt(hMs);
+      const km = (Math.hypot(u, v) * dtSec * ADVECT_SCALE) / 1000;
+      samples.push(`${new Date(tMs).toISOString().slice(11, 16)}=${km.toFixed(1)}`);
     }
-    console.log(`[radar] forecast 15-min sample (mm/h): ${samples.join(" ")}`);
+    console.log(`[radar] forecast 15-min advect (km): ${samples.join(" ")}`);
   }
   for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
-    const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);
+    const isHour = tMs % 3600_000 === 0;
+    const grid = isHour
+      ? getForecastExact(tMs) ?? interpolateForecast(tMs)
+      : advectedForecast(tMs) ?? getForecastExact(tMs) ?? interpolateForecast(tMs);
     if (!grid) continue;
     frames.push({
       t: new Date(tMs).toISOString(),

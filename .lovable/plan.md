@@ -1,35 +1,32 @@
-## Ziel
+## Hintergrund
 
-1. Prognose-Frames bewegen sich wieder ehrlich im 15-min-Takt aus den ICON-CH1 `minutely_15`-Werten — ohne Wind-Drift-Workaround.
-2. Filmstrip-Panel wird horizontal schmaler dargestellt (mehr Karte sichtbar).
-3. Wochentag/Datum im Steuer-Panel unter dem Filmstrip wird entfernt.
-4. Messung: das Smoothing (wässrig machen) deutlicher reduzieren, ohne wieder Quadrate oder ähnliche szu erzeugen
+- Open-Meteo liefert `minutely_15` der ICON-CH1-Niederschlagsprognose stundenweise konstant aus (vier identische `:00/:15/:30/:45`-Slots pro Stunde) — bestätigt im Kommentar `radar.functions.ts` Z. 552-557. Ohne räumliche Verschiebung wirken die 15-min-Frames in der Animation deshalb wie Stundenframes (Plateau-Look).
+- Die frühere „funktionierende" Version benutzte genau dafür die Wind-Advektion (`meanWindAt` + `advectField` + `advectedForecast`, Z. 562-644). Beim Aufräumen der Drift-Toggle-Schiene wird sie aktuell nicht mehr aufgerufen — daher die jetzt sichtbare stündliche Kadenz.
+- Canvas-Smoothing ist an beiden Render-Stellen hart deaktiviert (`imageSmoothingEnabled = false`, Z. 711 Messung, Z. 1139 Prognose). User möchte es wieder an, aber dezenter.
+- das ist die aktuelle Version, bevor publishing: bitte die Prognose im 15 min. Takt so erstellen 
 
 ## Änderungen
 
-### 1) `src/lib/radar.functions.ts` — echte 15-min-Werte aus ICON-CH1
+### 1) `src/lib/radar.functions.ts` — 15-min-Frames per Wind-Advektion
 
-- `inputValidator`: Feld `drift` entfernen (war Workaround).
-- Phase-A-Loop (ab Zeile ~666) vereinfachen auf
-`const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);`
-Damit liefert jeder 15-min-Frame direkt den `minutely_15`-Wert aus `r1` (siehe `readForecastExact`, Zeilen 434-458, wo `min15Idx` alle Viertelstunden-Slots indexiert — nicht nur `:00`).
-- `interpolateForecast` nur noch als Lücken-Fallback (z. B. wenn CH1 ausfällt), nicht als Glättung über echte 15-min-Slots.
-- Diagnostik-Log umstellen: statt mittlere Wind-Komponente eine Probe der ersten 6 h Prognose loggen — pro `:00/:15/:30/:45` die mittlere `precip`-Intensität (`mm/h`), damit verifizierbar ist, dass die Werte zwischen den Viertelstunden tatsächlich variieren (`[radar] forecast 15-min sample: 17:00=0.4 17:15=0.7 17:30=0.9 17:45=1.1 …`).
-- `ADVECT_SCALE`, `meanWindAt`, `advectField`, `advectedForecast` bleiben unangetastet bestehen (werden in dieser Schiene nicht mehr aufgerufen, evtl. später erneut benötigt) — keine Aufräum-Arbeit am toten Code in diesem Schritt, um die Diff klein zu halten.
+- Phase-A-Loop (Z. 664-675): an `:00`-Slots bleibt `getForecastExact(tMs)` die Quelle; an `:15/:30/:45` wird `advectedForecast(tMs)` verwendet, das aus dem `:00`-Basisfeld plus mittlerem ICON-Wind (`meanWindAt`) per Semi-Lagrangean-Backtrace die räumlich verschobenen Zellen baut. Fallback-Kette: `advectedForecast(tMs) ?? getForecastExact(tMs) ?? interpolateForecast(tMs)`.
+- `interpolateForecast` bleibt reiner Lücken-Fallback.
+- Diagnose-Log umstellen: pro `:00/:15/:30/:45` einmal die mittlere Verschiebung in km loggen (aus `meanWindAt` × dtSec), damit verifizierbar ist, dass sich Zellen 15-minütig bewegen — z. B.
+`[radar] forecast 15-min advect (km): 17:00=0.0 17:15=4.2 17:30=8.4 17:45=12.6 18:00=0.0 …`.
+- Intensitäten (mm/h) werden nicht verändert, kein Crossfade, kein Weichzeichnen — nur räumliche Migration.
+- `ADVECT_SCALE`, `meanWindAt`, `advectField`, `advectedForecast` bleiben unverändert.
 
-### 2) `src/components/maps/radar-map.tsx` — Drift-Toggle weg + UI-Slimming
+### 2) `src/components/maps/radar-map.tsx` — Canvas-Smoothing dezent zurück
 
-- `driftOn`-State + `Switch` „Wind-Drift (Prognose)" im Settings-Popover entfernen (Zeilen 1673, 2217-2231).
-- `useQuery`-Aufruf vereinfachen auf festen `queryKey: ["radar-frames"]`, `queryFn: () => getRadarFrames()`, `initialData: initialFrames`.
-- Im Steuer-Panel (Zeilen 2054-2059) im Nicht-`bare`-Fall die Breite begrenzen, z. B. `mx-auto w-full max-w-3xl`. Bare-Mode bleibt unverändert (Overlay über die ganze Karte).
-- In `FilmstripTimeline`:
-  - `dayLabel`-Block (Zeilen 1651-1654) komplett entfernen.
-  - `fmtDayLong` ist dann ungenutzt → löschen.
+- Messung-Render (Z. 709-713):
+`ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "low";`
+- Prognose-Render (Z. 1137-1141): gleiche Einstellung.
+- Sonstige Logik (Nearest-Neighbor-Sampling beim Bilden des Offscreen-Buffers, fbm-Modulation für organische Ränder) bleibt unverändert. „Low"-Smoothing wirkt nur beim finalen `drawImage`-Upscale auf die Anzeigegrösse — Quadrate werden gebrochen, ohne dass die Werte verrechnet werden.
 
-### Verifikation
+## Verifikation
 
-- `bunx tsgo --noEmit` muss grün sein.
-- Im Preview `/karten/radar`:
-  - Console-Log zeigt unterschiedliche `precip`-Werte für `:00/:15/:30/:45` der nächsten Stunden (kein Plateau).
-  - Filmstrip-Panel deutlich schmaler als die Karte, zentriert; Karte besser sichtbar.
-  - Unter dem Filmstreifen kein „Mo, 30.06.2026"-Label mehr; nur die Bubble oben zeigt weiterhin Wochentag + Uhrzeit (gewünscht).
+- `bunx tsgo --noEmit` grün.
+- `/karten/radar`:
+  - Console-Log zeigt monoton wachsende Verschiebungs-km zwischen den `:00`-Slots — Beleg, dass Zellen sich pro 15 min sichtbar bewegen.
+  - Beim Scrubben/Spielen der Prognose wandern Niederschlagsfelder alle 15 min spürbar weiter (kein Stunden-Plateau mehr).
+  - Pixel-Treppen an den Zellrändern sind leicht weicher, ohne dass das Raster zu „wässrigem" Look zurückkippt.
