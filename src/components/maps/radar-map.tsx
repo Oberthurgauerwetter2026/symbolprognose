@@ -1581,6 +1581,37 @@ export function RadarMap({
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
   void blendNext;
 
+  // Sanfter Crossfade beim Wechsel zwischen Layer-Typen (PNG↔Canvas bzw.
+  // Mess↔Prognose). Hält den vorherigen Frame ~280 ms parallel sichtbar und
+  // blendet die Opacities gegeneinander.
+  const FADE_MS = 280;
+  const [fadePrev, setFadePrev] = useState<RadarFrame | null>(null);
+  const [fadeT, setFadeT] = useState(1); // 0 = nur prev, 1 = nur current
+  const prevFrameRef = useRef<RadarFrame | null>(null);
+  useEffect(() => {
+    const prev = prevFrameRef.current;
+    prevFrameRef.current = currentFrame;
+    if (!prev || !currentFrame || prev === currentFrame) return;
+    const prevKind = prev.source === "radar" ? "m" : "f";
+    const curKind = currentFrame.source === "radar" ? "m" : "f";
+    const prevLayer = prev.precipUrl ? "png" : "canvas";
+    const curLayer = currentFrame.precipUrl ? "png" : "canvas";
+    if (prevKind === curKind && prevLayer === curLayer) return;
+    setFadePrev(prev);
+    setFadeT(0);
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.max(0, Math.min(1, (now - t0) / FADE_MS));
+      setFadeT(t);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else setFadePrev(null);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [currentFrame]);
+
+
   const timelineNextIdx = playing && idx !== null
     ? playStepIndices[stepCursorForIndex(idx) + 1] ?? null
     : null;
