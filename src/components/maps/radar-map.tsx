@@ -1132,26 +1132,6 @@ function useNowFrameIndex(frames: RadarFrame[]): number {
   }, [frames]);
 }
 
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("de-CH", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-
-function sourceLabel(frame: RadarFrame): { label: string; color: string } {
-  if (frame.source === "radar") {
-    return { label: "Messung", color: MEASUREMENT_COLOR };
-  }
-  if (frame.source === "icon-ch1") {
-    return { label: "Modellprognose", color: FORECAST_COLOR };
-  }
-  return { label: "Modellprognose", color: FORECAST_COLOR };
-}
 
 function timelineColorFor(frame: RadarFrame | null): string {
   return frame?.source === "radar" ? MEASUREMENT_COLOR : FORECAST_COLOR;
@@ -1414,19 +1394,19 @@ function FilmstripTimeline({
             transition: dragging || playing ? "none" : "transform 220ms cubic-bezier(.22,1,.36,1)",
           }}
         >
-          {/* Messungs-Band (grün) */}
+          {/* Messungs-Band (blau, schwach) */}
           <div
             className="absolute top-6 h-4 rounded-sm"
-            style={{ left: 0, width: nowLeft, background: MEASUREMENT_COLOR, opacity: 0.9 }}
+            style={{ left: 0, width: nowLeft, background: BRAND, opacity: 0.35 }}
           />
-          {/* Prognose-Band (blau) */}
+          {/* Prognose-Band (blau, schwach) */}
           <div
             className="absolute top-6 h-4 rounded-sm"
             style={{
               left: nowLeft,
               width: Math.max(0, totalWidth - nowLeft),
-              background: FORECAST_COLOR,
-              opacity: 0.9,
+              background: BRAND,
+              opacity: 0.35,
             }}
           />
 
@@ -1672,7 +1652,7 @@ export function RadarMap({
     };
   }, [data]);
 
-  const meta = currentFrame ? sourceLabel(currentFrame) : null;
+  
 
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
   // (true=trocken nur bei genau 0 values und keiner URL — wird hier vorsichtig
@@ -1811,25 +1791,6 @@ export function RadarMap({
           <ZoomControl position="topright" />
         </MapContainer>
 
-        {/* Quellen-Badge oben links */}
-        {meta && (
-          <div className="pointer-events-none absolute left-3 top-3 z-[400] flex flex-col gap-1">
-            <span
-              className="rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
-              style={{ background: meta.color }}
-            >
-              {meta.label}
-            </span>
-            {currentFrame && (
-              <span
-                className="rounded-md px-2.5 py-1 text-xs font-medium text-white shadow-md"
-                style={{ background: meta.color }}
-              >
-                {fmtTime(currentFrame.t)}
-              </span>
-            )}
-          </div>
-        )}
 
 
 

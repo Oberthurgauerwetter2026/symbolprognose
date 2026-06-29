@@ -1,25 +1,21 @@
-Plan:
+## Ziel
 
-1. Scrubbing wirklich auf die sichtbaren Filmstrip-Stufen snappen
-- In `FilmstripTimeline` beim Ziehen nicht mehr die kontinuierliche Zielzeit (`target`) anzeigen.
-- Stattdessen die nächstgelegene Frame-Zeit aus der bereits reduzierten `frames`-Liste verwenden.
-- Dadurch springen Bubble, Tageslabel und Slider-Position beim Scrubben nur noch in den erlaubten Takten:
-  - Messung: 5 Minuten
-  - Prognose erste 24h: 15 Minuten
-  - Prognose danach: 1 Stunde
+Oberlinkes Badge (Quelle + Zeit) entfernen und Filmstrip-Bänder in der Messung grau, in der Prognose blau mit schwacher Deckkraft gestalten.
 
-2. Bubble/Banner nach Frame-Typ einfärben
-- Eine kleine Hilfsfunktion für Timeline-Farben nutzen:
-  - Messung: Grün
-  - Prognose: Blau
-- Die Filmstrip-Bubble inklusive Pfeil bekommt die Farbe des aktuell gesnappten Frames.
-- Das obere Quellen-Banner und die Datums-/Zeit-Anzeige werden gemeinsam in Messung grün bzw. Prognose blau dargestellt.
+## Änderungen
 
-3. Filmstrip-Band anpassen
-- Das Messungs-Band im Filmstrip von grau auf grün ändern.
-- Das Prognose-Band bleibt blau.
-- Damit sind Banner, Bubble und Filmstrip konsistent: Messung grün, Prognose blau.
+### 1. Quellen-Badge oben links entfernen
 
-4. Validierung
-- Typecheck ausführen.
-- Auf `/karten/radar` prüfen, dass beim Scrubben keine 1-Minuten-Zwischenwerte mehr erscheinen und die Farben bei Messung/Prognose korrekt wechseln.
+In `src/components/maps/radar-map.tsx` den kompletten Block `{/* Quellen-Badge oben links */}` (inkl. `meta`-Badge und Zeit-Label) entfernen. Das betrifft nur die visuelle Anzeige, keine Logik.
+
+### 2. Filmstrip-Bänder: Grün → Blau, Deckkraft reduzieren
+
+- Messungs-Band: Farbe von `MEASUREMENT_COLOR` (#1f7a3a) auf `BRAND` (#2561a1) ändern.
+- Prognose-Band: Beibehaltung von `BRAND` (#2561a1).
+- Beide Bänder: Opacity von `0.9` auf `0.35` reduzieren.
+- Die Bubble und der Dreieck-Pfeil über der Mittellinie bleiben wie bisher (grün/blau je nach Frame-Typ) — nur die unteren Streifen-Bänder werden geändert.
+
+## Validierung
+
+- Typecheck (`bunx tsgo --noEmit`) ausführen.
+- Visuell prüfen, dass das Badge verschwunden ist und beide Filmstrip-Bänder blass-blau erscheinen.
