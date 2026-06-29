@@ -2212,7 +2212,6 @@ export function RadarMap({
                             disabled={!data?.hasHail}
                             aria-label="Hagel-Layer"
                           />
-                      </div>
                         </div>
                       </div>
                     </PopoverContent>
