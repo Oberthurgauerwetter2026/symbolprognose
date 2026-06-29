@@ -674,7 +674,7 @@ function PrecipOverlay({
 
           const [r, g, b, a] = snowFrac > 0.3
             ? snowColorFor(v)
-            : (contour ? colorFor(v) : colorForSmooth(v));
+            : colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
           if (alpha === 0) continue;
