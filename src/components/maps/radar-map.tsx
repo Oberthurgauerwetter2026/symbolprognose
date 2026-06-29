@@ -1883,7 +1883,9 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      setIdx((cur) => Math.max(0, (cur ?? 0) - 1));
+                      const ni = Math.max(0, stripIdx - 1);
+                      const target = playStepIndices[ni];
+                      if (typeof target === "number") setIdx(target);
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Vorheriger Frame"
@@ -1896,9 +1898,10 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      setIdx(nowIdx);
+                      const target = playStepIndices[stripNowIdx];
+                      if (typeof target === "number") setIdx(target);
                     }}
-                    disabled={idx === nowIdx}
+                    disabled={stripIdx === stripNowIdx}
                     className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"
                     aria-label="Auf aktuelle Messzeit zurückspringen"
                   >
@@ -1910,14 +1913,15 @@ export function RadarMap({
                   {/* Track */}
                   <div className="min-w-0 flex-1">
                     <FilmstripTimeline
-                      frames={frames}
-                      idx={idx}
+                      frames={stripFrames}
+                      idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
                       speed={speed}
-                      visualNextIdx={timelineNextIdx}
+                      visualNextIdx={stripVisualNextIdx}
                       onChange={(i: number) => {
-                        setIdx(i);
+                        const target = playStepIndices[i];
+                        if (typeof target === "number") setIdx(target);
                         setPlaying(false);
                       }}
                     />
@@ -1928,13 +1932,16 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1));
+                      const ni = Math.min(playStepIndices.length - 1, stripIdx + 1);
+                      const target = playStepIndices[ni];
+                      if (typeof target === "number") setIdx(target);
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Nächster Frame"
                   >
                     <ChevronRight className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                   </button>
+
 
                   {/* Einstellungen (Speed + Loop) */}
                   <Popover>
