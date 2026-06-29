@@ -42,14 +42,21 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               error?: string;
             }
           | null = null;
-        if (base) {
+        const manifestUrls = [
+          ...r2ObjectUrlCandidates(process.env.RADAR_MANIFEST_URL, "radar/frames.json"),
+          ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "radar/frames.json"),
+          ...r2ObjectUrlCandidates(base, "radar/frames.json"),
+        ].filter((url, index, all) => all.indexOf(url) === index);
+
+        if (manifestUrls.length > 0) {
           try {
-            // R2_PUBLIC_URL kann Root, ein Forecast-JSON, /radar oder bereits
-            // die volle .../radar/frames.json sein — alle Varianten testen.
-            const urls = r2ObjectUrlCandidates(base, "radar/frames.json");
-            const url = urls[0];
-            const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
-            if (res.ok) {
+            let lastError: string | null = null;
+            for (const url of manifestUrls) {
+              const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
+              if (!res.ok) {
+                lastError = `manifest fetch ${url} -> ${res.status}`;
+                continue;
+              }
               const m = (await res.json()) as {
                 generatedAt?: string;
                 version?: string;
@@ -98,8 +105,10 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
                     }
                   : null,
               };
-            } else {
-              radar = { error: `manifest fetch ${url} -> ${res.status}` };
+              break;
+            }
+            if (!radar && lastError) {
+              radar = { error: lastError };
             }
           } catch (e) {
             radar = { error: (e as Error).message };
