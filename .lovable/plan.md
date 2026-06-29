@@ -1,38 +1,50 @@
-## Ziel
-Manuelles Scrubbing in `radar-map.tsx` läuft butterweich — Frame schaltet bei jeder Cursor-Position ohne Mikro-Stocker, ohne Crossfade, ohne Weichzeichnung. Prognose-Frames bleiben strikt im 15-min-Takt (wie vom Backend nach Advektion geliefert).
+## Drei Korrekturen
 
-## Ursache der aktuellen Ruckler
+### 1. Messung organisch wie Prognose, ohne Quantisierungs-„Unreinheiten"
 
-1. **Lazy Canvas-Render im `PrecipOverlay`**: Jeder Prognose-Frame (Grid-basiert, kein PNG) wird *beim ersten Anzeigen* gerendert (bilineare Sampling + Farbband-Mapping auf `lowW×lowH` Pixeln). Erst danach landet er im `cacheRef`. Beim Scrubben über 96 Forecast-Frames stockt jeder noch nie besuchte Frame kurz.
-2. **Cache zu klein**: `CACHE_MAX = 64`, aber die Timeline hat ~30 Messung + ~96 Prognose-15-min + ~24 Prognose-stündlich = ~150 Frames. Während Scrub fliegen ältere Frames raus → erneutes Re-Rendern.
-3. **Kein Pre-Warm**: Der bestehende `useEffect` lädt nur PNG-URLs vor (Messung). Forecast-Frames haben kein PNG, der Canvas-Cache bleibt kalt.
+Aktuell rendert `MeasurementCanvasOverlay` (Lines ~893–1112) das MCH-CombiPrecip-PNG so:
+- PNG → mm/h-Grid via Nearest-Match in `SCALE` (8 harte Bänder).
+- Bilineares Resampling → `colorFor()` (harte Bänder erneut).
+- Canvas mit `imageRendering: pixelated`.
 
-15-min-Takt selbst stimmt bereits — `playStepIndices` bucketed Forecast in 15-min-Slots, Advektion im Backend liefert pro Slot ein eigenes Feld. Das ist nicht das Problem.
+Folgen (im Screenshot sichtbar):
+- Rechteckige Stufen entlang der nativen 1-km-Pixel.
+- „Stippling"/Unreinheiten: bilineare Werte zwischen zwei Bändern fallen je nach Sample auf die eine oder andere Bande → einzelne falsch eingefärbte Mini-Pixel innerhalb einer Zelle.
 
-## Änderungen (nur `src/components/maps/radar-map.tsx`, keine Backend-Änderung)
+**Änderungen (nur `src/components/maps/radar-map.tsx`, `MeasurementCanvasOverlay`):**
 
-### 1. Cache vergrössern
-- `CACHE_MAX` in `PrecipOverlay` von `64` auf `256`, damit die komplette Cadence-Timeline reinpasst und Scrubbing nie evicted.
+a. **Glatte Farbskala**: `colorFor(v)` → `colorForSmooth(v)` (existiert bereits in der Datei, log-interpoliert zwischen Bändern). Eliminiert die Stippling-Unreinheiten direkt.
 
-### 2. Pre-Warm der Forecast-Canvas nach Map-Idle
-- Im `PrecipOverlay` zusätzlich eine Pre-Warm-Routine:
-  - Trigger: nach `map.whenReady()` + jedes `moveend`/`zoomend` (debounce ~200 ms), sobald der `lookupRef` für die aktuelle View fertig ist.
-  - Iteriere über alle Frames der aktuellen Cadence-Liste (über ein neues optionales Prop `prewarmFrames: RadarFrame[]` von `RadarMap` reingereicht — `stripFrames`).
-  - Pro Frame: identische Render-Schleife wie heute, aber ohne `drawImage` auf die sichtbare Canvas — nur in `cacheRef` legen.
-  - Chunked via `requestIdleCallback` (Fallback `setTimeout 0`), maximal ein Frame pro Idle-Tick, abbrechbar bei View-Wechsel.
-- Effekt: Sobald die Karte ruht, sind alle Frame-Canvas vorberechnet. Scrub und Play schalten via `drawImage` aus Cache — instant.
+b. **Organische Kanten**: dieselbe `contour`-Warping-Logik aus `PrecipOverlay` (Lines 539–608: fbm-Noise → `contourScale`) in den Messungs-Renderpfad übernehmen. View-abhängiger Lookup wird einmal pro Pan/Zoom berechnet (genau wie Prognose) und pro Frame wiederverwendet. Resultat: weiche, unregelmässige Iso-Konturen statt rechteckiger 1-km-Blöcke.
 
-### 3. Bestätigung: kein Crossfade, kein Smoothing
-- `PrecipOverlay` redraw läuft nur auf `[frame, payload]` — bleibt so. Kein `progress`/`nextFrame`-Mixing.
-- `FilmstripTimeline.onMove` snappt bereits per `snapAndEmit` auf den nächstgelegenen Cadence-Frame (15 min in Prognose, 5 min in Messung). Bleibt unverändert.
-- `playVisualMs` treibt nur Bubble/Marker kontinuierlich; das Radarbild bleibt frame-genau.
+c. **`imageRendering: pixelated` entfernen** auf dem Messungs-Canvas (bleibt für Prognose unverändert nicht nötig, weil Lookup bereits per Pixel rendert) → Subpixel-Glättung beim Skalieren bleibt aus, harte Pixel sind aber nicht mehr durchgängig sichtbar.
 
-### 4. Kleinkram
-- `MeasurementCanvasOverlay` (PNG-basiert) ist nicht betroffen — PNG-Preload bleibt.
+d. **`STEP` erhöhen** (z. B. 2 wie Prognose-Contour-Modus), damit die fbm-Modulation pro 2×2-Block läuft und nicht in feinen Pixelmustern unruhig wirkt.
+
+e. **Kein Crossfade**: Layer bleibt frame-genau (heutiges Verhalten), nichts zu ändern.
+
+### 2. Prognose-NS bewegt sich strikt im 15-min-Takt
+
+Backend liefert bereits 15-min-Frames mit Wind-Advektion (`src/lib/radar.functions.ts`, `advectedForecast`). Symptom „bewegt sich nicht" hat zwei mögliche Ursachen:
+
+a. **Hour-Index-Miss**: `meanWindAt(hMs)` schaut in `r1HourIdx`/`r2HourIdx` per exaktem ms-Schlüssel. Wenn die Map-Keys eine andere Rundung haben (`Date.parse` vs. `Math.floor(.../3600_000)*3600_000`), greift kein Wind → `u=v=0` → keine Bewegung. Prüfen und auf gemeinsame Schlüssel-Normalisierung (`Math.floor(ts/3600_000)*3600_000`) angleichen.
+
+b. **Verschiebung zu klein**: `ADVECT_SCALE = 0.7` × Bodenwind. Bei 3 m/s = 7,5 km/h ergibt 15 min × 0,7 nur ≈ 1,9 km — auf der Karte gerade noch sichtbar. **Fix**: 
+   - `ADVECT_SCALE` auf `1.0` (Bodenwind ist konservativ; bei Konvektion zieht NS ungefähr mit dem Boden- bis 700hPa-Mittel).
+   - Wenn `wind_speed_700hPa` im Cache vorhanden ist (Phase 2 hat es), 700hPa-Wind bevorzugen (näher an der Zellzugbahn).
+   - Kappung bei 30 m/s bleibt.
+
+c. **Diagnose-Log**: einmaliger `console.log` der mittleren u/v pro Stunde im Forecast-Aufbau, damit künftig sofort sichtbar ist, ob Wind gezogen wird (entfernen wir später wieder).
+
+### 3. Was bewusst NICHT passiert
+- Kein Crossfade zwischen Frames (weder Messung noch Prognose).
+- Keine zeitliche Glättung der Intensitäten.
+- Keine Mischung von Messung mit Modell.
+- Kein Verändern der Farbskala in Messung — nur Übergänge zwischen Bändern werden glatt.
 
 ## Verifikation
 
-- `/karten/radar`: Karte laden, kurz warten (1–2 s Idle), Filmstrip durchscrubben. Prognose-Frames erscheinen ohne sichtbares Stocken, in sauberen 15-min-Schritten, mit räumlich verschobenen NS-Feldern (Advektion).
-- Beim Pan/Zoom wird Cache invalidert, Pre-Warm läuft sofort wieder.
-- Play unverändert: harte 15-min-Sprünge, keine Crossblende.
-- Console-Logs zeigen keine zusätzlichen Netzwerk-Requests pro Scrub.
+- `/karten/radar`, Messung jetzt: NS-Felder zeigen organisch geschwungene Iso-Konturen wie in der Prognose; keine rechteckigen 1-km-Blöcke, keine einzelnen falschfarbigen Pixel innerhalb einer Bande.
+- Prognose Play/Scrub im 15-min-Takt: NS-Zellen wandern sichtbar zwischen den 15-min-Frames in Windrichtung.
+- Console-Log bestätigt mittlere u/v pro Forecast-Stunde ≠ 0.
+- Typecheck grün.
