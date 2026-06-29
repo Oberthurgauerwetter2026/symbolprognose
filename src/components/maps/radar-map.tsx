@@ -2121,6 +2121,7 @@ export function RadarMap({
                       url={currentFrame.precipUrl}
                       bounds={ib}
                       opacity={opacityVal}
+                      prefetchUrls={radarUrls}
                     />
                   )}
                   {/* Seam-Crossfade Messung → Prognose: blendet den ersten
