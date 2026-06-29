@@ -1176,12 +1176,14 @@ function FilmstripTimeline({
   onChange,
   isMobile,
   playing,
+  visualMs,
 }: {
   frames: RadarFrame[];
   idx: number;
   onChange: (i: number) => void;
   isMobile: boolean;
   playing: boolean;
+  visualMs?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerW, setContainerW] = useState(0);
@@ -1249,7 +1251,14 @@ function FilmstripTimeline({
   };
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
-  const currentMs = times[displayIdx] ?? tMin;
+  const frameMs = times[displayIdx] ?? tMin;
+  // Bubble/Marker laufen kontinuierlich (Drag oder Play-Interpolation),
+  // das Radar-Bild bleibt frame-genau (currentFrame = frames[displayIdx]).
+  const currentMs = dragging
+    ? (dragMs as number)
+    : visualMs != null
+      ? visualMs
+      : frameMs;
   const translateX = containerW / 2 - ((currentMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
   const currentFrame = frames[displayIdx] ?? null;
@@ -1287,8 +1296,10 @@ function FilmstripTimeline({
       rafPendingRef.current = null;
       const t = pendingTargetRef.current;
       if (t === null) return;
-      const best = snapAndEmit(t);
-      setDragMs(times[best] ?? t);
+      // Idx auf nächsten Cadence-Frame snappen (hartes Bild-Schalten),
+      // aber Bubble/Marker am kontinuierlichen Drag-Wert lassen.
+      snapAndEmit(t);
+      setDragMs(t);
     });
   };
   const onUp = (e: React.PointerEvent) => {
@@ -1466,6 +1477,9 @@ export function RadarMap({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
+  // Kontinuierliche, weich interpolierte Zeit während Play für Bubble/Marker.
+  // Das Radar-Bild selbst bleibt frame-genau (kein Crossfading).
+  const [playVisualMs, setPlayVisualMs] = useState<number | null>(null);
 
   // progress-State entfernt: PrecipOverlay zeichnet keine Inter-Frame-Lerp mehr.
   const isMobile = useIsMobile();
@@ -1528,6 +1542,7 @@ export function RadarMap({
   useEffect(() => {
     if (!playing || playStepIndices.length === 0) {
       progressRef.current = 0;
+      setPlayVisualMs(null);
       return;
     }
     progressRef.current = 0;
@@ -1541,6 +1556,18 @@ export function RadarMap({
     const FRAME_MS = 1800 / speed;
     let raf = 0;
     let last = performance.now();
+    const emitVisual = () => {
+      const cur = playCursorRef.current;
+      const aIdx = playStepIndices[cur];
+      const nIdx = playStepIndices[cur + 1] ?? aIdx;
+      const aFrame = frames[aIdx];
+      const nFrame = frames[nIdx];
+      if (!aFrame) return;
+      const aMs = Date.parse(aFrame.t);
+      const nMs = nFrame ? Date.parse(nFrame.t) : aMs;
+      const p = progressRef.current;
+      setPlayVisualMs(aMs + (nMs - aMs) * p);
+    };
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
@@ -1551,6 +1578,7 @@ export function RadarMap({
         const nextCursor = playCursorRef.current + 1;
         if (nextCursor >= playStepIndices.length) {
           progressRef.current = 0;
+          setPlayVisualMs(null);
           setPlaying(false);
           return;
         }
@@ -1560,10 +1588,14 @@ export function RadarMap({
         setIdx(nextIdx);
       }
       progressRef.current = p;
+      emitVisual();
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      setPlayVisualMs(null);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices]);
 
@@ -1864,6 +1896,7 @@ export function RadarMap({
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
+                      visualMs={playVisualMs}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];
                         if (typeof target === "number") setIdx(target);
