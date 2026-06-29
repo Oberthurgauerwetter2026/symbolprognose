@@ -1164,7 +1164,7 @@ function fmtBubble(d: Date, frame: RadarFrame | null): string {
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
-function MeteoTimeline({
+function FilmstripTimeline({
   frames,
   idx,
   onChange,
@@ -1181,31 +1181,101 @@ function MeteoTimeline({
   speed: number;
   visualNextIdx: number | null;
 }) {
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerW, setContainerW] = useState(0);
 
+  useEffect(() => {
+    if (!containerRef.current) return;
+    setContainerW(containerRef.current.getBoundingClientRect().width);
+    const ro = new ResizeObserver((entries) => {
+      const e = entries[0];
+      if (e) setContainerW(e.contentRect.width);
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const PX_PER_HOUR = isMobile ? 56 : 72;
   const times = useMemo(() => frames.map((f) => Date.parse(f.t)), [frames]);
   const tMin = times[0] ?? 0;
   const tMax = times[times.length - 1] ?? 1;
-  const span = Math.max(1, tMax - tMin);
-  const now = Date.now();
-  const nowPct = Math.max(0, Math.min(100, ((now - tMin) / span) * 100));
+  const nowMs = Date.now();
+  const totalWidth = ((tMax - tMin) / 3_600_000) * PX_PER_HOUR;
 
-  const pctForMs = (ms: number) => Math.max(0, Math.min(100, ((ms - tMin) / span) * 100));
-  const pctForIdx = (i: number) => pctForMs(times[i] ?? tMin);
+  const hours = useMemo(() => {
+    const start = Math.ceil(tMin / 3_600_000) * 3_600_000;
+    const out: { ms: number; left: number; hour: number }[] = [];
+    for (let t = start; t <= tMax; t += 3_600_000) {
+      out.push({
+        ms: t,
+        left: ((t - tMin) / 3_600_000) * PX_PER_HOUR,
+        hour: new Date(t).getHours(),
+      });
+    }
+    return out;
+  }, [tMin, tMax, PX_PER_HOUR]);
 
-  const idxFromClientX = (clientX: number): number => {
-    const el = trackRef.current;
-    if (!el) return idx;
-    const r = el.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    const target = tMin + pct * span;
-    const nowMs = Date.now();
-    // In Forecast nur Forecast-Frames erlauben (sind stündlich) — verhindert
-    // Snap auf einen Past-5-min-Frame nahe der Gegenwart.
-    const restrictForecast = target > nowMs;
+  const ticks10 = useMemo(() => {
+    const start = Math.ceil(tMin / 600_000) * 600_000;
+    const out: number[] = [];
+    for (let t = start; t <= tMax; t += 600_000) {
+      out.push(((t - tMin) / 3_600_000) * PX_PER_HOUR);
+    }
+    return out;
+  }, [tMin, tMax, PX_PER_HOUR]);
+
+  const dayBreaks = hours.filter((h) => h.hour === 0);
+
+  const [dragMs, setDragMs] = useState<number | null>(null);
+  const [playMs, setPlayMs] = useState<number | null>(null);
+  const dragging = dragMs !== null;
+  const lastSentIdxRef = useRef<number>(idx);
+  useEffect(() => {
+    if (!dragging) lastSentIdxRef.current = idx;
+  }, [dragging, idx]);
+
+  // Play-Animation: kontinuierliches Mitführen der Bubble von frame[idx] → frame[visualNextIdx].
+  useEffect(() => {
+    if (!playing || dragging || visualNextIdx === null || visualNextIdx === idx) {
+      setPlayMs(null);
+      return;
+    }
+    const from = times[idx] ?? tMin;
+    const to = times[visualNextIdx] ?? from;
+    const dur = Math.max(120, 1800 / Math.max(0.25, speed));
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const t = Math.max(0, Math.min(1, (now - t0) / dur));
+      setPlayMs(from + (to - from) * t);
+      if (t < 0.995) raf = requestAnimationFrame(tick);
+    };
+    setPlayMs(from);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, dragging, idx, visualNextIdx, speed]);
+
+  const currentMs = dragMs ?? playMs ?? times[idx] ?? tMin;
+  const translateX = containerW / 2 - ((currentMs - tMin) / 3_600_000) * PX_PER_HOUR;
+  const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
+  const currentFrame = frames[idx] ?? null;
+  const bubbleLabel = fmtBubble(new Date(currentMs), currentFrame);
+  const dayLabel = fmtDayLong(new Date(currentMs));
+
+  const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
+  const onDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragStartRef.current = { x: e.clientX, ms: currentMs };
+    setDragMs(currentMs);
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try { navigator.vibrate(6); } catch { /* ignore */ }
+    }
+  };
+  const snapAndEmit = (target: number) => {
     let best = 0;
     let bestDt = Infinity;
+    const restrictForecast = target > nowMs;
     for (let i = 0; i < times.length; i++) {
       if (restrictForecast && frames[i]?.source === "radar") continue;
       const dt = Math.abs(times[i] - target);
@@ -1214,287 +1284,149 @@ function MeteoTimeline({
         best = i;
       }
     }
-    return best;
-  };
-
-  const rafRef = useRef<number | null>(null);
-  const pendingXRef = useRef<number | null>(null);
-  const lastSentIdxRef = useRef<number>(idx);
-  const [dragPct, setDragPct] = useState<number | null>(null);
-  const [playPct, setPlayPct] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!dragging) lastSentIdxRef.current = idx;
-  }, [dragging, idx]);
-
-  const pctFromClientX = (clientX: number): number => {
-    const el = trackRef.current;
-    if (!el) return 0;
-    const r = el.getBoundingClientRect();
-    return Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
-  };
-
-  const flushPending = () => {
-    rafRef.current = null;
-    const x = pendingXRef.current;
-    pendingXRef.current = null;
-    if (x == null) return;
-    setDragPct(pctFromClientX(x));
-    const ni = idxFromClientX(x);
-    if (ni !== lastSentIdxRef.current) {
-      lastSentIdxRef.current = ni;
-      onChange(ni);
+    if (best !== lastSentIdxRef.current) {
+      lastSentIdxRef.current = best;
+      onChange(best);
     }
   };
-  const cancelPending = () => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    pendingXRef.current = null;
+  const onMove = (e: React.PointerEvent) => {
+    if (!dragStartRef.current) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dMs = (-dx / PX_PER_HOUR) * 3_600_000;
+    const target = Math.max(tMin, Math.min(tMax, dragStartRef.current.ms + dMs));
+    setDragMs(target);
+    snapAndEmit(target);
   };
-  useEffect(() => () => cancelPending(), []);
-
-  useEffect(() => {
-    if (!playing || dragging || visualNextIdx === null || visualNextIdx === idx) {
-      setPlayPct(null);
-      return;
-    }
-    const from = pctForIdx(idx);
-    const to = pctForIdx(visualNextIdx);
-    const duration = Math.max(120, 1800 / Math.max(0.25, speed));
-    let raf = 0;
-    const startedAt = performance.now();
-    const tick = (nowMs: number) => {
-      const t = Math.max(0, Math.min(1, (nowMs - startedAt) / duration));
-      setPlayPct(from + (to - from) * t);
-      if (t < 0.995) raf = requestAnimationFrame(tick);
-    };
-    setPlayPct(from);
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, dragging, idx, visualNextIdx, speed, times]);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    setDragging(true);
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      try { navigator.vibrate(8); } catch { /* ignore */ }
-    }
-    setDragPct(pctFromClientX(e.clientX));
-    const ni = idxFromClientX(e.clientX);
-    lastSentIdxRef.current = ni;
-    onChange(ni);
-  };
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragging) return;
-    pendingXRef.current = e.clientX;
-    if (rafRef.current != null) return;
-    rafRef.current = requestAnimationFrame(flushPending);
-  };
-  const handlePointerUp = (e: React.PointerEvent) => {
-    setDragging(false);
-    cancelPending();
-    setDragPct(null);
+  const onUp = (e: React.PointerEvent) => {
+    dragStartRef.current = null;
+    setDragMs(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
-      // ignore
+      /* ignore */
     }
   };
 
-  // Stündliche Ticks im sichtbaren Zeitraum.
-  const hourTicks = useMemo(() => {
-    const startMs = Math.ceil(tMin / 3600000) * 3600000;
-    const out: { ms: number; pct: number; hour: number }[] = [];
-    for (let t = startMs; t <= tMax; t += 3600000) {
-      const d = new Date(t);
-      out.push({ ms: t, pct: pctForMs(t), hour: d.getHours() });
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tMin, tMax]);
-
-  // Tageswechsel-Linien (00:00).
-  const dayBreaks = hourTicks.filter((t) => t.hour === 0);
-
-  // Tages-Labels: Segmente zwischen Day-Breaks.
-  const daySegments = useMemo(() => {
-    const breaks = [tMin, ...dayBreaks.map((b) => b.ms), tMax];
-    const segs: { startPct: number; endPct: number; label: string }[] = [];
-    for (let i = 0; i < breaks.length - 1; i++) {
-      const a = breaks[i];
-      const b = breaks[i + 1];
-      if (b <= a) continue;
-      // Label = Datum des Mittelpunkts.
-      const mid = new Date((a + b) / 2);
-      segs.push({
-        startPct: pctForMs(a),
-        endPct: pctForMs(b),
-        label: fmtDayLong(mid),
-      });
-    }
-    return segs;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tMin, tMax, dayBreaks.length]);
-
-  const handlePct = dragPct ?? playPct ?? pctForIdx(idx);
-  // Bubble-Label & Frame-Zeit immer aus dem snapped Frame — auch während
-  // Drag — damit Forecast diskret stündlich erscheint statt 5-min suggeriert.
-  const currentMs = playPct !== null && !dragging ? tMin + (playPct / 100) * span : times[idx] ?? Date.now();
-  const currentDate = new Date(currentMs);
-  const currentFrame = frames[idx] ?? null;
-  const bubbleLabel = fmtBubble(currentDate, currentFrame);
-
-
-  // Reduzierte Beschriftung: ruhiger, moderner und ohne überladene Stundenleiste.
-  const labelStep = isMobile ? 6 : 3;
-
   return (
     <div className="select-none">
-      <div className="relative pt-6 pb-5">
-        {/* Stundenlabels über dem Track */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-4">
-          {hourTicks.map((t, i) => {
-            if (i % labelStep !== 0) return null;
-            return (
-              <span
-                key={`hl-${t.ms}`}
-                className="absolute -translate-x-1/2 text-[9px] font-semibold tabular-nums text-neutral-500/90"
-                style={{ left: `${t.pct}%`, top: 0 }}
-              >
-                {String(t.hour).padStart(2, "0")}
-              </span>
-            );
-          })}
+      {/* Bubble über fixer Mittellinie */}
+      <div className="relative h-7">
+        <div className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center">
+          <span
+            className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
+            style={{ background: BRAND }}
+          >
+            {bubbleLabel}
+          </span>
+          <span
+            className="h-0 w-0"
+            style={{
+              borderLeft: "5px solid transparent",
+              borderRight: "5px solid transparent",
+              borderTop: `5px solid ${BRAND}`,
+            }}
+          />
         </div>
+      </div>
 
-        {/* Track-Hit-Area */}
+      {/* Filmstreifen */}
+      <div
+        ref={containerRef}
+        role="slider"
+        aria-label="Radar-Zeit"
+        aria-valuemin={0}
+        aria-valuemax={frames.length - 1}
+        aria-valuenow={idx}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            onChange(Math.max(0, idx - 1));
+          } else if (e.key === "ArrowRight") {
+            e.preventDefault();
+            onChange(Math.min(frames.length - 1, idx + 1));
+          }
+        }}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        className="relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none active:cursor-grabbing focus-visible:ring-2"
+        style={{ ['--tw-ring-color' as never]: BRAND }}
+      >
+        {/* Fixe Mittel-Linie */}
+        <span className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-px -translate-x-1/2 bg-neutral-900/85" />
+        <span
+          className="pointer-events-none absolute left-1/2 top-0 z-30 h-2 w-2 -translate-x-1/2 rotate-45"
+          style={{ background: BRAND }}
+        />
+
+        {/* Scrollender Strip */}
         <div
-          ref={trackRef}
-          role="slider"
-          aria-label="Radar-Zeit"
-          aria-valuemin={0}
-          aria-valuemax={frames.length - 1}
-          aria-valuenow={idx}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowLeft") {
-              e.preventDefault();
-              onChange(Math.max(0, idx - 1));
-            } else if (e.key === "ArrowRight") {
-              e.preventDefault();
-              onChange(Math.min(frames.length - 1, idx + 1));
-            }
+          className="absolute inset-y-0 left-0 will-change-transform"
+          style={{
+            width: `${totalWidth}px`,
+            transform: `translate3d(${translateX}px,0,0)`,
+            transition: dragging || playing ? "none" : "transform 220ms cubic-bezier(.22,1,.36,1)",
           }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="relative flex h-9 w-full cursor-pointer touch-none items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:h-8"
-          style={{ ['--tw-ring-color' as never]: BRAND }}
         >
-          {/* Hintergrund-Track */}
-          <div className="relative h-[7px] w-full overflow-hidden rounded-full bg-neutral-200 shadow-inner">
-            {/* Messungs-Range */}
-            <div
-              className="absolute inset-y-0 left-0"
-              style={{
-                width: `${Math.max(0, Math.min(100, nowPct))}%`,
-                background: "#1f7a3a",
-                opacity: 0.92,
-              }}
-            />
-            {/* Vorhersage-Range */}
-            <div
-              className="absolute inset-y-0"
-              style={{
-                left: `${nowPct}%`,
-                width: `${Math.max(0, 100 - nowPct)}%`,
-                background: BRAND,
-                opacity: 0.92,
-              }}
-            />
-            {/* Hour-Ticks im Track */}
-            {hourTicks.map((t) => (
-              <span
-                key={`ht-${t.ms}`}
-                className="absolute top-0 h-full w-px bg-white/45"
-                style={{ left: `${t.pct}%` }}
-              />
-            ))}
-          </div>
+          {/* Messungs-Band (grau) */}
+          <div
+            className="absolute top-6 h-4 rounded-sm"
+            style={{ left: 0, width: nowLeft, background: "#9ca3af", opacity: 0.85 }}
+          />
+          {/* Prognose-Band (blau) */}
+          <div
+            className="absolute top-6 h-4 rounded-sm"
+            style={{
+              left: nowLeft,
+              width: Math.max(0, totalWidth - nowLeft),
+              background: BRAND,
+              opacity: 0.9,
+            }}
+          />
 
-          {/* Day-Break-Vertikallinien */}
-          {dayBreaks.map((b) => (
+          {/* 10-min-Ticks */}
+          {ticks10.map((l, i) => (
             <span
-              key={`db-${b.ms}`}
-              className="pointer-events-none absolute inset-y-0 w-px bg-neutral-900/20"
-              style={{ left: `${b.pct}%` }}
+              key={`m10-${i}`}
+              className="absolute top-7 h-2 w-px bg-white/45"
+              style={{ left: l }}
             />
           ))}
 
-          {/* "Jetzt"-Marker */}
-          {nowPct > 0 && nowPct < 100 && (
+          {/* Stunden-Ticks + Labels */}
+          {hours.map((h) => (
+            <div key={`h-${h.ms}`} className="absolute top-0 h-full" style={{ left: h.left }}>
+              <span className="absolute top-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-neutral-600">
+                {String(h.hour).padStart(2, "0")}:00
+              </span>
+              <span className="absolute top-6 h-4 w-px bg-neutral-900/40" />
+            </div>
+          ))}
+
+          {/* Tageswechsel */}
+          {dayBreaks.map((b) => (
             <span
-              className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-950 ring-2 ring-white shadow-sm"
-              style={{ left: `${nowPct}%` }}
+              key={`db-${b.ms}`}
+              className="absolute top-6 h-4 w-[2px] bg-neutral-900/70"
+              style={{ left: b.left }}
+            />
+          ))}
+
+          {/* "Jetzt"-Marker im Strip */}
+          {nowLeft > 0 && nowLeft < totalWidth && (
+            <span
+              className="absolute top-5 h-6 w-[2px] bg-neutral-950"
+              style={{ left: nowLeft }}
             />
           )}
-
-          {/* Handle */}
-          <div
-            className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${handlePct}%` }}
-          >
-            <div className="relative h-8 w-[3px] rounded-full bg-neutral-950/75 shadow-sm">
-              {/* Greif-Knopf */}
-              <div
-                className="absolute left-1/2 top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-lg ring-1 ring-neutral-900/10 before:absolute before:-inset-3 before:content-['']"
-                style={{ background: BRAND }}
-              />
-            </div>
-            {/* Bubble */}
-            <div className="absolute -top-9 left-1/2 flex -translate-x-1/2 flex-col items-center">
-              <span
-                className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
-                style={{ background: BRAND }}
-              >
-                {bubbleLabel}
-              </span>
-              <span
-                className="h-0 w-0"
-                style={{
-                  borderLeft: "4px solid transparent",
-                  borderRight: "4px solid transparent",
-                  borderTop: `4px solid ${BRAND}`,
-                }}
-              />
-            </div>
-          </div>
         </div>
+      </div>
 
-        {/* Tages-Labels unter dem Track */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4">
-          {daySegments.map((s, i) => {
-            const width = Math.max(0, s.endPct - s.startPct);
-            if (width < (isMobile ? 18 : 10)) return null;
-            return (
-              <span
-                key={`ds-${i}`}
-                className="absolute top-0 truncate text-[10px] font-semibold text-neutral-600"
-                style={{
-                  left: `${s.startPct}%`,
-                  width: `${width}%`,
-                  textAlign: "center",
-                }}
-              >
-                {s.label}
-              </span>
-            );
-          })}
-        </div>
+      {/* Tages-Label unter dem Streifen */}
+      <div className="mt-1 text-center text-[10px] font-semibold tabular-nums text-neutral-500">
+        {dayLabel}
       </div>
     </div>
   );
