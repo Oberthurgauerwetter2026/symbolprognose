@@ -479,7 +479,7 @@ function PrecipOverlay({
     valid: Uint8Array;
     contourScale?: Float32Array;
   } | null>(null);
-  const CACHE_MAX = 256;
+  const CACHE_MAX = 512;
 
   // Crossfade-Refs: nextFrame + progress werden pro Animation-Tick als Prop
   // gesetzt; redrawRef liest sie über Refs, damit die Animation kein Re-render
@@ -927,17 +927,19 @@ function MeasurementCanvasOverlay({
   url,
   bounds,
   opacity,
+  prefetchUrls,
 }: {
   url: string;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
+  prefetchUrls?: string[];
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
   const sourceRef = useRef<{ w: number; h: number; mmh: Float32Array } | null>(null);
   const cacheRef = useRef<Map<string, { w: number; h: number; mmh: Float32Array }>>(new Map());
-  const DECODE_CACHE_MAX = 8;
+  const DECODE_CACHE_MAX = 96;
 
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
@@ -1052,6 +1054,116 @@ function MeasurementCanvasOverlay({
       cancelled = true;
     };
   }, [url]);
+
+  // Pre-Decode aller bekannten Radar-PNGs, damit Scrubben über alle
+  // Messzeitpunkte ohne Lazy-Decode-Stocker läuft. Idle-gescheduled.
+  useEffect(() => {
+    if (!prefetchUrls || prefetchUrls.length === 0) return;
+    let cancelled = false;
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (h: number) => void;
+    };
+    let idleHandle: number | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    const schedule = (cb: () => void) => {
+      if (w.requestIdleCallback) {
+        idleHandle = w.requestIdleCallback(cb, { timeout: 400 });
+      } else {
+        timeoutHandle = setTimeout(cb, 0);
+      }
+    };
+
+    const decodeOne = (u: string, done: () => void) => {
+      if (cancelled) return;
+      if (cacheRef.current.has(u)) {
+        done();
+        return;
+      }
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.decoding = "async";
+      img.onload = () => {
+        if (cancelled) {
+          done();
+          return;
+        }
+        const cw = img.naturalWidth;
+        const ch = img.naturalHeight;
+        if (cw === 0 || ch === 0) {
+          done();
+          return;
+        }
+        const c = document.createElement("canvas");
+        c.width = cw;
+        c.height = ch;
+        const cx = c.getContext("2d", { willReadFrequently: true });
+        if (!cx) {
+          done();
+          return;
+        }
+        cx.drawImage(img, 0, 0);
+        let data: Uint8ClampedArray;
+        try {
+          data = cx.getImageData(0, 0, cw, ch).data;
+        } catch {
+          done();
+          return;
+        }
+        const mmh = new Float32Array(cw * ch);
+        for (let i = 0; i < cw * ch; i++) {
+          const o = i * 4;
+          const a = data[o + 3];
+          if (a < 8) {
+            mmh[i] = 0;
+            continue;
+          }
+          const r = data[o];
+          const g = data[o + 1];
+          const b = data[o + 2];
+          let bestD = Infinity;
+          let bestMmh = 0;
+          for (const s of SCALE) {
+            const dr = r - s.rgb[0];
+            const dg = g - s.rgb[1];
+            const db = b - s.rgb[2];
+            const d = dr * dr + dg * dg + db * db;
+            if (d < bestD) {
+              bestD = d;
+              bestMmh = s.mmh;
+            }
+          }
+          mmh[i] = bestMmh;
+        }
+        cacheRef.current.set(u, { w: cw, h: ch, mmh });
+        while (cacheRef.current.size > DECODE_CACHE_MAX) {
+          const firstKey = cacheRef.current.keys().next().value;
+          if (firstKey === undefined) break;
+          cacheRef.current.delete(firstKey);
+        }
+        done();
+      };
+      img.onerror = () => done();
+      img.src = u;
+    };
+
+    let i = 0;
+    const step = () => {
+      if (cancelled) return;
+      if (i >= prefetchUrls.length) return;
+      const u = prefetchUrls[i++];
+      decodeOne(u, () => {
+        if (!cancelled) schedule(step);
+      });
+    };
+    schedule(step);
+
+    return () => {
+      cancelled = true;
+      if (idleHandle !== null && w.cancelIdleCallback) w.cancelIdleCallback(idleHandle);
+      if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+    };
+  }, [prefetchUrls]);
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
@@ -1852,6 +1964,14 @@ export function RadarMap({
     () => playStepIndices.map((i) => frames[i]).filter(Boolean) as RadarFrame[],
     [playStepIndices, frames],
   );
+  // Alle Radar-PNG-URLs für Pre-Decode (Scrub ohne Stocker).
+  const radarUrls = useMemo(
+    () =>
+      frames
+        .filter((f) => f.source === "radar" && !!f.precipUrl)
+        .map((f) => f.precipUrl as string),
+    [frames],
+  );
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
   const stripNowIdx = useMemo(() => {
     if (playStepIndices.length === 0) return 0;
@@ -2001,7 +2121,7 @@ export function RadarMap({
                       }
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
-                      prewarmFrames={stripFrames}
+                      prewarmFrames={frames}
                     />
                   )}
                   {currentFrame.precipUrl && (
@@ -2009,6 +2129,7 @@ export function RadarMap({
                       url={currentFrame.precipUrl}
                       bounds={ib}
                       opacity={opacityVal}
+                      prefetchUrls={radarUrls}
                     />
                   )}
                   {/* Seam-Crossfade Messung → Prognose: blendet den ersten
