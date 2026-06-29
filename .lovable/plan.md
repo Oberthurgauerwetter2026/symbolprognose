@@ -1,35 +1,27 @@
-## Ziel
+## Ursache
 
-Scrubben (und Springen) über die gesamte Zeitachse — Messung wie Prognose — läuft ruckelfrei. Darstellung/Settings (Auflösung, Glättung, Farbskala, Smoothing-Quality, Crossfade) bleiben unverändert.
+`playStepIndices` mischt zwei Bucket-Größen (5 min Messung, 15 min Prognose) und wechselt am Jetzt-Übergang den Bucket-Key. Dadurch entsteht oft ein Step, dessen Zeit-Delta deutlich kleiner ist als die umgebenden Schritte (z. B. letzter Messframe 14:00 → erster Prognoseframe 14:05 → nächster 14:15). Der Play-Loop fährt aber jeden Step mit gleicher Wand-Zeit `FRAME_MS = 1800/speed` ab. Ein 5-Min-Step zwischen 15-Min-Steps wirkt deshalb wie ein Stop.
 
-## Engpässe heute
+## Fix
 
-- **Prognose**: Pre-Warm verarbeitet nur `stripFrames` (Cadence-reduziert). Beim Scrubben über die volle `frames`-Liste werden alle Nicht-Strip-Frames lazy gerendert → kurzes Stocken.
-- **Prognose-Cache**: `CACHE_MAX = 256` in `PrecipOverlay` reicht für 48 h × 15-min-Frames (≈192) plus Mess-Grid-Frames knapp.
-- **Messung**: `MeasurementCanvasOverlay` decodet jedes PNG erst beim Wechsel der `url`-Prop; LRU `DECODE_CACHE_MAX = 8` → beim Scrubben über 30+ Radarframes werden Decode-Kosten neu fällig.
-- Pre-Decode für Radar-PNGs existiert nicht.
+Play-Loop auf **konstante Zeit-Geschwindigkeit** statt konstante Steps-pro-Sekunde umstellen. Pro Step skaliert die Wandzeit mit dem realen Zeit-Delta zum nächsten Step.
 
-## Änderungen — `src/components/maps/radar-map.tsx`
+### Änderungen in `src/components/maps/radar-map.tsx` (Play-Loop ~Z. 1905–1955)
 
-### 1) Prognose: alle Frames vorwärmen, Cache hochziehen
+1. **Referenz-Delta bestimmen:** `REF_GAP_MS = 15 * 60_000` (Prognose-Cadence) als "Normal-Tempo". `FRAME_MS` bleibt die Wandzeit für einen Referenz-Step.
+2. **Pro-Step-Dauer:** Vor jedem Tick die Wandzeit aus dem realen Delta berechnen:
+   ```
+   const aMs = Date.parse(frames[playStepIndices[cur]].t);
+   const bMs = Date.parse(frames[playStepIndices[cur+1]].t);
+   const stepWall = FRAME_MS * Math.max(0.15, (bMs - aMs) / REF_GAP_MS);
+   ```
+   `Math.max(0.15, …)` deckelt extrem kurze Deltas nach unten, damit ein winziger Übergangs-Step nicht 0 ms dauert (sonst flackert er weg).
+3. **Tick:** statt `p += dt / FRAME_MS` → `p += dt / stepWall`. `stepWall` einmal pro Step (beim Cursor-Wechsel) berechnen und in einem Ref halten.
+4. **Optional, gleiche Stelle:** doppelte Übergangs-Steps von vornherein vermeiden — beim Bucket-Wechsel in `playStepIndices` einen Kandidaten überspringen, dessen Zeit-Abstand zum vorherigen Step < 0.4 × neuer Bucket-Größe ist. Hält die Liste auch beim Scrubben/Filmstrip ruhiger.
 
-- Pre-Warm-Liste umstellen: an `PrecipOverlay` (Z. 2004) wird `prewarmFrames={frames}` statt `stripFrames` übergeben. `buildOffscreenRef` ignoriert PNG-Frames (kein `values`) ohnehin (`vals.length > 0`-Guard), Mehraufwand betrifft nur Forecast-Frames.
-- `CACHE_MAX` (Z. 482) von `256` → `512`. Reicht für alle Forecast-Frames bei aktueller View, kein Re-Render beim Scrubben in beide Richtungen.
-- Reset-Verhalten unverändert: bei `movestart/zoomstart/resize` wird der Cache wie bisher geleert und nach Idle erneut vorgewärmt.
+Damit fließt Play bei 5-Min-Über­gängen entsprechend schneller durch und am Jetzt-Übergang entsteht keine wahrnehmbare Pause. Darstellung, Cadence-Wahl, Crossfade, Seam-Crossfade und Scrubbing bleiben unverändert.
 
-### 2) Messung: alle Radar-PNGs vor-decoden
+### Verifikation
 
-- `MeasurementCanvasOverlay` (Z. 926-) bekommt eine optionale Prop `prefetchUrls?: string[]`.
-- Neuer `useEffect` darin: nach Mount/Änderung der Liste werden die URLs über `requestIdleCallback`-Schedule sequenziell als `Image` geladen, in mm/h-Grid decodiert und in `cacheRef` gelegt — gleicher Pfad wie der reguläre `useEffect` für `url`. Abbruch bei Unmount oder Listen-Wechsel über `cancelled`-Flag.
-- `DECODE_CACHE_MAX` (Z. 940) von `8` → `96`, deckt ~8 h 5-min-Radar mit Reserve. Kein Bild-Resize, keine Darstellungs-Änderung.
-- Aufrufer (Z. 2007): `prefetchUrls={radarUrls}`, wobei `radarUrls = useMemo(() => frames.filter(f => f.source === 'radar' && f.precipUrl).map(f => f.precipUrl!), [frames])`.
-
-### 3) Keine Darstellungs-Änderungen
-
-- `STEP`, `imageSmoothingQuality`, `imageRendering`, `colorFor*`, fbm-Modulation, Crossfade-Logik und Seam-Crossfade bleiben **unverändert**. Nur Cache-Grenzen und Vorwärm-Listen wachsen.
-
-## Verifikation
-
-- `bunx tsgo --noEmit` grün.
-- `/karten/radar`: schnelles Scrubben über die gesamte Zeitachse (Messung + Prognose) zeigt sofort den passenden Frame — kein „erst Lade-Flicker, dann Bild". Wiederholtes Hin-und-Her im Slider bleibt flüssig.
-- Pan/Zoom invalidiert wie bisher den Cache und wärmt nach kurzer Idle-Pause wieder vor.
+- `bunx tsgo --noEmit`
+- Im Preview `/karten/radar`: Play starten ein paar Minuten vor "Jetzt" → Übergang Mess→Prognose läuft ohne Hänger durch; Schritte fern vom Übergang fühlen sich gleich an wie vorher.
