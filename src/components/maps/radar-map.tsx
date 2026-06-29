@@ -1439,6 +1439,11 @@ export function RadarMap({
 
   // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
+  void blendNext;
+
+  const timelineNextIdx = playing && idx !== null
+    ? playStepIndices[stepCursorForIndex(idx) + 1] ?? null
+    : null;
 
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
   // ihre URL via Leaflet `setUrl()` ohne Mount/Unmount, kein Leerframe.)
@@ -1712,6 +1717,9 @@ export function RadarMap({
                       frames={frames}
                       idx={idx}
                       isMobile={isMobile}
+                      playing={playing}
+                      speed={speed}
+                      visualNextIdx={timelineNextIdx}
                       onChange={(i) => {
                         setIdx(i);
                         setPlaying(false);
