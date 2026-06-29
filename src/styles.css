@@ -185,14 +185,17 @@
   filter: brightness(0) saturate(100%);
 }
 
-/* Radar: MeteoSchweiz-CombiPrecip-PNG mit harten Farbbändern, aber ohne brutal
-   aufgeblasene Pixel. Der Look bleibt crisp/blockig wie MCH, nur feiner. */
+/* Radar: MeteoSchweiz-CombiPrecip-PNG — Browser-Bilinear (auto), gleicher
+   Kontrast wie der Prognose-Canvas, damit Messung und Prognose visuell
+   übereinstimmen. */
 .mch-precip {
-  image-rendering: crisp-edges;
+  image-rendering: auto;
   filter: contrast(1.1);
   transform: translateZ(0);
   will-change: transform, opacity;
+  transition: opacity 220ms linear;
 }
+
 
 /* Embed-Fallback: server-gerenderter statischer Inhalt bleibt sichtbar,
    solange das JS-Bundle nicht hydratisiert hat (z. B. Proxy/Signage-Display).
