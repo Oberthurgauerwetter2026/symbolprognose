@@ -1123,6 +1123,7 @@ function DetailPanel({
                         cloudLow={h.cloud_cover_low?.[idx]}
                         cloudMid={h.cloud_cover_mid?.[idx]}
                         cloudHigh={h.cloud_cover_high?.[idx]}
+                        temp={h.temperature_2m?.[idx]}
                       />
 
 

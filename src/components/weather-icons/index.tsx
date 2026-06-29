@@ -400,11 +400,34 @@ function pickWetDailyIcon({
 
 /* ---------- MCH → existing icon set mapping ---------- */
 
-function mchToIcon(mchCode: number, isDayOverride: boolean | undefined, size?: number, className?: string) {
+function mchToIcon(
+  mchCode: number,
+  isDayOverride: boolean | undefined,
+  size?: number,
+  className?: string,
+  temp?: number,
+) {
   const code = mchCode >= 100 ? mchCode - 100 : mchCode;
   const isNight = typeof isDayOverride === "boolean" ? !isDayOverride : mchCode >= 100;
   const isDay = !isNight;
   const p = { size, className };
+
+  // Temperatur-Gate: MeteoSwiss-Punktmodell liefert Schnee-/Mischcodes auch
+  // bei Plusgraden, wenn der Niederschlag in der Höhe als Schnee anfällt.
+  // Am Boden ist es dann längst Regen → entsprechendes Regen-Icon erzwingen.
+  const t = typeof temp === "number" && Number.isFinite(temp) ? temp : null;
+  const mixCodes = new Set([11, 17, 18, 19, 20, 21, 22, 23]);
+  const pureSnow = new Set([10, 14, 15, 16]);
+  const showerSnow = new Set([11, 19, 20, 22, 23]);
+  if (t !== null) {
+    if (mixCodes.has(code) && t > 2) {
+      return showerSnow.has(code) && isDay ? <IconSunShower {...p} /> : <IconRain {...p} />;
+    }
+    if (pureSnow.has(code) && t > 4) {
+      return <IconRain {...p} />;
+    }
+  }
+
   switch (code) {
     case 1:
       return isDay ? <IconClear {...p} /> : <IconClearNight {...p} />;
@@ -486,6 +509,7 @@ export function WeatherIcon({
   cloudLow,
   cloudMid,
   cloudHigh,
+  temp,
 }: {
   code: number;
   /** MCH-Original-Icon-Code (1–35 Tag, 101–135 Nacht). Wenn vorhanden,
@@ -505,6 +529,9 @@ export function WeatherIcon({
   cloudLow?: number;
   cloudMid?: number;
   cloudHigh?: number;
+  /** 2 m-Temperatur in °C zum Icon-Zeitpunkt. Wird genutzt, um MCH-Schneecodes
+   *  bei Plusgraden auf Regen herabzustufen. */
+  temp?: number;
 
 }) {
   // MCH-Pictogramme haben absoluten Vorrang: 1:1 das MeteoSwiss-Symbol
@@ -513,7 +540,7 @@ export function WeatherIcon({
   const hasMch =
     typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
   if (hasMch) {
-    return mchToIcon(mchCode as number, isDay, size, className);
+    return mchToIcon(mchCode as number, isDay, size, className, temp);
   }
 
 
