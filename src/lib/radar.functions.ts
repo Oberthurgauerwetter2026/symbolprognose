@@ -664,8 +664,12 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     console.log(`[radar] advect wind (first 6h): ${samples.join(" ")}`);
   }
   for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
-    const grid =
-      advectedForecast(tMs) ?? getForecastExact(tMs) ?? interpolateForecast(tMs);
+    // Default: rohe 15-min-Werte aus ICON-CH1 (innerhalb einer Stunde konstant).
+    // drift=true: räumliche Wind-Advektion des Stundenfelds → sichtbare 15-min-
+    // Bewegung der NS-Felder, ohne Werte zu mischen.
+    const grid = input.drift
+      ? advectedForecast(tMs) ?? getForecastExact(tMs) ?? interpolateForecast(tMs)
+      : getForecastExact(tMs) ?? interpolateForecast(tMs);
     if (!grid) continue;
     frames.push({
       t: new Date(tMs).toISOString(),
