@@ -1964,6 +1964,14 @@ export function RadarMap({
     () => playStepIndices.map((i) => frames[i]).filter(Boolean) as RadarFrame[],
     [playStepIndices, frames],
   );
+  // Alle Radar-PNG-URLs für Pre-Decode (Scrub ohne Stocker).
+  const radarUrls = useMemo(
+    () =>
+      frames
+        .filter((f) => f.source === "radar" && !!f.precipUrl)
+        .map((f) => f.precipUrl as string),
+    [frames],
+  );
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
   const stripNowIdx = useMemo(() => {
     if (playStepIndices.length === 0) return 0;
