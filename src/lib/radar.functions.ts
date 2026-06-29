@@ -560,10 +560,11 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   const stepLon = (BBOX.maxLon - BBOX.minLon) / (GRID_LON - 1);
 
   const meanWindAt = (hMs: number): { u: number; v: number } => {
-    const sources: Array<{ resp: LocResponse[] | null; idxMap: Map<number, number> }> = [
+    const sources: Array<{ resp: unknown[] | null; idxMap: Map<number, number> }> = [
       { resp: r1, idxMap: r1HourIdx },
       { resp: r2, idxMap: r2HourIdx },
     ];
+
     for (const { resp, idxMap } of sources) {
       if (!resp) continue;
       const ti = idxMap.get(hMs);
