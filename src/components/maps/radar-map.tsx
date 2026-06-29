@@ -2035,7 +2035,7 @@ export function RadarMap({
         className={cn(
           bare
             ? "pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3"
-            : "mx-auto w-full max-w-3xl",
+            : "w-full",
         )}
       >
         <div
