@@ -717,6 +717,19 @@ function PrecipOverlay({
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+
+    // Crossfade: zeichne nextFrame mit alpha=progress darüber, damit zwischen
+    // zwei 15-min-Frames eine fliessende Bewegung entsteht (Profi-Radar-Look).
+    const nf = nextFrameRef.current;
+    const prog = progressRef.current;
+    if (nf && prog > 0 && nf.t !== frame.t) {
+      const nextOff = buildOffscreenRef.current(nf);
+      if (nextOff) {
+        ctx.globalAlpha = Math.min(1, Math.max(0, prog));
+        ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
+        ctx.globalAlpha = 1;
+      }
+    }
     ctx.restore();
   };
 
