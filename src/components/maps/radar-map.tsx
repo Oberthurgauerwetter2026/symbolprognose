@@ -1176,12 +1176,14 @@ function FilmstripTimeline({
   onChange,
   isMobile,
   playing,
+  visualMs,
 }: {
   frames: RadarFrame[];
   idx: number;
   onChange: (i: number) => void;
   isMobile: boolean;
   playing: boolean;
+  visualMs?: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerW, setContainerW] = useState(0);
