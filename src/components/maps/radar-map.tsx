@@ -1057,22 +1057,12 @@ function MeasurementCanvasOverlay({
     const lonSpan = maxLon - minLon;
 
     const sampleAt = (fx: number, fy: number) => {
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = Math.min(src.w - 1, x0 + 1);
-      const y1 = Math.min(src.h - 1, y0 + 1);
-      const tx = fx - x0;
-      const ty = fy - y0;
-      const v00 = src.mmh[y0 * src.w + x0];
-      const v01 = src.mmh[y0 * src.w + x1];
-      const v10 = src.mmh[y1 * src.w + x0];
-      const v11 = src.mmh[y1 * src.w + x1];
-      return (
-        v00 * (1 - tx) * (1 - ty) +
-        v01 * tx * (1 - ty) +
-        v10 * (1 - tx) * ty +
-        v11 * tx * ty
-      );
+      // Nearest-Neighbor: erhält die native 1-km-Auflösung des MeteoSchweiz-
+      // Rasters und verhindert wässrige bilineare Glättung. Die organische
+      // fbm-Modulation unten bricht die rechteckige Pixelkante auf.
+      const x = Math.max(0, Math.min(src.w - 1, Math.round(fx)));
+      const y = Math.max(0, Math.min(src.h - 1, Math.round(fy)));
+      return src.mmh[y * src.w + x];
     };
 
     // Organische Iso-Konturen wie in PrecipOverlay: fbm-Noise moduliert die
