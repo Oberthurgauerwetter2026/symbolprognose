@@ -8,7 +8,6 @@ import {
   Marker,
   TileLayer,
   ZoomControl,
-  ImageOverlay,
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
@@ -310,6 +309,78 @@ function ZoomGate({ minZoom, children }: { minZoom: number; children: React.Reac
   return <>{children}</>;
 }
 
+function toLeafletBounds(bounds: L.LatLngBoundsExpression): L.LatLngBounds {
+  return bounds instanceof L.LatLngBounds
+    ? bounds
+    : L.latLngBounds(bounds as L.LatLngExpression[]);
+}
+
+function StableImageOverlay({
+  url,
+  bounds,
+  opacity,
+  zIndex,
+  className,
+}: {
+  url: string;
+  bounds: L.LatLngBoundsExpression;
+  opacity: number;
+  zIndex?: number;
+  className?: string;
+}) {
+  const map = useMap();
+  const overlayRef = useRef<L.ImageOverlay | null>(null);
+  const latestUrlRef = useRef(url);
+
+  useEffect(() => {
+    const overlay = L.imageOverlay(url, toLeafletBounds(bounds), { opacity, zIndex, className }).addTo(map);
+    overlayRef.current = overlay;
+    latestUrlRef.current = url;
+    return () => {
+      overlay.remove();
+      overlayRef.current = null;
+    };
+    // Leaflet layer stays mounted; frame changes use setUrl after preload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    overlay.setBounds(toLeafletBounds(bounds));
+    overlay.setOpacity(opacity);
+    if (typeof zIndex === "number") overlay.setZIndex(zIndex);
+  }, [bounds, opacity, zIndex]);
+
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay || latestUrlRef.current === url) return;
+    let cancelled = false;
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      if (cancelled) return;
+      latestUrlRef.current = url;
+      overlay.setUrl(url);
+    };
+    img.onerror = () => {
+      if (cancelled) return;
+      latestUrlRef.current = url;
+      overlay.setUrl(url);
+    };
+    img.src = url;
+    if (img.complete) {
+      latestUrlRef.current = url;
+      overlay.setUrl(url);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return null;
+}
+
 // estimateAdvection entfernt: advektives Resampling in der Prognose verursachte
 // sichtbares Wackeln der Niederschlagsbänder zwischen Framepaaren.
 
@@ -394,6 +465,15 @@ function PrecipOverlay({
   // gerendert und gecacht; Scrub/Play blittet nur noch. Optik unverändert.
   const cacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const viewKeyRef = useRef<string>("");
+  const lookupRef = useRef<{
+    key: string;
+    lowW: number;
+    lowH: number;
+    fx: Float32Array;
+    fy: Float32Array;
+    valid: Uint8Array;
+    contourScale?: Float32Array;
+  } | null>(null);
   const CACHE_MAX = 64;
 
   const redrawRef = useRef<() => void>(() => {});
@@ -404,6 +484,7 @@ function PrecipOverlay({
   useEffect(() => {
     const clear = () => {
       cacheRef.current.clear();
+      lookupRef.current = null;
       viewKeyRef.current = "";
     };
     map.on("zoomstart movestart resize", clear);
@@ -427,12 +508,103 @@ function PrecipOverlay({
     if (!ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
 
+    const { gridLat, gridLon } = payload;
+    const nLat = gridLat.length;
+    const nLon = gridLon.length;
+    const vals = frame.values;
+    const snowVals = frame.snowValues;
+    const STEP = contour ? 2 : 1;
+    const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
+    const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
+
     // View-Key — Cache invalidiert bei Pan/Zoom/Resize/DPR-Wechsel.
     const center = map.getCenter();
-    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}|${contour ? "f" : "m"}`;
+    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}|${STEP}|${contour ? "f" : "m"}`;
     if (viewKey !== viewKeyRef.current) {
       cacheRef.current.clear();
+      lookupRef.current = null;
       viewKeyRef.current = viewKey;
+    }
+
+    let lookup = lookupRef.current;
+    if (!lookup || lookup.key !== viewKey) {
+      const fx = new Float32Array(lowWForView * lowHForView);
+      const fy = new Float32Array(lowWForView * lowHForView);
+      const valid = new Uint8Array(lowWForView * lowHForView);
+      const contourScale = contour ? new Float32Array(lowWForView * lowHForView) : undefined;
+
+      const hash = (ix: number, iy: number) => {
+        let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
+        h = (h ^ (h >>> 13)) * 1274126177;
+        h = h ^ (h >>> 16);
+        return ((h >>> 0) % 10000) / 10000;
+      };
+      const smooth = (u: number) => u * u * (3 - 2 * u);
+      const valueNoise = (x: number, y: number) => {
+        const ix = Math.floor(x);
+        const iy = Math.floor(y);
+        const fxN = smooth(x - ix);
+        const fyN = smooth(y - iy);
+        const a = hash(ix, iy);
+        const b = hash(ix + 1, iy);
+        const c = hash(ix, iy + 1);
+        const d = hash(ix + 1, iy + 1);
+        return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
+      };
+      const fbm = (x: number, y: number) => {
+        let v = 0;
+        let amp = 0.5;
+        let freq = 1;
+        for (let o = 0; o < 5; o++) {
+          v += valueNoise(x * freq, y * freq) * amp;
+          amp *= 0.5;
+          freq *= 2.1;
+        }
+        return v;
+      };
+      const COS = 0.866;
+      const SIN = 0.5;
+
+      for (let ly = 0; ly < lowHForView; ly++) {
+        for (let lx = 0; lx < lowWForView; lx++) {
+          const cell = ly * lowWForView + lx;
+          const px = lx * STEP;
+          const py = ly * STEP;
+          const ll = map.containerPointToLatLng([px, py]);
+          const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+          const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+          const BUFFER = 3;
+          if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
+          if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
+          fx[cell] = fxRaw;
+          fy[cell] = fyRaw;
+          valid[cell] = 1;
+
+          if (contourScale) {
+            const sx = fxRaw * 0.9;
+            const sy = fyRaw * 0.85;
+            const rx = sx * COS - sy * SIN;
+            const ry = sx * SIN + sy * COS;
+            const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
+            const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
+            const n = fbm(rx + warpX, ry + warpY);
+            const mod = 0.25 + n * 1.55;
+            const env1 = fbm(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
+            const env2 = fbm(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
+            const env3 = fbm(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
+            const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
+            const edgeNX = Math.min(fxRaw, nLon - 1 - fxRaw) / (nLon - 1);
+            const edgeNY = Math.min(fyRaw, nLat - 1 - fyRaw) / (nLat - 1);
+            const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
+            const edgeJitter = 0.55 + fbm(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
+            const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
+            const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
+            contourScale[cell] = mod * envelope;
+          }
+        }
+      }
+      lookup = { key: viewKey, lowW: lowWForView, lowH: lowHForView, fx, fy, valid, contourScale };
+      lookupRef.current = lookup;
     }
 
     const cacheKey = `${frame.t}|${frame.source ?? ""}`;
@@ -447,17 +619,8 @@ function PrecipOverlay({
       lowW = off.width;
       lowH = off.height;
     } else {
-      const { gridLat, gridLon } = payload;
-      const nLat = gridLat.length;
-      const nLon = gridLon.length;
-      const vals = frame.values;
-      const snowVals = frame.snowValues;
-
-      // Prognose: 1-Pixel-Raster → Iso-Kanten folgen dem noise-modulierten
-      // Feld organisch. Messung: 2-Pixel-Raster (Performance).
-      const STEP = contour ? 1 : 2;
-      lowW = Math.max(1, Math.ceil(size.x / STEP));
-      lowH = Math.max(1, Math.ceil(size.y / STEP));
+      lowW = lookup.lowW;
+      lowH = lookup.lowH;
 
       const img = ctx.createImageData(lowW, lowH);
       const data = img.data;
@@ -487,73 +650,17 @@ function PrecipOverlay({
         );
       };
 
-      // -------- Deterministisches Value-Noise + fBm --------
-      const seed = frame ? (Date.parse(frame.t) / 60000) | 0 : 0;
-      const hash = (ix: number, iy: number) => {
-        let h = (ix * 374761393 + iy * 668265263 + seed * 1442695041) | 0;
-        h = (h ^ (h >>> 13)) * 1274126177;
-        h = h ^ (h >>> 16);
-        return ((h >>> 0) % 10000) / 10000;
-      };
-      const smooth = (u: number) => u * u * (3 - 2 * u);
-      const valueNoise = (x: number, y: number) => {
-        const ix = Math.floor(x);
-        const iy = Math.floor(y);
-        const fx = smooth(x - ix);
-        const fy = smooth(y - iy);
-        const a = hash(ix, iy);
-        const b = hash(ix + 1, iy);
-        const c = hash(ix, iy + 1);
-        const d = hash(ix + 1, iy + 1);
-        return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
-      };
-      const fbm = (x: number, y: number) => {
-        let v = 0;
-        let amp = 0.5;
-        let freq = 1;
-        for (let o = 0; o < 5; o++) {
-          v += valueNoise(x * freq, y * freq) * amp;
-          amp *= 0.5;
-          freq *= 2.1;
-        }
-        return v;
-      };
-      const COS = 0.866;
-      const SIN = 0.5;
-
       for (let ly = 0; ly < lowH; ly++) {
         for (let lx = 0; lx < lowW; lx++) {
-          const px = lx * STEP;
-          const py = ly * STEP;
-          const ll = map.containerPointToLatLng([px, py]);
-          const fxRaw = ((ll.lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
-          const fyRaw = ((ll.lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-          const BUFFER = 3;
-          if (fxRaw < -BUFFER || fxRaw > nLon - 1 + BUFFER) continue;
-          if (fyRaw < -BUFFER || fyRaw > nLat - 1 + BUFFER) continue;
+          const cell = ly * lowW + lx;
+          if (!lookup.valid[cell]) continue;
+          const fxRaw = lookup.fx[cell];
+          const fyRaw = lookup.fy[cell];
 
           let v = sampleAt(vals, fxRaw, fyRaw);
 
-          if (contour && v > 0) {
-            const sx = fxRaw * 0.9;
-            const sy = fyRaw * 0.85;
-            const rx = sx * COS - sy * SIN;
-            const ry = sx * SIN + sy * COS;
-            const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-            const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
-            const n = fbm(rx + warpX, ry + warpY);
-            const mod = 0.25 + n * 1.55;
-            const env1 = fbm(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
-            const env2 = fbm(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
-            const env3 = fbm(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
-            const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
-            const edgeNX = Math.min(fxRaw, nLon - 1 - fxRaw) / (nLon - 1);
-            const edgeNY = Math.min(fyRaw, nLat - 1 - fyRaw) / (nLat - 1);
-            const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
-            const edgeJitter = 0.55 + fbm(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
-            const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
-            const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
-            v = v * mod * envelope;
+          if (contour && v > 0 && lookup.contourScale) {
+            v = v * lookup.contourScale[cell];
           }
 
           const minV = contour ? 0.05 : 0.1;
@@ -596,8 +703,7 @@ function PrecipOverlay({
 
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = !contour;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
@@ -861,11 +967,17 @@ function MeteoTimeline({
   idx,
   onChange,
   isMobile,
+  playing,
+  speed,
+  visualNextIdx,
 }: {
   frames: RadarFrame[];
   idx: number;
   onChange: (i: number) => void;
   isMobile: boolean;
+  playing: boolean;
+  speed: number;
+  visualNextIdx: number | null;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -907,6 +1019,11 @@ function MeteoTimeline({
   const pendingXRef = useRef<number | null>(null);
   const lastSentIdxRef = useRef<number>(idx);
   const [dragPct, setDragPct] = useState<number | null>(null);
+  const [playPct, setPlayPct] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!dragging) lastSentIdxRef.current = idx;
+  }, [dragging, idx]);
 
   const pctFromClientX = (clientX: number): number => {
     const el = trackRef.current;
@@ -935,6 +1052,27 @@ function MeteoTimeline({
     pendingXRef.current = null;
   };
   useEffect(() => () => cancelPending(), []);
+
+  useEffect(() => {
+    if (!playing || dragging || visualNextIdx === null || visualNextIdx === idx) {
+      setPlayPct(null);
+      return;
+    }
+    const from = pctForIdx(idx);
+    const to = pctForIdx(visualNextIdx);
+    const duration = Math.max(120, 1800 / Math.max(0.25, speed));
+    let raf = 0;
+    const startedAt = performance.now();
+    const tick = (nowMs: number) => {
+      const t = Math.max(0, Math.min(1, (nowMs - startedAt) / duration));
+      setPlayPct(from + (to - from) * t);
+      if (t < 0.995) raf = requestAnimationFrame(tick);
+    };
+    setPlayPct(from);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, dragging, idx, visualNextIdx, speed, times]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -999,21 +1137,21 @@ function MeteoTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tMin, tMax, dayBreaks.length]);
 
-  const handlePct = dragPct ?? pctForIdx(idx);
+  const handlePct = dragPct ?? playPct ?? pctForIdx(idx);
   // Bubble-Label & Frame-Zeit immer aus dem snapped Frame — auch während
   // Drag — damit Forecast diskret stündlich erscheint statt 5-min suggeriert.
-  const currentMs = times[idx] ?? Date.now();
+  const currentMs = playPct !== null && !dragging ? tMin + (playPct / 100) * span : times[idx] ?? Date.now();
   const currentDate = new Date(currentMs);
   const currentFrame = frames[idx] ?? null;
   const bubbleLabel = fmtBubble(currentDate, currentFrame);
 
 
-  // Auf Mobile nur jede 3. Stunde labeln, damit's nicht überlappt.
-  const labelStep = isMobile ? 3 : 1;
+  // Reduzierte Beschriftung: ruhiger, moderner und ohne überladene Stundenleiste.
+  const labelStep = isMobile ? 6 : 3;
 
   return (
     <div className="select-none">
-      <div className="relative pt-5 pb-4">
+      <div className="relative pt-6 pb-5">
         {/* Stundenlabels über dem Track */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-4">
           {hourTicks.map((t, i) => {
@@ -1021,7 +1159,7 @@ function MeteoTimeline({
             return (
               <span
                 key={`hl-${t.ms}`}
-                className="absolute -translate-x-1/2 text-[9px] font-medium tabular-nums text-neutral-500"
+                className="absolute -translate-x-1/2 text-[9px] font-semibold tabular-nums text-neutral-500/90"
                 style={{ left: `${t.pct}%`, top: 0 }}
               >
                 {String(t.hour).padStart(2, "0")}
@@ -1052,11 +1190,20 @@ function MeteoTimeline({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded sm:h-6"
+          className="relative flex h-9 w-full cursor-pointer touch-none items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:h-8"
           style={{ ['--tw-ring-color' as never]: BRAND }}
         >
           {/* Hintergrund-Track */}
-          <div className="relative h-[4px] w-full overflow-hidden rounded-full bg-neutral-200">
+          <div className="relative h-[7px] w-full overflow-hidden rounded-full bg-neutral-200 shadow-inner">
+            {/* Messungs-Range */}
+            <div
+              className="absolute inset-y-0 left-0"
+              style={{
+                width: `${Math.max(0, Math.min(100, nowPct))}%`,
+                background: "#1f7a3a",
+                opacity: 0.92,
+              }}
+            />
             {/* Vorhersage-Range */}
             <div
               className="absolute inset-y-0"
@@ -1064,14 +1211,14 @@ function MeteoTimeline({
                 left: `${nowPct}%`,
                 width: `${Math.max(0, 100 - nowPct)}%`,
                 background: BRAND,
-                opacity: 0.9,
+                opacity: 0.92,
               }}
             />
             {/* Hour-Ticks im Track */}
             {hourTicks.map((t) => (
               <span
                 key={`ht-${t.ms}`}
-                className="absolute top-0 h-full w-px bg-neutral-300"
+                className="absolute top-0 h-full w-px bg-white/45"
                 style={{ left: `${t.pct}%` }}
               />
             ))}
@@ -1081,7 +1228,7 @@ function MeteoTimeline({
           {dayBreaks.map((b) => (
             <span
               key={`db-${b.ms}`}
-              className="pointer-events-none absolute inset-y-0 w-px bg-neutral-300"
+              className="pointer-events-none absolute inset-y-0 w-px bg-neutral-900/20"
               style={{ left: `${b.pct}%` }}
             />
           ))}
@@ -1089,7 +1236,7 @@ function MeteoTimeline({
           {/* "Jetzt"-Marker */}
           {nowPct > 0 && nowPct < 100 && (
             <span
-              className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-neutral-900 ring-2 ring-white"
+              className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-950 ring-2 ring-white shadow-sm"
               style={{ left: `${nowPct}%` }}
             />
           )}
@@ -1099,17 +1246,17 @@ function MeteoTimeline({
             className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${handlePct}%` }}
           >
-            <div className="relative h-6 w-[2px] rounded-sm bg-neutral-900/70">
+            <div className="relative h-8 w-[3px] rounded-full bg-neutral-950/75 shadow-sm">
               {/* Greif-Knopf */}
               <div
-                className="absolute left-1/2 top-1/2 h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md before:absolute before:-inset-3 before:content-['']"
+                className="absolute left-1/2 top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-lg ring-1 ring-neutral-900/10 before:absolute before:-inset-3 before:content-['']"
                 style={{ background: BRAND }}
               />
             </div>
             {/* Bubble */}
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
+            <div className="absolute -top-9 left-1/2 flex -translate-x-1/2 flex-col items-center">
               <span
-                className="whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm"
+                className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
                 style={{ background: BRAND }}
               >
                 {bubbleLabel}
@@ -1134,7 +1281,7 @@ function MeteoTimeline({
             return (
               <span
                 key={`ds-${i}`}
-                className="absolute top-0 text-[10px] font-medium text-neutral-600 truncate"
+                className="absolute top-0 truncate text-[10px] font-semibold text-neutral-600"
                 style={{
                   left: `${s.startPct}%`,
                   width: `${width}%`,
@@ -1298,6 +1445,11 @@ export function RadarMap({
 
   // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
+  void blendNext;
+
+  const timelineNextIdx = playing && idx !== null
+    ? playStepIndices[stepCursorForIndex(idx) + 1] ?? null
+    : null;
 
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
   // ihre URL via Leaflet `setUrl()` ohne Mount/Unmount, kein Leerframe.)
@@ -1426,8 +1578,7 @@ export function RadarMap({
 
                   )}
                   {hasPng && (
-                    <ImageOverlay
-                      key="precip-main"
+                    <StableImageOverlay
                       url={currentFrame.precipUrl!}
                       bounds={[
                         [ib.minLat, ib.minLon],
@@ -1442,8 +1593,7 @@ export function RadarMap({
               );
             })()}
           {data && currentFrame && showHail && currentFrame.hailUrl && (
-            <ImageOverlay
-              key="hail-main"
+            <StableImageOverlay
               url={currentFrame.hailUrl}
               bounds={[
                 [data.imageBbox.minLat, data.imageBbox.minLon],
@@ -1573,6 +1723,9 @@ export function RadarMap({
                       frames={frames}
                       idx={idx}
                       isMobile={isMobile}
+                      playing={playing}
+                      speed={speed}
+                      visualNextIdx={timelineNextIdx}
                       onChange={(i) => {
                         setIdx(i);
                         setPlaying(false);
