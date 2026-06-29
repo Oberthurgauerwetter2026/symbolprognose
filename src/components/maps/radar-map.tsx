@@ -2113,7 +2113,7 @@ export function RadarMap({
                       }
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
-                      prewarmFrames={stripFrames}
+                      prewarmFrames={frames}
                     />
                   )}
                   {currentFrame.precipUrl && (
