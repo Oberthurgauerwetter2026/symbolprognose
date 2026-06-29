@@ -1057,22 +1057,12 @@ function MeasurementCanvasOverlay({
     const lonSpan = maxLon - minLon;
 
     const sampleAt = (fx: number, fy: number) => {
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = Math.min(src.w - 1, x0 + 1);
-      const y1 = Math.min(src.h - 1, y0 + 1);
-      const tx = fx - x0;
-      const ty = fy - y0;
-      const v00 = src.mmh[y0 * src.w + x0];
-      const v01 = src.mmh[y0 * src.w + x1];
-      const v10 = src.mmh[y1 * src.w + x0];
-      const v11 = src.mmh[y1 * src.w + x1];
-      return (
-        v00 * (1 - tx) * (1 - ty) +
-        v01 * tx * (1 - ty) +
-        v10 * (1 - tx) * ty +
-        v11 * tx * ty
-      );
+      // Nearest-Neighbor: erhält die native 1-km-Auflösung des MeteoSchweiz-
+      // Rasters und verhindert wässrige bilineare Glättung. Die organische
+      // fbm-Modulation unten bricht die rechteckige Pixelkante auf.
+      const x = Math.max(0, Math.min(src.w - 1, Math.round(fx)));
+      const y = Math.max(0, Math.min(src.h - 1, Math.round(fy)));
+      return src.mmh[y * src.w + x];
     };
 
     // Organische Iso-Konturen wie in PrecipOverlay: fbm-Noise moduliert die
@@ -1146,8 +1136,7 @@ function MeasurementCanvasOverlay({
     offCtx.putImageData(img, 0, 0);
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "low";
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
@@ -1368,12 +1357,8 @@ function fmtUpdatedAt(iso: string): string {
   }).format(d);
 }
 
-function fmtDayLong(d: Date): string {
-  const wd = WEEKDAY_LONG[d.getDay()];
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
-}
+
+
 
 
 function fmtBubble(d: Date, frame: RadarFrame | null): string {
@@ -1478,7 +1463,6 @@ function FilmstripTimeline({
   const currentFrame = frames[displayIdx] ?? null;
   const timelineColor = timelineColorFor(currentFrame);
   const bubbleLabel = fmtBubble(new Date(currentMs), currentFrame);
-  const dayLabel = fmtDayLong(new Date(currentMs));
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
@@ -1647,11 +1631,6 @@ function FilmstripTimeline({
           )}
         </div>
       </div>
-
-      {/* Tages-Label unter dem Streifen */}
-      <div className="mt-1 text-center text-[10px] font-semibold tabular-nums text-neutral-500">
-        {dayLabel}
-      </div>
     </div>
   );
 }
@@ -1670,14 +1649,13 @@ export function RadarMap({
   bare?: boolean;
   initialFrames?: RadarPayload;
 }) {
-  const [driftOn, setDriftOn] = useState(false);
   const { data, isLoading, error } = useQuery({
-    queryKey: ["radar-frames", driftOn ? "drift" : "raw"],
-    queryFn: () => getRadarFrames({ data: { drift: driftOn } }),
+    queryKey: ["radar-frames"],
+    queryFn: () => getRadarFrames(),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
-    initialData: driftOn ? undefined : initialFrames,
-    initialDataUpdatedAt: !driftOn && initialFrames ? Date.now() : undefined,
+    initialData: initialFrames,
+    initialDataUpdatedAt: initialFrames ? Date.now() : undefined,
   });
 
   // Modellprognose bis +48 h: CH1 primär, CH2 nahtloser Fallback.
@@ -2055,7 +2033,7 @@ export function RadarMap({
         className={cn(
           bare
             ? "pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3"
-            : "w-full",
+            : "mx-auto w-full max-w-3xl",
         )}
       >
         <div
@@ -2212,21 +2190,6 @@ export function RadarMap({
                             onCheckedChange={setShowHail}
                             disabled={!data?.hasHail}
                             aria-label="Hagel-Layer"
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-[11px] font-semibold text-neutral-700">
-                              Wind-Drift (Prognose)
-                            </p>
-                            <p className="text-[10px] text-neutral-500">
-                              NS-Felder im 15-min-Takt mit Wind ziehen lassen
-                            </p>
-                          </div>
-                          <Switch
-                            checked={driftOn}
-                            onCheckedChange={setDriftOn}
-                            aria-label="Wind-Drift in der Prognose"
                           />
                         </div>
                       </div>
