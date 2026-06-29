@@ -1474,7 +1474,6 @@ function FilmstripTimeline({
   const currentFrame = frames[displayIdx] ?? null;
   const timelineColor = timelineColorFor(currentFrame);
   const bubbleLabel = fmtBubble(new Date(currentMs), currentFrame);
-  const dayLabel = fmtDayLong(new Date(currentMs));
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
