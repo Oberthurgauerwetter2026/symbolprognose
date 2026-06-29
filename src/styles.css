@@ -185,14 +185,13 @@
   filter: brightness(0) saturate(100%);
 }
 
-/* Radar: MeteoSchweiz-CombiPrecip-PNG in nativer ~1km-Auflösung — Pixel
-   bleiben scharf, damit der typische MCH-Rasterlook (quadratische Zellen,
-   harte Bandkanten) auch bei hohem Zoom erhalten bleibt. */
+/* Radar: MeteoSchweiz-CombiPrecip-PNG mit harten Farbbändern, aber ohne brutal
+   aufgeblasene Pixel. Der Look bleibt crisp/blockig wie MCH, nur feiner. */
 .mch-precip {
-  image-rendering: pixelated;
   image-rendering: crisp-edges;
   filter: contrast(1.1);
-  will-change: filter;
+  transform: translateZ(0);
+  will-change: transform, opacity;
 }
 
 /* Embed-Fallback: server-gerenderter statischer Inhalt bleibt sichtbar,
