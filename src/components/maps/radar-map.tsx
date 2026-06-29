@@ -1742,17 +1742,13 @@ export function RadarMap({
                     />
                   )}
                   {currentFrame.precipUrl && (
-                    <StableImageOverlay
+                    <MeasurementCanvasOverlay
                       url={currentFrame.precipUrl}
-                      bounds={[
-                        [ib.minLat, ib.minLon],
-                        [ib.maxLat, ib.maxLon],
-                      ]}
+                      bounds={ib}
                       opacity={opacityVal}
-                      zIndex={460}
-                      className="mch-precip"
                     />
                   )}
+
                 </>
               );
             })()}
