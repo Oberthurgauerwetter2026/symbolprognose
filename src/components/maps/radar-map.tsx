@@ -479,7 +479,7 @@ function PrecipOverlay({
     valid: Uint8Array;
     contourScale?: Float32Array;
   } | null>(null);
-  const CACHE_MAX = 64;
+  const CACHE_MAX = 256;
 
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
