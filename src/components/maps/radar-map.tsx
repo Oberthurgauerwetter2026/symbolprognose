@@ -2245,6 +2245,8 @@ export function RadarMap({
         </div>
       </div>
 
+
+
       {/* Footnote unter der Karte */}
       {data && (
         <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
