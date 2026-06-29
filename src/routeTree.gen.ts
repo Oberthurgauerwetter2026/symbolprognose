@@ -29,6 +29,7 @@ import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
 import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/public/symbol/ingest-trigger'
 import { Route as ApiPublicSnapshotMapRouteImport } from './routes/api/public/snapshot/$map'
+import { Route as ApiPublicRadarProxyRouteImport } from './routes/api/public/radar/proxy'
 import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
 import { Route as ApiPublicOpenmeteoIngestTriggerRouteImport } from './routes/api/public/openmeteo/ingest-trigger'
 import { Route as ApiPublicMchIngestTriggerRouteImport } from './routes/api/public/mch/ingest-trigger'
@@ -137,6 +138,11 @@ const ApiPublicSnapshotMapRoute = ApiPublicSnapshotMapRouteImport.update({
   path: '/api/public/snapshot/$map',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRadarProxyRoute = ApiPublicRadarProxyRouteImport.update({
+  id: '/api/public/radar/proxy',
+  path: '/api/public/radar/proxy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRadarIngestTriggerRoute =
   ApiPublicRadarIngestTriggerRouteImport.update({
     id: '/api/public/radar/ingest-trigger',
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
+  '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
 }
@@ -226,6 +233,7 @@ export interface FileRoutesByTo {
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
+  '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
 }
@@ -255,6 +263,7 @@ export interface FileRoutesById {
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
+  '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
 }
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
+    | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
   fileRoutesByTo: FileRoutesByTo
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
+    | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
   id:
@@ -341,6 +352,7 @@ export interface FileRouteTypes {
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
+    | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
   fileRoutesById: FileRoutesById
@@ -370,6 +382,7 @@ export interface RootRouteChildren {
   ApiPublicMchIngestTriggerRoute: typeof ApiPublicMchIngestTriggerRoute
   ApiPublicOpenmeteoIngestTriggerRoute: typeof ApiPublicOpenmeteoIngestTriggerRoute
   ApiPublicRadarIngestTriggerRoute: typeof ApiPublicRadarIngestTriggerRoute
+  ApiPublicRadarProxyRoute: typeof ApiPublicRadarProxyRoute
   ApiPublicSnapshotMapRoute: typeof ApiPublicSnapshotMapRoute
   ApiPublicSymbolIngestTriggerRoute: typeof ApiPublicSymbolIngestTriggerRoute
 }
@@ -516,6 +529,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSnapshotMapRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/radar/proxy': {
+      id: '/api/public/radar/proxy'
+      path: '/api/public/radar/proxy'
+      fullPath: '/api/public/radar/proxy'
+      preLoaderRoute: typeof ApiPublicRadarProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/radar/ingest-trigger': {
       id: '/api/public/radar/ingest-trigger'
       path: '/api/public/radar/ingest-trigger'
@@ -586,6 +606,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicMchIngestTriggerRoute: ApiPublicMchIngestTriggerRoute,
   ApiPublicOpenmeteoIngestTriggerRoute: ApiPublicOpenmeteoIngestTriggerRoute,
   ApiPublicRadarIngestTriggerRoute: ApiPublicRadarIngestTriggerRoute,
+  ApiPublicRadarProxyRoute: ApiPublicRadarProxyRoute,
   ApiPublicSnapshotMapRoute: ApiPublicSnapshotMapRoute,
   ApiPublicSymbolIngestTriggerRoute: ApiPublicSymbolIngestTriggerRoute,
 }

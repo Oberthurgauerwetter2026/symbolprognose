@@ -433,9 +433,8 @@ function PrecipOverlay({
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
         cv.style.filter = "contrast(1.1)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = contour
-          ? "pixelated"
-          : "auto";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "pixelated";
+
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -760,7 +759,8 @@ function MeasurementCanvasOverlay({
         cv.style.willChange = "transform";
         cv.style.zIndex = "460";
         cv.style.filter = "contrast(1.1)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "pixelated";
+
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
@@ -1509,22 +1509,22 @@ export function RadarMap({
   }, [nowIdx, frames.length, idx]);
 
   // Play-Schritt-Indizes mit gemischter Cadence:
-  //   Past (t <= now)          : 5-min-Takt
-  //   Forecast bis +24 h       : 15-min-Takt
-  //   Forecast > +24 h         : 1-h-Takt
+  //   Messung (t <= now)       : 5-min-Takt
+  //   Prognose 0–24 h          : 15-min-Takt
+  //   Prognose > +24 h         : 1-h-Takt
   // Pro Bucket wird der erste passende Frame übernommen.
   const playStepIndices = useMemo(() => {
     if (frames.length === 0) return [] as number[];
     const out: number[] = [];
     const times = frames.map((f) => Date.parse(f.t));
     const nowMs = Date.now();
-    const cutoff1h = nowMs + 60 * 60_000;
     const cutoff24 = nowMs + 24 * 3600_000;
     let lastBucketKey: string | null = null;
     for (let i = 0; i < times.length; i++) {
       const t = times[i];
       const bucketSize =
-        t <= cutoff1h ? 5 * 60_000 : t <= cutoff24 ? 15 * 60_000 : 60 * 60_000;
+        t <= nowMs ? 5 * 60_000 : t <= cutoff24 ? 15 * 60_000 : 60 * 60_000;
+
       const bucket = Math.floor(t / bucketSize);
       const key = `${bucketSize}:${bucket}`;
       if (key !== lastBucketKey) {
@@ -1599,18 +1599,8 @@ export function RadarMap({
   }, [playing, speed, playStepIndices]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
-  // Crossfade nur während Auto-Play.
-  const nextFrame = useMemo(() => {
-    if (!playing || idx === null || !currentFrame) return null;
-    const nextCursor = stepCursorForIndex(idx) + 1;
-    const ni = playStepIndices[nextCursor];
-    return ni !== undefined ? frames[ni] ?? null : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, idx, currentFrame, playStepIndices, frames]);
+  // Kein Crossfade — jeder Frame schaltet hart auf den nächsten.
 
-  // Cross-Fade Canvas↔Canvas (Forecast) bleibt — wird vom PrecipOverlay genutzt.
-  const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
-  void blendNext;
 
   const timelineNextIdx = playing && idx !== null
     ? playStepIndices[stepCursorForIndex(idx) + 1] ?? null
@@ -1742,17 +1732,13 @@ export function RadarMap({
                     />
                   )}
                   {currentFrame.precipUrl && (
-                    <StableImageOverlay
+                    <MeasurementCanvasOverlay
                       url={currentFrame.precipUrl}
-                      bounds={[
-                        [ib.minLat, ib.minLon],
-                        [ib.maxLat, ib.maxLon],
-                      ]}
+                      bounds={ib}
                       opacity={opacityVal}
-                      zIndex={460}
-                      className="mch-precip"
                     />
                   )}
+
                 </>
               );
             })()}
