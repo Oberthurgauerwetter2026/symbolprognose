@@ -1853,14 +1853,14 @@ export function RadarMap({
 
                   {/* Track */}
                   <div className="min-w-0 flex-1">
-                    <MeteoTimeline
+                    <FilmstripTimeline
                       frames={frames}
                       idx={idx}
                       isMobile={isMobile}
                       playing={playing}
                       speed={speed}
                       visualNextIdx={timelineNextIdx}
-                      onChange={(i) => {
+                      onChange={(i: number) => {
                         setIdx(i);
                         setPlaying(false);
                       }}
