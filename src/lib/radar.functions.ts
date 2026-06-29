@@ -117,10 +117,13 @@ type LocResponse = {
     time: string[];
     precipitation?: (number | null)[];
     snowfall?: (number | null)[];
+    wind_speed_10m?: (number | null)[];
+    wind_direction_10m?: (number | null)[];
     wind_speed_700hPa?: (number | null)[];
     wind_direction_700hPa?: (number | null)[];
   };
 };
+
 
 
 // (Entfernt: advectField / estimateGlobalShift / blendClosestCell —
