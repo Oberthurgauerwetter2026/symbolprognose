@@ -433,9 +433,8 @@ function PrecipOverlay({
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
         cv.style.filter = "contrast(1.1)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = contour
-          ? "pixelated"
-          : "auto";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "pixelated";
+
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
