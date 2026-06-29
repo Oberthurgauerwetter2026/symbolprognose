@@ -1,46 +1,35 @@
-## Drei Punkte
+## Ziel
 
-### 1. Messung — Weichmachen reduzieren
+1. Prognose-Frames bewegen sich wieder ehrlich im 15-min-Takt aus den ICON-CH1 `minutely_15`-Werten — ohne Wind-Drift-Workaround.
+2. Filmstrip-Panel wird horizontal schmaler dargestellt (mehr Karte sichtbar).
+3. Wochentag/Datum im Steuer-Panel unter dem Filmstrip wird entfernt.
+4. Messung: das Smoothing (wässrig machen) deutlicher reduzieren, ohne wieder Quadrate oder ähnliche szu erzeugen
 
-Aktuell (`MeasurementCanvasOverlay`, redraw):
+## Änderungen
 
-- `colorForSmooth(v)` (weiche Band-Interpolation)
-- fbm-Warping `mod = 0.55 + n * 1.0` (sehr starke Modulation 0,55 …1,55×)
-- `imageSmoothingEnabled = true` mit `quality: high`
+### 1) `src/lib/radar.functions.ts` — echte 15-min-Werte aus ICON-CH1
 
-Änderungen:
+- `inputValidator`: Feld `drift` entfernen (war Workaround).
+- Phase-A-Loop (ab Zeile ~666) vereinfachen auf
+`const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);`
+Damit liefert jeder 15-min-Frame direkt den `minutely_15`-Wert aus `r1` (siehe `readForecastExact`, Zeilen 434-458, wo `min15Idx` alle Viertelstunden-Slots indexiert — nicht nur `:00`).
+- `interpolateForecast` nur noch als Lücken-Fallback (z. B. wenn CH1 ausfällt), nicht als Glättung über echte 15-min-Slots.
+- Diagnostik-Log umstellen: statt mittlere Wind-Komponente eine Probe der ersten 6 h Prognose loggen — pro `:00/:15/:30/:45` die mittlere `precip`-Intensität (`mm/h`), damit verifizierbar ist, dass die Werte zwischen den Viertelstunden tatsächlich variieren (`[radar] forecast 15-min sample: 17:00=0.4 17:15=0.7 17:30=0.9 17:45=1.1 …`).
+- `ADVECT_SCALE`, `meanWindAt`, `advectField`, `advectedForecast` bleiben unangetastet bestehen (werden in dieser Schiene nicht mehr aufgerufen, evtl. später erneut benötigt) — keine Aufräum-Arbeit am toten Code in diesem Schritt, um die Diff klein zu halten.
 
-- **Warp-Amplitude halbieren**: `mod = 0.85 + n * 0.30` (Bereich 0,85 …1,15×). Konturen bleiben organisch, aber die NS-Form bleibt nah am Radarbild.
-- **Domain-Frequenz reduzieren**: `sx = fx * 0.6 / sy = fy * 0.55` und Warp-Faktor `1.2` statt `2.6`. Längere Wellenlänge → keine "fransigen" Mini-Krümmungen, sondern grosszügige weiche Kanten.
-- **Bilinear-Upsampling auf low statt high**: `imageSmoothingQuality = "low"` — vermeidet die zusätzliche Browser-Glättung, die das Bild "wattig" wirken lässt.
-- Farbskala bleibt `colorForSmooth` (sonst kommen Quantisierungs-Unreinheiten zurück, das hat der User explizit moniert).
+### 2) `src/components/maps/radar-map.tsx` — Drift-Toggle weg + UI-Slimming
 
-### 2. Erklärung zu ICON-CH1 `minutely_15`
+- `driftOn`-State + `Switch` „Wind-Drift (Prognose)" im Settings-Popover entfernen (Zeilen 1673, 2217-2231).
+- `useQuery`-Aufruf vereinfachen auf festen `queryKey: ["radar-frames"]`, `queryFn: () => getRadarFrames()`, `initialData: initialFrames`.
+- Im Steuer-Panel (Zeilen 2054-2059) im Nicht-`bare`-Fall die Breite begrenzen, z. B. `mx-auto w-full max-w-3xl`. Bare-Mode bleibt unverändert (Overlay über die ganze Karte).
+- In `FilmstripTimeline`:
+  - `dayLabel`-Block (Zeilen 1651-1654) komplett entfernen.
+  - `fmtDayLong` ist dann ungenutzt → löschen.
 
-ICON-CH1 liefert formal das Feld `minutely_15` — und ja, wir nutzen es bereits für die 15-min-Frames in den ersten 24 h. ABER: Open-Meteo zeigt für ICON-CH1 die Niederschlags-Intensität pro Stunde nur als **stündlich konstanten Wert**, der vier mal hintereinander im 15-min-Raster ausgeliefert wird:
+### Verifikation
 
-```
-17:15 5.1   17:30 5.1   17:45 5.1   18:00 5.1
-```
-
-Das ist eine Eigenheit der Open-Meteo-Auslieferung, nicht des Frontends — das Modell rechnet intern stündlich und repliziert die Werte ins 15-min-Schema. Deshalb erzeugen wir die sichtbare 15-min-Bewegung durch **räumliche Wind-Advektion** des Stundenfelds (jetzt 700 hPa, ADVECT_SCALE 1.0). Werte ändern sich nicht, die Felder ziehen aber zwischen den vollen Stunden über die Karte.
-
-Keine Code-Änderung nötig, ausser der User wünscht, dass wir trotzdem die rohen 15-min-Werte ohne Advektion nehmen — dann sähen NS pro Stunde wieder identisch aus. Ja bitte die  rohen 15-min-Werte ohne Advektion nehmen. Für ein besseres "Ziehen" eine Möglichekit bieten
-
-### 3. Filmstrip unter die Karte
-
-Aktuell ist das Steuerungs-Panel (Play/Filmstrip/Settings) ein `absolute inset-x-2 bottom-2`-Overlay innerhalb des Map-Wrappers und deckt ~80 px Karte ab.
-
-Änderung in `RadarMap` (`src/components/maps/radar-map.tsx`, JSX ab Line 1886):
-
-- Steuerungs-Panel aus dem Map-Wrapper-Div herausziehen und als **Geschwister-Element** unterhalb des Map-Containers einfügen (das Parent hat bereits `space-y-3`).
-- `absolute inset-x-2 bottom-2 z-[450]` → `relative w-full`. Panel selbst behält Rahmen/Hintergrund (`rounded-xl border bg-white shadow-sm`), aber ohne `backdrop-blur`/Transparenz (nicht mehr nötig).
-- **Bare-Modus (Embed, `bare === true`)**: bleibt unverändert als Overlay — bei Embeds wäre extra Höhe unschön.
-- Karten-Wrapper-Höhe unverändert: `h-[560px] sm:h-[600px]` — gewinnt jetzt vollständig sichtbare Karte zurück.
-
-## Verifikation
-
-- `/karten/radar`: Messung zeigt dezent organische Kanten ohne starke fbm-Wellen; keine Quantisierungs-Stippelung; Intensitätsverteilung bleibt erkennbar nah am Radar.
-- Filmstrip + Play-Bar unter der Karte; Karte vollflächig sichtbar.
-- Embed (`bare`) unverändert.
-- Typecheck grün.
+- `bunx tsgo --noEmit` muss grün sein.
+- Im Preview `/karten/radar`:
+  - Console-Log zeigt unterschiedliche `precip`-Werte für `:00/:15/:30/:45` der nächsten Stunden (kein Plateau).
+  - Filmstrip-Panel deutlich schmaler als die Karte, zentriert; Karte besser sichtbar.
+  - Unter dem Filmstreifen kein „Mo, 30.06.2026"-Label mehr; nur die Bubble oben zeigt weiterhin Wochentag + Uhrzeit (gewünscht).
