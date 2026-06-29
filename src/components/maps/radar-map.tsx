@@ -1282,6 +1282,8 @@ function FilmstripTimeline({
   const dayLabel = fmtDayLong(new Date(currentMs));
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
+  const rafPendingRef = useRef<number | null>(null);
+  const pendingTargetRef = useRef<number | null>(null);
   const onDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragStartRef.current = { x: e.clientX, ms: currentMs };
@@ -1293,9 +1295,7 @@ function FilmstripTimeline({
   const snapAndEmit = (target: number) => {
     let best = 0;
     let bestDt = Infinity;
-    const restrictForecast = target > nowMs;
     for (let i = 0; i < times.length; i++) {
-      if (restrictForecast && frames[i]?.source === "radar") continue;
       const dt = Math.abs(times[i] - target);
       if (dt < bestDt) {
         bestDt = dt;
@@ -1312,11 +1312,23 @@ function FilmstripTimeline({
     const dx = e.clientX - dragStartRef.current.x;
     const dMs = (-dx / PX_PER_HOUR) * 3_600_000;
     const target = Math.max(tMin, Math.min(tMax, dragStartRef.current.ms + dMs));
-    setDragMs(target);
-    snapAndEmit(target);
+    pendingTargetRef.current = target;
+    if (rafPendingRef.current !== null) return;
+    rafPendingRef.current = requestAnimationFrame(() => {
+      rafPendingRef.current = null;
+      const t = pendingTargetRef.current;
+      if (t === null) return;
+      setDragMs(t);
+      snapAndEmit(t);
+    });
   };
   const onUp = (e: React.PointerEvent) => {
     dragStartRef.current = null;
+    if (rafPendingRef.current !== null) {
+      cancelAnimationFrame(rafPendingRef.current);
+      rafPendingRef.current = null;
+    }
+    pendingTargetRef.current = null;
     setDragMs(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
