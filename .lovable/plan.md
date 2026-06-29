@@ -1,47 +1,38 @@
-## Ursache (verifiziert gegen Open-Meteo)
+## Ziel
+Manuelles Scrubbing in `radar-map.tsx` läuft butterweich — Frame schaltet bei jeder Cursor-Position ohne Mikro-Stocker, ohne Crossfade, ohne Weichzeichnung. Prognose-Frames bleiben strikt im 15-min-Takt (wie vom Backend nach Advektion geliefert).
 
-ICON-CH1 liefert zwar das Feld `minutely_15` für die ganzen 132 h, aber die Niederschlags-Intensität wird darin **stundenweise konstant ausgeliefert** — vier aufeinanderfolgende 15-min-Slots tragen denselben mm/15min-Wert. Beispiel von eben:
+## Ursache der aktuellen Ruckler
 
-```
-17:15 5.1   17:30 5.1   17:45 5.1   18:00 5.1
-```
+1. **Lazy Canvas-Render im `PrecipOverlay`**: Jeder Prognose-Frame (Grid-basiert, kein PNG) wird *beim ersten Anzeigen* gerendert (bilineare Sampling + Farbband-Mapping auf `lowW×lowH` Pixeln). Erst danach landet er im `cacheRef`. Beim Scrubben über 96 Forecast-Frames stockt jeder noch nie besuchte Frame kurz.
+2. **Cache zu klein**: `CACHE_MAX = 64`, aber die Timeline hat ~30 Messung + ~96 Prognose-15-min + ~24 Prognose-stündlich = ~150 Frames. Während Scrub fliegen ältere Frames raus → erneutes Re-Rendern.
+3. **Kein Pre-Warm**: Der bestehende `useEffect` lädt nur PNG-URLs vor (Messung). Forecast-Frames haben kein PNG, der Canvas-Cache bleibt kalt.
 
-Deshalb ändern sich die NS-Felder zwischen den 15-min-Frames der Prognose nicht — die Cadence ist da, aber das Modell hat schlicht keine 15-min-Variation in der Intensität.
+15-min-Takt selbst stimmt bereits — `playStepIndices` bucketed Forecast in 15-min-Slots, Advektion im Backend liefert pro Slot ein eigenes Feld. Das ist nicht das Problem.
 
-## Was die UI heute macht
-- Backend baut korrekt 15-min-Frames in 0–24 h.
-- Player läuft im 15-min-Schritt durch sie durch.
-- Die Frames sehen aber pro Stunde gleich aus → "Felder bewegen sich nicht".
+## Änderungen (nur `src/components/maps/radar-map.tsx`, keine Backend-Änderung)
 
-## Lösung: räumliche Advektion zwischen Stunden-Ankern
+### 1. Cache vergrössern
+- `CACHE_MAX` in `PrecipOverlay` von `64` auf `256`, damit die komplette Cadence-Timeline reinpasst und Scrubbing nie evicted.
 
-Anstatt Intensitäten zu erfinden oder weichzuzeichnen, **verschieben** wir das stündliche Niederschlagsfeld entlang des ICON-CH1-Windvektors. Die Zellen ziehen damit zwischen H und H+1 wirklich über die Karte — wie echtes Nowcasting. Werte werden nicht gemischt, nicht geglättet, nicht "verwässert"; sie wandern nur an einen anderen Ort.
+### 2. Pre-Warm der Forecast-Canvas nach Map-Idle
+- Im `PrecipOverlay` zusätzlich eine Pre-Warm-Routine:
+  - Trigger: nach `map.whenReady()` + jedes `moveend`/`zoomend` (debounce ~200 ms), sobald der `lookupRef` für die aktuelle View fertig ist.
+  - Iteriere über alle Frames der aktuellen Cadence-Liste (über ein neues optionales Prop `prewarmFrames: RadarFrame[]` von `RadarMap` reingereicht — `stripFrames`).
+  - Pro Frame: identische Render-Schleife wie heute, aber ohne `drawImage` auf die sichtbare Canvas — nur in `cacheRef` legen.
+  - Chunked via `requestIdleCallback` (Fallback `setTimeout 0`), maximal ein Frame pro Idle-Tick, abbrechbar bei View-Wechsel.
+- Effekt: Sobald die Karte ruht, sind alle Frame-Canvas vorberechnet. Scrub und Play schalten via `drawImage` aus Cache — instant.
 
-### Wo
-`src/lib/radar.functions.ts`, Phase A (15-min, 0–24 h).
+### 3. Bestätigung: kein Crossfade, kein Smoothing
+- `PrecipOverlay` redraw läuft nur auf `[frame, payload]` — bleibt so. Kein `progress`/`nextFrame`-Mixing.
+- `FilmstripTimeline.onMove` snappt bereits per `snapAndEmit` auf den nächstgelegenen Cadence-Frame (15 min in Prognose, 5 min in Messung). Bleibt unverändert.
+- `playVisualMs` treibt nur Bubble/Marker kontinuierlich; das Radarbild bleibt frame-genau.
 
-### Was sich ändert
-1. **Wind-Felder zusätzlich anfordern**: ICON-CH1 hourly `wind_speed_10m`, `wind_direction_10m` (oder `wind_u_10m`/`wind_v_10m`, falls verfügbar) für alle Punkte. Höhe 10 m reicht für die optische Verschiebung.
-2. **Advektions-Vektor** pro Stunde: aus Wind-Komponenten je Punkt → mittlere u/v (m/s). Skalierung: konservativ ~0.7× (Bodenwind ≠ Zugbahn). Cap bei z. B. 25 m/s, um Übersprünge zu vermeiden.
-3. **15-min-Frame-Erzeugung**: für jeden 15-min-Slot zwischen H und H+1:
-   - Verschiebungsvektor `Δ = u·Δt`, `Δt ∈ {0, 15, 30, 45} min`.
-   - Für jeden Grid-Punkt: lese Intensität an Position `(lon, lat) − Δ` (semi-Lagrangean back-trace) aus dem Stundenfeld H. Nearest-Neighbour, keine Interpolation der Werte selbst.
-   - Snow analog.
-4. **Quelle bleibt ehrlich**: H ist ICON-CH1, H+1 ebenso. Zwischenframes sind die *gleichen Werte an verschobener Position* — keine Mischung mit H+1.
-5. **Phase B (>24 h, 1 h-Takt)**: unverändert, keine Advektion nötig.
-6. **Messung (<= now)**: unverändert, echte Radar-Frames im 5-min-Takt.
+### 4. Kleinkram
+- `MeasurementCanvasOverlay` (PNG-basiert) ist nicht betroffen — PNG-Preload bleibt.
 
-### Was bewusst NICHT passiert
-- Kein Crossfade zwischen H und H+1.
-- Keine zeitliche Glättung der Intensität.
-- Keine künstliche Verschiebung im Player; Player läuft weiter frame-genau (15 min).
+## Verifikation
 
-### Edge Cases
-- Wenn Wind-Daten fehlen oder ≈ 0 → Frames identisch zur Stunde (heutiger Zustand). Kein Fehler.
-- Punkte, deren Back-Trace ausserhalb der Bbox liegen → 0 mm (Feld wandert "aus dem Bild" rein/raus, korrekt).
-
-## Prüfen
-- `/karten/radar`: Play in der Prognose startet nach `now`. NS-Zellen wandern sichtbar zwischen den vollen Stunden über die Karte, behalten dabei Form/Intensität bei.
-- Im Stündlichen Anker-Frame (H, H+1) bleiben die Felder exakt wie bisher (kein "Smear").
-- Bei Windstille: 15-min-Frames sehen pro Stunde gleich aus (akzeptiert — keine Bewegung weil kein Transport).
-- Phase B (>24 h) unverändert stündlich.
+- `/karten/radar`: Karte laden, kurz warten (1–2 s Idle), Filmstrip durchscrubben. Prognose-Frames erscheinen ohne sichtbares Stocken, in sauberen 15-min-Schritten, mit räumlich verschobenen NS-Feldern (Advektion).
+- Beim Pan/Zoom wird Cache invalidert, Pre-Warm läuft sofort wieder.
+- Play unverändert: harte 15-min-Sprünge, keine Crossblende.
+- Console-Logs zeigen keine zusätzlichen Netzwerk-Requests pro Scrub.
