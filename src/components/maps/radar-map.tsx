@@ -1621,8 +1621,8 @@ function FilmstripTimeline({
   const pendingTargetRef = useRef<number | null>(null);
   const onDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragStartRef.current = { x: e.clientX, ms: currentMs };
-    setDragMs(currentMs);
+    dragStartRef.current = { x: e.clientX, ms: motionMs };
+    setDragMs(motionMs);
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       try { navigator.vibrate(6); } catch { /* ignore */ }
     }
