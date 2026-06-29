@@ -117,10 +117,13 @@ type LocResponse = {
     time: string[];
     precipitation?: (number | null)[];
     snowfall?: (number | null)[];
+    wind_speed_10m?: (number | null)[];
+    wind_direction_10m?: (number | null)[];
     wind_speed_700hPa?: (number | null)[];
     wind_direction_700hPa?: (number | null)[];
   };
 };
+
 
 
 // (Entfernt: advectField / estimateGlobalShift / blendClosestCell —
@@ -545,13 +548,97 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   let ch1Count = 0;
   let ch2Count = 0;
 
+  // ---- Wind-Advektion für 15-min-Frames der Prognose ----
+  // ICON-CH1 liefert die Niederschlags-Intensität in `minutely_15` nur
+  // stundenweise konstant aus (vier identische Slots pro Stunde). Um den
+  // gewünschten 15-min-Takt sichtbar zu machen, ohne Werte zu mischen oder
+  // weichzuzeichnen, verschieben wir das Stundenfeld räumlich entlang des
+  // ICON-Windvektors. Intensitäten bleiben unverändert — die Zellen wandern
+  // einfach an einen anderen Ort (semi-Lagrangean back-trace).
+  const ADVECT_SCALE = 0.7; // Boden-Wind ≠ Zugbahn; konservativer Faktor.
+  const stepLat = (BBOX.maxLat - BBOX.minLat) / (GRID_LAT - 1);
+  const stepLon = (BBOX.maxLon - BBOX.minLon) / (GRID_LON - 1);
+
+  const meanWindAt = (hMs: number): { u: number; v: number } => {
+    const sources: Array<{ resp: unknown[] | null; idxMap: Map<number, number> }> = [
+      { resp: r1, idxMap: r1HourIdx },
+      { resp: r2, idxMap: r2HourIdx },
+    ];
+
+    for (const { resp, idxMap } of sources) {
+      if (!resp) continue;
+      const ti = idxMap.get(hMs);
+      if (typeof ti !== "number") continue;
+      let su = 0;
+      let sv = 0;
+      let n = 0;
+      for (let pi = 0; pi < nPts; pi++) {
+        const h = (resp[pi] as LocResponse | undefined)?.hourly;
+        const sp = h?.wind_speed_10m?.[ti];
+        const dir = h?.wind_direction_10m?.[ti];
+        if (typeof sp !== "number" || typeof dir !== "number") continue;
+        const spMs = sp / 3.6; // Open-Meteo default: km/h → m/s
+        const rad = (dir * Math.PI) / 180;
+        // Meteorologische Richtung: woher der Wind kommt. Vektor wohin = -sin/-cos.
+        su += -Math.sin(rad) * spMs;
+        sv += -Math.cos(rad) * spMs;
+        n++;
+      }
+      if (n > 0) return { u: su / n, v: sv / n };
+    }
+    return { u: 0, v: 0 };
+  };
+
+  const advectField = (
+    field: number[],
+    u: number,
+    v: number,
+    dtSec: number,
+  ): number[] => {
+    if (dtSec === 0 || (u === 0 && v === 0)) return field.slice();
+    const dLat = (v * dtSec * ADVECT_SCALE) / 111320;
+    const out = new Array<number>(nPts).fill(0);
+    for (let i = 0; i < GRID_LAT; i++) {
+      const lat = lats[i];
+      const dLon = (u * dtSec * ADVECT_SCALE) / (111320 * Math.cos((lat * Math.PI) / 180));
+      const srcLat = lat - dLat;
+      const i2 = Math.round((srcLat - BBOX.minLat) / stepLat);
+      if (i2 < 0 || i2 >= GRID_LAT) continue;
+      for (let j = 0; j < GRID_LON; j++) {
+        const lon = lons[j];
+        const srcLon = lon - dLon;
+        const j2 = Math.round((srcLon - BBOX.minLon) / stepLon);
+        if (j2 < 0 || j2 >= GRID_LON) continue;
+        out[i * GRID_LON + j] = field[i2 * GRID_LON + j2];
+      }
+    }
+    return out;
+  };
+
+  const advectedForecast = (tMs: number): ForecastGrid | null => {
+    const hMs = Math.floor(tMs / 3600_000) * 3600_000;
+    const dtSec = (tMs - hMs) / 1000;
+    const base = getForecastExact(hMs);
+    if (!base) return null;
+    if (dtSec === 0) return base;
+    const { u, v } = meanWindAt(hMs);
+    if (u === 0 && v === 0) return base;
+    return {
+      precip: advectField(base.precip, u, v, dtSec),
+      snow: base.snow ? advectField(base.snow, u, v, dtSec) : undefined,
+      source: base.source,
+    };
+  };
+
   // ---- Phase A: 15-min-Prognose-Frames für die ersten 24 h ----
-  // Primär native 15-min-Slots, bei Datenlücken weiche Interpolation zwischen
-  // umliegenden Stundenwerten. So bleibt Play stabil und ohne große Sprünge.
+  // Bevorzugt: räumliche Advektion des Stundenfelds (echte Bewegung).
+  // Fallback: exakter 15-min-Slot (sofern die Intensität sich ändert) oder
+  // lineare Interpolation zwischen Stunden-Ankern.
   const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
   const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
   for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
-    const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);
+    const grid =
+      advectedForecast(tMs) ?? getForecastExact(tMs) ?? interpolateForecast(tMs);
     if (!grid) continue;
     frames.push({
       t: new Date(tMs).toISOString(),
@@ -562,6 +649,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     if (grid.source === "icon-ch1") ch1QuarterCount++;
     else ch2Count++;
   }
+
 
   // ---- Phase B: stündliche Prognose-Frames für > +24 h … +48 h ----
   const startHourly = Math.floor((now + 24 * 3600_000) / 3600_000) * 3600_000 + 3600_000;
