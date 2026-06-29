@@ -1477,6 +1477,9 @@ export function RadarMap({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
+  // Kontinuierliche, weich interpolierte Zeit während Play für Bubble/Marker.
+  // Das Radar-Bild selbst bleibt frame-genau (kein Crossfading).
+  const [playVisualMs, setPlayVisualMs] = useState<number | null>(null);
 
   // progress-State entfernt: PrecipOverlay zeichnet keine Inter-Frame-Lerp mehr.
   const isMobile = useIsMobile();
