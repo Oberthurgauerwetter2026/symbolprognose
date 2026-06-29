@@ -927,10 +927,12 @@ function MeasurementCanvasOverlay({
   url,
   bounds,
   opacity,
+  prefetchUrls,
 }: {
   url: string;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
+  prefetchUrls?: string[];
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
