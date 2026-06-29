@@ -785,8 +785,17 @@ function MeasurementCanvasOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
-  // PNG → mm/h-Grid decoding.
+  // PNG → mm/h-Grid decoding mit LRU-Cache pro Quell-URL.
   useEffect(() => {
+    const cached = cacheRef.current.get(url);
+    if (cached) {
+      // Reinsert to mark as recent.
+      cacheRef.current.delete(url);
+      cacheRef.current.set(url, cached);
+      sourceRef.current = cached;
+      redraw();
+      return;
+    }
     let cancelled = false;
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -833,7 +842,14 @@ function MeasurementCanvasOverlay({
         }
         mmh[i] = bestMmh;
       }
-      sourceRef.current = { w: cw, h: ch, mmh };
+      const entry = { w: cw, h: ch, mmh };
+      cacheRef.current.set(url, entry);
+      while (cacheRef.current.size > DECODE_CACHE_MAX) {
+        const firstKey = cacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        cacheRef.current.delete(firstKey);
+      }
+      sourceRef.current = entry;
       redraw();
     };
     img.src = url;
