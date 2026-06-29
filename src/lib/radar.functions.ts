@@ -182,9 +182,8 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
 }
 
 export const getRadarFrames = createServerFn({ method: "GET" })
-  .inputValidator((data?: { extended?: boolean; drift?: boolean }) => ({
+  .inputValidator((data?: { extended?: boolean }) => ({
     extended: data?.extended === true,
-    drift: data?.drift === true,
   }))
   .handler(async ({ data: input }) => {
   setResponseHeader(
