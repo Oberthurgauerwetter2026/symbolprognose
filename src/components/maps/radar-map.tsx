@@ -481,6 +481,12 @@ function PrecipOverlay({
   } | null>(null);
   const CACHE_MAX = 256;
 
+  // Crossfade-Refs: nextFrame + progress werden pro Animation-Tick als Prop
+  // gesetzt; redrawRef liest sie über Refs, damit die Animation kein Re-render
+  // pro Frame benötigt.
+  const nextFrameRef = useRef<RadarFrame | null>(null);
+  const progressRef = useRef<number>(0);
+
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
     redrawRef.current();
