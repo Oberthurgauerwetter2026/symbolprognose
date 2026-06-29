@@ -1839,45 +1839,93 @@ export function RadarMap({
     if (idx === null && frames.length > 0) setIdx(nowIdx);
   }, [nowIdx, frames.length, idx]);
 
-  // Play-Schritt-Indizes mit gemischter Cadence:
-  //   Messung (t <= now)       : 5-min-Takt
-  //   Prognose 0–24 h          : 15-min-Takt
-  //   Prognose > +24 h         : 1-h-Takt
-  // Pro Bucket wird der erste passende Frame übernommen.
+  // Play-Schritt-Indizes zielzeitgesteuert:
+  //   Messung (t <= now)       : 5-min-Raster
+  //   Prognose 0–24 h          : 15-min-Raster
+  //   Prognose > +24 h         : 60-min-Raster
+  // Pro Zielzeit wird der nächstgelegene Frame innerhalb einer Toleranz
+  // (= 0.5 × Schrittgrösse) gewählt. Hat eine Phase nur grobere Daten,
+  // werden Zielzeiten ohne passenden Frame übersprungen statt denselben
+  // Frame mehrfach aufzunehmen.
   const playStepIndices = useMemo(() => {
     if (frames.length === 0) return [] as number[];
-    const out: number[] = [];
     const times = frames.map((f) => Date.parse(f.t));
+    const firstMs = times[0];
+    const lastMs = times[times.length - 1];
     const nowMs = Date.now();
-    const cutoff24 = nowMs + 24 * 3600_000;
-    let lastBucketKey: string | null = null;
-    let lastPickedMs: number | null = null;
-    for (let i = 0; i < times.length; i++) {
-      const t = times[i];
-      const bucketSize =
-        t <= nowMs ? 5 * 60_000 : t <= cutoff24 ? 15 * 60_000 : 60 * 60_000;
 
-      const bucket = Math.floor(t / bucketSize);
-      const key = `${bucketSize}:${bucket}`;
-      if (key !== lastBucketKey) {
-        // Übergangs-Steps mit zu kleinem Zeit-Abstand zum vorherigen
-        // Pick überspringen — verhindert wahrgenommene Pause am Mess→
-        // Prognose-Übergang (sonst landet z. B. 14:00 Radar + 14:05
-        // Prognose direkt hintereinander, gefolgt von 14:15).
-        if (
-          lastPickedMs !== null &&
-          t - lastPickedMs < 0.4 * bucketSize
-        ) {
-          lastBucketKey = key;
-          continue;
-        }
-        out.push(i);
-        lastBucketKey = key;
-        lastPickedMs = t;
+    // Nächsten Frame zu targetMs per binärer Suche; null wenn ausserhalb Toleranz.
+    const pickNearest = (targetMs: number, tolMs: number): number | null => {
+      let lo = 0;
+      let hi = times.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (times[mid] < targetMs) lo = mid + 1;
+        else hi = mid;
       }
+      const candidates = [lo];
+      if (lo > 0) candidates.push(lo - 1);
+      let best = -1;
+      let bestDiff = Infinity;
+      for (const i of candidates) {
+        const d = Math.abs(times[i] - targetMs);
+        if (d < bestDiff) {
+          bestDiff = d;
+          best = i;
+        }
+      }
+      return bestDiff <= tolMs ? best : null;
+    };
+
+    const out: number[] = [];
+    let lastPicked = -1;
+    const pushTarget = (targetMs: number, stepMs: number) => {
+      const idx = pickNearest(targetMs, stepMs * 0.5);
+      if (idx === null || idx === lastPicked) return;
+      out.push(idx);
+      lastPicked = idx;
+    };
+
+    // Phase Messung: 5-min-Raster bis nowMs.
+    const STEP5 = 5 * 60_000;
+    const startMeas = Math.ceil(firstMs / STEP5) * STEP5;
+    const endMeas = Math.floor(nowMs / STEP5) * STEP5;
+    let measCount = 0;
+    for (let t = startMeas; t <= endMeas; t += STEP5) {
+      const before = out.length;
+      pushTarget(t, STEP5);
+      if (out.length > before) measCount++;
+    }
+
+    // Phase Prognose A: 15-min-Raster bis nowMs + 24 h.
+    const STEP15 = 15 * 60_000;
+    const cutoff24 = nowMs + 24 * 3600_000;
+    const startFc15 = Math.ceil((nowMs + 1) / STEP15) * STEP15;
+    let fc15Count = 0;
+    for (let t = startFc15; t <= cutoff24 && t <= lastMs; t += STEP15) {
+      const before = out.length;
+      pushTarget(t, STEP15);
+      if (out.length > before) fc15Count++;
+    }
+
+    // Phase Prognose B: 60-min-Raster nach nowMs + 24 h.
+    const STEP60 = 60 * 60_000;
+    const startFc60 = Math.ceil((cutoff24 + 1) / STEP60) * STEP60;
+    let fc60Count = 0;
+    for (let t = startFc60; t <= lastMs; t += STEP60) {
+      const before = out.length;
+      pushTarget(t, STEP60);
+      if (out.length > before) fc60Count++;
+    }
+
+    if (typeof console !== "undefined") {
+      console.info(
+        `[radar] filmstrip steps: measurement=${measCount} forecast15=${fc15Count} forecast60=${fc60Count}`,
+      );
     }
     return out;
   }, [frames]);
+
 
   const idxRef = useRef<number | null>(null);
   useEffect(() => {
