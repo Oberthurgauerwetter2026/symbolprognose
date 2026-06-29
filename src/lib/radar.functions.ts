@@ -555,17 +555,19 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   // weichzuzeichnen, verschieben wir das Stundenfeld räumlich entlang des
   // ICON-Windvektors. Intensitäten bleiben unverändert — die Zellen wandern
   // einfach an einen anderen Ort (semi-Lagrangean back-trace).
-  const ADVECT_SCALE = 0.7; // Boden-Wind ≠ Zugbahn; konservativer Faktor.
+  const ADVECT_SCALE = 1.0; // Zellzugbahn ≈ mittlerer Wind, kein Konservativ-Faktor.
   const stepLat = (BBOX.maxLat - BBOX.minLat) / (GRID_LAT - 1);
   const stepLon = (BBOX.maxLon - BBOX.minLon) / (GRID_LON - 1);
 
   const meanWindAt = (hMs: number): { u: number; v: number } => {
-    const sources: Array<{ resp: unknown[] | null; idxMap: Map<number, number> }> = [
-      { resp: r1, idxMap: r1HourIdx },
-      { resp: r2, idxMap: r2HourIdx },
+    // Bevorzugt 700 hPa (Zugbahn konvektiver Zellen), Fallback 10 m. r2 (CH2)
+    // hat beide Höhen, r1 (CH1) nur 10 m.
+    const sources: Array<{ resp: unknown[] | null; idxMap: Map<number, number>; prefer700: boolean }> = [
+      { resp: r2, idxMap: r2HourIdx, prefer700: true },
+      { resp: r1, idxMap: r1HourIdx, prefer700: false },
     ];
 
-    for (const { resp, idxMap } of sources) {
+    for (const { resp, idxMap, prefer700 } of sources) {
       if (!resp) continue;
       const ti = idxMap.get(hMs);
       if (typeof ti !== "number") continue;
@@ -574,10 +576,20 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       let n = 0;
       for (let pi = 0; pi < nPts; pi++) {
         const h = (resp[pi] as LocResponse | undefined)?.hourly;
-        const sp = h?.wind_speed_10m?.[ti];
-        const dir = h?.wind_direction_10m?.[ti];
+        if (!h) continue;
+        let sp: number | null | undefined;
+        let dir: number | null | undefined;
+        if (prefer700) {
+          sp = h.wind_speed_700hPa?.[ti];
+          dir = h.wind_direction_700hPa?.[ti];
+        }
+        if (typeof sp !== "number" || typeof dir !== "number") {
+          sp = h.wind_speed_10m?.[ti];
+          dir = h.wind_direction_10m?.[ti];
+        }
         if (typeof sp !== "number" || typeof dir !== "number") continue;
-        const spMs = sp / 3.6; // Open-Meteo default: km/h → m/s
+        let spMs = sp / 3.6; // Open-Meteo default: km/h → m/s
+        if (spMs > 30) spMs = 30; // Cap, vermeidet Übersprünge.
         const rad = (dir * Math.PI) / 180;
         // Meteorologische Richtung: woher der Wind kommt. Vektor wohin = -sin/-cos.
         su += -Math.sin(rad) * spMs;
@@ -588,6 +600,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     }
     return { u: 0, v: 0 };
   };
+
 
   const advectField = (
     field: number[],
