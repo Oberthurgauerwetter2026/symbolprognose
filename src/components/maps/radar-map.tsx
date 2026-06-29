@@ -1120,15 +1120,15 @@ function MeasurementCanvasOverlay({
         let v = sampleAt(fx, fy);
         if (v <= 0) continue;
 
-        // fbm-Modulation: weiche, unregelmässige Kanten ohne Block-Optik.
-        const sx = fx * 0.9;
-        const sy = fy * 0.85;
+        // Dezente fbm-Modulation: organisch ohne starkes Weichmachen.
+        const sx = fx * 0.6;
+        const sy = fy * 0.55;
         const rx = sx * COS - sy * SIN;
         const ry = sx * SIN + sy * COS;
-        const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-        const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
+        const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 1.2;
+        const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 1.2;
         const n = fbm(rx + warpX, ry + warpY);
-        const mod = 0.55 + n * 1.0; // weniger aggressiv als Forecast-Contour
+        const mod = 0.85 + n * 0.30;
         v = v * mod;
 
         if (v < 0.05) continue;
@@ -1147,7 +1147,7 @@ function MeasurementCanvasOverlay({
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = "low";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
@@ -1670,13 +1670,14 @@ export function RadarMap({
   bare?: boolean;
   initialFrames?: RadarPayload;
 }) {
+  const [driftOn, setDriftOn] = useState(false);
   const { data, isLoading, error } = useQuery({
-    queryKey: ["radar-frames"],
-    queryFn: () => getRadarFrames(),
+    queryKey: ["radar-frames", driftOn ? "drift" : "raw"],
+    queryFn: () => getRadarFrames({ data: { drift: driftOn } }),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
-    initialData: initialFrames,
-    initialDataUpdatedAt: initialFrames ? Date.now() : undefined,
+    initialData: driftOn ? undefined : initialFrames,
+    initialDataUpdatedAt: !driftOn && initialFrames ? Date.now() : undefined,
   });
 
   // Modellprognose bis +48 h: CH1 primär, CH2 nahtloser Fallback.
@@ -1884,7 +1885,7 @@ export function RadarMap({
   void frameMaxMmh;
 
   return (
-    <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
+    <div className={cn("@container", bare ? "relative flex h-full w-full flex-col" : "space-y-3")}>
       <div
         className={cn(
           "relative overflow-hidden shadow-lg",
@@ -2047,9 +2048,24 @@ export function RadarMap({
           </div>
         </div>
 
-        {/* Steuerung — schwebendes Overlay-Panel unten in der Karte */}
-        <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3">
-          <div className="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white/90 p-2 text-neutral-900 shadow-lg backdrop-blur sm:p-2.5">
+      </div>
+
+      {/* Steuerung — bare: schwebendes Overlay; sonst Panel unterhalb der Karte */}
+      <div
+        className={cn(
+          bare
+            ? "pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3"
+            : "w-full",
+        )}
+      >
+        <div
+          className={cn(
+            "rounded-xl border border-neutral-200 p-2 text-neutral-900 sm:p-2.5",
+            bare
+              ? "pointer-events-auto bg-white/90 shadow-lg backdrop-blur"
+              : "bg-white shadow-sm",
+          )}
+        >
             {isLoading && (
               <p className="text-center text-xs text-neutral-500">Lade Radardaten …</p>
             )}
@@ -2198,6 +2214,21 @@ export function RadarMap({
                             aria-label="Hagel-Layer"
                           />
                         </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[11px] font-semibold text-neutral-700">
+                              Wind-Drift (Prognose)
+                            </p>
+                            <p className="text-[10px] text-neutral-500">
+                              NS-Felder im 15-min-Takt mit Wind ziehen lassen
+                            </p>
+                          </div>
+                          <Switch
+                            checked={driftOn}
+                            onCheckedChange={setDriftOn}
+                            aria-label="Wind-Drift in der Prognose"
+                          />
+                        </div>
                       </div>
                     </PopoverContent>
                   </Popover>
@@ -2212,7 +2243,8 @@ export function RadarMap({
             )}
           </div>
         </div>
-      </div>
+
+
 
       {/* Footnote unter der Karte */}
       {data && (

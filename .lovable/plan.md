@@ -1,50 +1,46 @@
-## Drei Korrekturen
+## Drei Punkte
 
-### 1. Messung organisch wie Prognose, ohne Quantisierungs-„Unreinheiten"
+### 1. Messung — Weichmachen reduzieren
 
-Aktuell rendert `MeasurementCanvasOverlay` (Lines ~893–1112) das MCH-CombiPrecip-PNG so:
-- PNG → mm/h-Grid via Nearest-Match in `SCALE` (8 harte Bänder).
-- Bilineares Resampling → `colorFor()` (harte Bänder erneut).
-- Canvas mit `imageRendering: pixelated`.
+Aktuell (`MeasurementCanvasOverlay`, redraw):
 
-Folgen (im Screenshot sichtbar):
-- Rechteckige Stufen entlang der nativen 1-km-Pixel.
-- „Stippling"/Unreinheiten: bilineare Werte zwischen zwei Bändern fallen je nach Sample auf die eine oder andere Bande → einzelne falsch eingefärbte Mini-Pixel innerhalb einer Zelle.
+- `colorForSmooth(v)` (weiche Band-Interpolation)
+- fbm-Warping `mod = 0.55 + n * 1.0` (sehr starke Modulation 0,55 …1,55×)
+- `imageSmoothingEnabled = true` mit `quality: high`
 
-**Änderungen (nur `src/components/maps/radar-map.tsx`, `MeasurementCanvasOverlay`):**
+Änderungen:
 
-a. **Glatte Farbskala**: `colorFor(v)` → `colorForSmooth(v)` (existiert bereits in der Datei, log-interpoliert zwischen Bändern). Eliminiert die Stippling-Unreinheiten direkt.
+- **Warp-Amplitude halbieren**: `mod = 0.85 + n * 0.30` (Bereich 0,85 …1,15×). Konturen bleiben organisch, aber die NS-Form bleibt nah am Radarbild.
+- **Domain-Frequenz reduzieren**: `sx = fx * 0.6 / sy = fy * 0.55` und Warp-Faktor `1.2` statt `2.6`. Längere Wellenlänge → keine "fransigen" Mini-Krümmungen, sondern grosszügige weiche Kanten.
+- **Bilinear-Upsampling auf low statt high**: `imageSmoothingQuality = "low"` — vermeidet die zusätzliche Browser-Glättung, die das Bild "wattig" wirken lässt.
+- Farbskala bleibt `colorForSmooth` (sonst kommen Quantisierungs-Unreinheiten zurück, das hat der User explizit moniert).
 
-b. **Organische Kanten**: dieselbe `contour`-Warping-Logik aus `PrecipOverlay` (Lines 539–608: fbm-Noise → `contourScale`) in den Messungs-Renderpfad übernehmen. View-abhängiger Lookup wird einmal pro Pan/Zoom berechnet (genau wie Prognose) und pro Frame wiederverwendet. Resultat: weiche, unregelmässige Iso-Konturen statt rechteckiger 1-km-Blöcke.
+### 2. Erklärung zu ICON-CH1 `minutely_15`
 
-c. **`imageRendering: pixelated` entfernen** auf dem Messungs-Canvas (bleibt für Prognose unverändert nicht nötig, weil Lookup bereits per Pixel rendert) → Subpixel-Glättung beim Skalieren bleibt aus, harte Pixel sind aber nicht mehr durchgängig sichtbar.
+ICON-CH1 liefert formal das Feld `minutely_15` — und ja, wir nutzen es bereits für die 15-min-Frames in den ersten 24 h. ABER: Open-Meteo zeigt für ICON-CH1 die Niederschlags-Intensität pro Stunde nur als **stündlich konstanten Wert**, der vier mal hintereinander im 15-min-Raster ausgeliefert wird:
 
-d. **`STEP` erhöhen** (z. B. 2 wie Prognose-Contour-Modus), damit die fbm-Modulation pro 2×2-Block läuft und nicht in feinen Pixelmustern unruhig wirkt.
+```
+17:15 5.1   17:30 5.1   17:45 5.1   18:00 5.1
+```
 
-e. **Kein Crossfade**: Layer bleibt frame-genau (heutiges Verhalten), nichts zu ändern.
+Das ist eine Eigenheit der Open-Meteo-Auslieferung, nicht des Frontends — das Modell rechnet intern stündlich und repliziert die Werte ins 15-min-Schema. Deshalb erzeugen wir die sichtbare 15-min-Bewegung durch **räumliche Wind-Advektion** des Stundenfelds (jetzt 700 hPa, ADVECT_SCALE 1.0). Werte ändern sich nicht, die Felder ziehen aber zwischen den vollen Stunden über die Karte.
 
-### 2. Prognose-NS bewegt sich strikt im 15-min-Takt
+Keine Code-Änderung nötig, ausser der User wünscht, dass wir trotzdem die rohen 15-min-Werte ohne Advektion nehmen — dann sähen NS pro Stunde wieder identisch aus. Ja bitte die  rohen 15-min-Werte ohne Advektion nehmen. Für ein besseres "Ziehen" eine Möglichekit bieten
 
-Backend liefert bereits 15-min-Frames mit Wind-Advektion (`src/lib/radar.functions.ts`, `advectedForecast`). Symptom „bewegt sich nicht" hat zwei mögliche Ursachen:
+### 3. Filmstrip unter die Karte
 
-a. **Hour-Index-Miss**: `meanWindAt(hMs)` schaut in `r1HourIdx`/`r2HourIdx` per exaktem ms-Schlüssel. Wenn die Map-Keys eine andere Rundung haben (`Date.parse` vs. `Math.floor(.../3600_000)*3600_000`), greift kein Wind → `u=v=0` → keine Bewegung. Prüfen und auf gemeinsame Schlüssel-Normalisierung (`Math.floor(ts/3600_000)*3600_000`) angleichen.
+Aktuell ist das Steuerungs-Panel (Play/Filmstrip/Settings) ein `absolute inset-x-2 bottom-2`-Overlay innerhalb des Map-Wrappers und deckt ~80 px Karte ab.
 
-b. **Verschiebung zu klein**: `ADVECT_SCALE = 0.7` × Bodenwind. Bei 3 m/s = 7,5 km/h ergibt 15 min × 0,7 nur ≈ 1,9 km — auf der Karte gerade noch sichtbar. **Fix**: 
-   - `ADVECT_SCALE` auf `1.0` (Bodenwind ist konservativ; bei Konvektion zieht NS ungefähr mit dem Boden- bis 700hPa-Mittel).
-   - Wenn `wind_speed_700hPa` im Cache vorhanden ist (Phase 2 hat es), 700hPa-Wind bevorzugen (näher an der Zellzugbahn).
-   - Kappung bei 30 m/s bleibt.
+Änderung in `RadarMap` (`src/components/maps/radar-map.tsx`, JSX ab Line 1886):
 
-c. **Diagnose-Log**: einmaliger `console.log` der mittleren u/v pro Stunde im Forecast-Aufbau, damit künftig sofort sichtbar ist, ob Wind gezogen wird (entfernen wir später wieder).
-
-### 3. Was bewusst NICHT passiert
-- Kein Crossfade zwischen Frames (weder Messung noch Prognose).
-- Keine zeitliche Glättung der Intensitäten.
-- Keine Mischung von Messung mit Modell.
-- Kein Verändern der Farbskala in Messung — nur Übergänge zwischen Bändern werden glatt.
+- Steuerungs-Panel aus dem Map-Wrapper-Div herausziehen und als **Geschwister-Element** unterhalb des Map-Containers einfügen (das Parent hat bereits `space-y-3`).
+- `absolute inset-x-2 bottom-2 z-[450]` → `relative w-full`. Panel selbst behält Rahmen/Hintergrund (`rounded-xl border bg-white shadow-sm`), aber ohne `backdrop-blur`/Transparenz (nicht mehr nötig).
+- **Bare-Modus (Embed, `bare === true`)**: bleibt unverändert als Overlay — bei Embeds wäre extra Höhe unschön.
+- Karten-Wrapper-Höhe unverändert: `h-[560px] sm:h-[600px]` — gewinnt jetzt vollständig sichtbare Karte zurück.
 
 ## Verifikation
 
-- `/karten/radar`, Messung jetzt: NS-Felder zeigen organisch geschwungene Iso-Konturen wie in der Prognose; keine rechteckigen 1-km-Blöcke, keine einzelnen falschfarbigen Pixel innerhalb einer Bande.
-- Prognose Play/Scrub im 15-min-Takt: NS-Zellen wandern sichtbar zwischen den 15-min-Frames in Windrichtung.
-- Console-Log bestätigt mittlere u/v pro Forecast-Stunde ≠ 0.
+- `/karten/radar`: Messung zeigt dezent organische Kanten ohne starke fbm-Wellen; keine Quantisierungs-Stippelung; Intensitätsverteilung bleibt erkennbar nah am Radar.
+- Filmstrip + Play-Bar unter der Karte; Karte vollflächig sichtbar.
+- Embed (`bare`) unverändert.
 - Typecheck grün.
