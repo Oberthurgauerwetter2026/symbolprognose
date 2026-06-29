@@ -1414,19 +1414,19 @@ function FilmstripTimeline({
             transition: dragging || playing ? "none" : "transform 220ms cubic-bezier(.22,1,.36,1)",
           }}
         >
-          {/* Messungs-Band (grün) */}
+          {/* Messungs-Band (blau, schwach) */}
           <div
             className="absolute top-6 h-4 rounded-sm"
-            style={{ left: 0, width: nowLeft, background: MEASUREMENT_COLOR, opacity: 0.9 }}
+            style={{ left: 0, width: nowLeft, background: BRAND, opacity: 0.35 }}
           />
-          {/* Prognose-Band (blau) */}
+          {/* Prognose-Band (blau, schwach) */}
           <div
             className="absolute top-6 h-4 rounded-sm"
             style={{
               left: nowLeft,
               width: Math.max(0, totalWidth - nowLeft),
-              background: FORECAST_COLOR,
-              opacity: 0.9,
+              background: BRAND,
+              opacity: 0.35,
             }}
           />
 
