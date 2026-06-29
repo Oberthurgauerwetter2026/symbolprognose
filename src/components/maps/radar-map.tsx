@@ -1916,8 +1916,19 @@ export function RadarMap({
     }
 
     const FRAME_MS = 1800 / speed;
+    const REF_GAP_MS = 15 * 60_000;
     let raf = 0;
     let last = performance.now();
+    const computeStepWall = (cur: number): number => {
+      const aIdx = playStepIndices[cur];
+      const nIdx = playStepIndices[cur + 1];
+      if (aIdx == null || nIdx == null) return FRAME_MS;
+      const aMs = Date.parse(frames[aIdx].t);
+      const nMs = Date.parse(frames[nIdx].t);
+      const gap = Math.max(0, nMs - aMs);
+      return FRAME_MS * Math.max(0.15, gap / REF_GAP_MS);
+    };
+    let stepWall = computeStepWall(playCursorRef.current);
     const emitVisual = () => {
       const cur = playCursorRef.current;
       const aIdx = playStepIndices[cur];
@@ -1937,7 +1948,7 @@ export function RadarMap({
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
-      let p = progressRef.current + dt / FRAME_MS;
+      let p = progressRef.current + dt / stepWall;
       if (p >= 1) {
         p = p - 1;
         if (p >= 1) p = 0;
@@ -1953,6 +1964,7 @@ export function RadarMap({
         const nextIdx = playStepIndices[nextCursor];
         idxRef.current = nextIdx;
         setIdx(nextIdx);
+        stepWall = computeStepWall(nextCursor);
       }
       progressRef.current = p;
       emitVisual();
