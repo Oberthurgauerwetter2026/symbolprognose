@@ -1811,25 +1811,6 @@ export function RadarMap({
           <ZoomControl position="topright" />
         </MapContainer>
 
-        {/* Quellen-Badge oben links */}
-        {meta && (
-          <div className="pointer-events-none absolute left-3 top-3 z-[400] flex flex-col gap-1">
-            <span
-              className="rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
-              style={{ background: meta.color }}
-            >
-              {meta.label}
-            </span>
-            {currentFrame && (
-              <span
-                className="rounded-md px-2.5 py-1 text-xs font-medium text-white shadow-md"
-                style={{ background: meta.color }}
-              >
-                {fmtTime(currentFrame.t)}
-              </span>
-            )}
-          </div>
-        )}
 
 
 
