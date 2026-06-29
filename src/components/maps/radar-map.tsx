@@ -1195,19 +1195,41 @@ function MeasurementCanvasOverlay({
     const latSpan = maxLat - minLat;
     const lonSpan = maxLon - minLon;
 
+    // 3×3-Box-Filter über das mm/h-Quellraster: glättet die 1-km-Treppen zu
+    // organischen Konturen, ohne zufälliges Rauschen einzuführen.
+    const sw = src.w;
+    const sh = src.h;
+    const smoothMmh = new Float32Array(sw * sh);
+    for (let y = 0; y < sh; y++) {
+      for (let x = 0; x < sw; x++) {
+        let sum = 0;
+        let cnt = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= sh) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= sw) continue;
+            sum += src.mmh[yy * sw + xx];
+            cnt++;
+          }
+        }
+        smoothMmh[y * sw + x] = cnt > 0 ? sum / cnt : 0;
+      }
+    }
+
     const sampleAt = (fx: number, fy: number) => {
-      // Bilineare 4-Tap-Interpolation: glättet die 1-km-Treppen, ohne dass
-      // colorForSmooth-Bänder verschwimmen (Quantisierung erhält die Optik).
-      const x0 = Math.max(0, Math.min(src.w - 1, Math.floor(fx)));
-      const y0 = Math.max(0, Math.min(src.h - 1, Math.floor(fy)));
-      const x1 = Math.min(src.w - 1, x0 + 1);
-      const y1 = Math.min(src.h - 1, y0 + 1);
+      // Bilineare 4-Tap-Interpolation auf dem geglätteten Feld.
+      const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
+      const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
+      const x1 = Math.min(sw - 1, x0 + 1);
+      const y1 = Math.min(sh - 1, y0 + 1);
       const tx = Math.max(0, Math.min(1, fx - x0));
       const ty = Math.max(0, Math.min(1, fy - y0));
-      const v00 = src.mmh[y0 * src.w + x0];
-      const v01 = src.mmh[y0 * src.w + x1];
-      const v10 = src.mmh[y1 * src.w + x0];
-      const v11 = src.mmh[y1 * src.w + x1];
+      const v00 = smoothMmh[y0 * sw + x0];
+      const v01 = smoothMmh[y0 * sw + x1];
+      const v10 = smoothMmh[y1 * sw + x0];
+      const v11 = smoothMmh[y1 * sw + x1];
       return (
         v00 * (1 - tx) * (1 - ty) +
         v01 * tx * (1 - ty) +
@@ -1216,41 +1238,6 @@ function MeasurementCanvasOverlay({
       );
     };
 
-    // Organische Iso-Konturen wie in PrecipOverlay: fbm-Noise moduliert die
-    // gesampelte Intensität pro Pixel, sodass NS-Bänder nicht als rechteckige
-    // 1-km-Blöcke erscheinen.
-    const hash = (ix: number, iy: number) => {
-      let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
-      h = (h ^ (h >>> 13)) * 1274126177;
-      h = h ^ (h >>> 16);
-      return ((h >>> 0) % 10000) / 10000;
-    };
-    const smooth = (u: number) => u * u * (3 - 2 * u);
-    const valueNoise = (x: number, y: number) => {
-      const ix = Math.floor(x);
-      const iy = Math.floor(y);
-      const fxN = smooth(x - ix);
-      const fyN = smooth(y - iy);
-      const a = hash(ix, iy);
-      const b = hash(ix + 1, iy);
-      const c = hash(ix, iy + 1);
-      const d = hash(ix + 1, iy + 1);
-      return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
-    };
-    const fbm = (x: number, y: number) => {
-      let v = 0;
-      let amp = 0.5;
-      let freq = 1;
-      for (let o = 0; o < 5; o++) {
-        v += valueNoise(x * freq, y * freq) * amp;
-        amp *= 0.5;
-        freq *= 2.1;
-      }
-      return v;
-    };
-    const COS = 0.866;
-    const SIN = 0.5;
-
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
         const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
@@ -1258,20 +1245,7 @@ function MeasurementCanvasOverlay({
         const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
         const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
         if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
-        let v = sampleAt(fx, fy);
-        if (v <= 0) continue;
-
-        // Dezente fbm-Modulation: organisch ohne starkes Weichmachen.
-        const sx = fx * 0.6;
-        const sy = fy * 0.55;
-        const rx = sx * COS - sy * SIN;
-        const ry = sx * SIN + sy * COS;
-        const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 1.2;
-        const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 1.2;
-        const n = fbm(rx + warpX, ry + warpY);
-        const mod = 0.94 + n * 0.12;
-        v = v * mod;
-
+        const v = sampleAt(fx, fy);
         if (v < 0.05) continue;
         const [r, g, b, a] = colorFor(v);
         if (a === 0) continue;
