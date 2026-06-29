@@ -1,21 +1,38 @@
 ## Plan
 
-1. **Timeline an Radarbewegung koppeln**
-  - Die Timeline bekommt einen eigenen schnellen Anzeigezustand, der beim Scrubben und bei der automatischen Animation sofort mitläuft.
-  - Der sichtbare Griff/Bubble wird nicht mehr nur über React-Framewechsel aktualisiert, sondern während Drag/Play direkt per `requestAnimationFrame` geführt.
-  - Beim Wechsel zwischen Messung und Prognose bleibt die Bubble korrekt auf dem jeweils gesnappten Zeitpunkt: Messung im 5-Minuten-Takt, Prognose im Prognose-Takt.
-2. **Ruckeln auf Desktop reduzieren**
-  - Teure Radar-Neuberechnungen während Scrubbing/Animation vermeiden: bestehende Canvas-Frames konsequenter cachen und nicht unnötig bei jeder kleinen UI-Bewegung neu erzeugen. Problem betrifft vor allem bei der Prognose; Messung weniger betroffen
-  - Radar-PNG-Frames stabiler vorladen und ImageOverlay-Wechsel so umbauen, dass der Browser nicht bei jedem Frame einen sichtbaren Layout-/Layer-Wechsel macht.
-  - Während automatischer Animation keine unnötigen State-Updates pro RAF auslösen; nur der Timeline-Griff läuft kontinuierlich, der Radarframe wechselt diskret.
-3. **Timeslider moderner gestalten**
-  - Das untere Bedienpanel kompakter und klarer machen: moderner Track mit Messung/Prognose-Zonen, markanterem Handle, besser lesbarer Zeit-Bubble und weniger kleinteiligen Tick-Labels.
-  - Controls bleiben wie bisher: Play/Pause, Vor/Zurück, Speed, Hagel-Option.
-  - Desktop wird glatter und präziser, Mobile bleibt unverändert gut bedienbar.
-4. **NS-Messung weniger pixelig, aber nicht weichgezeichnet**
-  - Die Messungs-PNGs nicht mehr brutal `pixelated` skalieren.
-  - Stattdessen eine „crisp but finer“-Darstellung wie im Screenshot: harte Farbbänder behalten, aber die sichtbaren Rasterblöcke kleiner/sauberer wirken lassen.
-  - Prognose-Canvas bleibt getrennt davon; dort werden weiterhin konturierte, harte Niederschlagsfelder ohne Blur gerendert.
-5. **Validierung**
-  - Lokal `/karten/radar` bzw. `/karten/lokal` im Desktop-Viewport prüfen: Scrubben, Play-Animation, Messung→Prognose-Übergang, Timeline-Führung.
-  - Screenshot-Vergleich für NS-Messung: harte Bänder, weniger grobe Pixel, kein weichgespültes Blur.
+### 1) Timeslider im MeteoSchweiz-Stil (Filmstrip)
+
+Statt eines klassischen Range-Sliders mit wanderndem Handle bauen wir einen horizontalen Filmstreifen wie im Video:
+
+- Fixe vertikale Linie in der Mitte = aktuelle Zeit.
+- Der Streifen mit Stunden-Labels (01:00, 02:00, …) und kleinen 10-Minuten-Ticks scrollt horizontal, das Handle bleibt stehen.
+- Über der Mittellinie schwebt die blaue Zeit-Bubble („Prognose: Montag, 21:40" bzw. „Messung: …").
+- Darunter eine zweite Zeile mit dem Tagesnamen („Dienstag, 30.06.2026"), die mitscrollt und Tageswechsel anzeigt.
+- Messung- und Prognose-Bereich werden im Streifen farblich unterschieden (z. B. dezent grauer Strich = Messung, blau = Prognose, Hagel/Strichmarker on top).
+- Drag/Wisch nach links/rechts scrubt durch die Frames; Play schiebt den Streifen kontinuierlich.
+- Links Play/Pause + Pfeil zurück, rechts Pfeil vorwärts (wie im Video). Speed-Buttons bleiben darüber/daneben verfügbar; Hagel-Toggle bleibt erhalten.
+- Mobile: gleiche Mechanik mit Touch-Drag, größere Tap-Targets.
+
+Technisch:
+
+- Neue Komponente `FilmstripTimeline` ersetzt `MeteoTimeline` in `radar-map.tsx`.
+- Track als virtualisierter Canvas/SVG mit `transform: translateX()` pro RAF, damit Scrubbing und Auto-Play butterweich laufen (kein React-Re-Render pro Frame).
+- Der Radar-Frameindex wird aus der aktuellen Slider-Position abgeleitet (snap auf 5-min-Messung bzw. Prognose-Takt). Bei Auto-Play bestimmt der Slider den Frame, nicht umgekehrt.
+
+### 2) NS-Messung gleich rendern wie Prognose
+
+Die Messung läuft heute als CombiPrecip-PNG via `StableImageOverlay`. Die Prognose dagegen läuft als Canvas mit harten Farbbändern (`PrecipOverlay`).
+
+- Messung wird ebenfalls auf den `PrecipOverlay`-Canvas-Pfad umgestellt:
+  - PNG der Messung wird einmal pro Frame ausgelesen (Pixelwerte → mm/h via vorhandener Farbtabelle), dann in dasselbe Canvas-Rendering eingespeist wie die Prognose-Felder.
+  - Dadurch identische Farbpalette, identische Kantenhärte, identische Skalierung, kein „Pixel-Look" mehr.
+- `mch-precip` CSS-Pfad entfällt für die Anzeige (PNG dient nur noch als Datenquelle, nicht als sichtbare Layer).
+- Hagel-POH-Overlay bleibt unverändert als eigenständiger Layer.
+- kein weichmachen/glätten
+
+### 3) Validierung
+
+- Desktop `/karten/radar`: Filmstrip scrollt smooth beim Scrubben und Auto-Play, Mittellinie bleibt fix, Tageszeile wechselt korrekt.
+- Messung → Prognose-Übergang: gleiche Optik der NS-Felder, keine sichtbare Stilkante beim Framewechsel.
+- Mobile: Drag funktioniert, keine Performance-Regression.
+- Screenshot-Vergleich Messung vs. Prognose: identische Bänder, keine Pixel-Treppen mehr.
