@@ -1132,26 +1132,6 @@ function useNowFrameIndex(frames: RadarFrame[]): number {
   }, [frames]);
 }
 
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("de-CH", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-
-function sourceLabel(frame: RadarFrame): { label: string; color: string } {
-  if (frame.source === "radar") {
-    return { label: "Messung", color: MEASUREMENT_COLOR };
-  }
-  if (frame.source === "icon-ch1") {
-    return { label: "Modellprognose", color: FORECAST_COLOR };
-  }
-  return { label: "Modellprognose", color: FORECAST_COLOR };
-}
 
 function timelineColorFor(frame: RadarFrame | null): string {
   return frame?.source === "radar" ? MEASUREMENT_COLOR : FORECAST_COLOR;
