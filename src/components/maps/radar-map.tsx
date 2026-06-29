@@ -1726,34 +1726,45 @@ export function RadarMap({
           {data &&
             currentFrame &&
             (() => {
-              const hasPng = !!currentFrame.precipUrl;
-              const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
-              const ib = currentFrame.imageBbox ?? data.imageBbox;
-              const opacityVal = 0.6;
-
+              const baseOpacity = 0.6;
+              const renderLayer = (f: RadarFrame, op: number, keySuffix: string) => {
+                const hasPng = !!f.precipUrl;
+                const hasGrid = Array.isArray(f.values) && f.values.length > 0;
+                const ib = f.imageBbox ?? data.imageBbox;
+                if (hasPng) {
+                  return (
+                    <StableImageOverlay
+                      key={`png-${f.t}-${keySuffix}`}
+                      url={f.precipUrl!}
+                      bounds={[
+                        [ib.minLat, ib.minLon],
+                        [ib.maxLat, ib.maxLon],
+                      ]}
+                      opacity={op}
+                      zIndex={460}
+                      className="mch-precip"
+                    />
+                  );
+                }
+                if (hasGrid) {
+                  return (
+                    <PrecipOverlay
+                      key={`grid-${f.t}-${keySuffix}`}
+                      payload={data}
+                      frame={f}
+                      opacity={op}
+                      contour={f.source !== "radar"}
+                    />
+                  );
+                }
+                return null;
+              };
+              const curOp = baseOpacity * (fadePrev ? fadeT : 1);
+              const prevOp = baseOpacity * (fadePrev ? 1 - fadeT : 0);
               return (
                 <>
-                  {hasGrid && !hasPng && (
-                    <PrecipOverlay
-                      payload={data}
-                      frame={currentFrame}
-                      opacity={opacityVal}
-                      contour={currentFrame.source !== "radar"}
-                    />
-
-                  )}
-                  {hasPng && (
-                    <MeasurementCanvasOverlay
-                      url={currentFrame.precipUrl!}
-                      bounds={{
-                        minLat: ib.minLat,
-                        maxLat: ib.maxLat,
-                        minLon: ib.minLon,
-                        maxLon: ib.maxLon,
-                      }}
-                      opacity={opacityVal}
-                    />
-                  )}
+                  {fadePrev && renderLayer(fadePrev, prevOp, "prev")}
+                  {renderLayer(currentFrame, curOp, "cur")}
                 </>
               );
             })()}
