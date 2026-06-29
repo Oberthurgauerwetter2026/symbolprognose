@@ -713,11 +713,173 @@ function PrecipOverlay({
     ctx.restore();
   };
 
+  // Frame off-screen rendern und in `cacheRef` ablegen (ohne sichtbare Canvas
+  // anzufassen). Wird vom Pre-Warm verwendet, damit Scrub/Play später nur
+  // noch blitten — kein Lazy-Render-Stocker beim ersten Anzeigen eines Frames.
+  const buildOffscreenRef = useRef<(f: RadarFrame) => HTMLCanvasElement | null>(() => null);
+  buildOffscreenRef.current = (f: RadarFrame): HTMLCanvasElement | null => {
+    const lookup = lookupRef.current;
+    if (!lookup) return null;
+    const cacheKey = `${f.t}|${f.source ?? ""}`;
+    const existing = cacheRef.current.get(cacheKey);
+    if (existing) return existing;
+    const { gridLat, gridLon } = payload;
+    const nLat = gridLat.length;
+    const nLon = gridLon.length;
+    const vals = f.values;
+    const snowVals = f.snowValues;
+    if (!vals || vals.length === 0) return null;
+    const lowW = lookup.lowW;
+    const lowH = lookup.lowH;
+    const off = document.createElement("canvas");
+    off.width = lowW;
+    off.height = lowH;
+    const offCtx = off.getContext("2d");
+    if (!offCtx) return null;
+    const img = offCtx.createImageData(lowW, lowH);
+    const data = img.data;
+    const sampleAt = (arr: number[], fx: number, fy: number) => {
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const txL = fx - x0;
+      const tyL = fy - y0;
+      const inX0 = x0 >= 0 && x0 < nLon;
+      const inX1 = x1 >= 0 && x1 < nLon;
+      const inY0 = y0 >= 0 && y0 < nLat;
+      const inY1 = y1 >= 0 && y1 < nLat;
+      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      return (
+        v00 * (1 - txL) * (1 - tyL) +
+        v01 * txL * (1 - tyL) +
+        v10 * (1 - txL) * tyL +
+        v11 * txL * tyL
+      );
+    };
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const cell = ly * lowW + lx;
+        if (!lookup.valid[cell]) continue;
+        const fxRaw = lookup.fx[cell];
+        const fyRaw = lookup.fy[cell];
+        let v = sampleAt(vals, fxRaw, fyRaw);
+        if (contour && v > 0 && lookup.contourScale) {
+          v = v * lookup.contourScale[cell];
+        }
+        const minV = contour ? 0.05 : 0.1;
+        if (v < minV) continue;
+        let snowFrac = 0;
+        if (snowVals) {
+          const sv = sampleAt(snowVals, fxRaw, fyRaw);
+          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+        }
+        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
+        if (a === 0) continue;
+        const alpha = Math.round(a * 255);
+        if (alpha === 0) continue;
+        const px = (ly * lowW + lx) * 4;
+        data[px] = r;
+        data[px + 1] = g;
+        data[px + 2] = b;
+        data[px + 3] = alpha;
+      }
+    }
+    offCtx.putImageData(img, 0, 0);
+    cacheRef.current.set(cacheKey, off);
+    while (cacheRef.current.size > CACHE_MAX) {
+      const firstKey = cacheRef.current.keys().next().value;
+      if (firstKey === undefined) break;
+      cacheRef.current.delete(firstKey);
+    }
+    return off;
+  };
+
   // Nur bei tatsächlichem Frame-Wechsel neu zeichnen — keine Per-RAF-Repaints
   // (Desktop-Performance). Kein Crossfade/Lerp mehr.
   useEffect(() => {
     redrawRef.current();
   }, [frame, payload]);
+
+  // Pre-Warm: nach Map-Idle alle Cadence-Frames off-screen vorberechnen,
+  // damit Scrubbing/Play instant blittet (kein Lazy-Render). Bricht ab,
+  // sobald die View wechselt (movestart/zoomstart leert den Cache).
+  useEffect(() => {
+    if (!prewarmFrames || prewarmFrames.length === 0) return;
+    let cancelled = false;
+    let idleHandle: number | null = null;
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (h: number) => void;
+    };
+    const schedule = (cb: () => void) => {
+      if (w.requestIdleCallback) {
+        idleHandle = w.requestIdleCallback(cb, { timeout: 200 });
+      } else {
+        timeoutHandle = setTimeout(cb, 0);
+      }
+    };
+    const clearScheduled = () => {
+      if (idleHandle !== null && w.cancelIdleCallback) {
+        w.cancelIdleCallback(idleHandle);
+        idleHandle = null;
+      }
+      if (timeoutHandle !== null) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
+      }
+    };
+
+    let i = 0;
+    const step = () => {
+      if (cancelled) return;
+      // Warten bis Lookup-Tabelle steht (nach erstem redraw).
+      if (!lookupRef.current) {
+        timeoutHandle = setTimeout(step, 80);
+        return;
+      }
+      const f = prewarmFrames[i];
+      if (f && (f.values?.length ?? 0) > 0) {
+        buildOffscreenRef.current(f);
+      }
+      i++;
+      if (i < prewarmFrames.length) {
+        schedule(step);
+      }
+    };
+
+    const start = () => {
+      i = 0;
+      clearScheduled();
+      schedule(step);
+    };
+
+    const reset = () => {
+      clearScheduled();
+      // Cache wird durch zoomstart/movestart-Handler bereits geleert;
+      // hier nur neu starten, sobald die Map ruht.
+    };
+
+    map.on("movestart zoomstart resize", reset);
+    map.on("moveend zoomend", start);
+    // Initial nach kurzem Delay (lässt initialen redraw zuerst laufen).
+    timeoutHandle = setTimeout(start, 120);
+
+    return () => {
+      cancelled = true;
+      clearScheduled();
+      map.off("movestart zoomstart resize", reset);
+      map.off("moveend zoomend", start);
+    };
+  }, [prewarmFrames, payload, contour, map]);
+
+
 
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
