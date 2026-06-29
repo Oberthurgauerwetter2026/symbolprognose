@@ -724,6 +724,208 @@ function PrecipOverlay({
 }
 
 /**
+ * Messungs-PNG (MCH CombiPrecip) → Canvas-Layer mit identischer Optik wie
+ * `PrecipOverlay` der Prognose: PNG wird einmalig zu einem mm/h-Grid decodiert
+ * (RGB → nächste SCALE-Bande), beim Rendern bilinear über Lat/Lon gesampelt
+ * und mit harten Farbbändern (`colorFor`) gezeichnet. Kein Glätten, kein Blur.
+ */
+function MeasurementCanvasOverlay({
+  url,
+  bounds,
+  opacity,
+}: {
+  url: string;
+  bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+  opacity: number;
+}) {
+  const map = useMap();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const layerRef = useRef<L.Layer | null>(null);
+  const sourceRef = useRef<{ w: number; h: number; mmh: Float32Array } | null>(null);
+
+  const redrawRef = useRef<() => void>(() => {});
+  function redraw() {
+    redrawRef.current();
+  }
+
+  useEffect(() => {
+    const CanvasLayer = L.Layer.extend({
+      onAdd(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+        const pane = map.getPanes().overlayPane;
+        const cv = L.DomUtil.create("canvas", "radar-canvas") as HTMLCanvasElement;
+        cv.style.position = "absolute";
+        cv.style.pointerEvents = "none";
+        cv.style.willChange = "transform";
+        cv.style.zIndex = "460";
+        cv.style.filter = "contrast(1.1)";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
+        pane.appendChild(cv);
+        this._canvas = cv;
+        canvasRef.current = cv;
+        map.on("moveend zoomend resize", redraw);
+        redraw();
+        return this;
+      },
+      onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+        if (this._canvas) this._canvas.remove();
+        map.off("moveend zoomend resize", redraw);
+        canvasRef.current = null;
+        return this;
+      },
+    });
+    const layer = new (CanvasLayer as unknown as new () => L.Layer)();
+    layer.addTo(map);
+    layerRef.current = layer;
+    return () => {
+      layer.remove();
+      layerRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+
+  // PNG → mm/h-Grid decoding.
+  useEffect(() => {
+    let cancelled = false;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.decoding = "async";
+    img.onload = () => {
+      if (cancelled) return;
+      const cw = img.naturalWidth;
+      const ch = img.naturalHeight;
+      if (cw === 0 || ch === 0) return;
+      const c = document.createElement("canvas");
+      c.width = cw;
+      c.height = ch;
+      const cx = c.getContext("2d", { willReadFrequently: true });
+      if (!cx) return;
+      cx.drawImage(img, 0, 0);
+      let data: Uint8ClampedArray;
+      try {
+        data = cx.getImageData(0, 0, cw, ch).data;
+      } catch {
+        return;
+      }
+      const mmh = new Float32Array(cw * ch);
+      for (let i = 0; i < cw * ch; i++) {
+        const o = i * 4;
+        const a = data[o + 3];
+        if (a < 8) {
+          mmh[i] = 0;
+          continue;
+        }
+        const r = data[o];
+        const g = data[o + 1];
+        const b = data[o + 2];
+        let bestD = Infinity;
+        let bestMmh = 0;
+        for (const s of SCALE) {
+          const dr = r - s.rgb[0];
+          const dg = g - s.rgb[1];
+          const db = b - s.rgb[2];
+          const d = dr * dr + dg * dg + db * db;
+          if (d < bestD) {
+            bestD = d;
+            bestMmh = s.mmh;
+          }
+        }
+        mmh[i] = bestMmh;
+      }
+      sourceRef.current = { w: cw, h: ch, mmh };
+      redraw();
+    };
+    img.src = url;
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  redrawRef.current = () => {
+    const cv = canvasRef.current;
+    const src = sourceRef.current;
+    if (!cv || !src) return;
+    const size = map.getSize();
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = size.x * dpr;
+    cv.height = size.y * dpr;
+    cv.style.width = size.x + "px";
+    cv.style.height = size.y + "px";
+    const tl = map.containerPointToLayerPoint([0, 0]);
+    L.DomUtil.setPosition(cv, tl);
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    const STEP = 1;
+    const lowW = Math.max(1, Math.ceil(size.x / STEP));
+    const lowH = Math.max(1, Math.ceil(size.y / STEP));
+    const off = document.createElement("canvas");
+    off.width = lowW;
+    off.height = lowH;
+    const offCtx = off.getContext("2d");
+    if (!offCtx) return;
+    const img = offCtx.createImageData(lowW, lowH);
+    const dArr = img.data;
+    const { minLat, maxLat, minLon, maxLon } = bounds;
+    const latSpan = maxLat - minLat;
+    const lonSpan = maxLon - minLon;
+
+    const sampleAt = (fx: number, fy: number) => {
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = Math.min(src.w - 1, x0 + 1);
+      const y1 = Math.min(src.h - 1, y0 + 1);
+      const tx = fx - x0;
+      const ty = fy - y0;
+      const v00 = src.mmh[y0 * src.w + x0];
+      const v01 = src.mmh[y0 * src.w + x1];
+      const v10 = src.mmh[y1 * src.w + x0];
+      const v11 = src.mmh[y1 * src.w + x1];
+      return (
+        v00 * (1 - tx) * (1 - ty) +
+        v01 * tx * (1 - ty) +
+        v10 * (1 - tx) * ty +
+        v11 * tx * ty
+      );
+    };
+
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
+        if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
+        const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
+        const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
+        if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
+        const v = sampleAt(fx, fy);
+        if (v < 0.1) continue;
+        const [r, g, b, a] = colorFor(v);
+        if (a === 0) continue;
+        const alpha = Math.round(a * 255);
+        if (alpha === 0) continue;
+        const idx = (ly * lowW + lx) * 4;
+        dArr[idx] = r;
+        dArr[idx + 1] = g;
+        dArr[idx + 2] = b;
+        dArr[idx + 3] = alpha;
+      }
+    }
+    offCtx.putImageData(img, 0, 0);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+    ctx.restore();
+    cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+  };
+
+  useEffect(() => {
+    redrawRef.current();
+  }, [opacity, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
+
+  return null;
+}
+
+/**
  * Hagel-Punkt-Overlay für MESS-Frames: leitet aus der Niederschlagsintensität
  * (ICON-CH1 past_minutely_15, im Frame als `values` enthalten) eine
  * Hagel-Wahrscheinlichkeit ab und zeichnet schwarze Punkte im POH-Stil dort,
