@@ -1,26 +1,25 @@
-## Problem
+Plan:
 
-Der Filmstrip-Slider zeigt aktuell alle Roh-Frames (5 min für MCH-Messung, 15 min für ICON-CH1, aber zusätzliche 1-min-Zwischenframes von Nowcast/Open-Meteo). Der Play-Loop läuft schon im geforderten Takt (5 / 15 / 60 min), aber die Anzeige nicht — Bubble springt auch zwischen Nicht-Play-Frames.
+1. Scrubbing wirklich auf die sichtbaren Filmstrip-Stufen snappen
+- In `FilmstripTimeline` beim Ziehen nicht mehr die kontinuierliche Zielzeit (`target`) anzeigen.
+- Stattdessen die nächstgelegene Frame-Zeit aus der bereits reduzierten `frames`-Liste verwenden.
+- Dadurch springen Bubble, Tageslabel und Slider-Position beim Scrubben nur noch in den erlaubten Takten:
+  - Messung: 5 Minuten
+  - Prognose erste 24h: 15 Minuten
+  - Prognose danach: 1 Stunde
 
-## Lösung
+2. Bubble/Banner nach Frame-Typ einfärben
+- Eine kleine Hilfsfunktion für Timeline-Farben nutzen:
+  - Messung: Grün
+  - Prognose: Blau
+- Die Filmstrip-Bubble inklusive Pfeil bekommt die Farbe des aktuell gesnappten Frames.
+- Das obere Quellen-Banner und die Datums-/Zeit-Anzeige werden gemeinsam in Messung grün bzw. Prognose blau dargestellt.
 
-Den Filmstrip ausschliesslich auf die `playStepIndices`-Frames reduzieren, sodass Slider-Snap, Bubble, „Prev/Next“-Buttons und Drag-Snap genau im gleichen Takt arbeiten wie Play.
+3. Filmstrip-Band anpassen
+- Das Messungs-Band im Filmstrip von grau auf grün ändern.
+- Das Prognose-Band bleibt blau.
+- Damit sind Banner, Bubble und Filmstrip konsistent: Messung grün, Prognose blau.
 
-### Änderung in `src/components/maps/radar-map.tsx`
-
-- Neu in der Komponente: `stripFrames = playStepIndices.map((i) => frames[i])` (memoisiert).
-- `idx → stripIdx`: nächstgelegener Eintrag aus `playStepIndices` (analog `stepCursorForIndex`).
-- `<FilmstripTimeline frames={stripFrames} idx={stripIdx} visualNextIdx={…} onChange={(i) => setIdx(playStepIndices[i])} />`.
-- „Prev“/„Next“-Buttons (Zeilen ~1903–1913 sowie der entsprechende Prev-Button darüber) bewegen sich entlang `playStepIndices` statt `frames`.
-- „Jetzt“-Button springt auf den `playStepIndices`-Eintrag, der `nowIdx` am nächsten ist.
-
-Keine Änderung an `FilmstripTimeline` selbst nötig — sie bekommt einfach das reduzierte Frame-Array.
-
-## Verifikation
-
-- `bunx tsgo --noEmit`
-- Preview `/karten/radar`: Bubble/Slider rasten in der Vergangenheit auf 5-min-Schritte, ab jetzt auf 15-min-Schritte, ab +24 h auf 1-h-Schritte. Prev/Next folgen dem gleichen Takt.
-
-## Geänderte Dateien
-
-- `src/components/maps/radar-map.tsx`
+4. Validierung
+- Typecheck ausführen.
+- Auf `/karten/radar` prüfen, dass beim Scrubben keine 1-Minuten-Zwischenwerte mehr erscheinen und die Farben bei Messung/Prognose korrekt wechseln.

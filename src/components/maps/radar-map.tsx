@@ -31,6 +31,8 @@ import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 
 
 const BRAND = "#2561a1";
+const MEASUREMENT_COLOR = "#1f7a3a";
+const FORECAST_COLOR = BRAND;
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
@@ -1143,12 +1145,16 @@ function fmtTime(iso: string): string {
 
 function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "radar") {
-    return { label: "Messung", color: "#1f7a3a" };
+    return { label: "Messung", color: MEASUREMENT_COLOR };
   }
   if (frame.source === "icon-ch1") {
-    return { label: "Modellprognose", color: BRAND };
+    return { label: "Modellprognose", color: FORECAST_COLOR };
   }
-  return { label: "Modellprognose", color: BRAND };
+  return { label: "Modellprognose", color: FORECAST_COLOR };
+}
+
+function timelineColorFor(frame: RadarFrame | null): string {
+  return frame?.source === "radar" ? MEASUREMENT_COLOR : FORECAST_COLOR;
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
@@ -1274,10 +1280,25 @@ function FilmstripTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, dragging, idx, visualNextIdx, speed]);
 
-  const currentMs = dragMs ?? playMs ?? times[idx] ?? tMin;
+  const nearestIndexForMs = (target: number): number => {
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < times.length; i++) {
+      const dt = Math.abs(times[i] - target);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
+      }
+    }
+    return best;
+  };
+  const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
+  const displayIdx = dragging ? dragIdx : idx;
+  const currentMs = dragging ? times[dragIdx] ?? tMin : playMs ?? times[idx] ?? tMin;
   const translateX = containerW / 2 - ((currentMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
-  const currentFrame = frames[idx] ?? null;
+  const currentFrame = frames[displayIdx] ?? null;
+  const timelineColor = timelineColorFor(currentFrame);
   const bubbleLabel = fmtBubble(new Date(currentMs), currentFrame);
   const dayLabel = fmtDayLong(new Date(currentMs));
 
@@ -1293,19 +1314,12 @@ function FilmstripTimeline({
     }
   };
   const snapAndEmit = (target: number) => {
-    let best = 0;
-    let bestDt = Infinity;
-    for (let i = 0; i < times.length; i++) {
-      const dt = Math.abs(times[i] - target);
-      if (dt < bestDt) {
-        bestDt = dt;
-        best = i;
-      }
-    }
+    const best = nearestIndexForMs(target);
     if (best !== lastSentIdxRef.current) {
       lastSentIdxRef.current = best;
       onChange(best);
     }
+    return best;
   };
   const onMove = (e: React.PointerEvent) => {
     if (!dragStartRef.current) return;
@@ -1318,8 +1332,8 @@ function FilmstripTimeline({
       rafPendingRef.current = null;
       const t = pendingTargetRef.current;
       if (t === null) return;
-      setDragMs(t);
-      snapAndEmit(t);
+      const best = snapAndEmit(t);
+      setDragMs(times[best] ?? t);
     });
   };
   const onUp = (e: React.PointerEvent) => {
@@ -1344,7 +1358,7 @@ function FilmstripTimeline({
         <div className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center">
           <span
             className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
-            style={{ background: BRAND }}
+            style={{ background: timelineColor }}
           >
             {bubbleLabel}
           </span>
@@ -1353,7 +1367,7 @@ function FilmstripTimeline({
             style={{
               borderLeft: "5px solid transparent",
               borderRight: "5px solid transparent",
-              borderTop: `5px solid ${BRAND}`,
+              borderTop: `5px solid ${timelineColor}`,
             }}
           />
         </div>
@@ -1382,13 +1396,13 @@ function FilmstripTimeline({
         onPointerUp={onUp}
         onPointerCancel={onUp}
         className="relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none active:cursor-grabbing focus-visible:ring-2"
-        style={{ ['--tw-ring-color' as never]: BRAND }}
+        style={{ ['--tw-ring-color' as never]: timelineColor }}
       >
         {/* Fixe Mittel-Linie */}
         <span className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-px -translate-x-1/2 bg-neutral-900/85" />
         <span
           className="pointer-events-none absolute left-1/2 top-0 z-30 h-2 w-2 -translate-x-1/2 rotate-45"
-          style={{ background: BRAND }}
+          style={{ background: timelineColor }}
         />
 
         {/* Scrollender Strip */}
@@ -1400,10 +1414,10 @@ function FilmstripTimeline({
             transition: dragging || playing ? "none" : "transform 220ms cubic-bezier(.22,1,.36,1)",
           }}
         >
-          {/* Messungs-Band (grau) */}
+          {/* Messungs-Band (grün) */}
           <div
             className="absolute top-6 h-4 rounded-sm"
-            style={{ left: 0, width: nowLeft, background: "#9ca3af", opacity: 0.85 }}
+            style={{ left: 0, width: nowLeft, background: MEASUREMENT_COLOR, opacity: 0.9 }}
           />
           {/* Prognose-Band (blau) */}
           <div
@@ -1411,7 +1425,7 @@ function FilmstripTimeline({
             style={{
               left: nowLeft,
               width: Math.max(0, totalWidth - nowLeft),
-              background: BRAND,
+              background: FORECAST_COLOR,
               opacity: 0.9,
             }}
           />
@@ -1807,7 +1821,10 @@ export function RadarMap({
               {meta.label}
             </span>
             {currentFrame && (
-              <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
+              <span
+                className="rounded-md px-2.5 py-1 text-xs font-medium text-white shadow-md"
+                style={{ background: meta.color }}
+              >
                 {fmtTime(currentFrame.t)}
               </span>
             )}
