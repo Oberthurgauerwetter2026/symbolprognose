@@ -309,6 +309,12 @@ function ZoomGate({ minZoom, children }: { minZoom: number; children: React.Reac
   return <>{children}</>;
 }
 
+function toLeafletBounds(bounds: L.LatLngBoundsExpression): L.LatLngBounds {
+  return bounds instanceof L.LatLngBounds
+    ? bounds
+    : L.latLngBounds(bounds as L.LatLngExpression[]);
+}
+
 function StableImageOverlay({
   url,
   bounds,
@@ -327,7 +333,7 @@ function StableImageOverlay({
   const latestUrlRef = useRef(url);
 
   useEffect(() => {
-    const overlay = L.imageOverlay(url, bounds, { opacity, zIndex, className }).addTo(map);
+    const overlay = L.imageOverlay(url, toLeafletBounds(bounds), { opacity, zIndex, className }).addTo(map);
     overlayRef.current = overlay;
     latestUrlRef.current = url;
     return () => {
@@ -341,7 +347,7 @@ function StableImageOverlay({
   useEffect(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
-    overlay.setBounds(bounds as L.LatLngBounds);
+    overlay.setBounds(toLeafletBounds(bounds));
     overlay.setOpacity(opacity);
     if (typeof zIndex === "number") overlay.setZIndex(zIndex);
   }, [bounds, opacity, zIndex]);
