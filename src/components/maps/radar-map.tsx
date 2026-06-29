@@ -1603,18 +1603,18 @@ function FilmstripTimeline({
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
   const frameMs = times[displayIdx] ?? tMin;
-  // Bubble/Marker laufen kontinuierlich (Drag oder Play-Interpolation),
-  // das Radar-Bild bleibt frame-genau (currentFrame = frames[displayIdx]).
-  const currentMs = dragging
+  // Der Strip darf bei Drag/Play weich laufen; Bubble-Zeit und Radarbild
+  // bleiben aber auf den gesnappten Cadence-Frames.
+  const motionMs = dragging
     ? (dragMs as number)
     : visualMs != null
       ? visualMs
       : frameMs;
-  const translateX = containerW / 2 - ((currentMs - tMin) / 3_600_000) * PX_PER_HOUR;
+  const translateX = containerW / 2 - ((motionMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
   const currentFrame = frames[displayIdx] ?? null;
   const timelineColor = timelineColorFor(currentFrame);
-  const bubbleLabel = fmtBubble(new Date(currentMs), currentFrame);
+  const bubbleLabel = fmtBubble(new Date(frameMs), currentFrame);
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
@@ -1890,38 +1890,23 @@ export function RadarMap({
     const STEP5 = 5 * 60_000;
     const startMeas = Math.ceil(firstMs / STEP5) * STEP5;
     const endMeas = Math.floor(nowMs / STEP5) * STEP5;
-    let measCount = 0;
     for (let t = startMeas; t <= endMeas; t += STEP5) {
-      const before = out.length;
       pushTarget(t, STEP5);
-      if (out.length > before) measCount++;
     }
 
     // Phase Prognose A: 15-min-Raster bis nowMs + 24 h.
     const STEP15 = 15 * 60_000;
     const cutoff24 = nowMs + 24 * 3600_000;
     const startFc15 = Math.ceil((nowMs + 1) / STEP15) * STEP15;
-    let fc15Count = 0;
     for (let t = startFc15; t <= cutoff24 && t <= lastMs; t += STEP15) {
-      const before = out.length;
       pushTarget(t, STEP15);
-      if (out.length > before) fc15Count++;
     }
 
     // Phase Prognose B: 60-min-Raster nach nowMs + 24 h.
     const STEP60 = 60 * 60_000;
     const startFc60 = Math.ceil((cutoff24 + 1) / STEP60) * STEP60;
-    let fc60Count = 0;
     for (let t = startFc60; t <= lastMs; t += STEP60) {
-      const before = out.length;
       pushTarget(t, STEP60);
-      if (out.length > before) fc60Count++;
-    }
-
-    if (typeof console !== "undefined") {
-      console.info(
-        `[radar] filmstrip steps: measurement=${measCount} forecast15=${fc15Count} forecast60=${fc60Count}`,
-      );
     }
     return out;
   }, [frames]);
