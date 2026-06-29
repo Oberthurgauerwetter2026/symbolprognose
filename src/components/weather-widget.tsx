@@ -227,7 +227,10 @@ export function WeatherWidget({
   useEffect(() => {
     if (detailOnly || !location) return;
     try {
-      localStorage.setItem("weather:location", JSON.stringify(location));
+      localStorage.setItem(
+        "weather:location",
+        JSON.stringify({ ...location, savedAt: Date.now() }),
+      );
     } catch {
       /* ignore */
     }
