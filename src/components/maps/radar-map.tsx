@@ -1269,11 +1269,11 @@ function MeasurementCanvasOverlay({
         const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 1.2;
         const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 1.2;
         const n = fbm(rx + warpX, ry + warpY);
-        const mod = 0.85 + n * 0.30;
+        const mod = 0.94 + n * 0.12;
         v = v * mod;
 
         if (v < 0.05) continue;
-        const [r, g, b, a] = colorForSmooth(v);
+        const [r, g, b, a] = colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -1288,7 +1288,7 @@ function MeasurementCanvasOverlay({
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "low";
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
