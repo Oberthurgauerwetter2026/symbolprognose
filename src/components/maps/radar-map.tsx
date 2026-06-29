@@ -1712,15 +1712,15 @@ export function RadarMap({
 
                   )}
                   {hasPng && (
-                    <StableImageOverlay
+                    <MeasurementCanvasOverlay
                       url={currentFrame.precipUrl!}
-                      bounds={[
-                        [ib.minLat, ib.minLon],
-                        [ib.maxLat, ib.maxLon],
-                      ]}
+                      bounds={{
+                        minLat: ib.minLat,
+                        maxLat: ib.maxLat,
+                        minLon: ib.minLon,
+                        maxLon: ib.maxLon,
+                      }}
                       opacity={opacityVal}
-                      zIndex={460}
-                      className="mch-precip"
                     />
                   )}
                 </>
