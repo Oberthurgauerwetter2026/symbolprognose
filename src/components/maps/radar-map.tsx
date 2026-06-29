@@ -1042,7 +1042,7 @@ function MeasurementCanvasOverlay({
     if (!ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
 
-    const STEP = 1;
+    const STEP = 2;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
     const off = document.createElement("canvas");
@@ -1075,6 +1075,41 @@ function MeasurementCanvasOverlay({
       );
     };
 
+    // Organische Iso-Konturen wie in PrecipOverlay: fbm-Noise moduliert die
+    // gesampelte Intensität pro Pixel, sodass NS-Bänder nicht als rechteckige
+    // 1-km-Blöcke erscheinen.
+    const hash = (ix: number, iy: number) => {
+      let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
+      h = (h ^ (h >>> 13)) * 1274126177;
+      h = h ^ (h >>> 16);
+      return ((h >>> 0) % 10000) / 10000;
+    };
+    const smooth = (u: number) => u * u * (3 - 2 * u);
+    const valueNoise = (x: number, y: number) => {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fxN = smooth(x - ix);
+      const fyN = smooth(y - iy);
+      const a = hash(ix, iy);
+      const b = hash(ix + 1, iy);
+      const c = hash(ix, iy + 1);
+      const d = hash(ix + 1, iy + 1);
+      return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
+    };
+    const fbm = (x: number, y: number) => {
+      let v = 0;
+      let amp = 0.5;
+      let freq = 1;
+      for (let o = 0; o < 5; o++) {
+        v += valueNoise(x * freq, y * freq) * amp;
+        amp *= 0.5;
+        freq *= 2.1;
+      }
+      return v;
+    };
+    const COS = 0.866;
+    const SIN = 0.5;
+
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
         const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
@@ -1082,9 +1117,22 @@ function MeasurementCanvasOverlay({
         const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
         const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
         if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
-        const v = sampleAt(fx, fy);
-        if (v < 0.1) continue;
-        const [r, g, b, a] = colorFor(v);
+        let v = sampleAt(fx, fy);
+        if (v <= 0) continue;
+
+        // fbm-Modulation: weiche, unregelmässige Kanten ohne Block-Optik.
+        const sx = fx * 0.9;
+        const sy = fy * 0.85;
+        const rx = sx * COS - sy * SIN;
+        const ry = sx * SIN + sy * COS;
+        const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
+        const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
+        const n = fbm(rx + warpX, ry + warpY);
+        const mod = 0.55 + n * 1.0; // weniger aggressiv als Forecast-Contour
+        v = v * mod;
+
+        if (v < 0.05) continue;
+        const [r, g, b, a] = colorForSmooth(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -1098,11 +1146,13 @@ function MeasurementCanvasOverlay({
     offCtx.putImageData(img, 0, 0);
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
   };
+
 
   useEffect(() => {
     redrawRef.current();
