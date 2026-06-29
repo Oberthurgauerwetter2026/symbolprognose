@@ -644,31 +644,25 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   };
 
   // ---- Phase A: 15-min-Prognose-Frames für die ersten 24 h ----
-  // Bevorzugt: räumliche Advektion des Stundenfelds (echte Bewegung).
-  // Fallback: exakter 15-min-Slot (sofern die Intensität sich ändert) oder
-  // lineare Interpolation zwischen Stunden-Ankern.
+  // ICON-CH1 liefert `minutely_15` in echtem Viertelstunden-Takt; wir lesen
+  // direkt den exakten Slot. `interpolateForecast` greift nur noch als
+  // Fallback, falls für einen Slot keine CH1-Daten vorliegen.
   const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
   const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
-  // Diagnose: mittlere Wind-Komponente pro Forecast-Stunde (sollte ≠ 0 sein,
-  // sonst greift die Advektion nicht und die 15-min-Frames sehen pro Stunde
-  // identisch aus).
+  // Diagnose: mittlere precip-Intensität pro 15-min-Slot der ersten 6 h,
+  // um zu verifizieren, dass die ICON-CH1-Werte zwischen den Viertelstunden
+  // tatsächlich variieren (sonst läuft die Visualisierung als Plateau).
   {
     const samples: string[] = [];
-    for (let hMs = Math.floor(now / 3600_000) * 3600_000; hMs <= cutoff24; hMs += 3600_000) {
-      const { u, v } = meanWindAt(hMs);
-      const sp = Math.hypot(u, v);
-      samples.push(`${new Date(hMs).toISOString().slice(11, 16)}=${sp.toFixed(1)}m/s`);
-      if (samples.length >= 6) break;
+    for (let tMs = start15; tMs <= cutoff24 && samples.length < 24; tMs += 900_000) {
+      const g = getForecastExact(tMs);
+      const mean = g ? g.precip.reduce((s, x) => s + x, 0) / Math.max(1, g.precip.length) : 0;
+      samples.push(`${new Date(tMs).toISOString().slice(11, 16)}=${mean.toFixed(2)}`);
     }
-    console.log(`[radar] advect wind (first 6h): ${samples.join(" ")}`);
+    console.log(`[radar] forecast 15-min sample (mm/h): ${samples.join(" ")}`);
   }
   for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
-    // Default: rohe 15-min-Werte aus ICON-CH1 (innerhalb einer Stunde konstant).
-    // drift=true: räumliche Wind-Advektion des Stundenfelds → sichtbare 15-min-
-    // Bewegung der NS-Felder, ohne Werte zu mischen.
-    const grid = input.drift
-      ? advectedForecast(tMs) ?? getForecastExact(tMs) ?? interpolateForecast(tMs)
-      : getForecastExact(tMs) ?? interpolateForecast(tMs);
+    const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);
     if (!grid) continue;
     frames.push({
       t: new Date(tMs).toISOString(),
