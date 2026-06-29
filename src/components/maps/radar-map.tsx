@@ -439,7 +439,7 @@ function PrecipOverlay({
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
         cv.style.filter = "contrast(1.1)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = "pixelated";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
 
         pane.appendChild(cv);
         this._canvas = cv;
@@ -481,6 +481,12 @@ function PrecipOverlay({
   } | null>(null);
   const CACHE_MAX = 256;
 
+  // Crossfade-Refs: nextFrame + progress werden pro Animation-Tick als Prop
+  // gesetzt; redrawRef liest sie über Refs, damit die Animation kein Re-render
+  // pro Frame benötigt.
+  const nextFrameRef = useRef<RadarFrame | null>(null);
+  const progressRef = useRef<number>(0);
+
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
     redrawRef.current();
@@ -518,7 +524,7 @@ function PrecipOverlay({
     const nLon = gridLon.length;
     const vals = frame.values;
     const snowVals = frame.snowValues;
-    const STEP = contour ? 2 : 1;
+    const STEP = 1;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -711,6 +717,19 @@ function PrecipOverlay({
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+
+    // Crossfade: zeichne nextFrame mit alpha=progress darüber, damit zwischen
+    // zwei 15-min-Frames eine fliessende Bewegung entsteht (Profi-Radar-Look).
+    const nf = nextFrameRef.current;
+    const prog = progressRef.current;
+    if (nf && prog > 0 && nf.t !== frame.t) {
+      const nextOff = buildOffscreenRef.current(nf);
+      if (nextOff) {
+        ctx.globalAlpha = Math.min(1, Math.max(0, prog));
+        ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
+        ctx.globalAlpha = 1;
+      }
+    }
     ctx.restore();
   };
 
@@ -881,6 +900,13 @@ function PrecipOverlay({
   }, [prewarmFrames, payload, contour, map]);
 
 
+
+  // Crossfade-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
+  useEffect(() => {
+    nextFrameRef.current = nextFrame ?? null;
+    progressRef.current = typeof progress === "number" ? progress : 0;
+    redrawRef.current();
+  }, [nextFrame, progress]);
 
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
@@ -1675,8 +1701,11 @@ export function RadarMap({
   // Kontinuierliche, weich interpolierte Zeit während Play für Bubble/Marker.
   // Das Radar-Bild selbst bleibt frame-genau (kein Crossfading).
   const [playVisualMs, setPlayVisualMs] = useState<number | null>(null);
-
-  // progress-State entfernt: PrecipOverlay zeichnet keine Inter-Frame-Lerp mehr.
+  // Crossfade-Steuerung für PrecipOverlay während Play (nextFrame + progress).
+  const [playCrossfade, setPlayCrossfade] = useState<{
+    nextFrame: RadarFrame | null;
+    progress: number;
+  } | null>(null);
   const isMobile = useIsMobile();
 
 
@@ -1738,6 +1767,7 @@ export function RadarMap({
     if (!playing || playStepIndices.length === 0) {
       progressRef.current = 0;
       setPlayVisualMs(null);
+      setPlayCrossfade(null);
       return;
     }
     progressRef.current = 0;
@@ -1762,6 +1792,10 @@ export function RadarMap({
       const nMs = nFrame ? Date.parse(nFrame.t) : aMs;
       const p = progressRef.current;
       setPlayVisualMs(aMs + (nMs - aMs) * p);
+      setPlayCrossfade({
+        nextFrame: nFrame && nFrame.t !== aFrame.t ? nFrame : null,
+        progress: p,
+      });
     };
     const tick = (now: number) => {
       const dt = now - last;
@@ -1774,6 +1808,7 @@ export function RadarMap({
         if (nextCursor >= playStepIndices.length) {
           progressRef.current = 0;
           setPlayVisualMs(null);
+          setPlayCrossfade(null);
           setPlaying(false);
           return;
         }
@@ -1790,6 +1825,7 @@ export function RadarMap({
     return () => {
       cancelAnimationFrame(raf);
       setPlayVisualMs(null);
+      setPlayCrossfade(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices]);
@@ -1941,6 +1977,16 @@ export function RadarMap({
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
+                      nextFrame={
+                        currentFrame.source !== "radar" && playCrossfade
+                          ? playCrossfade.nextFrame
+                          : null
+                      }
+                      progress={
+                        currentFrame.source !== "radar" && playCrossfade
+                          ? playCrossfade.progress
+                          : 0
+                      }
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
                       prewarmFrames={stripFrames}
