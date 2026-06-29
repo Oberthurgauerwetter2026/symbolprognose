@@ -1296,8 +1296,10 @@ function FilmstripTimeline({
       rafPendingRef.current = null;
       const t = pendingTargetRef.current;
       if (t === null) return;
-      const best = snapAndEmit(t);
-      setDragMs(times[best] ?? t);
+      // Idx auf nächsten Cadence-Frame snappen (hartes Bild-Schalten),
+      // aber Bubble/Marker am kontinuierlichen Drag-Wert lassen.
+      snapAndEmit(t);
+      setDragMs(t);
     });
   };
   const onUp = (e: React.PointerEvent) => {
