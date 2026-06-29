@@ -1851,6 +1851,7 @@ export function RadarMap({
     const nowMs = Date.now();
     const cutoff24 = nowMs + 24 * 3600_000;
     let lastBucketKey: string | null = null;
+    let lastPickedMs: number | null = null;
     for (let i = 0; i < times.length; i++) {
       const t = times[i];
       const bucketSize =
@@ -1859,8 +1860,20 @@ export function RadarMap({
       const bucket = Math.floor(t / bucketSize);
       const key = `${bucketSize}:${bucket}`;
       if (key !== lastBucketKey) {
+        // Übergangs-Steps mit zu kleinem Zeit-Abstand zum vorherigen
+        // Pick überspringen — verhindert wahrgenommene Pause am Mess→
+        // Prognose-Übergang (sonst landet z. B. 14:00 Radar + 14:05
+        // Prognose direkt hintereinander, gefolgt von 14:15).
+        if (
+          lastPickedMs !== null &&
+          t - lastPickedMs < 0.4 * bucketSize
+        ) {
+          lastBucketKey = key;
+          continue;
+        }
         out.push(i);
         lastBucketKey = key;
+        lastPickedMs = t;
       }
     }
     return out;
@@ -1903,8 +1916,19 @@ export function RadarMap({
     }
 
     const FRAME_MS = 1800 / speed;
+    const REF_GAP_MS = 15 * 60_000;
     let raf = 0;
     let last = performance.now();
+    const computeStepWall = (cur: number): number => {
+      const aIdx = playStepIndices[cur];
+      const nIdx = playStepIndices[cur + 1];
+      if (aIdx == null || nIdx == null) return FRAME_MS;
+      const aMs = Date.parse(frames[aIdx].t);
+      const nMs = Date.parse(frames[nIdx].t);
+      const gap = Math.max(0, nMs - aMs);
+      return FRAME_MS * Math.max(0.15, gap / REF_GAP_MS);
+    };
+    let stepWall = computeStepWall(playCursorRef.current);
     const emitVisual = () => {
       const cur = playCursorRef.current;
       const aIdx = playStepIndices[cur];
@@ -1924,7 +1948,7 @@ export function RadarMap({
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
-      let p = progressRef.current + dt / FRAME_MS;
+      let p = progressRef.current + dt / stepWall;
       if (p >= 1) {
         p = p - 1;
         if (p >= 1) p = 0;
@@ -1940,6 +1964,7 @@ export function RadarMap({
         const nextIdx = playStepIndices[nextCursor];
         idxRef.current = nextIdx;
         setIdx(nextIdx);
+        stepWall = computeStepWall(nextCursor);
       }
       progressRef.current = p;
       emitVisual();
