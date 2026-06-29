@@ -1,38 +1,54 @@
 ## Plan
 
-### 1) Timeslider im MeteoSchweiz-Stil (Filmstrip)
+### 1) Mess-Daten-Lücken in der Vergangenheit füllen (kein Crossfade/Blur)
 
-Statt eines klassischen Range-Sliders mit wanderndem Handle bauen wir einen horizontalen Filmstreifen wie im Video:
+Wenn ein Past-Frame keine Messung hat (CombiPrecip-PNG fehlt, oder Frame liegt zwischen zwei verfügbaren Messungen), darf der Layer nicht einfach leer bleiben. Lösung im `RadarMap`-Render-Block:
 
-- Fixe vertikale Linie in der Mitte = aktuelle Zeit.
-- Der Streifen mit Stunden-Labels (01:00, 02:00, …) und kleinen 10-Minuten-Ticks scrollt horizontal, das Handle bleibt stehen.
-- Über der Mittellinie schwebt die blaue Zeit-Bubble („Prognose: Montag, 21:40" bzw. „Messung: …").
-- Darunter eine zweite Zeile mit dem Tagesnamen („Dienstag, 30.06.2026"), die mitscrollt und Tageswechsel anzeigt.
-- Messung- und Prognose-Bereich werden im Streifen farblich unterschieden (z. B. dezent grauer Strich = Messung, blau = Prognose, Hagel/Strichmarker on top).
-- Drag/Wisch nach links/rechts scrubt durch die Frames; Play schiebt den Streifen kontinuierlich.
-- Links Play/Pause + Pfeil zurück, rechts Pfeil vorwärts (wie im Video). Speed-Buttons bleiben darüber/daneben verfügbar; Hagel-Toggle bleibt erhalten.
-- Mobile: gleiche Mechanik mit Touch-Drag, größere Tap-Targets.
+- Wenn `currentFrame.precipUrl` fehlt aber das Frame in der Vergangenheit liegt, das nächstgelegene Frame mit `precipUrl` finden (`findNearestMeasurement(frames, idx)`), und dessen PNG via `MeasurementCanvasOverlay` zeigen — gleiche Komponente, gleiche `colorFor`-Bänder, also exakt dieselbe Optik wie die übrigen Messungen.
+- Kein Alpha-Blend, kein Cross-Fade, kein Glätten — der Layer wird ohne Übergangs-Animation hart auf das neue PNG gesetzt (`MeasurementCanvasOverlay` re-mountet pro Quell-URL, `imageSmoothingEnabled = false` bleibt).
+- Für reine Forecast-Frames ohne Grid wird wie bisher `PrecipOverlay` mit harten Bändern gerendert; nichts ändert sich an der Forecast-Optik.
 
-Technisch:
+### 2) Nahtloser Übergang Messung → Prognose
 
-- Neue Komponente `FilmstripTimeline` ersetzt `MeteoTimeline` in `radar-map.tsx`.
-- Track als virtualisierter Canvas/SVG mit `transform: translateX()` pro RAF, damit Scrubbing und Auto-Play butterweich laufen (kein React-Re-Render pro Frame).
-- Der Radar-Frameindex wird aus der aktuellen Slider-Position abgeleitet (snap auf 5-min-Messung bzw. Prognose-Takt). Bei Auto-Play bestimmt der Slider den Frame, nicht umgekehrt.
+- `playStepIndices` bekommt einen expliziten "Übergangs-Frame" am Zeitpunkt `nowIdx`, damit der letzte Past-Step und der erste Forecast-Step kein Loch in der Cadence haben.
+- Im `FilmstripTimeline.snapAndEmit` wird die Bedingung `restrictForecast` entfernt: Scrubben darf nahtlos Frames beider Quellen treffen, statt beim Überqueren der "Jetzt"-Linie zu springen.
+- Der Play-Loop stoppt am Forecast-Ende (gut so), läuft aber durch `nowMs` ohne Pause.
 
-### 2) NS-Messung gleich rendern wie Prognose
+### 3) Flüssigeres Scrubben und Animieren
 
-Die Messung läuft heute als CombiPrecip-PNG via `StableImageOverlay`. Die Prognose dagegen läuft als Canvas mit harten Farbbändern (`PrecipOverlay`).
+- `MeasurementCanvasOverlay` cached das zuletzt dekodierte mm/h-Grid nach Quell-URL (kleiner LRU, max 8 Einträge) — beim Zurück-Scrubben auf bereits gesehene Past-Frames entfällt der PNG-Decode.
+- Im Scrub-Pfad (`onPointerMove`) wird `snapAndEmit` per `requestAnimationFrame` gedrosselt (ein Snap pro Frame statt pro Pointer-Event), damit React nicht pro Maus-Sample re-rendert.
+- `redraw()` in `MeasurementCanvasOverlay` und `PrecipOverlay` läuft ebenfalls über einen RAF-Coalescer, sodass mehrere `moveend`/Frame-Wechsel im selben Tick zu einem Repaint zusammenfallen.
+- Auf Desktop bleibt die Bubble-Animation (`playMs`) in `FilmstripTimeline` über RAF; zusätzlich wird `containerW` aus der ResizeObserver-Schleife nur noch bei echten Größenänderungen gesetzt.
 
-- Messung wird ebenfalls auf den `PrecipOverlay`-Canvas-Pfad umgestellt:
-  - PNG der Messung wird einmal pro Frame ausgelesen (Pixelwerte → mm/h via vorhandener Farbtabelle), dann in dasselbe Canvas-Rendering eingespeist wie die Prognose-Felder.
-  - Dadurch identische Farbpalette, identische Kantenhärte, identische Skalierung, kein „Pixel-Look" mehr.
-- `mch-precip` CSS-Pfad entfällt für die Anzeige (PNG dient nur noch als Datenquelle, nicht als sichtbare Layer).
-- Hagel-POH-Overlay bleibt unverändert als eigenständiger Layer.
-- kein weichmachen/glätten
+### 4) Banner "Modellprognose" konsistent blau
 
-### 3) Validierung
+In `sourceLabel()` den Fallback für `icon-ch2` von `#7a4ca0` auf `BRAND` (`#2561a1`) ändern. Sowohl `icon-ch1` als auch `icon-ch2` zeigen damit ein blaues Banner; das violett verschwindet vollständig.
 
-- Desktop `/karten/radar`: Filmstrip scrollt smooth beim Scrubben und Auto-Play, Mittellinie bleibt fix, Tageszeile wechselt korrekt.
-- Messung → Prognose-Übergang: gleiche Optik der NS-Felder, keine sichtbare Stilkante beim Framewechsel.
-- Mobile: Drag funktioniert, keine Performance-Regression.
-- Screenshot-Vergleich Messung vs. Prognose: identische Bänder, keine Pixel-Treppen mehr.
+### 5) "Jetzt"-Button
+
+Neuer kleiner Button in der Steuerleiste (`absolute inset-x-2 bottom-2 …`), zwischen Play/Pause und der Filmstrip-Spur sichtbar (Desktop und Mobile). Klick:
+
+- `setPlaying(false)`
+- `setIdx(nowIdx)` — nutzt den vorhandenen `useNowFrameIndex`
+- Disabled-Zustand, wenn `idx === nowIdx`
+
+Label: "Jetzt" mit `Clock`-Icon (Lucide). Optisch wie die runden Sekundär-Buttons (Prev/Next), aber breiter (z. B. `px-3 h-9`).
+
+### Technische Details
+
+Dateien: nur `src/components/maps/radar-map.tsx`.
+
+- `MeasurementCanvasOverlay`: neuer Prop `decodeKey` = Quell-URL; internes `Map<string, {w,h,mmh}>` mit FIFO-Cleanup bei > 8 Einträgen.
+- Neue Hilfsfunktion `pickMeasurementUrl(frames, idx, nowMs): string | null` direkt vor dem Render-Block.
+- `FilmstripTimeline.snapAndEmit`: `restrictForecast`-Zweig entfernen, dafür `rafPendingRef` zum Throttlen einbauen.
+- `sourceLabel`: Farb-Konstante anpassen.
+- Neuer Button im Control-Bar zwischen Play und Prev (Desktop) bzw. neben Play (Mobile).
+
+### Validierung
+
+- `/karten/radar` desktop: in die Vergangenheit scrubben → Niederschlagsfelder bleiben sichtbar, keine Lücke, keine Weichzeichnung.
+- Übergang Messung↔Prognose: visuell ein durchgehender Strom, Bubble läuft ohne Stop durch.
+- Auto-Play 2×/5×/10×: keine sichtbaren Ruckler (Desktop Chrome/Safari).
+- Banner: "Modellprognose" immer blau, kein violett.
+- "Jetzt"-Button: nach manuellem Scrub einmal klicken → springt zurück, Button wird disabled.

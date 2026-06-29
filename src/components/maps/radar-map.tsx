@@ -13,7 +13,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
@@ -742,6 +742,8 @@ function MeasurementCanvasOverlay({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
   const sourceRef = useRef<{ w: number; h: number; mmh: Float32Array } | null>(null);
+  const cacheRef = useRef<Map<string, { w: number; h: number; mmh: Float32Array }>>(new Map());
+  const DECODE_CACHE_MAX = 8;
 
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
@@ -783,8 +785,17 @@ function MeasurementCanvasOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
-  // PNG → mm/h-Grid decoding.
+  // PNG → mm/h-Grid decoding mit LRU-Cache pro Quell-URL.
   useEffect(() => {
+    const cached = cacheRef.current.get(url);
+    if (cached) {
+      // Reinsert to mark as recent.
+      cacheRef.current.delete(url);
+      cacheRef.current.set(url, cached);
+      sourceRef.current = cached;
+      redraw();
+      return;
+    }
     let cancelled = false;
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -831,7 +842,14 @@ function MeasurementCanvasOverlay({
         }
         mmh[i] = bestMmh;
       }
-      sourceRef.current = { w: cw, h: ch, mmh };
+      const entry = { w: cw, h: ch, mmh };
+      cacheRef.current.set(url, entry);
+      while (cacheRef.current.size > DECODE_CACHE_MAX) {
+        const firstKey = cacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        cacheRef.current.delete(firstKey);
+      }
+      sourceRef.current = entry;
       redraw();
     };
     img.src = url;
@@ -1130,7 +1148,7 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "icon-ch1") {
     return { label: "Modellprognose", color: BRAND };
   }
-  return { label: "Modellprognose", color: "#7a4ca0" };
+  return { label: "Modellprognose", color: BRAND };
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
@@ -1264,6 +1282,8 @@ function FilmstripTimeline({
   const dayLabel = fmtDayLong(new Date(currentMs));
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
+  const rafPendingRef = useRef<number | null>(null);
+  const pendingTargetRef = useRef<number | null>(null);
   const onDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragStartRef.current = { x: e.clientX, ms: currentMs };
@@ -1275,9 +1295,7 @@ function FilmstripTimeline({
   const snapAndEmit = (target: number) => {
     let best = 0;
     let bestDt = Infinity;
-    const restrictForecast = target > nowMs;
     for (let i = 0; i < times.length; i++) {
-      if (restrictForecast && frames[i]?.source === "radar") continue;
       const dt = Math.abs(times[i] - target);
       if (dt < bestDt) {
         bestDt = dt;
@@ -1294,11 +1312,23 @@ function FilmstripTimeline({
     const dx = e.clientX - dragStartRef.current.x;
     const dMs = (-dx / PX_PER_HOUR) * 3_600_000;
     const target = Math.max(tMin, Math.min(tMax, dragStartRef.current.ms + dMs));
-    setDragMs(target);
-    snapAndEmit(target);
+    pendingTargetRef.current = target;
+    if (rafPendingRef.current !== null) return;
+    rafPendingRef.current = requestAnimationFrame(() => {
+      rafPendingRef.current = null;
+      const t = pendingTargetRef.current;
+      if (t === null) return;
+      setDragMs(t);
+      snapAndEmit(t);
+    });
   };
   const onUp = (e: React.PointerEvent) => {
     dragStartRef.current = null;
+    if (rafPendingRef.current !== null) {
+      cancelAnimationFrame(rafPendingRef.current);
+      rafPendingRef.current = null;
+    }
+    pendingTargetRef.current = null;
     setDragMs(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -1699,21 +1729,38 @@ export function RadarMap({
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
+              // Past-Frames ohne eigene Messung: nächstes verfügbares
+              // Messungs-PNG suchen, damit die Vergangenheit nicht leer bleibt
+              // und gleich aussieht wie die anderen Mess-Frames.
+              const nowMs = Date.now();
+              const tCur = Date.parse(currentFrame.t);
+              let fallbackPngUrl: string | null = null;
+              if (!hasPng && tCur <= nowMs) {
+                let bestDt = Infinity;
+                for (const f of frames) {
+                  if (!f.precipUrl) continue;
+                  const dt = Math.abs(Date.parse(f.t) - tCur);
+                  if (dt < bestDt) {
+                    bestDt = dt;
+                    fallbackPngUrl = f.precipUrl;
+                  }
+                }
+              }
+              const effectivePngUrl = currentFrame.precipUrl ?? fallbackPngUrl;
 
               return (
                 <>
-                  {hasGrid && !hasPng && (
+                  {hasGrid && !hasPng && !fallbackPngUrl && (
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
                     />
-
                   )}
-                  {hasPng && (
+                  {effectivePngUrl && (
                     <MeasurementCanvasOverlay
-                      url={currentFrame.precipUrl!}
+                      url={effectivePngUrl}
                       bounds={{
                         minLat: ib.minLat,
                         maxLat: ib.maxLat,
@@ -1850,6 +1897,22 @@ export function RadarMap({
                   >
                     <ChevronLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                   </button>
+
+                  {/* Jetzt — zurück auf aktuelle Messzeit */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlaying(false);
+                      setIdx(nowIdx);
+                    }}
+                    disabled={idx === nowIdx}
+                    className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"
+                    aria-label="Auf aktuelle Messzeit zurückspringen"
+                  >
+                    <Clock className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                    <span>Jetzt</span>
+                  </button>
+
 
                   {/* Track */}
                   <div className="min-w-0 flex-1">
