@@ -1977,6 +1977,16 @@ export function RadarMap({
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
+                      nextFrame={
+                        currentFrame.source !== "radar" && playCrossfade
+                          ? playCrossfade.nextFrame
+                          : null
+                      }
+                      progress={
+                        currentFrame.source !== "radar" && playCrossfade
+                          ? playCrossfade.progress
+                          : 0
+                      }
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
                       prewarmFrames={stripFrames}
