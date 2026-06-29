@@ -1652,7 +1652,7 @@ export function RadarMap({
     };
   }, [data]);
 
-  const meta = currentFrame ? sourceLabel(currentFrame) : null;
+  
 
   // Frame "trocken"? Canvas-Frames: max(values) prüfen. PNG-Frames: unbekannt
   // (true=trocken nur bei genau 0 values und keiner URL — wird hier vorsichtig
