@@ -1729,21 +1729,38 @@ export function RadarMap({
               const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
               const ib = currentFrame.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
+              // Past-Frames ohne eigene Messung: nächstes verfügbares
+              // Messungs-PNG suchen, damit die Vergangenheit nicht leer bleibt
+              // und gleich aussieht wie die anderen Mess-Frames.
+              const nowMs = Date.now();
+              const tCur = Date.parse(currentFrame.t);
+              let fallbackPngUrl: string | null = null;
+              if (!hasPng && tCur <= nowMs) {
+                let bestDt = Infinity;
+                for (const f of frames) {
+                  if (!f.precipUrl) continue;
+                  const dt = Math.abs(Date.parse(f.t) - tCur);
+                  if (dt < bestDt) {
+                    bestDt = dt;
+                    fallbackPngUrl = f.precipUrl;
+                  }
+                }
+              }
+              const effectivePngUrl = currentFrame.precipUrl ?? fallbackPngUrl;
 
               return (
                 <>
-                  {hasGrid && !hasPng && (
+                  {hasGrid && !hasPng && !fallbackPngUrl && (
                     <PrecipOverlay
                       payload={data}
                       frame={currentFrame}
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
                     />
-
                   )}
-                  {hasPng && (
+                  {effectivePngUrl && (
                     <MeasurementCanvasOverlay
-                      url={currentFrame.precipUrl!}
+                      url={effectivePngUrl}
                       bounds={{
                         minLat: ib.minLat,
                         maxLat: ib.maxLat,
