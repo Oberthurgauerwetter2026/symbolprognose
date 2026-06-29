@@ -1542,6 +1542,7 @@ export function RadarMap({
   useEffect(() => {
     if (!playing || playStepIndices.length === 0) {
       progressRef.current = 0;
+      setPlayVisualMs(null);
       return;
     }
     progressRef.current = 0;
@@ -1555,6 +1556,18 @@ export function RadarMap({
     const FRAME_MS = 1800 / speed;
     let raf = 0;
     let last = performance.now();
+    const emitVisual = () => {
+      const cur = playCursorRef.current;
+      const aIdx = playStepIndices[cur];
+      const nIdx = playStepIndices[cur + 1] ?? aIdx;
+      const aFrame = frames[aIdx];
+      const nFrame = frames[nIdx];
+      if (!aFrame) return;
+      const aMs = Date.parse(aFrame.t);
+      const nMs = nFrame ? Date.parse(nFrame.t) : aMs;
+      const p = progressRef.current;
+      setPlayVisualMs(aMs + (nMs - aMs) * p);
+    };
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
@@ -1565,6 +1578,7 @@ export function RadarMap({
         const nextCursor = playCursorRef.current + 1;
         if (nextCursor >= playStepIndices.length) {
           progressRef.current = 0;
+          setPlayVisualMs(null);
           setPlaying(false);
           return;
         }
@@ -1574,10 +1588,14 @@ export function RadarMap({
         setIdx(nextIdx);
       }
       progressRef.current = p;
+      emitVisual();
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      setPlayVisualMs(null);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices]);
 
