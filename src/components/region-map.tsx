@@ -236,6 +236,7 @@ function MarkerPill({
             cloudLow={cloudLow}
             cloudMid={cloudMid}
             cloudHigh={cloudHigh}
+            temp={mode === "hourly" ? tNow : tMax}
           />
         </span>
       </span>

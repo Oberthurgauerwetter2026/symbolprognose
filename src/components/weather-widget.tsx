@@ -139,6 +139,7 @@ export function WeatherWidget({
     return null;
   });
   const [hydrated, setHydrated] = useState(false);
+  const [locationSavedAt, setLocationSavedAt] = useState<number | null>(null);
   useEffect(() => {
     if (lockedLocation || initialLocation) {
       setHydrated(true);
@@ -147,7 +148,15 @@ export function WeatherWidget({
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem("weather:location");
-      if (raw) setLocation(JSON.parse(raw) as StoredLocation);
+      if (raw) {
+        const parsed = JSON.parse(raw) as StoredLocation & { savedAt?: number };
+        setLocation({
+          name: parsed.name,
+          latitude: parsed.latitude,
+          longitude: parsed.longitude,
+        });
+        setLocationSavedAt(typeof parsed.savedAt === "number" ? parsed.savedAt : 0);
+      }
     } catch {
       /* ignore */
     }
@@ -157,7 +166,10 @@ export function WeatherWidget({
   useEffect(() => {
     if (!hydrated) return;
     if (detailOnly || lockedLocation || initialLocation) return;
-    if (location) return;
+    // Auto-Geolocate, wenn kein Ort vorhanden oder gespeicherter Ort älter als 24 h.
+    const stale =
+      locationSavedAt !== null && Date.now() - locationSavedAt > 24 * 60 * 60_000;
+    if (location && !stale) return;
     if (didAutoLocate.current) return;
     if (typeof window === "undefined" || !navigator.geolocation) return;
     didAutoLocate.current = true;
@@ -170,6 +182,7 @@ export function WeatherWidget({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
           });
+          setLocationSavedAt(Date.now());
           setSelectedDayIdx(0);
         } catch {
           /* ignore */
@@ -180,7 +193,7 @@ export function WeatherWidget({
       },
       { timeout: 8000, maximumAge: 5 * 60_000 },
     );
-  }, [hydrated, location, detailOnly, lockedLocation, initialLocation]);
+  }, [hydrated, location, locationSavedAt, detailOnly, lockedLocation, initialLocation]);
 
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
@@ -214,7 +227,10 @@ export function WeatherWidget({
   useEffect(() => {
     if (detailOnly || !location) return;
     try {
-      localStorage.setItem("weather:location", JSON.stringify(location));
+      localStorage.setItem(
+        "weather:location",
+        JSON.stringify({ ...location, savedAt: Date.now() }),
+      );
     } catch {
       /* ignore */
     }
@@ -1123,6 +1139,7 @@ function DetailPanel({
                         cloudLow={h.cloud_cover_low?.[idx]}
                         cloudMid={h.cloud_cover_mid?.[idx]}
                         cloudHigh={h.cloud_cover_high?.[idx]}
+                        temp={h.temperature_2m?.[idx]}
                       />
 
 
@@ -1451,8 +1468,10 @@ function Footer({
   const updated = new Date();
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
-      <div className="text-xs text-zinc-700 font-medium">
-        MeteoSchweiz local_forecast (OGD) · Tag 6–10: DWD-MOSMIX · aktualisiert{" "}
+      <div className="text-xs text-zinc-700 font-medium leading-relaxed">
+        MeteoSchweiz local_forecast (OGD, ICON-CH1/CH2-EPS) · DWD-MOSMIX (Tag 6–10) ·
+        Open-Meteo ICON-seamless (Karten & Niederschlag) · MeteoSchweiz CPC (Radar) ·
+        EUMETSAT MTG (Satellit) · aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
