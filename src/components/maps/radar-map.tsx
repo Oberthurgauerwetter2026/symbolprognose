@@ -1368,12 +1368,8 @@ function fmtUpdatedAt(iso: string): string {
   }).format(d);
 }
 
-function fmtDayLong(d: Date): string {
-  const wd = WEEKDAY_LONG[d.getDay()];
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
-}
+
+
 
 
 function fmtBubble(d: Date, frame: RadarFrame | null): string {
