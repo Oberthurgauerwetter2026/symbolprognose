@@ -649,6 +649,19 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   // lineare Interpolation zwischen Stunden-Ankern.
   const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
   const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
+  // Diagnose: mittlere Wind-Komponente pro Forecast-Stunde (sollte ≠ 0 sein,
+  // sonst greift die Advektion nicht und die 15-min-Frames sehen pro Stunde
+  // identisch aus).
+  {
+    const samples: string[] = [];
+    for (let hMs = Math.floor(now / 3600_000) * 3600_000; hMs <= cutoff24; hMs += 3600_000) {
+      const { u, v } = meanWindAt(hMs);
+      const sp = Math.hypot(u, v);
+      samples.push(`${new Date(hMs).toISOString().slice(11, 16)}=${sp.toFixed(1)}m/s`);
+      if (samples.length >= 6) break;
+    }
+    console.log(`[radar] advect wind (first 6h): ${samples.join(" ")}`);
+  }
   for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
     const grid =
       advectedForecast(tMs) ?? getForecastExact(tMs) ?? interpolateForecast(tMs);
