@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getOpenMeteoCache } from "@/lib/openmeteo-cache.server";
+import { r2ObjectUrlCandidates } from "@/lib/r2-url.server";
 
 /**
  * Debug-Endpoint: zeigt Meta-Infos zum R2-Open-Meteo-Cache + Radar-Manifest.
@@ -41,16 +42,21 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               error?: string;
             }
           | null = null;
-        if (base) {
+        const manifestUrls = [
+          ...r2ObjectUrlCandidates(process.env.RADAR_MANIFEST_URL, "radar/frames.json"),
+          ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "radar/frames.json"),
+          ...r2ObjectUrlCandidates(base, "radar/frames.json"),
+        ].filter((url, index, all) => all.indexOf(url) === index);
+
+        if (manifestUrls.length > 0) {
           try {
-            const trimmed = base.replace(/\/+$/, "");
-            // R2_PUBLIC_URL kann entweder Basis-URL oder bereits die volle
-            // .../radar/frames.json sein — beide Varianten korrekt behandeln.
-            const url = /\/radar\/frames\.json$/i.test(trimmed)
-              ? trimmed
-              : `${trimmed.replace(/\/radar\/?$/i, "")}/radar/frames.json`;
-            const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
-            if (res.ok) {
+            let lastError: string | null = null;
+            for (const url of manifestUrls) {
+              const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
+              if (!res.ok) {
+                lastError = `manifest fetch ${url} -> ${res.status}`;
+                continue;
+              }
               const m = (await res.json()) as {
                 generatedAt?: string;
                 version?: string;
@@ -99,8 +105,10 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
                     }
                   : null,
               };
-            } else {
-              radar = { error: `manifest fetch ${url} -> ${res.status}` };
+              break;
+            }
+            if (!radar && lastError) {
+              radar = { error: lastError };
             }
           } catch (e) {
             radar = { error: (e as Error).message };

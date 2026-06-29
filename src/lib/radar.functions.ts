@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache.server";
+import { r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
  * Radar-Frames für die Region Oberthurgau.
@@ -133,31 +134,48 @@ type Manifest = {
   frames: ManifestFrame[];
 };
 
+function validManifestFrame(frame: ManifestFrame): frame is ManifestFrame & { t: string } {
+  return typeof frame?.t === "string" && !Number.isNaN(Date.parse(frame.t));
+}
+
 async function fetchR2Manifest(): Promise<Manifest | null> {
-  const base = process.env.R2_PUBLIC_URL;
-  if (!base) {
-    console.warn("[radar] R2_PUBLIC_URL not set — falling back to Open-Meteo only");
+  const candidates = [
+    ...r2ObjectUrlCandidates(process.env.RADAR_MANIFEST_URL, "radar/frames.json"),
+    ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "radar/frames.json"),
+    ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, "radar/frames.json"),
+  ].filter((url, index, all) => all.indexOf(url) === index);
+
+  if (candidates.length === 0) {
+    console.warn("[radar] no R2 radar manifest URL configured — falling back to model data only");
     return null;
   }
-  const trimmed = base.replace(/\/+$/, "");
-  const url = /\/radar\/frames\.json$/i.test(trimmed)
-    ? trimmed
-    : `${trimmed.replace(/\/radar\/?$/i, "")}/radar/frames.json`;
-  try {
-    const res = await fetch(url, {
-      cf: { cacheTtl: 30 } as unknown as undefined,
-    } as RequestInit);
-    if (!res.ok) {
-      console.warn(`[radar] manifest fetch ${url} -> ${res.status}`);
-      return null;
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {
+        cf: { cacheTtl: 30 } as unknown as undefined,
+      } as RequestInit);
+      if (!res.ok) {
+        console.warn(`[radar] manifest fetch ${url} -> ${res.status}`);
+        continue;
+      }
+      const json = (await res.json()) as Manifest;
+      if (!json?.bbox || !Array.isArray(json.frames)) {
+        console.warn(`[radar] manifest ${url} has invalid shape`);
+        continue;
+      }
+      json.frames = json.frames.filter(validManifestFrame);
+      console.log(
+        `[radar] manifest loaded from ${url}: ${json.frames.length} frames, ` +
+          `${json.frames.filter((f) => !!f.precipUrl).length} precip`,
+      );
+      return json;
+    } catch (e) {
+      console.warn(`[radar] manifest fetch error ${url}: ${(e as Error).message}`);
     }
-    const json = (await res.json()) as Manifest;
-    console.log(`[radar] manifest loaded: ${json.frames?.length ?? 0} frames`);
-    return json;
-  } catch (e) {
-    console.warn(`[radar] manifest fetch error: ${(e as Error).message}`);
-    return null;
   }
+
+  return null;
 }
 
 export const getRadarFrames = createServerFn({ method: "GET" })
@@ -212,13 +230,17 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   const frames: RadarFrame[] = [];
 
   // ---- Messung: MeteoSchweiz-Radar-PNGs (Vergangenheit) ----
-  const hasRealRadar = !!manifest && manifest.frames.length > 0;
+  const hasRealRadar = !!manifest && manifest.frames.some((frame) => !!frame.precipUrl);
   // Hagel-Layer verfügbar, sobald Mess-Frames existieren: zeigt entweder
   // echte POH-Daten (sofern in einem Frame vorhanden) oder aus der
   // Niederschlagsintensität abgeleitete Hagel-Punkte bei Gewitter.
   const hasHail = hasRealRadar;
 
   const imageBbox = manifest?.bbox ?? BBOX;
+
+  if (!hasRealRadar) {
+    warnings.push("MCH-Radarmessungen temporär nicht verfügbar");
+  }
 
   if (hasRealRadar) {
     const sortedMf = [...manifest!.frames].sort(
