@@ -2011,6 +2011,22 @@ export function RadarMap({
                       opacity={opacityVal}
                     />
                   )}
+                  {/* Seam-Crossfade Messung → Prognose: blendet den ersten
+                      Forecast-Frame während des letzten Play-Tick weich ein. */}
+                  {currentFrame.source === "radar" &&
+                    playCrossfade?.nextFrame &&
+                    Array.isArray(playCrossfade.nextFrame.values) &&
+                    playCrossfade.nextFrame.values.length > 0 &&
+                    playCrossfade.nextFrame.source !== "radar" && (
+                      <PrecipOverlay
+                        payload={data}
+                        frame={playCrossfade.nextFrame}
+                        opacity={opacityVal * playCrossfade.progress}
+                        contour
+                      />
+                    )}
+
+
 
                 </>
               );
