@@ -518,7 +518,7 @@ function PrecipOverlay({
     const nLon = gridLon.length;
     const vals = frame.values;
     const snowVals = frame.snowValues;
-    const STEP = contour ? 2 : 1;
+    const STEP = 1;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
 
