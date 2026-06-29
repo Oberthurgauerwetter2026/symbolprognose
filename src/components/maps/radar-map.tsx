@@ -1647,11 +1647,6 @@ function FilmstripTimeline({
           )}
         </div>
       </div>
-
-      {/* Tages-Label unter dem Streifen */}
-      <div className="mt-1 text-center text-[10px] font-semibold tabular-nums text-neutral-500">
-        {dayLabel}
-      </div>
     </div>
   );
 }
