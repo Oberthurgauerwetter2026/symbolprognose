@@ -2243,7 +2243,6 @@ export function RadarMap({
             )}
           </div>
         </div>
-      </div>
 
 
 
