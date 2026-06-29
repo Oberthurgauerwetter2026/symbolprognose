@@ -1912,6 +1912,7 @@ export function RadarMap({
                       frame={currentFrame}
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
+                      prewarmFrames={stripFrames}
                     />
                   )}
                   {currentFrame.precipUrl && (
