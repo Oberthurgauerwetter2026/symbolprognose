@@ -1581,37 +1581,6 @@ export function RadarMap({
   const blendNext = nextFrame && !nextFrame.precipUrl && !currentFrame?.precipUrl ? nextFrame : null;
   void blendNext;
 
-  // Sanfter Crossfade beim Wechsel zwischen Layer-Typen (PNG↔Canvas bzw.
-  // Mess↔Prognose). Hält den vorherigen Frame ~280 ms parallel sichtbar und
-  // blendet die Opacities gegeneinander.
-  const FADE_MS = 280;
-  const [fadePrev, setFadePrev] = useState<RadarFrame | null>(null);
-  const [fadeT, setFadeT] = useState(1); // 0 = nur prev, 1 = nur current
-  const prevFrameRef = useRef<RadarFrame | null>(null);
-  useEffect(() => {
-    const prev = prevFrameRef.current;
-    prevFrameRef.current = currentFrame;
-    if (!prev || !currentFrame || prev === currentFrame) return;
-    const prevKind = prev.source === "radar" ? "m" : "f";
-    const curKind = currentFrame.source === "radar" ? "m" : "f";
-    const prevLayer = prev.precipUrl ? "png" : "canvas";
-    const curLayer = currentFrame.precipUrl ? "png" : "canvas";
-    if (prevKind === curKind && prevLayer === curLayer) return;
-    setFadePrev(prev);
-    setFadeT(0);
-    const t0 = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.max(0, Math.min(1, (now - t0) / FADE_MS));
-      setFadeT(t);
-      if (t < 1) raf = requestAnimationFrame(tick);
-      else setFadePrev(null);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [currentFrame]);
-
-
   const timelineNextIdx = playing && idx !== null
     ? playStepIndices[stepCursorForIndex(idx) + 1] ?? null
     : null;
@@ -1726,45 +1695,34 @@ export function RadarMap({
           {data &&
             currentFrame &&
             (() => {
-              const baseOpacity = 0.6;
-              const renderLayer = (f: RadarFrame, op: number, keySuffix: string) => {
-                const hasPng = !!f.precipUrl;
-                const hasGrid = Array.isArray(f.values) && f.values.length > 0;
-                const ib = f.imageBbox ?? data.imageBbox;
-                if (hasPng) {
-                  return (
-                    <StableImageOverlay
-                      key={`png-${f.t}-${keySuffix}`}
-                      url={f.precipUrl!}
-                      bounds={[
-                        [ib.minLat, ib.minLon],
-                        [ib.maxLat, ib.maxLon],
-                      ]}
-                      opacity={op}
-                      zIndex={460}
-                      className="mch-precip"
-                    />
-                  );
-                }
-                if (hasGrid) {
-                  return (
-                    <PrecipOverlay
-                      key={`grid-${f.t}-${keySuffix}`}
-                      payload={data}
-                      frame={f}
-                      opacity={op}
-                      contour={f.source !== "radar"}
-                    />
-                  );
-                }
-                return null;
-              };
-              const curOp = baseOpacity * (fadePrev ? fadeT : 1);
-              const prevOp = baseOpacity * (fadePrev ? 1 - fadeT : 0);
+              const hasPng = !!currentFrame.precipUrl;
+              const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
+              const ib = currentFrame.imageBbox ?? data.imageBbox;
+              const opacityVal = 0.6;
+
               return (
                 <>
-                  {fadePrev && renderLayer(fadePrev, prevOp, "prev")}
-                  {renderLayer(currentFrame, curOp, "cur")}
+                  {hasGrid && !hasPng && (
+                    <PrecipOverlay
+                      payload={data}
+                      frame={currentFrame}
+                      opacity={opacityVal}
+                      contour={currentFrame.source !== "radar"}
+                    />
+
+                  )}
+                  {hasPng && (
+                    <MeasurementCanvasOverlay
+                      url={currentFrame.precipUrl!}
+                      bounds={{
+                        minLat: ib.minLat,
+                        maxLat: ib.maxLat,
+                        minLon: ib.minLon,
+                        maxLon: ib.maxLon,
+                      }}
+                      opacity={opacityVal}
+                    />
+                  )}
                 </>
               );
             })()}
