@@ -33,6 +33,8 @@ import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 const BRAND = "#2561a1";
 const MEASUREMENT_COLOR = "#1f7a3a";
 const FORECAST_COLOR = BRAND;
+const FILMSTRIP_MEASUREMENT_COLOR = "#9ca3af";
+const FILMSTRIP_FORECAST_COLOR = BRAND;
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
@@ -1174,16 +1176,12 @@ function FilmstripTimeline({
   onChange,
   isMobile,
   playing,
-  speed,
-  visualNextIdx,
 }: {
   frames: RadarFrame[];
   idx: number;
   onChange: (i: number) => void;
   isMobile: boolean;
   playing: boolean;
-  speed: number;
-  visualNextIdx: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerW, setContainerW] = useState(0);
@@ -1231,34 +1229,11 @@ function FilmstripTimeline({
   const dayBreaks = hours.filter((h) => h.hour === 0);
 
   const [dragMs, setDragMs] = useState<number | null>(null);
-  const [playMs, setPlayMs] = useState<number | null>(null);
   const dragging = dragMs !== null;
   const lastSentIdxRef = useRef<number>(idx);
   useEffect(() => {
     if (!dragging) lastSentIdxRef.current = idx;
   }, [dragging, idx]);
-
-  // Play-Animation: kontinuierliches Mitführen der Bubble von frame[idx] → frame[visualNextIdx].
-  useEffect(() => {
-    if (!playing || dragging || visualNextIdx === null || visualNextIdx === idx) {
-      setPlayMs(null);
-      return;
-    }
-    const from = times[idx] ?? tMin;
-    const to = times[visualNextIdx] ?? from;
-    const dur = Math.max(120, 1800 / Math.max(0.25, speed));
-    let raf = 0;
-    const t0 = performance.now();
-    const tick = (now: number) => {
-      const t = Math.max(0, Math.min(1, (now - t0) / dur));
-      setPlayMs(from + (to - from) * t);
-      if (t < 0.995) raf = requestAnimationFrame(tick);
-    };
-    setPlayMs(from);
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, dragging, idx, visualNextIdx, speed]);
 
   const nearestIndexForMs = (target: number): number => {
     let best = 0;
@@ -1274,7 +1249,7 @@ function FilmstripTimeline({
   };
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
-  const currentMs = dragging ? times[dragIdx] ?? tMin : playMs ?? times[idx] ?? tMin;
+  const currentMs = times[displayIdx] ?? tMin;
   const translateX = containerW / 2 - ((currentMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
   const currentFrame = frames[displayIdx] ?? null;
@@ -1394,19 +1369,19 @@ function FilmstripTimeline({
             transition: dragging || playing ? "none" : "transform 220ms cubic-bezier(.22,1,.36,1)",
           }}
         >
-          {/* Messungs-Band (blau, schwach) */}
+          {/* Messungs-Band (grau) */}
           <div
             className="absolute top-6 h-4 rounded-sm"
-            style={{ left: 0, width: nowLeft, background: BRAND, opacity: 0.35 }}
+            style={{ left: 0, width: nowLeft, background: FILMSTRIP_MEASUREMENT_COLOR, opacity: 0.6 }}
           />
-          {/* Prognose-Band (blau, schwach) */}
+          {/* Prognose-Band (blau, kräftiger) */}
           <div
             className="absolute top-6 h-4 rounded-sm"
             style={{
               left: nowLeft,
               width: Math.max(0, totalWidth - nowLeft),
-              background: BRAND,
-              opacity: 0.35,
+              background: FILMSTRIP_FORECAST_COLOR,
+              opacity: 0.68,
             }}
           />
 
@@ -1596,10 +1571,6 @@ export function RadarMap({
   // Kein Crossfade — jeder Frame schaltet hart auf den nächsten.
 
 
-  const timelineNextIdx = playing && idx !== null
-    ? playStepIndices[stepCursorForIndex(idx) + 1] ?? null
-    : null;
-
   // Reduzierte Frame-Liste für den Filmstrip — gleiche Cadence wie Play
   // (5 min Messung / 15 min 0–24 h / 60 min > 24 h).
   const stripFrames = useMemo(
@@ -1607,8 +1578,6 @@ export function RadarMap({
     [playStepIndices, frames],
   );
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
-  const stripVisualNextIdx =
-    timelineNextIdx !== null ? playStepIndices.indexOf(timelineNextIdx) : null;
   const stripNowIdx = useMemo(() => {
     if (playStepIndices.length === 0) return 0;
     let best = 0;
@@ -1895,8 +1864,6 @@ export function RadarMap({
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      speed={speed}
-                      visualNextIdx={stripVisualNextIdx}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];
                         if (typeof target === "number") setIdx(target);
