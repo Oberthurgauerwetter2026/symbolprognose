@@ -689,6 +689,24 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     );
   }
 
+  // R2-PNG-URLs auf Same-Origin-Proxy umschreiben, damit der Browser sie als
+  // `crossOrigin="anonymous"` ohne Canvas-Taint lesen kann.
+  const toProxy = (raw?: string): string | undefined => {
+    if (!raw) return raw;
+    try {
+      const u = new URL(raw);
+      const m = u.pathname.match(/\/(radar\/[A-Za-z0-9._\-\/]+\.png)$/i);
+      if (!m) return raw;
+      return `/api/public/radar/proxy?path=${encodeURIComponent(m[1])}`;
+    } catch {
+      return raw;
+    }
+  };
+  for (const f of frames) {
+    if (f.precipUrl) f.precipUrl = toProxy(f.precipUrl);
+    if (f.hailUrl) f.hailUrl = toProxy(f.hailUrl);
+  }
+
   const payload: RadarPayload = {
     bbox: BBOX,
     imageBbox,
@@ -701,4 +719,5 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     warning: warnings.length > 0 ? warnings.join("; ") : undefined,
   };
   return payload;
+
 });
