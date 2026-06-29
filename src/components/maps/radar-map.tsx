@@ -1606,6 +1606,30 @@ export function RadarMap({
     ? playStepIndices[stepCursorForIndex(idx) + 1] ?? null
     : null;
 
+  // Reduzierte Frame-Liste für den Filmstrip — gleiche Cadence wie Play
+  // (5 min Messung / 15 min 0–24 h / 60 min > 24 h).
+  const stripFrames = useMemo(
+    () => playStepIndices.map((i) => frames[i]).filter(Boolean) as RadarFrame[],
+    [playStepIndices, frames],
+  );
+  const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
+  const stripVisualNextIdx =
+    timelineNextIdx !== null ? playStepIndices.indexOf(timelineNextIdx) : null;
+  const stripNowIdx = useMemo(() => {
+    if (playStepIndices.length === 0) return 0;
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < playStepIndices.length; i++) {
+      const dt = Math.abs(playStepIndices[i] - nowIdx);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
+      }
+    }
+    return best;
+  }, [playStepIndices, nowIdx]);
+
+
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
   // ihre URL via Leaflet `setUrl()` ohne Mount/Unmount, kein Leerframe.)
 
