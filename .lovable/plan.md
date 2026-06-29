@@ -1,21 +1,18 @@
-## Ziel
+## Plan
 
-Oberlinkes Badge (Quelle + Zeit) entfernen und Filmstrip-Bänder in der Messung grau, in der Prognose blau mit schwacher Deckkraft gestalten.
+1. **Filmstrip-Farben anpassen**
+   - Messungs-Band im Filmstrip auf Grau setzen.
+   - Prognose-Band blau lassen, aber mit stärkerer Deckkraft / sichtbarerem Blau.
+   - Keine Rückkehr zu grün.
 
-## Änderungen
+2. **Play-Takt korrigieren**
+   - Die Play-Anzeige nicht mehr kontinuierlich zwischen zwei Frames interpolieren lassen.
+   - Bubble, Marker und Filmstrip-Position bei Play nur noch auf den erlaubten Filmstrip-Schritten anzeigen:
+     - Messung: 5-Minuten-Takt
+     - Prognose 0–24 h: 15-Minuten-Takt
+     - Prognose >24 h: 60-Minuten-Takt
+   - Dadurch erscheinen bei Play keine Zwischenzeiten im 1-Minuten-Takt mehr.
 
-### 1. Quellen-Badge oben links entfernen
-
-In `src/components/maps/radar-map.tsx` den kompletten Block `{/* Quellen-Badge oben links */}` (inkl. `meta`-Badge und Zeit-Label) entfernen. Das betrifft nur die visuelle Anzeige, keine Logik.
-
-### 2. Filmstrip-Bänder: Grün → Blau, Deckkraft reduzieren
-
-- Messungs-Band: Farbe von `MEASUREMENT_COLOR` (#1f7a3a) auf `BRAND` (#2561a1) ändern.
-- Prognose-Band: Beibehaltung von `BRAND` (#2561a1).
-- Beide Bänder: Opacity von `0.9` auf `0.35` reduzieren.
-- Die Bubble und der Dreieck-Pfeil über der Mittellinie bleiben wie bisher (grün/blau je nach Frame-Typ) — nur die unteren Streifen-Bänder werden geändert.
-
-## Validierung
-
-- Typecheck (`bunx tsgo --noEmit`) ausführen.
-- Visuell prüfen, dass das Badge verschwunden ist und beide Filmstrip-Bänder blass-blau erscheinen.
+3. **Gezielt prüfen**
+   - Sichtprüfung auf `/karten/radar`: Messung grau, Prognose kräftiger blau.
+   - Play starten und kontrollieren, dass die angezeigten Zeiten nur in der Filmstrip-Cadence springen.
