@@ -1,26 +1,25 @@
 ## Ziel
-Messungs-NS klarer/satter, aber ohne 1-km-Quadrate oder Pixelraster.
+Messungs-NS sauber (keine Körnung/Speckle), trotzdem organische Konturen — keine 1-km-Quadrate.
 
 ## Ursache
-`MeasurementCanvasOverlay` (radar-map.tsx ab Zeile 1168) kombiniert drei Weichmacher gleichzeitig:
-1. `colorForSmooth` (log-interpolierte Übergänge zwischen Bändern) → Farben "wandern" statt klarer Isolinien
-2. fbm-Modulation `v = v * (0.85 + n*0.30)` → ±15 % zufällige Intensitätsverschiebung
-3. `imageSmoothingQuality = "low"` beim Upscale → unscharfes Bilinear
+Die fbm-Modulation `v = v * (0.94 + n*0.12)` in `MeasurementCanvasOverlay` (radar-map.tsx Zeile 1264–1273) erzeugt pro Pixel ±6 % Zufallsrauschen. Sichtbar als feine Körnung / "schmutzige" Flecken — das sind die Unreinheiten.
 
-Zusammen wirken die Messungen wässrig/verwaschen.
+Die organische Form der Niederschlagsflächen entsteht bereits aus zwei sauberen Quellen:
+1. Bilineare 4-Tap-Subpixel-Abtastung in `sampleAt` (Zeile 1198–1217) glättet das 1-km-Raster.
+2. Harte Farbbänder von `colorFor` werden durch die kontinuierliche v-Interpolation an den Bandgrenzen automatisch zu geschwungenen Isolinien.
 
-## Änderungen (nur `MeasurementCanvasOverlay`, Forecast bleibt unverändert)
+→ Wir können das gesamte fbm-Rauschen ersatzlos streichen, ohne die organische Form zu verlieren.
 
-1. **Harte Bänder zurück** (Zeile 1276): `colorForSmooth(v)` → `colorFor(v)`. Gibt scharfe MCH-CombiPrecip-Isolinien, statt verschwommener Farbverläufe. Das eigentliche "Weichzeichnen" gegen die 1-km-Quadrate übernimmt die bilineare Subpixel-Abtastung in `sampleAt` (bleibt erhalten) — Bänder werden dadurch automatisch zu organischen Kurven, nicht zu Rechtecken.
+## Änderungen (nur `MeasurementCanvasOverlay`)
 
-2. **fbm-Modulation deutlich schwächer** (Zeile 1272): `mod = 0.85 + n * 0.30` → `mod = 0.94 + n * 0.12`. Nur noch ±6 % Variation — gerade genug, um die Quadrat-Kanten aufzubrechen, ohne die Intensität zu verschieben oder Bänder hin- und herhüpfen zu lassen.
+1. **fbm-Block + Hash/Noise-Helpers entfernen** (Zeile 1219–1273): Lösche den Kommentar-Block "Organische Iso-Konturen…", die Funktionen `hash`, `smooth`, `valueNoise`, `fbm`, die Konstanten `COS`/`SIN` und im Loop die Zeilen `sx`, `sy`, `rx`, `ry`, `warpX`, `warpY`, `n`, `mod`, `v = v * mod`. Schwelle `if (v < 0.05) continue;` bleibt — fängt Sampling-Rauschen am Rand auf.
 
-3. **Upscale-Qualität hoch** (Zeile 1291): `imageSmoothingQuality = "low"` → `"high"`. Erhält knackige Kanten beim Hochskalieren auf Bildschirmauflösung, ohne sichtbares Pixelraster.
+2. **Sanftes Box-Filter über das v-Feld** als Ersatz für die organische Variation: Vor dem Loop einen 1-Pass-3×3-Mittelwert auf `src.mmh` legen (in lokale `Float32Array` der Größe `src.w*src.h`), damit Bandgrenzen geschmeidig laufen und keine sichtbare 1-km-Kante übrigbleibt. Per Frame cachen (WeakMap keyed auf `src`), damit Pan/Zoom nicht mehrfach blurrt.
+
+3. Alles andere bleibt: `colorFor` (harte Bänder), bilineares `sampleAt` auf dem geglätteten Feld, `imageSmoothingQuality = "high"` beim Upscale.
 
 ## Nicht angefasst
-- `colorFor` / `colorForSmooth` Definition, SCALE-Schwellen
-- Forecast-Layer (`PrecipOverlay`), Hagel-Layer, Filmstrip/Cadence-Logik
-- Bilineare 4-Tap-Interpolation in `sampleAt` (notwendig gegen Quadrate)
+Forecast-Layer (`PrecipOverlay`), Hagel, Filmstrip, Farbskalen.
 
 ## Verifikation
-`/karten/radar` öffnen: Messung-Frames (t ≤ jetzt) zeigen klare Farbbänder ähnlich MCH-CombiPrecip, Ränder sind weich-organisch (keine 1-km-Quadrate sichtbar), aber Farben sind nicht mehr ausgewaschen. Prognose-Frames bleiben optisch identisch zu vorher.
+`/karten/radar` → Messung-Frames: keine Körnung/Speckle mehr sichtbar, Flächen sauber; Ränder weiterhin organisch-geschwungen, keine 1-km-Quadrate. Forecast unverändert.
