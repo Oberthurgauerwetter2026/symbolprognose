@@ -139,6 +139,7 @@ export function WeatherWidget({
     return null;
   });
   const [hydrated, setHydrated] = useState(false);
+  const [locationSavedAt, setLocationSavedAt] = useState<number | null>(null);
   useEffect(() => {
     if (lockedLocation || initialLocation) {
       setHydrated(true);
@@ -147,7 +148,15 @@ export function WeatherWidget({
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem("weather:location");
-      if (raw) setLocation(JSON.parse(raw) as StoredLocation);
+      if (raw) {
+        const parsed = JSON.parse(raw) as StoredLocation & { savedAt?: number };
+        setLocation({
+          name: parsed.name,
+          latitude: parsed.latitude,
+          longitude: parsed.longitude,
+        });
+        setLocationSavedAt(typeof parsed.savedAt === "number" ? parsed.savedAt : 0);
+      }
     } catch {
       /* ignore */
     }
@@ -157,7 +166,10 @@ export function WeatherWidget({
   useEffect(() => {
     if (!hydrated) return;
     if (detailOnly || lockedLocation || initialLocation) return;
-    if (location) return;
+    // Auto-Geolocate, wenn kein Ort vorhanden oder gespeicherter Ort älter als 24 h.
+    const stale =
+      locationSavedAt !== null && Date.now() - locationSavedAt > 24 * 60 * 60_000;
+    if (location && !stale) return;
     if (didAutoLocate.current) return;
     if (typeof window === "undefined" || !navigator.geolocation) return;
     didAutoLocate.current = true;
@@ -170,6 +182,7 @@ export function WeatherWidget({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
           });
+          setLocationSavedAt(Date.now());
           setSelectedDayIdx(0);
         } catch {
           /* ignore */
@@ -180,7 +193,7 @@ export function WeatherWidget({
       },
       { timeout: 8000, maximumAge: 5 * 60_000 },
     );
-  }, [hydrated, location, detailOnly, lockedLocation, initialLocation]);
+  }, [hydrated, location, locationSavedAt, detailOnly, lockedLocation, initialLocation]);
 
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
