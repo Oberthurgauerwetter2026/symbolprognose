@@ -1851,6 +1851,7 @@ export function RadarMap({
     const nowMs = Date.now();
     const cutoff24 = nowMs + 24 * 3600_000;
     let lastBucketKey: string | null = null;
+    let lastPickedMs: number | null = null;
     for (let i = 0; i < times.length; i++) {
       const t = times[i];
       const bucketSize =
@@ -1859,8 +1860,20 @@ export function RadarMap({
       const bucket = Math.floor(t / bucketSize);
       const key = `${bucketSize}:${bucket}`;
       if (key !== lastBucketKey) {
+        // Übergangs-Steps mit zu kleinem Zeit-Abstand zum vorherigen
+        // Pick überspringen — verhindert wahrgenommene Pause am Mess→
+        // Prognose-Übergang (sonst landet z. B. 14:00 Radar + 14:05
+        // Prognose direkt hintereinander, gefolgt von 14:15).
+        if (
+          lastPickedMs !== null &&
+          t - lastPickedMs < 0.4 * bucketSize
+        ) {
+          lastBucketKey = key;
+          continue;
+        }
         out.push(i);
         lastBucketKey = key;
+        lastPickedMs = t;
       }
     }
     return out;
