@@ -1,29 +1,25 @@
-## Ursache
+## Plan
 
-Aktuell baut `playStepIndices` (radar-map.tsx, Z. 1847–1880) die Schrittliste, indem es **vorhandene Frames in Buckets sortiert** und je Bucket den ersten Frame nimmt. Wenn die Forecast-Schiene für 0–24 h faktisch nur stündliche Frames liefert (z. B. weil ICON-CH1 `minutely_15` für einen Lauf nicht da ist und der Fallback nur `hourly` füllt), bleibt der 15-min-Takt im Filmstrip aus — man sieht trotzdem nur Stunden-Schritte. Genau das tritt aktuell auf.
+Das Problem kommt nicht mehr von der Frame-Auswahl, sondern von der Anzeige/Interpolation: Beim Play und Scrubben läuft `visualMs` bzw. `dragMs` kontinuierlich, dadurch zeigt die Bubble in der Prognose Minuten wie 14:40, 14:41, 14:42 statt auf die Filmstrip-Cadence zu snappen.
 
-## Fix
+## Umsetzung
 
-Cadence **zielzeitgesteuert** statt buckettierend bauen. Es werden Zielzeiten in den vom Nutzer gewünschten Schritten erzeugt und für jede Zielzeit der nächstgelegene reale Frame ausgewählt — mit einer Toleranz, die kleiner ist als der jeweilige Schritt, damit kein Frame doppelt verwendet wird.
+1. **Anzeigezeit auf Cadence-Frame snappen**
+   - In `FilmstripTimeline` wird die Bubble-Zeit für Drag/Play nicht mehr aus dem kontinuierlichen `dragMs`/`visualMs` formatiert.
+   - Stattdessen zeigt sie die Zeit des aktuell gesnappten `displayIdx` aus `stripFrames`.
 
-### Änderungen in `src/components/maps/radar-map.tsx`
+2. **Filmstrip-Bewegung ruhig halten**
+   - Der Marker/Strip kann weiterhin weich/reaktiv bewegt werden, aber die angezeigte Zeit und das Radarbild bleiben cadence-basiert.
+   - Ergebnis: Prognose 0–24 h zeigt 15-min-Schritte, danach 60-min-Schritte; keine minütlichen Labels mehr.
 
-**`playStepIndices` (Z. 1847–1880)** neu aufbauen:
+3. **Scrubben korrigieren**
+   - Beim Draggen bleibt `snapAndEmit` auf der reduzierten `stripFrames`-Liste aktiv.
+   - Die Bubble springt nur auf die vorhandenen Filmstrip-Schritte, nicht auf Zwischenminuten.
 
-1. **Zielzeit-Raster** aus `nowMs = Date.now()` ableiten:
-   - Messung: alle 5 min von `firstFrameMs` (auf 5-min abgerundet) bis ≤ `nowMs`.
-   - Prognose A: alle 15 min ab dem nächsten 15-min-Slot nach `nowMs` bis `nowMs + 24 h`.
-   - Prognose B: alle 60 min ab `nowMs + 24 h + 1 h` (auf volle Stunde) bis `lastFrameMs`.
-2. **Frame-Zuordnung pro Zielzeit:** binäre Suche im sortierten `times`-Array (`Date.parse(f.t)`); nimm den näheren Nachbarn. Akzeptiere nur, wenn `|frameMs − targetMs| ≤ 0.5 × stepMs` (also ≤ 2.5 min / 7.5 min / 30 min). Sonst Zielzeit überspringen.
-3. **Duplikate vermeiden:** wenn der gefundene Frame-Index identisch zum zuletzt aufgenommenen ist, überspringen. So bleibt der Filmstrip ruhig, falls eine Phase nur stündliche Daten liefert (dann fallen die 15-min-Slots ohne passenden Frame raus statt denselben Frame 4× zu pinnen).
-4. **Kein Verschluck-Skip am Übergang nötig:** durch das Raster liegen Mess→Prognose-Übergänge automatisch ≥ 5 min auseinander; die bisherige `0.4 × bucketSize`-Skip-Regel entfällt.
-
-**Play-Loop (Z. 1904–1980)** bleibt unverändert: er nutzt weiterhin die reale Zeit-Delta zwischen aufeinanderfolgenden Step-Indizes (`REF_GAP_MS = 15 min`), sodass 5-min-Schritte schneller, 60-min-Schritte langsamer durchlaufen — Tempo bleibt zeit-proportional.
-
-**`stripFrames` / Filmstrip-Render (Z. 1986–1990, 2325–2336)** bleiben unverändert; sie lesen weiter aus `playStepIndices`.
+4. **Kontroll-Log entfernen oder reduzieren**
+   - Den temporären `console.info('[radar] filmstrip steps...')` entferne ich, damit die Konsole sauber bleibt.
 
 ## Verifikation
 
-- `bunx tsgo --noEmit`
-- Im Preview `/karten/radar`: Filmstrip zeigt Messung in 5-min-Schritten, Prognose 0–24 h durchgehend 15-min-Schritte, danach 60-min-Schritte; Play läuft gleichmässig durch alle drei Phasen ohne Hänger.
-- Console-Log einmalig: Anzahl Steps je Phase (`measurement / forecast15 / forecast60`) zur Kontrolle, ob Toleranz-Filter Lücken erzeugt.
+- Auf `/karten/radar` Play in der Prognose prüfen: Bubble läuft nicht mehr minütlich.
+- Scrubben in der Prognose prüfen: Zeit springt in 15-min-Schritten bis +24 h und danach stündlich.
