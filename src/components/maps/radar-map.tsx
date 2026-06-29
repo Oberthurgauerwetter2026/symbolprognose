@@ -901,6 +901,13 @@ function PrecipOverlay({
 
 
 
+  // Crossfade-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
+  useEffect(() => {
+    nextFrameRef.current = nextFrame ?? null;
+    progressRef.current = typeof progress === "number" ? progress : 0;
+    redrawRef.current();
+  }, [nextFrame, progress]);
+
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
     const cv = canvasRef.current;
