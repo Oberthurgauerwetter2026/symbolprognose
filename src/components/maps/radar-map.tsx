@@ -709,7 +709,7 @@ function PrecipOverlay({
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "low";
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
@@ -2035,7 +2035,7 @@ export function RadarMap({
         className={cn(
           bare
             ? "pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3"
-            : "mx-auto w-full max-w-3xl",
+            : "w-full",
         )}
       >
         <div
