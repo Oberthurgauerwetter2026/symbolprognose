@@ -1130,7 +1130,7 @@ function sourceLabel(frame: RadarFrame): { label: string; color: string } {
   if (frame.source === "icon-ch1") {
     return { label: "Modellprognose", color: BRAND };
   }
-  return { label: "Modellprognose", color: "#7a4ca0" };
+  return { label: "Modellprognose", color: BRAND };
 }
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
