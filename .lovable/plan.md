@@ -1,37 +1,35 @@
-## Änderungen
+## Ziel
 
-### 1) `src/components/maps/radar-map.tsx` — Messung etwas mehr glätten
+Scrubben (und Springen) über die gesamte Zeitachse — Messung wie Prognose — läuft ruckelfrei. Darstellung/Settings (Auflösung, Glättung, Farbskala, Smoothing-Quality, Crossfade) bleiben unverändert.
 
-`MeasurementCanvasOverlay` (PNG-Pfad, Z. 1056-1162) bestimmt das Aussehen der Messung. Aktuell:
-- `STEP = 2` → Offscreen-Raster ist nur halb so fein wie die Karte.
-- `sampleAt` läuft nearest-neighbor → harte 1-km-Treppen, die fbm-Modulation kaschiert die Kante nur teilweise.
+## Engpässe heute
 
-Anpassungen:
-- `STEP = 2` → `STEP = 1`: Offscreen wird in voller Anzeigeauflösung gebaut, der finale `drawImage`-Upscale entfällt, Browser zeigt die Werte direkt.
-- `sampleAt`: nearest → bilineare 4-Tap-Interpolation. Da `colorForSmooth` die Farben weiterhin in den definierten Bändern hält, „verwässert" das nicht — Übergänge zwischen Bändern werden nur entlang einer Pixel-Breite weicher.
-- fbm-Modulation (Z. 1140-1149) und `colorForSmooth`-Bänder bleiben unverändert: organische Form, harte Farbskala.
+- **Prognose**: Pre-Warm verarbeitet nur `stripFrames` (Cadence-reduziert). Beim Scrubben über die volle `frames`-Liste werden alle Nicht-Strip-Frames lazy gerendert → kurzes Stocken.
+- **Prognose-Cache**: `CACHE_MAX = 256` in `PrecipOverlay` reicht für 48 h × 15-min-Frames (≈192) plus Mess-Grid-Frames knapp.
+- **Messung**: `MeasurementCanvasOverlay` decodet jedes PNG erst beim Wechsel der `url`-Prop; LRU `DECODE_CACHE_MAX = 8` → beim Scrubben über 30+ Radarframes werden Decode-Kosten neu fällig.
+- Pre-Decode für Radar-PNGs existiert nicht.
 
-Effekt: keine sichtbaren 1-km-Quadrate mehr, Farbbänder bleiben aber klar abgegrenzt.
+## Änderungen — `src/components/maps/radar-map.tsx`
 
-### 2) `src/components/maps/radar-map.tsx` — sanfter Übergang Messung → Prognose
+### 1) Prognose: alle Frames vorwärmen, Cache hochziehen
 
-Im Play-Loop ist der letzte Messungs-Frame heute eine harte Schaltung auf den ersten Prognose-Frame, weil Messung über `MeasurementCanvasOverlay` (PNG) und Prognose über `PrecipOverlay` (Canvas-Grid) gerendert werden — zwei verschiedene Layer ohne gemeinsamen Fade.
+- Pre-Warm-Liste umstellen: an `PrecipOverlay` (Z. 2004) wird `prewarmFrames={frames}` statt `stripFrames` übergeben. `buildOffscreenRef` ignoriert PNG-Frames (kein `values`) ohnehin (`vals.length > 0`-Guard), Mehraufwand betrifft nur Forecast-Frames.
+- `CACHE_MAX` (Z. 482) von `256` → `512`. Reicht für alle Forecast-Frames bei aktueller View, kein Re-Render beim Scrubben in beide Richtungen.
+- Reset-Verhalten unverändert: bei `movestart/zoomstart/resize` wird der Cache wie bisher geleert und nach Idle erneut vorgewärmt.
 
-Lösung — zusätzliche „Seam-Crossfade"-Schicht:
-- Während Playback, wenn `currentFrame.source === "radar"` UND `playCrossfade.nextFrame` ein Forecast-Grid hat, zusätzlich einen `PrecipOverlay` einblenden mit
-  - `frame = playCrossfade.nextFrame`
-  - `opacity = opacityVal * playCrossfade.progress`
-  - `contour = true`
-  - kein eigener `nextFrame`/`progress` (würde doppelt überblenden)
-- Sobald der Play-Cursor den ersten Forecast-Frame erreicht, fällt der Seam-Overlay weg und der normale Forecast-`PrecipOverlay` übernimmt — nahtlos, weil beide dieselbe Render-Pipeline benutzen.
-- Pause/Scrub bleibt unverändert (kein Seam-Crossfade, frame-genaues Bild).
+### 2) Messung: alle Radar-PNGs vor-decoden
 
-Die umgekehrte Richtung (Forecast → Radar) tritt im Play nicht auf (Cursor läuft vorwärts in der Zeit) und wird deshalb nicht eigens behandelt.
+- `MeasurementCanvasOverlay` (Z. 926-) bekommt eine optionale Prop `prefetchUrls?: string[]`.
+- Neuer `useEffect` darin: nach Mount/Änderung der Liste werden die URLs über `requestIdleCallback`-Schedule sequenziell als `Image` geladen, in mm/h-Grid decodiert und in `cacheRef` gelegt — gleicher Pfad wie der reguläre `useEffect` für `url`. Abbruch bei Unmount oder Listen-Wechsel über `cancelled`-Flag.
+- `DECODE_CACHE_MAX` (Z. 940) von `8` → `96`, deckt ~8 h 5-min-Radar mit Reserve. Kein Bild-Resize, keine Darstellungs-Änderung.
+- Aufrufer (Z. 2007): `prefetchUrls={radarUrls}`, wobei `radarUrls = useMemo(() => frames.filter(f => f.source === 'radar' && f.precipUrl).map(f => f.precipUrl!), [frames])`.
+
+### 3) Keine Darstellungs-Änderungen
+
+- `STEP`, `imageSmoothingQuality`, `imageRendering`, `colorFor*`, fbm-Modulation, Crossfade-Logik und Seam-Crossfade bleiben **unverändert**. Nur Cache-Grenzen und Vorwärm-Listen wachsen.
 
 ## Verifikation
 
 - `bunx tsgo --noEmit` grün.
-- `/karten/radar`:
-  - Messung wirkt deutlich glatter, ohne dass Farbbänder verschwimmen.
-  - Beim Play passiert am Seam Messung→Prognose ein sichtbarer, weicher Crossfade (kein Sprung mehr).
-  - Beim Pausieren / Scrubben über den Seam bleibt das Bild frame-genau.
+- `/karten/radar`: schnelles Scrubben über die gesamte Zeitachse (Messung + Prognose) zeigt sofort den passenden Frame — kein „erst Lade-Flicker, dann Bild". Wiederholtes Hin-und-Her im Slider bleibt flüssig.
+- Pan/Zoom invalidiert wie bisher den Cache und wärmt nach kurzer Idle-Pause wieder vor.

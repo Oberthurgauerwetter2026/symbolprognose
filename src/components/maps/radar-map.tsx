@@ -479,7 +479,7 @@ function PrecipOverlay({
     valid: Uint8Array;
     contourScale?: Float32Array;
   } | null>(null);
-  const CACHE_MAX = 256;
+  const CACHE_MAX = 512;
 
   // Crossfade-Refs: nextFrame + progress werden pro Animation-Tick als Prop
   // gesetzt; redrawRef liest sie über Refs, damit die Animation kein Re-render
