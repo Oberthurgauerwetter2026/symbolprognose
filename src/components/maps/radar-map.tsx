@@ -1518,12 +1518,13 @@ export function RadarMap({
     const out: number[] = [];
     const times = frames.map((f) => Date.parse(f.t));
     const nowMs = Date.now();
+    const cutoff1h = nowMs + 60 * 60_000;
     const cutoff24 = nowMs + 24 * 3600_000;
     let lastBucketKey: string | null = null;
     for (let i = 0; i < times.length; i++) {
       const t = times[i];
       const bucketSize =
-        t <= nowMs ? 5 * 60_000 : t <= cutoff24 ? 15 * 60_000 : 60 * 60_000;
+        t <= cutoff1h ? 5 * 60_000 : t <= cutoff24 ? 15 * 60_000 : 60 * 60_000;
       const bucket = Math.floor(t / bucketSize);
       const key = `${bucketSize}:${bucket}`;
       if (key !== lastBucketKey) {
