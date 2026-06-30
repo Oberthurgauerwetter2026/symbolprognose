@@ -924,6 +924,120 @@ function PrecipOverlay({
     return off;
   };
 
+  // Räumlich gemorphter Zwischenframe zwischen zwei Forecast-Frames a→b mit
+  // Progress p ∈ (0,1). Schätzt einmalig pro Paar einen globalen Shift-Vektor
+  // (Cache) und sampelt beide Frames advektiv versetzt; harte Bandfarben
+  // bleiben durch identisches colorFor()/snowColorFor() erhalten.
+  const buildMorphedOffscreenRef = useRef<
+    (a: RadarFrame, b: RadarFrame, p: number) => HTMLCanvasElement | null
+  >(() => null);
+  buildMorphedOffscreenRef.current = (
+    a: RadarFrame,
+    b: RadarFrame,
+    p: number,
+  ): HTMLCanvasElement | null => {
+    const lookup = lookupRef.current;
+    if (!lookup) return null;
+    const aVals = a.values;
+    const bVals = b.values;
+    if (!aVals || aVals.length === 0 || !bVals || bVals.length === 0) return null;
+    const { gridLat, gridLon } = payload;
+    const nLat = gridLat.length;
+    const nLon = gridLon.length;
+
+    const shiftKey = `${a.t}|${b.t}`;
+    let shift = shiftCacheRef.current.get(shiftKey);
+    if (shift === undefined) {
+      shift = estimateShiftCells(aVals, bVals, nLon, nLat);
+      shiftCacheRef.current.set(shiftKey, shift);
+    }
+    const dx = shift?.dx ?? 0;
+    const dy = shift?.dy ?? 0;
+    const s = p * p * (3 - 2 * p);
+    const oneMinusP = 1 - p;
+    const oneMinusS = 1 - s;
+
+    const lowW = lookup.lowW;
+    const lowH = lookup.lowH;
+    let mc = morphCanvasRef.current;
+    if (!mc || mc.width !== lowW || mc.height !== lowH) {
+      mc = document.createElement("canvas");
+      mc.width = lowW;
+      mc.height = lowH;
+      morphCanvasRef.current = mc;
+    }
+    const offCtx = mc.getContext("2d");
+    if (!offCtx) return null;
+    const img = offCtx.createImageData(lowW, lowH);
+    const data = img.data;
+
+    const sampleAt = (arr: number[], fx: number, fy: number) => {
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const txL = fx - x0;
+      const tyL = fy - y0;
+      const inX0 = x0 >= 0 && x0 < nLon;
+      const inX1 = x1 >= 0 && x1 < nLon;
+      const inY0 = y0 >= 0 && y0 < nLat;
+      const inY1 = y1 >= 0 && y1 < nLat;
+      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      return (
+        v00 * (1 - txL) * (1 - tyL) +
+        v01 * txL * (1 - tyL) +
+        v10 * (1 - txL) * tyL +
+        v11 * txL * tyL
+      );
+    };
+
+    const aSnow = a.snowValues;
+    const bSnow = b.snowValues;
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const cell = ly * lowW + lx;
+        if (!lookup.valid[cell]) continue;
+        const fxRaw = lookup.fx[cell];
+        const fyRaw = lookup.fy[cell];
+        const ax = fxRaw - p * dx;
+        const ay = fyRaw - p * dy;
+        const bx = fxRaw + oneMinusP * dx;
+        const by = fyRaw + oneMinusP * dy;
+        const va = sampleAt(aVals, ax, ay);
+        const vb = sampleAt(bVals, bx, by);
+        let v = oneMinusS * va + s * vb;
+        if (contour && v > 0 && lookup.contourScale) v = v * lookup.contourScale[cell];
+        const minV = contour ? 0.05 : 0.1;
+        if (v < minV) continue;
+
+        let snowFrac = 0;
+        if (aSnow || bSnow) {
+          const sa = aSnow ? sampleAt(aSnow, ax, ay) : 0;
+          const sb = bSnow ? sampleAt(bSnow, bx, by) : 0;
+          const sv = oneMinusS * sa + s * sb;
+          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+        }
+
+        const [rC, gC, bC, aC] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
+        if (aC === 0) continue;
+        const alpha = Math.round(aC * 255);
+        if (alpha === 0) continue;
+        const pix = cell * 4;
+        data[pix] = rC;
+        data[pix + 1] = gC;
+        data[pix + 2] = bC;
+        data[pix + 3] = alpha;
+      }
+    }
+    offCtx.putImageData(img, 0, 0);
+    return mc;
+  };
+
+
   // Nur bei tatsächlichem Frame-Wechsel neu zeichnen — keine Per-RAF-Repaints
   // (Desktop-Performance). Kein Crossfade/Lerp mehr.
   useEffect(() => {
