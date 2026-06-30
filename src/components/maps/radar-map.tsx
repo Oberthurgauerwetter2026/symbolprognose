@@ -568,6 +568,10 @@ function PrecipOverlay({
   // pro Frame benötigt.
   const nextFrameRef = useRef<RadarFrame | null>(null);
   const progressRef = useRef<number>(0);
+  // Shift-Cache pro Forecast-Paar (key = "<aT>|<bT>") und 1-Slot-Morph-Canvas.
+  const shiftCacheRef = useRef<Map<string, { dx: number; dy: number } | null>>(new Map());
+  const morphCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
 
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
