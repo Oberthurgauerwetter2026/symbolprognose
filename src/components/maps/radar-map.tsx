@@ -388,9 +388,91 @@ function StableImageOverlay({
 // estimateAdvection entfernt: advektives Resampling in der Prognose verursachte
 // sichtbares Wackeln der Niederschlagsbänder zwischen Framepaaren.
 
+// ============================================================================
+// Forecast-Advektion: einmalige globale Shift-Schätzung pro Forecast-Paar
+// via Brute-Force-NCC auf 32×32-Downsample. Liefert Verschiebungsvektor in
+// Original-Grid-Zellen. Wird in PrecipOverlay für räumlich weiche Morphs
+// zwischen zwei Stunden-Forecast-Frames genutzt (15-min-Sub-Interpolation).
+// ============================================================================
+function downsampleGrid(
+  values: number[],
+  nLon: number,
+  nLat: number,
+  dw: number,
+  dh: number,
+): Float32Array {
+  const out = new Float32Array(dw * dh);
+  for (let dy = 0; dy < dh; dy++) {
+    const y0 = Math.floor((dy * nLat) / dh);
+    const y1 = Math.max(y0 + 1, Math.floor(((dy + 1) * nLat) / dh));
+    for (let dx = 0; dx < dw; dx++) {
+      const x0 = Math.floor((dx * nLon) / dw);
+      const x1 = Math.max(x0 + 1, Math.floor(((dx + 1) * nLon) / dw));
+      let s = 0;
+      let n = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          s += values[y * nLon + x];
+          n++;
+        }
+      }
+      out[dy * dw + dx] = n > 0 ? s / n : 0;
+    }
+  }
+  return out;
+}
 
-
-
+function estimateShiftCells(
+  a: number[],
+  b: number[],
+  nLon: number,
+  nLat: number,
+): { dx: number; dy: number } | null {
+  const DW = 32;
+  const DH = 32;
+  const A = downsampleGrid(a, nLon, nLat, DW, DH);
+  const B = downsampleGrid(b, nLon, nLat, DW, DH);
+  let aMax = 0;
+  let bMax = 0;
+  for (let i = 0; i < A.length; i++) {
+    if (A[i] > aMax) aMax = A[i];
+    if (B[i] > bMax) bMax = B[i];
+  }
+  if (aMax < 0.05 || bMax < 0.05) return null;
+  const MAX = 8;
+  let bestSc = -Infinity;
+  let bestDx = 0;
+  let bestDy = 0;
+  for (let dy = -MAX; dy <= MAX; dy++) {
+    for (let dx = -MAX; dx <= MAX; dx++) {
+      let num = 0;
+      let sa = 0;
+      let sb = 0;
+      for (let y = 0; y < DH; y++) {
+        const yb = y + dy;
+        if (yb < 0 || yb >= DH) continue;
+        for (let x = 0; x < DW; x++) {
+          const xb = x + dx;
+          if (xb < 0 || xb >= DW) continue;
+          const va = A[y * DW + x];
+          const vb = B[yb * DW + xb];
+          num += va * vb;
+          sa += va * va;
+          sb += vb * vb;
+        }
+      }
+      const den = Math.sqrt(sa * sb);
+      const sc = den > 0 ? num / den : 0;
+      if (sc > bestSc) {
+        bestSc = sc;
+        bestDx = dx;
+        bestDy = dy;
+      }
+    }
+  }
+  if (bestSc < 0.3) return null;
+  return { dx: (bestDx * nLon) / DW, dy: (bestDy * nLat) / DH };
+}
 
 /**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
