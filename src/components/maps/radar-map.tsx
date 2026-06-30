@@ -798,26 +798,45 @@ function PrecipOverlay({
       }
     }
 
+    const nf = nextFrameRef.current;
+    const prog = progressRef.current;
+    const morphActive =
+      !!nf &&
+      prog > 0 &&
+      prog < 1 &&
+      !!nf.t &&
+      nf.t !== frame.t &&
+      frame.source !== "radar" &&
+      nf.source !== "radar" &&
+      !!frame.values &&
+      frame.values.length > 0 &&
+      !!nf.values &&
+      nf.values.length > 0;
+    const morphed = morphActive && nf ? buildMorphedOffscreenRef.current(frame, nf, prog) : null;
+
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-
-    // Crossfade: zeichne nextFrame mit alpha=progress darüber, damit zwischen
-    // zwei 15-min-Frames eine fliessende Bewegung entsteht (Profi-Radar-Look).
-    const nf = nextFrameRef.current;
-    const prog = progressRef.current;
-    if (nf && prog > 0 && nf.t !== frame.t) {
-      const nextOff = buildOffscreenRef.current(nf);
-      if (nextOff) {
-        ctx.globalAlpha = Math.min(1, Math.max(0, prog));
-        ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
-        ctx.globalAlpha = 1;
+    if (morphed) {
+      // Räumlich gemorphter Forecast-Zwischenframe ersetzt den Basis-Frame
+      // vollständig (kein zusätzlicher Alpha-Crossfade).
+      ctx.drawImage(morphed, 0, 0, morphed.width, morphed.height, 0, 0, size.x, size.y);
+    } else {
+      ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+      // Fallback (Messung oder fehlende Werte): klassischer Alpha-Crossfade.
+      if (nf && prog > 0 && nf.t !== frame.t) {
+        const nextOff = buildOffscreenRef.current(nf);
+        if (nextOff) {
+          ctx.globalAlpha = Math.min(1, Math.max(0, prog));
+          ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
+          ctx.globalAlpha = 1;
+        }
       }
     }
     ctx.restore();
   };
+
 
   // Frame off-screen rendern und in `cacheRef` ablegen (ohne sichtbare Canvas
   // anzufassen). Wird vom Pre-Warm verwendet, damit Scrub/Play später nur
