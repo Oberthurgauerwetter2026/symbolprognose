@@ -1966,6 +1966,7 @@ function FilmstripTimeline({
   frames,
   idx,
   onChange,
+  onScrubMs,
   isMobile,
   playing,
   visualMs,
@@ -1973,6 +1974,7 @@ function FilmstripTimeline({
   frames: RadarFrame[];
   idx: number;
   onChange: (i: number) => void;
+  onScrubMs?: (ms: number | null) => void;
   isMobile: boolean;
   playing: boolean;
   visualMs?: number | null;
