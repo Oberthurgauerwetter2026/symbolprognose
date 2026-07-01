@@ -2486,6 +2486,25 @@ export function RadarMap({
       nowMs: Date.parse(est.frame.t),
     };
   }, [data, frames]);
+  // Erster / zweiter Forecast-Frame (nicht-Radar mit Grid) — dienen als
+  // Modell-Basis für die Fusion, wenn der Play-Cursor noch auf dem letzten
+  // Radar-Frame steht und playVisualMs bereits über nowMs hinausläuft.
+  const firstForecast = useMemo<RadarFrame | null>(() => {
+    for (const f of frames) {
+      if (f.source !== "radar" && Array.isArray(f.values) && f.values.length > 0) return f;
+    }
+    return null;
+  }, [frames]);
+  const secondForecast = useMemo<RadarFrame | null>(() => {
+    let seen = false;
+    for (const f of frames) {
+      if (f.source !== "radar" && Array.isArray(f.values) && f.values.length > 0) {
+        if (seen) return f;
+        seen = true;
+      }
+    }
+    return null;
+  }, [frames]);
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
   const stripNowIdx = useMemo(() => {
     if (playStepIndices.length === 0) return 0;
