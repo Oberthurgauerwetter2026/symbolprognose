@@ -2272,6 +2272,9 @@ export function RadarMap({
   // Kontinuierliche, weich interpolierte Zeit während Play für Bubble/Marker.
   // Das Radar-Bild selbst bleibt frame-genau (kein Crossfading).
   const [playVisualMs, setPlayVisualMs] = useState<number | null>(null);
+  // Kontinuierliche Scrub-Zeit während aktivem Drag (überschreibt cadence-
+  // gesnapptes idx für Fusion-Rendering; kein Re-Render der ganzen Map nötig).
+  const [scrubVisualMs, setScrubVisualMs] = useState<number | null>(null);
   // Crossfade-Steuerung für PrecipOverlay während Play (nextFrame + progress).
   const [playCrossfade, setPlayCrossfade] = useState<{
     nextFrame: RadarFrame | null;
