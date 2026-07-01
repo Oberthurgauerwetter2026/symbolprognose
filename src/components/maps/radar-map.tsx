@@ -854,9 +854,11 @@ function PrecipOverlay({
     const T_FADE_MS = 120 * 60_000;
     // Nowcasting-Fusion: aktiv, sobald wir jenseits nowMs sind und noch nicht
     // vollständig in die Modellprognose übergegangen sind. Ersetzt Cache/Morph.
+    // Guard `frame.source !== "radar"` entfernt: am Seam Messung→Prognose wird
+    // die letzte Messung (nc.frame) als Basisframe übergeben, damit die
+    // Advektion nahtlos ab nowMs beginnt.
     const nowcastActive =
       !!nc &&
-      frame.source !== "radar" &&
       typeof rt === "number" &&
       rt > nc.nowMs &&
       rt < nc.nowMs + T_FADE_MS &&
