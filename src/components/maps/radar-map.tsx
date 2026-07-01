@@ -854,9 +854,11 @@ function PrecipOverlay({
     const T_FADE_MS = 120 * 60_000;
     // Nowcasting-Fusion: aktiv, sobald wir jenseits nowMs sind und noch nicht
     // vollständig in die Modellprognose übergegangen sind. Ersetzt Cache/Morph.
+    // Fusion aktiv, sobald die Rendering-Zeit über nowMs liegt — unabhängig
+    // davon, ob der Cursor-Frame noch ein Radar-Frame ist. So läuft die
+    // Nowcast-Advektion nahtlos aus der letzten Messung heraus.
     const nowcastActive =
       !!nc &&
-      frame.source !== "radar" &&
       typeof rt === "number" &&
       rt > nc.nowMs &&
       rt < nc.nowMs + T_FADE_MS &&
