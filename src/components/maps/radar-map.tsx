@@ -2636,56 +2636,59 @@ export function RadarMap({
               const ib = currentFrame.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
+              // Kontinuierliche Rendering-Zeit (Play oder Standbild).
+              const visualMs = playVisualMs ?? Date.parse(currentFrame.t);
+              // Sobald wir zeitlich über nowMs sind, übernimmt die Fusion
+              // (Nowcast-Advektion → Modell), auch wenn currentFrame noch
+              // ein Radar-Frame ist. Als Modell-Basis der Sampler bekommt
+              // firstForecast (der Nowcast-Anteil zieht sich ohnehin aus
+              // nc.frame — der letzten Messung).
+              const past =
+                !!nowcast && visualMs > nowcast.nowMs && !!firstForecast;
+              const overlayFrame = past ? firstForecast! : currentFrame;
+              const overlayNext =
+                past
+                  ? secondForecast
+                  : currentFrame.source !== "radar" && playCrossfade
+                    ? playCrossfade.nextFrame
+                    : null;
+              const overlayProgress =
+                past
+                  ? 0
+                  : currentFrame.source !== "radar" && playCrossfade
+                    ? playCrossfade.progress
+                    : 0;
+              const overlayHasGrid =
+                Array.isArray(overlayFrame.values) && overlayFrame.values.length > 0;
+              const overlayHasPng = !!overlayFrame.precipUrl;
+              // PNG-Messung nur zeigen, solange wir nicht in die Fusion
+              // übergegangen sind (sonst käme ein zweiter Layer über dem
+              // advektierten Bild zu liegen).
+              const showPng = hasPng && !past;
+
               return (
                 <>
-                  {hasGrid && !hasPng && (
+                  {overlayHasGrid && (!overlayHasPng || past) && (
                     <PrecipOverlay
                       payload={data}
-                      frame={currentFrame}
-                      nextFrame={
-                        currentFrame.source !== "radar" && playCrossfade
-                          ? playCrossfade.nextFrame
-                          : null
-                      }
-                      progress={
-                        currentFrame.source !== "radar" && playCrossfade
-                          ? playCrossfade.progress
-                          : 0
-                      }
+                      frame={overlayFrame}
+                      nextFrame={overlayNext}
+                      progress={overlayProgress}
                       opacity={opacityVal}
-                      contour={currentFrame.source !== "radar"}
+                      contour={overlayFrame.source !== "radar"}
                       prewarmFrames={frames}
-                      renderTimeMs={
-                        playVisualMs ?? Date.parse(currentFrame.t)
-                      }
+                      renderTimeMs={visualMs}
                       nowcast={nowcast}
                     />
                   )}
-                  {currentFrame.precipUrl && (
+                  {showPng && (
                     <MeasurementCanvasOverlay
-                      url={currentFrame.precipUrl}
+                      url={currentFrame.precipUrl!}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
                     />
                   )}
-                  {/* Seam-Crossfade Messung → Prognose: blendet den ersten
-                      Forecast-Frame während des letzten Play-Tick weich ein. */}
-                  {currentFrame.source === "radar" &&
-                    playCrossfade?.nextFrame &&
-                    Array.isArray(playCrossfade.nextFrame.values) &&
-                    playCrossfade.nextFrame.values.length > 0 &&
-                    playCrossfade.nextFrame.source !== "radar" && (
-                      <PrecipOverlay
-                        payload={data}
-                        frame={playCrossfade.nextFrame}
-                        opacity={opacityVal * playCrossfade.progress}
-                        contour
-                      />
-                    )}
-
-
-
                 </>
               );
             })()}
