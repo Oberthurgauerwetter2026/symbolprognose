@@ -475,6 +475,45 @@ function estimateShiftCells(
 }
 
 /**
+ * Radar-Nowcasting-Bewegungsvektor. Aus den letzten N Radar-Messungen wird
+ * paarweise per NCC ein globaler Shift geschätzt und gewichtet auf
+ * "Zellen pro Minute" gemittelt (jüngstes Paar am stärksten). Rückgabe: der
+ * jüngste Radar-Frame als Advektions-Basis und {vx,vy}. null falls Signal
+ * zu schwach oder < 2 Radar-Frames vorhanden.
+ */
+function estimateRadarMotion(
+  frames: RadarFrame[],
+  nLon: number,
+  nLat: number,
+): { vx: number; vy: number; frame: RadarFrame } | null {
+  const radars = frames.filter(
+    (f) => f.source === "radar" && Array.isArray(f.values) && f.values.length > 0,
+  );
+  if (radars.length < 2) return null;
+  const recent = radars.slice(-4);
+  let sumVx = 0;
+  let sumVy = 0;
+  let sumW = 0;
+  for (let i = 0; i < recent.length - 1; i++) {
+    const a = recent[i];
+    const b = recent[i + 1];
+    const dtMin = (Date.parse(b.t) - Date.parse(a.t)) / 60_000;
+    if (!(dtMin > 0)) continue;
+    const sh = estimateShiftCells(a.values as number[], b.values as number[], nLon, nLat);
+    if (!sh) continue;
+    const w = i + 1;
+    sumVx += (sh.dx / dtMin) * w;
+    sumVy += (sh.dy / dtMin) * w;
+    sumW += w;
+  }
+  if (sumW === 0) return null;
+  // Kappen auf plausible Werte (max ≈ 2 Zellen/min ≈ 120 km/h auf 1 km-Grid).
+  const vx = Math.max(-2, Math.min(2, sumVx / sumW));
+  const vy = Math.max(-2, Math.min(2, sumVy / sumW));
+  return { vx, vy, frame: recent[recent.length - 1] };
+}
+
+/**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
@@ -486,6 +525,8 @@ function PrecipOverlay({
   opacity = 1,
   contour = false,
   prewarmFrames,
+  renderTimeMs,
+  nowcast,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
@@ -494,6 +535,8 @@ function PrecipOverlay({
   opacity?: number;
   contour?: boolean;
   prewarmFrames?: RadarFrame[];
+  renderTimeMs?: number;
+  nowcast?: { frame: RadarFrame; vx: number; vy: number; nowMs: number } | null;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -571,6 +614,11 @@ function PrecipOverlay({
   // Shift-Cache pro Forecast-Paar (key = "<aT>|<bT>") und 1-Slot-Morph-Canvas.
   const shiftCacheRef = useRef<Map<string, { dx: number; dy: number } | null>>(new Map());
   const morphCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Kontinuierliche Zeit-/Nowcast-Refs für Fusion (Play + Scrub gemeinsamer Pfad).
+  const renderTimeRef = useRef<number | null>(null);
+  const nowcastRef = useRef<{ frame: RadarFrame; vx: number; vy: number; nowMs: number } | null>(
+    null,
+  );
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -800,7 +848,24 @@ function PrecipOverlay({
 
     const nf = nextFrameRef.current;
     const prog = progressRef.current;
+    const rt = renderTimeRef.current;
+    const nc = nowcastRef.current;
+    const T_NOW_MS = 60 * 60_000;
+    const T_FADE_MS = 120 * 60_000;
+    // Nowcasting-Fusion: aktiv, sobald wir jenseits nowMs sind und noch nicht
+    // vollständig in die Modellprognose übergegangen sind. Ersetzt Cache/Morph.
+    const nowcastActive =
+      !!nc &&
+      frame.source !== "radar" &&
+      typeof rt === "number" &&
+      rt > nc.nowMs &&
+      rt < nc.nowMs + T_FADE_MS &&
+      !!frame.values &&
+      frame.values.length > 0 &&
+      Array.isArray(nc.frame.values) &&
+      (nc.frame.values as number[]).length > 0;
     const morphActive =
+      !nowcastActive &&
       !!nf &&
       prog > 0 &&
       prog < 1 &&
@@ -812,13 +877,20 @@ function PrecipOverlay({
       frame.values.length > 0 &&
       !!nf.values &&
       nf.values.length > 0;
-    const morphed = morphActive && nf ? buildMorphedOffscreenRef.current(frame, nf, prog) : null;
+    const fused =
+      nowcastActive && nc && typeof rt === "number"
+        ? buildFusionOffscreenRef.current(rt, frame, nf, prog, nc)
+        : null;
+    const morphed =
+      !fused && morphActive && nf ? buildMorphedOffscreenRef.current(frame, nf, prog) : null;
 
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (morphed) {
+    if (fused) {
+      ctx.drawImage(fused, 0, 0, fused.width, fused.height, 0, 0, size.x, size.y);
+    } else if (morphed) {
       // Räumlich gemorphter Forecast-Zwischenframe ersetzt den Basis-Frame
       // vollständig (kein zusätzlicher Alpha-Crossfade).
       ctx.drawImage(morphed, 0, 0, morphed.width, morphed.height, 0, 0, size.x, size.y);
@@ -1037,6 +1109,173 @@ function PrecipOverlay({
     return mc;
   };
 
+  // Nowcast-Modell-Fusion. Sampelt in einem Pass beide Grids und mischt sie
+  // gewichtet: reines Nowcasting bis T_NOW, sanfter smoothstep-Übergang bis
+  // T_FADE, dann reines Modell. Model-Anteil kann optional zwischen zwei
+  // Forecast-Frames advektiert-morphed sein (kohärente Zellwanderung auch
+  // in der Übergangszone).
+  const buildFusionOffscreenRef = useRef<
+    (
+      renderTimeMs: number,
+      modelA: RadarFrame,
+      modelB: RadarFrame | null,
+      modelProg: number,
+      nc: { frame: RadarFrame; vx: number; vy: number; nowMs: number },
+    ) => HTMLCanvasElement | null
+  >(() => null);
+  buildFusionOffscreenRef.current = (renderTimeMs, modelA, modelB, modelProg, nc) => {
+    const lookup = lookupRef.current;
+    if (!lookup) return null;
+    const aVals = modelA.values;
+    if (!aVals || aVals.length === 0) return null;
+    const bVals = modelB?.values ?? null;
+    const ncVals = nc.frame.values as number[] | undefined;
+    if (!ncVals || ncVals.length === 0) return null;
+    const { gridLat, gridLon } = payload;
+    const nLat = gridLat.length;
+    const nLon = gridLon.length;
+
+    // Modell-Advektion A↔B (nur wenn ein weicher Übergang zwischen zwei
+    // Forecast-Frames sinnvoll ist).
+    const canMorph =
+      !!bVals &&
+      !!modelB &&
+      modelProg > 0 &&
+      modelProg < 1 &&
+      modelA.t !== modelB.t &&
+      modelA.source !== "radar" &&
+      modelB.source !== "radar";
+    let dxAB = 0;
+    let dyAB = 0;
+    if (canMorph && modelB) {
+      const key = `${modelA.t}|${modelB.t}`;
+      let sh = shiftCacheRef.current.get(key);
+      if (sh === undefined) {
+        sh = estimateShiftCells(aVals, bVals as number[], nLon, nLat);
+        shiftCacheRef.current.set(key, sh);
+      }
+      dxAB = sh?.dx ?? 0;
+      dyAB = sh?.dy ?? 0;
+    }
+    const p = canMorph ? modelProg : 0;
+    const s = p * p * (3 - 2 * p);
+
+    // Fusion-Gewicht (smoothstep): 0 = rein Nowcast, 1 = rein Modell.
+    const T_NOW_MS = 60 * 60_000;
+    const T_FADE_MS = 120 * 60_000;
+    const dtNowMs = renderTimeMs - nc.nowMs;
+    const dtNowMin = dtNowMs / 60_000;
+    const wRaw = (dtNowMs - T_NOW_MS) / (T_FADE_MS - T_NOW_MS);
+    const wC = Math.max(0, Math.min(1, wRaw));
+    const w = wC * wC * (3 - 2 * wC);
+    const oneMinusW = 1 - w;
+
+    const lowW = lookup.lowW;
+    const lowH = lookup.lowH;
+    let mc = morphCanvasRef.current;
+    if (!mc || mc.width !== lowW || mc.height !== lowH) {
+      mc = document.createElement("canvas");
+      mc.width = lowW;
+      mc.height = lowH;
+      morphCanvasRef.current = mc;
+    }
+    const offCtx = mc.getContext("2d");
+    if (!offCtx) return null;
+    const img = offCtx.createImageData(lowW, lowH);
+    const data = img.data;
+
+    const sampleAt = (arr: number[], fx: number, fy: number) => {
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const txL = fx - x0;
+      const tyL = fy - y0;
+      const inX0 = x0 >= 0 && x0 < nLon;
+      const inX1 = x1 >= 0 && x1 < nLon;
+      const inY0 = y0 >= 0 && y0 < nLat;
+      const inY1 = y1 >= 0 && y1 < nLat;
+      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      return (
+        v00 * (1 - txL) * (1 - tyL) +
+        v01 * txL * (1 - tyL) +
+        v10 * (1 - txL) * tyL +
+        v11 * txL * tyL
+      );
+    };
+
+    const aSnow = modelA.snowValues;
+    const bSnow = modelB?.snowValues;
+    const ncSnow = nc.frame.snowValues;
+
+    const nxOff = nc.vx * dtNowMin;
+    const nyOff = nc.vy * dtNowMin;
+
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const cell = ly * lowW + lx;
+        if (!lookup.valid[cell]) continue;
+        const fx = lookup.fx[cell];
+        const fy = lookup.fy[cell];
+
+        // Nowcast-Anteil: letzten Radar advektieren.
+        let nVal = 0;
+        let nSnow = 0;
+        if (oneMinusW > 0) {
+          nVal = sampleAt(ncVals, fx - nxOff, fy - nyOff);
+          if (ncSnow) nSnow = sampleAt(ncSnow, fx - nxOff, fy - nyOff);
+        }
+
+        // Modell-Anteil: A oder morph(A,B).
+        let mVal = 0;
+        let mSnow = 0;
+        if (w > 0) {
+          if (canMorph && bVals) {
+            const ax = fx - p * dxAB;
+            const ay = fy - p * dyAB;
+            const bx = fx + (1 - p) * dxAB;
+            const by = fy + (1 - p) * dyAB;
+            const va = sampleAt(aVals, ax, ay);
+            const vb = sampleAt(bVals, bx, by);
+            mVal = (1 - s) * va + s * vb;
+            const sa = aSnow ? sampleAt(aSnow, ax, ay) : 0;
+            const sb = bSnow ? sampleAt(bSnow, bx, by) : 0;
+            mSnow = (1 - s) * sa + s * sb;
+          } else {
+            mVal = sampleAt(aVals, fx, fy);
+            if (aSnow) mSnow = sampleAt(aSnow, fx, fy);
+          }
+        }
+
+        let v = oneMinusW * nVal + w * mVal;
+        const sv = oneMinusW * nSnow + w * mSnow;
+
+        if (contour && v > 0 && lookup.contourScale) v = v * lookup.contourScale[cell];
+        const minV = contour ? 0.05 : 0.1;
+        if (v < minV) continue;
+
+        let snowFrac = 0;
+        if (v > 0.01 && sv > 0) snowFrac = Math.max(0, Math.min(1, sv / v));
+
+        const [rC, gC, bC, aC] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
+        if (aC === 0) continue;
+        const alpha = Math.round(aC * 255);
+        if (alpha === 0) continue;
+        const pix = cell * 4;
+        data[pix] = rC;
+        data[pix + 1] = gC;
+        data[pix + 2] = bC;
+        data[pix + 3] = alpha;
+      }
+    }
+    offCtx.putImageData(img, 0, 0);
+    return mc;
+  };
+
 
   // Nur bei tatsächlichem Frame-Wechsel neu zeichnen — keine Per-RAF-Repaints
   // (Desktop-Performance). Kein Crossfade/Lerp mehr.
@@ -1126,6 +1365,13 @@ function PrecipOverlay({
     progressRef.current = typeof progress === "number" ? progress : 0;
     redrawRef.current();
   }, [nextFrame, progress]);
+
+  // Nowcast/Zeit-Sync: Fusion-Sampler liest kontinuierliche Zeit + Motion.
+  useEffect(() => {
+    renderTimeRef.current = typeof renderTimeMs === "number" ? renderTimeMs : null;
+    nowcastRef.current = nowcast ?? null;
+    redrawRef.current();
+  }, [renderTimeMs, nowcast]);
 
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
@@ -2223,6 +2469,21 @@ export function RadarMap({
         .map((f) => f.precipUrl as string),
     [frames],
   );
+
+  // Radar-Nowcasting-Vektor aus den letzten Messungen. Wird als
+  // Advektions-Basis für die ersten Prognose-Stunden genutzt und geht
+  // per smoothstep in die Modellprognose über.
+  const nowcast = useMemo(() => {
+    if (!data || frames.length === 0) return null;
+    const est = estimateRadarMotion(frames, data.gridLon.length, data.gridLat.length);
+    if (!est) return null;
+    return {
+      frame: est.frame,
+      vx: est.vx,
+      vy: est.vy,
+      nowMs: Date.parse(est.frame.t),
+    };
+  }, [data, frames]);
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
   const stripNowIdx = useMemo(() => {
     if (playStepIndices.length === 0) return 0;
@@ -2373,6 +2634,10 @@ export function RadarMap({
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
                       prewarmFrames={frames}
+                      renderTimeMs={
+                        playVisualMs ?? Date.parse(currentFrame.t)
+                      }
+                      nowcast={nowcast}
                     />
                   )}
                   {currentFrame.precipUrl && (
