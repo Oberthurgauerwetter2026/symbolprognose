@@ -2093,6 +2093,9 @@ function FilmstripTimeline({
       // aber Bubble/Marker am kontinuierlichen Drag-Wert lassen.
       snapAndEmit(t);
       setDragMs(t);
+      // Kontinuierliche Scrub-Zeit nach oben durchreichen: erlaubt der
+      // Fusion-Overlay, zwischen zwei Cadence-Frames advektiv zu rendern.
+      onScrubMs?.(t);
     });
   };
   const onUp = (e: React.PointerEvent) => {
@@ -2103,6 +2106,7 @@ function FilmstripTimeline({
     }
     pendingTargetRef.current = null;
     setDragMs(null);
+    onScrubMs?.(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
