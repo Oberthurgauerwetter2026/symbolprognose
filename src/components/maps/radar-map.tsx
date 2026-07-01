@@ -848,7 +848,24 @@ function PrecipOverlay({
 
     const nf = nextFrameRef.current;
     const prog = progressRef.current;
+    const rt = renderTimeRef.current;
+    const nc = nowcastRef.current;
+    const T_NOW_MS = 60 * 60_000;
+    const T_FADE_MS = 120 * 60_000;
+    // Nowcasting-Fusion: aktiv, sobald wir jenseits nowMs sind und noch nicht
+    // vollständig in die Modellprognose übergegangen sind. Ersetzt Cache/Morph.
+    const nowcastActive =
+      !!nc &&
+      frame.source !== "radar" &&
+      typeof rt === "number" &&
+      rt > nc.nowMs &&
+      rt < nc.nowMs + T_FADE_MS &&
+      !!frame.values &&
+      frame.values.length > 0 &&
+      Array.isArray(nc.frame.values) &&
+      (nc.frame.values as number[]).length > 0;
     const morphActive =
+      !nowcastActive &&
       !!nf &&
       prog > 0 &&
       prog < 1 &&
@@ -860,13 +877,20 @@ function PrecipOverlay({
       frame.values.length > 0 &&
       !!nf.values &&
       nf.values.length > 0;
-    const morphed = morphActive && nf ? buildMorphedOffscreenRef.current(frame, nf, prog) : null;
+    const fused =
+      nowcastActive && nc && typeof rt === "number"
+        ? buildFusionOffscreenRef.current(rt, frame, nf, prog, nc)
+        : null;
+    const morphed =
+      !fused && morphActive && nf ? buildMorphedOffscreenRef.current(frame, nf, prog) : null;
 
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (morphed) {
+    if (fused) {
+      ctx.drawImage(fused, 0, 0, fused.width, fused.height, 0, 0, size.x, size.y);
+    } else if (morphed) {
       // Räumlich gemorphter Forecast-Zwischenframe ersetzt den Basis-Frame
       // vollständig (kein zusätzlicher Alpha-Crossfade).
       ctx.drawImage(morphed, 0, 0, morphed.width, morphed.height, 0, 0, size.x, size.y);
