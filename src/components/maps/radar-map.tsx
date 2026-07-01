@@ -2634,6 +2634,10 @@ export function RadarMap({
                       opacity={opacityVal}
                       contour={currentFrame.source !== "radar"}
                       prewarmFrames={frames}
+                      renderTimeMs={
+                        playVisualMs ?? Date.parse(currentFrame.t)
+                      }
+                      nowcast={nowcast}
                     />
                   )}
                   {currentFrame.precipUrl && (
