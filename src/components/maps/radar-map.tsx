@@ -475,6 +475,45 @@ function estimateShiftCells(
 }
 
 /**
+ * Radar-Nowcasting-Bewegungsvektor. Aus den letzten N Radar-Messungen wird
+ * paarweise per NCC ein globaler Shift geschätzt und gewichtet auf
+ * "Zellen pro Minute" gemittelt (jüngstes Paar am stärksten). Rückgabe: der
+ * jüngste Radar-Frame als Advektions-Basis und {vx,vy}. null falls Signal
+ * zu schwach oder < 2 Radar-Frames vorhanden.
+ */
+function estimateRadarMotion(
+  frames: RadarFrame[],
+  nLon: number,
+  nLat: number,
+): { vx: number; vy: number; frame: RadarFrame } | null {
+  const radars = frames.filter(
+    (f) => f.source === "radar" && Array.isArray(f.values) && f.values.length > 0,
+  );
+  if (radars.length < 2) return null;
+  const recent = radars.slice(-4);
+  let sumVx = 0;
+  let sumVy = 0;
+  let sumW = 0;
+  for (let i = 0; i < recent.length - 1; i++) {
+    const a = recent[i];
+    const b = recent[i + 1];
+    const dtMin = (Date.parse(b.t) - Date.parse(a.t)) / 60_000;
+    if (!(dtMin > 0)) continue;
+    const sh = estimateShiftCells(a.values as number[], b.values as number[], nLon, nLat);
+    if (!sh) continue;
+    const w = i + 1;
+    sumVx += (sh.dx / dtMin) * w;
+    sumVy += (sh.dy / dtMin) * w;
+    sumW += w;
+  }
+  if (sumW === 0) return null;
+  // Kappen auf plausible Werte (max ≈ 2 Zellen/min ≈ 120 km/h auf 1 km-Grid).
+  const vx = Math.max(-2, Math.min(2, sumVx / sumW));
+  const vy = Math.max(-2, Math.min(2, sumVy / sumW));
+  return { vx, vy, frame: recent[recent.length - 1] };
+}
+
+/**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
