@@ -2469,6 +2469,21 @@ export function RadarMap({
         .map((f) => f.precipUrl as string),
     [frames],
   );
+
+  // Radar-Nowcasting-Vektor aus den letzten Messungen. Wird als
+  // Advektions-Basis für die ersten Prognose-Stunden genutzt und geht
+  // per smoothstep in die Modellprognose über.
+  const nowcast = useMemo(() => {
+    if (!data || frames.length === 0) return null;
+    const est = estimateRadarMotion(frames, data.gridLon.length, data.gridLat.length);
+    if (!est) return null;
+    return {
+      frame: est.frame,
+      vx: est.vx,
+      vy: est.vy,
+      nowMs: Date.parse(est.frame.t),
+    };
+  }, [data, frames]);
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
   const stripNowIdx = useMemo(() => {
     if (playStepIndices.length === 0) return 0;
