@@ -2621,7 +2621,7 @@ export function RadarMap({
           {data &&
             currentFrame &&
             (() => {
-              const rtMs = playVisualMs ?? Date.parse(currentFrame.t);
+              const rtMs = scrubVisualMs ?? playVisualMs ?? Date.parse(currentFrame.t);
               // Sobald wir jenseits der letzten Messung liegen, übernimmt die
               // Nowcast/Model-Fusion die Darstellung. Basis wird auf die letzte
               // Radar-Messung (nc.frame) gehoben — dadurch entstehen keine
