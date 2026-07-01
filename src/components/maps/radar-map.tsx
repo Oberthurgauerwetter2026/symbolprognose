@@ -2865,7 +2865,8 @@ export function RadarMap({
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      visualMs={playVisualMs}
+                      visualMs={playVisualMs ?? scrubVisualMs}
+                      onScrubMs={setScrubVisualMs}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];
                         if (typeof target === "number") setIdx(target);
