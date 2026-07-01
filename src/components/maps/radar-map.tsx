@@ -1109,6 +1109,173 @@ function PrecipOverlay({
     return mc;
   };
 
+  // Nowcast-Modell-Fusion. Sampelt in einem Pass beide Grids und mischt sie
+  // gewichtet: reines Nowcasting bis T_NOW, sanfter smoothstep-Übergang bis
+  // T_FADE, dann reines Modell. Model-Anteil kann optional zwischen zwei
+  // Forecast-Frames advektiert-morphed sein (kohärente Zellwanderung auch
+  // in der Übergangszone).
+  const buildFusionOffscreenRef = useRef<
+    (
+      renderTimeMs: number,
+      modelA: RadarFrame,
+      modelB: RadarFrame | null,
+      modelProg: number,
+      nc: { frame: RadarFrame; vx: number; vy: number; nowMs: number },
+    ) => HTMLCanvasElement | null
+  >(() => null);
+  buildFusionOffscreenRef.current = (renderTimeMs, modelA, modelB, modelProg, nc) => {
+    const lookup = lookupRef.current;
+    if (!lookup) return null;
+    const aVals = modelA.values;
+    if (!aVals || aVals.length === 0) return null;
+    const bVals = modelB?.values ?? null;
+    const ncVals = nc.frame.values as number[] | undefined;
+    if (!ncVals || ncVals.length === 0) return null;
+    const { gridLat, gridLon } = payload;
+    const nLat = gridLat.length;
+    const nLon = gridLon.length;
+
+    // Modell-Advektion A↔B (nur wenn ein weicher Übergang zwischen zwei
+    // Forecast-Frames sinnvoll ist).
+    const canMorph =
+      !!bVals &&
+      !!modelB &&
+      modelProg > 0 &&
+      modelProg < 1 &&
+      modelA.t !== modelB.t &&
+      modelA.source !== "radar" &&
+      modelB.source !== "radar";
+    let dxAB = 0;
+    let dyAB = 0;
+    if (canMorph && modelB) {
+      const key = `${modelA.t}|${modelB.t}`;
+      let sh = shiftCacheRef.current.get(key);
+      if (sh === undefined) {
+        sh = estimateShiftCells(aVals, bVals as number[], nLon, nLat);
+        shiftCacheRef.current.set(key, sh);
+      }
+      dxAB = sh?.dx ?? 0;
+      dyAB = sh?.dy ?? 0;
+    }
+    const p = canMorph ? modelProg : 0;
+    const s = p * p * (3 - 2 * p);
+
+    // Fusion-Gewicht (smoothstep): 0 = rein Nowcast, 1 = rein Modell.
+    const T_NOW_MS = 60 * 60_000;
+    const T_FADE_MS = 120 * 60_000;
+    const dtNowMs = renderTimeMs - nc.nowMs;
+    const dtNowMin = dtNowMs / 60_000;
+    const wRaw = (dtNowMs - T_NOW_MS) / (T_FADE_MS - T_NOW_MS);
+    const wC = Math.max(0, Math.min(1, wRaw));
+    const w = wC * wC * (3 - 2 * wC);
+    const oneMinusW = 1 - w;
+
+    const lowW = lookup.lowW;
+    const lowH = lookup.lowH;
+    let mc = morphCanvasRef.current;
+    if (!mc || mc.width !== lowW || mc.height !== lowH) {
+      mc = document.createElement("canvas");
+      mc.width = lowW;
+      mc.height = lowH;
+      morphCanvasRef.current = mc;
+    }
+    const offCtx = mc.getContext("2d");
+    if (!offCtx) return null;
+    const img = offCtx.createImageData(lowW, lowH);
+    const data = img.data;
+
+    const sampleAt = (arr: number[], fx: number, fy: number) => {
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const txL = fx - x0;
+      const tyL = fy - y0;
+      const inX0 = x0 >= 0 && x0 < nLon;
+      const inX1 = x1 >= 0 && x1 < nLon;
+      const inY0 = y0 >= 0 && y0 < nLat;
+      const inY1 = y1 >= 0 && y1 < nLat;
+      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      return (
+        v00 * (1 - txL) * (1 - tyL) +
+        v01 * txL * (1 - tyL) +
+        v10 * (1 - txL) * tyL +
+        v11 * txL * tyL
+      );
+    };
+
+    const aSnow = modelA.snowValues;
+    const bSnow = modelB?.snowValues;
+    const ncSnow = nc.frame.snowValues;
+
+    const nxOff = nc.vx * dtNowMin;
+    const nyOff = nc.vy * dtNowMin;
+
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const cell = ly * lowW + lx;
+        if (!lookup.valid[cell]) continue;
+        const fx = lookup.fx[cell];
+        const fy = lookup.fy[cell];
+
+        // Nowcast-Anteil: letzten Radar advektieren.
+        let nVal = 0;
+        let nSnow = 0;
+        if (oneMinusW > 0) {
+          nVal = sampleAt(ncVals, fx - nxOff, fy - nyOff);
+          if (ncSnow) nSnow = sampleAt(ncSnow, fx - nxOff, fy - nyOff);
+        }
+
+        // Modell-Anteil: A oder morph(A,B).
+        let mVal = 0;
+        let mSnow = 0;
+        if (w > 0) {
+          if (canMorph && bVals) {
+            const ax = fx - p * dxAB;
+            const ay = fy - p * dyAB;
+            const bx = fx + (1 - p) * dxAB;
+            const by = fy + (1 - p) * dyAB;
+            const va = sampleAt(aVals, ax, ay);
+            const vb = sampleAt(bVals, bx, by);
+            mVal = (1 - s) * va + s * vb;
+            const sa = aSnow ? sampleAt(aSnow, ax, ay) : 0;
+            const sb = bSnow ? sampleAt(bSnow, bx, by) : 0;
+            mSnow = (1 - s) * sa + s * sb;
+          } else {
+            mVal = sampleAt(aVals, fx, fy);
+            if (aSnow) mSnow = sampleAt(aSnow, fx, fy);
+          }
+        }
+
+        let v = oneMinusW * nVal + w * mVal;
+        const sv = oneMinusW * nSnow + w * mSnow;
+
+        if (contour && v > 0 && lookup.contourScale) v = v * lookup.contourScale[cell];
+        const minV = contour ? 0.05 : 0.1;
+        if (v < minV) continue;
+
+        let snowFrac = 0;
+        if (v > 0.01 && sv > 0) snowFrac = Math.max(0, Math.min(1, sv / v));
+
+        const [rC, gC, bC, aC] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
+        if (aC === 0) continue;
+        const alpha = Math.round(aC * 255);
+        if (alpha === 0) continue;
+        const pix = cell * 4;
+        data[pix] = rC;
+        data[pix + 1] = gC;
+        data[pix + 2] = bC;
+        data[pix + 3] = alpha;
+      }
+    }
+    offCtx.putImageData(img, 0, 0);
+    return mc;
+  };
+
 
   // Nur bei tatsächlichem Frame-Wechsel neu zeichnen — keine Per-RAF-Repaints
   // (Desktop-Performance). Kein Crossfade/Lerp mehr.
