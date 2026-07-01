@@ -1366,6 +1366,13 @@ function PrecipOverlay({
     redrawRef.current();
   }, [nextFrame, progress]);
 
+  // Nowcast/Zeit-Sync: Fusion-Sampler liest kontinuierliche Zeit + Motion.
+  useEffect(() => {
+    renderTimeRef.current = typeof renderTimeMs === "number" ? renderTimeMs : null;
+    nowcastRef.current = nowcast ?? null;
+    redrawRef.current();
+  }, [renderTimeMs, nowcast]);
+
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
     const cv = canvasRef.current;
