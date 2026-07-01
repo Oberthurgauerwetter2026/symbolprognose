@@ -614,6 +614,11 @@ function PrecipOverlay({
   // Shift-Cache pro Forecast-Paar (key = "<aT>|<bT>") und 1-Slot-Morph-Canvas.
   const shiftCacheRef = useRef<Map<string, { dx: number; dy: number } | null>>(new Map());
   const morphCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Kontinuierliche Zeit-/Nowcast-Refs für Fusion (Play + Scrub gemeinsamer Pfad).
+  const renderTimeRef = useRef<number | null>(null);
+  const nowcastRef = useRef<{ frame: RadarFrame; vx: number; vy: number; nowMs: number } | null>(
+    null,
+  );
 
 
   const redrawRef = useRef<() => void>(() => {});
