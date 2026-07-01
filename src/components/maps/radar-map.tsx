@@ -854,9 +854,11 @@ function PrecipOverlay({
     const T_FADE_MS = 120 * 60_000;
     // Nowcasting-Fusion: aktiv, sobald wir jenseits nowMs sind und noch nicht
     // vollständig in die Modellprognose übergegangen sind. Ersetzt Cache/Morph.
+    // Fusion aktiv, sobald die Rendering-Zeit über nowMs liegt — unabhängig
+    // davon, ob der Cursor-Frame noch ein Radar-Frame ist. So läuft die
+    // Nowcast-Advektion nahtlos aus der letzten Messung heraus.
     const nowcastActive =
       !!nc &&
-      frame.source !== "radar" &&
       typeof rt === "number" &&
       rt > nc.nowMs &&
       rt < nc.nowMs + T_FADE_MS &&
@@ -2398,7 +2400,14 @@ export function RadarMap({
       const aMs = Date.parse(frames[aIdx].t);
       const nMs = Date.parse(frames[nIdx].t);
       const gap = Math.max(0, nMs - aMs);
-      return FRAME_MS * Math.max(0.15, gap / REF_GAP_MS);
+      // Grenzsteg Messung → Prognose deckeln: sonst dehnt sich der Wechsel
+      // proportional zur (grossen) Zeitlücke und wirkt wie ein Stopp.
+      const aSrc = frames[aIdx]?.source;
+      const nSrc = frames[nIdx]?.source;
+      const isSeam = aSrc === "radar" && nSrc !== "radar";
+      const scale = gap / REF_GAP_MS;
+      const cap = isSeam ? 2 : Infinity;
+      return FRAME_MS * Math.min(cap, Math.max(0.15, scale));
     };
     let stepWall = computeStepWall(playCursorRef.current);
     const emitVisual = () => {
@@ -2484,6 +2493,25 @@ export function RadarMap({
       nowMs: Date.parse(est.frame.t),
     };
   }, [data, frames]);
+  // Erster / zweiter Forecast-Frame (nicht-Radar mit Grid) — dienen als
+  // Modell-Basis für die Fusion, wenn der Play-Cursor noch auf dem letzten
+  // Radar-Frame steht und playVisualMs bereits über nowMs hinausläuft.
+  const firstForecast = useMemo<RadarFrame | null>(() => {
+    for (const f of frames) {
+      if (f.source !== "radar" && Array.isArray(f.values) && f.values.length > 0) return f;
+    }
+    return null;
+  }, [frames]);
+  const secondForecast = useMemo<RadarFrame | null>(() => {
+    let seen = false;
+    for (const f of frames) {
+      if (f.source !== "radar" && Array.isArray(f.values) && f.values.length > 0) {
+        if (seen) return f;
+        seen = true;
+      }
+    }
+    return null;
+  }, [frames]);
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
   const stripNowIdx = useMemo(() => {
     if (playStepIndices.length === 0) return 0;
@@ -2615,56 +2643,59 @@ export function RadarMap({
               const ib = currentFrame.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
+              // Kontinuierliche Rendering-Zeit (Play oder Standbild).
+              const visualMs = playVisualMs ?? Date.parse(currentFrame.t);
+              // Sobald wir zeitlich über nowMs sind, übernimmt die Fusion
+              // (Nowcast-Advektion → Modell), auch wenn currentFrame noch
+              // ein Radar-Frame ist. Als Modell-Basis der Sampler bekommt
+              // firstForecast (der Nowcast-Anteil zieht sich ohnehin aus
+              // nc.frame — der letzten Messung).
+              const past =
+                !!nowcast && visualMs > nowcast.nowMs && !!firstForecast;
+              const overlayFrame = past ? firstForecast! : currentFrame;
+              const overlayNext =
+                past
+                  ? secondForecast
+                  : currentFrame.source !== "radar" && playCrossfade
+                    ? playCrossfade.nextFrame
+                    : null;
+              const overlayProgress =
+                past
+                  ? 0
+                  : currentFrame.source !== "radar" && playCrossfade
+                    ? playCrossfade.progress
+                    : 0;
+              const overlayHasGrid =
+                Array.isArray(overlayFrame.values) && overlayFrame.values.length > 0;
+              const overlayHasPng = !!overlayFrame.precipUrl;
+              // PNG-Messung nur zeigen, solange wir nicht in die Fusion
+              // übergegangen sind (sonst käme ein zweiter Layer über dem
+              // advektierten Bild zu liegen).
+              const showPng = hasPng && !past;
+
               return (
                 <>
-                  {hasGrid && !hasPng && (
+                  {overlayHasGrid && (!overlayHasPng || past) && (
                     <PrecipOverlay
                       payload={data}
-                      frame={currentFrame}
-                      nextFrame={
-                        currentFrame.source !== "radar" && playCrossfade
-                          ? playCrossfade.nextFrame
-                          : null
-                      }
-                      progress={
-                        currentFrame.source !== "radar" && playCrossfade
-                          ? playCrossfade.progress
-                          : 0
-                      }
+                      frame={overlayFrame}
+                      nextFrame={overlayNext}
+                      progress={overlayProgress}
                       opacity={opacityVal}
-                      contour={currentFrame.source !== "radar"}
+                      contour={overlayFrame.source !== "radar"}
                       prewarmFrames={frames}
-                      renderTimeMs={
-                        playVisualMs ?? Date.parse(currentFrame.t)
-                      }
+                      renderTimeMs={visualMs}
                       nowcast={nowcast}
                     />
                   )}
-                  {currentFrame.precipUrl && (
+                  {showPng && (
                     <MeasurementCanvasOverlay
-                      url={currentFrame.precipUrl}
+                      url={currentFrame.precipUrl!}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
                     />
                   )}
-                  {/* Seam-Crossfade Messung → Prognose: blendet den ersten
-                      Forecast-Frame während des letzten Play-Tick weich ein. */}
-                  {currentFrame.source === "radar" &&
-                    playCrossfade?.nextFrame &&
-                    Array.isArray(playCrossfade.nextFrame.values) &&
-                    playCrossfade.nextFrame.values.length > 0 &&
-                    playCrossfade.nextFrame.source !== "radar" && (
-                      <PrecipOverlay
-                        payload={data}
-                        frame={playCrossfade.nextFrame}
-                        opacity={opacityVal * playCrossfade.progress}
-                        contour
-                      />
-                    )}
-
-
-
                 </>
               );
             })()}

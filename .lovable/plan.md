@@ -1,119 +1,64 @@
-# Plan: Kontinuierliche Regenradar-Prognose
+# Plan: Nahtloser Übergang Messung → Prognose
 
-Alle Änderungen leben in `src/components/maps/radar-map.tsx`. Keine neuen Deps, keine Server-Änderungen, Mess-Layer (`source === "radar"`, unter `nowMs`) bleibt exakt wie heute.
+## Problem
 
-## Kernidee
+Beim Play bleibt die Animation an der Grenze zwischen letztem Radar-Frame und erstem Prognose-Frame hängen: ein sichtbares "Stocken", danach springt das Bild in die Fusion. Ursachen im aktuellen `PrecipOverlay` / Play-Loop:
 
-Statt frame-für-frame Alpha/Morph zwischen zwei benachbarten Frames zu bauen, wird ein **zeitbasierter Sampler** eingeführt:
+1. `nowcastActive` verlangt `frame.source !== "radar"`. Solange der Play-Cursor noch auf dem letzten Messungs-Frame steht, läuft die Fusion nicht — der Renderer zeigt nur den statischen letzten Radar-Frame, obwohl `playVisualMs` bereits über `nowMs` hinausgelaufen ist.
+2. Der Cursor-Schritt von letzter Messung (z. B. 14:00) zum ersten Forecast-Slot (z. B. 15:00) wird als ein einzelner Step gerendert. Erst mit Cursor-Sprung wechselt der Renderpfad von Cache-Alpha auf Fusion → sichtbarer Jump.
+3. `computeStepWall` skaliert die Dauer proportional zur Zeitlücke; die Grenzlücke ist überproportional lang, was das Stocken zusätzlich betont.
 
-```
-sampleRadarAt(tMs) -> { valuesLow: Float32Array, snowLow: Float32Array }
-```
+## Ziel
 
-`sampleRadarAt` liefert für **beliebige** `tMs` ein fertiges Low-Res-mm/h-Grid, das identisch von Play-Loop **und** Scrubbing genutzt wird. Dadurch gibt es genau **einen** Rechenpfad — automatisch sprungfrei.
+Der Übergang von der letzten Messung in die Nowcast-Advektion und weiter in die Modellfusion ist optisch und zeitlich stufenlos — sowohl beim Play als auch beim Scrubben. Die Messung selbst (Rendering für `t ≤ nowMs`) bleibt bit-identisch.
 
-Der Sampler kombiniert drei Quellen:
+## Änderungen (nur `src/components/maps/radar-map.tsx`)
 
-1. **Reine Messung** (`tMs ≤ nowMs`, immer echter Radar-Frame): unverändert, wie heute.
-2. **Nowcasting** (`nowMs < tMs ≤ nowMs + T_NOW`, z. B. `T_NOW = 60 min`): letzter Radar-Frame räumlich advektiert mit einem aus den letzten Messungen geschätzten Bewegungsvektor.
-3. **Modellprognose** (Prognose-Frames im Stundenraster): räumlich advektierte Interpolation zwischen den beiden umschließenden Prognose-Frames, wie heute in `buildMorphedOffscreen`.
+### 1) Fusion darf am letzten Messungs-Frame ansetzen
 
-**Fusion 2↔3:** Über ein Übergangsfenster `T_NOW … T_FADE` (z. B. 60–120 min) wird ein Blend-Gewicht `w(tMs) = smoothstep((tMs - t0)/(t1 - t0))` berechnet, mit dem Nowcast- und Modell-Grid pixelweise gemischt werden. Vor `T_NOW` reines Nowcasting, nach `T_FADE` reines Modell — dazwischen weicher Übergang.
+In `redrawRef` (Zeilen ~849–908) den `nowcastActive`-Guard so umschreiben, dass er **nicht mehr an `frame.source !== "radar"` gekoppelt ist**, sondern rein an `rt >= nc.nowMs`:
 
-## Änderungen im Detail
+- Wenn `rt >= nc.nowMs` und `nc.frame.values` vorhanden: Fusion-Sampler zeichnen. Als Basis-Frame nutzt der Sampler immer `nc.frame` (letzter Radar-Frame) — der aktuelle `frame` aus dem Cursor spielt für das Rendering ab `nowMs` keine Rolle mehr.
+- Bei `rt === nc.nowMs` liefert der Sampler pixel-identisch das letzte Radar-Grid (Advektionszeit 0, Fusion-Gewicht 0). Damit ist der Übergang stetig.
+- Vor `rt < nc.nowMs`: bestehender Mess-Pfad (Cache + optionaler Alpha-Crossfade zwischen zwei Messungen) unverändert.
 
-### 1) Nowcast-Bewegungsvektor aus letzten Radar-Frames
+`buildFusionOffscreenRef` unterstützt bereits `renderTimeMs`, `nc.frame`, `nc.vx/vy`; kein Signatur-Change nötig. Nur Sicherstellen, dass `nf` (nächster Modell-Frame) auch dann korrekt gewählt wird, wenn der Cursor noch auf einem Radar-Frame steht — dazu im Overlay den nächsten Nicht-Radar-Frame aus `frames` bestimmen (siehe Punkt 3).
 
-Neuer Helper am Modul-Top:
+### 2) Playbar-Zeit läuft kontinuierlich über `nowMs`
 
-```
-estimateRadarMotion(frames, nowIdx) -> { vx, vy }   // Zellen pro Minute
-```
+Im Play-Loop (Zeilen ~2375–2452) den Grenzschritt entkoppeln:
 
-- Nimmt die letzten N Radar-Frames (z. B. 3, ~15 min) und schätzt paarweise per bestehendem `estimateShiftCells` einen Shift.
-- Rechnet auf Zellen/min um und mittelt (gewichtete Glättung, jüngstes Paar am stärksten).
-- Fallback: `{0,0}`, falls Signal zu schwach.
+- `computeStepWall` bekommt eine Sonder­behandlung: Wenn `aFrame.t === endMeasFrame.t` **und** `nFrame.t === firstForecastFrame.t`, wird die Wall-Dauer auf `FRAME_MS · gap/REF_GAP_MS` gedeckelt (obere Grenze z. B. `FRAME_MS · 2`), damit die Grenzlücke nicht künstlich lang wirkt. Untergrenze bleibt `0.15 · FRAME_MS`.
+- `playVisualMs` läuft während dieses Schritts weiterhin linear von `aMs` → `nMs`. Da der Renderpfad ab `rt > nc.nowMs` (siehe 1) durchgängig die Fusion nutzt, sieht der User eine kontinuierliche Bewegung des Radars ins Nowcasting hinein — kein Wechsel des Bild-Ursprungs.
+- `setPlayCrossfade(null)` setzen, sobald `playVisualMs > nc.nowMs`. Der bestehende `playCrossfade`-Zweig in JSX (Zeile ~2625) ist ohnehin nur für Nicht-Radar-Frames aktiv; durch das Nullen wird ein irrtümlicher zweiter Layer über dem Fusion-Bild ausgeschlossen.
 
-Ergebnis wird in einem Ref gecached und nur neu berechnet, wenn sich `nowIdx` (jüngster Mess-Frame) ändert.
+### 3) Fusion kennt den nächsten Modell-Frame auch am Rand
 
-### 2) Zeitbasierter Sampler
+In `PrecipOverlay` neben `nextFrameRef` einen `nextForecastFrameRef` einführen, den der Renderer für Fusion nutzt, wenn der Cursor noch auf `radar` steht. Berechnung:
 
-Neu in `PrecipOverlay` (bzw. als Hook `useRadarSampler(payload, frames)`):
+- Beim Update von `frame`/`nextFrame`: wenn `nextFrame?.source === "radar"` oder null, suche vorwärts in `frames` den ersten Frame mit `source !== "radar"` und `Date.parse(t) > nc.nowMs`; speichere in `nextForecastFrameRef`.
+- `buildFusionOffscreenRef` erhält beim Aufruf `nextForecastFrameRef.current ?? nf` als "nf"-Argument. So kann die Modell-Komponente der Fusion selbst am Grenzschritt schon leicht anteilig einfließen (Progress im Fusion-Sampler bleibt allein durch `rt`/`T_FADE_MS` bestimmt).
 
-```
-sampleRadarAt(tMs): { valuesLow, snowLow, hasData }
-```
+### 4) Scrubbing
 
-Interne Logik:
+Da Scrubbing bereits `renderTimeMs = playVisualMs ?? Date.parse(currentFrame.t)` an das Overlay übergibt und die Fusion jetzt an `rt >= nc.nowMs` gebunden ist statt an `frame.source`, ist Scrubben über die Grenze hinweg automatisch stetig — kein zusätzlicher Code.
 
-- **Messung** (`tMs ≤ nowMs`): finde nächsten Radar-Frame → gib dessen Low-Res-Grid zurück (aus dem bestehenden `buildOffscreen`-Pfad extrahiert, so dass wir sowohl das Grid als auch das gerenderte Canvas bekommen).
-- **Nowcast-Grid** `N(tMs)`: `dt = (tMs - nowMs)/60000`; sample letzten Radar-Frame an `(fx - vx*dt, fy - vy*dt)` bilinear.
-- **Modell-Grid** `M(tMs)`:
-  - finde umschließende Forecast-Frames `a, b` mit `ta ≤ tMs ≤ tb`.
-  - `p = (tMs - ta)/(tb - ta)`, `s = smoothstep(p)`.
-  - globaler Shift `(dx,dy)` aus `estimateShiftCells(a,b)` (bereits vorhanden, gleicher Cache).
-  - `va = sample(a, fx - p·dx, fy - p·dy)`, `vb = sample(b, fx + (1-p)·dx, fy + (1-p)·dy)`.
-  - `M = (1-s)·va + s·vb`.
-- **Fusion**:
-  - `w = smoothstep(clamp((tMs - (nowMs+T_NOW))/(T_FADE - T_NOW), 0, 1))`.
-  - `out = (1-w)·N + w·M`.
-- Für Zeiten `> letzter Forecast-Frame`: klemmen auf letzten Modell-Frame.
+## Was ausdrücklich unverändert bleibt
 
-Snow-Anteil (`snowValues`) läuft analog.
-
-### 3) Render-Pfad in `PrecipOverlay`
-
-`redrawRef` bekommt eine neue Verzweigung:
-
-- **Messung** (`currentTMs ≤ nowMs` **und** exakt auf Frame): bestehender `cacheRef`-Pfad — unangetastet.
-- **Zwischen zwei Messungen** (Scrub während `t < nowMs`): weiterhin Cache + Alpha-Crossfade (kein Nowcasting rückwärts nötig).
-- **Alles nach `nowMs`**: `grid = sampleRadarAt(tMs)` → in `morphCanvasRef` schreiben → `drawImage`.
-
-`morphCanvasRef` wird pro Tick wiederverwendet (1-Slot), kein zusätzlicher Cache-Wachstum. `buildMorphedOffscreen` bleibt als interne Hilfsfunktion, wird aber nur noch vom Sampler aufgerufen.
-
-### 4) Play-Loop und Scrub nutzen gemeinsamen Sampler
-
-`playStepIndices` bleibt bestehen für den **Filmstrip** und das Snapping (echte Frames). Play-Loop wird umgebaut:
-
-- Statt Cursor über `playStepIndices` mit Progress zwischen zwei Indizes, arbeitet der Loop über eine **kontinuierliche `playVisualMs`**:
-  - Start: aktuelles `idx` bzw. `nowMs`.
-  - Pro Tick: `playVisualMs += dtWall · timeScale(speed)`, wobei `timeScale` so gewählt ist, dass 15 Prognose-Minuten weiter in `FRAME_MS/speed` Wall-Zeit dargestellt werden (identische gefühlte Geschwindigkeit wie heute).
-  - Am Ende (`> lastMs`) stoppt Play, wie bisher.
-- `setPlayVisualMs(playVisualMs)` steuert die Bubble/Marker wie heute.
-- `setPlayCrossfade` entfällt in seiner alten Semantik; stattdessen liest `PrecipOverlay` die aktuelle Zeit direkt via `playVisualMs ?? frames[idx].t` und rendert per Sampler.
-
-**Scrubbing:** der Slider setzt `scrubVisualMs`. `PrecipOverlay` rendert dieselbe Formel `sampleRadarAt(scrubVisualMs)` — dieselbe Kurve, garantiert sprungfrei zwischen zwei Frames.
-
-Die Filmstrip-Klicks rasten wie heute auf echte Frame-Zeiten ein (nur Anzeige/Interaktion, keine Renderpfad-Änderung).
-
-### 5) Performance
-
-- Nowcast-Shift: einmal pro `nowIdx`-Wechsel (≈alle 5 min).
-- Forecast-Shifts: bereits im `shiftCacheRef` gecached.
-- Sampler produziert nur `lowW × lowH` Werte (heutiges Raster, mobil-tauglich).
-- Kein neuer Cache: `morphCanvasRef` als 1-Slot bleibt.
-- Mess-Frames rendern weiterhin aus `cacheRef` — kein Zusatzaufwand für die "Messung bleibt unangetastet"-Garantie.
-
-### 6) Was bewusst nicht angefasst wird
-
-- `getRadarFrames`, R2, Server, Ingest, Cache-Struktur der Rohdaten.
-- Mess-Renderpfad und -Farben (`colorFor`, Schwellen, Cache).
-- Filmstrip-Inhalte, Beschriftungen, Hagel-Layer, `MeasurementCanvasOverlay`.
-- `/karten/niederschlag`.
+- `getRadarFrames`, R2, Server, Ingest, Cache-Struktur.
+- `colorFor`, Schwellen, Mess-Rendering für `rt ≤ nc.nowMs` (Cache + Alpha).
+- Filmstrip-Cadence, Hagel-Layer, `MeasurementCanvasOverlay`.
+- Keine neuen Dependencies, keine Server-Änderungen.
 
 ## Verifikation
 
-1. `/karten/radar` Play: Regenzellen wandern kohärent von `nowMs` bis `lastMs`, sichtbar auch in der ersten Nowcast-Stunde (allein aus Radar-Bewegung), und gehen zwischen +60 min und +120 min unmerklich in die Modellprognose über.
-2. Scrubben an beliebigen Zeitpunkten (z. B. 14:07, 15:43): stufenlose Darstellung, keine Sprünge an Stundengrenzen.
-3. Vor `nowMs`: pixelidentisch zu heute (Messung unverändert).
-4. Mobile Throttling Mid-Tier: Play ≥ 30 fps, kein Memory-Sprung.
-5. `bunx tsgo --noEmit` grün.
+1. Play von einem Zeitpunkt vor `nowMs` durchspielen: Bewegung der Regenzellen läuft ohne Ruckler oder Bildwechsel über die `nowMs`-Grenze ins Nowcasting.
+2. Scrubben genau an `nowMs ± 30 s` zeigt stufenlose Interpolation.
+3. Rendering für `t ≤ nowMs` ist pixel-identisch zu vorher (Screenshot-Vergleich am letzten Radar-Frame).
+4. `bunx tsgo --noEmit` grün.
 
 ## Technische Stichpunkte
 
-- Datei: `src/components/maps/radar-map.tsx` (einzige Änderung).
-- Neue Helfer: `estimateRadarMotion`, `sampleRadarAt` (als innere Funktion in `PrecipOverlay`, mit Zugriff auf `shiftCacheRef`, `motionRef`, `payload`).
-- Neue Refs: `motionRef: { vx, vy, baseIdx } | null`, weiterverwendet `shiftCacheRef`, `morphCanvasRef`.
-- Konstanten: `T_NOW_MS = 60·60_000`, `T_FADE_MS = 120·60_000`.
-- Play-Loop: kontinuierliche `playVisualMs` statt Cursor+Progress.
-- Keine neuen Dependencies.
+- Datei: `src/components/maps/radar-map.tsx`.
+- Refs neu: `nextForecastFrameRef`.
+- Angepasst: `nowcastActive`-Bedingung, Fusion-Aufruf verwendet `nc.frame` als Basis und `nextForecastFrameRef` als Modell-Partner, Play-Loop cap für Grenzschritt.
