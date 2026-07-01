@@ -2400,7 +2400,14 @@ export function RadarMap({
       const aMs = Date.parse(frames[aIdx].t);
       const nMs = Date.parse(frames[nIdx].t);
       const gap = Math.max(0, nMs - aMs);
-      return FRAME_MS * Math.max(0.15, gap / REF_GAP_MS);
+      // Grenzsteg Messung → Prognose deckeln: sonst dehnt sich der Wechsel
+      // proportional zur (grossen) Zeitlücke und wirkt wie ein Stopp.
+      const aSrc = frames[aIdx]?.source;
+      const nSrc = frames[nIdx]?.source;
+      const isSeam = aSrc === "radar" && nSrc !== "radar";
+      const scale = gap / REF_GAP_MS;
+      const cap = isSeam ? 2 : Infinity;
+      return FRAME_MS * Math.min(cap, Math.max(0.15, scale));
     };
     let stepWall = computeStepWall(playCursorRef.current);
     const emitVisual = () => {
