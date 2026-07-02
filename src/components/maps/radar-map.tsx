@@ -1050,14 +1050,24 @@ function PrecipOverlay({
     const nLat = gridLat.length;
     const nLon = gridLon.length;
 
-    const shiftKey = `${a.t}|${b.t}`;
+    const nc0 = nowcastRef.current;
+    const dtMinAB = (Date.parse(b.t) - Date.parse(a.t)) / 60_000;
+    const prior =
+      nc0 && dtMinAB > 0
+        ? { dx: nc0.vx * dtMinAB, dy: nc0.vy * dtMinAB }
+        : null;
+    const priorKey = prior
+      ? `${Math.round(prior.dx * 10)}|${Math.round(prior.dy * 10)}`
+      : "np";
+    const shiftKey = `${a.t}|${b.t}|${priorKey}`;
     let shift = shiftCacheRef.current.get(shiftKey);
     if (shift === undefined) {
-      shift = estimateShiftCells(aVals, bVals, nLon, nLat);
+      shift = estimateShiftCells(aVals, bVals, nLon, nLat, prior);
       shiftCacheRef.current.set(shiftKey, shift);
     }
     const dx = shift?.dx ?? 0;
     const dy = shift?.dy ?? 0;
+
     const s = p * p * (3 - 2 * p);
     const oneMinusP = 1 - p;
     const oneMinusS = 1 - s;
