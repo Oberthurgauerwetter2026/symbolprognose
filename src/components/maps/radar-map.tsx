@@ -546,6 +546,99 @@ function estimateRadarMotion(
   return { vx, vy, frame: recent[recent.length - 1] };
 }
 
+function hasGridValues(frame: RadarFrame | null | undefined): frame is RadarFrame {
+  return !!frame && Array.isArray(frame.values) && frame.values.length > 0;
+}
+
+function nearestFrameIndexForMs(frames: RadarFrame[], targetMs: number): number {
+  if (frames.length === 0) return 0;
+  let best = 0;
+  let bestDt = Infinity;
+  for (let i = 0; i < frames.length; i++) {
+    const dt = Math.abs(Date.parse(frames[i].t) - targetMs);
+    if (dt < bestDt) {
+      bestDt = dt;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function bracketFramesForMs(
+  frames: RadarFrame[],
+  targetMs: number,
+  predicate?: (frame: RadarFrame) => boolean,
+): { frame: RadarFrame | null; nextFrame: RadarFrame | null; progress: number } {
+  const eligible = predicate ? frames.filter(predicate) : frames;
+  if (eligible.length === 0) return { frame: null, nextFrame: null, progress: 0 };
+  if (eligible.length === 1) return { frame: eligible[0], nextFrame: null, progress: 0 };
+
+  const firstMs = Date.parse(eligible[0].t);
+  if (targetMs <= firstMs) return { frame: eligible[0], nextFrame: eligible[1], progress: 0 };
+
+  const last = eligible[eligible.length - 1];
+  const lastMs = Date.parse(last.t);
+  if (targetMs >= lastMs) return { frame: last, nextFrame: null, progress: 0 };
+
+  for (let i = 0; i < eligible.length - 1; i++) {
+    const a = eligible[i];
+    const b = eligible[i + 1];
+    const aMs = Date.parse(a.t);
+    const bMs = Date.parse(b.t);
+    if (targetMs >= aMs && targetMs <= bMs) {
+      const span = Math.max(1, bMs - aMs);
+      return {
+        frame: a,
+        nextFrame: b,
+        progress: Math.max(0, Math.min(1, (targetMs - aMs) / span)),
+      };
+    }
+  }
+
+  const idx = nearestFrameIndexForMs(eligible, targetMs);
+  return { frame: eligible[idx], nextFrame: eligible[idx + 1] ?? null, progress: 0 };
+}
+
+function timelineStateForMs(
+  frames: RadarFrame[],
+  renderMs: number,
+  nowcast: { frame: RadarFrame; vx: number; vy: number; nowMs: number } | null,
+) {
+  const all = bracketFramesForMs(frames, renderMs);
+  const forecast = bracketFramesForMs(
+    frames,
+    renderMs,
+    (f) => f.source !== "radar" && hasGridValues(f),
+  );
+  const useFusion =
+    !!nowcast &&
+    renderMs > nowcast.nowMs &&
+    renderMs < nowcast.nowMs + NOWCAST_FADE_MS &&
+    hasGridValues(nowcast.frame) &&
+    hasGridValues(forecast.frame);
+  const displayIdx = nearestFrameIndexForMs(frames, renderMs);
+
+  if (useFusion) {
+    return {
+      renderMs,
+      displayIdx,
+      frame: forecast.frame,
+      nextFrame: forecast.nextFrame,
+      progress: forecast.progress,
+      useFusion,
+    };
+  }
+
+  return {
+    renderMs,
+    displayIdx,
+    frame: all.frame,
+    nextFrame: all.nextFrame,
+    progress: all.progress,
+    useFusion,
+  };
+}
+
 /**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
