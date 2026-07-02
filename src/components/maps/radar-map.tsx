@@ -2218,7 +2218,8 @@ export function RadarMap({
   // Anzeigezustand wird zentral aus dieser Zeit abgeleitet.
   const [playVisualMs, setPlayVisualMs] = useState<number | null>(null);
   // Kontinuierliche Scrub-Zeit während aktivem Drag (überschreibt cadence-
-  // gesnapptes idx für Fusion-Rendering; kein Re-Render der ganzen Map nötig).
+  // gesnapptes idx für kontinuierliches Rendering; kein Re-Render der ganzen
+  // Map nötig).
   const [scrubVisualMs, setScrubVisualMs] = useState<number | null>(null);
   const isMobile = useIsMobile();
 
