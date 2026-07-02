@@ -1541,6 +1541,59 @@ function MeasurementCanvasOverlay({
       );
     };
 
+    const hashContour = (ix: number, iy: number) => {
+      let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
+      h = (h ^ (h >>> 13)) * 1274126177;
+      h = h ^ (h >>> 16);
+      return ((h >>> 0) % 10000) / 10000;
+    };
+    const smoothContour = (u: number) => u * u * (3 - 2 * u);
+    const valueNoiseContour = (x: number, y: number) => {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fxN = smoothContour(x - ix);
+      const fyN = smoothContour(y - iy);
+      const a = hashContour(ix, iy);
+      const b = hashContour(ix + 1, iy);
+      const c = hashContour(ix, iy + 1);
+      const d = hashContour(ix + 1, iy + 1);
+      return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
+    };
+    const fbmContour = (x: number, y: number) => {
+      let out = 0;
+      let amp = 0.5;
+      let freq = 1;
+      for (let o = 0; o < 5; o++) {
+        out += valueNoiseContour(x * freq, y * freq) * amp;
+        amp *= 0.5;
+        freq *= 2.1;
+      }
+      return out;
+    };
+    const contourScaleAt = (fx: number, fy: number, nLon: number, nLat: number) => {
+      const COS = 0.866;
+      const SIN = 0.5;
+      const sx = fx * 0.9;
+      const sy = fy * 0.85;
+      const rx = sx * COS - sy * SIN;
+      const ry = sx * SIN + sy * COS;
+      const warpX = (fbmContour(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
+      const warpY = (fbmContour(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
+      const n = fbmContour(rx + warpX, ry + warpY);
+      const mod = 0.25 + n * 1.55;
+      const env1 = fbmContour(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
+      const env2 = fbmContour(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
+      const env3 = fbmContour(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
+      const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
+      const edgeNX = Math.min(fx, nLon - 1 - fx) / (nLon - 1);
+      const edgeNY = Math.min(fy, nLat - 1 - fy) / (nLat - 1);
+      const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
+      const edgeJitter = 0.55 + fbmContour(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
+      const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
+      const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
+      return mod * envelope;
+    };
+
     const sampleGridAt = (arr: number[], lng: number, lat: number) => {
       if (!payload) return 0;
       const { gridLat, gridLon } = payload;
@@ -1567,56 +1620,7 @@ function MeasurementCanvasOverlay({
       // Der erste Prognose-Zustand am Seam muss exakt dieselbe Kontur-Logik
       // nutzen wie PrecipOverlay, sonst entsteht am Quellenwechsel ein Sprung.
       if (nextFrame?.source !== "radar" && v > 0) {
-        const hash = (ix: number, iy: number) => {
-          let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
-          h = (h ^ (h >>> 13)) * 1274126177;
-          h = h ^ (h >>> 16);
-          return ((h >>> 0) % 10000) / 10000;
-        };
-        const smooth = (u: number) => u * u * (3 - 2 * u);
-        const valueNoise = (x: number, y: number) => {
-          const ix = Math.floor(x);
-          const iy = Math.floor(y);
-          const fxN = smooth(x - ix);
-          const fyN = smooth(y - iy);
-          const a = hash(ix, iy);
-          const b = hash(ix + 1, iy);
-          const c = hash(ix, iy + 1);
-          const d = hash(ix + 1, iy + 1);
-          return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
-        };
-        const fbm = (x: number, y: number) => {
-          let out = 0;
-          let amp = 0.5;
-          let freq = 1;
-          for (let o = 0; o < 5; o++) {
-            out += valueNoise(x * freq, y * freq) * amp;
-            amp *= 0.5;
-            freq *= 2.1;
-          }
-          return out;
-        };
-        const COS = 0.866;
-        const SIN = 0.5;
-        const sx = fx * 0.9;
-        const sy = fy * 0.85;
-        const rx = sx * COS - sy * SIN;
-        const ry = sx * SIN + sy * COS;
-        const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-        const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
-        const n = fbm(rx + warpX, ry + warpY);
-        const mod = 0.25 + n * 1.55;
-        const env1 = fbm(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
-        const env2 = fbm(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
-        const env3 = fbm(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
-        const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
-        const edgeNX = Math.min(fx, nLon - 1 - fx) / (nLon - 1);
-        const edgeNY = Math.min(fy, nLat - 1 - fy) / (nLat - 1);
-        const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
-        const edgeJitter = 0.55 + fbm(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
-        const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
-        const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
-        v *= mod * envelope;
+        v *= contourScaleAt(fx, fy, nLon, nLat);
       }
       return v;
     };
