@@ -2920,7 +2920,7 @@ export function RadarMap({
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      visualMs={playVisualMs ?? scrubVisualMs}
+                      visualMs={scrubVisualMs ?? playVisualMs}
                       onScrubMs={setScrubVisualMs}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];
