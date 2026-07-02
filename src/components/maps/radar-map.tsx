@@ -923,7 +923,6 @@ function PrecipOverlay({
     const nLon = gridLon.length;
 
     const s = Math.max(0, Math.min(1, p));
-    const oneMinusP = 1 - p;
     const oneMinusS = 1 - s;
 
     const lowW = lookup.lowW;
