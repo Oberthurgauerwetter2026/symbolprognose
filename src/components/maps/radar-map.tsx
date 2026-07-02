@@ -35,8 +35,6 @@ const MEASUREMENT_COLOR = "#1f7a3a";
 const FORECAST_COLOR = BRAND;
 const FILMSTRIP_MEASUREMENT_COLOR = "#9ca3af";
 const FILMSTRIP_FORECAST_COLOR = BRAND;
-const NOWCAST_PURE_MS = 60 * 60_000;
-const NOWCAST_FADE_MS = 120 * 60_000;
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
@@ -391,10 +389,8 @@ function StableImageOverlay({
 // sichtbares Wackeln der Niederschlagsbänder zwischen Framepaaren.
 
 // ============================================================================
-// Forecast-Advektion: einmalige globale Shift-Schätzung pro Forecast-Paar
-// via Brute-Force-NCC auf 32×32-Downsample. Liefert Verschiebungsvektor in
-// Original-Grid-Zellen. Wird in PrecipOverlay für räumlich weiche Morphs
-// zwischen zwei Stunden-Forecast-Frames genutzt (15-min-Sub-Interpolation).
+// Bewegungsmodell: pro benachbartem Framepaar eine robuste globale Shift-
+// Schätzung direkt aus A→B. Keine Wind-/Nowcast-Priors, keine Eigenbewegung.
 // ============================================================================
 function downsampleGrid(
   values: number[],
@@ -429,7 +425,6 @@ function estimateShiftCells(
   b: number[],
   nLon: number,
   nLat: number,
-  prior?: { dx: number; dy: number } | null,
 ): { dx: number; dy: number } | null {
   const DW = 32;
   const DH = 32;
@@ -442,28 +437,18 @@ function estimateShiftCells(
     if (B[i] > bMax) bMax = B[i];
   }
   if (aMax < 0.05 || bMax < 0.05) return null;
-  // Prior in Downsampling-Koordinaten (A/B sind auf DW×DH runtergerechnet, aber
-  // die Rückgabe skaliert später wieder auf nLon/nLat — der Prior kommt in
-  // Vollauflösung; hier für die Suche in DW/DH-Zellen zurückrechnen).
-  const priorDxLow = prior ? Math.round((prior.dx * DW) / nLon) : 0;
-  const priorDyLow = prior ? Math.round((prior.dy * DH) / nLat) : 0;
-  const R = prior ? 6 : 8;
-  const dxMin = prior ? priorDxLow - R : -8;
-  const dxMax = prior ? priorDxLow + R : 8;
-  const dyMin = prior ? priorDyLow - R : -8;
-  const dyMax = prior ? priorDyLow + R : 8;
-  // Gauss-Bias in Richtung Prior, damit sekundäre/spiegelverkehrte Peaks
-  // nicht unbegründet gewinnen. Sigma ~ halbes Suchfenster.
-  const sigma = prior ? 4 : 1e9;
-  const inv2sig2 = 1 / (2 * sigma * sigma);
+
+  const R = 5;
   let bestSc = -Infinity;
+  let secondSc = -Infinity;
   let bestDx = 0;
   let bestDy = 0;
-  for (let dy = dyMin; dy <= dyMax; dy++) {
-    for (let dx = dxMin; dx <= dxMax; dx++) {
+  for (let dy = -R; dy <= R; dy++) {
+    for (let dx = -R; dx <= R; dx++) {
       let num = 0;
       let sa = 0;
       let sb = 0;
+      let n = 0;
       for (let y = 0; y < DH; y++) {
         const yb = y + dy;
         if (yb < 0 || yb >= DH) continue;
@@ -475,75 +460,30 @@ function estimateShiftCells(
           num += va * vb;
           sa += va * va;
           sb += vb * vb;
+          n++;
         }
       }
+      if (n < DW * DH * 0.45) continue;
       const den = Math.sqrt(sa * sb);
-      let sc = den > 0 ? num / den : 0;
-      if (prior) {
-        const ddx = dx - priorDxLow;
-        const ddy = dy - priorDyLow;
-        sc *= Math.exp(-(ddx * ddx + ddy * ddy) * inv2sig2);
-      }
+      const sc = den > 0 ? num / den : 0;
       if (sc > bestSc) {
+        secondSc = bestSc;
         bestSc = sc;
         bestDx = dx;
         bestDy = dy;
+      } else if (sc > secondSc) {
+        secondSc = sc;
       }
     }
   }
-  if (bestSc < 0.3) return prior ?? null;
+  // Nur eindeutige Paar-Bewegung verwenden; bei unsicherem Match keine
+  // Richtung erfinden, sondern reine Intensitäts-Interpolation nutzen.
+  if (bestSc < 0.42) return null;
+  if (secondSc > -Infinity && bestSc - secondSc < 0.035) return null;
   const outDx = (bestDx * nLon) / DW;
   const outDy = (bestDy * nLat) / DH;
-  // Harter Vorzeichen-Guard: bei plausiblem Prior darf die Zugrichtung nicht
-  // invertieren (Skalarprodukt negativ und Prior deutlich != 0).
-  if (prior) {
-    const pMag2 = prior.dx * prior.dx + prior.dy * prior.dy;
-    if (pMag2 >= 4) {
-      const dot = outDx * prior.dx + outDy * prior.dy;
-      if (dot < 0) return prior;
-    }
-  }
+  if (Math.hypot(outDx, outDy) > Math.max(nLon, nLat) * 0.35) return null;
   return { dx: outDx, dy: outDy };
-}
-
-
-/**
- * Radar-Nowcasting-Bewegungsvektor. Aus den letzten N Radar-Messungen wird
- * paarweise per NCC ein globaler Shift geschätzt und gewichtet auf
- * "Zellen pro Minute" gemittelt (jüngstes Paar am stärksten). Rückgabe: der
- * jüngste Radar-Frame als Advektions-Basis und {vx,vy}. null falls Signal
- * zu schwach oder < 2 Radar-Frames vorhanden.
- */
-function estimateRadarMotion(
-  frames: RadarFrame[],
-  nLon: number,
-  nLat: number,
-): { vx: number; vy: number; frame: RadarFrame } | null {
-  const radars = frames.filter(
-    (f) => f.source === "radar" && Array.isArray(f.values) && f.values.length > 0,
-  );
-  if (radars.length < 2) return null;
-  const recent = radars.slice(-4);
-  let sumVx = 0;
-  let sumVy = 0;
-  let sumW = 0;
-  for (let i = 0; i < recent.length - 1; i++) {
-    const a = recent[i];
-    const b = recent[i + 1];
-    const dtMin = (Date.parse(b.t) - Date.parse(a.t)) / 60_000;
-    if (!(dtMin > 0)) continue;
-    const sh = estimateShiftCells(a.values as number[], b.values as number[], nLon, nLat);
-    if (!sh) continue;
-    const w = i + 1;
-    sumVx += (sh.dx / dtMin) * w;
-    sumVy += (sh.dy / dtMin) * w;
-    sumW += w;
-  }
-  if (sumW === 0) return null;
-  // Kappen auf plausible Werte (max ≈ 2 Zellen/min ≈ 120 km/h auf 1 km-Grid).
-  const vx = Math.max(-2, Math.min(2, sumVx / sumW));
-  const vy = Math.max(-2, Math.min(2, sumVy / sumW));
-  return { vx, vy, frame: recent[recent.length - 1] };
 }
 
 function hasGridValues(frame: RadarFrame | null | undefined): frame is RadarFrame {
@@ -602,32 +542,9 @@ function bracketFramesForMs(
 function timelineStateForMs(
   frames: RadarFrame[],
   renderMs: number,
-  nowcast: { frame: RadarFrame; vx: number; vy: number; nowMs: number } | null,
 ) {
   const all = bracketFramesForMs(frames, renderMs);
-  const forecast = bracketFramesForMs(
-    frames,
-    renderMs,
-    (f) => f.source !== "radar" && hasGridValues(f),
-  );
-  const useFusion =
-    !!nowcast &&
-    renderMs > nowcast.nowMs &&
-    renderMs < nowcast.nowMs + NOWCAST_FADE_MS &&
-    hasGridValues(nowcast.frame) &&
-    hasGridValues(forecast.frame);
   const displayIdx = nearestFrameIndexForMs(frames, renderMs);
-
-  if (useFusion) {
-    return {
-      renderMs,
-      displayIdx,
-      frame: forecast.frame,
-      nextFrame: forecast.nextFrame,
-      progress: forecast.progress,
-      useFusion,
-    };
-  }
 
   return {
     renderMs,
@@ -635,7 +552,6 @@ function timelineStateForMs(
     frame: all.frame,
     nextFrame: all.nextFrame,
     progress: all.progress,
-    useFusion,
   };
 }
 
@@ -651,8 +567,6 @@ function PrecipOverlay({
   opacity = 1,
   contour = false,
   prewarmFrames,
-  renderTimeMs,
-  nowcast,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
@@ -661,8 +575,6 @@ function PrecipOverlay({
   opacity?: number;
   contour?: boolean;
   prewarmFrames?: RadarFrame[];
-  renderTimeMs?: number;
-  nowcast?: { frame: RadarFrame; vx: number; vy: number; nowMs: number } | null;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -737,14 +649,9 @@ function PrecipOverlay({
   // pro Frame benötigt.
   const nextFrameRef = useRef<RadarFrame | null>(null);
   const progressRef = useRef<number>(0);
-  // Shift-Cache pro Forecast-Paar (key = "<aT>|<bT>") und 1-Slot-Morph-Canvas.
+  // Shift-Cache pro Frame-Paar (key = "<aT>|<bT>") und 1-Slot-Morph-Canvas.
   const shiftCacheRef = useRef<Map<string, { dx: number; dy: number } | null>>(new Map());
   const morphCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // Kontinuierliche Zeit-/Nowcast-Refs für Fusion (Play + Scrub gemeinsamer Pfad).
-  const renderTimeRef = useRef<number | null>(null);
-  const nowcastRef = useRef<{ frame: RadarFrame; vx: number; vy: number; nowMs: number } | null>(
-    null,
-  );
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -974,49 +881,24 @@ function PrecipOverlay({
 
     const nf = nextFrameRef.current;
     const prog = progressRef.current;
-    const rt = renderTimeRef.current;
-    const nc = nowcastRef.current;
-    // Nowcasting-Fusion: aktiv, sobald wir jenseits nowMs sind und noch nicht
-    // vollständig in die Modellprognose übergegangen sind. Ersetzt Cache/Morph.
-    // Guard `frame.source !== "radar"` entfernt: am Seam Messung→Prognose wird
-    // die letzte Messung (nc.frame) als Basisframe übergeben, damit die
-    // Advektion nahtlos ab nowMs beginnt.
-    const nowcastActive =
-      !!nc &&
-      typeof rt === "number" &&
-      rt > nc.nowMs &&
-      rt < nc.nowMs + NOWCAST_FADE_MS &&
-      !!frame.values &&
-      frame.values.length > 0 &&
-      Array.isArray(nc.frame.values) &&
-      (nc.frame.values as number[]).length > 0;
     const morphActive =
-      !nowcastActive &&
       !!nf &&
       prog > 0 &&
       prog < 1 &&
       !!nf.t &&
       nf.t !== frame.t &&
-      frame.source !== "radar" &&
-      nf.source !== "radar" &&
       !!frame.values &&
       frame.values.length > 0 &&
       !!nf.values &&
       nf.values.length > 0;
-    const fused =
-      nowcastActive && nc && typeof rt === "number"
-        ? buildFusionOffscreenRef.current(rt, frame, nf, prog, nc)
-        : null;
     const morphed =
-      !fused && morphActive && nf ? buildMorphedOffscreenRef.current(frame, nf, prog) : null;
+      morphActive && nf ? buildMorphedOffscreenRef.current(frame, nf, prog) : null;
 
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (fused) {
-      ctx.drawImage(fused, 0, 0, fused.width, fused.height, 0, 0, size.x, size.y);
-    } else if (morphed) {
+    if (morphed) {
       // Räumlich gemorphter Forecast-Zwischenframe ersetzt den Basis-Frame
       // vollständig (kein zusätzlicher Alpha-Crossfade).
       ctx.drawImage(morphed, 0, 0, morphed.width, morphed.height, 0, 0, size.x, size.y);
@@ -1143,19 +1025,10 @@ function PrecipOverlay({
     const nLat = gridLat.length;
     const nLon = gridLon.length;
 
-    const nc0 = nowcastRef.current;
-    const dtMinAB = (Date.parse(b.t) - Date.parse(a.t)) / 60_000;
-    const prior =
-      nc0 && dtMinAB > 0
-        ? { dx: nc0.vx * dtMinAB, dy: nc0.vy * dtMinAB }
-        : null;
-    const priorKey = prior
-      ? `${Math.round(prior.dx * 10)}|${Math.round(prior.dy * 10)}`
-      : "np";
-    const shiftKey = `${a.t}|${b.t}|${priorKey}`;
+    const shiftKey = `${a.t}|${b.t}`;
     let shift = shiftCacheRef.current.get(shiftKey);
     if (shift === undefined) {
-      shift = estimateShiftCells(aVals, bVals, nLon, nLat, prior);
+      shift = estimateShiftCells(aVals, bVals, nLon, nLat);
       shiftCacheRef.current.set(shiftKey, shift);
     }
     const dx = shift?.dx ?? 0;
@@ -1245,179 +1118,6 @@ function PrecipOverlay({
     return mc;
   };
 
-  // Nowcast-Modell-Fusion. Sampelt in einem Pass beide Grids und mischt sie
-  // gewichtet: reines Nowcasting bis T_NOW, sanfter smoothstep-Übergang bis
-  // T_FADE, dann reines Modell. Model-Anteil kann optional zwischen zwei
-  // Forecast-Frames advektiert-morphed sein (kohärente Zellwanderung auch
-  // in der Übergangszone).
-  const buildFusionOffscreenRef = useRef<
-    (
-      renderTimeMs: number,
-      modelA: RadarFrame,
-      modelB: RadarFrame | null,
-      modelProg: number,
-      nc: { frame: RadarFrame; vx: number; vy: number; nowMs: number },
-    ) => HTMLCanvasElement | null
-  >(() => null);
-  buildFusionOffscreenRef.current = (renderTimeMs, modelA, modelB, modelProg, nc) => {
-    const lookup = lookupRef.current;
-    if (!lookup) return null;
-    const aVals = modelA.values;
-    if (!aVals || aVals.length === 0) return null;
-    const bVals = modelB?.values ?? null;
-    const ncVals = nc.frame.values as number[] | undefined;
-    if (!ncVals || ncVals.length === 0) return null;
-    const { gridLat, gridLon } = payload;
-    const nLat = gridLat.length;
-    const nLon = gridLon.length;
-
-    // Modell-Advektion A↔B (nur wenn ein weicher Übergang zwischen zwei
-    // Forecast-Frames sinnvoll ist).
-    const canMorph =
-      !!bVals &&
-      !!modelB &&
-      modelProg > 0 &&
-      modelProg < 1 &&
-      modelA.t !== modelB.t &&
-      modelA.source !== "radar" &&
-      modelB.source !== "radar";
-    let dxAB = 0;
-    let dyAB = 0;
-    if (canMorph && modelB) {
-      const dtMinAB = (Date.parse(modelB.t) - Date.parse(modelA.t)) / 60_000;
-      const prior =
-        dtMinAB > 0 ? { dx: nc.vx * dtMinAB, dy: nc.vy * dtMinAB } : null;
-      const priorKey = prior
-        ? `${Math.round(prior.dx * 10)}|${Math.round(prior.dy * 10)}`
-        : "np";
-      const key = `${modelA.t}|${modelB.t}|${priorKey}`;
-      let sh = shiftCacheRef.current.get(key);
-      if (sh === undefined) {
-        sh = estimateShiftCells(aVals, bVals as number[], nLon, nLat, prior);
-        shiftCacheRef.current.set(key, sh);
-      }
-      dxAB = sh?.dx ?? 0;
-      dyAB = sh?.dy ?? 0;
-    }
-
-    const p = canMorph ? modelProg : 0;
-    const s = p * p * (3 - 2 * p);
-
-    // Fusion-Gewicht (smoothstep): 0 = rein Nowcast, 1 = rein Modell.
-    const dtNowMs = renderTimeMs - nc.nowMs;
-    const dtNowMin = dtNowMs / 60_000;
-    const wRaw = (dtNowMs - NOWCAST_PURE_MS) / (NOWCAST_FADE_MS - NOWCAST_PURE_MS);
-    const wC = Math.max(0, Math.min(1, wRaw));
-    const w = wC * wC * (3 - 2 * wC);
-    const oneMinusW = 1 - w;
-
-    const lowW = lookup.lowW;
-    const lowH = lookup.lowH;
-    let mc = morphCanvasRef.current;
-    if (!mc || mc.width !== lowW || mc.height !== lowH) {
-      mc = document.createElement("canvas");
-      mc.width = lowW;
-      mc.height = lowH;
-      morphCanvasRef.current = mc;
-    }
-    const offCtx = mc.getContext("2d");
-    if (!offCtx) return null;
-    const img = offCtx.createImageData(lowW, lowH);
-    const data = img.data;
-
-    const sampleAt = (arr: number[], fx: number, fy: number) => {
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = x0 + 1;
-      const y1 = y0 + 1;
-      const txL = fx - x0;
-      const tyL = fy - y0;
-      const inX0 = x0 >= 0 && x0 < nLon;
-      const inX1 = x1 >= 0 && x1 < nLon;
-      const inY0 = y0 >= 0 && y0 < nLat;
-      const inY1 = y1 >= 0 && y1 < nLat;
-      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-      return (
-        v00 * (1 - txL) * (1 - tyL) +
-        v01 * txL * (1 - tyL) +
-        v10 * (1 - txL) * tyL +
-        v11 * txL * tyL
-      );
-    };
-
-    const aSnow = modelA.snowValues;
-    const bSnow = modelB?.snowValues;
-    const ncSnow = nc.frame.snowValues;
-
-    const nxOff = nc.vx * dtNowMin;
-    const nyOff = nc.vy * dtNowMin;
-
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const cell = ly * lowW + lx;
-        if (!lookup.valid[cell]) continue;
-        const fx = lookup.fx[cell];
-        const fy = lookup.fy[cell];
-
-        // Nowcast-Anteil: letzten Radar advektieren.
-        let nVal = 0;
-        let nSnow = 0;
-        if (oneMinusW > 0) {
-          nVal = sampleAt(ncVals, fx - nxOff, fy - nyOff);
-          if (ncSnow) nSnow = sampleAt(ncSnow, fx - nxOff, fy - nyOff);
-        }
-
-        // Modell-Anteil: A oder morph(A,B).
-        let mVal = 0;
-        let mSnow = 0;
-        if (w > 0) {
-          if (canMorph && bVals) {
-            const ax = fx - p * dxAB;
-            const ay = fy - p * dyAB;
-            const bx = fx + (1 - p) * dxAB;
-            const by = fy + (1 - p) * dyAB;
-            const va = sampleAt(aVals, ax, ay);
-            const vb = sampleAt(bVals, bx, by);
-            mVal = (1 - s) * va + s * vb;
-            const sa = aSnow ? sampleAt(aSnow, ax, ay) : 0;
-            const sb = bSnow ? sampleAt(bSnow, bx, by) : 0;
-            mSnow = (1 - s) * sa + s * sb;
-          } else {
-            mVal = sampleAt(aVals, fx, fy);
-            if (aSnow) mSnow = sampleAt(aSnow, fx, fy);
-          }
-        }
-
-        let v = oneMinusW * nVal + w * mVal;
-        const sv = oneMinusW * nSnow + w * mSnow;
-
-        if (contour && v > 0 && lookup.contourScale) v = v * lookup.contourScale[cell];
-        const minV = contour ? 0.05 : 0.1;
-        if (v < minV) continue;
-
-        let snowFrac = 0;
-        if (v > 0.01 && sv > 0) snowFrac = Math.max(0, Math.min(1, sv / v));
-
-        const [rC, gC, bC, aC] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
-        if (aC === 0) continue;
-        const alpha = Math.round(aC * 255);
-        if (alpha === 0) continue;
-        const pix = cell * 4;
-        data[pix] = rC;
-        data[pix + 1] = gC;
-        data[pix + 2] = bC;
-        data[pix + 3] = alpha;
-      }
-    }
-    offCtx.putImageData(img, 0, 0);
-    return mc;
-  };
-
-
   // Nur bei tatsächlichem Frame-Wechsel neu zeichnen — keine Per-RAF-Repaints
   // (Desktop-Performance). Kein Crossfade/Lerp mehr.
   useEffect(() => {
@@ -1506,13 +1206,6 @@ function PrecipOverlay({
     progressRef.current = typeof progress === "number" ? progress : 0;
     redrawRef.current();
   }, [nextFrame, progress]);
-
-  // Nowcast/Zeit-Sync: Fusion-Sampler liest kontinuierliche Zeit + Motion.
-  useEffect(() => {
-    renderTimeRef.current = typeof renderTimeMs === "number" ? renderTimeMs : null;
-    nowcastRef.current = nowcast ?? null;
-    redrawRef.current();
-  }, [renderTimeMs, nowcast]);
 
   // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
   useEffect(() => {
