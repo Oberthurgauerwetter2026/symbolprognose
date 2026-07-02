@@ -35,6 +35,8 @@ const MEASUREMENT_COLOR = "#1f7a3a";
 const FORECAST_COLOR = BRAND;
 const FILMSTRIP_MEASUREMENT_COLOR = "#9ca3af";
 const FILMSTRIP_FORECAST_COLOR = BRAND;
+const NOWCAST_PURE_MS = 60 * 60_000;
+const NOWCAST_FADE_MS = 120 * 60_000;
 const REGION = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
@@ -544,6 +546,99 @@ function estimateRadarMotion(
   return { vx, vy, frame: recent[recent.length - 1] };
 }
 
+function hasGridValues(frame: RadarFrame | null | undefined): frame is RadarFrame {
+  return !!frame && Array.isArray(frame.values) && frame.values.length > 0;
+}
+
+function nearestFrameIndexForMs(frames: RadarFrame[], targetMs: number): number {
+  if (frames.length === 0) return 0;
+  let best = 0;
+  let bestDt = Infinity;
+  for (let i = 0; i < frames.length; i++) {
+    const dt = Math.abs(Date.parse(frames[i].t) - targetMs);
+    if (dt < bestDt) {
+      bestDt = dt;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function bracketFramesForMs(
+  frames: RadarFrame[],
+  targetMs: number,
+  predicate?: (frame: RadarFrame) => boolean,
+): { frame: RadarFrame | null; nextFrame: RadarFrame | null; progress: number } {
+  const eligible = predicate ? frames.filter(predicate) : frames;
+  if (eligible.length === 0) return { frame: null, nextFrame: null, progress: 0 };
+  if (eligible.length === 1) return { frame: eligible[0], nextFrame: null, progress: 0 };
+
+  const firstMs = Date.parse(eligible[0].t);
+  if (targetMs <= firstMs) return { frame: eligible[0], nextFrame: eligible[1], progress: 0 };
+
+  const last = eligible[eligible.length - 1];
+  const lastMs = Date.parse(last.t);
+  if (targetMs >= lastMs) return { frame: last, nextFrame: null, progress: 0 };
+
+  for (let i = 0; i < eligible.length - 1; i++) {
+    const a = eligible[i];
+    const b = eligible[i + 1];
+    const aMs = Date.parse(a.t);
+    const bMs = Date.parse(b.t);
+    if (targetMs >= aMs && targetMs <= bMs) {
+      const span = Math.max(1, bMs - aMs);
+      return {
+        frame: a,
+        nextFrame: b,
+        progress: Math.max(0, Math.min(1, (targetMs - aMs) / span)),
+      };
+    }
+  }
+
+  const idx = nearestFrameIndexForMs(eligible, targetMs);
+  return { frame: eligible[idx], nextFrame: eligible[idx + 1] ?? null, progress: 0 };
+}
+
+function timelineStateForMs(
+  frames: RadarFrame[],
+  renderMs: number,
+  nowcast: { frame: RadarFrame; vx: number; vy: number; nowMs: number } | null,
+) {
+  const all = bracketFramesForMs(frames, renderMs);
+  const forecast = bracketFramesForMs(
+    frames,
+    renderMs,
+    (f) => f.source !== "radar" && hasGridValues(f),
+  );
+  const useFusion =
+    !!nowcast &&
+    renderMs > nowcast.nowMs &&
+    renderMs < nowcast.nowMs + NOWCAST_FADE_MS &&
+    hasGridValues(nowcast.frame) &&
+    hasGridValues(forecast.frame);
+  const displayIdx = nearestFrameIndexForMs(frames, renderMs);
+
+  if (useFusion) {
+    return {
+      renderMs,
+      displayIdx,
+      frame: forecast.frame,
+      nextFrame: forecast.nextFrame,
+      progress: forecast.progress,
+      useFusion,
+    };
+  }
+
+  return {
+    renderMs,
+    displayIdx,
+    frame: all.frame,
+    nextFrame: all.nextFrame,
+    progress: all.progress,
+    useFusion,
+  };
+}
+
 /**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
@@ -881,8 +976,6 @@ function PrecipOverlay({
     const prog = progressRef.current;
     const rt = renderTimeRef.current;
     const nc = nowcastRef.current;
-    const T_NOW_MS = 60 * 60_000;
-    const T_FADE_MS = 120 * 60_000;
     // Nowcasting-Fusion: aktiv, sobald wir jenseits nowMs sind und noch nicht
     // vollständig in die Modellprognose übergegangen sind. Ersetzt Cache/Morph.
     // Guard `frame.source !== "radar"` entfernt: am Seam Messung→Prognose wird
@@ -892,7 +985,7 @@ function PrecipOverlay({
       !!nc &&
       typeof rt === "number" &&
       rt > nc.nowMs &&
-      rt < nc.nowMs + T_FADE_MS &&
+      rt < nc.nowMs + NOWCAST_FADE_MS &&
       !!frame.values &&
       frame.values.length > 0 &&
       Array.isArray(nc.frame.values) &&
@@ -1211,11 +1304,9 @@ function PrecipOverlay({
     const s = p * p * (3 - 2 * p);
 
     // Fusion-Gewicht (smoothstep): 0 = rein Nowcast, 1 = rein Modell.
-    const T_NOW_MS = 60 * 60_000;
-    const T_FADE_MS = 120 * 60_000;
     const dtNowMs = renderTimeMs - nc.nowMs;
     const dtNowMin = dtNowMs / 60_000;
-    const wRaw = (dtNowMs - T_NOW_MS) / (T_FADE_MS - T_NOW_MS);
+    const wRaw = (dtNowMs - NOWCAST_PURE_MS) / (NOWCAST_FADE_MS - NOWCAST_PURE_MS);
     const wC = Math.max(0, Math.min(1, wRaw));
     const w = wC * wC * (3 - 2 * wC);
     const oneMinusW = 1 - w;
@@ -2094,8 +2185,7 @@ function FilmstripTimeline({
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
   const frameMs = times[displayIdx] ?? tMin;
-  // Der Strip darf bei Drag/Play weich laufen; Bubble-Zeit und Radarbild
-  // bleiben aber auf den gesnappten Cadence-Frames.
+  // Strip, Bubble und Karten-Overlay laufen auf derselben kontinuierlichen Zeit.
   const motionMs = dragging
     ? (dragMs as number)
     : visualMs != null
@@ -2103,9 +2193,9 @@ function FilmstripTimeline({
       : frameMs;
   const translateX = containerW / 2 - ((motionMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
-  const currentFrame = frames[displayIdx] ?? null;
+  const currentFrame = frames[nearestIndexForMs(motionMs)] ?? frames[displayIdx] ?? null;
   const timelineColor = timelineColorFor(currentFrame);
-  const bubbleLabel = fmtBubble(new Date(frameMs), currentFrame);
+  const bubbleLabel = fmtBubble(new Date(motionMs), currentFrame);
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
@@ -2317,17 +2407,12 @@ export function RadarMap({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
-  // Kontinuierliche, weich interpolierte Zeit während Play für Bubble/Marker.
-  // Das Radar-Bild selbst bleibt frame-genau (kein Crossfading).
+  // Eine einzige kontinuierliche Render-Zeit für Play/Scrub. Der konkrete
+  // Anzeigezustand wird zentral aus dieser Zeit abgeleitet.
   const [playVisualMs, setPlayVisualMs] = useState<number | null>(null);
   // Kontinuierliche Scrub-Zeit während aktivem Drag (überschreibt cadence-
   // gesnapptes idx für Fusion-Rendering; kein Re-Render der ganzen Map nötig).
   const [scrubVisualMs, setScrubVisualMs] = useState<number | null>(null);
-  // Crossfade-Steuerung für PrecipOverlay während Play (nextFrame + progress).
-  const [playCrossfade, setPlayCrossfade] = useState<{
-    nextFrame: RadarFrame | null;
-    progress: number;
-  } | null>(null);
   const isMobile = useIsMobile();
 
 
@@ -2427,85 +2512,58 @@ export function RadarMap({
     return cursor;
   };
 
-  // Play-Loop: fester Cursor in der Step-Liste. Kein Wrap von Prognose-Ende
-  // zurück zur Messung; am Ende stoppt Play sauber.
-  const progressRef = useRef(0);
-  const playCursorRef = useRef(0);
+  // Play-Loop: kontinuierliche Zeitachse. Kein Quellen-Sonderfall am Seam;
+  // Play und Scrub werden später über denselben Timeline-Sampler gerendert.
+  const playTimeRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!playing || playStepIndices.length === 0) {
-      progressRef.current = 0;
+    if (!playing || playStepIndices.length === 0 || frames.length === 0) {
+      playTimeRef.current = null;
       setPlayVisualMs(null);
-      setPlayCrossfade(null);
       return;
-    }
-    progressRef.current = 0;
-    playCursorRef.current = stepCursorForIndex(idxRef.current);
-    const anchor = playStepIndices[playCursorRef.current];
-    if (typeof anchor === "number" && idxRef.current !== anchor) {
-      idxRef.current = anchor;
-      setIdx(anchor);
     }
 
     const FRAME_MS = 1800 / speed;
     const REF_GAP_MS = 15 * 60_000;
     let raf = 0;
     let last = performance.now();
-    const computeStepWall = (cur: number): number => {
-      const aIdx = playStepIndices[cur];
-      const nIdx = playStepIndices[cur + 1];
-      if (aIdx == null || nIdx == null) return FRAME_MS;
-      const aMs = Date.parse(frames[aIdx].t);
-      const nMs = Date.parse(frames[nIdx].t);
-      const gap = Math.max(0, nMs - aMs);
-      return FRAME_MS * Math.max(0.15, gap / REF_GAP_MS);
-    };
-    let stepWall = computeStepWall(playCursorRef.current);
-    const emitVisual = () => {
-      const cur = playCursorRef.current;
-      const aIdx = playStepIndices[cur];
-      const nIdx = playStepIndices[cur + 1] ?? aIdx;
-      const aFrame = frames[aIdx];
-      const nFrame = frames[nIdx];
-      if (!aFrame) return;
-      const aMs = Date.parse(aFrame.t);
-      const nMs = nFrame ? Date.parse(nFrame.t) : aMs;
-      const p = progressRef.current;
-      setPlayVisualMs(aMs + (nMs - aMs) * p);
-      setPlayCrossfade({
-        nextFrame: nFrame && nFrame.t !== aFrame.t ? nFrame : null,
-        progress: p,
-      });
-    };
+    const firstIdx = playStepIndices[0];
+    const lastIdx = playStepIndices[playStepIndices.length - 1];
+    const startIdx = playStepIndices[stepCursorForIndex(idxRef.current)] ?? firstIdx;
+    const firstMs = Date.parse(frames[firstIdx]?.t ?? frames[0].t);
+    const lastMs = Date.parse(frames[lastIdx]?.t ?? frames[frames.length - 1].t);
+    const idxMs = Date.parse(frames[startIdx]?.t ?? frames[idxRef.current ?? 0]?.t ?? frames[0].t);
+    const startMs = Math.max(firstMs, Math.min(lastMs, playVisualMs ?? scrubVisualMs ?? idxMs));
+    playTimeRef.current = startMs;
+    setPlayVisualMs(startMs);
+
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
-      let p = progressRef.current + dt / stepWall;
-      if (p >= 1) {
-        p = p - 1;
-        if (p >= 1) p = 0;
-        const nextCursor = playCursorRef.current + 1;
-        if (nextCursor >= playStepIndices.length) {
-          progressRef.current = 0;
-          setPlayVisualMs(null);
-          setPlayCrossfade(null);
-          setPlaying(false);
-          return;
-        }
-        playCursorRef.current = nextCursor;
-        const nextIdx = playStepIndices[nextCursor];
+      const prevMs = playTimeRef.current ?? startMs;
+      const nextMs = prevMs + (dt * REF_GAP_MS) / FRAME_MS;
+      if (nextMs >= lastMs) {
+        playTimeRef.current = lastMs;
+        setPlayVisualMs(lastMs);
+        const endIdx = nearestFrameIndexForMs(frames, lastMs);
+        idxRef.current = endIdx;
+        setIdx(endIdx);
+        setPlaying(false);
+        return;
+      }
+      playTimeRef.current = nextMs;
+      setPlayVisualMs(nextMs);
+      const nextIdx = nearestFrameIndexForMs(frames, nextMs);
+      if (nextIdx !== idxRef.current) {
         idxRef.current = nextIdx;
         setIdx(nextIdx);
-        stepWall = computeStepWall(nextCursor);
       }
-      progressRef.current = p;
-      emitVisual();
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
+      playTimeRef.current = null;
       setPlayVisualMs(null);
-      setPlayCrossfade(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices]);
@@ -2670,72 +2728,21 @@ export function RadarMap({
             currentFrame &&
             (() => {
               const rtMs = scrubVisualMs ?? playVisualMs ?? Date.parse(currentFrame.t);
-              // Sobald wir jenseits der letzten Messung liegen, übernimmt die
-              // Nowcast/Model-Fusion die Darstellung. Basis wird auf die letzte
-              // Radar-Messung (nc.frame) gehoben — dadurch entstehen keine
-              // Sprünge am Übergang (Fusion @ t=nowMs = Messung), und mit
-              // wachsender Zeit wandern die Zellen advektiv weiter.
-              const useFusion =
-                !!nowcast &&
-                rtMs > nowcast.nowMs &&
-                Array.isArray(nowcast.frame.values) &&
-                (nowcast.frame.values as number[]).length > 0;
+              const timelineState = timelineStateForMs(frames, rtMs, nowcast);
+              const overlayFrame = timelineState.useFusion
+                ? timelineState.frame
+                : timelineState.frame ?? currentFrame;
+              const overlayNext = timelineState.nextFrame;
+              const overlayProg = timelineState.progress;
 
-              // Modellseite der Fusion: nächstgelegener Prognose-Frame nach rt.
-              let modelFrame: RadarFrame | null = null;
-              if (useFusion) {
-                // Wenn currentFrame bereits Prognose ist, nutze ihn direkt.
-                if (currentFrame.source !== "radar") {
-                  modelFrame = currentFrame;
-                } else {
-                  // Erster Prognose-Frame nach rt suchen.
-                  for (let i = 0; i < frames.length; i++) {
-                    const f = frames[i];
-                    if (f.source === "radar") continue;
-                    if (!Array.isArray(f.values) || f.values.length === 0) continue;
-                    if (Date.parse(f.t) >= rtMs) {
-                      modelFrame = f;
-                      break;
-                    }
-                  }
-                  if (!modelFrame) {
-                    // Fallback: irgendein späterer Prognoseframe.
-                    for (let i = frames.length - 1; i >= 0; i--) {
-                      const f = frames[i];
-                      if (f.source !== "radar" && Array.isArray(f.values) && f.values.length > 0) {
-                        modelFrame = f;
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-
-              const overlayFrame =
-                useFusion && currentFrame.source === "radar"
-                  ? nowcast!.frame
-                  : currentFrame;
-              const overlayNext =
-                useFusion && currentFrame.source === "radar"
-                  ? modelFrame
-                  : currentFrame.source !== "radar" && playCrossfade
-                    ? playCrossfade.nextFrame
-                    : null;
-              const overlayProg =
-                useFusion && currentFrame.source === "radar"
-                  ? 0
-                  : currentFrame.source !== "radar" && playCrossfade
-                    ? playCrossfade.progress
-                    : 0;
-
-              const hasPng = !!currentFrame.precipUrl;
+              const hasPng = !!overlayFrame?.precipUrl;
               const hasGrid =
-                Array.isArray(overlayFrame.values) && overlayFrame.values.length > 0;
-              const ib = currentFrame.imageBbox ?? data.imageBbox;
+                Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
+              const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
-              const showPng = hasPng && !useFusion;
-              const showGrid = hasGrid && (useFusion || !hasPng);
+              const showPng = !!overlayFrame && hasPng && !timelineState.useFusion;
+              const showGrid = !!overlayFrame && hasGrid && (timelineState.useFusion || !hasPng);
 
               return (
                 <>
@@ -2746,7 +2753,7 @@ export function RadarMap({
                       nextFrame={overlayNext}
                       progress={overlayProg}
                       opacity={opacityVal}
-                      contour={overlayFrame.source !== "radar" || useFusion}
+                      contour={overlayFrame.source !== "radar" || timelineState.useFusion}
                       prewarmFrames={frames}
                       renderTimeMs={rtMs}
                       nowcast={nowcast}
@@ -2754,7 +2761,7 @@ export function RadarMap({
                   )}
                   {showPng && (
                     <MeasurementCanvasOverlay
-                      url={currentFrame.precipUrl as string}
+                      url={overlayFrame.precipUrl as string}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
@@ -2913,7 +2920,7 @@ export function RadarMap({
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      visualMs={playVisualMs ?? scrubVisualMs}
+                      visualMs={scrubVisualMs ?? playVisualMs}
                       onScrubMs={setScrubVisualMs}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];
