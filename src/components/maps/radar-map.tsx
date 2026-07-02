@@ -2729,72 +2729,21 @@ export function RadarMap({
             currentFrame &&
             (() => {
               const rtMs = scrubVisualMs ?? playVisualMs ?? Date.parse(currentFrame.t);
-              // Sobald wir jenseits der letzten Messung liegen, übernimmt die
-              // Nowcast/Model-Fusion die Darstellung. Basis wird auf die letzte
-              // Radar-Messung (nc.frame) gehoben — dadurch entstehen keine
-              // Sprünge am Übergang (Fusion @ t=nowMs = Messung), und mit
-              // wachsender Zeit wandern die Zellen advektiv weiter.
-              const useFusion =
-                !!nowcast &&
-                rtMs > nowcast.nowMs &&
-                Array.isArray(nowcast.frame.values) &&
-                (nowcast.frame.values as number[]).length > 0;
+              const timelineState = timelineStateForMs(frames, rtMs, nowcast);
+              const overlayFrame = timelineState.useFusion
+                ? timelineState.frame
+                : timelineState.frame ?? currentFrame;
+              const overlayNext = timelineState.nextFrame;
+              const overlayProg = timelineState.progress;
 
-              // Modellseite der Fusion: nächstgelegener Prognose-Frame nach rt.
-              let modelFrame: RadarFrame | null = null;
-              if (useFusion) {
-                // Wenn currentFrame bereits Prognose ist, nutze ihn direkt.
-                if (currentFrame.source !== "radar") {
-                  modelFrame = currentFrame;
-                } else {
-                  // Erster Prognose-Frame nach rt suchen.
-                  for (let i = 0; i < frames.length; i++) {
-                    const f = frames[i];
-                    if (f.source === "radar") continue;
-                    if (!Array.isArray(f.values) || f.values.length === 0) continue;
-                    if (Date.parse(f.t) >= rtMs) {
-                      modelFrame = f;
-                      break;
-                    }
-                  }
-                  if (!modelFrame) {
-                    // Fallback: irgendein späterer Prognoseframe.
-                    for (let i = frames.length - 1; i >= 0; i--) {
-                      const f = frames[i];
-                      if (f.source !== "radar" && Array.isArray(f.values) && f.values.length > 0) {
-                        modelFrame = f;
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-
-              const overlayFrame =
-                useFusion && currentFrame.source === "radar"
-                  ? nowcast!.frame
-                  : currentFrame;
-              const overlayNext =
-                useFusion && currentFrame.source === "radar"
-                  ? modelFrame
-                  : currentFrame.source !== "radar" && playCrossfade
-                    ? playCrossfade.nextFrame
-                    : null;
-              const overlayProg =
-                useFusion && currentFrame.source === "radar"
-                  ? 0
-                  : currentFrame.source !== "radar" && playCrossfade
-                    ? playCrossfade.progress
-                    : 0;
-
-              const hasPng = !!currentFrame.precipUrl;
+              const hasPng = !!overlayFrame?.precipUrl;
               const hasGrid =
-                Array.isArray(overlayFrame.values) && overlayFrame.values.length > 0;
-              const ib = currentFrame.imageBbox ?? data.imageBbox;
+                Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
+              const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
-              const showPng = hasPng && !useFusion;
-              const showGrid = hasGrid && (useFusion || !hasPng);
+              const showPng = !!overlayFrame && hasPng && !timelineState.useFusion;
+              const showGrid = !!overlayFrame && hasGrid && (timelineState.useFusion || !hasPng);
 
               return (
                 <>
@@ -2805,7 +2754,7 @@ export function RadarMap({
                       nextFrame={overlayNext}
                       progress={overlayProg}
                       opacity={opacityVal}
-                      contour={overlayFrame.source !== "radar" || useFusion}
+                      contour={overlayFrame.source !== "radar" || timelineState.useFusion}
                       prewarmFrames={frames}
                       renderTimeMs={rtMs}
                       nowcast={nowcast}
@@ -2813,7 +2762,7 @@ export function RadarMap({
                   )}
                   {showPng && (
                     <MeasurementCanvasOverlay
-                      url={currentFrame.precipUrl as string}
+                      url={overlayFrame.precipUrl as string}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
