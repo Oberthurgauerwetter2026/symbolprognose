@@ -1128,6 +1128,7 @@ function MeasurementCanvasOverlay({
   type DecodedRadar = { w: number; h: number; mmh: Float32Array; smoothMmh?: Float32Array };
   const sourceRef = useRef<DecodedRadar | null>(null);
   const nextSourceRef = useRef<DecodedRadar | null>(null);
+  const nextSourceUrlRef = useRef<string | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const DECODE_CACHE_MAX = 96;
 
@@ -1283,9 +1284,12 @@ function MeasurementCanvasOverlay({
       cacheRef.current.delete(nextUrl);
       cacheRef.current.set(nextUrl, cached);
       nextSourceRef.current = cached;
+      nextSourceUrlRef.current = nextUrl;
       redraw();
       return;
     }
+    nextSourceRef.current = null;
+    nextSourceUrlRef.current = null;
     let cancelled = false;
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -1340,6 +1344,7 @@ function MeasurementCanvasOverlay({
         cacheRef.current.delete(firstKey);
       }
       nextSourceRef.current = entry;
+      nextSourceUrlRef.current = nextUrl;
       redraw();
     };
     img.src = nextUrl;
@@ -1561,8 +1566,14 @@ function MeasurementCanvasOverlay({
     };
 
     const blendProgress = Math.max(0, Math.min(1, progress));
-    const nextRaster = nextSourceRef.current;
-    const nextVals = nextFrame?.values && nextFrame.values.length > 0 ? nextFrame.values : null;
+    const nextRaster =
+      nextFrame?.precipUrl && nextSourceUrlRef.current === nextFrame.precipUrl
+        ? nextSourceRef.current
+        : null;
+    const nextVals =
+      !nextFrame?.precipUrl && nextFrame?.values && nextFrame.values.length > 0
+        ? nextFrame.values
+        : null;
     const canBlendNext = !!nextFrame && nextFrame.t !== url && blendProgress > 0 && (nextRaster || (payload && nextVals));
 
     for (let ly = 0; ly < lowH; ly++) {
