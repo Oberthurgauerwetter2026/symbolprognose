@@ -976,8 +976,6 @@ function PrecipOverlay({
     const prog = progressRef.current;
     const rt = renderTimeRef.current;
     const nc = nowcastRef.current;
-    const T_NOW_MS = 60 * 60_000;
-    const T_FADE_MS = 120 * 60_000;
     // Nowcasting-Fusion: aktiv, sobald wir jenseits nowMs sind und noch nicht
     // vollständig in die Modellprognose übergegangen sind. Ersetzt Cache/Morph.
     // Guard `frame.source !== "radar"` entfernt: am Seam Messung→Prognose wird
@@ -987,7 +985,7 @@ function PrecipOverlay({
       !!nc &&
       typeof rt === "number" &&
       rt > nc.nowMs &&
-      rt < nc.nowMs + T_FADE_MS &&
+      rt < nc.nowMs + NOWCAST_FADE_MS &&
       !!frame.values &&
       frame.values.length > 0 &&
       Array.isArray(nc.frame.values) &&
@@ -1306,11 +1304,9 @@ function PrecipOverlay({
     const s = p * p * (3 - 2 * p);
 
     // Fusion-Gewicht (smoothstep): 0 = rein Nowcast, 1 = rein Modell.
-    const T_NOW_MS = 60 * 60_000;
-    const T_FADE_MS = 120 * 60_000;
     const dtNowMs = renderTimeMs - nc.nowMs;
     const dtNowMin = dtNowMs / 60_000;
-    const wRaw = (dtNowMs - T_NOW_MS) / (T_FADE_MS - T_NOW_MS);
+    const wRaw = (dtNowMs - NOWCAST_PURE_MS) / (NOWCAST_FADE_MS - NOWCAST_PURE_MS);
     const wC = Math.max(0, Math.min(1, wRaw));
     const w = wC * wC * (3 - 2 * wC);
     const oneMinusW = 1 - w;
