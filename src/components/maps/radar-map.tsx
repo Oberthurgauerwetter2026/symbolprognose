@@ -2424,7 +2424,11 @@ export function RadarMap({
               const opacityVal = 0.6;
 
               const showPng = !!overlayFrame && hasPng && !canMorphGrid;
-              const showGrid = !!overlayFrame && hasGrid && (!hasPng || canMorphGrid);
+              const showHiddenGridWarmup =
+                !!overlayFrame && hasPng && hasGrid && !!overlayNext && nextHasGrid;
+              const showGrid =
+                !!overlayFrame && hasGrid && (!hasPng || canMorphGrid || showHiddenGridWarmup);
+              const gridOpacity = showPng && !canMorphGrid ? 0 : opacityVal;
 
               return (
                 <>
@@ -2434,7 +2438,7 @@ export function RadarMap({
                       frame={overlayFrame}
                       nextFrame={overlayNext}
                       progress={overlayProg}
-                      opacity={opacityVal}
+                      opacity={gridOpacity}
                       contour={overlayFrame.source !== "radar"}
                       prewarmFrames={frames}
                     />
