@@ -2185,8 +2185,7 @@ function FilmstripTimeline({
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
   const frameMs = times[displayIdx] ?? tMin;
-  // Der Strip darf bei Drag/Play weich laufen; Bubble-Zeit und Radarbild
-  // bleiben aber auf den gesnappten Cadence-Frames.
+  // Strip, Bubble und Karten-Overlay laufen auf derselben kontinuierlichen Zeit.
   const motionMs = dragging
     ? (dragMs as number)
     : visualMs != null
@@ -2194,9 +2193,9 @@ function FilmstripTimeline({
       : frameMs;
   const translateX = containerW / 2 - ((motionMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
-  const currentFrame = frames[displayIdx] ?? null;
+  const currentFrame = frames[nearestIndexForMs(motionMs)] ?? frames[displayIdx] ?? null;
   const timelineColor = timelineColorFor(currentFrame);
-  const bubbleLabel = fmtBubble(new Date(frameMs), currentFrame);
+  const bubbleLabel = fmtBubble(new Date(motionMs), currentFrame);
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
