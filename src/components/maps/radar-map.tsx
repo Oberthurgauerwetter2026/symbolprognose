@@ -481,8 +481,8 @@ function PrecipOverlay({
   const layerRef = useRef<L.Layer | null>(null);
 
   // Advektives Resampling wurde entfernt — pro Framepaar wechselnde Shift-
-  // Vektoren liessen die Prognose-Bänder sichtbar wackeln. Jetzt nur weicher
-  // Crossfade zwischen den Frames.
+  // Vektoren liessen die Prognose-Bänder sichtbar wackeln. Jetzt wird nur noch
+  // die Intensität der beiden benachbarten Datenframes interpoliert.
 
 
 
@@ -779,7 +779,7 @@ function PrecipOverlay({
 
     const nf = nextFrameRef.current;
     const prog = progressRef.current;
-    const morphActive =
+    const blendActive =
       !!nf &&
       prog > 0 &&
       prog < 1 &&
@@ -789,7 +789,7 @@ function PrecipOverlay({
       frame.values.length > 0 &&
       !!nf.values &&
       nf.values.length > 0;
-    const blended = morphActive && nf ? buildBlendedOffscreenRef.current(frame, nf, prog) : null;
+    const blended = blendActive && nf ? buildBlendedOffscreenRef.current(frame, nf, prog) : null;
 
     ctx.save();
     ctx.scale(dpr, dpr);
@@ -802,7 +802,8 @@ function PrecipOverlay({
       ctx.drawImage(blended, 0, 0, blended.width, blended.height, 0, 0, size.x, size.y);
     } else {
       ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-      // Fallback (Messung oder fehlende Werte): klassischer Alpha-Crossfade.
+      // Fallback nur für fehlende Grid-Werte; reguläre Frames laufen über den
+      // Intensitäts-Zwischenzustand oben.
       if (nf && prog > 0 && nf.t !== frame.t) {
         const nextOff = buildOffscreenRef.current(nf);
         if (nextOff) {
@@ -1001,8 +1002,7 @@ function PrecipOverlay({
     return mc;
   };
 
-  // Nur bei tatsächlichem Frame-Wechsel neu zeichnen — keine Per-RAF-Repaints
-  // (Desktop-Performance). Kein Crossfade/Lerp mehr.
+  // Frame-/Payload-Wechsel neu zeichnen.
   useEffect(() => {
     redrawRef.current();
   }, [frame, payload]);
@@ -1083,14 +1083,14 @@ function PrecipOverlay({
 
 
 
-  // Crossfade-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
+  // Timeline-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
   useEffect(() => {
     nextFrameRef.current = nextFrame ?? null;
     progressRef.current = typeof progress === "number" ? progress : 0;
     redrawRef.current();
   }, [nextFrame, progress]);
 
-  // Canvas-Opacity nachziehen (Soft-Blending Nowcast↔ICON-CH1).
+  // Canvas-Opacity nachziehen.
   useEffect(() => {
     const cv = canvasRef.current;
     if (cv) cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
@@ -2038,8 +2038,8 @@ function FilmstripTimeline({
       // aber Bubble/Marker am kontinuierlichen Drag-Wert lassen.
       snapAndEmit(t);
       setDragMs(t);
-      // Kontinuierliche Scrub-Zeit nach oben durchreichen: erlaubt der
-      // Fusion-Overlay, zwischen zwei Cadence-Frames advektiv zu rendern.
+      // Kontinuierliche Scrub-Zeit nach oben durchreichen: erlaubt dem
+      // Karten-Overlay, zwischen zwei Cadence-Frames direkt zu rendern.
       onScrubMs?.(t);
     });
   };
@@ -2376,7 +2376,8 @@ export function RadarMap({
   }, [playing, speed, playStepIndices]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
-  // Kein Crossfade — jeder Frame schaltet hart auf den nächsten.
+  // Der sichtbare Zustand wird unten über `timelineStateForMs` kontinuierlich
+  // zwischen den benachbarten Frames gerendert.
 
 
   // Reduzierte Frame-Liste für den Filmstrip — gleiche Cadence wie Play
