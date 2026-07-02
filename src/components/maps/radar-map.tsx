@@ -1276,6 +1276,7 @@ function MeasurementCanvasOverlay({
     const nextUrl = nextFrame?.precipUrl;
     if (!nextUrl) {
       nextSourceRef.current = null;
+      nextSourceUrlRef.current = null;
       redraw();
       return;
     }
