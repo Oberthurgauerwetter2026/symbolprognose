@@ -1,59 +1,53 @@
-## Ziel
-
-Der „Stop" beim Übergang letzte Messung → erste Prognose im Filmstrip-Play und beim Scrubbing verschwindet. Statt einer Lücke von bis zu ~15 min zwischen dem letzten Radar-Frame (z. B. 15:35, mit `nowMs` = 15:38) und dem ersten 15-min-Prognoseraster-Punkt (15:45) läuft die Animation kontinuierlich und advektiv über die Grenze hinweg. Die Messung selbst wird visuell nicht verändert.
-
 ## Ursache
 
-Zwei Stellen erzwingen aktuell den harten Stop bzw. den optischen Sprung:
+Der Nowcasting-Anteil (Radar-Advektion mit `nc.vx/vy`) bewegt die Zellen korrekt: `estimateRadarMotion` mittelt gewichtet über die letzten 4 Messungen (5-min-Abstand), das Signal ist robust und die Richtung stimmt (verifiziert per Sampling-Konvention `sample(fx − v·dt)`).
 
-1. **`playStepIndices`** in `src/components/maps/radar-map.tsx` (~L2289–2351): Mess-Phase endet auf 5-min-Raster bei `endMeas ≤ nowMs`. Prognose-Phase startet erst am nächsten 15-min-Slot nach `nowMs`. Der Play-Loop hält den Cursor auf dem letzten Mess-Frame, bis das nächste Prognose-Ziel erreicht ist — sichtbar als Standbild.
-2. **Render-Guard** in `PrecipOverlay.redraw` (~L855–885): `nowcastActive` verlangt `frame.source !== "radar"`. Solange der Basisframe die letzte Messung ist, greift die Fusion nicht, sondern der klassische Alpha-Crossfade — die Regenzellen springen statt zu wandern.
+Sobald wir jedoch tiefer in die Modellprognose kommen (Gewicht `w → 1`, ab ~120 min), übernimmt `buildFusionOffscreen` bzw. `buildMorphedOffscreen` das räumliche Morphing **zwischen zwei Modellframes im Stundenraster**. Der Shift wird dort per `estimateShiftCells(A, B)` neu geschätzt — komplett unabhängig vom Radar-Vektor:
+
+- Suchfenster nur ±8 Zellen auf einem 32×32-Downsampling. Bei 1 h Abstand bewegen sich Zellen typischerweise deutlich weiter als 8 Zellen → NCC kann **nicht** den echten Peak finden, sondern rastet auf einen sekundären / spiegelnden Peak ein. Das ergibt sichtbar invertierte Bewegungen.
+- Bei schwachen, weiträumigen Modellmustern liegt der beste NCC-Score oft nahe `−dx, −dy` (spiegelverkehrt), sobald das Muster einigermassen symmetrisch ist.
+- Es gibt keinen Sanity-Check gegen die (verlässliche) Radar-Zugrichtung `nc.vx/vy`.
+
+Am Übergang Nowcasting → Modell springt die Richtung dann sichtbar um.
+
+Start/Ziel werden **nicht** vertauscht (`frame`/`nf` in `redraw` sind chronologisch, `sampleAt(A, fx − p·dx)` / `sampleAt(B, fx + (1−p)·dx)` ist konsistent zur Definition `A → B = (dx,dy)`). Das Problem ist ausschliesslich die fehlerhafte **Vorzeichen-/Betragsschätzung** von `estimateShiftCells` auf Stundenframes.
 
 ## Änderungen (nur `src/components/maps/radar-map.tsx`)
 
-### 1) Fusion beginnt exakt bei `nowMs`, unabhängig vom Basisframe
+### 1) Radar-Motion als Prior für Modell-Morph
 
-In `redraw` die Bedingung für `nowcastActive` entkoppeln vom `frame.source`:
+`estimateShiftCells` bekommt einen optionalen `prior`-Parameter (`{dx, dy}` in Zellen für den Frame-Abstand). Wenn gesetzt:
 
-- Fusion aktiv, sobald `rt > nc.nowMs` **und** `rt < nc.nowMs + T_FADE_MS` **und** `nc.frame.values` vorhanden. Die Modellseite der Fusion darf `nf` sein; ist `nf` noch die letzte Messung (Play sitzt auf endMeas), fällt die Fusion auf reines Nowcasting (`w = 0`) zurück — genau der gewünschte weiche Start.
-- `buildFusionOffscreenRef.current(rt, frame, nf, prog, nc)` erhält als „Modell"-Referenz den ersten echten Prognoseframe nach `nc.nowMs`, wenn `frame`/`nf` noch Messung sind. Dazu einen kleinen Helper `findNextForecastFrame(afterMs)` einführen (linear/Bisektion über `frames`), der intern gecached wird.
-- Die bestehende Messung-Anzeige bei `rt ≤ nowMs` bleibt exakt wie heute (Cache + Alpha-Crossfade), keine Änderung an `colorFor`, `cacheRef`, Snow-Layer etc.
+- Suchfenster wird um `prior` zentriert: `dx ∈ [prior.dx − R, prior.dx + R]`, `dy` analog, mit `R = 6`.
+- Zusätzlich Score-Malus für grosse Abweichung vom Prior (leichter Gauss-Bias), damit spiegelverkehrte lokale Maxima nicht mehr gewinnen.
+- Endgültiges Ergebnis wird verworfen (`return prior`), wenn `bestSc < 0.25` **oder** wenn `(best · prior) < 0` bei `|prior| ≥ 2` (harter Vorzeichen-Guard gegen Inversion).
 
-### 2) Play-Loop überbrückt die Meas→Forecast-Lücke lückenlos
+### 2) Prior berechnen und weitergeben
 
-Im Play-Effekt (~L2375–2452) den Cursor-Schritt am Übergang so anpassen, dass die Wall-Zeit zwischen letzter Messung und erstem Prognoseziel konsistent zur Forecast-Cadence bleibt:
+`buildFusionOffscreenRef` und `buildMorphedOffscreenRef` bekommen Zugriff auf die Radar-Motion. Konkret:
 
-- `computeStepWall` erhält eine Sonderbehandlung, falls `aIdx` ein Messframe (`frames[aIdx].source === "radar"`) und `nIdx` ein Prognoseframe ist: statt `gap / REF_GAP_MS` wird `Math.min(gap, REF_GAP_MS) / REF_GAP_MS` verwendet, damit ein 10-min-Übergang nicht künstlich langsamer, aber auch nicht mit `>1`-Faktor gedehnt wird.
-- Wichtiger: während dieses Übergangs liefert `emitVisual` bereits die kontinuierliche `playVisualMs`, und `redraw` rendert dank Punkt 1 sofort per Nowcasting-Advektion. Kein zusätzlicher Zwischenframe im Filmstrip nötig — der visuelle Fluss entsteht rein durch die Sampler-basierte Darstellung.
-- Zusätzlich: den Sonderfall „nur ein Mess-Frame steht als aIdx, es folgt kein Prognose-Frame direkt danach" abfangen. Wenn zwischen `endMeas` und `startFc15` mehr als ~10 min Lücke liegen, wird im `playStepIndices` **ein zusätzlicher virtueller Übergangsschritt** an `nc.nowMs + 15 min` eingefügt — als reiner Zeitanker, gemappt auf `nowIdx` (letzter Radar-Frame). Der Loop nutzt diesen Anker nur, um `playVisualMs` weiterlaufen zu lassen; das Rendering geht via Fusion. So bleibt die bestehende Struktur (Indizes in `frames`) intakt.
+- `nowcastRef.current` enthält bereits `vx, vy` (Zellen/min). In `buildFusionOffscreen` und `buildMorphedOffscreen` wird der Frame-Abstand `dtMin = (Date.parse(B.t) − Date.parse(A.t))/60000` bestimmt und `prior = { dx: nc.vx·dtMin, dy: nc.vy·dtMin }` gesetzt.
+- `buildMorphedOffscreen` (reines Modell-Morph ohne Fusion) erhält denselben Zugriff via neuen optionalen Parameter oder via `nowcastRef` (bereits im Scope über closure).
+- Fallback ohne Radar-Motion: verhalten wie heute (kein Prior, uneingeschränkte Suche).
 
-### 3) Scrubbing über die Grenze
+### 3) Cache-Key erweitern
 
-Der Slider sendet bereits eine kontinuierliche Zeit an `renderTimeMs`/`playVisualMs`-äquivalent (`FilmstripTimeline` → `snapAndEmit`). Zwei kleine Anpassungen:
+`shiftCacheRef`-Key heute: `${a.t}|${b.t}`. Damit ein Prior wirksam wird und nicht ein früher cachter „falscher" Shift ohne Prior zurückkommt: Key → `${a.t}|${b.t}|${Math.round(prior.dx*10)}|${Math.round(prior.dy*10)}` bzw. `noprior` wenn `prior` fehlt. Kein zusätzlicher Speicherdruck (dieselben Paare, andere Version-Signatur).
 
-- Beim Scrubben in den Bereich `rt > nowMs` nicht auf den letzten Messframe „hart" snappen, sondern `idx` auf den letzten Messframe setzen **und** `renderTimeRef.current = rt` durchreichen. Das ist die Datengrundlage, die Punkt 1 braucht, um advektiv zu rendern.
-- `snapAndEmit` bekommt einen weichen Modus während aktiven Draggens: kein Snap auf Cadence-Frames innerhalb der ersten 60 min nach `nowMs`, nur beim Loslassen des Sliders. So wirken beide Übergänge (Play + Scrub) identisch flüssig.
+### 4) Konsistenz am Übergang
 
-### 4) Nicht angefasst
+Am Seam (nowcast → erster Forecast) ist `canMorph` bereits false (Guard `source !== "radar"`), daher rein Radar-Advektion — bereits korrekt. Innerhalb der Fade-Zone `[T_NOW, T_FADE]` wird der Modell-Anteil jetzt ebenfalls in Radar-konsistenter Richtung morphiert; Vorzeichenkonflikt beim Übergang ist damit ausgeschlossen.
 
-- `getRadarFrames`, R2, Server, Ingest, Caches der Rohdaten.
-- Mess-Renderpfad, Farben, `cacheRef`, Snow/Hagel, `MeasurementCanvasOverlay`.
-- `estimateRadarMotion`, `buildFusionOffscreen`, `buildMorphedOffscreen` (Signatur bleibt).
-- `/karten/niederschlag`, Embeds.
+## Nicht angefasst
+
+- `estimateRadarMotion`, Nowcast-Advektion, `sampleAt`-Konvention, Farben, Snow-Layer.
+- Play-Loop, Scrubbing, `playStepIndices`.
+- Server, R2, Ingest, Route.
+- der Radar-Messung bleibt sonst unangetastet
 
 ## Verifikation
 
-1. `/karten/radar` Play: keine Standbild-Pause mehr am Übergang letzter Messung → erster Prognose-Frame; Regenzellen wandern kontinuierlich weiter.
-2. Scrubben durch `nowMs`: keine sichtbare Kante, gleiche Bewegung wie im Play.
-3. Vor `nowMs`: pixel-identisch zu heute (Messung unverändert, keine Fusion).
-4. `bunx tsgo --noEmit` grün.
-5. Mobile: FPS im Play weiterhin ≥ 30, keine zusätzlichen Caches.
-
-## Technische Stichpunkte
-
-- Einzige Datei: `src/components/maps/radar-map.tsx`.
-- Guard `frame.source !== "radar"` in `nowcastActive` entfernen; stattdessen `rt > nc.nowMs` als Trigger.
-- Neuer Helper `findNextForecastFrame(afterMs)` (memoisiert per `useMemo` über `frames`).
-- Play-Loop: `computeStepWall` mit Meas→Forecast-Sonderfall; optionaler virtueller Übergangs-Ankerschritt in `playStepIndices`.
-- Scrub: kein Cadence-Snap im aktiven Drag innerhalb `[nowMs, nowMs + 60 min]`.
-- Keine neuen Dependencies, keine Server-Änderungen.
+1. `/karten/radar`: Zellen bewegen sich über die gesamte Prognose (0 → 6 h+) in dieselbe Richtung wie im Nowcasting, keine sichtbare Richtungsumkehr am Übergang oder zwischen Stundenframes.
+2. Manuelles Scrubbing bestätigt gleiches Verhalten.
+3. `bunx tsgo --noEmit` grün.
+4. Bei Situationen ohne verwertbare Radar-Motion (keine Zellen): Verhalten wie zuvor (kein Prior).

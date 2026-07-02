@@ -427,6 +427,7 @@ function estimateShiftCells(
   b: number[],
   nLon: number,
   nLat: number,
+  prior?: { dx: number; dy: number } | null,
 ): { dx: number; dy: number } | null {
   const DW = 32;
   const DH = 32;
@@ -439,12 +440,25 @@ function estimateShiftCells(
     if (B[i] > bMax) bMax = B[i];
   }
   if (aMax < 0.05 || bMax < 0.05) return null;
-  const MAX = 8;
+  // Prior in Downsampling-Koordinaten (A/B sind auf DW×DH runtergerechnet, aber
+  // die Rückgabe skaliert später wieder auf nLon/nLat — der Prior kommt in
+  // Vollauflösung; hier für die Suche in DW/DH-Zellen zurückrechnen).
+  const priorDxLow = prior ? Math.round((prior.dx * DW) / nLon) : 0;
+  const priorDyLow = prior ? Math.round((prior.dy * DH) / nLat) : 0;
+  const R = prior ? 6 : 8;
+  const dxMin = prior ? priorDxLow - R : -8;
+  const dxMax = prior ? priorDxLow + R : 8;
+  const dyMin = prior ? priorDyLow - R : -8;
+  const dyMax = prior ? priorDyLow + R : 8;
+  // Gauss-Bias in Richtung Prior, damit sekundäre/spiegelverkehrte Peaks
+  // nicht unbegründet gewinnen. Sigma ~ halbes Suchfenster.
+  const sigma = prior ? 4 : 1e9;
+  const inv2sig2 = 1 / (2 * sigma * sigma);
   let bestSc = -Infinity;
   let bestDx = 0;
   let bestDy = 0;
-  for (let dy = -MAX; dy <= MAX; dy++) {
-    for (let dx = -MAX; dx <= MAX; dx++) {
+  for (let dy = dyMin; dy <= dyMax; dy++) {
+    for (let dx = dxMin; dx <= dxMax; dx++) {
       let num = 0;
       let sa = 0;
       let sb = 0;
@@ -462,7 +476,12 @@ function estimateShiftCells(
         }
       }
       const den = Math.sqrt(sa * sb);
-      const sc = den > 0 ? num / den : 0;
+      let sc = den > 0 ? num / den : 0;
+      if (prior) {
+        const ddx = dx - priorDxLow;
+        const ddy = dy - priorDyLow;
+        sc *= Math.exp(-(ddx * ddx + ddy * ddy) * inv2sig2);
+      }
       if (sc > bestSc) {
         bestSc = sc;
         bestDx = dx;
@@ -470,9 +489,21 @@ function estimateShiftCells(
       }
     }
   }
-  if (bestSc < 0.3) return null;
-  return { dx: (bestDx * nLon) / DW, dy: (bestDy * nLat) / DH };
+  if (bestSc < 0.3) return prior ?? null;
+  const outDx = (bestDx * nLon) / DW;
+  const outDy = (bestDy * nLat) / DH;
+  // Harter Vorzeichen-Guard: bei plausiblem Prior darf die Zugrichtung nicht
+  // invertieren (Skalarprodukt negativ und Prior deutlich != 0).
+  if (prior) {
+    const pMag2 = prior.dx * prior.dx + prior.dy * prior.dy;
+    if (pMag2 >= 4) {
+      const dot = outDx * prior.dx + outDy * prior.dy;
+      if (dot < 0) return prior;
+    }
+  }
+  return { dx: outDx, dy: outDy };
 }
+
 
 /**
  * Radar-Nowcasting-Bewegungsvektor. Aus den letzten N Radar-Messungen wird
@@ -1019,14 +1050,24 @@ function PrecipOverlay({
     const nLat = gridLat.length;
     const nLon = gridLon.length;
 
-    const shiftKey = `${a.t}|${b.t}`;
+    const nc0 = nowcastRef.current;
+    const dtMinAB = (Date.parse(b.t) - Date.parse(a.t)) / 60_000;
+    const prior =
+      nc0 && dtMinAB > 0
+        ? { dx: nc0.vx * dtMinAB, dy: nc0.vy * dtMinAB }
+        : null;
+    const priorKey = prior
+      ? `${Math.round(prior.dx * 10)}|${Math.round(prior.dy * 10)}`
+      : "np";
+    const shiftKey = `${a.t}|${b.t}|${priorKey}`;
     let shift = shiftCacheRef.current.get(shiftKey);
     if (shift === undefined) {
-      shift = estimateShiftCells(aVals, bVals, nLon, nLat);
+      shift = estimateShiftCells(aVals, bVals, nLon, nLat, prior);
       shiftCacheRef.current.set(shiftKey, shift);
     }
     const dx = shift?.dx ?? 0;
     const dy = shift?.dy ?? 0;
+
     const s = p * p * (3 - 2 * p);
     const oneMinusP = 1 - p;
     const oneMinusS = 1 - s;
@@ -1150,15 +1191,22 @@ function PrecipOverlay({
     let dxAB = 0;
     let dyAB = 0;
     if (canMorph && modelB) {
-      const key = `${modelA.t}|${modelB.t}`;
+      const dtMinAB = (Date.parse(modelB.t) - Date.parse(modelA.t)) / 60_000;
+      const prior =
+        dtMinAB > 0 ? { dx: nc.vx * dtMinAB, dy: nc.vy * dtMinAB } : null;
+      const priorKey = prior
+        ? `${Math.round(prior.dx * 10)}|${Math.round(prior.dy * 10)}`
+        : "np";
+      const key = `${modelA.t}|${modelB.t}|${priorKey}`;
       let sh = shiftCacheRef.current.get(key);
       if (sh === undefined) {
-        sh = estimateShiftCells(aVals, bVals as number[], nLon, nLat);
+        sh = estimateShiftCells(aVals, bVals as number[], nLon, nLat, prior);
         shiftCacheRef.current.set(key, sh);
       }
       dxAB = sh?.dx ?? 0;
       dyAB = sh?.dy ?? 0;
     }
+
     const p = canMorph ? modelProg : 0;
     const s = p * p * (3 - 2 * p);
 
