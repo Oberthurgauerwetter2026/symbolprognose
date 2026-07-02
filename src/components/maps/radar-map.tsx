@@ -486,10 +486,6 @@ function estimateShiftCells(
   return { dx: outDx, dy: outDy };
 }
 
-function hasGridValues(frame: RadarFrame | null | undefined): frame is RadarFrame {
-  return !!frame && Array.isArray(frame.values) && frame.values.length > 0;
-}
-
 function nearestFrameIndexForMs(frames: RadarFrame[], targetMs: number): number {
   if (frames.length === 0) return 0;
   let best = 0;
