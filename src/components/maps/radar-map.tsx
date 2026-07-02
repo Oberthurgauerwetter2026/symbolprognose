@@ -2513,85 +2513,58 @@ export function RadarMap({
     return cursor;
   };
 
-  // Play-Loop: fester Cursor in der Step-Liste. Kein Wrap von Prognose-Ende
-  // zurück zur Messung; am Ende stoppt Play sauber.
-  const progressRef = useRef(0);
-  const playCursorRef = useRef(0);
+  // Play-Loop: kontinuierliche Zeitachse. Kein Quellen-Sonderfall am Seam;
+  // Play und Scrub werden später über denselben Timeline-Sampler gerendert.
+  const playTimeRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!playing || playStepIndices.length === 0) {
-      progressRef.current = 0;
+    if (!playing || playStepIndices.length === 0 || frames.length === 0) {
+      playTimeRef.current = null;
       setPlayVisualMs(null);
-      setPlayCrossfade(null);
       return;
-    }
-    progressRef.current = 0;
-    playCursorRef.current = stepCursorForIndex(idxRef.current);
-    const anchor = playStepIndices[playCursorRef.current];
-    if (typeof anchor === "number" && idxRef.current !== anchor) {
-      idxRef.current = anchor;
-      setIdx(anchor);
     }
 
     const FRAME_MS = 1800 / speed;
     const REF_GAP_MS = 15 * 60_000;
     let raf = 0;
     let last = performance.now();
-    const computeStepWall = (cur: number): number => {
-      const aIdx = playStepIndices[cur];
-      const nIdx = playStepIndices[cur + 1];
-      if (aIdx == null || nIdx == null) return FRAME_MS;
-      const aMs = Date.parse(frames[aIdx].t);
-      const nMs = Date.parse(frames[nIdx].t);
-      const gap = Math.max(0, nMs - aMs);
-      return FRAME_MS * Math.max(0.15, gap / REF_GAP_MS);
-    };
-    let stepWall = computeStepWall(playCursorRef.current);
-    const emitVisual = () => {
-      const cur = playCursorRef.current;
-      const aIdx = playStepIndices[cur];
-      const nIdx = playStepIndices[cur + 1] ?? aIdx;
-      const aFrame = frames[aIdx];
-      const nFrame = frames[nIdx];
-      if (!aFrame) return;
-      const aMs = Date.parse(aFrame.t);
-      const nMs = nFrame ? Date.parse(nFrame.t) : aMs;
-      const p = progressRef.current;
-      setPlayVisualMs(aMs + (nMs - aMs) * p);
-      setPlayCrossfade({
-        nextFrame: nFrame && nFrame.t !== aFrame.t ? nFrame : null,
-        progress: p,
-      });
-    };
+    const firstIdx = playStepIndices[0];
+    const lastIdx = playStepIndices[playStepIndices.length - 1];
+    const startIdx = playStepIndices[stepCursorForIndex(idxRef.current)] ?? firstIdx;
+    const firstMs = Date.parse(frames[firstIdx]?.t ?? frames[0].t);
+    const lastMs = Date.parse(frames[lastIdx]?.t ?? frames[frames.length - 1].t);
+    const idxMs = Date.parse(frames[startIdx]?.t ?? frames[idxRef.current ?? 0]?.t ?? frames[0].t);
+    const startMs = Math.max(firstMs, Math.min(lastMs, playVisualMs ?? scrubVisualMs ?? idxMs));
+    playTimeRef.current = startMs;
+    setPlayVisualMs(startMs);
+
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
-      let p = progressRef.current + dt / stepWall;
-      if (p >= 1) {
-        p = p - 1;
-        if (p >= 1) p = 0;
-        const nextCursor = playCursorRef.current + 1;
-        if (nextCursor >= playStepIndices.length) {
-          progressRef.current = 0;
-          setPlayVisualMs(null);
-          setPlayCrossfade(null);
-          setPlaying(false);
-          return;
-        }
-        playCursorRef.current = nextCursor;
-        const nextIdx = playStepIndices[nextCursor];
+      const prevMs = playTimeRef.current ?? startMs;
+      const nextMs = prevMs + (dt * REF_GAP_MS) / FRAME_MS;
+      if (nextMs >= lastMs) {
+        playTimeRef.current = lastMs;
+        setPlayVisualMs(lastMs);
+        const endIdx = nearestFrameIndexForMs(frames, lastMs);
+        idxRef.current = endIdx;
+        setIdx(endIdx);
+        setPlaying(false);
+        return;
+      }
+      playTimeRef.current = nextMs;
+      setPlayVisualMs(nextMs);
+      const nextIdx = nearestFrameIndexForMs(frames, nextMs);
+      if (nextIdx !== idxRef.current) {
         idxRef.current = nextIdx;
         setIdx(nextIdx);
-        stepWall = computeStepWall(nextCursor);
       }
-      progressRef.current = p;
-      emitVisual();
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
+      playTimeRef.current = null;
       setPlayVisualMs(null);
-      setPlayCrossfade(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices]);
