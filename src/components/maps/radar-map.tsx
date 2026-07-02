@@ -1191,15 +1191,22 @@ function PrecipOverlay({
     let dxAB = 0;
     let dyAB = 0;
     if (canMorph && modelB) {
-      const key = `${modelA.t}|${modelB.t}`;
+      const dtMinAB = (Date.parse(modelB.t) - Date.parse(modelA.t)) / 60_000;
+      const prior =
+        dtMinAB > 0 ? { dx: nc.vx * dtMinAB, dy: nc.vy * dtMinAB } : null;
+      const priorKey = prior
+        ? `${Math.round(prior.dx * 10)}|${Math.round(prior.dy * 10)}`
+        : "np";
+      const key = `${modelA.t}|${modelB.t}|${priorKey}`;
       let sh = shiftCacheRef.current.get(key);
       if (sh === undefined) {
-        sh = estimateShiftCells(aVals, bVals as number[], nLon, nLat);
+        sh = estimateShiftCells(aVals, bVals as number[], nLon, nLat, prior);
         shiftCacheRef.current.set(key, sh);
       }
       dxAB = sh?.dx ?? 0;
       dyAB = sh?.dy ?? 0;
     }
+
     const p = canMorph ? modelProg : 0;
     const s = p * p * (3 - 2 * p);
 
