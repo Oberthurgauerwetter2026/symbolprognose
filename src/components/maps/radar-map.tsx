@@ -2418,7 +2418,8 @@ export function RadarMap({
                 nextHasGrid &&
                 overlayProg > 0 &&
                 !!overlayNext &&
-                overlayNext.t !== overlayFrame?.t;
+                overlayNext.t !== overlayFrame?.t &&
+                (overlayFrame.source !== "radar" || overlayNext.source !== "radar");
               const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
