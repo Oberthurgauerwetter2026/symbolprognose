@@ -440,9 +440,9 @@ function estimateShiftCells(
 
   const R = 5;
   let bestSc = -Infinity;
-  let secondSc = -Infinity;
   let bestDx = 0;
   let bestDy = 0;
+  const scores: Array<{ sc: number; dx: number; dy: number }> = [];
   for (let dy = -R; dy <= R; dy++) {
     for (let dx = -R; dx <= R; dx++) {
       let num = 0;
@@ -466,20 +466,23 @@ function estimateShiftCells(
       if (n < DW * DH * 0.45) continue;
       const den = Math.sqrt(sa * sb);
       const sc = den > 0 ? num / den : 0;
+      scores.push({ sc, dx, dy });
       if (sc > bestSc) {
-        secondSc = bestSc;
         bestSc = sc;
         bestDx = dx;
         bestDy = dy;
-      } else if (sc > secondSc) {
-        secondSc = sc;
       }
     }
   }
   // Nur eindeutige Paar-Bewegung verwenden; bei unsicherem Match keine
   // Richtung erfinden, sondern reine Intensitäts-Interpolation nutzen.
-  if (bestSc < 0.42) return null;
-  if (secondSc > -Infinity && bestSc - secondSc < 0.035) return null;
+  let secondDistinct = -Infinity;
+  for (const c of scores) {
+    if (Math.abs(c.dx - bestDx) <= 1 && Math.abs(c.dy - bestDy) <= 1) continue;
+    if (c.sc > secondDistinct) secondDistinct = c.sc;
+  }
+  if (bestSc < 0.4) return null;
+  if (secondDistinct > -Infinity && bestSc - secondDistinct < 0.025) return null;
   const outDx = (bestDx * nLon) / DW;
   const outDy = (bestDy * nLat) / DH;
   if (Math.hypot(outDx, outDy) > Math.max(nLon, nLat) * 0.35) return null;
