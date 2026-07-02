@@ -2452,26 +2452,12 @@ export function RadarMap({
               const overlayProg = timelineState.progress;
 
               const hasPng = !!overlayFrame?.precipUrl;
-              const hasGrid =
-                Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
-              const nextHasGrid =
-                Array.isArray(overlayNext?.values) && overlayNext.values.length > 0;
-              const canMorphGrid =
-                hasGrid &&
-                nextHasGrid &&
-                overlayProg > 0 &&
-                !!overlayNext &&
-                overlayNext.t !== overlayFrame?.t &&
-                (overlayFrame.source !== "radar" || overlayNext.source !== "radar");
+              const hasGrid = Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
               const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
-              const showPng = !!overlayFrame && hasPng && !canMorphGrid;
-              const showHiddenGridWarmup =
-                !!overlayFrame && hasPng && hasGrid && !!overlayNext && nextHasGrid;
-              const showGrid =
-                !!overlayFrame && hasGrid && (!hasPng || canMorphGrid || showHiddenGridWarmup);
-              const gridOpacity = showPng && !canMorphGrid ? 0 : opacityVal;
+              const showPng = !!overlayFrame && hasPng;
+              const showGrid = !!overlayFrame && hasGrid && !hasPng;
 
               return (
                 <>
@@ -2481,7 +2467,7 @@ export function RadarMap({
                       frame={overlayFrame}
                       nextFrame={overlayNext}
                       progress={overlayProg}
-                      opacity={gridOpacity}
+                      opacity={opacityVal}
                       contour={overlayFrame.source !== "radar"}
                       prewarmFrames={frames}
                     />
@@ -2492,6 +2478,9 @@ export function RadarMap({
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
+                      payload={data}
+                      nextFrame={overlayNext}
+                      progress={overlayProg}
                     />
                   )}
                 </>
