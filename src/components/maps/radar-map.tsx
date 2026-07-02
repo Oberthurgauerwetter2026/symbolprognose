@@ -2469,22 +2469,25 @@ export function RadarMap({
 
               const hasPng = !!overlayFrame?.precipUrl;
               const hasGrid = Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
+              const nextHasGrid = Array.isArray(overlayNext?.values) && overlayNext.values.length > 0;
               const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
               const showPng = !!overlayFrame && hasPng;
               const showGrid = !!overlayFrame && hasGrid && !hasPng;
+              const warmGrid = !!overlayFrame && hasPng && !!overlayNext && nextHasGrid;
+              const gridFrame = showGrid ? overlayFrame : warmGrid ? overlayNext : null;
 
               return (
                 <>
-                  {showGrid && (
+                  {gridFrame && (
                     <PrecipOverlay
                       payload={data}
-                      frame={overlayFrame}
-                      nextFrame={overlayNext}
-                      progress={overlayProg}
-                      opacity={opacityVal}
-                      contour={overlayFrame.source !== "radar"}
+                      frame={gridFrame}
+                      nextFrame={showGrid ? overlayNext : null}
+                      progress={showGrid ? overlayProg : 0}
+                      opacity={showGrid ? opacityVal : 0}
+                      contour={gridFrame.source !== "radar"}
                       prewarmFrames={frames}
                     />
                   )}
