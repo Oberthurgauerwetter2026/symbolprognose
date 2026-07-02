@@ -1110,23 +1110,57 @@ function MeasurementCanvasOverlay({
   bounds,
   opacity,
   prefetchUrls,
+  payload,
+  nextFrame,
+  progress = 0,
 }: {
   url: string;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
+  payload?: RadarPayload;
+  nextFrame?: RadarFrame | null;
+  progress?: number;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
-  const sourceRef = useRef<{ w: number; h: number; mmh: Float32Array } | null>(null);
-  const cacheRef = useRef<Map<string, { w: number; h: number; mmh: Float32Array }>>(new Map());
+  type DecodedRadar = { w: number; h: number; mmh: Float32Array; smoothMmh?: Float32Array };
+  const sourceRef = useRef<DecodedRadar | null>(null);
+  const nextSourceRef = useRef<DecodedRadar | null>(null);
+  const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const DECODE_CACHE_MAX = 96;
 
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
     redrawRef.current();
   }
+
+  const ensureSmooth = (src: DecodedRadar): Float32Array => {
+    if (src.smoothMmh) return src.smoothMmh;
+    const sw = src.w;
+    const sh = src.h;
+    const smooth = new Float32Array(sw * sh);
+    for (let y = 0; y < sh; y++) {
+      for (let x = 0; x < sw; x++) {
+        let sum = 0;
+        let cnt = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= sh) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= sw) continue;
+            sum += src.mmh[yy * sw + xx];
+            cnt++;
+          }
+        }
+        smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
+      }
+    }
+    src.smoothMmh = smooth;
+    return smooth;
+  };
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
