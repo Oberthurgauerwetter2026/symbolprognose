@@ -1574,7 +1574,7 @@ function MeasurementCanvasOverlay({
       !nextFrame?.precipUrl && nextFrame?.values && nextFrame.values.length > 0
         ? nextFrame.values
         : null;
-    const canBlendNext = !!nextFrame && nextFrame.t !== url && blendProgress > 0 && (nextRaster || (payload && nextVals));
+    const canBlendNext = !!nextFrame && blendProgress > 0 && (nextRaster || (payload && nextVals));
 
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
