@@ -1611,6 +1611,10 @@ function MeasurementCanvasOverlay({
     redrawRef.current();
   }, [opacity, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
 
+  useEffect(() => {
+    redrawRef.current();
+  }, [nextFrame, progress, payload]);
+
   return null;
 }
 
