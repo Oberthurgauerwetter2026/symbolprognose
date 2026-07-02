@@ -13,15 +13,11 @@ import { r2ObjectUrlCandidates } from "./r2-url.server";
  *     Darstellung ausserhalb des CombiPrecip-Ausschnitts (gleiche Farbskala).
  *
  * Vorhersage (> now):
- *   - ICON-CH1 `minutely_15` für die nächste Stunde (Nowcast-Schiene),
- *     danach ICON-CH1 hourly bis +33 h, nahtlos verlängert durch
- *     ICON-CH2 hourly (`phase2`, bis +48 h Render-Horizont) — ein Frame
- *     pro voller Stunde, direkt aus dem nativen Modell-Output.
- *     keine 15-min-Interpolation, keine Wind-Glättung — ehrliche Stundenanzeige
- *     mit weichem Crossfade im Client.
+ *   - ICON-CH1 `minutely_15` bis +24 h, danach stündliche ICON-Frames bis +48 h.
+ *   - Fehlende Viertelstundenwerte fallen auf reine Intensitäts-Interpolation
+ *     zwischen benachbarten Modellstunden zurück.
  *
- * Kein Nowcast, keine Zell-Extrapolation.
- * Übergang Messung → Prognose ist hart bei `now`.
+ * Keine Wind-Advektion, kein Nowcast, keine künstliche Zell-Extrapolation.
  */
 
 const BBOX = { minLat: 46.85, maxLat: 48.30, minLon: 8.15, maxLon: 10.55 } as const;
@@ -548,126 +544,14 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   let ch1Count = 0;
   let ch2Count = 0;
 
-  // ---- Wind-Advektion für 15-min-Frames der Prognose ----
-  // ICON-CH1 liefert die Niederschlags-Intensität in `minutely_15` nur
-  // stundenweise konstant aus (vier identische Slots pro Stunde). Um den
-  // gewünschten 15-min-Takt sichtbar zu machen, ohne Werte zu mischen oder
-  // weichzuzeichnen, verschieben wir das Stundenfeld räumlich entlang des
-  // ICON-Windvektors. Intensitäten bleiben unverändert — die Zellen wandern
-  // einfach an einen anderen Ort (semi-Lagrangean back-trace).
-  const ADVECT_SCALE = 1.0; // Zellzugbahn ≈ mittlerer Wind, kein Konservativ-Faktor.
-  const stepLat = (BBOX.maxLat - BBOX.minLat) / (GRID_LAT - 1);
-  const stepLon = (BBOX.maxLon - BBOX.minLon) / (GRID_LON - 1);
-
-  const meanWindAt = (hMs: number): { u: number; v: number } => {
-    // Bevorzugt 700 hPa (Zugbahn konvektiver Zellen), Fallback 10 m. r2 (CH2)
-    // hat beide Höhen, r1 (CH1) nur 10 m.
-    const sources: Array<{ resp: unknown[] | null; idxMap: Map<number, number>; prefer700: boolean }> = [
-      { resp: r2, idxMap: r2HourIdx, prefer700: true },
-      { resp: r1, idxMap: r1HourIdx, prefer700: false },
-    ];
-
-    for (const { resp, idxMap, prefer700 } of sources) {
-      if (!resp) continue;
-      const ti = idxMap.get(hMs);
-      if (typeof ti !== "number") continue;
-      let su = 0;
-      let sv = 0;
-      let n = 0;
-      for (let pi = 0; pi < nPts; pi++) {
-        const h = (resp[pi] as LocResponse | undefined)?.hourly;
-        if (!h) continue;
-        let sp: number | null | undefined;
-        let dir: number | null | undefined;
-        if (prefer700) {
-          sp = h.wind_speed_700hPa?.[ti];
-          dir = h.wind_direction_700hPa?.[ti];
-        }
-        if (typeof sp !== "number" || typeof dir !== "number") {
-          sp = h.wind_speed_10m?.[ti];
-          dir = h.wind_direction_10m?.[ti];
-        }
-        if (typeof sp !== "number" || typeof dir !== "number") continue;
-        let spMs = sp / 3.6; // Open-Meteo default: km/h → m/s
-        if (spMs > 30) spMs = 30; // Cap, vermeidet Übersprünge.
-        const rad = (dir * Math.PI) / 180;
-        // Meteorologische Richtung: woher der Wind kommt. Vektor wohin = -sin/-cos.
-        su += -Math.sin(rad) * spMs;
-        sv += -Math.cos(rad) * spMs;
-        n++;
-      }
-      if (n > 0) return { u: su / n, v: sv / n };
-    }
-    return { u: 0, v: 0 };
-  };
-
-
-  const advectField = (
-    field: number[],
-    u: number,
-    v: number,
-    dtSec: number,
-  ): number[] => {
-    if (dtSec === 0 || (u === 0 && v === 0)) return field.slice();
-    const dLat = (v * dtSec * ADVECT_SCALE) / 111320;
-    const out = new Array<number>(nPts).fill(0);
-    for (let i = 0; i < GRID_LAT; i++) {
-      const lat = lats[i];
-      const dLon = (u * dtSec * ADVECT_SCALE) / (111320 * Math.cos((lat * Math.PI) / 180));
-      const srcLat = lat - dLat;
-      const i2 = Math.round((srcLat - BBOX.minLat) / stepLat);
-      if (i2 < 0 || i2 >= GRID_LAT) continue;
-      for (let j = 0; j < GRID_LON; j++) {
-        const lon = lons[j];
-        const srcLon = lon - dLon;
-        const j2 = Math.round((srcLon - BBOX.minLon) / stepLon);
-        if (j2 < 0 || j2 >= GRID_LON) continue;
-        out[i * GRID_LON + j] = field[i2 * GRID_LON + j2];
-      }
-    }
-    return out;
-  };
-
-  const advectedForecast = (tMs: number): ForecastGrid | null => {
-    const hMs = Math.floor(tMs / 3600_000) * 3600_000;
-    const dtSec = (tMs - hMs) / 1000;
-    const base = getForecastExact(hMs);
-    if (!base) return null;
-    if (dtSec === 0) return base;
-    const { u, v } = meanWindAt(hMs);
-    if (u === 0 && v === 0) return base;
-    return {
-      precip: advectField(base.precip, u, v, dtSec),
-      snow: base.snow ? advectField(base.snow, u, v, dtSec) : undefined,
-      source: base.source,
-    };
-  };
-
   // ---- Phase A: 15-min-Prognose-Frames für die ersten 24 h ----
-  // ICON-CH1 liefert `minutely_15` in echtem Viertelstunden-Takt; wir lesen
-  // direkt den exakten Slot. `interpolateForecast` greift nur noch als
-  // Fallback, falls für einen Slot keine CH1-Daten vorliegen.
+  // Prognose-Frames sind echte Daten-Slots: direkter 15-min-Modellwert falls
+  // vorhanden, ansonsten linearer Wert-Fallback zwischen benachbarten Stunden.
+  // Keine Wind-Advektion und keine frei erzeugte Eigenbewegung im Backend.
   const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
   const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
-  // Diagnose: mittlere Verschiebung in km pro 15-min-Slot der ersten 6 h
-  // (aus mittlerem ICON-Wind × dtSec). Beleg dafür, dass Zellen 15-minütig
-  // wandern, ohne dass Intensitäten verändert werden.
-  {
-    const samples: string[] = [];
-    for (let tMs = start15; tMs <= cutoff24 && samples.length < 24; tMs += 900_000) {
-      const hMs = Math.floor(tMs / 3600_000) * 3600_000;
-      const dtSec = (tMs - hMs) / 1000;
-      const { u, v } = meanWindAt(hMs);
-      const km = (Math.hypot(u, v) * dtSec * ADVECT_SCALE) / 1000;
-      samples.push(`${new Date(tMs).toISOString().slice(11, 16)}=${km.toFixed(1)}`);
-    }
-    console.log(`[radar] forecast 15-min advect (km): ${samples.join(" ")}`);
-  }
   for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
-    const isHour = tMs % 3600_000 === 0;
-    const grid = isHour
-      ? getForecastExact(tMs) ?? interpolateForecast(tMs)
-      : advectedForecast(tMs) ?? getForecastExact(tMs) ?? interpolateForecast(tMs);
+    const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);
     if (!grid) continue;
     frames.push({
       t: new Date(tMs).toISOString(),
