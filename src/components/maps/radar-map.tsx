@@ -1271,6 +1271,83 @@ function MeasurementCanvasOverlay({
     };
   }, [url]);
 
+  useEffect(() => {
+    const nextUrl = nextFrame?.precipUrl;
+    if (!nextUrl) {
+      nextSourceRef.current = null;
+      redraw();
+      return;
+    }
+    const cached = cacheRef.current.get(nextUrl);
+    if (cached) {
+      cacheRef.current.delete(nextUrl);
+      cacheRef.current.set(nextUrl, cached);
+      nextSourceRef.current = cached;
+      redraw();
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.decoding = "async";
+    img.onload = () => {
+      if (cancelled) return;
+      const cw = img.naturalWidth;
+      const ch = img.naturalHeight;
+      if (cw === 0 || ch === 0) return;
+      const c = document.createElement("canvas");
+      c.width = cw;
+      c.height = ch;
+      const cx = c.getContext("2d", { willReadFrequently: true });
+      if (!cx) return;
+      cx.drawImage(img, 0, 0);
+      let data: Uint8ClampedArray;
+      try {
+        data = cx.getImageData(0, 0, cw, ch).data;
+      } catch {
+        return;
+      }
+      const mmh = new Float32Array(cw * ch);
+      for (let i = 0; i < cw * ch; i++) {
+        const o = i * 4;
+        const a = data[o + 3];
+        if (a < 8) {
+          mmh[i] = 0;
+          continue;
+        }
+        const r = data[o];
+        const g = data[o + 1];
+        const b = data[o + 2];
+        let bestD = Infinity;
+        let bestMmh = 0;
+        for (const s of SCALE) {
+          const dr = r - s.rgb[0];
+          const dg = g - s.rgb[1];
+          const db = b - s.rgb[2];
+          const d = dr * dr + dg * dg + db * db;
+          if (d < bestD) {
+            bestD = d;
+            bestMmh = s.mmh;
+          }
+        }
+        mmh[i] = bestMmh;
+      }
+      const entry = { w: cw, h: ch, mmh };
+      cacheRef.current.set(nextUrl, entry);
+      while (cacheRef.current.size > DECODE_CACHE_MAX) {
+        const firstKey = cacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        cacheRef.current.delete(firstKey);
+      }
+      nextSourceRef.current = entry;
+      redraw();
+    };
+    img.src = nextUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [nextFrame?.precipUrl]);
+
   // Pre-Decode aller bekannten Radar-PNGs, damit Scrubben über alle
   // Messzeitpunkte ohne Lazy-Decode-Stocker läuft. Idle-gescheduled.
   useEffect(() => {
@@ -1411,28 +1488,10 @@ function MeasurementCanvasOverlay({
     const latSpan = maxLat - minLat;
     const lonSpan = maxLon - minLon;
 
-    // 3×3-Box-Filter über das mm/h-Quellraster: glättet die 1-km-Treppen zu
-    // organischen Konturen, ohne zufälliges Rauschen einzuführen.
     const sw = src.w;
     const sh = src.h;
-    const smoothMmh = new Float32Array(sw * sh);
-    for (let y = 0; y < sh; y++) {
-      for (let x = 0; x < sw; x++) {
-        let sum = 0;
-        let cnt = 0;
-        for (let dy = -1; dy <= 1; dy++) {
-          const yy = y + dy;
-          if (yy < 0 || yy >= sh) continue;
-          for (let dx = -1; dx <= 1; dx++) {
-            const xx = x + dx;
-            if (xx < 0 || xx >= sw) continue;
-            sum += src.mmh[yy * sw + xx];
-            cnt++;
-          }
-        }
-        smoothMmh[y * sw + x] = cnt > 0 ? sum / cnt : 0;
-      }
-    }
+    // 3×3-Box-Filter über das mm/h-Quellraster: einmal pro PNG gecacht.
+    const smoothMmh = ensureSmooth(src);
 
     const sampleAt = (fx: number, fy: number) => {
       // Bilineare 4-Tap-Interpolation auf dem geglätteten Feld.
@@ -1454,6 +1513,58 @@ function MeasurementCanvasOverlay({
       );
     };
 
+    const sampleRasterAt = (raster: DecodedRadar, fx: number, fy: number) => {
+      const arr = ensureSmooth(raster);
+      const rw = raster.w;
+      const rh = raster.h;
+      const x0 = Math.max(0, Math.min(rw - 1, Math.floor(fx)));
+      const y0 = Math.max(0, Math.min(rh - 1, Math.floor(fy)));
+      const x1 = Math.min(rw - 1, x0 + 1);
+      const y1 = Math.min(rh - 1, y0 + 1);
+      const tx = Math.max(0, Math.min(1, fx - x0));
+      const ty = Math.max(0, Math.min(1, fy - y0));
+      const v00 = arr[y0 * rw + x0];
+      const v01 = arr[y0 * rw + x1];
+      const v10 = arr[y1 * rw + x0];
+      const v11 = arr[y1 * rw + x1];
+      return (
+        v00 * (1 - tx) * (1 - ty) +
+        v01 * tx * (1 - ty) +
+        v10 * (1 - tx) * ty +
+        v11 * tx * ty
+      );
+    };
+
+    const sampleGridAt = (arr: number[], lng: number, lat: number) => {
+      if (!payload) return 0;
+      const { gridLat, gridLon } = payload;
+      const nLat = gridLat.length;
+      const nLon = gridLon.length;
+      const fx = ((lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+      const fy = ((lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const tx = fx - x0;
+      const ty = fy - y0;
+      const inX0 = x0 >= 0 && x0 < nLon;
+      const inX1 = x1 >= 0 && x1 < nLon;
+      const inY0 = y0 >= 0 && y0 < nLat;
+      const inY1 = y1 >= 0 && y1 < nLat;
+      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      return v00 * (1 - tx) * (1 - ty) + v01 * tx * (1 - ty) + v10 * (1 - tx) * ty + v11 * tx * ty;
+    };
+
+    const blendProgress = Math.max(0, Math.min(1, progress));
+    const nextRaster = nextSourceRef.current;
+    const nextVals = nextFrame?.values && nextFrame.values.length > 0 ? nextFrame.values : null;
+    const canBlendNext = !!nextFrame && nextFrame.t !== url && blendProgress > 0 && (nextRaster || (payload && nextVals));
+
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
         const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
@@ -1461,7 +1572,18 @@ function MeasurementCanvasOverlay({
         const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
         const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
         if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
-        const v = sampleAt(fx, fy);
+        let v = sampleAt(fx, fy);
+        if (canBlendNext) {
+          let nv = 0;
+          if (nextRaster) {
+            const nfx = ((ll.lng - minLon) / lonSpan) * (nextRaster.w - 1);
+            const nfy = ((maxLat - ll.lat) / latSpan) * (nextRaster.h - 1);
+            nv = sampleRasterAt(nextRaster, nfx, nfy);
+          } else if (nextVals) {
+            nv = sampleGridAt(nextVals, ll.lng, ll.lat);
+          }
+          v = v * (1 - blendProgress) + nv * blendProgress;
+        }
         if (v < 0.05) continue;
         const [r, g, b, a] = colorFor(v);
         if (a === 0) continue;
