@@ -13,15 +13,11 @@ import { r2ObjectUrlCandidates } from "./r2-url.server";
  *     Darstellung ausserhalb des CombiPrecip-Ausschnitts (gleiche Farbskala).
  *
  * Vorhersage (> now):
- *   - ICON-CH1 `minutely_15` für die nächste Stunde (Nowcast-Schiene),
- *     danach ICON-CH1 hourly bis +33 h, nahtlos verlängert durch
- *     ICON-CH2 hourly (`phase2`, bis +48 h Render-Horizont) — ein Frame
- *     pro voller Stunde, direkt aus dem nativen Modell-Output.
- *     keine 15-min-Interpolation, keine Wind-Glättung — ehrliche Stundenanzeige
- *     mit weichem Crossfade im Client.
+ *   - ICON-CH1 `minutely_15` bis +24 h, danach stündliche ICON-Frames bis +48 h.
+ *   - Fehlende Viertelstundenwerte fallen auf reine Intensitäts-Interpolation
+ *     zwischen benachbarten Modellstunden zurück.
  *
- * Kein Nowcast, keine Zell-Extrapolation.
- * Übergang Messung → Prognose ist hart bei `now`.
+ * Keine Wind-Advektion, kein Nowcast, keine künstliche Zell-Extrapolation.
  */
 
 const BBOX = { minLat: 46.85, maxLat: 48.30, minLon: 8.15, maxLon: 10.55 } as const;
