@@ -544,14 +544,12 @@ function PrecipOverlay({
   } | null>(null);
   const CACHE_MAX = 512;
 
-  // Crossfade-Refs: nextFrame + progress werden pro Animation-Tick als Prop
-  // gesetzt; redrawRef liest sie über Refs, damit die Animation kein Re-render
-  // pro Frame benötigt.
+  // Timeline-Refs: nextFrame + progress werden pro Animation-Tick als Prop
+  // gesetzt; redrawRef liest sie über Refs, damit Play/Scrub dieselbe
+  // kontinuierliche Zeitachse nutzen.
   const nextFrameRef = useRef<RadarFrame | null>(null);
   const progressRef = useRef<number>(0);
-  // Shift-Cache pro Frame-Paar (key = "<aT>|<bT>") und 1-Slot-Morph-Canvas.
-  const shiftCacheRef = useRef<Map<string, { dx: number; dy: number } | null>>(new Map());
-  const morphCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const blendCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -791,17 +789,17 @@ function PrecipOverlay({
       frame.values.length > 0 &&
       !!nf.values &&
       nf.values.length > 0;
-    const morphed =
-      morphActive && nf ? buildMorphedOffscreenRef.current(frame, nf, prog) : null;
+    const blended = morphActive && nf ? buildBlendedOffscreenRef.current(frame, nf, prog) : null;
 
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (morphed) {
-      // Räumlich gemorphter Forecast-Zwischenframe ersetzt den Basis-Frame
-      // vollständig (kein zusätzlicher Alpha-Crossfade).
-      ctx.drawImage(morphed, 0, 0, morphed.width, morphed.height, 0, 0, size.x, size.y);
+    if (blended) {
+      // Kontinuierlicher Zwischenzustand exakt zwischen den beiden
+      // Nachbarframes: gleiche Position/Geometrie, linear interpolierte
+      // Intensität. Keine künstliche Verschiebung.
+      ctx.drawImage(blended, 0, 0, blended.width, blended.height, 0, 0, size.x, size.y);
     } else {
       ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
       // Fallback (Messung oder fehlende Werte): klassischer Alpha-Crossfade.
@@ -904,14 +902,13 @@ function PrecipOverlay({
     return off;
   };
 
-  // Räumlich gemorphter Zwischenframe zwischen zwei Forecast-Frames a→b mit
-  // Progress p ∈ (0,1). Schätzt einmalig pro Paar einen globalen Shift-Vektor
-  // (Cache) und sampelt beide Frames advektiv versetzt; harte Bandfarben
-  // bleiben durch identisches colorFor()/snowColorFor() erhalten.
-  const buildMorphedOffscreenRef = useRef<
+  // Kontinuierlicher Zwischenframe zwischen zwei Datenframes a→b mit Progress
+  // p ∈ (0,1). Es werden ausschliesslich die beiden Nachbarframes an derselben
+  // Kartenposition gesampelt und deren Intensitäten interpoliert.
+  const buildBlendedOffscreenRef = useRef<
     (a: RadarFrame, b: RadarFrame, p: number) => HTMLCanvasElement | null
   >(() => null);
-  buildMorphedOffscreenRef.current = (
+  buildBlendedOffscreenRef.current = (
     a: RadarFrame,
     b: RadarFrame,
     p: number,
@@ -925,27 +922,18 @@ function PrecipOverlay({
     const nLat = gridLat.length;
     const nLon = gridLon.length;
 
-    const shiftKey = `${a.t}|${b.t}`;
-    let shift = shiftCacheRef.current.get(shiftKey);
-    if (shift === undefined) {
-      shift = estimateShiftCells(aVals, bVals, nLon, nLat);
-      shiftCacheRef.current.set(shiftKey, shift);
-    }
-    const dx = shift?.dx ?? 0;
-    const dy = shift?.dy ?? 0;
-
-    const s = p * p * (3 - 2 * p);
+    const s = Math.max(0, Math.min(1, p));
     const oneMinusP = 1 - p;
     const oneMinusS = 1 - s;
 
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
-    let mc = morphCanvasRef.current;
+    let mc = blendCanvasRef.current;
     if (!mc || mc.width !== lowW || mc.height !== lowH) {
       mc = document.createElement("canvas");
       mc.width = lowW;
       mc.height = lowH;
-      morphCanvasRef.current = mc;
+      blendCanvasRef.current = mc;
     }
     const offCtx = mc.getContext("2d");
     if (!offCtx) return null;
@@ -984,12 +972,8 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const ax = fxRaw - p * dx;
-        const ay = fyRaw - p * dy;
-        const bx = fxRaw + oneMinusP * dx;
-        const by = fyRaw + oneMinusP * dy;
-        const va = sampleAt(aVals, ax, ay);
-        const vb = sampleAt(bVals, bx, by);
+        const va = sampleAt(aVals, fxRaw, fyRaw);
+        const vb = sampleAt(bVals, fxRaw, fyRaw);
         let v = oneMinusS * va + s * vb;
         if (contour && v > 0 && lookup.contourScale) v = v * lookup.contourScale[cell];
         const minV = contour ? 0.05 : 0.1;
@@ -997,8 +981,8 @@ function PrecipOverlay({
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, ax, ay) : 0;
-          const sb = bSnow ? sampleAt(bSnow, bx, by) : 0;
+          const sa = aSnow ? sampleAt(aSnow, fxRaw, fyRaw) : 0;
+          const sb = bSnow ? sampleAt(bSnow, fxRaw, fyRaw) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
