@@ -2280,20 +2280,6 @@ export function RadarMap({
     [frames],
   );
 
-  // Radar-Nowcasting-Vektor aus den letzten Messungen. Wird als
-  // Advektions-Basis für die ersten Prognose-Stunden genutzt und geht
-  // per smoothstep in die Modellprognose über.
-  const nowcast = useMemo(() => {
-    if (!data || frames.length === 0) return null;
-    const est = estimateRadarMotion(frames, data.gridLon.length, data.gridLat.length);
-    if (!est) return null;
-    return {
-      frame: est.frame,
-      vx: est.vx,
-      vy: est.vy,
-      nowMs: Date.parse(est.frame.t),
-    };
-  }, [data, frames]);
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
   const stripNowIdx = useMemo(() => {
     if (playStepIndices.length === 0) return 0;
@@ -2421,21 +2407,27 @@ export function RadarMap({
             currentFrame &&
             (() => {
               const rtMs = scrubVisualMs ?? playVisualMs ?? Date.parse(currentFrame.t);
-              const timelineState = timelineStateForMs(frames, rtMs, nowcast);
-              const overlayFrame = timelineState.useFusion
-                ? timelineState.frame
-                : timelineState.frame ?? currentFrame;
+              const timelineState = timelineStateForMs(frames, rtMs);
+              const overlayFrame = timelineState.frame ?? currentFrame;
               const overlayNext = timelineState.nextFrame;
               const overlayProg = timelineState.progress;
 
               const hasPng = !!overlayFrame?.precipUrl;
               const hasGrid =
                 Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
+              const nextHasGrid =
+                Array.isArray(overlayNext?.values) && overlayNext.values.length > 0;
+              const canMorphGrid =
+                hasGrid &&
+                nextHasGrid &&
+                overlayProg > 0 &&
+                !!overlayNext &&
+                overlayNext.t !== overlayFrame?.t;
               const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
-              const showPng = !!overlayFrame && hasPng && !timelineState.useFusion;
-              const showGrid = !!overlayFrame && hasGrid && (timelineState.useFusion || !hasPng);
+              const showPng = !!overlayFrame && hasPng && !canMorphGrid;
+              const showGrid = !!overlayFrame && hasGrid && (!hasPng || canMorphGrid);
 
               return (
                 <>
@@ -2446,10 +2438,8 @@ export function RadarMap({
                       nextFrame={overlayNext}
                       progress={overlayProg}
                       opacity={opacityVal}
-                      contour={overlayFrame.source !== "radar" || timelineState.useFusion}
+                      contour={overlayFrame.source !== "radar"}
                       prewarmFrames={frames}
-                      renderTimeMs={rtMs}
-                      nowcast={nowcast}
                     />
                   )}
                   {showPng && (
