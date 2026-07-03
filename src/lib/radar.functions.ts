@@ -378,8 +378,6 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   const hasR2HourSnow = Array.isArray(r2Hour?.snowfall);
   const emitSnow = hasMinSnow || hasR1HourSnow || hasR2HourSnow;
 
-  // Map :00-Slots aus minutely_15 (für stündliche Phase als CH1-Quelle)
-  const minIdx = new Map<number, number>();
   // Map ALLE 15-min-Slots aus minutely_15 (für 15-min-Phase)
   const min15Idx = new Map<number, number>();
   if (r1Min?.time) {
@@ -387,7 +385,6 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       const tIso = r1Min.time[ti];
       const ms = Date.parse(tIso + "Z");
       min15Idx.set(ms, ti);
-      if (tIso.endsWith(":00")) minIdx.set(ms, ti);
     }
   }
   const r1HourIdx = new Map<number, number>();
