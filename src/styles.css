@@ -194,6 +194,23 @@
   will-change: transform, opacity;
 }
 
+/* Satellite map: Leaflet ships a light gray default container background. During
+   WMS buffering that background can show through for a paint, so force the full
+   satellite pane stack to a dark space-like fallback. */
+.satellite-map-container,
+.satellite-map-container .leaflet-container,
+.satellite-map-container .leaflet-pane,
+.satellite-map-container .leaflet-tile-pane {
+  background: #02040a !important;
+}
+.satellite-map-container .leaflet-tile,
+.satellite-wms-tile {
+  image-rendering: auto;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
 /* Embed-Fallback: server-gerenderter statischer Inhalt bleibt sichtbar,
    solange das JS-Bundle nicht hydratisiert hat (z. B. Proxy/Signage-Display).
    Sobald EmbedShell mounted und Inhalt vorhanden ist, wird .js-ok auf <html>
