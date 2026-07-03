@@ -1,72 +1,87 @@
 
+## Ursachenanalyse
+
+Das weiße Aufflackern kommt nicht von einer einzelnen Stelle, sondern aus dem Zusammenspiel mehrerer Effekte in `src/components/maps/satellite-map.tsx`:
+
+1. **Kompletter Layer-Remount bei jedem Refetch.**
+   `MapContainer` enthält `<FrameStack key={\`${regionId}-${layer}-${frames.length}-${frames[0]?.time}\`} …>`. `useQuery` refetcht das Manifest alle 60 s. Sobald der älteste Frame aus dem Fenster fällt, ändert sich `frames[0]?.time` — der `key` wechselt, React unmountet den kompletten Stack, entfernt alle Leaflet-Layer und mountet sie neu. Für ein paar Frames ist gar keine Kachel auf dem Kartencontainer → der Karten-Hintergrund blitzt durch.
+
+2. **Crossfade ohne Bereitschafts-Check des Ziel-Frames.**
+   `setTimeMs(ms)` blendet `iPrev → iNext` linear (Smoothstep), ohne zu prüfen ob `iNext` schon Kacheln geladen hat. Solange `iNext` unfertig ist, wird `iPrev` proportional heruntergedimmt und die noch leere Zielebene zeigt den Kartenhintergrund → sichtbares Aufhellen/Flackern.
+
+3. **Sichtbarer Layer wird zu früh auf 0 gesetzt.**
+   Beim Anker-Wechsel zerot `lastPairRef`-Logik den alten `iPrev`, obwohl der neue `iNext` evtl. noch nicht geladen ist. Kombiniert mit (2) entsteht kurz ein „leeres" Bild.
+
+4. **Karten-/Card-Hintergrund.**
+   Der MapContainer ist `bg-black`, aber während des Layer-Remounts (Punkt 1) ist die gesamte Kartenfläche für wenige Frames ohne Tile-Layer — dann wirkt das Blitzen im hellen Card-Rahmen als weißer Blitz.
+
+5. **Play-Loop schreibt bei jedem RAF `setUiIndex`.**
+   Der Nearest-Frame-Vergleich erzeugt bei Anker-Übergängen einen React-Re-Render der ganzen Map-Komponente. Das ist zwar nicht direkt Flackern, verstärkt aber die Effekte 1–3, wenn Refetch und Render zusammenfallen.
+
 ## Ziel
 
-Satelliten-Zeitraffer läuft so flüssig wie SAT24: kontinuierliche Zeit `t` (RAF, nicht framebasiert), weiche Übergänge zwischen den EUMETSAT-WMS-Frames, absolut ruckelfreies Scrubbing, gleicher Look-and-Feel-Filmstrip wie beim Niederschlagsradar.
-
-## Aktueller Zustand (Kurzanalyse)
-
-`src/components/maps/satellite-map.tsx`:
-- `setInterval(setIndex, speedMs)` — framebasierter Sprung von Bild zu Bild, harte Kanten zwischen Frames.
-- Aktiver Frame wird über `opacity: 0/1` umgeschaltet — keine Interpolation.
-- Scrubbing setzt `index` per React-State pro Pointer-Move (RAF-throttled, aber trotzdem React-Re-Render pro Bewegung).
-- Filmstrip ist eine eigene, vom Radar abweichende Implementierung (`SatelliteTimeline`) — nicht die gewünschte gemeinsame Komponente.
+Kein einziger weißer Blitz — weder bei Play, Scrub, noch bei periodischem Manifest-Refetch. Immer bleibt mindestens ein vollständig geladenes Satellitenbild sichtbar.
 
 ## Umsetzung
 
-### 1. Gemeinsamen Filmstrip extrahieren
+### 1. Stack ohne Full-Remount bei Refetch
 
-- Die Filmstrip-Komponente aus `radar-map.tsx` (inkl. Bubble, Stundenticks, Tages-Segmente, imperativer RAF-Position, Scrub-Logik) in ein eigenes Modul `src/components/maps/timeline-filmstrip.tsx` heben.
-- Radar-Map und Satelliten-Map konsumieren beide dieselbe Komponente. Props: `tMin`, `tMax`, `getBubbleLabel(ms)`, `onScrub(ms)`, `onScrubEnd(ms)`, `clockRef` (für imperatives Update von Handle-Position + Bubble ohne React-Re-Render).
-- Kein visueller Unterschied zum bisherigen Radar-Strip.
+- `FrameStack`-`key` nur noch auf `regionId` + `effectiveLayer` — nicht mehr auf `frames.length`/`frames[0].time`.
+- Innerhalb von `FrameStack` Frame-Diff verwalten:
+  - Neue Frames (per `time`-String identifiziert) inkrementell als WMS-Layer hinzufügen.
+  - Aus dem Fenster gefallene Frames erst entfernen, wenn sie nicht Teil des aktuell sichtbaren Paars sind.
+- `layersRef` wird zur `Map<timeIso, TileLayer>`; Nearest-/Prev/Next-Berechnung nutzt eine synchron mitgeführte sortierte `times[]`.
+- Das eliminiert den 60-Sekunden-Flicker vollständig, weil kein einziger Layer mehr während Play remountet wird.
 
-### 2. Kontinuierliche Zeitachse für Satellit
+### 2. Bereitschafts-Gate für Crossfade
 
-- `renderMsRef` als Single Source of Truth für die aktuelle Zeit; kein `index`-State pro Frame mehr.
-- Play-Loop per `requestAnimationFrame`: `renderMs += dt * speed`; wrap am Ende zurück auf `tMin`. Speed-Auswahl (0.5×/1×/2×/4×) bleibt.
-- Bei jedem RAF-Tick:
-  - Filmstrip-Handle imperativ aktualisieren (Transform + Bubble-Text via Ref).
-  - Overlay-Interpolation (siehe §3) imperativ aktualisieren.
-  - React-State wird nur bei Play/Pause, Speed-Change und Region-Wechsel gesetzt.
+- Pro Layer `readyRef.current.has(index)` (gefüllt im `tl.on("load")`-Handler nach dem *ersten* vollständigen Load).
+- `setTimeMs(ms)` erweitern:
+  - Bestimme rohen `iPrev`/`iNext` wie heute.
+  - **Wenn `iNext` noch nicht ready ist:** halte den zuletzt bekannten *ready* Nachbarn sichtbar (Opacity 1) und blende **nicht** herunter. Der Crossfade wird erst gestartet, sobald `iNext` fertig ist.
+  - **Wenn `iPrev` nicht ready ist, aber `iNext` schon:** zeige `iNext` mit Opacity 1 (kein leerer Zustand).
+  - Nur wenn *beide* ready sind, laufen die kontinuierlichen `1-alpha`/`alpha`.
+- Alten `iPrev` erst auf 0 setzen, wenn der Nachfolger vollständig sichtbar (`alpha ≥ 1` bzw. Wechsel des Paars mit *beiden* ready).
 
-### 3. Cross-Fade-Interpolation zwischen WMS-Frames
+### 3. Play-Loop gated durch Bereitschaft
 
-- Alle Frames wie bisher als `L.tileLayer.wms` gemountet (`FrameStack`), aber Opacity nicht 0/1 sondern kontinuierlich:
-  - Für aktuelles `t`: finde `iPrev`, `iNext` mit `times[iPrev] ≤ t < times[iNext]`.
-  - `alpha = (t - times[iPrev]) / (times[iNext] - times[iPrev])`.
-  - `layers[iPrev].setOpacity(1 - alpha)`, `layers[iNext].setOpacity(alpha)`, alle anderen `0`.
-  - Sanftes ease (smoothstep) auf `alpha` gegen Flackern.
-- Nur mounten was tatsächlich benötigt/nachbar-nah ist bleibt wie heute (radial prewarm).
-- Beim Region-/Layer-Wechsel Übergang deaktivieren bis Nachbarn geladen sind, um Flackern zu vermeiden.
+- Der RAF-Loop schreibt weiter kontinuierlich `renderMsRef`. Aber:
+  - Wenn `iNext` beim aktuellen `ms` nicht ready ist, wird die Zeit *nicht weiter erhöht* (Clamp auf `times[iPrev]` + kleiner Puffer), bis der Frame geladen ist.
+  - Damit gibt es niemals einen sichtbaren Übergang zu einem unfertigen Frame.
+- Fallback: falls ein Frame >5 s nicht lädt (Netzfehler), überspringen wir ihn und springen weiter — mit direktem Hard-Cut auf den nächsten *ready* Frame (kein Fade durch die Lücke), damit die Animation nicht hängt.
 
-Hinweis: echte Optical-Flow-Warping-Wolken sind auf WMS-Tiles im Browser nicht praktikabel (kein Pixelzugriff, CORS/Tile-Grid). Cross-Fade mit kontinuierlichem Alpha ist der SAT24-übliche Ansatz für WMS-Layer und liefert die gewünschte „ruhige Wolkenbewegung".
+### 4. Lookahead-Preload
 
-### 4. Scrubbing
+- Nach jedem Anker-Wechsel im Play-Loop stellen wir sicher, dass die nächsten 3 Frames bereits gemountet sind (bislang zeitverzögert per `setTimeout`). Mount-Sequenz priorisiert vorwärts (in Play-Richtung), sodass Kacheln früh im Cache liegen.
+- Scrubbing löst zusätzlich einen sofortigen Priorisierungs-Boost für den Ziel-Frame und dessen Nachbarn aus (`mountFrame` synchron, ohne 40 ms-Timer).
 
-- Pointer-Move schreibt nur in `pendingMsRef`; ein einziger RAF pro Frame verarbeitet den letzten Wert.
-- Setzt `renderMsRef`, aktualisiert Overlay-Alpha und Handle imperativ — kein React-Render.
-- Kein Snap auf diskrete Frames während des Drags; erst am `pointerup` wird `lastTimeRef` auf den nächsten realen Frame gesetzt (für Refetch-Persistenz).
+### 5. Scrubbing verwendet exakt dieselbe Pipeline
 
-### 5. Filmstrip-Performance
+- `handleScrubMs` bleibt der einzige Einstiegspunkt zur Zeitsetzung; er ruft `stackRef.current?.setTimeMs(ms)` genau so auf wie der Play-Loop. Damit ist das visuelle Ergebnis für einen gegebenen `ms`-Wert identisch, unabhängig von Play oder Drag.
+- Beim Scrubben nutzen wir denselben Bereitschafts-Gate: die Bubble/Filmstrip-Position folgt dem Finger sofort, aber das *Bild* wechselt erst, wenn der Ziel-Frame ready ist (der aktuelle bleibt sichtbar). Kein leerer Zustand.
 
-- Stundenticks / Tages-Segmente memoisiert auf `[tMin, tMax]`.
-- Nur sichtbare Ticks rendern (die Satelliten-Zeitachse ist mit 3–5 h ohnehin klein — hier reicht Memoisierung, keine Virtualisierung nötig).
-- ARIA-Wert throttled (max. alle 200 ms) aktualisieren.
+### 6. Karten-Hintergrund als zusätzliche Absicherung
 
-### 6. Validierung
+- MapContainer bleibt `bg-black`; das ist bei Satellit visuell korrekt („kein Bild = Weltraum-Schwarz").
+- Zusätzlich unter alle WMS-Layer eine dauerhaft montierte, sehr niedrig-aufgelöste „Fallback"-Ebene (statischer Layer auf dem *neuesten geladenen* Frame) legen. Wenn aus irgendeinem Grund oben alles auf 0 stünde, wäre trotzdem ein Bild zu sehen. (Umgesetzt einfach: der zuletzt vollständig gezeigte Frame wird nie unter Opacity 0 gedrückt, solange sein Nachfolger nicht ready ist — deckt sich mit (2), plus dedizierte `stickyRef` als letzter Fallback.)
+
+### 7. React-Renders reduzieren
+
+- `setUiIndex` im RAF-Loop nur noch schreiben, wenn (a) der Nearest-Index tatsächlich wechselt **und** (b) das seit dem letzten Update >150 ms her ist. Vermeidet Render-Storms an Anker-Grenzen.
+- `loaded`-Counter aus dem `onProgress`-Callback throttled (max. alle 200 ms in einen `setLoaded`), damit die zig Load-Events kein Re-Render-Feuer auslösen.
+
+## Validierung
 
 - Playwright-Perf-Profil auf `/karten/satellit`:
-  - stabile RAF-Deltas während Play und Scrub (< 20 ms),
-  - keine regelmäßigen Long Tasks,
-  - React-Re-Renders nur bei Play/Pause/Speed/Region.
+  - RAF-Delta stabil < 20 ms während Play,
+  - keine `MutationObserver`-Events auf Leaflet-Tile-Container außer bei echten Tile-Loads,
+  - Screenshot-Serie über 90 s (Refetch-Grenze) — keine weißen Frames.
 - Funktional:
-  - kontinuierlicher, ruckelfreier Play über den gesamten Zeitraum,
-  - Scrubbing synchron, ohne Sprünge zwischen Frames,
-  - identisches Filmstrip-Verhalten wie im Radar,
-  - Region-Wechsel ohne Flackern,
+  - Play über mindestens einen Manifest-Refetch hinweg ohne Flackern,
+  - Scrubbing zeigt keinen leeren Zustand, auch nicht auf noch nicht geladene Frames,
+  - Region-/Layer-Wechsel bleibt sauber (dort ist ein einmaliger Loader ok — Ladebalken ist bereits vorhanden),
   - TypeScript-Build grün.
 
 ## Betroffene Dateien
 
-- neu: `src/components/maps/timeline-filmstrip.tsx` (gemeinsame Filmstrip-Komponente + Clock-Ref-API)
-- `src/components/maps/radar-map.tsx` (auf gemeinsame Filmstrip-Komponente umstellen, Verhalten unverändert)
-- `src/components/maps/satellite-map.tsx` (kontinuierliche Zeitachse, RAF-Loop, Cross-Fade-Overlay, gemeinsamer Filmstrip)
+- `src/components/maps/satellite-map.tsx` (FrameStack-Diff-Mount, Ready-Gate, Play-Clamp, Preload, gedrosseltes `setUiIndex`/`setLoaded`).
