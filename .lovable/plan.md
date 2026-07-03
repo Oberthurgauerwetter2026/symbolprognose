@@ -1,29 +1,46 @@
 ## Ziel
 
-Crossfade zwischen Radar-Frames im Niederschlagsradar entfernen. Jeder Frame soll wieder hart angezeigt werden, ohne Alpha-Überblendung zum nächsten Frame. Timeline, Autoplay und Scrubbing bleiben unverändert und verwenden weiterhin dieselbe Zeitachse.
+Alle Reste des Crossfade-Systems im Niederschlagsradar entfernen, sodass jeder Frame hart und ohne Überblendung dargestellt wird — wie vor der Einführung des Crossfades.
 
-## Ursache
+## Beobachtung
 
-In `src/components/maps/radar-map.tsx` gibt es zwei Zeichenpfade, die pro RAF-Tick den nächsten Frame mit einem `globalAlpha = progress` über den aktuellen Frame legen:
+Im aktuellen Code (`src/components/maps/radar-map.tsx`) gibt es keine `ctx.globalAlpha`-Blends mehr in den Zeichenpfaden. Trotzdem sind die vollständigen Crossfade-Infrastrukturen weiterhin vorhanden und aktiv:
 
-1. `PrecipOverlay` (Gitter-Renderer), Zeilen ~810–838: `blendActive` + `ctx.drawImage(nextOff, …)` mit `progress`.
-2. `PrecipRasterOverlay` (WMS-Raster), Zeilen ~1741–1755: `nextOff` + `ctx.globalAlpha = blendProgress`.
+- `PrecipOverlay` empfängt weiterhin `nextFrame` und `progress` als Props und spiegelt sie in `nextFrameRef`/`progressRef`.
+- Die Helfer-Funktion `buildBlendedOffscreenRef` (Zeilen ~909–1003) existiert weiterhin, inkl. `blendCanvasRef` und der pixelweisen Intensitäts-Interpolation zwischen zwei Frames — die ist der eigentliche "weiche" Übergang, den der Nutzer weiterhin sieht.
+- `MeasurementCanvasOverlay` empfängt `nextFrame`/`progress` und decodiert per `useEffect([nextFrame?.precipUrl])` bereits das nächste PNG in `nextSourceRef`; `activeNextFrameRef`/`activeProgressRef` werden pro Tick aktualisiert.
+- `RadarMap` gibt `overlayNext`/`overlayProg` weiterhin an beide Overlays weiter und `setTimelineTime` ruft `precipOverlayRef.setTimeline(frame, nextFrame, progress)` auf.
 
-Beides erzeugt den vom Nutzer beanstandeten Crossfade.
+Das genügt, um weiterhin einen sichtbaren Übergang zwischen Nachbarframes zu erzeugen (Intensitäts-Interpolation im Grid-Pfad, doppelte Decodes und React-Re-Renders im Raster-Pfad, die je nach Timing wie ein Fade wirken).
 
-## Änderungen
+## Änderungen — nur `src/components/maps/radar-map.tsx`
 
-Nur `src/components/maps/radar-map.tsx`:
+1. `PrecipOverlay`
+   - Props `nextFrame` / `progress` entfernen (auch aus Typdefinition).
+   - `useImperativeHandle setTimeline` auf Signatur `(f) => void` verkürzen — nur `frameRef` setzen und `redrawRef.current()` aufrufen.
+   - Refs `nextFrameRef`, `progressRef`, `blendCanvasRef`, `lastTimelineKeyRef` (letzterer nur falls unbenutzt) entfernen.
+   - Kompletten `buildBlendedOffscreenRef`-Block (~Zeilen 909–1003) inkl. aller Helfer entfernen.
+   - Timeline-Sync-`useEffect` (`[nextFrame, progress]`) entfernen.
 
-1. Im `PrecipOverlay`-Draw (Block bei `blendActive`) den zweiten `drawImage`-Aufruf inklusive `globalAlpha` entfernen. Es bleibt ausschließlich `ctx.drawImage(off, …)` für den aktuellen Frame. `blendActive`/`nf`-Berechnung wird zurückgebaut, da nicht mehr genutzt.
-2. Im `PrecipRasterOverlay`-Draw den `if (nextOff && blendProgress > 0)`-Block samt `nextOff`-Vorbereitung (nextRaster/nextVals/buildRasterOffscreen für den nächsten Frame) entfernen. Nur der aktuelle Frame wird gezeichnet.
-3. Die Refs `nextFrameRef`/`progressRef` und der `setTimeline`-Sync bleiben erhalten, damit die Zeitachse und die Prop-Weitergabe (`nextFrame`, `progress`) für Filmstrip/Scrub-Anzeige unverändert weiterlaufen. Der Draw ignoriert `progress` künftig einfach.
-4. `useEffect([nextFrame, progress, payload])` wird auf `[frame, payload]` bzw. auf reines Payload/Frame-Redraw reduziert, sodass kein Repaint pro Scrub-Zwischenschritt mehr passiert (verhindert Flimmern beim Scrubbing).
-5. Kommentare, die noch auf „Crossfade/Soft-Blending/Intensitäts-Interpolation" verweisen, an die neue Realität anpassen.
+2. `MeasurementCanvasOverlay`
+   - Props `nextFrame` / `progress` und Typdefinition entfernen.
+   - `useImperativeHandle setTimeline` auf `(f) => void` verkürzen (aktuell wird `f` gar nicht genutzt; nur `redrawRef.current()`).
+   - Refs `nextSourceRef`, `nextSourceUrlRef`, `activeNextFrameRef`, `activeProgressRef` entfernen.
+   - Beide `useEffect`-Blöcke, die `nextFrame?.precipUrl` decodieren bzw. `nextFrame/progress` in Refs spiegeln, entfernen.
+   - In `redrawRef.current` die noch dead-code `buildRasterOffscreen`-Aufrufe für `nextRaster`/`nextVals` sowie `buildGridOffscreen`/`sampleGridAt`/`contourScaleAt`-Helfer entfernen (werden nur für den Blend gebraucht).
+   - Nutzung von `activeNextFrame?.source` in `sampleGridAt` entfällt mit.
 
-Keine Änderungen an Timeline-Berechnung (`resolveTimelineState`), Filmstrip, Autoplay-Loop, `RadarMap`-Props oder anderen Karten (Satellit, Wind, Niederschlags-Akkumulation).
+3. `RadarMap`
+   - In dem JSX-Block ab Zeile ~2682 die Übergabe `nextFrame`/`progress` an `PrecipOverlay` und `MeasurementCanvasOverlay` entfernen.
+   - `overlayNext`/`overlayProg` werden nicht mehr benötigt; `timelineState.nextFrame`/`.progress` nicht mehr auslesen.
+   - `TimelineOverlayHandle.setTimeline`-Signatur auf `(frame: RadarFrame | null) => void` reduzieren, ebenso den Aufrufer `setTimelineTime` (Zeile ~2438) → `precipOverlayRef.current?.setTimeline(timelineState.frame)`.
+
+4. Alle verbliebenen Kommentare, die "Crossfade / Blend / Intensitäts-Interpolation" erwähnen, an die neue, harte Frame-Umschaltung anpassen.
+
+Keine Änderung an `resolveTimelineState`, `timelineStateForMs`, Filmstrip, Autoplay-Loop, Scrubbing, Prewarm-Logik, oder anderen Karten (Satellit, Wind, Niederschlags-Akkumulation).
 
 ## Verifikation
 
-- TypeScript-Check (`tsgo`) läuft grün.
-- Vorschau `/karten/radar` und `/karten/niederschlag`: Autoplay zeigt harte Frame-Übergänge ohne Überblendung; Scrubbing schaltet direkt auf den zeitlich nächsten Frame; Zeitachse und Filmstrip verhalten sich wie vor der Crossfade-Einführung.
+- `bunx tsgo --noEmit` läuft grün.
+- Im Preview `/karten/radar` während Autoplay: kein sichtbarer Übergang zwischen zwei Frames — jeder Frame erscheint hart. `document.querySelectorAll('canvas.radar-canvas')` bleibt bei einem Canvas mit konstanter `opacity: 0.6` und ohne pro-Tick-Blend.
+- Scrubbing schaltet weiterhin snap-basiert auf den nächstliegenden Frame; Zeitachse und Filmstrip unverändert.
