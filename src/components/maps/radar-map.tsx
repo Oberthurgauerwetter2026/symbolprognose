@@ -2312,6 +2312,10 @@ export function RadarMap({
   useEffect(() => {
     idxRef.current = idx;
   }, [idx]);
+  const renderMsRef = useRef<number | null>(null);
+  useEffect(() => {
+    renderMsRef.current = renderMs;
+  }, [renderMs]);
 
   const stepCursorForIndex = (cur: number | null): number => {
     if (playStepIndices.length === 0 || cur === null) return 0;
@@ -2354,7 +2358,7 @@ export function RadarMap({
     const firstMs = Date.parse(frames[firstIdx]?.t ?? frames[0].t);
     const lastMs = Date.parse(frames[lastIdx]?.t ?? frames[frames.length - 1].t);
     const idxMs = Date.parse(frames[startIdx]?.t ?? frames[idxRef.current ?? 0]?.t ?? frames[0].t);
-    const startMs = Math.max(firstMs, Math.min(lastMs, scrubVisualMs ?? renderMs ?? playVisualMs ?? idxMs));
+    const startMs = Math.max(firstMs, Math.min(lastMs, scrubVisualMs ?? renderMsRef.current ?? idxMs));
     playTimeRef.current = startMs;
     setPlayVisualMs(startMs);
     setRenderMs(startMs);
@@ -2391,7 +2395,8 @@ export function RadarMap({
       setPlayVisualMs(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, speed, playStepIndices, frames, renderMs, scrubVisualMs, playVisualMs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, speed, playStepIndices, frames]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
   // Der sichtbare Zustand wird unten über `timelineStateForMs` kontinuierlich
