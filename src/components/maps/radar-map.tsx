@@ -807,34 +807,12 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
       }
     }
 
-    const nf = nextFrameRef.current;
-    const prog = progressRef.current;
-    const blendActive =
-      !!nf &&
-      prog > 0 &&
-      prog < 1 &&
-      !!nf.t &&
-      nf.t !== activeFrame.t &&
-      !!activeFrame.values &&
-      activeFrame.values.length > 0 &&
-      !!nf.values &&
-      nf.values.length > 0;
+    // Kein Crossfade — nur der aktuelle Frame wird gezeichnet.
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-    if (blendActive && nf) {
-      const nextOff = buildOffscreenRef.current(nf);
-      if (nextOff) {
-        // Für Play/Scrub keine teure Pixel-Neuberechnung pro Zwischenzeit:
-        // beide echten Nachbarframes sind gecacht, die kontinuierliche Phase
-        // entsteht als GPU-günstige Alpha-Überblendung.
-        ctx.globalAlpha = Math.min(1, Math.max(0, prog));
-        ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
-        ctx.globalAlpha = 1;
-      }
-    }
     ctx.restore();
   };
 
@@ -1106,11 +1084,11 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
 
 
 
-  // Timeline-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
+  // Timeline-Sync: nextFrame/progress werden weiterhin in Refs gespiegelt
+  // (Filmstrip/Scrub bleiben unverändert), lösen aber keinen Redraw mehr aus.
   useEffect(() => {
     nextFrameRef.current = nextFrame ?? null;
     progressRef.current = typeof progress === "number" ? progress : 0;
-    redrawRef.current();
   }, [nextFrame, progress]);
 
   // Canvas-Opacity nachziehen.
@@ -1726,33 +1704,14 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
       return out;
     };
 
-    const activeNextFrame = activeNextFrameRef.current;
-    const blendProgress = Math.max(0, Math.min(1, activeProgressRef.current));
-    const nextRaster =
-      activeNextFrame?.precipUrl && nextSourceUrlRef.current === activeNextFrame.precipUrl
-        ? nextSourceRef.current
-        : null;
-    const nextVals =
-      !activeNextFrame?.precipUrl && activeNextFrame?.values && activeNextFrame.values.length > 0
-        ? activeNextFrame.values
-        : null;
     const off = buildRasterOffscreen(`${viewKey}|radar|${url}`, src);
     if (!off) return;
-    const nextOff = nextRaster
-      ? buildRasterOffscreen(`${viewKey}|radar|${activeNextFrame?.precipUrl ?? activeNextFrame?.t ?? "next"}`, nextRaster)
-      : nextVals
-        ? buildGridOffscreen(`${viewKey}|grid|${activeNextFrame?.t ?? "next"}`, nextVals)
-        : null;
+    // Kein Crossfade — nur der aktuelle Frame wird gezeichnet.
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-    if (nextOff && blendProgress > 0) {
-      ctx.globalAlpha = blendProgress;
-      ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
-      ctx.globalAlpha = 1;
-    }
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
   };
@@ -1764,7 +1723,7 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
 
   useEffect(() => {
     redrawRef.current();
-  }, [nextFrame, progress, payload]);
+  }, [payload]);
 
   return null;
 });
