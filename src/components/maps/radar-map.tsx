@@ -1110,27 +1110,23 @@ function MeasurementCanvasOverlay({
   bounds,
   opacity,
   prefetchUrls,
-  payload,
-  nextFrame,
-  progress = 0,
 }: {
   url: string;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
-  payload?: RadarPayload;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
   type DecodedRadar = { w: number; h: number; mmh: Float32Array; smoothMmh?: Float32Array };
   const sourceRef = useRef<DecodedRadar | null>(null);
-  const nextSourceRef = useRef<DecodedRadar | null>(null);
-  const nextSourceUrlRef = useRef<string | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const DECODE_CACHE_MAX = 96;
+  // Unused payload placeholder for redraw signature (kept to avoid churn).
+  const payload: RadarPayload | undefined = undefined;
+  void payload;
+
 
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
