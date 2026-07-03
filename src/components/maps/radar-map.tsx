@@ -2096,7 +2096,7 @@ export function RadarMap({
     const now = performance.now();
     if (opts?.syncOverlay || opts?.commit || now - lastOverlaySyncRef.current > 180) {
       lastOverlaySyncRef.current = now;
-      precipOverlayRef.current?.setTimeline(timelineState.frame, timelineState.nextFrame, timelineState.progress);
+      precipOverlayRef.current?.setTimeline(timelineState.frame);
     }
 
     const nearestIdx = timelineState.displayIdx;
