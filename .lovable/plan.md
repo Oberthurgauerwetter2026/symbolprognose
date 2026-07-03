@@ -1,68 +1,42 @@
 ## Plan
 
-### 1. Ursache gezielt beheben
-- Die aktuelle Prognose enthält mehrere konkurrierende Bewegungsmodelle:
-  - serverseitige Wind-Advektion für 15-Minuten-Frames,
-  - clientseitige Shift-Schätzung mit Nowcast-Prior,
-  - Nowcast/Modell-Fusion mit eigener Bewegung.
-- Diese Pfade können unterschiedliche Richtungen liefern und erklären die „wilde“ Bewegung.
-- Zusätzlich entsteht am Messung→Prognose-Seam ein sichtbarer Stopp, weil Anzeige-Frame, Filmstrip-Frame und kontinuierliche Renderzeit nicht konsequent aus derselben Timeline-Quelle berechnet werden.
+### 1. Backend: 15-Minuten-Prognose über die gesamte Dauer erzeugen
+- `getRadarFrames()` so ändern, dass Prognose-Frames bis zum Ende des 48h-Horizonts im 15-Minuten-Raster ausgegeben werden: `xx:00`, `xx:15`, `xx:30`, `xx:45`.
+- Direkte `minutely_15`-Daten werden bevorzugt.
+- Wenn nur Stundenwerte vorhanden sind, werden die Viertelstundenwerte aus den benachbarten Stundenframes berechnet, nicht kopiert.
+- Die aktuelle zweite Phase mit nur stündlichen Frames nach +24h wird entfernt bzw. durch denselben 15-Minuten-Generator ersetzt.
 
-### 2. Eine einzige kontinuierliche Timeline verwenden
-- Einen zentralen Timeline-Sampler für jeden Zeitpunkt `t` verwenden.
-- Play, Scrubbing, Filmstrip-Bubble und Karten-Overlay nutzen exakt diesen Sampler.
-- Der Sampler liefert:
-  - `renderMs`,
-  - vorherigen/nächsten Frame,
-  - kontinuierlichen Fortschritt `0…1`,
-  - den nächsten UI-Index nur für Buttons/Labels.
-- Kein Sonderfall, kein Einrasten und kein Stop bei letzter Messung / erster Prognose.
+### 2. Eine einzige Render-Zeit als Wahrheit verwenden
+- Play, Scrubbing, Filmstrip-Bubble, aktuelle Frame-Auswahl und Karten-Overlay werden konsequent aus einer kontinuierlichen `renderMs`-Zeit berechnet.
+- `idx` bleibt nur noch ein UI-/Button-Anker für Vor/Zurück/Jetzt, nicht die Quelle für den sichtbaren Radarzustand.
+- Beim Loslassen des Scrubbings bleibt die zuletzt gewählte Zeit erhalten, statt auf einen Frame zu springen und dadurch einen sichtbaren Ruck zu erzeugen.
 
-### 3. Server-Prognose von künstlicher Wind-Advektion befreien
-- Die serverseitige 15-Minuten-Windverschiebung aus `radar.functions.ts` entfernen.
-- Forecast-Frames bleiben echte Daten-Frames:
-  - direkte Modell-Slots, falls vorhanden,
-  - sonst die vorhandenen Stundenframes.
-- Keine frei erzeugte Windbewegung, keine künstliche Eigenbewegung in den Daten.
+### 3. Übergang Messung → Prognose ohne Haltepunkt
+- Der Übergang wird nicht mehr an `now` oder an einem Frame-Index geschnitten, sondern immer über das tatsächliche Frame-Paar berechnet: letzte Radar-Messung → erster Prognose-Frame.
+- Der Sampler liefert für jede Zeit zwischen diesen beiden Frames einen Fortschritt `0…1`.
+- Das Overlay rendert diesen Zwischenzustand direkt; kein Pausieren, kein Halten des letzten Messbilds, kein späteres Umschalten auf Prognose.
 
-### 4. Bewegungsmodell nur aus benachbarten Prognose-Frames berechnen
-- In `PrecipOverlay` wird jeder Zwischenzustand ausschließlich aus Frame A und Frame B berechnet.
-- Für A→B wird eine robuste globale Verschiebung aus genau diesen beiden Frames geschätzt.
-- Keine Nowcast-Priors, keine Wind-Priors, keine zufälligen/noise-basierten Bewegungen.
-- Wenn die Shift-Schätzung nicht eindeutig ist, wird nur die Intensität zwischen A und B interpoliert, statt eine unsichere Bewegung zu erfinden.
-- Die Form bleibt möglichst erhalten durch symmetrisches Sampling:
+### 4. Bewegung nur aus benachbarten Prognose-Frames ableiten
+- Zwischenzustände werden ausschließlich aus Frame A und Frame B berechnet.
+- Keine zufälligen/noise-basierten Bewegungen, keine Wind-Advektion, keine Nowcast-Priors.
+- Wo Stundenwerte die Grundlage sind, entstehen die Viertelstundenwerte serverseitig durch zeitliche Interpolation zwischen den echten Stundenfeldern.
+- Clientseitig wird beim Play/Scrub zusätzlich kontinuierlich zwischen den benachbarten 15-Minuten-Frames interpoliert, damit auch Zeiten zwischen `xx:00/15/30/45` flüssig sind.
 
-```text
-A wird Richtung B verschoben
-B wird zurück Richtung A gesampelt
-Intensität wird mit progress gemischt
-```
+### 5. Filmstrip wirklich zeitbasiert machen
+- Die Filmstrip-Skalierung bleibt linear nach Zeit.
+- Die Prognose erhält sicht- und anwählbare 15-Minuten-Zeitpunkte für die gesamte Prognosedauer.
+- Dragging sendet kontinuierliche Millisekunden an die Karte; Pfeiltasten und Buttons springen nur zu den definierten Viertelstundenmarken.
 
-### 5. Übergang Messung → Prognose nahtlos machen
-- Die letzte Radar-Messung bleibt als reine Messung unverändert.
-- Sobald die Zeit über die letzte Messung hinausläuft, rendert der Prognosepfad kontinuierlich weiter.
-- Für den Seam wird die letzte Messung nur als Startzustand verwendet, danach übernimmt der normale A→B-Sampler.
-- Keine Pause, kein Frame-Halten, kein Wechsel der Abspielgeschwindigkeit.
+### 6. Performance und Stabilität
+- Bestehende Canvas-Caches und Prewarm-Logik beibehalten, aber auf die neue 15-Minuten-Liste anwenden.
+- Cache-Größe ggf. anpassen, damit 48h × 4 Frames performant bleiben.
+- Keine Änderungen an Radar-PNG-Erzeugung, Farbskala, Karte oder Messdaten selbst.
 
-### 6. Filmstrip entkoppeln von harten Frame-Sprüngen
-- Der Filmstrip bewegt sich kontinuierlich nach Zeit, nicht nach Frame-Index.
-- Die sichtbaren Takte bleiben:
-  - Messung: 5 Minuten,
-  - Prognose bis 24 h: 15 Minuten,
-  - danach: 60 Minuten.
-- Beim Scrubben wird die Renderzeit kontinuierlich gesetzt; der Index wird nur noch für Prev/Next/Jetzt aktualisiert.
-
-### 7. Performance sichern
-- Pair-Shift pro Framepaar cachen.
-- Offscreen-Canvas für Zwischenframes wiederverwenden.
-- Prewarm nur für echte Datenframes behalten.
-- Rendering weiterhin per Canvas, ohne zusätzliche gespeicherte Zwischenframes.
-
-### 8. Validierung
+### 7. Validierung
 - Auf `/karten/radar` prüfen:
-  - Play über Messung→Prognose ohne sichtbaren Stop,
-  - Scrubbing über den Seam ohne Pause oder Sprung,
-  - Prognosebewegung folgt ruhig dem Verlauf der benachbarten Prognose-Frames,
-  - keine Richtungsumkehr durch Nowcast-/Wind-Prior,
-  - Radar-Messungsdarstellung bleibt unverändert.
-- Danach TypeScript-Prüfung ausführen.
+  - Play läuft über letzte Messung → erste Prognose ohne Stillstand.
+  - Scrubbing über denselben Bereich zeigt sofort jeden Zwischenzustand.
+  - Forecast enthält durchgehend Viertelstunden-Zeitpunkte bis zum Ende.
+  - Zwischenstände sind berechnet, nicht kopiert.
+  - Kein Sprung zurück auf Stundenframes nach +24h.
+- Anschließend gezielte TypeScript-Prüfung ausführen.
