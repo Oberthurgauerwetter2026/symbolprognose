@@ -1464,227 +1464,121 @@ function MeasurementCanvasOverlay({
     };
   }, [prefetchUrls]);
 
+  // Frame-Cache pro (URL, view-key) — spart Neuberechnung beim Scrub/Play.
+  const frameCanvasCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const viewKeyRef = useRef<string>("");
+  const FRAME_CACHE_MAX = 64;
+
   redrawRef.current = () => {
     const cv = canvasRef.current;
     const src = sourceRef.current;
     if (!cv || !src) return;
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
-    cv.width = size.x * dpr;
-    cv.height = size.y * dpr;
-    cv.style.width = size.x + "px";
-    cv.style.height = size.y + "px";
+    if (cv.width !== size.x * dpr || cv.height !== size.y * dpr) {
+      cv.width = size.x * dpr;
+      cv.height = size.y * dpr;
+      cv.style.width = size.x + "px";
+      cv.style.height = size.y + "px";
+    }
     const tl = map.containerPointToLayerPoint([0, 0]);
     L.DomUtil.setPosition(cv, tl);
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    ctx.clearRect(0, 0, cv.width, cv.height);
 
-    const STEP = 1;
-    const lowW = Math.max(1, Math.ceil(size.x / STEP));
-    const lowH = Math.max(1, Math.ceil(size.y / STEP));
-    const off = document.createElement("canvas");
-    off.width = lowW;
-    off.height = lowH;
-    const offCtx = off.getContext("2d");
-    if (!offCtx) return;
-    const img = offCtx.createImageData(lowW, lowH);
-    const dArr = img.data;
     const { minLat, maxLat, minLon, maxLon } = bounds;
-    const latSpan = maxLat - minLat;
-    const lonSpan = maxLon - minLon;
-
-    const sw = src.w;
-    const sh = src.h;
-    // 3×3-Box-Filter über das mm/h-Quellraster: einmal pro PNG gecacht.
-    const smoothMmh = ensureSmooth(src);
-
-    const sampleAt = (fx: number, fy: number) => {
-      // Bilineare 4-Tap-Interpolation auf dem geglätteten Feld.
-      const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
-      const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
-      const x1 = Math.min(sw - 1, x0 + 1);
-      const y1 = Math.min(sh - 1, y0 + 1);
-      const tx = Math.max(0, Math.min(1, fx - x0));
-      const ty = Math.max(0, Math.min(1, fy - y0));
-      const v00 = smoothMmh[y0 * sw + x0];
-      const v01 = smoothMmh[y0 * sw + x1];
-      const v10 = smoothMmh[y1 * sw + x0];
-      const v11 = smoothMmh[y1 * sw + x1];
-      return (
-        v00 * (1 - tx) * (1 - ty) +
-        v01 * tx * (1 - ty) +
-        v10 * (1 - tx) * ty +
-        v11 * tx * ty
-      );
-    };
-
-    const sampleRasterAt = (raster: DecodedRadar, fx: number, fy: number) => {
-      const arr = ensureSmooth(raster);
-      const rw = raster.w;
-      const rh = raster.h;
-      const x0 = Math.max(0, Math.min(rw - 1, Math.floor(fx)));
-      const y0 = Math.max(0, Math.min(rh - 1, Math.floor(fy)));
-      const x1 = Math.min(rw - 1, x0 + 1);
-      const y1 = Math.min(rh - 1, y0 + 1);
-      const tx = Math.max(0, Math.min(1, fx - x0));
-      const ty = Math.max(0, Math.min(1, fy - y0));
-      const v00 = arr[y0 * rw + x0];
-      const v01 = arr[y0 * rw + x1];
-      const v10 = arr[y1 * rw + x0];
-      const v11 = arr[y1 * rw + x1];
-      return (
-        v00 * (1 - tx) * (1 - ty) +
-        v01 * tx * (1 - ty) +
-        v10 * (1 - tx) * ty +
-        v11 * tx * ty
-      );
-    };
-
-    const hashContour = (ix: number, iy: number) => {
-      let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
-      h = (h ^ (h >>> 13)) * 1274126177;
-      h = h ^ (h >>> 16);
-      return ((h >>> 0) % 10000) / 10000;
-    };
-    const smoothContour = (u: number) => u * u * (3 - 2 * u);
-    const valueNoiseContour = (x: number, y: number) => {
-      const ix = Math.floor(x);
-      const iy = Math.floor(y);
-      const fxN = smoothContour(x - ix);
-      const fyN = smoothContour(y - iy);
-      const a = hashContour(ix, iy);
-      const b = hashContour(ix + 1, iy);
-      const c = hashContour(ix, iy + 1);
-      const d = hashContour(ix + 1, iy + 1);
-      return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
-    };
-    const fbmContour = (x: number, y: number) => {
-      let out = 0;
-      let amp = 0.5;
-      let freq = 1;
-      for (let o = 0; o < 5; o++) {
-        out += valueNoiseContour(x * freq, y * freq) * amp;
-        amp *= 0.5;
-        freq *= 2.1;
-      }
-      return out;
-    };
-    const contourScaleAt = (fx: number, fy: number, nLon: number, nLat: number) => {
-      const COS = 0.866;
-      const SIN = 0.5;
-      const sx = fx * 0.9;
-      const sy = fy * 0.85;
-      const rx = sx * COS - sy * SIN;
-      const ry = sx * SIN + sy * COS;
-      const warpX = (fbmContour(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-      const warpY = (fbmContour(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
-      const n = fbmContour(rx + warpX, ry + warpY);
-      const mod = 0.25 + n * 1.55;
-      const env1 = fbmContour(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
-      const env2 = fbmContour(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
-      const env3 = fbmContour(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
-      const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
-      const edgeNX = Math.min(fx, nLon - 1 - fx) / (nLon - 1);
-      const edgeNY = Math.min(fy, nLat - 1 - fy) / (nLat - 1);
-      const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
-      const edgeJitter = 0.55 + fbmContour(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
-      const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
-      const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
-      return mod * envelope;
-    };
-
-    const sampleGridAt = (arr: number[], lng: number, lat: number) => {
-      if (!payload) return 0;
-      const { gridLat, gridLon } = payload;
-      const nLat = gridLat.length;
-      const nLon = gridLon.length;
-      const fx = ((lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
-      const fy = ((lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = x0 + 1;
-      const y1 = y0 + 1;
-      const tx = fx - x0;
-      const ty = fy - y0;
-      const inX0 = x0 >= 0 && x0 < nLon;
-      const inX1 = x1 >= 0 && x1 < nLon;
-      const inY0 = y0 >= 0 && y0 < nLat;
-      const inY1 = y1 >= 0 && y1 < nLat;
-      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-      let v = v00 * (1 - tx) * (1 - ty) + v01 * tx * (1 - ty) + v10 * (1 - tx) * ty + v11 * tx * ty;
-      // Der erste Prognose-Zustand am Seam muss exakt dieselbe Kontur-Logik
-      // nutzen wie PrecipOverlay, sonst entsteht am Quellenwechsel ein Sprung.
-      if (nextFrame?.source !== "radar" && v > 0) {
-        v *= contourScaleAt(fx, fy, nLon, nLat);
-      }
-      return v;
-    };
-
-    const blendProgress = Math.max(0, Math.min(1, progress));
-    const nextRaster =
-      nextFrame?.precipUrl && nextSourceUrlRef.current === nextFrame.precipUrl
-        ? nextSourceRef.current
-        : null;
-    const nextVals =
-      !nextFrame?.precipUrl && nextFrame?.values && nextFrame.values.length > 0
-        ? nextFrame.values
-        : null;
-    const canBlendNext = !!nextFrame && blendProgress > 0 && (nextRaster || (payload && nextVals));
-
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
-        if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
-        const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
-        const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
-        if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
-        let v = sampleAt(fx, fy);
-        if (canBlendNext) {
-          let nv = 0;
-          if (nextRaster) {
-            const nfx = ((ll.lng - minLon) / lonSpan) * (nextRaster.w - 1);
-            const nfy = ((maxLat - ll.lat) / latSpan) * (nextRaster.h - 1);
-            nv = sampleRasterAt(nextRaster, nfx, nfy);
-          } else if (nextVals) {
-            nv = sampleGridAt(nextVals, ll.lng, ll.lat);
-          }
-          v = v * (1 - blendProgress) + nv * blendProgress;
-        }
-        if (v < 0.05) continue;
-        const [r, g, b, a] = colorFor(v);
-        if (a === 0) continue;
-        const alpha = Math.round(a * 255);
-        if (alpha === 0) continue;
-        const idx = (ly * lowW + lx) * 4;
-        dArr[idx] = r;
-        dArr[idx + 1] = g;
-        dArr[idx + 2] = b;
-        dArr[idx + 3] = alpha;
-      }
+    const center = map.getCenter();
+    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}`;
+    if (viewKey !== viewKeyRef.current) {
+      frameCanvasCacheRef.current.clear();
+      viewKeyRef.current = viewKey;
     }
-    offCtx.putImageData(img, 0, 0);
+    const cacheKey = `${url}|${viewKey}`;
+    let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
+
+    if (!off) {
+      // STEP=2 halbiert den Pixel-Loop bei praktisch unveränderter Optik.
+      const STEP = 2;
+      const lowW = Math.max(1, Math.ceil(size.x / STEP));
+      const lowH = Math.max(1, Math.ceil(size.y / STEP));
+      off = document.createElement("canvas");
+      off.width = lowW;
+      off.height = lowH;
+      const offCtx = off.getContext("2d");
+      if (!offCtx) return;
+      const img = offCtx.createImageData(lowW, lowH);
+      const dArr = img.data;
+      const latSpan = maxLat - minLat;
+      const lonSpan = maxLon - minLon;
+
+      const sw = src.w;
+      const sh = src.h;
+      const smoothMmh = ensureSmooth(src);
+      const sampleAt = (fx: number, fy: number) => {
+        const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
+        const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
+        const x1 = Math.min(sw - 1, x0 + 1);
+        const y1 = Math.min(sh - 1, y0 + 1);
+        const tx = Math.max(0, Math.min(1, fx - x0));
+        const ty = Math.max(0, Math.min(1, fy - y0));
+        const v00 = smoothMmh[y0 * sw + x0];
+        const v01 = smoothMmh[y0 * sw + x1];
+        const v10 = smoothMmh[y1 * sw + x0];
+        const v11 = smoothMmh[y1 * sw + x1];
+        return (
+          v00 * (1 - tx) * (1 - ty) +
+          v01 * tx * (1 - ty) +
+          v10 * (1 - tx) * ty +
+          v11 * tx * ty
+        );
+      };
+
+      for (let ly = 0; ly < lowH; ly++) {
+        for (let lx = 0; lx < lowW; lx++) {
+          const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
+          if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
+          const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
+          const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
+          if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
+          const v = sampleAt(fx, fy);
+          if (v < 0.05) continue;
+          const [r, g, b, a] = colorFor(v);
+          if (a === 0) continue;
+          const alpha = Math.round(a * 255);
+          if (alpha === 0) continue;
+          const idx = (ly * lowW + lx) * 4;
+          dArr[idx] = r;
+          dArr[idx + 1] = g;
+          dArr[idx + 2] = b;
+          dArr[idx + 3] = alpha;
+        }
+      }
+      offCtx.putImageData(img, 0, 0);
+      frameCanvasCacheRef.current.set(cacheKey, off);
+      while (frameCanvasCacheRef.current.size > FRAME_CACHE_MAX) {
+        const firstKey = frameCanvasCacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        frameCanvasCacheRef.current.delete(firstKey);
+      }
+    } else {
+      // LRU-Touch.
+      frameCanvasCacheRef.current.delete(cacheKey);
+      frameCanvasCacheRef.current.set(cacheKey, off);
+    }
+
+    ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+    ctx.drawImage(off, 0, 0, off.width, off.height, 0, 0, size.x, size.y);
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
   };
 
-
   useEffect(() => {
     redrawRef.current();
-  }, [opacity, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
-
-  useEffect(() => {
-    redrawRef.current();
-  }, [nextFrame, progress, payload]);
+  }, [payload, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
 
   return null;
 }
