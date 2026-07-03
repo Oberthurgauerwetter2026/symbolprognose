@@ -460,30 +460,24 @@ function timelineStateForMs(
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
 type TimelineOverlayHandle = {
-  setTimeline: (frame: RadarFrame | null, nextFrame: RadarFrame | null, progress: number) => void;
+  setTimeline: (frame: RadarFrame | null) => void;
 };
 
 const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
   payload: RadarPayload;
   frame: RadarFrame | null;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
   opacity?: number;
   contour?: boolean;
   prewarmFrames?: RadarFrame[];
 }>(function PrecipOverlay({
   payload,
   frame,
-  nextFrame,
-  progress,
   opacity = 1,
   contour = false,
   prewarmFrames,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
   opacity?: number;
   contour?: boolean;
   prewarmFrames?: RadarFrame[];
@@ -493,9 +487,6 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
   const layerRef = useRef<L.Layer | null>(null);
   const frameRef = useRef<RadarFrame | null>(frame);
 
-  // Advektives Resampling wurde entfernt — pro Framepaar wechselnde Shift-
-  // Vektoren liessen die Prognose-Bänder sichtbar wackeln. Jetzt wird nur noch
-  // die Intensität der beiden benachbarten Datenframes interpoliert.
 
 
 
@@ -557,26 +548,18 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
   } | null>(null);
   const CACHE_MAX = 512;
 
-  // Timeline-Refs: nextFrame + progress werden pro Animation-Tick als Prop
-  // gesetzt; redrawRef liest sie über Refs, damit Play/Scrub dieselbe
-  // kontinuierliche Zeitachse nutzen.
-  const nextFrameRef = useRef<RadarFrame | null>(null);
-  const progressRef = useRef<number>(0);
-  const blendCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastTimelineKeyRef = useRef<string>("");
 
   useImperativeHandle(ref, () => ({
-    setTimeline: (f, nf, p) => {
-      const qp = Math.round(Math.max(0, Math.min(1, p)) * 12) / 12;
-      const key = `${f?.t ?? ""}|${nf?.t ?? ""}|${qp}`;
+    setTimeline: (f) => {
+      const key = f?.t ?? "";
       if (key === lastTimelineKeyRef.current) return;
       lastTimelineKeyRef.current = key;
       frameRef.current = f;
-      nextFrameRef.current = nf;
-      progressRef.current = qp;
       redrawRef.current();
     },
   }), []);
+
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -903,104 +886,8 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
     return off;
   };
 
-  // Kontinuierlicher Zwischenframe zwischen zwei Datenframes a→b mit Progress
-  // p ∈ (0,1). Es werden ausschliesslich die beiden Nachbarframes an derselben
-  // Kartenposition gesampelt und deren Intensitäten interpoliert.
-  const buildBlendedOffscreenRef = useRef<
-    (a: RadarFrame, b: RadarFrame, p: number) => HTMLCanvasElement | null
-  >(() => null);
-  buildBlendedOffscreenRef.current = (
-    a: RadarFrame,
-    b: RadarFrame,
-    p: number,
-  ): HTMLCanvasElement | null => {
-    const lookup = lookupRef.current;
-    if (!lookup) return null;
-    const aVals = a.values;
-    const bVals = b.values;
-    if (!aVals || aVals.length === 0 || !bVals || bVals.length === 0) return null;
-    const { gridLat, gridLon } = payload;
-    const nLat = gridLat.length;
-    const nLon = gridLon.length;
 
-    const s = Math.max(0, Math.min(1, p));
-    const oneMinusS = 1 - s;
 
-    const lowW = lookup.lowW;
-    const lowH = lookup.lowH;
-    let mc = blendCanvasRef.current;
-    if (!mc || mc.width !== lowW || mc.height !== lowH) {
-      mc = document.createElement("canvas");
-      mc.width = lowW;
-      mc.height = lowH;
-      blendCanvasRef.current = mc;
-    }
-    const offCtx = mc.getContext("2d");
-    if (!offCtx) return null;
-    const img = offCtx.createImageData(lowW, lowH);
-    const data = img.data;
-
-    const sampleAt = (arr: number[], fx: number, fy: number) => {
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = x0 + 1;
-      const y1 = y0 + 1;
-      const txL = fx - x0;
-      const tyL = fy - y0;
-      const inX0 = x0 >= 0 && x0 < nLon;
-      const inX1 = x1 >= 0 && x1 < nLon;
-      const inY0 = y0 >= 0 && y0 < nLat;
-      const inY1 = y1 >= 0 && y1 < nLat;
-      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-      return (
-        v00 * (1 - txL) * (1 - tyL) +
-        v01 * txL * (1 - tyL) +
-        v10 * (1 - txL) * tyL +
-        v11 * txL * tyL
-      );
-    };
-
-    const aSnow = a.snowValues;
-    const bSnow = b.snowValues;
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const cell = ly * lowW + lx;
-        if (!lookup.valid[cell]) continue;
-        const fxRaw = lookup.fx[cell];
-        const fyRaw = lookup.fy[cell];
-        const va = sampleAt(aVals, fxRaw, fyRaw);
-        const vb = sampleAt(bVals, fxRaw, fyRaw);
-        let v = oneMinusS * va + s * vb;
-        if (contour && v > 0 && lookup.contourScale) v = v * lookup.contourScale[cell];
-        const minV = contour ? 0.05 : 0.1;
-        if (v < minV) continue;
-
-        let snowFrac = 0;
-        if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, fxRaw, fyRaw) : 0;
-          const sb = bSnow ? sampleAt(bSnow, fxRaw, fyRaw) : 0;
-          const sv = oneMinusS * sa + s * sb;
-          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
-        }
-
-        const [rC, gC, bC, aC] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
-        if (aC === 0) continue;
-        const alpha = Math.round(aC * 255);
-        if (alpha === 0) continue;
-        const pix = cell * 4;
-        data[pix] = rC;
-        data[pix + 1] = gC;
-        data[pix + 2] = bC;
-        data[pix + 3] = alpha;
-      }
-    }
-    offCtx.putImageData(img, 0, 0);
-    return mc;
-  };
 
   // Frame-/Payload-Wechsel neu zeichnen.
   useEffect(() => {
@@ -1084,13 +971,6 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
 
 
 
-  // Timeline-Sync: nextFrame/progress werden weiterhin in Refs gespiegelt
-  // (Filmstrip/Scrub bleiben unverändert), lösen aber keinen Redraw mehr aus.
-  useEffect(() => {
-    nextFrameRef.current = nextFrame ?? null;
-    progressRef.current = typeof progress === "number" ? progress : 0;
-  }, [nextFrame, progress]);
-
   // Canvas-Opacity nachziehen.
   useEffect(() => {
     const cv = canvasRef.current;
@@ -1112,28 +992,20 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
   opacity: number;
   prefetchUrls?: string[];
   payload?: RadarPayload;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
 }>(function MeasurementCanvasOverlay({
   url,
   bounds,
   opacity,
   prefetchUrls,
   payload,
-  nextFrame,
-  progress = 0,
 }, ref) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
   type DecodedRadar = { w: number; h: number; mmh: Float32Array; smoothMmh?: Float32Array };
   const sourceRef = useRef<DecodedRadar | null>(null);
-  const nextSourceRef = useRef<DecodedRadar | null>(null);
-  const nextSourceUrlRef = useRef<string | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const renderCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
-  const activeNextFrameRef = useRef<RadarFrame | null>(nextFrame ?? null);
-  const activeProgressRef = useRef(progress);
   const DECODE_CACHE_MAX = 96;
 
   const redrawRef = useRef<() => void>(() => {});
@@ -1142,14 +1014,11 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
   }
 
   useImperativeHandle(ref, () => ({
-    setTimeline: (_frame, nf, p) => {
-      const qp = Math.round(Math.max(0, Math.min(1, p)) * 12) / 12;
-      if (activeNextFrameRef.current?.t === nf?.t && activeProgressRef.current === qp) return;
-      activeNextFrameRef.current = nf;
-      activeProgressRef.current = qp;
+    setTimeline: () => {
       redrawRef.current();
     },
   }), []);
+
 
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
     if (src.smoothMmh) return src.smoothMmh;
@@ -1286,92 +1155,8 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
     };
   }, [url]);
 
-  useEffect(() => {
-    activeNextFrameRef.current = nextFrame ?? null;
-    activeProgressRef.current = progress;
-  }, [nextFrame, progress]);
 
-  useEffect(() => {
-    const nextUrl = nextFrame?.precipUrl;
-    if (!nextUrl) {
-      nextSourceRef.current = null;
-      nextSourceUrlRef.current = null;
-      redraw();
-      return;
-    }
-    const cached = cacheRef.current.get(nextUrl);
-    if (cached) {
-      cacheRef.current.delete(nextUrl);
-      cacheRef.current.set(nextUrl, cached);
-      nextSourceRef.current = cached;
-      nextSourceUrlRef.current = nextUrl;
-      redraw();
-      return;
-    }
-    nextSourceRef.current = null;
-    nextSourceUrlRef.current = null;
-    let cancelled = false;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.decoding = "async";
-    img.onload = () => {
-      if (cancelled) return;
-      const cw = img.naturalWidth;
-      const ch = img.naturalHeight;
-      if (cw === 0 || ch === 0) return;
-      const c = document.createElement("canvas");
-      c.width = cw;
-      c.height = ch;
-      const cx = c.getContext("2d", { willReadFrequently: true });
-      if (!cx) return;
-      cx.drawImage(img, 0, 0);
-      let data: Uint8ClampedArray;
-      try {
-        data = cx.getImageData(0, 0, cw, ch).data;
-      } catch {
-        return;
-      }
-      const mmh = new Float32Array(cw * ch);
-      for (let i = 0; i < cw * ch; i++) {
-        const o = i * 4;
-        const a = data[o + 3];
-        if (a < 8) {
-          mmh[i] = 0;
-          continue;
-        }
-        const r = data[o];
-        const g = data[o + 1];
-        const b = data[o + 2];
-        let bestD = Infinity;
-        let bestMmh = 0;
-        for (const s of SCALE) {
-          const dr = r - s.rgb[0];
-          const dg = g - s.rgb[1];
-          const db = b - s.rgb[2];
-          const d = dr * dr + dg * dg + db * db;
-          if (d < bestD) {
-            bestD = d;
-            bestMmh = s.mmh;
-          }
-        }
-        mmh[i] = bestMmh;
-      }
-      const entry = { w: cw, h: ch, mmh };
-      cacheRef.current.set(nextUrl, entry);
-      while (cacheRef.current.size > DECODE_CACHE_MAX) {
-        const firstKey = cacheRef.current.keys().next().value;
-        if (firstKey === undefined) break;
-        cacheRef.current.delete(firstKey);
-      }
-      nextSourceRef.current = entry;
-      nextSourceUrlRef.current = nextUrl;
-      redraw();
-    };
-    img.src = nextUrl;
-    return () => {
-      cancelled = true;
-    };
-  }, [nextFrame?.precipUrl]);
+
 
   // Pre-Decode aller bekannten Radar-PNGs, damit Scrubben über alle
   // Messzeitpunkte ohne Lazy-Decode-Stocker läuft. Idle-gescheduled.
@@ -1577,132 +1362,8 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
       return out;
     };
 
-    const hashContour = (ix: number, iy: number) => {
-      let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
-      h = (h ^ (h >>> 13)) * 1274126177;
-      h = h ^ (h >>> 16);
-      return ((h >>> 0) % 10000) / 10000;
-    };
-    const smoothContour = (u: number) => u * u * (3 - 2 * u);
-    const valueNoiseContour = (x: number, y: number) => {
-      const ix = Math.floor(x);
-      const iy = Math.floor(y);
-      const fxN = smoothContour(x - ix);
-      const fyN = smoothContour(y - iy);
-      const a = hashContour(ix, iy);
-      const b = hashContour(ix + 1, iy);
-      const c = hashContour(ix, iy + 1);
-      const d = hashContour(ix + 1, iy + 1);
-      return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
-    };
-    const fbmContour = (x: number, y: number) => {
-      let out = 0;
-      let amp = 0.5;
-      let freq = 1;
-      for (let o = 0; o < 5; o++) {
-        out += valueNoiseContour(x * freq, y * freq) * amp;
-        amp *= 0.5;
-        freq *= 2.1;
-      }
-      return out;
-    };
-    const contourScaleAt = (fx: number, fy: number, nLon: number, nLat: number) => {
-      const COS = 0.866;
-      const SIN = 0.5;
-      const sx = fx * 0.9;
-      const sy = fy * 0.85;
-      const rx = sx * COS - sy * SIN;
-      const ry = sx * SIN + sy * COS;
-      const warpX = (fbmContour(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-      const warpY = (fbmContour(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
-      const n = fbmContour(rx + warpX, ry + warpY);
-      const mod = 0.25 + n * 1.55;
-      const env1 = fbmContour(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
-      const env2 = fbmContour(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
-      const env3 = fbmContour(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
-      const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
-      const edgeNX = Math.min(fx, nLon - 1 - fx) / (nLon - 1);
-      const edgeNY = Math.min(fy, nLat - 1 - fy) / (nLat - 1);
-      const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
-      const edgeJitter = 0.55 + fbmContour(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
-      const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
-      const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
-      return mod * envelope;
-    };
 
-    const sampleGridAt = (arr: number[], lng: number, lat: number) => {
-      if (!payload) return 0;
-      const { gridLat, gridLon } = payload;
-      const nLat = gridLat.length;
-      const nLon = gridLon.length;
-      const fx = ((lng - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
-      const fy = ((lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = x0 + 1;
-      const y1 = y0 + 1;
-      const tx = fx - x0;
-      const ty = fy - y0;
-      const inX0 = x0 >= 0 && x0 < nLon;
-      const inX1 = x1 >= 0 && x1 < nLon;
-      const inY0 = y0 >= 0 && y0 < nLat;
-      const inY1 = y1 >= 0 && y1 < nLat;
-      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-      let v = v00 * (1 - tx) * (1 - ty) + v01 * tx * (1 - ty) + v10 * (1 - tx) * ty + v11 * tx * ty;
-      // Der erste Prognose-Zustand am Seam muss exakt dieselbe Kontur-Logik
-      // nutzen wie PrecipOverlay, sonst entsteht am Quellenwechsel ein Sprung.
-      const activeNextFrame = activeNextFrameRef.current;
-      if (activeNextFrame?.source !== "radar" && v > 0) {
-        v *= contourScaleAt(fx, fy, nLon, nLat);
-      }
-      return v;
-    };
 
-    const buildGridOffscreen = (key: string, vals: number[]): HTMLCanvasElement | null => {
-      const cached = renderCacheRef.current.get(key);
-      if (cached) {
-        renderCacheRef.current.delete(key);
-        renderCacheRef.current.set(key, cached);
-        return cached;
-      }
-      if (!payload) return null;
-      const out = document.createElement("canvas");
-      out.width = lowW;
-      out.height = lowH;
-      const outCtx = out.getContext("2d");
-      if (!outCtx) return null;
-      const img = outCtx.createImageData(lowW, lowH);
-      const dArr = img.data;
-      for (let ly = 0; ly < lowH; ly++) {
-        for (let lx = 0; lx < lowW; lx++) {
-          const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
-          if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
-          const v = sampleGridAt(vals, ll.lng, ll.lat);
-          if (v < 0.05) continue;
-          const [r, g, b, a] = colorFor(v);
-          if (a === 0) continue;
-          const alpha = Math.round(a * 255);
-          if (alpha === 0) continue;
-          const idx = (ly * lowW + lx) * 4;
-          dArr[idx] = r;
-          dArr[idx + 1] = g;
-          dArr[idx + 2] = b;
-          dArr[idx + 3] = alpha;
-        }
-      }
-      outCtx.putImageData(img, 0, 0);
-      renderCacheRef.current.set(key, out);
-      while (renderCacheRef.current.size > 48) {
-        const firstKey = renderCacheRef.current.keys().next().value;
-        if (firstKey === undefined) break;
-        renderCacheRef.current.delete(firstKey);
-      }
-      return out;
-    };
 
     const off = buildRasterOffscreen(`${viewKey}|radar|${url}`, src);
     if (!off) return;
@@ -2435,7 +2096,7 @@ export function RadarMap({
     const now = performance.now();
     if (opts?.syncOverlay || opts?.commit || now - lastOverlaySyncRef.current > 180) {
       lastOverlaySyncRef.current = now;
-      precipOverlayRef.current?.setTimeline(timelineState.frame, timelineState.nextFrame, timelineState.progress);
+      precipOverlayRef.current?.setTimeline(timelineState.frame);
     }
 
     const nearestIdx = timelineState.displayIdx;
@@ -2686,8 +2347,6 @@ export function RadarMap({
                       ref={precipOverlayRef}
                       payload={data}
                       frame={gridFrame}
-                      nextFrame={showGrid ? overlayNext : null}
-                      progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
                       contour={gridFrame.source !== "radar"}
                       prewarmFrames={[]}
@@ -2701,8 +2360,6 @@ export function RadarMap({
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
                       payload={data}
-                      nextFrame={overlayNext}
-                      progress={overlayProg}
                     />
                   )}
                 </>
