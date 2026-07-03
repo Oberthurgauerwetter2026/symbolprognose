@@ -732,7 +732,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     if (lastTimeRef.current && frames.some((f) => f.time === lastTimeRef.current)) {
       return lastTimeRef.current;
     }
-    return frames[frames.length - 1].time;
+    return frames[0].time;
   }, [frames]);
   const ready = total > 0 && loaded >= total;
 
@@ -765,21 +765,28 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     rateRef.current = stepMs / speedMs;
   }, [region.stepMinutes, speedMs]);
 
-  // Beim Wechsel der Frames Position bestimmen (bei erstem Load: neuestes Bild).
+  // Beim ersten Load startet der Film chronologisch beim ältesten Bild. Spätere
+  // Manifest-Updates erhalten die kontinuierliche Renderzeit, statt auf einen
+  // diskreten Frame zurückzuspringen.
   useEffect(() => {
     if (frames.length === 0) return;
-    let idx = frames.length - 1;
-    if (lastTimeRef.current) {
-      const found = frames.findIndex((f) => f.time === lastTimeRef.current);
-      if (found >= 0) idx = found;
+    let ms = renderMsRef.current;
+    if (!ms || ms < tMin || ms > tMax) {
+      ms = tMin;
     }
-    renderMsRef.current = Date.parse(frames[idx].time);
-    lastTimeRef.current = frames[idx].time;
+    renderMsRef.current = ms;
+    let idx = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < times.length; i++) {
+      const d = Math.abs(times[i] - ms);
+      if (d < bestDt) { bestDt = d; idx = i; }
+    }
+    lastTimeRef.current = frames[idx]?.time ?? null;
     setUiIndex(idx);
     // imperatives Erst-Paint (falls Refs schon da sind)
-    filmstripRef.current?.setTime(renderMsRef.current);
-    stackRef.current?.setTimeMs(renderMsRef.current);
-  }, [frames]);
+    filmstripRef.current?.setTime(ms);
+    stackRef.current?.setTimeMs(ms);
+  }, [frames, tMin, tMax, times]);
 
   // Regionwechsel: Loading/Play zurücksetzen.
   useEffect(() => {
