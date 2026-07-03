@@ -1134,8 +1134,13 @@ function MeasurementCanvasOverlay({
 
 
   const redrawRef = useRef<() => void>(() => {});
+  const redrawScheduledRef = useRef<number | null>(null);
   function redraw() {
-    redrawRef.current();
+    if (redrawScheduledRef.current !== null) return;
+    redrawScheduledRef.current = requestAnimationFrame(() => {
+      redrawScheduledRef.current = null;
+      redrawRef.current();
+    });
   }
 
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
