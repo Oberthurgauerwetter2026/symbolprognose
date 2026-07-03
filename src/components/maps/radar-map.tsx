@@ -2544,7 +2544,7 @@ export function RadarMap({
           {data &&
             currentFrame &&
             (() => {
-              const rtMs = scrubVisualMs ?? playVisualMs ?? Date.parse(currentFrame.t);
+              const rtMs = scrubVisualMs ?? playVisualMs ?? renderMs ?? Date.parse(currentFrame.t);
               const timelineState = timelineStateForMs(frames, rtMs);
               const overlayFrame = timelineState.frame ?? currentFrame;
               const overlayNext = timelineState.nextFrame;
@@ -2706,7 +2706,7 @@ export function RadarMap({
                       setPlaying(false);
                       const ni = Math.max(0, stripIdx - 1);
                       const target = playStepIndices[ni];
-                      if (typeof target === "number") setIdx(target);
+                      if (typeof target === "number") setTimelineToIndex(target);
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Vorheriger Frame"
@@ -2720,7 +2720,7 @@ export function RadarMap({
                     onClick={() => {
                       setPlaying(false);
                       const target = playStepIndices[stripNowIdx];
-                      if (typeof target === "number") setIdx(target);
+                      if (typeof target === "number") setTimelineToIndex(target);
                     }}
                     disabled={stripIdx === stripNowIdx}
                     className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"
@@ -2738,11 +2738,14 @@ export function RadarMap({
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      visualMs={scrubVisualMs ?? playVisualMs}
-                      onScrubMs={setScrubVisualMs}
+                      visualMs={scrubVisualMs ?? playVisualMs ?? renderMs}
+                      onScrubMs={(ms) => {
+                        setScrubVisualMs(ms);
+                        if (ms !== null) setRenderMs(ms);
+                      }}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];
-                        if (typeof target === "number") setIdx(target);
+                        if (typeof target === "number") setTimelineToIndex(target);
                         setPlaying(false);
                       }}
                     />
@@ -2755,7 +2758,7 @@ export function RadarMap({
                       setPlaying(false);
                       const ni = Math.min(playStepIndices.length - 1, stripIdx + 1);
                       const target = playStepIndices[ni];
-                      if (typeof target === "number") setIdx(target);
+                      if (typeof target === "number") setTimelineToIndex(target);
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Nächster Frame"
