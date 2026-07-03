@@ -553,8 +553,13 @@ function PrecipOverlay({
 
 
   const redrawRef = useRef<() => void>(() => {});
+  const redrawScheduledRef = useRef<number | null>(null);
   function redraw() {
-    redrawRef.current();
+    if (redrawScheduledRef.current !== null) return;
+    redrawScheduledRef.current = requestAnimationFrame(() => {
+      redrawScheduledRef.current = null;
+      redrawRef.current();
+    });
   }
   // Invalidiere Cache bei Pan/Zoom/Resize — alle Einträge betreffen alte View.
   useEffect(() => {
