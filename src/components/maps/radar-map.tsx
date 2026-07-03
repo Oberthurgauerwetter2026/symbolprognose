@@ -460,30 +460,24 @@ function timelineStateForMs(
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
 type TimelineOverlayHandle = {
-  setTimeline: (frame: RadarFrame | null, nextFrame: RadarFrame | null, progress: number) => void;
+  setTimeline: (frame: RadarFrame | null) => void;
 };
 
 const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
   payload: RadarPayload;
   frame: RadarFrame | null;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
   opacity?: number;
   contour?: boolean;
   prewarmFrames?: RadarFrame[];
 }>(function PrecipOverlay({
   payload,
   frame,
-  nextFrame,
-  progress,
   opacity = 1,
   contour = false,
   prewarmFrames,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
   opacity?: number;
   contour?: boolean;
   prewarmFrames?: RadarFrame[];
@@ -493,9 +487,6 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
   const layerRef = useRef<L.Layer | null>(null);
   const frameRef = useRef<RadarFrame | null>(frame);
 
-  // Advektives Resampling wurde entfernt — pro Framepaar wechselnde Shift-
-  // Vektoren liessen die Prognose-Bänder sichtbar wackeln. Jetzt wird nur noch
-  // die Intensität der beiden benachbarten Datenframes interpoliert.
 
 
 
