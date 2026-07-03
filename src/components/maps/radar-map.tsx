@@ -2184,6 +2184,8 @@ export function RadarMap({
     setPlayVisualMs(startMs);
     setRenderMs(startMs);
 
+    let lastFlush = performance.now();
+    const FLUSH_MS = 140;
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
@@ -2200,12 +2202,20 @@ export function RadarMap({
         return;
       }
       playTimeRef.current = nextMs;
-      setPlayVisualMs(nextMs);
-      setRenderMs(nextMs);
-      const nextIdx = nearestFrameIndexForMs(frames, nextMs);
-      if (nextIdx !== idxRef.current) {
-        idxRef.current = nextIdx;
-        setIdx(nextIdx);
+      renderMsRef.current = nextMs;
+      // React-State nur gedrosselt anfassen: Overlays lesen aus Props, die
+      // sich pro Tick sonst ändern und teure Redraws auslösen würden. Die
+      // Karte selbst bewegt sich zwischen 15-min-Rasterframes optisch nicht,
+      // daher reicht ~7Hz Update-Frequenz für Bubble/Label/Idx.
+      if (now - lastFlush >= FLUSH_MS) {
+        lastFlush = now;
+        setPlayVisualMs(nextMs);
+        setRenderMs(nextMs);
+        const nextIdx = nearestFrameIndexForMs(frames, nextMs);
+        if (nextIdx !== idxRef.current) {
+          idxRef.current = nextIdx;
+          setIdx(nextIdx);
+        }
       }
       raf = requestAnimationFrame(tick);
     };
