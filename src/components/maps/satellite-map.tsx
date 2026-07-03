@@ -83,6 +83,9 @@ type FrameEntry = {
   t: number;
   layer: L.TileLayer.WMS;
   ready: boolean;
+  loadComplete: boolean;
+  readyScheduled: boolean;
+  decodePromises: Set<Promise<void>>;
 };
 
 type FrameStackHandle = {
@@ -91,19 +94,20 @@ type FrameStackHandle = {
   setTimeMs: (ms: number) => void;
   /** True, wenn bei `ms` beide Nachbar-Frames vollständig geladen sind. */
   canAdvanceTo: (ms: number) => boolean;
+  /** True, wenn für `ms` mindestens ein renderfertiger Frame gezeigt werden kann. */
+  hasRenderableAt: (ms: number) => boolean;
 };
 
 const FrameStack = forwardRef<
   FrameStackHandle,
   {
     layer: string;
-    fallbackLayer?: string;
     frames: SatelliteFrame[];
     initialIso: string | null;
     onProgress: (loaded: number, total: number) => void;
   }
 >(function FrameStack(
-  { layer, fallbackLayer, frames, initialIso, onProgress },
+  { layer, frames, initialIso, onProgress },
   ref,
 ) {
   const map = useMap();
@@ -112,17 +116,12 @@ const FrameStack = forwardRef<
   // Zeitlich sortierte Liste der aktuell relevanten (im Manifest enthaltenen)
   // Einträge — für Prev/Next-Suche via binary search.
   const orderedRef = useRef<FrameEntry[]>([]);
-  const [effectiveLayer, setEffectiveLayer] = useState(layer);
-  const triedFallbackRef = useRef(false);
   const lastPairRef = useRef<[string, string] | null>(null);
   const lastVisibleIsoRef = useRef<string | null>(null);
+  const targetMsRef = useRef<number | null>(null);
+  const preloadTimersRef = useRef<number[]>([]);
   const onProgressRef = useRef(onProgress);
   useEffect(() => { onProgressRef.current = onProgress; }, [onProgress]);
-
-  useEffect(() => {
-    setEffectiveLayer(layer);
-    triedFallbackRef.current = false;
-  }, [layer]);
 
   // Setup / Teardown: nur bei Region- oder Layer-Wechsel.
   useEffect(() => {
@@ -130,15 +129,19 @@ const FrameStack = forwardRef<
     orderedRef.current = [];
     lastPairRef.current = null;
     lastVisibleIsoRef.current = null;
+    targetMsRef.current = null;
     return () => {
+      for (const timer of preloadTimersRef.current) window.clearTimeout(timer);
+      preloadTimersRef.current = [];
       for (const e of entriesRef.current.values()) e.layer.remove();
       entriesRef.current.clear();
       orderedRef.current = [];
       lastPairRef.current = null;
       lastVisibleIsoRef.current = null;
+      targetMsRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, effectiveLayer]);
+  }, [map, layer]);
 
   // Diff-Mount: neue Frames inkrementell hinzufügen, obsolete NICHT sofort
   // entfernen (nur wenn sie nicht mehr sichtbar sind und weit ausserhalb des
@@ -146,15 +149,54 @@ const FrameStack = forwardRef<
   useEffect(() => {
     if (frames.length === 0) return;
 
-    const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean } = {
-      layers: effectiveLayer,
-      format: "image/jpeg",
+    for (const timer of preloadTimersRef.current) window.clearTimeout(timer);
+    preloadTimersRef.current = [];
+
+    const markProgress = () => {
+      const total = orderedRef.current.length || 1;
+      let loaded = 0;
+      for (const e of orderedRef.current) if (e.ready) loaded++;
+      onProgressRef.current(loaded, total);
+    };
+
+    const paintTargetAfterReady = () => {
+      const target = targetMsRef.current;
+      if (target !== null) applyTime(target);
+    };
+
+    const scheduleReady = (entry: FrameEntry) => {
+      if (entry.ready || entry.readyScheduled || !entry.loadComplete) return;
+      entry.readyScheduled = true;
+      const pending = Array.from(entry.decodePromises);
+      void Promise.allSettled(pending).then(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!entriesRef.current.has(entry.iso)) return;
+            entry.ready = true;
+            entry.readyScheduled = false;
+            markProgress();
+            paintTargetAfterReady();
+          });
+        });
+      });
+    };
+
+    const opts: L.WMSOptions & {
+      keepBuffer?: number;
+      updateWhenZooming?: boolean;
+      detectRetina?: boolean;
+      className?: string;
+    } = {
+      layers: layer,
+      format: "image/png",
       transparent: false,
       version: "1.3.0",
       crs: L.CRS.EPSG3857,
       tileSize: 512,
-      keepBuffer: 0,
+      keepBuffer: 1,
       updateWhenZooming: false,
+      detectRetina: true,
+      className: "satellite-wms-tile",
       attribution:
         'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
@@ -167,22 +209,27 @@ const FrameStack = forwardRef<
       // setTimeMs-Aufruf entscheidet, wann er sichtbar wird.
       const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 0 });
       tl.setParams({ time: iso } as unknown as L.WMSParams, false);
-      const entry: FrameEntry = { iso, t, layer: tl, ready: false };
-      tl.on("load", () => {
-        if (!entry.ready) {
-          entry.ready = true;
-          // Progress zählt nur "im Manifest enthaltene" Frames.
-          const total = orderedRef.current.length || 1;
-          let loaded = 0;
-          for (const e of orderedRef.current) if (e.ready) loaded++;
-          onProgressRef.current(loaded, total);
-        }
+      const entry: FrameEntry = {
+        iso,
+        t,
+        layer: tl,
+        ready: false,
+        loadComplete: false,
+        readyScheduled: false,
+        decodePromises: new Set(),
+      };
+      tl.on("tileload", (event) => {
+        const tile = (event as L.TileEvent).tile as HTMLImageElement | undefined;
+        if (!tile || typeof tile.decode !== "function") return;
+        const decodePromise = tile.decode().catch(() => undefined).finally(() => {
+          entry.decodePromises.delete(decodePromise);
+          scheduleReady(entry);
+        });
+        entry.decodePromises.add(decodePromise);
       });
-      tl.on("tileerror", () => {
-        if (!triedFallbackRef.current && fallbackLayer && fallbackLayer !== effectiveLayer) {
-          triedFallbackRef.current = true;
-          setEffectiveLayer(fallbackLayer);
-        }
+      tl.on("load", () => {
+        entry.loadComplete = true;
+        scheduleReady(entry);
       });
       tl.addTo(map);
       entriesRef.current.set(iso, entry);
@@ -201,25 +248,33 @@ const FrameStack = forwardRef<
       }
     }
 
-    // Initial-Frame priorisiert mounten.
-    if (initialIso) mountEntry(initialIso);
-
-    // Reihenfolge: initial → radial → rest. Erst synchron initial, dann
-    // gestaffelt via setTimeout, damit der Main-Thread frei bleibt.
+    // Reihenfolge: initial → nächster Loop-Frame → radial → rest.
     const isoOrder = frames.map((f) => f.time);
-    const initIdx = initialIso ? isoOrder.indexOf(initialIso) : 0;
+    const initIdxRaw = initialIso ? isoOrder.indexOf(initialIso) : -1;
+    const initIdx = initIdxRaw >= 0 ? initIdxRaw : Math.max(0, isoOrder.length - 1);
     const priority: string[] = [];
+    const pushUnique = (iso: string | undefined) => {
+      if (iso && !priority.includes(iso)) priority.push(iso);
+    };
+    pushUnique(isoOrder[initIdx]);
+    pushUnique(isoOrder[(initIdx + 1) % isoOrder.length]);
+    pushUnique(isoOrder[Math.max(0, initIdx - 1)]);
     for (let d = 1; d < isoOrder.length; d++) {
       const a = initIdx + d;
       const b = initIdx - d;
-      if (a < isoOrder.length) priority.push(isoOrder[a]);
-      if (b >= 0) priority.push(isoOrder[b]);
+      if (a < isoOrder.length) pushUnique(isoOrder[a]);
+      if (b >= 0) pushUnique(isoOrder[b]);
     }
 
-    // Sofort mounten (aber Progress-Ziel updaten). Kein Remove obsoleter Frames
-    // — sie bleiben unsichtbar bestehen und können nach Refetch wieder in die
-    // ordered-Liste rutschen. Speicherbedarf ist minimal (≤ ~30 Layer).
-    for (const iso of priority) mountEntry(iso);
+    // Die sichtbaren/benachbarten Frames sofort, den Rest gestaffelt preloaden.
+    for (const [i, iso] of priority.entries()) {
+      if (i < 4) {
+        mountEntry(iso);
+      } else {
+        const timer = window.setTimeout(() => mountEntry(iso), 70 * (i - 3));
+        preloadTimersRef.current.push(timer);
+      }
+    }
 
     // ordered final zusammensetzen (nach t sortiert; Manifest ist bereits sortiert).
     const rebuilt: FrameEntry[] = [];
@@ -233,8 +288,9 @@ const FrameStack = forwardRef<
     let loaded = 0;
     for (const e of rebuilt) if (e.ready) loaded++;
     onProgressRef.current(loaded, rebuilt.length);
+    if (targetMsRef.current !== null) applyTime(targetMsRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frames, effectiveLayer, map]);
+  }, [frames, layer, map, initialIso, applyTime]);
 
   const neighborsAt = useCallback((ms: number): { prev: FrameEntry | null; next: FrameEntry | null; alpha: number } => {
     const arr = orderedRef.current;
@@ -268,80 +324,85 @@ const FrameStack = forwardRef<
     return null;
   }, []);
 
+  const hasRenderableAt = useCallback((ms: number): boolean => {
+    const arr = orderedRef.current;
+    if (arr.length === 0) return false;
+    const { prev, next } = neighborsAt(ms);
+    if (prev?.ready || next?.ready) return true;
+    const stickyIso = lastVisibleIsoRef.current;
+    const sticky = stickyIso ? entriesRef.current.get(stickyIso) : null;
+    return !!sticky?.ready;
+  }, [neighborsAt]);
+
+  const applyTime = useCallback((ms: number) => {
+    const arr = orderedRef.current;
+    if (arr.length === 0) return;
+    const { prev, next, alpha } = neighborsAt(ms);
+    if (!prev || !next) return;
+
+    let showA: FrameEntry | null = null;
+    let showB: FrameEntry | null = null;
+    let effAlpha = 0;
+
+    if (prev === next) {
+      if (prev.ready) { showA = prev; effAlpha = 0; }
+    } else if (prev.ready && next.ready) {
+      showA = prev; showB = next; effAlpha = alpha;
+    } else if (prev.ready) {
+      showA = prev; effAlpha = 0;
+    } else if (next.ready) {
+      showA = next; effAlpha = 0;
+    } else {
+      const stickyIso = lastVisibleIsoRef.current;
+      const sticky = stickyIso ? entriesRef.current.get(stickyIso) : null;
+      if (sticky && sticky.ready) {
+        showA = sticky;
+      } else {
+        const idxPrev = arr.indexOf(prev);
+        const l = findReadyNeighbor(idxPrev, -1);
+        const r = findReadyNeighbor(Math.min(arr.length - 1, idxPrev + 1), 1);
+        showA = l ?? r;
+      }
+    }
+
+    if (!showA && !showB) return;
+
+    if (showA) showA.layer.setZIndex(1000);
+    if (showB) showB.layer.setZIndex(1001);
+
+    if (showA && showB) {
+      showA.layer.setOpacity(1 - effAlpha);
+      showB.layer.setOpacity(effAlpha);
+      lastVisibleIsoRef.current = effAlpha >= 0.5 ? showB.iso : showA.iso;
+      lastPairRef.current = [showA.iso, showB.iso];
+    } else if (showA) {
+      showA.layer.setOpacity(1);
+      lastVisibleIsoRef.current = showA.iso;
+      lastPairRef.current = [showA.iso, showA.iso];
+    }
+
+    for (const [iso, e] of entriesRef.current) {
+      if (iso !== showA?.iso && iso !== showB?.iso && e.ready) {
+        e.layer.setOpacity(0);
+      }
+    }
+  }, [findReadyNeighbor, neighborsAt]);
+
   useImperativeHandle(
     ref,
     () => ({
       setTimeMs: (ms: number) => {
-        const arr = orderedRef.current;
-        if (arr.length === 0) return;
-        const { prev, next, alpha } = neighborsAt(ms);
-        if (!prev || !next) return;
-
-        // Ziel-Bild ermitteln nach Ready-Gate:
-        //  - beide ready → klassisches Crossfade
-        //  - nur prev ready → prev voll sichtbar
-        //  - nur next ready → next voll sichtbar
-        //  - keiner ready → letzter sichtbarer Frame bleibt stehen; ansonsten
-        //    nächstbester ready Nachbar in eine Richtung
-        let showA: FrameEntry | null = null;
-        let showB: FrameEntry | null = null;
-        let effAlpha = 0;
-
-        if (prev === next) {
-          if (prev.ready) { showA = prev; effAlpha = 0; }
-        } else if (prev.ready && next.ready) {
-          showA = prev; showB = next; effAlpha = alpha;
-        } else if (prev.ready) {
-          showA = prev; effAlpha = 0;
-        } else if (next.ready) {
-          showA = next; effAlpha = 0;
-        } else {
-          // Kein direkter Nachbar ready — nutze zuletzt gezeigten, sonst suche.
-          const stickyIso = lastVisibleIsoRef.current;
-          const sticky = stickyIso ? entriesRef.current.get(stickyIso) : null;
-          if (sticky && sticky.ready) {
-            showA = sticky;
-          } else {
-            // suche im ordered-Fenster
-            const idxPrev = arr.indexOf(prev);
-            const l = findReadyNeighbor(idxPrev, -1);
-            const r = findReadyNeighbor(Math.min(arr.length - 1, idxPrev + 1), 1);
-            showA = l ?? r;
-          }
-        }
-
-        // Alte Pair-Layer, die jetzt NICHT mehr Teil des Zielsets sind, auf 0.
-        const last = lastPairRef.current;
-        if (last) {
-          for (const iso of last) {
-            if (iso !== showA?.iso && iso !== showB?.iso) {
-              const e = entriesRef.current.get(iso);
-              if (e) e.layer.setOpacity(0);
-            }
-          }
-        }
-
-        if (showA && showB) {
-          showA.layer.setOpacity(1 - effAlpha);
-          showB.layer.setOpacity(effAlpha);
-          // Sticky = derjenige mit höherer Opacity
-          lastVisibleIsoRef.current = effAlpha >= 0.5 ? showB.iso : showA.iso;
-          lastPairRef.current = [showA.iso, showB.iso];
-        } else if (showA) {
-          showA.layer.setOpacity(1);
-          lastVisibleIsoRef.current = showA.iso;
-          lastPairRef.current = [showA.iso, showA.iso];
-        } else {
-          // Nichts ready — nichts umschalten, sticky bleibt sichtbar.
-        }
+        targetMsRef.current = ms;
+        applyTime(ms);
       },
       canAdvanceTo: (ms: number) => {
         const { prev, next } = neighborsAt(ms);
         if (!prev || !next) return false;
         return prev.ready && next.ready;
       },
+      hasRenderableAt,
     }),
-    [neighborsAt, findReadyNeighbor],
+    [neighborsAt, applyTime, hasRenderableAt],
   );
 
   return null;
@@ -615,7 +676,14 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const total = frames.length;
-  const ready = total > 0 && loaded / total >= 0.5;
+  const selectedIso = useMemo(() => {
+    if (frames.length === 0) return null;
+    if (lastTimeRef.current && frames.some((f) => f.time === lastTimeRef.current)) {
+      return lastTimeRef.current;
+    }
+    return frames[frames.length - 1].time;
+  }, [frames]);
+  const ready = total > 0 && loaded >= Math.min(total, 2);
 
   // Kontinuierliche Zeit als Single Source of Truth.
   const renderMsRef = useRef<number>(0);
@@ -647,7 +715,6 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   }, [region.stepMinutes, speedMs]);
 
   const lastTimeRef = useRef<string | null>(null);
-  const initialIsoRef = useRef<string | null>(null);
 
   // Beim Wechsel der Frames Position bestimmen (bei erstem Load: neuestes Bild).
   useEffect(() => {
@@ -657,7 +724,6 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       const found = frames.findIndex((f) => f.time === lastTimeRef.current);
       if (found >= 0) idx = found;
     }
-    initialIsoRef.current = frames[idx].time;
     renderMsRef.current = Date.parse(frames[idx].time);
     lastTimeRef.current = frames[idx].time;
     setUiIndex(idx);
@@ -700,6 +766,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       // 5 s: harter Skip zum nächsten geladenen Ankerpunkt.
       const canAdvance = stackRef.current?.canAdvanceTo(next) ?? true;
       if (!canAdvance) {
+        stackRef.current?.setTimeMs(renderMsRef.current);
         if (stallSince === 0) stallSince = now;
         if (now - stallSince > 5000) {
           // Suche nächsten ready-Frame nach current
@@ -885,7 +952,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           keyboard={false}
           dragging={false}
           worldCopyJump
-          className="absolute inset-0 z-0 bg-black"
+          className="satellite-map-container absolute inset-0 z-0 bg-black"
         >
           <FlyToRegion regionId={regionId} />
           {frames.length > 0 && (
@@ -893,9 +960,8 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
               key={`${regionId}-${layer}`}
               ref={stackRef}
               layer={layer}
-              fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               frames={frames}
-              initialIso={initialIsoRef.current}
+              initialIso={selectedIso}
               onProgress={handleStackProgress}
             />
           )}
