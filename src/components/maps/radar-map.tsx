@@ -1526,23 +1526,30 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
     const STEP = 32;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
-    const off = document.createElement("canvas");
-    off.width = lowW;
-    off.height = lowH;
-    const offCtx = off.getContext("2d");
-    if (!offCtx) return;
-    const img = offCtx.createImageData(lowW, lowH);
-    const dArr = img.data;
+    const viewKey = `${size.x}x${size.y}@${dpr}|${map.getZoom()}|${map.getBounds().toBBoxString()}|${bounds.minLat},${bounds.maxLat},${bounds.minLon},${bounds.maxLon}`;
     const { minLat, maxLat, minLon, maxLon } = bounds;
     const latSpan = maxLat - minLat;
     const lonSpan = maxLon - minLon;
 
-    const sw = src.w;
-    const sh = src.h;
-    // 3×3-Box-Filter über das mm/h-Quellraster: einmal pro PNG gecacht.
-    const smoothMmh = ensureSmooth(src);
+    const buildRasterOffscreen = (key: string, raster: DecodedRadar): HTMLCanvasElement | null => {
+      const cached = renderCacheRef.current.get(key);
+      if (cached) {
+        renderCacheRef.current.delete(key);
+        renderCacheRef.current.set(key, cached);
+        return cached;
+      }
+      const out = document.createElement("canvas");
+      out.width = lowW;
+      out.height = lowH;
+      const outCtx = out.getContext("2d");
+      if (!outCtx) return null;
+      const img = outCtx.createImageData(lowW, lowH);
+      const dArr = img.data;
+      const sw = raster.w;
+      const sh = raster.h;
+      const smoothMmh = ensureSmooth(raster);
 
-    const sampleAt = (fx: number, fy: number) => {
+      const sampleAt = (fx: number, fy: number) => {
       // Bilineare 4-Tap-Interpolation auf dem geglätteten Feld.
       const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
       const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
@@ -1560,6 +1567,36 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
         v10 * (1 - tx) * ty +
         v11 * tx * ty
       );
+      };
+
+      for (let ly = 0; ly < lowH; ly++) {
+        for (let lx = 0; lx < lowW; lx++) {
+          const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
+          if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
+          const fx = ((ll.lng - minLon) / lonSpan) * (sw - 1);
+          const fy = ((maxLat - ll.lat) / latSpan) * (sh - 1);
+          if (fx < 0 || fx > sw - 1 || fy < 0 || fy > sh - 1) continue;
+          const v = sampleAt(fx, fy);
+          if (v < 0.05) continue;
+          const [r, g, b, a] = colorFor(v);
+          if (a === 0) continue;
+          const alpha = Math.round(a * 255);
+          if (alpha === 0) continue;
+          const idx = (ly * lowW + lx) * 4;
+          dArr[idx] = r;
+          dArr[idx + 1] = g;
+          dArr[idx + 2] = b;
+          dArr[idx + 3] = alpha;
+        }
+      }
+      outCtx.putImageData(img, 0, 0);
+      renderCacheRef.current.set(key, out);
+      while (renderCacheRef.current.size > 48) {
+        const firstKey = renderCacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        renderCacheRef.current.delete(firstKey);
+      }
+      return out;
     };
 
     const sampleRasterAt = (raster: DecodedRadar, fx: number, fy: number) => {
