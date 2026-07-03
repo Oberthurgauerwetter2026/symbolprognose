@@ -68,11 +68,29 @@ function SwissOutline() {
 }
 
 // ---------- Frame-Stack mit kontinuierlicher Cross-Fade-Interpolation ----------
+// Wichtige Eigenschaften:
+//  * Layers werden per ISO-Zeit indiziert und über mehrere Refetches hinweg
+//    stabil gehalten. Ein neues Manifest triggert KEINEN Remount vorhandener
+//    Layer — es werden nur neue Zeiten inkrementell montiert. Damit ist
+//    keine Frame-Aufflackern während des 60-Sek-Refetch möglich.
+//  * Ein interner Ready-Gate stellt sicher, dass eine noch nicht fertig
+//    geladene Zielebene niemals sichtbar wird: entweder zeigt der Stack den
+//    bereits vorhandenen Nachbarn mit Opacity 1, oder er wartet. Der Play-
+//    Loop nutzt `canAdvanceTo(ms)` und hält die Zeit an unfertigen Frames.
+
+type FrameEntry = {
+  iso: string;
+  t: number;
+  layer: L.TileLayer.WMS;
+  ready: boolean;
+};
 
 type FrameStackHandle = {
   /** Setzt die aktuell darzustellende Zeit (ms). Blendet zwischen den beiden
    *  benachbarten WMS-Frames kontinuierlich über. */
   setTimeMs: (ms: number) => void;
+  /** True, wenn bei `ms` beide Nachbar-Frames vollständig geladen sind. */
+  canAdvanceTo: (ms: number) => boolean;
 };
 
 const FrameStack = forwardRef<
@@ -81,36 +99,52 @@ const FrameStack = forwardRef<
     layer: string;
     fallbackLayer?: string;
     frames: SatelliteFrame[];
-    initialIndex: number;
+    initialIso: string | null;
     onProgress: (loaded: number, total: number) => void;
   }
 >(function FrameStack(
-  { layer, fallbackLayer, frames, initialIndex, onProgress },
+  { layer, fallbackLayer, frames, initialIso, onProgress },
   ref,
 ) {
   const map = useMap();
-  const layersRef = useRef<(L.TileLayer.WMS | null)[]>([]);
-  const loadedRef = useRef<Set<number>>(new Set());
+  // Alle jemals montierten Frames dieser Region/Layer-Session, per ISO.
+  const entriesRef = useRef<Map<string, FrameEntry>>(new Map());
+  // Zeitlich sortierte Liste der aktuell relevanten (im Manifest enthaltenen)
+  // Einträge — für Prev/Next-Suche via binary search.
+  const orderedRef = useRef<FrameEntry[]>([]);
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
-  const times = useMemo(() => frames.map((f) => Date.parse(f.time)), [frames]);
-  const timesRef = useRef(times);
-  useEffect(() => {
-    timesRef.current = times;
-  }, [times]);
-  // Zuletzt aktive Frame-Paar-Indizes; damit vermeiden wir das Iterieren
-  // über alle Layer pro RAF-Tick.
-  const lastPairRef = useRef<[number, number] | null>(null);
+  const lastPairRef = useRef<[string, string] | null>(null);
+  const lastVisibleIsoRef = useRef<string | null>(null);
+  const onProgressRef = useRef(onProgress);
+  useEffect(() => { onProgressRef.current = onProgress; }, [onProgress]);
 
   useEffect(() => {
     setEffectiveLayer(layer);
     triedFallbackRef.current = false;
   }, [layer]);
 
+  // Setup / Teardown: nur bei Region- oder Layer-Wechsel.
   useEffect(() => {
-    loadedRef.current = new Set();
-    layersRef.current = new Array(frames.length).fill(null);
+    entriesRef.current = new Map();
+    orderedRef.current = [];
     lastPairRef.current = null;
+    lastVisibleIsoRef.current = null;
+    return () => {
+      for (const e of entriesRef.current.values()) e.layer.remove();
+      entriesRef.current.clear();
+      orderedRef.current = [];
+      lastPairRef.current = null;
+      lastVisibleIsoRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, effectiveLayer]);
+
+  // Diff-Mount: neue Frames inkrementell hinzufügen, obsolete NICHT sofort
+  // entfernen (nur wenn sie nicht mehr sichtbar sind und weit ausserhalb des
+  // aktuellen Fensters liegen).
+  useEffect(() => {
+    if (frames.length === 0) return;
 
     const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean } = {
       layers: effectiveLayer,
@@ -125,15 +159,23 @@ const FrameStack = forwardRef<
         'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
 
-    const mountFrame = (i: number) => {
-      if (i < 0 || i >= frames.length || layersRef.current[i]) return;
-      const f = frames[i];
-      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: i === initialIndex ? 1 : 0 });
-      tl.setParams({ time: f.time } as unknown as L.WMSParams, false);
+    const mountEntry = (iso: string): FrameEntry | null => {
+      if (entriesRef.current.has(iso)) return entriesRef.current.get(iso)!;
+      const t = Date.parse(iso);
+      if (Number.isNaN(t)) return null;
+      // Neuer Layer startet unsichtbar; der Ready-Handler oder der nächste
+      // setTimeMs-Aufruf entscheidet, wann er sichtbar wird.
+      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 0 });
+      tl.setParams({ time: iso } as unknown as L.WMSParams, false);
+      const entry: FrameEntry = { iso, t, layer: tl, ready: false };
       tl.on("load", () => {
-        if (!loadedRef.current.has(i)) {
-          loadedRef.current.add(i);
-          onProgress(loadedRef.current.size, frames.length);
+        if (!entry.ready) {
+          entry.ready = true;
+          // Progress zählt nur "im Manifest enthaltene" Frames.
+          const total = orderedRef.current.length || 1;
+          let loaded = 0;
+          for (const e of orderedRef.current) if (e.ready) loaded++;
+          onProgressRef.current(loaded, total);
         }
       });
       tl.on("tileerror", () => {
@@ -143,93 +185,163 @@ const FrameStack = forwardRef<
         }
       });
       tl.addTo(map);
-      layersRef.current[i] = tl;
+      entriesRef.current.set(iso, entry);
+      return entry;
     };
 
-    mountFrame(initialIndex);
-    onProgress(0, frames.length);
-
-    let cancelled = false;
-    const order: number[] = [];
-    for (let d = 1; d < frames.length; d++) {
-      const a = initialIndex + d;
-      const b = initialIndex - d;
-      if (a < frames.length) order.push(a);
-      if (b >= 0) order.push(b);
+    // ordered aus neuem Manifest neu bauen.
+    const nextOrdered: FrameEntry[] = [];
+    for (const f of frames) {
+      const existing = entriesRef.current.get(f.time);
+      if (existing) {
+        nextOrdered.push(existing);
+      } else {
+        // Zunächst placeholder-artig hinzufügen; tatsächliches Mounten passiert
+        // priorisiert weiter unten.
+      }
     }
-    const timers: number[] = [];
-    order.forEach((i, k) => {
-      const t = window.setTimeout(() => {
-        if (cancelled) return;
-        mountFrame(i);
-      }, 80 + k * 40);
-      timers.push(t);
-    });
 
-    return () => {
-      cancelled = true;
-      timers.forEach((t) => window.clearTimeout(t));
-      layersRef.current.forEach((tl) => tl?.remove());
-      layersRef.current = [];
-      lastPairRef.current = null;
-    };
+    // Initial-Frame priorisiert mounten.
+    if (initialIso) mountEntry(initialIso);
+
+    // Reihenfolge: initial → radial → rest. Erst synchron initial, dann
+    // gestaffelt via setTimeout, damit der Main-Thread frei bleibt.
+    const isoOrder = frames.map((f) => f.time);
+    const initIdx = initialIso ? isoOrder.indexOf(initialIso) : 0;
+    const priority: string[] = [];
+    for (let d = 1; d < isoOrder.length; d++) {
+      const a = initIdx + d;
+      const b = initIdx - d;
+      if (a < isoOrder.length) priority.push(isoOrder[a]);
+      if (b >= 0) priority.push(isoOrder[b]);
+    }
+
+    // Sofort mounten (aber Progress-Ziel updaten). Kein Remove obsoleter Frames
+    // — sie bleiben unsichtbar bestehen und können nach Refetch wieder in die
+    // ordered-Liste rutschen. Speicherbedarf ist minimal (≤ ~30 Layer).
+    for (const iso of priority) mountEntry(iso);
+
+    // ordered final zusammensetzen (nach t sortiert; Manifest ist bereits sortiert).
+    const rebuilt: FrameEntry[] = [];
+    for (const f of frames) {
+      const e = entriesRef.current.get(f.time);
+      if (e) rebuilt.push(e);
+    }
+    orderedRef.current = rebuilt;
+
+    // Progress initial anstoßen.
+    let loaded = 0;
+    for (const e of rebuilt) if (e.ready) loaded++;
+    onProgressRef.current(loaded, rebuilt.length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, effectiveLayer, frames]);
+  }, [frames, effectiveLayer, map]);
+
+  const neighborsAt = useCallback((ms: number): { prev: FrameEntry | null; next: FrameEntry | null; alpha: number } => {
+    const arr = orderedRef.current;
+    if (arr.length === 0) return { prev: null, next: null, alpha: 0 };
+    // Randfälle
+    if (ms <= arr[0].t) return { prev: arr[0], next: arr[0], alpha: 0 };
+    if (ms >= arr[arr.length - 1].t) {
+      const last = arr[arr.length - 1];
+      return { prev: last, next: last, alpha: 0 };
+    }
+    // Binäre Suche: iPrev = letzter mit t <= ms
+    let lo = 0;
+    let hi = arr.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (arr[mid].t <= ms) lo = mid;
+      else hi = mid - 1;
+    }
+    const prev = arr[lo];
+    const next = arr[Math.min(lo + 1, arr.length - 1)];
+    const dt = next.t - prev.t;
+    const a = dt > 0 ? Math.max(0, Math.min(1, (ms - prev.t) / dt)) : 0;
+    return { prev, next, alpha: a * a * (3 - 2 * a) };
+  }, []);
+
+  const findReadyNeighbor = useCallback((fromIndex: number, dir: -1 | 1): FrameEntry | null => {
+    const arr = orderedRef.current;
+    for (let i = fromIndex; i >= 0 && i < arr.length; i += dir) {
+      if (arr[i].ready) return arr[i];
+    }
+    return null;
+  }, []);
 
   useImperativeHandle(
     ref,
     () => ({
       setTimeMs: (ms: number) => {
-        const t = timesRef.current;
-        if (t.length === 0) return;
-        // iPrev = letzter Frame mit times[i] <= ms; iNext = iPrev+1 (oder gleich)
-        let iPrev = 0;
-        // binäre Suche
-        let lo = 0;
-        let hi = t.length - 1;
-        if (ms <= t[0]) {
-          iPrev = 0;
-        } else if (ms >= t[hi]) {
-          iPrev = hi;
-        } else {
-          while (lo < hi) {
-            const mid = (lo + hi + 1) >> 1;
-            if (t[mid] <= ms) lo = mid;
-            else hi = mid - 1;
-          }
-          iPrev = lo;
-        }
-        const iNext = Math.min(iPrev + 1, t.length - 1);
-        const dt = t[iNext] - t[iPrev];
-        let a = dt > 0 ? (ms - t[iPrev]) / dt : 0;
-        if (a < 0) a = 0;
-        else if (a > 1) a = 1;
-        // smoothstep gegen Flackern
-        const alpha = a * a * (3 - 2 * a);
+        const arr = orderedRef.current;
+        if (arr.length === 0) return;
+        const { prev, next, alpha } = neighborsAt(ms);
+        if (!prev || !next) return;
 
-        const layers = layersRef.current;
+        // Ziel-Bild ermitteln nach Ready-Gate:
+        //  - beide ready → klassisches Crossfade
+        //  - nur prev ready → prev voll sichtbar
+        //  - nur next ready → next voll sichtbar
+        //  - keiner ready → letzter sichtbarer Frame bleibt stehen; ansonsten
+        //    nächstbester ready Nachbar in eine Richtung
+        let showA: FrameEntry | null = null;
+        let showB: FrameEntry | null = null;
+        let effAlpha = 0;
+
+        if (prev === next) {
+          if (prev.ready) { showA = prev; effAlpha = 0; }
+        } else if (prev.ready && next.ready) {
+          showA = prev; showB = next; effAlpha = alpha;
+        } else if (prev.ready) {
+          showA = prev; effAlpha = 0;
+        } else if (next.ready) {
+          showA = next; effAlpha = 0;
+        } else {
+          // Kein direkter Nachbar ready — nutze zuletzt gezeigten, sonst suche.
+          const stickyIso = lastVisibleIsoRef.current;
+          const sticky = stickyIso ? entriesRef.current.get(stickyIso) : null;
+          if (sticky && sticky.ready) {
+            showA = sticky;
+          } else {
+            // suche im ordered-Fenster
+            const idxPrev = arr.indexOf(prev);
+            const l = findReadyNeighbor(idxPrev, -1);
+            const r = findReadyNeighbor(Math.min(arr.length - 1, idxPrev + 1), 1);
+            showA = l ?? r;
+          }
+        }
+
+        // Alte Pair-Layer, die jetzt NICHT mehr Teil des Zielsets sind, auf 0.
         const last = lastPairRef.current;
-        // Alte Paar-Layer auf 0 setzen, sofern sie nicht Teil des neuen Paars sind.
         if (last) {
-          for (const idx of last) {
-            if (idx !== iPrev && idx !== iNext) {
-              const l = layers[idx];
-              if (l) l.setOpacity(0);
+          for (const iso of last) {
+            if (iso !== showA?.iso && iso !== showB?.iso) {
+              const e = entriesRef.current.get(iso);
+              if (e) e.layer.setOpacity(0);
             }
           }
         }
-        const lp = layers[iPrev];
-        const ln = layers[iNext];
-        if (iPrev === iNext) {
-          if (lp) lp.setOpacity(1);
+
+        if (showA && showB) {
+          showA.layer.setOpacity(1 - effAlpha);
+          showB.layer.setOpacity(effAlpha);
+          // Sticky = derjenige mit höherer Opacity
+          lastVisibleIsoRef.current = effAlpha >= 0.5 ? showB.iso : showA.iso;
+          lastPairRef.current = [showA.iso, showB.iso];
+        } else if (showA) {
+          showA.layer.setOpacity(1);
+          lastVisibleIsoRef.current = showA.iso;
+          lastPairRef.current = [showA.iso, showA.iso];
         } else {
-          if (lp) lp.setOpacity(1 - alpha);
-          if (ln) ln.setOpacity(alpha);
+          // Nichts ready — nichts umschalten, sticky bleibt sichtbar.
         }
-        lastPairRef.current = [iPrev, iNext];
+      },
+      canAdvanceTo: (ms: number) => {
+        const { prev, next } = neighborsAt(ms);
+        if (!prev || !next) return false;
+        return prev.ready && next.ready;
       },
     }),
-    [],
+    [neighborsAt, findReadyNeighbor],
   );
 
   return null;
