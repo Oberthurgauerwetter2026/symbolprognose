@@ -2474,7 +2474,7 @@ export function RadarMap({
     filmstripRef.current?.setTime(ms);
     const timelineState = timelineStateForMs(frames, ms);
     const now = performance.now();
-    if (opts?.syncOverlay || opts?.commit || now - lastOverlaySyncRef.current > 90) {
+    if (opts?.syncOverlay || opts?.commit || now - lastOverlaySyncRef.current > 180) {
       lastOverlaySyncRef.current = now;
       precipOverlayRef.current?.setTimeline(timelineState.frame, timelineState.nextFrame, timelineState.progress);
     }
