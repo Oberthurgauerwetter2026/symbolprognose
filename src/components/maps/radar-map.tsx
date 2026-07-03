@@ -2395,7 +2395,6 @@ export function RadarMap({
       setPlayVisualMs(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices, frames]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
@@ -2404,7 +2403,7 @@ export function RadarMap({
 
 
   // Reduzierte Frame-Liste für den Filmstrip — gleiche Cadence wie Play
-  // (5 min Messung / 15 min 0–24 h / 60 min > 24 h).
+  // (5 min Messung / durchgehend 15 min Prognose).
   const stripFrames = useMemo(
     () => playStepIndices.map((i) => frames[i]).filter(Boolean) as RadarFrame[],
     [playStepIndices, frames],
