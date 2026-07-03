@@ -51,7 +51,19 @@ export const Route = createFileRoute("/api/public/radar/proxy")({
             // try next
           }
         }
-        return bad(502, "upstream fetch failed");
+        // Return a 1x1 transparent PNG with 404 so the client treats it as a
+        // missing frame instead of a runtime error (avoids blank-screen boundary).
+        const transparentPng = Uint8Array.from(atob(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+        ), (c) => c.charCodeAt(0));
+        return new Response(transparentPng, {
+          status: 404,
+          headers: {
+            "Content-Type": "image/png",
+            "Cache-Control": "public, max-age=60",
+            ...CORS,
+          },
+        });
       },
     },
   },
