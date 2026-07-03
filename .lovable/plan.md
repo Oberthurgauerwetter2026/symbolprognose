@@ -1,86 +1,69 @@
-## Analyseergebnis
+## Analyse
 
-Ich habe die Satelliten-Pipeline in `src/components/maps/satellite-map.tsx` und `src/lib/satellite.functions.ts` geprüft. Die wahrscheinlichsten Ursachen für das weiße/helle Flackern und die weichere Bildqualität sind:
+**Ursache des weißen Flackerns**
+- Die Satellitenframes werden aktuell als viele separate Leaflet-WMS-TileLayer gemountet (`FrameStack`, `src/components/maps/satellite-map.tsx:101-389`).
+- Neue Frames werden während der laufenden Karte als zusätzliche Leaflet-Layer/Tiles hinzugefügt (`tl.addTo(map)`, `satellite-map.tsx:327`). Dadurch entsteht DOM-/Tile-Churn im Leaflet-Tile-Pane.
+- Die Sichtbarkeit wird pro Zeitposition über Layer-Opacity geregelt (`satellite-map.tsx:224-239`). Sobald ein Ziel-Layer formal als geladen gilt, kann er eingeblendet werden, obwohl einzelne Browser-Paints/Tile-Decodes noch nicht stabil sichtbar sind.
+- Auf Region-/Layer-Wechsel wird der gesamte Frame-Stack entfernt (`satellite-map.tsx:126-144`). Das ist nicht der normale Framewechsel, aber es bestätigt, dass der aktuelle Ansatz Layer als austauschbare Leaflet-Objekte behandelt.
+- Die Karte nutzt keinen Canvas/WebGL-Kontext; das Problem entsteht in der Leaflet-DOM-/Tile-Pipeline.
 
-1. **Fallback-Wechsel entfernt den gesamten Layer-Stack**
-   - In `satellite-map.tsx:181-185` löst bereits ein einzelner `tileerror` den Wechsel auf den Fallback-Layer aus.
-   - Danach läuft der Effekt in `satellite-map.tsx:127-141` und entfernt alle bestehenden Leaflet-Layer.
-   - Das ist genau der Zustand, der kurz eine leere Kartenfläche zeigen kann.
-   - Im Live-DOM war sichtbar, dass aktuell `mtg_fd:rgb_geocolour` statt `mtg_hrfi:rgb_geocolour` angezeigt wird. Das erklärt zusätzlich die schlechtere Schärfe, weil die HRFI-Quelle verlassen wurde.
+**Ursache der ruckelnden Animation**
+- Die RAF-Schleife ist zwar vorhanden, aber sie hält die Zeit aktiv an, sobald `canAdvanceTo(next)` nicht beide Nachbarframes als ready meldet (`satellite-map.tsx:727-796`). Das verhindert weiße Lücken teilweise, erzeugt aber sichtbare Pausen und ungleichmäßige Geschwindigkeit.
+- Autoplay startet bereits, wenn nur zwei Frames geladen sind (`ready = loaded >= Math.min(total, 2)`, `satellite-map.tsx:667` und `satellite-map.tsx:721-725`). Für eine komplette flüssige Schleife reicht das nicht.
+- Das initiale Preloading priorisiert beim neuesten Frame direkt den Wrap zum ältesten Frame (`satellite-map.tsx:332-356`). Dadurch fehlen beim Abspielen oft die tatsächlich nächsten Zwischenframes.
+- Bei Manifest-Updates wird die Renderzeit wieder auf einen diskreten Frame gesetzt (`satellite-map.tsx:698-712`). Das kann zusätzliche Sprünge verursachen.
 
-2. **Initiales Preloading lädt potenziell die falschen Frames zuerst**
-   - `FrameStack` bekommt beim ersten Render oft `initialIsoRef.current` noch als `null` (`satellite-map.tsx:898`).
-   - Dadurch wird die Priorisierung in `satellite-map.tsx:204-222` vom ersten/ältesten Frame aus aufgebaut, während die UI direkt zum neuesten Frame springt (`satellite-map.tsx:653-667`).
-   - Ergebnis: Die sichtbare Zielzeit kann noch nicht vollständig geladen sein.
+## Plan zur dauerhaften Behebung
 
-3. **Ready-Gate ist noch nicht paint-/decode-sicher**
-   - `ready` wird beim Leaflet-`load` gesetzt (`satellite-map.tsx:171-179`). Das bedeutet: Netzwerk/Tiles fertig, aber nicht zwingend sicher dekodiert und stabil im nächsten Paint sichtbar.
-   - Danach werden Opacities sofort geändert (`satellite-map.tsx:324-331`). In genau diesem Moment kann der Browser kurz den Kartenhintergrund zeigen.
+### 1. TileLayer-Frame-Stack durch stabile Double-Buffer-Bildpipeline ersetzen
+- Den Satellitenraster nicht mehr als separaten Leaflet-WMS-TileLayer pro Frame darstellen.
+- Stattdessen pro sichtbarem Kartenviewport direkte WMS-`GetMap`-Bilder laden: ein vollständiges Bild pro Satellitenzeit.
+- Zwei persistente `<img>`-Buffer über der Leaflet-Karte halten:
+  - Buffer A = vorheriger Frame
+  - Buffer B = nächster Frame
+- Die DOM-Elemente bleiben dauerhaft gemountet; nur `src`, `opacity` und Transform/Größe werden kontrolliert aktualisiert.
+- Das aktuelle Bild bleibt immer sichtbar, bis beide für die Zielzeit benötigten Bilder vollständig geladen und per `decode()` renderbereit sind.
 
-4. **Kartenhintergrund fällt auf Leaflet-Standard zurück**
-   - Obwohl `bg-black` gesetzt ist (`satellite-map.tsx:888`), war im Live-DOM der berechnete Kartenhintergrund `rgb(221, 221, 221)` — Leaflets heller Default-Hintergrund.
-   - Wenn ein Layer kurz leer ist, sieht man daher ein helles/weißliches Aufblitzen.
+### 2. Echtes Preloading vor Autoplay
+- Beim ersten Laden zunächst alle Frames des aktuellen Zeitfensters im Hintergrund laden und dekodieren, mindestens aber einen zusammenhängenden Play-Korridor vom aktuellen Zeitpunkt bis zum Loop-Ende.
+- Autoplay erst aktivieren, wenn die für die Wiedergabe benötigten Frames renderbereit im Cache liegen.
+- Während Manifest-Refetches alte Bilder im Cache behalten; neue Frames werden im Hintergrund ergänzt, ohne die sichtbare Animation zu resetten.
 
-5. **Autoplay startet zu früh**
-   - `ready` wird bereits bei 50% geladener Frames gesetzt (`satellite-map.tsx:617-619`).
-   - Für flüssige Animation reicht das nicht; relevant ist nicht die Gesamtquote, sondern ob aktueller Frame, nächster Frame und Lookahead vollständig bereit sind.
+### 3. Eine gemeinsame kontinuierliche Timeline für Play und Scrubbing
+- Eine zentrale Funktion `applyTimelineMs(ms)` steuert Karte und Filmstrip.
+- Autoplay und manuelles Scrubbing rufen dieselbe Funktion auf.
+- Die RAF-Schleife läuft konstant weiter und berechnet `t` kontinuierlich aus `dt`, statt an Tile-Readiness hängen zu bleiben.
+- Wenn ein Zielbild beim Scrubbing noch nicht verfügbar ist, bleibt das letzte vollständig renderbare Bild sichtbar, während die Zielbilder priorisiert vorgeladen werden.
 
-6. **Bildqualität geht durch Fallback, JPEG und fehlende HiDPI-Strategie verloren**
-   - Gewünschte Hauptquelle ist HRFI: `mtg_hrfi:rgb_geocolour` (`satellite.functions.ts:36`, `49`).
-   - Durch den automatischen Fallback wird aber offenbar `mtg_fd:rgb_geocolour` genutzt.
-   - WMS wird aktuell als `image/jpeg` mit `tileSize: 512` angefordert (`satellite-map.tsx:151-155`). Auf HiDPI-Displays und bei verlustbehafteter JPEG-Ausgabe kann das weicher wirken.
+### 4. Kontinuierliche Wolkenbewegung per Crossfade-Interpolation
+- Für jede Zeit `t` werden die beiden benachbarten Satellitenzeiten gesucht.
+- `alpha` wird kontinuierlich aus der Position zwischen diesen Frames berechnet.
+- Beide dekodierten Buffer werden mit `opacity = 1-alpha` und `opacity = alpha` überblendet.
+- Dadurch entstehen keine harten Frame-Sprünge; die Bewegung wirkt wie ein ruhiger Film statt wie Einzelbilder.
 
-## Plan zur Behebung
+### 5. React-Re-Renders aus dem Animationspfad entfernen
+- Keine React-State-Updates pro Frame.
+- Filmstrip, Zeitlabel und Bildopacities werden imperativ per Refs aktualisiert.
+- `uiIndex`/Button-State nur stark gedrosselt aktualisieren oder aus der aktuellen Ref-Zeit ableiten.
+- Manifest-Updates dürfen den Renderer nicht remounten und die aktuelle Zeit nicht auf diskrete Frames zurücksetzen.
 
-### 1. Layer-Wechsel flickerfrei machen
-- Den automatischen Fallback bei einem einzelnen `tileerror` entfernen.
-- Fallback nur noch verwenden, wenn eine versteckte Probe für den primären HRFI-Layer systematisch fehlschlägt.
-- Beim Fallback niemals den sichtbaren Layer-Stack sofort entfernen: erst neuen Layer vollständig im Hintergrund laden, dann überblenden.
+### 6. Cache- und Qualitätsstrategie
+- Bildcache keyed nach `layer + time + viewport + devicePixelRatio`.
+- Bereits dekodierte Bilder wiederverwenden; identische URLs nicht erneut laden.
+- HiDPI-Bilder über WMS-`WIDTH/HEIGHT` mit DPR-Skalierung anfordern, aber CSS-seitig stabil in die Karte einpassen.
+- HRFI/hochwertige EUMETSAT-Layer beibehalten; keine automatische Qualitäts-Degradierung während Playback.
 
-### 2. Echtes Double Buffering einführen
-- Eine stabile sichtbare Ebene bleibt immer aktiv.
-- Die nächste Ebene wird in einem unsichtbaren Back-Buffer geladen.
-- Erst wenn alle sichtbaren Tiles geladen, dekodiert und mindestens einen Paint-Zyklus stabil sind, darf der Back-Buffer eingeblendet werden.
-- Der alte Frame bleibt währenddessen bei voller Deckkraft sichtbar.
-- Nach dem Crossfade wird der alte Layer als wiederverwendbarer Buffer behalten, nicht entfernt.
+### 7. Sicherheitsnetz gegen helle Zwischenzustände
+- Die vorhandene dunkle Leaflet-Hintergrundregel beibehalten.
+- Zusätzlich die Bildbuffer selbst mit dunklem Hintergrund und `visibility`/`opacity` so steuern, dass nie ein leerer/weißer Kartenbereich sichtbar werden kann.
 
-### 3. Decode-/Paint-sichere Readiness
-- Die WMS-Tile-Erstellung so erweitern, dass nicht nur Leaflets `load`, sondern auch `HTMLImageElement.decode()` bzw. ein sicherer Fallback ausgewertet wird.
-- Ein Frame gilt erst als renderbereit, wenn alle aktuell benötigten Tiles fertig geladen und dekodiert sind.
-- Opacity-Wechsel erfolgen erst nach `requestAnimationFrame`, damit der Browser den neuen Frame garantiert gezeichnet hat.
-
-### 4. Preloading priorisieren und begrenzen
-- Beim Start zuerst den tatsächlich sichtbaren initialen Frame laden, nicht den ältesten Frame.
-- Danach die nächsten 2–3 Frames in Wiedergaberichtung preloaden.
-- Beim Scrubbing den Zielbereich priorisiert laden, aber bis dahin den nächsten bereits fertigen Frame sichtbar halten.
-- Keine Massen-Mounts aller Frames gleichzeitig, um WMS-Requests, Cache-Churn und Tile-Errors zu reduzieren.
-
-### 5. Kontinuierliche Timeline ohne sichtbare Leerstelle
-- `requestAnimationFrame` bleibt die Zeitbasis.
-- Die Zeit darf nur in Bereiche laufen, deren benötigte Frames renderbereit sind.
-- Wenn ein Zielframe noch fehlt, bleibt die sichtbare Zeit am letzten fertigen Bild stehen; Filmstrip und Karte bleiben synchron.
-- Kein Layer wird während Playback oder Scrubbing entfernt, solange er als sichtbarer oder letzter stabiler Frame gebraucht wird.
-
-### 6. Leaflet-Hintergrund als Sicherheitsnetz korrigieren
-- Eine Satelliten-spezifische Map-Klasse bekommt explizit einen dunklen Hintergrund auf `.leaflet-container`, `.leaflet-tile-pane` und relevante Panes.
-- Das behebt nicht die Hauptursache, verhindert aber jedes helle Aufblitzen, falls ein externer Tile-Server kurz verzögert reagiert.
-
-### 7. Maximale EUMETSAT-Bildqualität nutzen
-- HRFI-Layer (`mtg_hrfi:*`) als bevorzugte Quelle beibehalten und nicht unnötig auf `mtg_fd:*` zurückfallen.
-- Vor der finalen Änderung die WMS-Capabilities für verfügbare Formate und Layer prüfen.
-- Wenn verfügbar, für GeoColour/IR auf verlustärmere Ausgabe wie `image/png` wechseln oder eine Qualitätsoption nutzen.
-- HiDPI/Retina-fähige Tiles anfordern, damit auf Displays mit höherer Pixeldichte keine CSS-Hochskalierung sichtbar wird.
-- Tile-Resampling nur browserseitig hochwertig lassen (`image-rendering: auto`) und keine künstliche Weichzeichnung/Skalierung einführen.
-
-### 8. React-Remounts weiter reduzieren
-- `FrameStack` stabil halten; keine `key`- oder Effekt-Änderung darf bei Manifest-Refetch den sichtbaren Stack entfernen.
-- Manifest-Updates sollen die bestehende Wiedergabezeit erhalten, statt die Animation auf einen diskreten Frame zurückzusetzen.
-- UI-State bleibt gedrosselt; die Karte wird weiterhin imperativ über die RAF-Pipeline gesteuert.
-
-## Erfolgskriterium nach Umsetzung
-
-- Während Playback und Scrubbing ist immer mindestens ein vollständig geladenes Satellitenbild sichtbar.
-- Keine helle/weiße Kartenfläche erscheint zwischen zwei Frames.
-- HRFI bleibt die primäre Datenquelle; Fallback wird nur kontrolliert und flickerfrei genutzt.
-- Wolkenstrukturen wirken schärfer, besonders auf HiDPI-Displays und bei höheren Zoomstufen.
-- Die Animation bleibt kontinuierlich, ohne framebasiertes Springen oder sichtbares Neuladen.
+### 8. Verifikation und Dokumentation
+- Nach Umsetzung per Live-Profil prüfen:
+  - keine entfernten/neu gemounteten Frame-Layer während Playback,
+  - keine neuen Bildrequests für bereits gecachte Zeiten,
+  - stabile RAF-Frametimes,
+  - kein sichtbarer weißer Hintergrund beim Play oder Scrubbing.
+- Anschließend dokumentieren:
+  - tatsächliche Ursache des Flackerns,
+  - Ursache der Ruckler,
+  - technische Änderungen, die beide Probleme beheben.
