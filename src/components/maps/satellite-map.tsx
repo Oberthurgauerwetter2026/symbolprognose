@@ -1,12 +1,4 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MapContainer, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -37,9 +29,8 @@ import {
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#2561a1";
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
+const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
-// Play-Geschwindigkeiten: reale ms zwischen zwei Frame-Schritten.
-// Der RAF-Loop wandelt das in eine kontinuierliche Zeitrate um.
 const SPEEDS = [
   { label: "0.5×", ms: 1000 },
   { label: "1×", ms: 500 },
@@ -62,405 +53,129 @@ function SwissOutline() {
   return (
     <GeoJSON
       data={SWITZERLAND}
-      style={{ color: "#ffffff", weight: 1.5, opacity: 0.9, fill: false, interactive: false }}
+      style={{
+        color: "#ffffff",
+        weight: 1.5,
+        opacity: 0.9,
+        fill: false,
+        interactive: false,
+      }}
     />
   );
 }
 
-// ---------- Frame-Stack mit stabilem Double-Buffer ----------
-// Leaflet-WMS-TileLayer werden hier bewusst nicht pro Satellitenzeit gemountet:
-// genau dieses Tile-/Layer-Churn erzeugt sichtbare Leerzustände im Tile-Pane.
-// Stattdessen lädt der Renderer pro Zeitpunkt ein komplettes GetMap-Bild,
-// dekodiert es im Hintergrund und blendet zwei dauerhaft gemountete <img>-Buffer
-// über eine kontinuierliche Zeitachse. Dadurch bleibt immer ein vollständiges
-// Bild sichtbar; React und Leaflet werden im RAF-Pfad nicht neu gerendert.
-
-type FrameEntry = {
-  iso: string;
-  t: number;
-  url: string;
-  status: "idle" | "loading" | "ready" | "error";
-  image?: HTMLImageElement;
-  promise?: Promise<void>;
-};
-
-type FrameStackHandle = {
-  /** Setzt die aktuell darzustellende Zeit (ms). Blendet zwischen den beiden
-   *  benachbarten WMS-Frames kontinuierlich über. */
-  setTimeMs: (ms: number) => void;
-  /** True, wenn bei `ms` beide Nachbar-Frames vollständig geladen sind. */
-  canAdvanceTo: (ms: number) => boolean;
-  /** True, wenn für `ms` mindestens ein renderfertiger Frame gezeigt werden kann. */
-  hasRenderableAt: (ms: number) => boolean;
-};
-
-const FrameStack = forwardRef<
-  FrameStackHandle,
-  {
-    layer: string;
-    frames: SatelliteFrame[];
-    initialIso: string | null;
-    onProgress: (loaded: number, total: number) => void;
-  }
->(function FrameStack(
-  { layer, frames, initialIso, onProgress },
-  ref,
-) {
+/**
+ * Mountet zuerst nur den aktiven Frame, dann inkrementell die übrigen
+ * (radial vom aktiven Index aus).
+ */
+function FrameStack({
+  layer,
+  fallbackLayer,
+  frames,
+  activeIndex,
+  initialIndex,
+  onProgress,
+}: {
+  layer: string;
+  fallbackLayer?: string;
+  frames: SatelliteFrame[];
+  activeIndex: number;
+  initialIndex: number;
+  onProgress: (loaded: number, total: number) => void;
+}) {
   const map = useMap();
-  const entriesRef = useRef<Map<string, FrameEntry>>(new Map());
-  const orderedRef = useRef<FrameEntry[]>([]);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const imgARef = useRef<HTMLImageElement | null>(null);
-  const imgBRef = useRef<HTMLImageElement | null>(null);
-  const imgAIsoRef = useRef<string | null>(null);
-  const imgBIsoRef = useRef<string | null>(null);
-  const imgAUrlRef = useRef<string | null>(null);
-  const imgBUrlRef = useRef<string | null>(null);
-  const lastVisibleIsoRef = useRef<string | null>(null);
-  const targetMsRef = useRef<number | null>(null);
-  const preloadTimersRef = useRef<number[]>([]);
-  const viewportRef = useRef<{ key: string; bbox: string; width: number; height: number } | null>(null);
-  const [viewportKey, setViewportKey] = useState("");
-  const onProgressRef = useRef(onProgress);
-  useEffect(() => { onProgressRef.current = onProgress; }, [onProgress]);
+  const layersRef = useRef<(L.TileLayer.WMS | null)[]>([]);
+  const loadedRef = useRef<Set<number>>(new Set());
+  const [effectiveLayer, setEffectiveLayer] = useState(layer);
+  const triedFallbackRef = useRef(false);
 
-  const markProgress = useCallback(() => {
-    const total = orderedRef.current.length || 1;
-    let loaded = 0;
-    for (const e of orderedRef.current) if (e.status === "ready") loaded++;
-    onProgressRef.current(loaded, total);
-  }, []);
-
-  const computeViewport = useCallback(() => {
-    const size = map.getSize();
-    if (size.x <= 0 || size.y <= 0) return null;
-    const rawDpr = Math.min(window.devicePixelRatio || 1, 2);
-    const maxSide = 2048;
-    const scale = Math.max(1, Math.min(rawDpr, maxSide / size.x, maxSide / size.y));
-    const width = Math.max(1, Math.round(size.x * scale));
-    const height = Math.max(1, Math.round(size.y * scale));
-    const bounds = map.getBounds();
-    const crs = map.options.crs ?? L.CRS.EPSG3857;
-    const sw = crs.project(bounds.getSouthWest());
-    const ne = crs.project(bounds.getNorthEast());
-    const bbox = [sw.x, sw.y, ne.x, ne.y].map((n) => n.toFixed(2)).join(",");
-    return { key: `${bbox}:${width}x${height}`, bbox, width, height };
-  }, [map]);
-
-  const buildUrl = useCallback((iso: string): string | null => {
-    const vp = viewportRef.current;
-    if (!vp) return null;
-    const params = new URLSearchParams({
-      service: "WMS",
-      request: "GetMap",
-      version: "1.3.0",
-      layers: layer,
-      styles: "",
-      format: "image/png",
-      transparent: "true",
-      crs: "EPSG:3857",
-      bbox: vp.bbox,
-      width: String(vp.width),
-      height: String(vp.height),
-      time: iso,
-    });
-    return `${WMS_URL}?${params.toString()}`;
+  useEffect(() => {
+    setEffectiveLayer(layer);
+    triedFallbackRef.current = false;
   }, [layer]);
 
-  // Stabile Overlay-DOM-Knoten einmal anlegen. Die beiden Bildbuffer bleiben
-  // während Playback/Scrubbing dauerhaft gemountet; es werden nur src/opacity
-  // aktualisiert.
   useEffect(() => {
-    const root = map.getContainer();
-    const container = L.DomUtil.create("div", "satellite-image-stack", root);
-    const imgA = new Image();
-    const imgB = new Image();
-    imgA.decoding = "async";
-    imgB.decoding = "async";
-    imgA.alt = "Satellitenbild vorheriger Zeitpunkt";
-    imgB.alt = "Satellitenbild nächster Zeitpunkt";
-    imgA.className = "satellite-buffer-image";
-    imgB.className = "satellite-buffer-image";
-    imgA.style.opacity = "0";
-    imgB.style.opacity = "0";
-    container.append(imgA, imgB);
-    containerRef.current = container;
-    imgARef.current = imgA;
-    imgBRef.current = imgB;
+    loadedRef.current = new Set();
+    layersRef.current = new Array(frames.length).fill(null);
 
-    return () => {
-      for (const timer of preloadTimersRef.current) window.clearTimeout(timer);
-      preloadTimersRef.current = [];
-      container.remove();
-      entriesRef.current.clear();
-      orderedRef.current = [];
-      imgAIsoRef.current = null;
-      imgBIsoRef.current = null;
-      imgAUrlRef.current = null;
-      imgBUrlRef.current = null;
-      lastVisibleIsoRef.current = null;
-      targetMsRef.current = null;
-      containerRef.current = null;
-      imgARef.current = null;
-      imgBRef.current = null;
+    const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean } = {
+      layers: effectiveLayer,
+      format: "image/jpeg",
+      transparent: false,
+      version: "1.3.0",
+      crs: L.CRS.EPSG3857,
+      tileSize: 512,
+      keepBuffer: 0,
+      updateWhenZooming: false,
+      attribution:
+        'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
-  }, [map]);
 
-  // Viewport-/Region-Änderungen erzeugen neue GetMap-URLs. Das sichtbare alte
-  // Bild bleibt stehen, bis die neuen Bilder dekodiert wurden.
-  useEffect(() => {
-    const updateViewport = () => {
-      const next = computeViewport();
-      if (!next || next.key === viewportRef.current?.key) return;
-      viewportRef.current = next;
-      setViewportKey(next.key);
-    };
-    updateViewport();
-    const raf = requestAnimationFrame(updateViewport);
-    map.on("resize moveend zoomend", updateViewport);
-    return () => {
-      cancelAnimationFrame(raf);
-      map.off("resize moveend zoomend", updateViewport);
-    };
-  }, [computeViewport, map]);
-
-  const neighborsAt = useCallback((ms: number): { prev: FrameEntry | null; next: FrameEntry | null; alpha: number } => {
-    const arr = orderedRef.current;
-    if (arr.length === 0) return { prev: null, next: null, alpha: 0 };
-    // Randfälle
-    if (ms <= arr[0].t) return { prev: arr[0], next: arr[0], alpha: 0 };
-    if (ms >= arr[arr.length - 1].t) {
-      const last = arr[arr.length - 1];
-      return { prev: last, next: last, alpha: 0 };
-    }
-    // Binäre Suche: iPrev = letzter mit t <= ms
-    let lo = 0;
-    let hi = arr.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (arr[mid].t <= ms) lo = mid;
-      else hi = mid - 1;
-    }
-    const prev = arr[lo];
-    const next = arr[Math.min(lo + 1, arr.length - 1)];
-    const dt = next.t - prev.t;
-    const a = dt > 0 ? Math.max(0, Math.min(1, (ms - prev.t) / dt)) : 0;
-    return { prev, next, alpha: a * a * (3 - 2 * a) };
-  }, []);
-
-  const findReadyNeighbor = useCallback((fromIndex: number, dir: -1 | 1): FrameEntry | null => {
-    const arr = orderedRef.current;
-    for (let i = fromIndex; i >= 0 && i < arr.length; i += dir) {
-      if (arr[i].status === "ready") return arr[i];
-    }
-    return null;
-  }, []);
-
-  const hasRenderableAt = useCallback((ms: number): boolean => {
-    const arr = orderedRef.current;
-    if (arr.length === 0) return false;
-    const { prev, next } = neighborsAt(ms);
-    if (prev?.status === "ready" || next?.status === "ready") return true;
-    const stickyIso = lastVisibleIsoRef.current;
-    const sticky = stickyIso ? entriesRef.current.get(stickyIso) : null;
-    return sticky?.status === "ready";
-  }, [neighborsAt]);
-
-  const setImgSource = useCallback((slot: "a" | "b", entry: FrameEntry | null) => {
-    const img = slot === "a" ? imgARef.current : imgBRef.current;
-    if (!img) return;
-    const isoRef = slot === "a" ? imgAIsoRef : imgBIsoRef;
-    const urlRef = slot === "a" ? imgAUrlRef : imgBUrlRef;
-    if (!entry || entry.status !== "ready") {
-      img.style.opacity = "0";
-      isoRef.current = null;
-      urlRef.current = null;
-      return;
-    }
-    if (isoRef.current !== entry.iso || urlRef.current !== entry.url) {
-      img.src = entry.url;
-      isoRef.current = entry.iso;
-      urlRef.current = entry.url;
-    }
-  }, []);
-
-  const applyTime = useCallback((ms: number) => {
-    const arr = orderedRef.current;
-    if (arr.length === 0) return;
-    const { prev, next, alpha } = neighborsAt(ms);
-    if (!prev || !next) return;
-
-    let showA: FrameEntry | null = null;
-    let showB: FrameEntry | null = null;
-    let effAlpha = 0;
-
-    if (prev === next) {
-      if (prev.status === "ready") { showA = prev; effAlpha = 0; }
-    } else if (prev.status === "ready" && next.status === "ready") {
-      showA = prev; showB = next; effAlpha = alpha;
-    } else if (prev.status === "ready") {
-      showA = prev; effAlpha = 0;
-    } else if (next.status === "ready") {
-      showA = next; effAlpha = 0;
-    } else {
-      const stickyIso = lastVisibleIsoRef.current;
-      const sticky = stickyIso ? entriesRef.current.get(stickyIso) : null;
-      if (sticky?.status === "ready") {
-        showA = sticky;
-      } else {
-        const idxPrev = arr.indexOf(prev);
-        const l = findReadyNeighbor(idxPrev, -1);
-        const r = findReadyNeighbor(Math.min(arr.length - 1, idxPrev + 1), 1);
-        showA = l ?? r;
-      }
-    }
-
-    if (!showA && !showB) return;
-
-    const imgA = imgARef.current;
-    const imgB = imgBRef.current;
-    if (!imgA || !imgB) return;
-
-    if (showA && showB) {
-      setImgSource("a", showA);
-      setImgSource("b", showB);
-      imgA.style.opacity = String(1 - effAlpha);
-      imgB.style.opacity = String(effAlpha);
-      lastVisibleIsoRef.current = effAlpha >= 0.5 ? showB.iso : showA.iso;
-    } else if (showA) {
-      setImgSource("a", showA);
-      setImgSource("b", null);
-      imgA.style.opacity = "1";
-      imgB.style.opacity = "0";
-      lastVisibleIsoRef.current = showA.iso;
-    }
-  }, [findReadyNeighbor, neighborsAt, setImgSource]);
-
-  const ensureFrame = useCallback((entry: FrameEntry) => {
-    if (entry.status === "ready" || entry.status === "loading") return entry.promise;
-    entry.status = "loading";
-    const image = new Image();
-    image.decoding = "async";
-    const promise = new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error(`Satellite image failed: ${entry.iso}`));
-      image.src = entry.url;
-    })
-      .then(() => image.decode?.().catch(() => undefined))
-      .then(() => new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      }))
-      .then(() => {
-        entry.status = "ready";
-        entry.image = image;
-        markProgress();
-        const target = targetMsRef.current;
-        if (target !== null) applyTime(target);
-      })
-      .catch(() => {
-        entry.status = "error";
-        markProgress();
+    const mountFrame = (i: number) => {
+      if (i < 0 || i >= frames.length || layersRef.current[i]) return;
+      const f = frames[i];
+      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: i === activeIndex ? 1 : 0 });
+      tl.setParams({ time: f.time } as unknown as L.WMSParams, false);
+      tl.on("load", () => {
+        if (!loadedRef.current.has(i)) {
+          loadedRef.current.add(i);
+          onProgress(loadedRef.current.size, frames.length);
+        }
       });
-    entry.promise = promise;
-    return promise;
-  }, [applyTime, markProgress]);
+      tl.on("tileerror", () => {
+        if (!triedFallbackRef.current && fallbackLayer && fallbackLayer !== effectiveLayer) {
+          triedFallbackRef.current = true;
+          setEffectiveLayer(fallbackLayer);
+        }
+      });
+      tl.addTo(map);
+      layersRef.current[i] = tl;
+    };
 
-  // Cache/Preload: URLs sind pro Viewport stabil. Bereits dekodierte Bilder
-  // werden wiederverwendet; neue Manifest-Zeiten werden nur ergänzt.
+    mountFrame(initialIndex);
+    onProgress(0, frames.length);
+
+    let cancelled = false;
+    const order: number[] = [];
+    for (let d = 1; d < frames.length; d++) {
+      const a = initialIndex + d;
+      const b = initialIndex - d;
+      if (a < frames.length) order.push(a);
+      if (b >= 0) order.push(b);
+    }
+    const timers: number[] = [];
+    order.forEach((i, k) => {
+      const t = window.setTimeout(() => {
+        if (cancelled) return;
+        mountFrame(i);
+      }, 80 + k * 40);
+      timers.push(t);
+    });
+
+    return () => {
+      cancelled = true;
+      timers.forEach((t) => window.clearTimeout(t));
+      layersRef.current.forEach((tl) => tl?.remove());
+      layersRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, effectiveLayer, frames]);
+
   useEffect(() => {
-    if (frames.length === 0 || !viewportRef.current) return;
-
-    for (const timer of preloadTimersRef.current) window.clearTimeout(timer);
-    preloadTimersRef.current = [];
-    const nextEntries = new Map<string, FrameEntry>();
-
-    const getOrCreateEntry = (iso: string): FrameEntry | null => {
-      const url = buildUrl(iso);
-      if (!url) return null;
-      const existing = entriesRef.current.get(iso);
-      if (existing?.url === url) {
-        nextEntries.set(iso, existing);
-        return existing;
-      }
-      const t = Date.parse(iso);
-      if (Number.isNaN(t)) return null;
-      const entry: FrameEntry = {
-        iso,
-        t,
-        url,
-        status: "idle",
-      };
-      nextEntries.set(iso, entry);
-      return entry;
-    };
-
-    const isoOrder = frames.map((f) => f.time);
-    const initIdxRaw = initialIso ? isoOrder.indexOf(initialIso) : -1;
-    const initIdx = initIdxRaw >= 0 ? initIdxRaw : Math.max(0, isoOrder.length - 1);
-    const priority: string[] = [];
-    const pushUnique = (iso: string | undefined) => {
-      if (iso && !priority.includes(iso)) priority.push(iso);
-    };
-    pushUnique(isoOrder[initIdx]);
-    pushUnique(isoOrder[(initIdx + 1) % isoOrder.length]);
-    pushUnique(isoOrder[Math.max(0, initIdx - 1)]);
-    for (let d = 1; d < isoOrder.length; d++) {
-      const a = initIdx + d;
-      const b = initIdx - d;
-      if (a < isoOrder.length) pushUnique(isoOrder[a]);
-      if (b >= 0) pushUnique(isoOrder[b]);
-    }
-
-    const rebuilt: FrameEntry[] = [];
-    for (const f of frames) {
-      const e = getOrCreateEntry(f.time);
-      if (e) rebuilt.push(e);
-    }
-    entriesRef.current = nextEntries;
-    orderedRef.current = rebuilt;
-
-    markProgress();
-
-    for (const [i, iso] of priority.entries()) {
-      const entry = nextEntries.get(iso);
-      if (!entry) continue;
-      if (i < 3) {
-        void ensureFrame(entry);
-      } else {
-        const timer = window.setTimeout(() => {
-          const latest = entriesRef.current.get(iso);
-          if (latest) void ensureFrame(latest);
-        }, 55 * (i - 2));
-        preloadTimersRef.current.push(timer);
-      }
-    }
-
-    if (targetMsRef.current !== null) applyTime(targetMsRef.current);
-  }, [frames, layer, initialIso, viewportKey, buildUrl, ensureFrame, markProgress, applyTime]);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      setTimeMs: (ms: number) => {
-        targetMsRef.current = ms;
-        applyTime(ms);
-      },
-      canAdvanceTo: (ms: number) => {
-        const { prev, next } = neighborsAt(ms);
-        if (!prev || !next) return false;
-        return prev.status === "ready" && next.status === "ready";
-      },
-      hasRenderableAt,
-    }),
-    [neighborsAt, applyTime, hasRenderableAt],
-  );
+    layersRef.current.forEach((tl, i) => tl?.setOpacity(i === activeIndex ? 1 : 0));
+  }, [activeIndex]);
 
   return null;
-});
+}
 
-// ---------- Filmstrip (Radar-Look, kontinuierliche Zeitachse) ----------
+// ---------- Timeline (analog MeteoTimeline) ----------
 
-const STRIP_COLOR = BRAND;
+function fmtDayLong(d: Date): string {
+  const wd = WEEKDAY_LONG[d.getDay()];
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
+}
 
 function fmtBubble(d: Date): string {
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
@@ -469,235 +184,229 @@ function fmtBubble(d: Date): string {
   return `${wd}, ${hh}:${mm}`;
 }
 
-type FilmstripHandle = { setTime: (ms: number) => void };
-
-type FilmstripProps = {
-  tMin: number;
-  tMax: number;
+function SatelliteTimeline({
+  frames,
+  idx,
+  onChange,
+  isMobile,
+}: {
+  frames: SatelliteFrame[];
+  idx: number;
+  onChange: (i: number) => void;
   isMobile: boolean;
-  playing: boolean;
-  /** Wird bei laufendem Scrub für jeden RAF-Frame aufgerufen; commit=true beim Release. */
-  onScrubMs: (ms: number, commit: boolean) => void;
-};
+}) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [dragging, setDragging] = useState(false);
 
-const SatelliteFilmstrip = forwardRef<FilmstripHandle, FilmstripProps>(function SatelliteFilmstrip(
-  { tMin, tMax, isMobile, playing, onScrubMs },
-  ref,
-) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const stripRef = useRef<HTMLDivElement | null>(null);
-  const bubbleRef = useRef<HTMLSpanElement | null>(null);
-  const [containerW, setContainerW] = useState(0);
-  const containerWRef = useRef(0);
+  const times = useMemo(() => frames.map((f) => Date.parse(f.time)), [frames]);
+  const tMin = times[0] ?? 0;
+  const tMax = times[times.length - 1] ?? 1;
+  const span = Math.max(1, tMax - tMin);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const initialW = containerRef.current.getBoundingClientRect().width;
-    containerWRef.current = initialW;
-    setContainerW(initialW);
-    const ro = new ResizeObserver((entries) => {
-      const e = entries[0];
-      if (e) {
-        containerWRef.current = e.contentRect.width;
-        setContainerW(e.contentRect.width);
+  const pctForMs = (ms: number) => Math.max(0, Math.min(100, ((ms - tMin) / span) * 100));
+  const pctForIdx = (i: number) => pctForMs(times[i] ?? tMin);
+
+  const idxFromClientX = (clientX: number): number => {
+    const el = trackRef.current;
+    if (!el) return idx;
+    const r = el.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    const target = tMin + pct * span;
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < times.length; i++) {
+      const dt = Math.abs(times[i] - target);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
       }
-    });
-    ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
-
-  const PX_PER_HOUR = isMobile ? 56 : 72;
-  const totalWidth = ((tMax - tMin) / 3_600_000) * PX_PER_HOUR;
-
-  const hours = useMemo(() => {
-    const start = Math.ceil(tMin / 3_600_000) * 3_600_000;
-    const out: { ms: number; left: number; hour: number }[] = [];
-    for (let t = start; t <= tMax; t += 3_600_000) {
-      out.push({
-        ms: t,
-        left: ((t - tMin) / 3_600_000) * PX_PER_HOUR,
-        hour: new Date(t).getHours(),
-      });
     }
-    return out;
-  }, [tMin, tMax, PX_PER_HOUR]);
+    return best;
+  };
 
-  const ticks10 = useMemo(() => {
-    const start = Math.ceil(tMin / 600_000) * 600_000;
-    const out: number[] = [];
-    for (let t = start; t <= tMax; t += 600_000) {
-      out.push(((t - tMin) / 3_600_000) * PX_PER_HOUR);
+  const rafRef = useRef<number | null>(null);
+  const pendingXRef = useRef<number | null>(null);
+  const flushPending = () => {
+    rafRef.current = null;
+    const x = pendingXRef.current;
+    pendingXRef.current = null;
+    if (x != null) onChange(idxFromClientX(x));
+  };
+  const cancelPending = () => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
-    return out;
-  }, [tMin, tMax, PX_PER_HOUR]);
+    pendingXRef.current = null;
+  };
+  useEffect(() => () => cancelPending(), []);
 
-  const dayBreaks = hours.filter((h) => h.hour === 0);
-
-  const currentMotionRef = useRef((tMin + tMax) / 2);
-  const draggingRef = useRef(false);
-  const ariaLastRef = useRef(0);
-
-  const paintTime = useCallback(
-    (ms: number) => {
-      const clamped = Math.max(tMin, Math.min(tMax, ms));
-      currentMotionRef.current = clamped;
-      const w = containerWRef.current || containerW;
-      const x = w / 2 - ((clamped - tMin) / 3_600_000) * PX_PER_HOUR;
-      if (stripRef.current) stripRef.current.style.transform = `translate3d(${x}px,0,0)`;
-      if (bubbleRef.current) bubbleRef.current.textContent = fmtBubble(new Date(clamped));
-      // ARIA nur gedrosselt aktualisieren
-      const now = performance.now();
-      if (now - ariaLastRef.current > 200 && containerRef.current) {
-        ariaLastRef.current = now;
-        const pct = Math.round(((clamped - tMin) / Math.max(1, tMax - tMin)) * 1000);
-        containerRef.current.setAttribute("aria-valuenow", String(pct));
-      }
-    },
-    [tMin, tMax, PX_PER_HOUR, containerW],
-  );
-
-  useImperativeHandle(ref, () => ({ setTime: paintTime }), [paintTime]);
-
-  // Beim Zeitfenster-Wechsel oder Resize erste Position setzen.
-  useEffect(() => {
-    if (!draggingRef.current) paintTime(currentMotionRef.current);
-  }, [tMin, tMax, containerW, paintTime]);
-
-  const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
-  const rafPendingRef = useRef<number | null>(null);
-  const pendingTargetRef = useRef<number | null>(null);
-
-  const onDown = (e: React.PointerEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    draggingRef.current = true;
-    dragStartRef.current = { x: e.clientX, ms: currentMotionRef.current };
+    setDragging(true);
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      try { navigator.vibrate(6); } catch { /* ignore */ }
+      try { navigator.vibrate(8); } catch { /* ignore */ }
     }
+    onChange(idxFromClientX(e.clientX));
   };
-  const onMove = (e: React.PointerEvent) => {
-    if (!dragStartRef.current) return;
-    const dx = e.clientX - dragStartRef.current.x;
-    const dMs = (-dx / PX_PER_HOUR) * 3_600_000;
-    const target = Math.max(tMin, Math.min(tMax, dragStartRef.current.ms + dMs));
-    pendingTargetRef.current = target;
-    if (rafPendingRef.current !== null) return;
-    rafPendingRef.current = requestAnimationFrame(() => {
-      rafPendingRef.current = null;
-      const t = pendingTargetRef.current;
-      if (t === null) return;
-      paintTime(t);
-      onScrubMs(t, false);
-    });
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragging) return;
+    pendingXRef.current = e.clientX;
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(flushPending);
   };
-  const onUp = (e: React.PointerEvent) => {
-    dragStartRef.current = null;
-    if (rafPendingRef.current !== null) {
-      cancelAnimationFrame(rafPendingRef.current);
-      rafPendingRef.current = null;
-    }
-    pendingTargetRef.current = null;
-    draggingRef.current = false;
-    onScrubMs(currentMotionRef.current, true);
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setDragging(false);
+    cancelPending();
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   };
 
-  const initialX = containerW / 2 - ((currentMotionRef.current - tMin) / 3_600_000) * PX_PER_HOUR;
+  const hourTicks = useMemo(() => {
+    const startMs = Math.ceil(tMin / 3600000) * 3600000;
+    const out: { ms: number; pct: number; hour: number }[] = [];
+    for (let t = startMs; t <= tMax; t += 3600000) {
+      const d = new Date(t);
+      out.push({ ms: t, pct: pctForMs(t), hour: d.getHours() });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tMin, tMax]);
+
+  const dayBreaks = hourTicks.filter((t) => t.hour === 0);
+
+  const daySegments = useMemo(() => {
+    const breaks = [tMin, ...dayBreaks.map((b) => b.ms), tMax];
+    const segs: { startPct: number; endPct: number; label: string }[] = [];
+    for (let i = 0; i < breaks.length - 1; i++) {
+      const a = breaks[i];
+      const b = breaks[i + 1];
+      if (b <= a) continue;
+      const mid = new Date((a + b) / 2);
+      segs.push({ startPct: pctForMs(a), endPct: pctForMs(b), label: fmtDayLong(mid) });
+    }
+    return segs;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tMin, tMax, dayBreaks.length]);
+
+  const handlePct = pctForIdx(idx);
+  const currentMs = times[idx] ?? tMax;
+  const bubbleLabel = fmtBubble(new Date(currentMs));
+  const labelStep = isMobile ? 3 : 1;
 
   return (
     <div className="select-none">
-      {/* Bubble über fixer Mittellinie */}
-      <div className="relative h-7">
-        <div className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center">
-          <span
-            ref={bubbleRef}
-            className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
-            style={{ background: STRIP_COLOR }}
-          >
-            {fmtBubble(new Date(currentMotionRef.current))}
-          </span>
-          <span
-            className="h-0 w-0"
-            style={{
-              borderLeft: "5px solid transparent",
-              borderRight: "5px solid transparent",
-              borderTop: `5px solid ${STRIP_COLOR}`,
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Filmstreifen */}
-      <div
-        ref={containerRef}
-        role="slider"
-        aria-label="Satellit-Zeit"
-        aria-valuemin={0}
-        aria-valuemax={1000}
-        aria-valuenow={0}
-        tabIndex={0}
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerCancel={onUp}
-        className="relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none active:cursor-grabbing focus-visible:ring-2"
-        style={{ ['--tw-ring-color' as never]: STRIP_COLOR }}
-      >
-        {/* Fixe Mittel-Linie */}
-        <span className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-px -translate-x-1/2 bg-neutral-900/85" />
-        <span
-          className="pointer-events-none absolute left-1/2 top-0 z-30 h-2 w-2 -translate-x-1/2 rotate-45"
-          style={{ background: STRIP_COLOR }}
-        />
-
-        {/* Scrollender Strip */}
-        <div
-          ref={stripRef}
-          className="absolute inset-y-0 left-0 will-change-transform"
-          style={{
-            width: `${totalWidth}px`,
-            transform: `translate3d(${initialX}px,0,0)`,
-            transition: playing ? "none" : "none",
-          }}
-        >
-          {/* Zeit-Band */}
-          <div
-            className="absolute top-6 h-4 rounded-sm"
-            style={{ left: 0, width: totalWidth, background: STRIP_COLOR, opacity: 0.6 }}
-          />
-
-          {/* 10-min-Ticks */}
-          {ticks10.map((l, i) => (
-            <span key={`m10-${i}`} className="absolute top-7 h-2 w-px bg-white/45" style={{ left: l }} />
-          ))}
-
-          {/* Stunden-Ticks + Labels */}
-          {hours.map((h) => (
-            <div key={`h-${h.ms}`} className="absolute top-0 h-full" style={{ left: h.left }}>
-              <span className="absolute top-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-neutral-600">
-                {String(h.hour).padStart(2, "0")}:00
+      <div className="relative pt-5 pb-4">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-4">
+          {hourTicks.map((t, i) => {
+            if (i % labelStep !== 0) return null;
+            return (
+              <span
+                key={`hl-${t.ms}`}
+                className="absolute -translate-x-1/2 text-[9px] font-medium tabular-nums text-neutral-500"
+                style={{ left: `${t.pct}%`, top: 0 }}
+              >
+                {String(t.hour).padStart(2, "0")}
               </span>
-              <span className="absolute top-6 h-4 w-px bg-neutral-900/40" />
-            </div>
-          ))}
+            );
+          })}
+        </div>
 
-          {/* Tageswechsel */}
+        <div
+          ref={trackRef}
+          role="slider"
+          aria-label="Satellit-Zeit"
+          aria-valuemin={0}
+          aria-valuemax={frames.length - 1}
+          aria-valuenow={idx}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              onChange(Math.max(0, idx - 1));
+            } else if (e.key === "ArrowRight") {
+              e.preventDefault();
+              onChange(Math.min(frames.length - 1, idx + 1));
+            }
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded sm:h-6"
+          style={{ ['--tw-ring-color' as never]: BRAND }}
+        >
+          <div className="relative h-[4px] w-full overflow-hidden rounded-full bg-neutral-200">
+            <div
+              className="absolute inset-y-0 left-0 right-0"
+              style={{ background: BRAND, opacity: 0.25 }}
+            />
+            {hourTicks.map((t) => (
+              <span
+                key={`ht-${t.ms}`}
+                className="absolute top-0 h-full w-px bg-neutral-300"
+                style={{ left: `${t.pct}%` }}
+              />
+            ))}
+          </div>
+
           {dayBreaks.map((b) => (
             <span
               key={`db-${b.ms}`}
-              className="absolute top-6 h-4 w-[2px] bg-neutral-900/70"
-              style={{ left: b.left }}
+              className="pointer-events-none absolute inset-y-0 w-px bg-neutral-300"
+              style={{ left: `${b.pct}%` }}
             />
           ))}
+
+          <div
+            className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${handlePct}%` }}
+          >
+            <div className="relative h-6 w-[2px] rounded-sm bg-neutral-900/70">
+              <div
+                className="absolute left-1/2 top-1/2 h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md before:absolute before:-inset-3 before:content-['']"
+                style={{ background: BRAND }}
+              />
+            </div>
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
+              <span
+                className="whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm"
+                style={{ background: BRAND }}
+              >
+                {bubbleLabel}
+              </span>
+              <span
+                className="h-0 w-0"
+                style={{
+                  borderLeft: "4px solid transparent",
+                  borderRight: "4px solid transparent",
+                  borderTop: `4px solid ${BRAND}`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4">
+          {daySegments.map((s, i) => {
+            const width = Math.max(0, s.endPct - s.startPct);
+            if (width < (isMobile ? 18 : 10)) return null;
+            return (
+              <span
+                key={`ds-${i}`}
+                className="absolute top-0 text-[10px] font-medium text-neutral-600 truncate"
+                style={{ left: `${s.startPct}%`, width: `${width}%`, textAlign: "center" }}
+              >
+                {s.label}
+              </span>
+            );
+          })}
         </div>
       </div>
     </div>
   );
-});
+}
 
 // ---------- Main ----------
 
@@ -714,132 +423,61 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   });
 
   const frames = useMemo(() => data?.frames ?? [], [data]);
-  const times = useMemo(() => frames.map((f) => Date.parse(f.time)), [frames]);
-  const tMin = times[0] ?? 0;
-  const tMax = times[times.length - 1] ?? 1;
-
+  const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(500);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loaded, setLoaded] = useState(0);
-  const [uiIndex, setUiIndex] = useState(0); // nur für Buttons/Prev-Next
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const lastTimeRef = useRef<string | null>(null);
 
   const total = frames.length;
-  const selectedIso = useMemo(() => {
-    if (frames.length === 0) return null;
-    if (lastTimeRef.current && frames.some((f) => f.time === lastTimeRef.current)) {
-      return lastTimeRef.current;
-    }
-    return frames[0].time;
-  }, [frames]);
-  const ready = total > 0 && loaded >= total;
+  const ready = total > 0 && loaded / total >= 0.8;
 
-  // Kontinuierliche Zeit als Single Source of Truth.
-  const renderMsRef = useRef<number>(0);
-  const filmstripRef = useRef<FilmstripHandle | null>(null);
-  const stackRef = useRef<FrameStackHandle | null>(null);
-
-  // Throttled loaded-Counter — vermeidet Render-Feuer bei jedem Tile-Load-Event.
-  const loadedPendingRef = useRef<number | null>(null);
-  const loadedTimerRef = useRef<number | null>(null);
-  const handleStackProgress = useCallback((l: number, _total: number) => {
-    loadedPendingRef.current = l;
-    if (loadedTimerRef.current !== null) return;
-    loadedTimerRef.current = window.setTimeout(() => {
-      loadedTimerRef.current = null;
-      const v = loadedPendingRef.current;
-      if (v !== null) setLoaded(v);
-    }, 200);
-  }, []);
-  useEffect(() => () => {
-    if (loadedTimerRef.current !== null) window.clearTimeout(loadedTimerRef.current);
-  }, []);
-
-  // Übersetzt Play-Rate: `speedMs` ist die reale Zeit pro Frame-Schritt.
-  // Rate = stepMinutes*60000 timeline-ms pro speedMs real-ms.
-  const rateRef = useRef<number>(1);
-  useEffect(() => {
-    const stepMs = region.stepMinutes * 60_000;
-    rateRef.current = stepMs / speedMs;
-  }, [region.stepMinutes, speedMs]);
-
-  // Beim ersten Load startet der Film chronologisch beim ältesten Bild. Spätere
-  // Manifest-Updates erhalten die kontinuierliche Renderzeit, statt auf einen
-  // diskreten Frame zurückzuspringen.
+  const lastTimeRef = useRef<string | null>(null);
+  const initialIndexRef = useRef<number>(0);
   useEffect(() => {
     if (frames.length === 0) return;
-    let ms = renderMsRef.current;
-    if (!ms || ms < tMin || ms > tMax) {
-      ms = tMin;
+    if (lastTimeRef.current === null) {
+      const last = frames.length - 1;
+      setIndex(last);
+      initialIndexRef.current = last;
+      lastTimeRef.current = frames[last].time;
+      return;
     }
-    renderMsRef.current = ms;
-    let idx = 0;
-    let bestDt = Infinity;
-    for (let i = 0; i < times.length; i++) {
-      const d = Math.abs(times[i] - ms);
-      if (d < bestDt) { bestDt = d; idx = i; }
+    const idx = frames.findIndex((f) => f.time === lastTimeRef.current);
+    if (idx >= 0) {
+      setIndex(idx);
+      initialIndexRef.current = idx;
+    } else {
+      const last = frames.length - 1;
+      setIndex(last);
+      initialIndexRef.current = last;
+      lastTimeRef.current = frames[last].time;
     }
-    lastTimeRef.current = frames[idx]?.time ?? null;
-    setUiIndex(idx);
-    // imperatives Erst-Paint (falls Refs schon da sind)
-    filmstripRef.current?.setTime(ms);
-    stackRef.current?.setTimeMs(ms);
-  }, [frames, tMin, tMax, times]);
+  }, [frames]);
 
-  // Regionwechsel: Loading/Play zurücksetzen.
   useEffect(() => {
     setLoaded(0);
     setPlaying(false);
-    lastTimeRef.current = null;
   }, [regionId]);
 
-  // Autoplay sobald genug geladen ist.
   useEffect(() => {
     if (ready && !playing && total >= 2) setPlaying(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  // Play-Loop per requestAnimationFrame — kontinuierliche Zeit, keine React-
-  // Renders pro Frame. Autoplay startet erst nach vollständigem Preload; der
-  // Loop selbst hält nicht mehr an Tile-Readiness an und erzeugt daher keine
-  // Geschwindigkeitsschwankungen.
-  const uiIndexLastWriteRef = useRef(0);
   useEffect(() => {
     if (!playing || total < 2 || !ready) return;
-    let raf = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = now - last;
-      last = now;
-      let next = renderMsRef.current + dt * rateRef.current;
-      if (next > tMax) next = tMin + (next - tMax); // wrap
-      if (next < tMin) next = tMin;
+    const t = window.setInterval(() => {
+      setIndex((i) => {
+        const next = (i + 1) % total;
+        lastTimeRef.current = frames[next]?.time ?? null;
+        return next;
+      });
+    }, speedMs);
+    return () => window.clearInterval(t);
+  }, [playing, speedMs, total, ready, frames]);
 
-      renderMsRef.current = next;
-      filmstripRef.current?.setTime(next);
-      stackRef.current?.setTimeMs(next);
-
-      // uiIndex diskret & gedrosselt aktualisieren (max alle 150 ms).
-      if (now - uiIndexLastWriteRef.current > 150) {
-        let iNear = 0;
-        let bestDt = Infinity;
-        for (let i = 0; i < times.length; i++) {
-          const d = Math.abs(times[i] - next);
-          if (d < bestDt) { bestDt = d; iNear = i; }
-        }
-        uiIndexLastWriteRef.current = now;
-        setUiIndex((prev) => (prev === iNear ? prev : iNear));
-        lastTimeRef.current = frames[iNear]?.time ?? lastTimeRef.current;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, total, ready, tMin, tMax, times, frames]);
-
-  // Space = Play/Pause
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -858,6 +496,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     if (!document.fullscreenElement) void el.requestFullscreen?.();
     else void document.exitFullscreen?.();
   }, []);
+
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onChange);
@@ -865,41 +504,14 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   }, []);
 
   const layer = data?.layer ?? region.layer;
-
-  // Scrub-Handler vom Filmstrip
-  const handleScrubMs = useCallback(
-    (ms: number, commit: boolean) => {
-      if (playing) setPlaying(false);
-      renderMsRef.current = ms;
-      stackRef.current?.setTimeMs(ms);
-      if (commit) {
-        // Snap uiIndex / lastTimeRef auf nächstgelegenen Frame (für Persistenz beim Refetch)
-        let iNear = 0;
-        let bestDt = Infinity;
-        for (let i = 0; i < times.length; i++) {
-          const d = Math.abs(times[i] - ms);
-          if (d < bestDt) { bestDt = d; iNear = i; }
-        }
-        setUiIndex(iNear);
-        lastTimeRef.current = frames[iNear]?.time ?? null;
-      }
-    },
-    [playing, times, frames],
-  );
-
-  // Prev/Next-Buttons: diskreter Sprung
-  const stepTo = useCallback(
-    (i: number) => {
-      const clamped = Math.max(0, Math.min(total - 1, i));
-      const ms = times[clamped] ?? tMin;
+  const source = data?.source ?? region.source;
+  const handleTimelineChange = useCallback(
+    (n: number) => {
       setPlaying(false);
-      renderMsRef.current = ms;
-      setUiIndex(clamped);
-      lastTimeRef.current = frames[clamped]?.time ?? null;
-      filmstripRef.current?.setTime(ms);
-      stackRef.current?.setTimeMs(ms);
+      setIndex(n);
+      lastTimeRef.current = frames[n]?.time ?? null;
     },
-    [total, times, frames, tMin],
+    [frames],
   );
 
   const showSwiss = regionId === "alpen-ch";
@@ -925,7 +537,9 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                   onClick={() => setRegionId(r.id)}
                   className={cn(
                     "whitespace-nowrap rounded-full px-3 h-8 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2",
-                    active ? "text-white shadow-sm" : "text-neutral-700 hover:bg-neutral-100",
+                    active
+                      ? "text-white shadow-sm"
+                      : "text-neutral-700 hover:bg-neutral-100",
                   )}
                   style={
                     active
@@ -975,17 +589,18 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           keyboard={false}
           dragging={false}
           worldCopyJump
-          className="satellite-map-container absolute inset-0 z-0 bg-black"
+          className="absolute inset-0 z-0 bg-black"
         >
           <FlyToRegion regionId={regionId} />
           {frames.length > 0 && (
             <FrameStack
-              key={regionId}
-              ref={stackRef}
+              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
               layer={layer}
+              fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               frames={frames}
-              initialIso={selectedIso}
-              onProgress={handleStackProgress}
+              activeIndex={index}
+              initialIndex={initialIndexRef.current}
+              onProgress={(l) => setLoaded(l)}
             />
           )}
           {showSwiss && <SwissOutline />}
@@ -1005,7 +620,8 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           </div>
         )}
 
-        {/* Steuerpanel — analog Radar */}
+
+        {/* Steuerpanel — schwebend unten in der Karte (analog Radar) */}
         {total > 0 && (
           <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3">
             <div className="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white/90 p-2 text-neutral-900 shadow-lg backdrop-blur sm:p-2.5">
@@ -1022,7 +638,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => stepTo(uiIndex - 1)}
+                  onClick={() => handleTimelineChange(Math.max(index - 1, 0))}
                   className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                   aria-label="Vorheriger Frame"
                 >
@@ -1030,19 +646,17 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 </button>
 
                 <div className="min-w-0 flex-1">
-                  <SatelliteFilmstrip
-                    ref={filmstripRef}
-                    tMin={tMin}
-                    tMax={tMax}
+                  <SatelliteTimeline
+                    frames={frames}
+                    idx={index}
+                    onChange={handleTimelineChange}
                     isMobile={isMobile}
-                    playing={playing}
-                    onScrubMs={handleScrubMs}
                   />
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => stepTo(uiIndex + 1)}
+                  onClick={() => handleTimelineChange(Math.min(index + 1, total - 1))}
                   className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                   aria-label="Nächster Frame"
                 >
