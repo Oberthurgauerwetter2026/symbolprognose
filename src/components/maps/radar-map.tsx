@@ -86,37 +86,6 @@ function colorFor(mmh: number): [number, number, number, number] {
   return [band.rgb[0], band.rgb[1], band.rgb[2], band.a];
 }
 
-// Weiche Farbskala für Prognose-Frames — linear zwischen zwei Bändern blenden,
-// damit die ICON-CH1-Felder nicht als rechteckige Blöcke wirken.
-function colorForSmooth(mmh: number): [number, number, number, number] {
-  if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
-  if (mmh >= SCALE[SCALE.length - 1].mmh) {
-    const last = SCALE[SCALE.length - 1];
-    return [last.rgb[0], last.rgb[1], last.rgb[2], last.a];
-  }
-  for (let i = 0; i < SCALE.length - 1; i++) {
-    const lo = SCALE[i];
-    const hi = SCALE[i + 1];
-    if (mmh >= lo.mmh && mmh < hi.mmh) {
-      // log-Interpolation, weil die Skala selbst log-artig ist (0.1→0.3→0.8→2…).
-      const tt =
-        (Math.log(mmh) - Math.log(lo.mmh)) /
-        (Math.log(hi.mmh) - Math.log(lo.mmh));
-      const t = Math.max(0, Math.min(1, tt));
-      return [
-        Math.round(lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t),
-        Math.round(lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t),
-        Math.round(lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t),
-        lo.a + (hi.a - lo.a) * t,
-      ];
-    }
-  }
-  return [0, 0, 0, 0];
-}
-
-
-
-
 // Schnee-Farbskala (mm/h Wasser-Äquivalent) — MeteoSchweiz: leicht / stark.
 const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
   { mmh: 0.1, rgb: [205, 195, 230], label: "leicht" },
@@ -402,57 +371,6 @@ function nearestFrameIndexForMs(frames: RadarFrame[], targetMs: number): number 
     }
   }
   return best;
-}
-
-function bracketFramesForMs(
-  frames: RadarFrame[],
-  targetMs: number,
-  predicate?: (frame: RadarFrame) => boolean,
-): { frame: RadarFrame | null; nextFrame: RadarFrame | null; progress: number } {
-  const eligible = predicate ? frames.filter(predicate) : frames;
-  if (eligible.length === 0) return { frame: null, nextFrame: null, progress: 0 };
-  if (eligible.length === 1) return { frame: eligible[0], nextFrame: null, progress: 0 };
-
-  const firstMs = Date.parse(eligible[0].t);
-  if (targetMs <= firstMs) return { frame: eligible[0], nextFrame: eligible[1], progress: 0 };
-
-  const last = eligible[eligible.length - 1];
-  const lastMs = Date.parse(last.t);
-  if (targetMs >= lastMs) return { frame: last, nextFrame: null, progress: 0 };
-
-  for (let i = 0; i < eligible.length - 1; i++) {
-    const a = eligible[i];
-    const b = eligible[i + 1];
-    const aMs = Date.parse(a.t);
-    const bMs = Date.parse(b.t);
-    if (targetMs >= aMs && targetMs <= bMs) {
-      const span = Math.max(1, bMs - aMs);
-      return {
-        frame: a,
-        nextFrame: b,
-        progress: Math.max(0, Math.min(1, (targetMs - aMs) / span)),
-      };
-    }
-  }
-
-  const idx = nearestFrameIndexForMs(eligible, targetMs);
-  return { frame: eligible[idx], nextFrame: eligible[idx + 1] ?? null, progress: 0 };
-}
-
-function timelineStateForMs(
-  frames: RadarFrame[],
-  renderMs: number,
-) {
-  const all = bracketFramesForMs(frames, renderMs);
-  const displayIdx = nearestFrameIndexForMs(frames, renderMs);
-
-  return {
-    renderMs,
-    displayIdx,
-    frame: all.frame,
-    nextFrame: all.nextFrame,
-    progress: all.progress,
-  };
 }
 
 /**
@@ -1707,7 +1625,8 @@ const FilmstripTimeline = forwardRef<FilmstripTimelineHandle, FilmstripTimelineP
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
   const frameMs = times[displayIdx] ?? tMin;
-  // Strip, Bubble und Karten-Overlay laufen auf derselben kontinuierlichen Zeit.
+  // Strip und Bubble dürfen während Drag/Play weich laufen; die Karte selbst
+  // snappt unten wieder hart auf den ausgewählten Frame.
   const motionMs = dragging
     ? (dragMs as number)
     : visualMs != null
@@ -1955,16 +1874,6 @@ export function RadarMap({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
-  // Persistente, kontinuierliche Render-Zeit. `idx` ist nur noch der nächste
-  // UI-Anker für Buttons/Labels; diese Zeit steuert den sichtbaren Zustand.
-  const [renderMs, setRenderMs] = useState<number | null>(null);
-  // Eine einzige kontinuierliche Render-Zeit für Play/Scrub. Der konkrete
-  // Anzeigezustand wird zentral aus dieser Zeit abgeleitet.
-  const [playVisualMs, setPlayVisualMs] = useState<number | null>(null);
-  // Kontinuierliche Scrub-Zeit während aktivem Drag (überschreibt cadence-
-  // gesnapptes idx für kontinuierliches Rendering; kein Re-Render der ganzen
-  // Map nötig).
-  const [scrubVisualMs, setScrubVisualMs] = useState<number | null>(null);
   const isMobile = useIsMobile();
 
 
@@ -1973,17 +1882,8 @@ export function RadarMap({
   useEffect(() => {
     if (idx === null && frames.length > 0) {
       setIdx(nowIdx);
-      setRenderMs(Date.parse(frames[nowIdx]?.t ?? frames[0].t));
     }
   }, [nowIdx, frames, idx]);
-
-  useEffect(() => {
-    if (renderMs === null || frames.length === 0) return;
-    const firstMs = Date.parse(frames[0].t);
-    const lastMs = Date.parse(frames[frames.length - 1].t);
-    if (renderMs < firstMs) setRenderMs(firstMs);
-    else if (renderMs > lastMs) setRenderMs(lastMs);
-  }, [frames, renderMs]);
 
   // Play-Schritt-Indizes zielzeitgesteuert:
   //   Messung (t <= now) : 5-min-Raster
@@ -2053,14 +1953,8 @@ export function RadarMap({
   useEffect(() => {
     idxRef.current = idx;
   }, [idx]);
-  const renderMsRef = useRef<number | null>(null);
-  useEffect(() => {
-    renderMsRef.current = renderMs;
-  }, [renderMs]);
   const filmstripRef = useRef<FilmstripTimelineHandle | null>(null);
   const precipOverlayRef = useRef<TimelineOverlayHandle | null>(null);
-  const lastReactSyncRef = useRef(0);
-  const lastOverlaySyncRef = useRef(0);
 
   const stepCursorForIndex = (cur: number | null): number => {
     if (playStepIndices.length === 0 || cur === null) return 0;
@@ -2077,103 +1971,71 @@ export function RadarMap({
   const setTimelineToIndex = (target: number | null) => {
     if (target === null || !frames[target]) return;
     const targetMs = Date.parse(frames[target].t);
-    renderMsRef.current = targetMs;
+    idxRef.current = target;
     setIdx(target);
-    setRenderMs(targetMs);
-    setPlayVisualMs(null);
-    setScrubVisualMs(null);
     filmstripRef.current?.setTime(targetMs);
+    precipOverlayRef.current?.setTimeline(frames[target]);
   };
 
-  const setTimelineTime = (targetMs: number, opts?: { commit?: boolean; syncOverlay?: boolean }) => {
-    if (frames.length === 0) return;
-    const firstMs = Date.parse(frames[0].t);
-    const lastMs = Date.parse(frames[frames.length - 1].t);
-    const ms = Math.max(firstMs, Math.min(lastMs, targetMs));
-    renderMsRef.current = ms;
-    filmstripRef.current?.setTime(ms);
-    const timelineState = timelineStateForMs(frames, ms);
-    const now = performance.now();
-    if (opts?.syncOverlay || opts?.commit || now - lastOverlaySyncRef.current > 180) {
-      lastOverlaySyncRef.current = now;
-      precipOverlayRef.current?.setTimeline(timelineState.frame);
+  const nearestPlayStepCursorForMs = (targetMs: number): number | null => {
+    if (playStepIndices.length === 0) return null;
+    let bestCursor = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < playStepIndices.length; i++) {
+      const frameIdx = playStepIndices[i];
+      const frame = frames[frameIdx];
+      if (!frame) continue;
+      const dt = Math.abs(Date.parse(frame.t) - targetMs);
+      if (dt < bestDt) {
+        bestDt = dt;
+        bestCursor = i;
+      }
     }
-
-    const nearestIdx = timelineState.displayIdx;
-    const shouldSyncReact =
-      opts?.commit === true ||
-      nearestIdx !== idxRef.current ||
-      now - lastReactSyncRef.current > 500;
-    if (shouldSyncReact) {
-      lastReactSyncRef.current = now;
-      idxRef.current = nearestIdx;
-      setIdx(nearestIdx);
-      setRenderMs(ms);
-    }
-    if (opts?.syncOverlay || opts?.commit || now - lastReactSyncRef.current < 8) {
-      setPlayVisualMs(ms);
-    }
+    return bestCursor;
   };
 
-  // Play-Loop: kontinuierliche Zeitachse. Kein Quellen-Sonderfall am Seam;
-  // Play und Scrub werden später über denselben Timeline-Sampler gerendert.
-  const playTimeRef = useRef<number | null>(null);
+  const setTimelineToMs = (targetMs: number) => {
+    const cursor = nearestPlayStepCursorForMs(targetMs);
+    if (cursor === null) return;
+    const target = playStepIndices[cursor];
+    if (typeof target === "number") setTimelineToIndex(target);
+  };
+
+  // Play-Loop: harte Frame-Schritte. Die Karte zeigt immer exakt einen
+  // vorhandenen Radar-/Prognoseframe, nie einen Zwischenzustand.
   useEffect(() => {
     if (!playing || playStepIndices.length === 0 || frames.length === 0) {
-      playTimeRef.current = null;
-      setPlayVisualMs(null);
       return;
     }
 
     const FRAME_MS = 1800 / speed;
-    const REF_GAP_MS = 15 * 60_000;
-    let raf = 0;
-    let last = performance.now();
-    const firstIdx = playStepIndices[0];
-    const lastIdx = playStepIndices[playStepIndices.length - 1];
-    const startIdx = playStepIndices[stepCursorForIndex(idxRef.current)] ?? firstIdx;
-    const firstMs = Date.parse(frames[firstIdx]?.t ?? frames[0].t);
-    const lastMs = Date.parse(frames[lastIdx]?.t ?? frames[frames.length - 1].t);
-    const idxMs = Date.parse(frames[startIdx]?.t ?? frames[idxRef.current ?? 0]?.t ?? frames[0].t);
-    const startMs = Math.max(firstMs, Math.min(lastMs, scrubVisualMs ?? renderMsRef.current ?? idxMs));
-    playTimeRef.current = startMs;
-    setTimelineTime(startMs, { commit: true, syncOverlay: true });
+    let cursor = stepCursorForIndex(idxRef.current);
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
 
-    const tick = (now: number) => {
-      const dt = now - last;
-      last = now;
-      const prevMs = playTimeRef.current ?? startMs;
-      const nextMs = prevMs + (dt * REF_GAP_MS) / FRAME_MS;
-      if (nextMs >= lastMs) {
-        playTimeRef.current = lastMs;
-        setTimelineTime(lastMs, { commit: true, syncOverlay: true });
-        const endIdx = nearestFrameIndexForMs(frames, lastMs);
-        idxRef.current = endIdx;
-        setIdx(endIdx);
+    const tick = () => {
+      if (cancelled) return;
+      const nextCursor = cursor + 1;
+      if (nextCursor >= playStepIndices.length) {
         setPlaying(false);
         return;
       }
-      playTimeRef.current = nextMs;
-      setTimelineTime(nextMs);
-      const nextIdx = nearestFrameIndexForMs(frames, nextMs);
-      if (nextIdx !== idxRef.current) {
-        idxRef.current = nextIdx;
-        setIdx(nextIdx);
-      }
-      raf = requestAnimationFrame(tick);
+      cursor = nextCursor;
+      const target = playStepIndices[cursor];
+      if (typeof target === "number") setTimelineToIndex(target);
+      timeout = setTimeout(tick, FRAME_MS);
     };
-    raf = requestAnimationFrame(tick);
+
+    timeout = setTimeout(tick, FRAME_MS);
     return () => {
-      cancelAnimationFrame(raf);
-      playTimeRef.current = null;
-      setPlayVisualMs(null);
+      cancelled = true;
+      if (timeout !== null) clearTimeout(timeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, speed, playStepIndices, frames]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
-  // Der sichtbare Zustand wird unten über `timelineStateForMs` kontinuierlich
-  // zwischen den benachbarten Frames gerendert.
+  const currentFrameMs = currentFrame ? Date.parse(currentFrame.t) : null;
 
 
   // Reduzierte Frame-Liste für den Filmstrip — gleiche Cadence wie Play
@@ -2323,22 +2185,14 @@ export function RadarMap({
           {data &&
             currentFrame &&
             (() => {
-              const rtMs = scrubVisualMs ?? playVisualMs ?? renderMs ?? Date.parse(currentFrame.t);
-              const timelineState = timelineStateForMs(frames, rtMs);
-              const overlayFrame = timelineState.frame ?? currentFrame;
-              const overlayNext = timelineState.nextFrame;
-              const overlayProg = timelineState.progress;
-
-              const hasPng = !!overlayFrame?.precipUrl;
-              const hasGrid = Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
-              const nextHasGrid = Array.isArray(overlayNext?.values) && overlayNext.values.length > 0;
-              const ib = overlayFrame?.imageBbox ?? data.imageBbox;
+              const hasPng = !!currentFrame.precipUrl;
+              const hasGrid = Array.isArray(currentFrame.values) && currentFrame.values.length > 0;
+              const ib = currentFrame.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
-              const showPng = !!overlayFrame && hasPng;
-              const showGrid = !!overlayFrame && hasGrid && !hasPng;
-              const warmGrid = !!overlayFrame && hasPng && !!overlayNext && nextHasGrid;
-              const gridFrame = showGrid ? overlayFrame : warmGrid ? overlayNext : null;
+              const showPng = hasPng;
+              const showGrid = hasGrid && !hasPng;
+              const gridFrame = showGrid ? currentFrame : null;
 
               return (
                 <>
@@ -2355,7 +2209,7 @@ export function RadarMap({
                   {showPng && (
                     <MeasurementCanvasOverlay
                       ref={precipOverlayRef}
-                      url={overlayFrame.precipUrl as string}
+                      url={currentFrame.precipUrl as string}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
@@ -2516,12 +2370,10 @@ export function RadarMap({
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      visualMs={scrubVisualMs ?? playVisualMs ?? renderMs}
+                      visualMs={currentFrameMs}
                       onScrubMs={(ms, commit) => {
-                        setTimelineTime(ms, { commit, syncOverlay: commit });
-                        if (commit) {
-                          setScrubVisualMs(null);
-                        }
+                        void commit;
+                        setTimelineToMs(ms);
                       }}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];

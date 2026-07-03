@@ -1,46 +1,39 @@
 ## Ziel
+Die Prognose im Niederschlagsradar wird wieder auf die ursprüngliche harte Frame-Darstellung vor dem flüssigen Filmstrip zurückgestellt: keine zeitliche Zwischenlogik, kein Crossfade, kein kontinuierliches Prognose-Rendering.
 
-Alle Reste des Crossfade-Systems im Niederschlagsradar entfernen, sodass jeder Frame hart und ohne Überblendung dargestellt wird — wie vor der Einführung des Crossfades.
+## Festgestellte Ursache
+- In `src/components/maps/radar-map.tsx` existiert trotz entferntem Canvas-Crossfade weiterhin eine kontinuierliche Timeline-Schicht:
+  - `timelineStateForMs(...)` berechnet Zwischenzustände mit `nextFrame` und `progress`.
+  - `renderMs`, `playVisualMs`, `scrubVisualMs` treiben die sichtbare Karte über eine fortlaufende Zeit statt über den ausgewählten Frame.
+  - Der Play-Loop läuft per `requestAnimationFrame` über Zwischenzeiten und synchronisiert das Overlay nur gedrosselt.
+  - Im JSX wird der sichtbare Prognoseframe aus `timelineStateForMs(frames, rtMs)` abgeleitet, nicht direkt aus `currentFrame`.
+- Dadurch wirkt die Prognose weiterhin wie Crossfade/Interpolationslogik, obwohl das direkte `globalAlpha`-Blending bereits entfernt wurde.
 
-## Beobachtung
+## Umsetzung
+1. **Kontinuierliche Prognose-Zeit entfernen**
+   - `renderMs`, `playVisualMs`, `scrubVisualMs` und zugehörige Refs/Effekte aus dem sichtbaren Overlay-Pfad entfernen.
+   - `timelineStateForMs`/`bracketFramesForMs` nicht mehr für die Kartenanzeige verwenden.
+   - `nextFrame`/`progress`-Ableitung vollständig aus dem Radar-Overlay-JSX entfernen.
 
-Im aktuellen Code (`src/components/maps/radar-map.tsx`) gibt es keine `ctx.globalAlpha`-Blends mehr in den Zeichenpfaden. Trotzdem sind die vollständigen Crossfade-Infrastrukturen weiterhin vorhanden und aktiv:
+2. **Karte wieder direkt über `currentFrame` rendern**
+   - Prognose-Canvas (`PrecipOverlay`) erhält ausschließlich `currentFrame`.
+   - Messungs-PNG/Canvas (`MeasurementCanvasOverlay`) erhält ausschließlich `currentFrame.precipUrl`.
+   - Kein Warm-/Übergangsframe (`warmGrid`, `overlayNext`) mehr im sichtbaren Pfad.
 
-- `PrecipOverlay` empfängt weiterhin `nextFrame` und `progress` als Props und spiegelt sie in `nextFrameRef`/`progressRef`.
-- Die Helfer-Funktion `buildBlendedOffscreenRef` (Zeilen ~909–1003) existiert weiterhin, inkl. `blendCanvasRef` und der pixelweisen Intensitäts-Interpolation zwischen zwei Frames — die ist der eigentliche "weiche" Übergang, den der Nutzer weiterhin sieht.
-- `MeasurementCanvasOverlay` empfängt `nextFrame`/`progress` und decodiert per `useEffect([nextFrame?.precipUrl])` bereits das nächste PNG in `nextSourceRef`; `activeNextFrameRef`/`activeProgressRef` werden pro Tick aktualisiert.
-- `RadarMap` gibt `overlayNext`/`overlayProg` weiterhin an beide Overlays weiter und `setTimelineTime` ruft `precipOverlayRef.setTimeline(frame, nextFrame, progress)` auf.
+3. **Play-Loop auf ursprüngliche Frame-Schritte zurückstellen**
+   - Automatische Wiedergabe erhöht wieder den Index auf die nächste vorhandene Timeline-Position.
+   - Kein `requestAnimationFrame`-Durchlaufen von Zwischenzeiten für die Kartenanzeige.
+   - Scrubbing/Buttons setzen direkt den nächstgelegenen Frame-Index.
 
-Das genügt, um weiterhin einen sichtbaren Übergang zwischen Nachbarframes zu erzeugen (Intensitäts-Interpolation im Grid-Pfad, doppelte Decodes und React-Re-Renders im Raster-Pfad, die je nach Timing wie ein Fade wirken).
+4. **Filmstrip nur als Bedien-/Anzeigeelement behalten**
+   - Der Filmstrip darf optisch scrollen, aber die Karte zeigt nur den hart ausgewählten Frame.
+   - Falls nötig wird die Filmstrip-Transition beim manuellen Wechsel neutralisiert, damit keine „flüssige“ Prognose-Semantik mehr in die Kartenlogik zurückwirkt.
 
-## Änderungen — nur `src/components/maps/radar-map.tsx`
+5. **Verbleibende Glättungsreste prüfen**
+   - Tote Variablen wie `overlayProg`, `colorForSmooth` oder Kommentare zu kontinuierlichem Rendering entfernen/anpassen, sofern sie nicht mehr genutzt werden.
+   - Keine Änderungen an Satellit oder Niederschlagssummenkarte, außer falls TypeScript durch entfernte Radar-Logik ungenutzte Importe meldet.
 
-1. `PrecipOverlay`
-   - Props `nextFrame` / `progress` entfernen (auch aus Typdefinition).
-   - `useImperativeHandle setTimeline` auf Signatur `(f) => void` verkürzen — nur `frameRef` setzen und `redrawRef.current()` aufrufen.
-   - Refs `nextFrameRef`, `progressRef`, `blendCanvasRef`, `lastTimelineKeyRef` (letzterer nur falls unbenutzt) entfernen.
-   - Kompletten `buildBlendedOffscreenRef`-Block (~Zeilen 909–1003) inkl. aller Helfer entfernen.
-   - Timeline-Sync-`useEffect` (`[nextFrame, progress]`) entfernen.
-
-2. `MeasurementCanvasOverlay`
-   - Props `nextFrame` / `progress` und Typdefinition entfernen.
-   - `useImperativeHandle setTimeline` auf `(f) => void` verkürzen (aktuell wird `f` gar nicht genutzt; nur `redrawRef.current()`).
-   - Refs `nextSourceRef`, `nextSourceUrlRef`, `activeNextFrameRef`, `activeProgressRef` entfernen.
-   - Beide `useEffect`-Blöcke, die `nextFrame?.precipUrl` decodieren bzw. `nextFrame/progress` in Refs spiegeln, entfernen.
-   - In `redrawRef.current` die noch dead-code `buildRasterOffscreen`-Aufrufe für `nextRaster`/`nextVals` sowie `buildGridOffscreen`/`sampleGridAt`/`contourScaleAt`-Helfer entfernen (werden nur für den Blend gebraucht).
-   - Nutzung von `activeNextFrame?.source` in `sampleGridAt` entfällt mit.
-
-3. `RadarMap`
-   - In dem JSX-Block ab Zeile ~2682 die Übergabe `nextFrame`/`progress` an `PrecipOverlay` und `MeasurementCanvasOverlay` entfernen.
-   - `overlayNext`/`overlayProg` werden nicht mehr benötigt; `timelineState.nextFrame`/`.progress` nicht mehr auslesen.
-   - `TimelineOverlayHandle.setTimeline`-Signatur auf `(frame: RadarFrame | null) => void` reduzieren, ebenso den Aufrufer `setTimelineTime` (Zeile ~2438) → `precipOverlayRef.current?.setTimeline(timelineState.frame)`.
-
-4. Alle verbliebenen Kommentare, die "Crossfade / Blend / Intensitäts-Interpolation" erwähnen, an die neue, harte Frame-Umschaltung anpassen.
-
-Keine Änderung an `resolveTimelineState`, `timelineStateForMs`, Filmstrip, Autoplay-Loop, Scrubbing, Prewarm-Logik, oder anderen Karten (Satellit, Wind, Niederschlags-Akkumulation).
-
-## Verifikation
-
-- `bunx tsgo --noEmit` läuft grün.
-- Im Preview `/karten/radar` während Autoplay: kein sichtbarer Übergang zwischen zwei Frames — jeder Frame erscheint hart. `document.querySelectorAll('canvas.radar-canvas')` bleibt bei einem Canvas mit konstanter `opacity: 0.6` und ohne pro-Tick-Blend.
-- Scrubbing schaltet weiterhin snap-basiert auf den nächstliegenden Frame; Zeitachse und Filmstrip unverändert.
+## Validierung
+- Per Suche sicherstellen, dass im Radar-Prognosepfad keine `nextFrame`/`progress`/`globalAlpha`/Crossfade-Logik mehr aktiv ist.
+- TypeScript prüfen.
+- Optional im Preview auf `/karten/radar` prüfen: Play und Scrubbing wechseln klare Einzelbilder ohne Überblendung.
