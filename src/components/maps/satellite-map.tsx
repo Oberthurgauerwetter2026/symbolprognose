@@ -874,13 +874,13 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           <FlyToRegion regionId={regionId} />
           {frames.length > 0 && (
             <FrameStack
-              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              key={`${regionId}-${layer}`}
               ref={stackRef}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               frames={frames}
-              initialIndex={initialIndexRef.current}
-              onProgress={(l) => setLoaded(l)}
+              initialIso={initialIsoRef.current}
+              onProgress={handleStackProgress}
             />
           )}
           {showSwiss && <SwissOutline />}
