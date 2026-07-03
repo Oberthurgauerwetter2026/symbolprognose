@@ -1,84 +1,72 @@
-## Analyse aus Profil und Code
 
-Die Ruckler entstehen sehr wahrscheinlich nicht durch den Filmstrip allein, sondern durch gekoppelte Hauptthread-Arbeit pro Animations-Tick:
+## Ziel
 
-1. **React rendert bei Play/Scrub zu oft**
-   - Der Play-Loop setzt pro `requestAnimationFrame` React-State (`renderMs`, `playVisualMs`, teils `idx`).
-   - Dadurch rendert `RadarMap` samt `FilmstripTimeline` und Overlay-Baum bei laufender Animation fortlaufend neu.
+Satelliten-Zeitraffer läuft so flüssig wie SAT24: kontinuierliche Zeit `t` (RAF, nicht framebasiert), weiche Übergänge zwischen den EUMETSAT-WMS-Frames, absolut ruckelfreies Scrubbing, gleicher Look-and-Feel-Filmstrip wie beim Niederschlagsradar.
 
-2. **Canvas wird pro Tick teuer neu berechnet**
-   - `PrecipOverlay` zeichnet bei jedem `progress`-Update neu.
-   - Dabei werden Canvas-Dimensionen neu gesetzt und für Zwischenzustände große Pixel-Arrays neu erzeugt.
-   - Das ist genau die Arbeit, die beim Scrubbing/Play nicht synchron im Hauptthread entstehen darf.
+## Aktueller Zustand (Kurzanalyse)
 
-3. **Filmstrip-Position hängt an React-State**
-   - Die Strip-Translation und Bubble werden über React-Re-Renders aktualisiert.
-   - Dadurch konkurrieren UI-Bewegung, Canvas-Interpolation und React-Reconciliation auf demselben Frame-Budget.
+`src/components/maps/satellite-map.tsx`:
+- `setInterval(setIndex, speedMs)` — framebasierter Sprung von Bild zu Bild, harte Kanten zwischen Frames.
+- Aktiver Frame wird über `opacity: 0/1` umgeschaltet — keine Interpolation.
+- Scrubbing setzt `index` per React-State pro Pointer-Move (RAF-throttled, aber trotzdem React-Re-Render pro Bewegung).
+- Filmstrip ist eine eigene, vom Radar abweichende Implementierung (`SatelliteTimeline`) — nicht die gewünschte gemeinsame Komponente.
 
-4. **Scrubbing triggert doppelte Arbeit**
-   - Pointer-Move setzt sowohl Index/React-State als auch kontinuierliche Zeit.
-   - Karte und Filmstrip sind zwar zeitlich gekoppelt, aber die Kopplung erfolgt über React statt über eine leichte, imperative Zeitquelle.
+## Umsetzung
 
-## Plan
+### 1. Gemeinsamen Filmstrip extrahieren
 
-### 1. Mini-Performance-Instrumentierung für die Korrektur einbauen
-- Während der Umsetzung lokal mit einem Browser-Profil prüfen:
-  - RAF-Deltas beim Play,
-  - Long Tasks,
-  - Anzahl React-/DOM-Updates,
-  - Canvas-Neuberechnungen pro Sekunde.
-- Die Messung dient nur zur Validierung; keine sichtbare Debug-UI im Produkt.
+- Die Filmstrip-Komponente aus `radar-map.tsx` (inkl. Bubble, Stundenticks, Tages-Segmente, imperativer RAF-Position, Scrub-Logik) in ein eigenes Modul `src/components/maps/timeline-filmstrip.tsx` heben.
+- Radar-Map und Satelliten-Map konsumieren beide dieselbe Komponente. Props: `tMin`, `tMax`, `getBubbleLabel(ms)`, `onScrub(ms)`, `onScrubEnd(ms)`, `clockRef` (für imperatives Update von Handle-Position + Bubble ohne React-Re-Render).
+- Kein visueller Unterschied zum bisherigen Radar-Strip.
 
-### 2. Eine imperative Timeline-Clock einführen
-- `renderMs` bleibt als Datenmodell erhalten, wird aber nicht mehr bei jedem Frame als React-State geschrieben.
-- Eine `renderMsRef`/Timeline-Clock steuert Play und Scrubbing direkt.
-- React-State wird nur noch bei diskreten UI-Ereignissen aktualisiert:
-  - Play/Pause,
-  - Button-Schritt,
-  - Scrub-Ende,
-  - Wechsel des nächsten Viertelstunden-Ankers.
+### 2. Kontinuierliche Zeitachse für Satellit
 
-### 3. Filmstrip ohne React pro Frame bewegen
-- `FilmstripTimeline` bekommt eine imperative API bzw. Refs für:
-  - Strip-Transform,
-  - Bubble-Text,
-  - Bubble-Farbe,
-  - ARIA-Wert nur gedrosselt.
-- Während Play/Scrub wird `transform: translate3d(...)` direkt per RAF gesetzt.
-- React rendert nur Struktur, Ticks und Controls; nicht jeden Animationsschritt.
+- `renderMsRef` als Single Source of Truth für die aktuelle Zeit; kein `index`-State pro Frame mehr.
+- Play-Loop per `requestAnimationFrame`: `renderMs += dt * speed`; wrap am Ende zurück auf `tMin`. Speed-Auswahl (0.5×/1×/2×/4×) bleibt.
+- Bei jedem RAF-Tick:
+  - Filmstrip-Handle imperativ aktualisieren (Transform + Bubble-Text via Ref).
+  - Overlay-Interpolation (siehe §3) imperativ aktualisieren.
+  - React-State wird nur bei Play/Pause, Speed-Change und Region-Wechsel gesetzt.
 
-### 4. Karte und Filmstrip über dieselbe Zeitquelle synchronisieren
-- Play und Drag verwenden exakt dieselbe `setTimelineTime(ms)`-Funktion.
-- Diese Funktion aktualisiert:
-  - Filmstrip-Position sofort,
-  - Overlay-Zeit sofort,
-  - diskreten `idx` nur wenn der nächstgelegene Zeitanker wirklich wechselt.
-- Damit bleibt der Übergang Messung → Prognose nahtlos, aber ohne React-Rerender pro Pixelbewegung.
+### 3. Cross-Fade-Interpolation zwischen WMS-Frames
 
-### 5. Canvas-Rendering entlasten und cachen
-- Canvas-Dimensionen nur ändern, wenn Viewport/DPR/Map-Größe sich tatsächlich ändern; nicht bei jedem Zeitupdate.
-- Offscreen-Bilder für echte Frames weiter cachen.
-- Zwischenzustände für Viertelstunden-Frames und häufige Play-Schritte vorwärmen bzw. in einem kleinen LRU-Cache halten.
-- Beim Scrubbing werden vorbereitete Nachbarframes/blended Zustände genutzt; teure Pixel-Loops laufen nicht mehrfach für dieselbe Zeit/View.
+- Alle Frames wie bisher als `L.tileLayer.wms` gemountet (`FrameStack`), aber Opacity nicht 0/1 sondern kontinuierlich:
+  - Für aktuelles `t`: finde `iPrev`, `iNext` mit `times[iPrev] ≤ t < times[iNext]`.
+  - `alpha = (t - times[iPrev]) / (times[iNext] - times[iPrev])`.
+  - `layers[iPrev].setOpacity(1 - alpha)`, `layers[iNext].setOpacity(alpha)`, alle anderen `0`.
+  - Sanftes ease (smoothstep) auf `alpha` gegen Flackern.
+- Nur mounten was tatsächlich benötigt/nachbar-nah ist bleibt wie heute (radial prewarm).
+- Beim Region-/Layer-Wechsel Übergang deaktivieren bis Nachbarn geladen sind, um Flackern zu vermeiden.
 
-### 6. Scrubbing glätten
-- Pointer-Move schreibt nur in eine pending-Zeit und verarbeitet maximal einmal pro RAF.
-- Keine harte Index-Snaps während des Drags.
-- Beim Loslassen bleibt die aktuelle kontinuierliche Position erhalten; nur der UI-Anker wird nachgezogen.
+Hinweis: echte Optical-Flow-Warping-Wolken sind auf WMS-Tiles im Browser nicht praktikabel (kein Pixelzugriff, CORS/Tile-Grid). Cross-Fade mit kontinuierlichem Alpha ist der SAT24-übliche Ansatz für WMS-Layer und liefert die gewünschte „ruhige Wolkenbewegung".
 
-### 7. Sichtbare Timeline virtualisieren/vereinfachen
-- Die 15-Minuten-Prognose bleibt vollständig verfügbar.
-- Der Filmstrip rendert aber nur sichtbare/nahe Ticks statt die komplette 48h-Tick-Struktur unnötig oft neu aufzubauen.
-- Stundenlabels/Tageswechsel bleiben stabil, werden aber memoisiert und nicht bei jedem Animationsschritt neu berechnet.
+### 4. Scrubbing
 
-### 8. Validierung
-- Browser-Profil nach der Änderung:
-  - keine regelmäßigen Long Tasks während Play/Scrub,
-  - stabile RAF-Deltas,
-  - deutlich weniger DOM-/React-Updates,
-  - keine Canvas-Reallocation pro Frame.
-- Funktional prüfen:
-  - Play läuft flüssig über Messung → Prognose,
-  - Scrubbing bleibt synchron und ohne Einrasten,
-  - Prognose bleibt durchgehend im 15-Minuten-Raster,
-  - TypeScript-Prüfung erfolgreich.
+- Pointer-Move schreibt nur in `pendingMsRef`; ein einziger RAF pro Frame verarbeitet den letzten Wert.
+- Setzt `renderMsRef`, aktualisiert Overlay-Alpha und Handle imperativ — kein React-Render.
+- Kein Snap auf diskrete Frames während des Drags; erst am `pointerup` wird `lastTimeRef` auf den nächsten realen Frame gesetzt (für Refetch-Persistenz).
+
+### 5. Filmstrip-Performance
+
+- Stundenticks / Tages-Segmente memoisiert auf `[tMin, tMax]`.
+- Nur sichtbare Ticks rendern (die Satelliten-Zeitachse ist mit 3–5 h ohnehin klein — hier reicht Memoisierung, keine Virtualisierung nötig).
+- ARIA-Wert throttled (max. alle 200 ms) aktualisieren.
+
+### 6. Validierung
+
+- Playwright-Perf-Profil auf `/karten/satellit`:
+  - stabile RAF-Deltas während Play und Scrub (< 20 ms),
+  - keine regelmäßigen Long Tasks,
+  - React-Re-Renders nur bei Play/Pause/Speed/Region.
+- Funktional:
+  - kontinuierlicher, ruckelfreier Play über den gesamten Zeitraum,
+  - Scrubbing synchron, ohne Sprünge zwischen Frames,
+  - identisches Filmstrip-Verhalten wie im Radar,
+  - Region-Wechsel ohne Flackern,
+  - TypeScript-Build grün.
+
+## Betroffene Dateien
+
+- neu: `src/components/maps/timeline-filmstrip.tsx` (gemeinsame Filmstrip-Komponente + Clock-Ref-API)
+- `src/components/maps/radar-map.tsx` (auf gemeinsame Filmstrip-Komponente umstellen, Verhalten unverändert)
+- `src/components/maps/satellite-map.tsx` (kontinuierliche Zeitachse, RAF-Loop, Cross-Fade-Overlay, gemeinsamer Filmstrip)
