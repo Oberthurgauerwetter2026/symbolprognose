@@ -2390,11 +2390,9 @@ export function RadarMap({
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
-                      payload={data}
-                      nextFrame={overlayNext}
-                      progress={overlayProg}
                     />
                   )}
+
                 </>
               );
             })()}
