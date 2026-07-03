@@ -1009,7 +1009,7 @@ function PrecipOverlay({
 
   // Frame-/Payload-Wechsel neu zeichnen.
   useEffect(() => {
-    redrawRef.current();
+    redraw();
   }, [frame, payload]);
 
   // Pre-Warm: nach Map-Idle alle Cadence-Frames off-screen vorberechnen,
