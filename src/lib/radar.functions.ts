@@ -123,7 +123,7 @@ type LocResponse = {
 
 
 // (Entfernt: advectField / estimateGlobalShift / blendClosestCell —
-//  Prognose ist jetzt stündlich ohne künstliche Bewegung.)
+//  Prognose läuft im Viertelstundenraster ohne künstliche Bewegung.)
 
 
 type ManifestFrame = { t: string; precipUrl?: string; hailUrl?: string };
@@ -311,7 +311,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     }
   }
 
-  // ---- Prognose: ICON-CH1 (minutely_15, bis +24 h) ----
+  // ---- Prognose: ICON-CH1 (minutely_15) + Stundenmodell-Fallback ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
 
   // Bias-Korrektur Messung↔Prognose: Mittel der letzten 3 Messungen vs. ICON-CH1
