@@ -654,6 +654,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   const [loaded, setLoaded] = useState(0);
   const [uiIndex, setUiIndex] = useState(0); // nur für Buttons/Prev-Next
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const lastTimeRef = useRef<string | null>(null);
 
   const total = frames.length;
   const selectedIso = useMemo(() => {
@@ -693,8 +694,6 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     const stepMs = region.stepMinutes * 60_000;
     rateRef.current = stepMs / speedMs;
   }, [region.stepMinutes, speedMs]);
-
-  const lastTimeRef = useRef<string | null>(null);
 
   // Beim Wechsel der Frames Position bestimmen (bei erstem Load: neuestes Bild).
   useEffect(() => {
