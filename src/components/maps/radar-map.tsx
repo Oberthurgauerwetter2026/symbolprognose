@@ -1153,6 +1153,7 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
   const nextSourceRef = useRef<DecodedRadar | null>(null);
   const nextSourceUrlRef = useRef<string | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
+  const renderCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const activeNextFrameRef = useRef<RadarFrame | null>(nextFrame ?? null);
   const activeProgressRef = useRef(progress);
   const DECODE_CACHE_MAX = 96;
