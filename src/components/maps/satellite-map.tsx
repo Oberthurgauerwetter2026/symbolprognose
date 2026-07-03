@@ -114,6 +114,8 @@ const FrameStack = forwardRef<
   const imgBRef = useRef<HTMLImageElement | null>(null);
   const imgAIsoRef = useRef<string | null>(null);
   const imgBIsoRef = useRef<string | null>(null);
+  const imgAUrlRef = useRef<string | null>(null);
+  const imgBUrlRef = useRef<string | null>(null);
   const lastVisibleIsoRef = useRef<string | null>(null);
   const targetMsRef = useRef<number | null>(null);
   const preloadTimersRef = useRef<number[]>([]);
@@ -194,6 +196,8 @@ const FrameStack = forwardRef<
       orderedRef.current = [];
       imgAIsoRef.current = null;
       imgBIsoRef.current = null;
+      imgAUrlRef.current = null;
+      imgBUrlRef.current = null;
       lastVisibleIsoRef.current = null;
       targetMsRef.current = null;
       containerRef.current = null;
@@ -266,14 +270,17 @@ const FrameStack = forwardRef<
     const img = slot === "a" ? imgARef.current : imgBRef.current;
     if (!img) return;
     const isoRef = slot === "a" ? imgAIsoRef : imgBIsoRef;
+    const urlRef = slot === "a" ? imgAUrlRef : imgBUrlRef;
     if (!entry || entry.status !== "ready") {
       img.style.opacity = "0";
       isoRef.current = null;
+      urlRef.current = null;
       return;
     }
-    if (isoRef.current !== entry.iso) {
+    if (isoRef.current !== entry.iso || urlRef.current !== entry.url) {
       img.src = entry.url;
       isoRef.current = entry.iso;
+      urlRef.current = entry.url;
     }
   }, []);
 
