@@ -663,30 +663,70 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  // Play-Loop per requestAnimationFrame — kontinuierliche Zeit, keine React-Renders pro Frame.
+  // Play-Loop per requestAnimationFrame — kontinuierliche Zeit, keine React-
+  // Renders pro Frame. Ready-Gate: fehlt der Ziel-Frame noch, wird die Zeit
+  // nicht weitergezogen; sichtbar bleibt dabei stets der letzte fertige Frame.
+  const uiIndexLastWriteRef = useRef(0);
   useEffect(() => {
     if (!playing || total < 2 || !ready) return;
     let raf = 0;
     let last = performance.now();
+    let stallSince = 0;
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
       let next = renderMsRef.current + dt * rateRef.current;
       if (next > tMax) next = tMin + (next - tMax); // wrap
       if (next < tMin) next = tMin;
+
+      // Ready-Gate: falls Nachbar-Frames bei `next` noch nicht geladen sind,
+      // Zeit anhalten und sichtbaren Frame nicht ändern. Timeout-Fallback nach
+      // 5 s: harter Skip zum nächsten geladenen Ankerpunkt.
+      const canAdvance = stackRef.current?.canAdvanceTo(next) ?? true;
+      if (!canAdvance) {
+        if (stallSince === 0) stallSince = now;
+        if (now - stallSince > 5000) {
+          // Suche nächsten ready-Frame nach current
+          const cur = renderMsRef.current;
+          let jumped: number | null = null;
+          for (let i = 0; i < times.length; i++) {
+            if (times[i] > cur && stackRef.current?.canAdvanceTo(times[i])) {
+              jumped = times[i];
+              break;
+            }
+          }
+          if (jumped != null) {
+            next = jumped;
+            stallSince = 0;
+          } else {
+            raf = requestAnimationFrame(tick);
+            return;
+          }
+        } else {
+          // Nichts weiterdrehen; nur Filmstrip aktuell halten.
+          raf = requestAnimationFrame(tick);
+          return;
+        }
+      } else {
+        stallSince = 0;
+      }
+
       renderMsRef.current = next;
       filmstripRef.current?.setTime(next);
       stackRef.current?.setTimeMs(next);
-      // uiIndex diskret nur bei Wechsel aktualisieren (drosselt Re-Renders)
-      // -> nächster Frame-Index
-      let iNear = 0;
-      let bestDt = Infinity;
-      for (let i = 0; i < times.length; i++) {
-        const d = Math.abs(times[i] - next);
-        if (d < bestDt) { bestDt = d; iNear = i; }
+
+      // uiIndex diskret & gedrosselt aktualisieren (max alle 150 ms).
+      if (now - uiIndexLastWriteRef.current > 150) {
+        let iNear = 0;
+        let bestDt = Infinity;
+        for (let i = 0; i < times.length; i++) {
+          const d = Math.abs(times[i] - next);
+          if (d < bestDt) { bestDt = d; iNear = i; }
+        }
+        uiIndexLastWriteRef.current = now;
+        setUiIndex((prev) => (prev === iNear ? prev : iNear));
+        lastTimeRef.current = frames[iNear]?.time ?? lastTimeRef.current;
       }
-      setUiIndex((prev) => (prev === iNear ? prev : iNear));
-      lastTimeRef.current = frames[iNear]?.time ?? lastTimeRef.current;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
