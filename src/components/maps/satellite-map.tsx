@@ -157,7 +157,7 @@ const FrameStack = forwardRef<
       layers: layer,
       styles: "",
       format: "image/png",
-      transparent: "false",
+      transparent: "true",
       crs: "EPSG:3857",
       bbox: vp.bbox,
       width: String(vp.width),
