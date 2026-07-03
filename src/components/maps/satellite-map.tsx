@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MapContainer, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -29,8 +37,9 @@ import {
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#2561a1";
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
-const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
+// Play-Geschwindigkeiten: reale ms zwischen zwei Frame-Schritten.
+// Der RAF-Loop wandelt das in eine kontinuierliche Zeitrate um.
 const SPEEDS = [
   { label: "0.5×", ms: 1000 },
   { label: "1×", ms: 500 },
@@ -53,41 +62,45 @@ function SwissOutline() {
   return (
     <GeoJSON
       data={SWITZERLAND}
-      style={{
-        color: "#ffffff",
-        weight: 1.5,
-        opacity: 0.9,
-        fill: false,
-        interactive: false,
-      }}
+      style={{ color: "#ffffff", weight: 1.5, opacity: 0.9, fill: false, interactive: false }}
     />
   );
 }
 
-/**
- * Mountet zuerst nur den aktiven Frame, dann inkrementell die übrigen
- * (radial vom aktiven Index aus).
- */
-function FrameStack({
-  layer,
-  fallbackLayer,
-  frames,
-  activeIndex,
-  initialIndex,
-  onProgress,
-}: {
-  layer: string;
-  fallbackLayer?: string;
-  frames: SatelliteFrame[];
-  activeIndex: number;
-  initialIndex: number;
-  onProgress: (loaded: number, total: number) => void;
-}) {
+// ---------- Frame-Stack mit kontinuierlicher Cross-Fade-Interpolation ----------
+
+type FrameStackHandle = {
+  /** Setzt die aktuell darzustellende Zeit (ms). Blendet zwischen den beiden
+   *  benachbarten WMS-Frames kontinuierlich über. */
+  setTimeMs: (ms: number) => void;
+};
+
+const FrameStack = forwardRef<
+  FrameStackHandle,
+  {
+    layer: string;
+    fallbackLayer?: string;
+    frames: SatelliteFrame[];
+    initialIndex: number;
+    onProgress: (loaded: number, total: number) => void;
+  }
+>(function FrameStack(
+  { layer, fallbackLayer, frames, initialIndex, onProgress },
+  ref,
+) {
   const map = useMap();
   const layersRef = useRef<(L.TileLayer.WMS | null)[]>([]);
   const loadedRef = useRef<Set<number>>(new Set());
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
+  const times = useMemo(() => frames.map((f) => Date.parse(f.time)), [frames]);
+  const timesRef = useRef(times);
+  useEffect(() => {
+    timesRef.current = times;
+  }, [times]);
+  // Zuletzt aktive Frame-Paar-Indizes; damit vermeiden wir das Iterieren
+  // über alle Layer pro RAF-Tick.
+  const lastPairRef = useRef<[number, number] | null>(null);
 
   useEffect(() => {
     setEffectiveLayer(layer);
@@ -97,6 +110,7 @@ function FrameStack({
   useEffect(() => {
     loadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
+    lastPairRef.current = null;
 
     const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean } = {
       layers: effectiveLayer,
@@ -114,7 +128,7 @@ function FrameStack({
     const mountFrame = (i: number) => {
       if (i < 0 || i >= frames.length || layersRef.current[i]) return;
       const f = frames[i];
-      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: i === activeIndex ? 1 : 0 });
+      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: i === initialIndex ? 1 : 0 });
       tl.setParams({ time: f.time } as unknown as L.WMSParams, false);
       tl.on("load", () => {
         if (!loadedRef.current.has(i)) {
@@ -157,25 +171,73 @@ function FrameStack({
       timers.forEach((t) => window.clearTimeout(t));
       layersRef.current.forEach((tl) => tl?.remove());
       layersRef.current = [];
+      lastPairRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, effectiveLayer, frames]);
 
-  useEffect(() => {
-    layersRef.current.forEach((tl, i) => tl?.setOpacity(i === activeIndex ? 1 : 0));
-  }, [activeIndex]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      setTimeMs: (ms: number) => {
+        const t = timesRef.current;
+        if (t.length === 0) return;
+        // iPrev = letzter Frame mit times[i] <= ms; iNext = iPrev+1 (oder gleich)
+        let iPrev = 0;
+        // binäre Suche
+        let lo = 0;
+        let hi = t.length - 1;
+        if (ms <= t[0]) {
+          iPrev = 0;
+        } else if (ms >= t[hi]) {
+          iPrev = hi;
+        } else {
+          while (lo < hi) {
+            const mid = (lo + hi + 1) >> 1;
+            if (t[mid] <= ms) lo = mid;
+            else hi = mid - 1;
+          }
+          iPrev = lo;
+        }
+        const iNext = Math.min(iPrev + 1, t.length - 1);
+        const dt = t[iNext] - t[iPrev];
+        let a = dt > 0 ? (ms - t[iPrev]) / dt : 0;
+        if (a < 0) a = 0;
+        else if (a > 1) a = 1;
+        // smoothstep gegen Flackern
+        const alpha = a * a * (3 - 2 * a);
+
+        const layers = layersRef.current;
+        const last = lastPairRef.current;
+        // Alte Paar-Layer auf 0 setzen, sofern sie nicht Teil des neuen Paars sind.
+        if (last) {
+          for (const idx of last) {
+            if (idx !== iPrev && idx !== iNext) {
+              const l = layers[idx];
+              if (l) l.setOpacity(0);
+            }
+          }
+        }
+        const lp = layers[iPrev];
+        const ln = layers[iNext];
+        if (iPrev === iNext) {
+          if (lp) lp.setOpacity(1);
+        } else {
+          if (lp) lp.setOpacity(1 - alpha);
+          if (ln) ln.setOpacity(alpha);
+        }
+        lastPairRef.current = [iPrev, iNext];
+      },
+    }),
+    [],
+  );
 
   return null;
-}
+});
 
-// ---------- Timeline (analog MeteoTimeline) ----------
+// ---------- Filmstrip (Radar-Look, kontinuierliche Zeitachse) ----------
 
-function fmtDayLong(d: Date): string {
-  const wd = WEEKDAY_LONG[d.getDay()];
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
-}
+const STRIP_COLOR = BRAND;
 
 function fmtBubble(d: Date): string {
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
@@ -184,229 +246,235 @@ function fmtBubble(d: Date): string {
   return `${wd}, ${hh}:${mm}`;
 }
 
-function SatelliteTimeline({
-  frames,
-  idx,
-  onChange,
-  isMobile,
-}: {
-  frames: SatelliteFrame[];
-  idx: number;
-  onChange: (i: number) => void;
+type FilmstripHandle = { setTime: (ms: number) => void };
+
+type FilmstripProps = {
+  tMin: number;
+  tMax: number;
   isMobile: boolean;
-}) {
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const [dragging, setDragging] = useState(false);
+  playing: boolean;
+  /** Wird bei laufendem Scrub für jeden RAF-Frame aufgerufen; commit=true beim Release. */
+  onScrubMs: (ms: number, commit: boolean) => void;
+};
 
-  const times = useMemo(() => frames.map((f) => Date.parse(f.time)), [frames]);
-  const tMin = times[0] ?? 0;
-  const tMax = times[times.length - 1] ?? 1;
-  const span = Math.max(1, tMax - tMin);
+const SatelliteFilmstrip = forwardRef<FilmstripHandle, FilmstripProps>(function SatelliteFilmstrip(
+  { tMin, tMax, isMobile, playing, onScrubMs },
+  ref,
+) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const bubbleRef = useRef<HTMLSpanElement | null>(null);
+  const [containerW, setContainerW] = useState(0);
+  const containerWRef = useRef(0);
 
-  const pctForMs = (ms: number) => Math.max(0, Math.min(100, ((ms - tMin) / span) * 100));
-  const pctForIdx = (i: number) => pctForMs(times[i] ?? tMin);
-
-  const idxFromClientX = (clientX: number): number => {
-    const el = trackRef.current;
-    if (!el) return idx;
-    const r = el.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    const target = tMin + pct * span;
-    let best = 0;
-    let bestDt = Infinity;
-    for (let i = 0; i < times.length; i++) {
-      const dt = Math.abs(times[i] - target);
-      if (dt < bestDt) {
-        bestDt = dt;
-        best = i;
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const initialW = containerRef.current.getBoundingClientRect().width;
+    containerWRef.current = initialW;
+    setContainerW(initialW);
+    const ro = new ResizeObserver((entries) => {
+      const e = entries[0];
+      if (e) {
+        containerWRef.current = e.contentRect.width;
+        setContainerW(e.contentRect.width);
       }
-    }
-    return best;
-  };
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
 
-  const rafRef = useRef<number | null>(null);
-  const pendingXRef = useRef<number | null>(null);
-  const flushPending = () => {
-    rafRef.current = null;
-    const x = pendingXRef.current;
-    pendingXRef.current = null;
-    if (x != null) onChange(idxFromClientX(x));
-  };
-  const cancelPending = () => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    pendingXRef.current = null;
-  };
-  useEffect(() => () => cancelPending(), []);
+  const PX_PER_HOUR = isMobile ? 56 : 72;
+  const totalWidth = ((tMax - tMin) / 3_600_000) * PX_PER_HOUR;
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    setDragging(true);
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      try { navigator.vibrate(8); } catch { /* ignore */ }
-    }
-    onChange(idxFromClientX(e.clientX));
-  };
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragging) return;
-    pendingXRef.current = e.clientX;
-    if (rafRef.current != null) return;
-    rafRef.current = requestAnimationFrame(flushPending);
-  };
-  const handlePointerUp = (e: React.PointerEvent) => {
-    setDragging(false);
-    cancelPending();
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch { /* ignore */ }
-  };
-
-  const hourTicks = useMemo(() => {
-    const startMs = Math.ceil(tMin / 3600000) * 3600000;
-    const out: { ms: number; pct: number; hour: number }[] = [];
-    for (let t = startMs; t <= tMax; t += 3600000) {
-      const d = new Date(t);
-      out.push({ ms: t, pct: pctForMs(t), hour: d.getHours() });
+  const hours = useMemo(() => {
+    const start = Math.ceil(tMin / 3_600_000) * 3_600_000;
+    const out: { ms: number; left: number; hour: number }[] = [];
+    for (let t = start; t <= tMax; t += 3_600_000) {
+      out.push({
+        ms: t,
+        left: ((t - tMin) / 3_600_000) * PX_PER_HOUR,
+        hour: new Date(t).getHours(),
+      });
     }
     return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tMin, tMax]);
+  }, [tMin, tMax, PX_PER_HOUR]);
 
-  const dayBreaks = hourTicks.filter((t) => t.hour === 0);
-
-  const daySegments = useMemo(() => {
-    const breaks = [tMin, ...dayBreaks.map((b) => b.ms), tMax];
-    const segs: { startPct: number; endPct: number; label: string }[] = [];
-    for (let i = 0; i < breaks.length - 1; i++) {
-      const a = breaks[i];
-      const b = breaks[i + 1];
-      if (b <= a) continue;
-      const mid = new Date((a + b) / 2);
-      segs.push({ startPct: pctForMs(a), endPct: pctForMs(b), label: fmtDayLong(mid) });
+  const ticks10 = useMemo(() => {
+    const start = Math.ceil(tMin / 600_000) * 600_000;
+    const out: number[] = [];
+    for (let t = start; t <= tMax; t += 600_000) {
+      out.push(((t - tMin) / 3_600_000) * PX_PER_HOUR);
     }
-    return segs;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tMin, tMax, dayBreaks.length]);
+    return out;
+  }, [tMin, tMax, PX_PER_HOUR]);
 
-  const handlePct = pctForIdx(idx);
-  const currentMs = times[idx] ?? tMax;
-  const bubbleLabel = fmtBubble(new Date(currentMs));
-  const labelStep = isMobile ? 3 : 1;
+  const dayBreaks = hours.filter((h) => h.hour === 0);
+
+  const currentMotionRef = useRef((tMin + tMax) / 2);
+  const draggingRef = useRef(false);
+  const ariaLastRef = useRef(0);
+
+  const paintTime = useCallback(
+    (ms: number) => {
+      const clamped = Math.max(tMin, Math.min(tMax, ms));
+      currentMotionRef.current = clamped;
+      const w = containerWRef.current || containerW;
+      const x = w / 2 - ((clamped - tMin) / 3_600_000) * PX_PER_HOUR;
+      if (stripRef.current) stripRef.current.style.transform = `translate3d(${x}px,0,0)`;
+      if (bubbleRef.current) bubbleRef.current.textContent = fmtBubble(new Date(clamped));
+      // ARIA nur gedrosselt aktualisieren
+      const now = performance.now();
+      if (now - ariaLastRef.current > 200 && containerRef.current) {
+        ariaLastRef.current = now;
+        const pct = Math.round(((clamped - tMin) / Math.max(1, tMax - tMin)) * 1000);
+        containerRef.current.setAttribute("aria-valuenow", String(pct));
+      }
+    },
+    [tMin, tMax, PX_PER_HOUR, containerW],
+  );
+
+  useImperativeHandle(ref, () => ({ setTime: paintTime }), [paintTime]);
+
+  // Beim Zeitfenster-Wechsel oder Resize erste Position setzen.
+  useEffect(() => {
+    if (!draggingRef.current) paintTime(currentMotionRef.current);
+  }, [tMin, tMax, containerW, paintTime]);
+
+  const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
+  const rafPendingRef = useRef<number | null>(null);
+  const pendingTargetRef = useRef<number | null>(null);
+
+  const onDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    draggingRef.current = true;
+    dragStartRef.current = { x: e.clientX, ms: currentMotionRef.current };
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try { navigator.vibrate(6); } catch { /* ignore */ }
+    }
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!dragStartRef.current) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dMs = (-dx / PX_PER_HOUR) * 3_600_000;
+    const target = Math.max(tMin, Math.min(tMax, dragStartRef.current.ms + dMs));
+    pendingTargetRef.current = target;
+    if (rafPendingRef.current !== null) return;
+    rafPendingRef.current = requestAnimationFrame(() => {
+      rafPendingRef.current = null;
+      const t = pendingTargetRef.current;
+      if (t === null) return;
+      paintTime(t);
+      onScrubMs(t, false);
+    });
+  };
+  const onUp = (e: React.PointerEvent) => {
+    dragStartRef.current = null;
+    if (rafPendingRef.current !== null) {
+      cancelAnimationFrame(rafPendingRef.current);
+      rafPendingRef.current = null;
+    }
+    pendingTargetRef.current = null;
+    draggingRef.current = false;
+    onScrubMs(currentMotionRef.current, true);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const initialX = containerW / 2 - ((currentMotionRef.current - tMin) / 3_600_000) * PX_PER_HOUR;
 
   return (
     <div className="select-none">
-      <div className="relative pt-5 pb-4">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-4">
-          {hourTicks.map((t, i) => {
-            if (i % labelStep !== 0) return null;
-            return (
-              <span
-                key={`hl-${t.ms}`}
-                className="absolute -translate-x-1/2 text-[9px] font-medium tabular-nums text-neutral-500"
-                style={{ left: `${t.pct}%`, top: 0 }}
-              >
-                {String(t.hour).padStart(2, "0")}
-              </span>
-            );
-          })}
+      {/* Bubble über fixer Mittellinie */}
+      <div className="relative h-7">
+        <div className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center">
+          <span
+            ref={bubbleRef}
+            className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
+            style={{ background: STRIP_COLOR }}
+          >
+            {fmtBubble(new Date(currentMotionRef.current))}
+          </span>
+          <span
+            className="h-0 w-0"
+            style={{
+              borderLeft: "5px solid transparent",
+              borderRight: "5px solid transparent",
+              borderTop: `5px solid ${STRIP_COLOR}`,
+            }}
+          />
         </div>
+      </div>
 
+      {/* Filmstreifen */}
+      <div
+        ref={containerRef}
+        role="slider"
+        aria-label="Satellit-Zeit"
+        aria-valuemin={0}
+        aria-valuemax={1000}
+        aria-valuenow={0}
+        tabIndex={0}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        className="relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none active:cursor-grabbing focus-visible:ring-2"
+        style={{ ['--tw-ring-color' as never]: STRIP_COLOR }}
+      >
+        {/* Fixe Mittel-Linie */}
+        <span className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-px -translate-x-1/2 bg-neutral-900/85" />
+        <span
+          className="pointer-events-none absolute left-1/2 top-0 z-30 h-2 w-2 -translate-x-1/2 rotate-45"
+          style={{ background: STRIP_COLOR }}
+        />
+
+        {/* Scrollender Strip */}
         <div
-          ref={trackRef}
-          role="slider"
-          aria-label="Satellit-Zeit"
-          aria-valuemin={0}
-          aria-valuemax={frames.length - 1}
-          aria-valuenow={idx}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowLeft") {
-              e.preventDefault();
-              onChange(Math.max(0, idx - 1));
-            } else if (e.key === "ArrowRight") {
-              e.preventDefault();
-              onChange(Math.min(frames.length - 1, idx + 1));
-            }
+          ref={stripRef}
+          className="absolute inset-y-0 left-0 will-change-transform"
+          style={{
+            width: `${totalWidth}px`,
+            transform: `translate3d(${initialX}px,0,0)`,
+            transition: playing ? "none" : "none",
           }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded sm:h-6"
-          style={{ ['--tw-ring-color' as never]: BRAND }}
         >
-          <div className="relative h-[4px] w-full overflow-hidden rounded-full bg-neutral-200">
-            <div
-              className="absolute inset-y-0 left-0 right-0"
-              style={{ background: BRAND, opacity: 0.25 }}
-            />
-            {hourTicks.map((t) => (
-              <span
-                key={`ht-${t.ms}`}
-                className="absolute top-0 h-full w-px bg-neutral-300"
-                style={{ left: `${t.pct}%` }}
-              />
-            ))}
-          </div>
+          {/* Zeit-Band */}
+          <div
+            className="absolute top-6 h-4 rounded-sm"
+            style={{ left: 0, width: totalWidth, background: STRIP_COLOR, opacity: 0.6 }}
+          />
 
+          {/* 10-min-Ticks */}
+          {ticks10.map((l, i) => (
+            <span key={`m10-${i}`} className="absolute top-7 h-2 w-px bg-white/45" style={{ left: l }} />
+          ))}
+
+          {/* Stunden-Ticks + Labels */}
+          {hours.map((h) => (
+            <div key={`h-${h.ms}`} className="absolute top-0 h-full" style={{ left: h.left }}>
+              <span className="absolute top-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-neutral-600">
+                {String(h.hour).padStart(2, "0")}:00
+              </span>
+              <span className="absolute top-6 h-4 w-px bg-neutral-900/40" />
+            </div>
+          ))}
+
+          {/* Tageswechsel */}
           {dayBreaks.map((b) => (
             <span
               key={`db-${b.ms}`}
-              className="pointer-events-none absolute inset-y-0 w-px bg-neutral-300"
-              style={{ left: `${b.pct}%` }}
+              className="absolute top-6 h-4 w-[2px] bg-neutral-900/70"
+              style={{ left: b.left }}
             />
           ))}
-
-          <div
-            className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${handlePct}%` }}
-          >
-            <div className="relative h-6 w-[2px] rounded-sm bg-neutral-900/70">
-              <div
-                className="absolute left-1/2 top-1/2 h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md before:absolute before:-inset-3 before:content-['']"
-                style={{ background: BRAND }}
-              />
-            </div>
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
-              <span
-                className="whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm"
-                style={{ background: BRAND }}
-              >
-                {bubbleLabel}
-              </span>
-              <span
-                className="h-0 w-0"
-                style={{
-                  borderLeft: "4px solid transparent",
-                  borderRight: "4px solid transparent",
-                  borderTop: `4px solid ${BRAND}`,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4">
-          {daySegments.map((s, i) => {
-            const width = Math.max(0, s.endPct - s.startPct);
-            if (width < (isMobile ? 18 : 10)) return null;
-            return (
-              <span
-                key={`ds-${i}`}
-                className="absolute top-0 text-[10px] font-medium text-neutral-600 truncate"
-                style={{ left: `${s.startPct}%`, width: `${width}%`, textAlign: "center" }}
-              >
-                {s.label}
-              </span>
-            );
-          })}
         </div>
       </div>
     </div>
   );
-}
+});
 
 // ---------- Main ----------
 
@@ -423,61 +491,97 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   });
 
   const frames = useMemo(() => data?.frames ?? [], [data]);
-  const [index, setIndex] = useState(0);
+  const times = useMemo(() => frames.map((f) => Date.parse(f.time)), [frames]);
+  const tMin = times[0] ?? 0;
+  const tMax = times[times.length - 1] ?? 1;
+
   const [playing, setPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(500);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loaded, setLoaded] = useState(0);
+  const [uiIndex, setUiIndex] = useState(0); // nur für Buttons/Prev-Next
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const total = frames.length;
-  const ready = total > 0 && loaded / total >= 0.8;
+  const ready = total > 0 && loaded / total >= 0.5;
+
+  // Kontinuierliche Zeit als Single Source of Truth.
+  const renderMsRef = useRef<number>(0);
+  const filmstripRef = useRef<FilmstripHandle | null>(null);
+  const stackRef = useRef<FrameStackHandle | null>(null);
+
+  // Übersetzt Play-Rate: `speedMs` ist die reale Zeit pro Frame-Schritt.
+  // Rate = stepMinutes*60000 timeline-ms pro speedMs real-ms.
+  const rateRef = useRef<number>(1);
+  useEffect(() => {
+    const stepMs = region.stepMinutes * 60_000;
+    rateRef.current = stepMs / speedMs;
+  }, [region.stepMinutes, speedMs]);
 
   const lastTimeRef = useRef<string | null>(null);
   const initialIndexRef = useRef<number>(0);
+
+  // Beim Wechsel der Frames Position bestimmen (bei erstem Load: neuestes Bild).
   useEffect(() => {
     if (frames.length === 0) return;
-    if (lastTimeRef.current === null) {
-      const last = frames.length - 1;
-      setIndex(last);
-      initialIndexRef.current = last;
-      lastTimeRef.current = frames[last].time;
-      return;
+    let idx = frames.length - 1;
+    if (lastTimeRef.current) {
+      const found = frames.findIndex((f) => f.time === lastTimeRef.current);
+      if (found >= 0) idx = found;
     }
-    const idx = frames.findIndex((f) => f.time === lastTimeRef.current);
-    if (idx >= 0) {
-      setIndex(idx);
-      initialIndexRef.current = idx;
-    } else {
-      const last = frames.length - 1;
-      setIndex(last);
-      initialIndexRef.current = last;
-      lastTimeRef.current = frames[last].time;
-    }
+    initialIndexRef.current = idx;
+    renderMsRef.current = Date.parse(frames[idx].time);
+    lastTimeRef.current = frames[idx].time;
+    setUiIndex(idx);
+    // imperatives Erst-Paint (falls Refs schon da sind)
+    filmstripRef.current?.setTime(renderMsRef.current);
+    stackRef.current?.setTimeMs(renderMsRef.current);
   }, [frames]);
 
+  // Regionwechsel: Loading/Play zurücksetzen.
   useEffect(() => {
     setLoaded(0);
     setPlaying(false);
+    lastTimeRef.current = null;
   }, [regionId]);
 
+  // Autoplay sobald genug geladen ist.
   useEffect(() => {
     if (ready && !playing && total >= 2) setPlaying(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
+  // Play-Loop per requestAnimationFrame — kontinuierliche Zeit, keine React-Renders pro Frame.
   useEffect(() => {
     if (!playing || total < 2 || !ready) return;
-    const t = window.setInterval(() => {
-      setIndex((i) => {
-        const next = (i + 1) % total;
-        lastTimeRef.current = frames[next]?.time ?? null;
-        return next;
-      });
-    }, speedMs);
-    return () => window.clearInterval(t);
-  }, [playing, speedMs, total, ready, frames]);
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = now - last;
+      last = now;
+      let next = renderMsRef.current + dt * rateRef.current;
+      if (next > tMax) next = tMin + (next - tMax); // wrap
+      if (next < tMin) next = tMin;
+      renderMsRef.current = next;
+      filmstripRef.current?.setTime(next);
+      stackRef.current?.setTimeMs(next);
+      // uiIndex diskret nur bei Wechsel aktualisieren (drosselt Re-Renders)
+      // -> nächster Frame-Index
+      let iNear = 0;
+      let bestDt = Infinity;
+      for (let i = 0; i < times.length; i++) {
+        const d = Math.abs(times[i] - next);
+        if (d < bestDt) { bestDt = d; iNear = i; }
+      }
+      setUiIndex((prev) => (prev === iNear ? prev : iNear));
+      lastTimeRef.current = frames[iNear]?.time ?? lastTimeRef.current;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing, total, ready, tMin, tMax, times, frames]);
 
+  // Space = Play/Pause
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -496,7 +600,6 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     if (!document.fullscreenElement) void el.requestFullscreen?.();
     else void document.exitFullscreen?.();
   }, []);
-
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onChange);
@@ -504,14 +607,41 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   }, []);
 
   const layer = data?.layer ?? region.layer;
-  const source = data?.source ?? region.source;
-  const handleTimelineChange = useCallback(
-    (n: number) => {
-      setPlaying(false);
-      setIndex(n);
-      lastTimeRef.current = frames[n]?.time ?? null;
+
+  // Scrub-Handler vom Filmstrip
+  const handleScrubMs = useCallback(
+    (ms: number, commit: boolean) => {
+      if (playing) setPlaying(false);
+      renderMsRef.current = ms;
+      stackRef.current?.setTimeMs(ms);
+      if (commit) {
+        // Snap uiIndex / lastTimeRef auf nächstgelegenen Frame (für Persistenz beim Refetch)
+        let iNear = 0;
+        let bestDt = Infinity;
+        for (let i = 0; i < times.length; i++) {
+          const d = Math.abs(times[i] - ms);
+          if (d < bestDt) { bestDt = d; iNear = i; }
+        }
+        setUiIndex(iNear);
+        lastTimeRef.current = frames[iNear]?.time ?? null;
+      }
     },
-    [frames],
+    [playing, times, frames],
+  );
+
+  // Prev/Next-Buttons: diskreter Sprung
+  const stepTo = useCallback(
+    (i: number) => {
+      const clamped = Math.max(0, Math.min(total - 1, i));
+      const ms = times[clamped] ?? tMin;
+      setPlaying(false);
+      renderMsRef.current = ms;
+      setUiIndex(clamped);
+      lastTimeRef.current = frames[clamped]?.time ?? null;
+      filmstripRef.current?.setTime(ms);
+      stackRef.current?.setTimeMs(ms);
+    },
+    [total, times, frames, tMin],
   );
 
   const showSwiss = regionId === "alpen-ch";
@@ -537,9 +667,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                   onClick={() => setRegionId(r.id)}
                   className={cn(
                     "whitespace-nowrap rounded-full px-3 h-8 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2",
-                    active
-                      ? "text-white shadow-sm"
-                      : "text-neutral-700 hover:bg-neutral-100",
+                    active ? "text-white shadow-sm" : "text-neutral-700 hover:bg-neutral-100",
                   )}
                   style={
                     active
@@ -595,10 +723,10 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           {frames.length > 0 && (
             <FrameStack
               key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              ref={stackRef}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               frames={frames}
-              activeIndex={index}
               initialIndex={initialIndexRef.current}
               onProgress={(l) => setLoaded(l)}
             />
@@ -620,8 +748,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           </div>
         )}
 
-
-        {/* Steuerpanel — schwebend unten in der Karte (analog Radar) */}
+        {/* Steuerpanel — analog Radar */}
         {total > 0 && (
           <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3">
             <div className="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white/90 p-2 text-neutral-900 shadow-lg backdrop-blur sm:p-2.5">
@@ -638,7 +765,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleTimelineChange(Math.max(index - 1, 0))}
+                  onClick={() => stepTo(uiIndex - 1)}
                   className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                   aria-label="Vorheriger Frame"
                 >
@@ -646,17 +773,19 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 </button>
 
                 <div className="min-w-0 flex-1">
-                  <SatelliteTimeline
-                    frames={frames}
-                    idx={index}
-                    onChange={handleTimelineChange}
+                  <SatelliteFilmstrip
+                    ref={filmstripRef}
+                    tMin={tMin}
+                    tMax={tMax}
                     isMobile={isMobile}
+                    playing={playing}
+                    onScrubMs={handleScrubMs}
                   />
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleTimelineChange(Math.min(index + 1, total - 1))}
+                  onClick={() => stepTo(uiIndex + 1)}
                   className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                   aria-label="Nächster Frame"
                 >
