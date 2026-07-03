@@ -1704,33 +1704,14 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
       return out;
     };
 
-    const activeNextFrame = activeNextFrameRef.current;
-    const blendProgress = Math.max(0, Math.min(1, activeProgressRef.current));
-    const nextRaster =
-      activeNextFrame?.precipUrl && nextSourceUrlRef.current === activeNextFrame.precipUrl
-        ? nextSourceRef.current
-        : null;
-    const nextVals =
-      !activeNextFrame?.precipUrl && activeNextFrame?.values && activeNextFrame.values.length > 0
-        ? activeNextFrame.values
-        : null;
     const off = buildRasterOffscreen(`${viewKey}|radar|${url}`, src);
     if (!off) return;
-    const nextOff = nextRaster
-      ? buildRasterOffscreen(`${viewKey}|radar|${activeNextFrame?.precipUrl ?? activeNextFrame?.t ?? "next"}`, nextRaster)
-      : nextVals
-        ? buildGridOffscreen(`${viewKey}|grid|${activeNextFrame?.t ?? "next"}`, nextVals)
-        : null;
+    // Kein Crossfade — nur der aktuelle Frame wird gezeichnet.
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-    if (nextOff && blendProgress > 0) {
-      ctx.globalAlpha = blendProgress;
-      ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
-      ctx.globalAlpha = 1;
-    }
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
   };
@@ -1742,7 +1723,7 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
 
   useEffect(() => {
     redrawRef.current();
-  }, [nextFrame, progress, payload]);
+  }, [payload]);
 
   return null;
 });
