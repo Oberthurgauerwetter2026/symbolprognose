@@ -1092,7 +1092,7 @@ function PrecipOverlay({
   useEffect(() => {
     nextFrameRef.current = nextFrame ?? null;
     progressRef.current = typeof progress === "number" ? progress : 0;
-    redrawRef.current();
+    redraw();
   }, [nextFrame, progress]);
 
   // Canvas-Opacity nachziehen.
