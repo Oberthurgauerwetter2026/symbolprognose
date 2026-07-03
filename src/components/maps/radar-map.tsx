@@ -2214,6 +2214,9 @@ export function RadarMap({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
+  // Persistente, kontinuierliche Render-Zeit. `idx` ist nur noch der nächste
+  // UI-Anker für Buttons/Labels; diese Zeit steuert den sichtbaren Zustand.
+  const [renderMs, setRenderMs] = useState<number | null>(null);
   // Eine einzige kontinuierliche Render-Zeit für Play/Scrub. Der konkrete
   // Anzeigezustand wird zentral aus dieser Zeit abgeleitet.
   const [playVisualMs, setPlayVisualMs] = useState<number | null>(null);
@@ -2227,13 +2230,23 @@ export function RadarMap({
 
   // Auf "jetzt" springen sobald Daten da sind.
   useEffect(() => {
-    if (idx === null && frames.length > 0) setIdx(nowIdx);
-  }, [nowIdx, frames.length, idx]);
+    if (idx === null && frames.length > 0) {
+      setIdx(nowIdx);
+      setRenderMs(Date.parse(frames[nowIdx]?.t ?? frames[0].t));
+    }
+  }, [nowIdx, frames, idx]);
+
+  useEffect(() => {
+    if (renderMs === null || frames.length === 0) return;
+    const firstMs = Date.parse(frames[0].t);
+    const lastMs = Date.parse(frames[frames.length - 1].t);
+    if (renderMs < firstMs) setRenderMs(firstMs);
+    else if (renderMs > lastMs) setRenderMs(lastMs);
+  }, [frames, renderMs]);
 
   // Play-Schritt-Indizes zielzeitgesteuert:
-  //   Messung (t <= now)       : 5-min-Raster
-  //   Prognose 0–24 h          : 15-min-Raster
-  //   Prognose > +24 h         : 60-min-Raster
+  //   Messung (t <= now) : 5-min-Raster
+  //   Prognose           : durchgehend 15-min-Raster bis zum Ende
   // Pro Zielzeit wird der nächstgelegene Frame innerhalb einer Toleranz
   // (= 0.5 × Schrittgrösse) gewählt. Hat eine Phase nur grobere Daten,
   // werden Zielzeiten ohne passenden Frame übersprungen statt denselben
@@ -2285,19 +2298,11 @@ export function RadarMap({
       pushTarget(t, STEP5);
     }
 
-    // Phase Prognose A: 15-min-Raster bis nowMs + 24 h.
+    // Phase Prognose: 15-min-Raster bis zum letzten verfügbaren Frame.
     const STEP15 = 15 * 60_000;
-    const cutoff24 = nowMs + 24 * 3600_000;
     const startFc15 = Math.ceil((nowMs + 1) / STEP15) * STEP15;
-    for (let t = startFc15; t <= cutoff24 && t <= lastMs; t += STEP15) {
+    for (let t = startFc15; t <= lastMs; t += STEP15) {
       pushTarget(t, STEP15);
-    }
-
-    // Phase Prognose B: 60-min-Raster nach nowMs + 24 h.
-    const STEP60 = 60 * 60_000;
-    const startFc60 = Math.ceil((cutoff24 + 1) / STEP60) * STEP60;
-    for (let t = startFc60; t <= lastMs; t += STEP60) {
-      pushTarget(t, STEP60);
     }
     return out;
   }, [frames]);
@@ -2307,6 +2312,10 @@ export function RadarMap({
   useEffect(() => {
     idxRef.current = idx;
   }, [idx]);
+  const renderMsRef = useRef<number | null>(null);
+  useEffect(() => {
+    renderMsRef.current = renderMs;
+  }, [renderMs]);
 
   const stepCursorForIndex = (cur: number | null): number => {
     if (playStepIndices.length === 0 || cur === null) return 0;
@@ -2318,6 +2327,15 @@ export function RadarMap({
       else break;
     }
     return cursor;
+  };
+
+  const setTimelineToIndex = (target: number | null) => {
+    if (target === null || !frames[target]) return;
+    const targetMs = Date.parse(frames[target].t);
+    setIdx(target);
+    setRenderMs(targetMs);
+    setPlayVisualMs(null);
+    setScrubVisualMs(null);
   };
 
   // Play-Loop: kontinuierliche Zeitachse. Kein Quellen-Sonderfall am Seam;
@@ -2340,9 +2358,10 @@ export function RadarMap({
     const firstMs = Date.parse(frames[firstIdx]?.t ?? frames[0].t);
     const lastMs = Date.parse(frames[lastIdx]?.t ?? frames[frames.length - 1].t);
     const idxMs = Date.parse(frames[startIdx]?.t ?? frames[idxRef.current ?? 0]?.t ?? frames[0].t);
-    const startMs = Math.max(firstMs, Math.min(lastMs, playVisualMs ?? scrubVisualMs ?? idxMs));
+    const startMs = Math.max(firstMs, Math.min(lastMs, scrubVisualMs ?? renderMsRef.current ?? idxMs));
     playTimeRef.current = startMs;
     setPlayVisualMs(startMs);
+    setRenderMs(startMs);
 
     const tick = (now: number) => {
       const dt = now - last;
@@ -2352,6 +2371,7 @@ export function RadarMap({
       if (nextMs >= lastMs) {
         playTimeRef.current = lastMs;
         setPlayVisualMs(lastMs);
+        setRenderMs(lastMs);
         const endIdx = nearestFrameIndexForMs(frames, lastMs);
         idxRef.current = endIdx;
         setIdx(endIdx);
@@ -2360,6 +2380,7 @@ export function RadarMap({
       }
       playTimeRef.current = nextMs;
       setPlayVisualMs(nextMs);
+      setRenderMs(nextMs);
       const nextIdx = nearestFrameIndexForMs(frames, nextMs);
       if (nextIdx !== idxRef.current) {
         idxRef.current = nextIdx;
@@ -2374,7 +2395,7 @@ export function RadarMap({
       setPlayVisualMs(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, speed, playStepIndices]);
+  }, [playing, speed, playStepIndices, frames]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
   // Der sichtbare Zustand wird unten über `timelineStateForMs` kontinuierlich
@@ -2382,7 +2403,7 @@ export function RadarMap({
 
 
   // Reduzierte Frame-Liste für den Filmstrip — gleiche Cadence wie Play
-  // (5 min Messung / 15 min 0–24 h / 60 min > 24 h).
+  // (5 min Messung / durchgehend 15 min Prognose).
   const stripFrames = useMemo(
     () => playStepIndices.map((i) => frames[i]).filter(Boolean) as RadarFrame[],
     [playStepIndices, frames],
@@ -2522,7 +2543,7 @@ export function RadarMap({
           {data &&
             currentFrame &&
             (() => {
-              const rtMs = scrubVisualMs ?? playVisualMs ?? Date.parse(currentFrame.t);
+              const rtMs = scrubVisualMs ?? playVisualMs ?? renderMs ?? Date.parse(currentFrame.t);
               const timelineState = timelineStateForMs(frames, rtMs);
               const overlayFrame = timelineState.frame ?? currentFrame;
               const overlayNext = timelineState.nextFrame;
@@ -2684,7 +2705,7 @@ export function RadarMap({
                       setPlaying(false);
                       const ni = Math.max(0, stripIdx - 1);
                       const target = playStepIndices[ni];
-                      if (typeof target === "number") setIdx(target);
+                      if (typeof target === "number") setTimelineToIndex(target);
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Vorheriger Frame"
@@ -2698,7 +2719,7 @@ export function RadarMap({
                     onClick={() => {
                       setPlaying(false);
                       const target = playStepIndices[stripNowIdx];
-                      if (typeof target === "number") setIdx(target);
+                      if (typeof target === "number") setTimelineToIndex(target);
                     }}
                     disabled={stripIdx === stripNowIdx}
                     className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"
@@ -2716,11 +2737,14 @@ export function RadarMap({
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      visualMs={scrubVisualMs ?? playVisualMs}
-                      onScrubMs={setScrubVisualMs}
+                      visualMs={scrubVisualMs ?? playVisualMs ?? renderMs}
+                      onScrubMs={(ms) => {
+                        setScrubVisualMs(ms);
+                        if (ms !== null) setRenderMs(ms);
+                      }}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];
-                        if (typeof target === "number") setIdx(target);
+                        if (typeof target === "number") setTimelineToIndex(target);
                         setPlaying(false);
                       }}
                     />
@@ -2733,7 +2757,7 @@ export function RadarMap({
                       setPlaying(false);
                       const ni = Math.min(playStepIndices.length - 1, stripIdx + 1);
                       const target = playStepIndices[ni];
-                      if (typeof target === "number") setIdx(target);
+                      if (typeof target === "number") setTimelineToIndex(target);
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Nächster Frame"

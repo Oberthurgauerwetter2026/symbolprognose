@@ -13,9 +13,9 @@ import { r2ObjectUrlCandidates } from "./r2-url.server";
  *     Darstellung ausserhalb des CombiPrecip-Ausschnitts (gleiche Farbskala).
  *
  * Vorhersage (> now):
- *   - ICON-CH1 `minutely_15` bis +24 h, danach stündliche ICON-Frames bis +48 h.
- *   - Fehlende Viertelstundenwerte fallen auf reine Intensitäts-Interpolation
- *     zwischen benachbarten Modellstunden zurück.
+ *   - Durchgehend 15-Minuten-Frames bis +48 h.
+ *   - Direkte ICON-CH1-`minutely_15`-Slots werden bevorzugt; fehlende
+ *     Viertelstundenwerte werden aus benachbarten Modellstunden interpoliert.
  *
  * Keine Wind-Advektion, kein Nowcast, keine künstliche Zell-Extrapolation.
  */
@@ -123,7 +123,7 @@ type LocResponse = {
 
 
 // (Entfernt: advectField / estimateGlobalShift / blendClosestCell —
-//  Prognose ist jetzt stündlich ohne künstliche Bewegung.)
+//  Prognose läuft im Viertelstundenraster ohne künstliche Bewegung.)
 
 
 type ManifestFrame = { t: string; precipUrl?: string; hailUrl?: string };
@@ -311,7 +311,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     }
   }
 
-  // ---- Prognose: ICON-CH1 (minutely_15, bis +24 h) ----
+  // ---- Prognose: ICON-CH1 (minutely_15) + Stundenmodell-Fallback ----
   const ref1 = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
 
   // Bias-Korrektur Messung↔Prognose: Mittel der letzten 3 Messungen vs. ICON-CH1
@@ -361,15 +361,13 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     }
   }
 
-  // ---- Stündliche Prognose-Frames (+1 … +48 h) ----
-  // Reihenfolge der Quellen pro Stunde:
-  //  1) ICON-CH1 minutely_15 :00-Sample (`r1`) — präzisester CH1-Stundenwert
-  //  2) ICON-CH1 hourly                       — Legacy-Fallback (phase1 enthält
-  //                                              im Normalbetrieb keine Hourly-
-  //                                              Niederschläge mehr)
-  //  3) ICON-seamless hourly (phase2, `r2`)   — Hauptquelle ab +1 h, deckt
-  //                                              komplette 48 h zuverlässig ab
-  // Bias-Korrektur wird nur auf CH1-Quellen angewandt; phase2 hat eigene Skalierung.
+  // ---- Prognose-Frames (+15 min … +48 h) ----
+  // Durchgehend im Viertelstunden-Raster: :00, :15, :30, :45.
+  // Reihenfolge der Quellen:
+  //  1) Direkter ICON-CH1 minutely_15-Slot (`r1`), sofern vorhanden
+  //  2) Interpolierter Wert zwischen den benachbarten Modellstunden
+  //     (CH1 hourly oder ICON-seamless hourly/phase2)
+  // Es werden keine Frames kopiert und keine künstlichen Bewegungen erzeugt.
   const nPts = pts.length;
   const r1Min = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
   const r1Hour = r1 ? (r1[0] as LocResponse | undefined)?.hourly : undefined;
@@ -380,8 +378,6 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   const hasR2HourSnow = Array.isArray(r2Hour?.snowfall);
   const emitSnow = hasMinSnow || hasR1HourSnow || hasR2HourSnow;
 
-  // Map :00-Slots aus minutely_15 (für stündliche Phase als CH1-Quelle)
-  const minIdx = new Map<number, number>();
   // Map ALLE 15-min-Slots aus minutely_15 (für 15-min-Phase)
   const min15Idx = new Map<number, number>();
   if (r1Min?.time) {
@@ -389,7 +385,6 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       const tIso = r1Min.time[ti];
       const ms = Date.parse(tIso + "Z");
       min15Idx.set(ms, ti);
-      if (tIso.endsWith(":00")) minIdx.set(ms, ti);
     }
   }
   const r1HourIdx = new Map<number, number>();
@@ -541,16 +536,14 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   };
 
   let ch1QuarterCount = 0;
-  let ch1Count = 0;
-  let ch2Count = 0;
+  let ch2QuarterCount = 0;
 
-  // ---- Phase A: 15-min-Prognose-Frames für die ersten 24 h ----
-  // Prognose-Frames sind echte Daten-Slots: direkter 15-min-Modellwert falls
-  // vorhanden, ansonsten linearer Wert-Fallback zwischen benachbarten Stunden.
-  // Keine Wind-Advektion und keine frei erzeugte Eigenbewegung im Backend.
+  // Prognose-Frames sind Viertelstunden-Zustände für den kompletten Horizont:
+  // direkter 15-min-Modellwert falls vorhanden, ansonsten linearer Wert-Fallback
+  // zwischen benachbarten Stunden. Keine Wind-Advektion und keine frei erzeugte
+  // Eigenbewegung im Backend.
   const start15 = Math.floor(now / 900_000) * 900_000 + 900_000;
-  const cutoff24 = Math.min(forecastCutoff, now + 24 * 3600_000);
-  for (let tMs = start15; tMs <= cutoff24; tMs += 900_000) {
+  for (let tMs = start15; tMs <= forecastCutoff; tMs += 900_000) {
     const grid = getForecastExact(tMs) ?? interpolateForecast(tMs);
     if (!grid) continue;
     frames.push({
@@ -560,122 +553,12 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       snowValues: emitSnow ? grid.snow ?? new Array<number>(nPts).fill(0) : undefined,
     });
     if (grid.source === "icon-ch1") ch1QuarterCount++;
-    else ch2Count++;
-  }
-
-
-  // ---- Phase B: stündliche Prognose-Frames für > +24 h … +48 h ----
-  const startHourly = Math.floor((now + 24 * 3600_000) / 3600_000) * 3600_000 + 3600_000;
-  for (let tMs = startHourly; tMs <= forecastCutoff; tMs += 3600_000) {
-    const tIso = new Date(tMs).toISOString();
-
-    // 1) CH1 minutely_15 :00-Sample
-    let precip: number[] | null = null;
-    let snow: number[] | undefined;
-    let source: "icon-ch1" | "icon-ch2" = "icon-ch1";
-
-    const tiMin = minIdx.get(tMs);
-    if (typeof tiMin === "number" && r1) {
-      const p = new Array<number>(nPts).fill(0);
-      const s = hasMinSnow ? new Array<number>(nPts).fill(0) : undefined;
-      let any = false;
-      for (let pi = 0; pi < nPts; pi++) {
-        const loc = r1[pi] as LocResponse | undefined;
-        const v = loc?.minutely_15?.precipitation?.[tiMin];
-        if (typeof v === "number") {
-          p[pi] = v * 4;
-          any = true;
-        }
-        if (s) {
-          const sv = loc?.minutely_15?.snowfall?.[tiMin];
-          if (typeof sv === "number") {
-            s[pi] = sv * 4;
-            any = true;
-          }
-        }
-      }
-      if (any) {
-        precip = p;
-        snow = s;
-      }
-    }
-
-    // 2) CH1 hourly
-    if (!precip) {
-      const tiH1 = r1HourIdx.get(tMs);
-      if (typeof tiH1 === "number" && r1) {
-        const p = new Array<number>(nPts).fill(0);
-        const s = hasR1HourSnow ? new Array<number>(nPts).fill(0) : undefined;
-        let any = false;
-        for (let pi = 0; pi < nPts; pi++) {
-          const loc = r1[pi] as LocResponse | undefined;
-          const v = loc?.hourly?.precipitation?.[tiH1];
-          if (typeof v === "number") {
-            p[pi] = v;
-            any = true;
-          }
-          if (s) {
-            const sv = loc?.hourly?.snowfall?.[tiH1];
-            if (typeof sv === "number") {
-              s[pi] = sv;
-              any = true;
-            }
-          }
-        }
-        if (any) {
-          precip = p;
-          snow = s;
-        }
-      }
-    }
-
-    // 3) CH2 hourly (Fallback)
-    if (!precip) {
-      const tiH2 = r2HourIdx.get(tMs);
-      if (typeof tiH2 === "number" && r2) {
-        const p = new Array<number>(nPts).fill(0);
-        const s = hasR2HourSnow ? new Array<number>(nPts).fill(0) : undefined;
-        let any = false;
-        for (let pi = 0; pi < nPts; pi++) {
-          const loc = r2[pi] as LocResponse | undefined;
-          const v = loc?.hourly?.precipitation?.[tiH2];
-          if (typeof v === "number") {
-            p[pi] = v;
-            any = true;
-          }
-          if (s) {
-            const sv = loc?.hourly?.snowfall?.[tiH2];
-            if (typeof sv === "number") {
-              s[pi] = sv;
-              any = true;
-            }
-          }
-        }
-        if (any) {
-          precip = p;
-          snow = s;
-          source = "icon-ch2";
-        }
-      }
-    }
-
-    if (!precip) continue;
-
-    if (source === "icon-ch1") applyBias(tMs, precip, snow);
-
-    frames.push({
-      t: tIso,
-      source,
-      values: precip,
-      snowValues: emitSnow ? snow ?? new Array<number>(nPts).fill(0) : undefined,
-    });
-    if (source === "icon-ch1") ch1Count++;
-    else ch2Count++;
+    else ch2QuarterCount++;
   }
 
 
   console.info(
-    `[radar] forecast: ch1Quarter=${ch1QuarterCount} ch1Hourly=${ch1Count} ch2Hourly=${ch2Count}`,
+    `[radar] forecast: ch1Quarter=${ch1QuarterCount} ch2Quarter=${ch2QuarterCount}`,
   );
 
 
