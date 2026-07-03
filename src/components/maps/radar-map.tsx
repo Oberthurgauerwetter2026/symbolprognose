@@ -992,28 +992,20 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
   opacity: number;
   prefetchUrls?: string[];
   payload?: RadarPayload;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
 }>(function MeasurementCanvasOverlay({
   url,
   bounds,
   opacity,
   prefetchUrls,
   payload,
-  nextFrame,
-  progress = 0,
 }, ref) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
   type DecodedRadar = { w: number; h: number; mmh: Float32Array; smoothMmh?: Float32Array };
   const sourceRef = useRef<DecodedRadar | null>(null);
-  const nextSourceRef = useRef<DecodedRadar | null>(null);
-  const nextSourceUrlRef = useRef<string | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const renderCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
-  const activeNextFrameRef = useRef<RadarFrame | null>(nextFrame ?? null);
-  const activeProgressRef = useRef(progress);
   const DECODE_CACHE_MAX = 96;
 
   const redrawRef = useRef<() => void>(() => {});
@@ -1022,14 +1014,11 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
   }
 
   useImperativeHandle(ref, () => ({
-    setTimeline: (_frame, nf, p) => {
-      const qp = Math.round(Math.max(0, Math.min(1, p)) * 12) / 12;
-      if (activeNextFrameRef.current?.t === nf?.t && activeProgressRef.current === qp) return;
-      activeNextFrameRef.current = nf;
-      activeProgressRef.current = qp;
+    setTimeline: () => {
       redrawRef.current();
     },
   }), []);
+
 
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
     if (src.smoothMmh) return src.smoothMmh;
