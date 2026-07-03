@@ -631,7 +631,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   }, [region.stepMinutes, speedMs]);
 
   const lastTimeRef = useRef<string | null>(null);
-  const initialIndexRef = useRef<number>(0);
+  const initialIsoRef = useRef<string | null>(null);
 
   // Beim Wechsel der Frames Position bestimmen (bei erstem Load: neuestes Bild).
   useEffect(() => {
@@ -641,7 +641,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       const found = frames.findIndex((f) => f.time === lastTimeRef.current);
       if (found >= 0) idx = found;
     }
-    initialIndexRef.current = idx;
+    initialIsoRef.current = frames[idx].time;
     renderMsRef.current = Date.parse(frames[idx].time);
     lastTimeRef.current = frames[idx].time;
     setUiIndex(idx);
