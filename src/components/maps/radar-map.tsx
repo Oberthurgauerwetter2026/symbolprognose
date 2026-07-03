@@ -807,34 +807,12 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
       }
     }
 
-    const nf = nextFrameRef.current;
-    const prog = progressRef.current;
-    const blendActive =
-      !!nf &&
-      prog > 0 &&
-      prog < 1 &&
-      !!nf.t &&
-      nf.t !== activeFrame.t &&
-      !!activeFrame.values &&
-      activeFrame.values.length > 0 &&
-      !!nf.values &&
-      nf.values.length > 0;
+    // Kein Crossfade — nur der aktuelle Frame wird gezeichnet.
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-    if (blendActive && nf) {
-      const nextOff = buildOffscreenRef.current(nf);
-      if (nextOff) {
-        // Für Play/Scrub keine teure Pixel-Neuberechnung pro Zwischenzeit:
-        // beide echten Nachbarframes sind gecacht, die kontinuierliche Phase
-        // entsteht als GPU-günstige Alpha-Überblendung.
-        ctx.globalAlpha = Math.min(1, Math.max(0, prog));
-        ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
-        ctx.globalAlpha = 1;
-      }
-    }
     ctx.restore();
   };
 
