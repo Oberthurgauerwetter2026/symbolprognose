@@ -340,7 +340,9 @@ const FrameStack = forwardRef<
       image.src = entry.url;
     })
       .then(() => image.decode?.().catch(() => undefined))
-      .then(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      .then(() => new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }))
       .then(() => {
         entry.status = "ready";
         entry.image = image;
@@ -725,7 +727,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
     }
     return frames[frames.length - 1].time;
   }, [frames]);
-  const ready = total > 0 && loaded >= Math.min(total, 2);
+  const ready = total > 0 && loaded >= total;
 
   // Kontinuierliche Zeit als Single Source of Truth.
   const renderMsRef = useRef<number>(0);
@@ -786,53 +788,20 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   }, [ready]);
 
   // Play-Loop per requestAnimationFrame — kontinuierliche Zeit, keine React-
-  // Renders pro Frame. Ready-Gate: fehlt der Ziel-Frame noch, wird die Zeit
-  // nicht weitergezogen; sichtbar bleibt dabei stets der letzte fertige Frame.
+  // Renders pro Frame. Autoplay startet erst nach vollständigem Preload; der
+  // Loop selbst hält nicht mehr an Tile-Readiness an und erzeugt daher keine
+  // Geschwindigkeitsschwankungen.
   const uiIndexLastWriteRef = useRef(0);
   useEffect(() => {
     if (!playing || total < 2 || !ready) return;
     let raf = 0;
     let last = performance.now();
-    let stallSince = 0;
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
       let next = renderMsRef.current + dt * rateRef.current;
       if (next > tMax) next = tMin + (next - tMax); // wrap
       if (next < tMin) next = tMin;
-
-      // Ready-Gate: falls Nachbar-Frames bei `next` noch nicht geladen sind,
-      // Zeit anhalten und sichtbaren Frame nicht ändern. Timeout-Fallback nach
-      // 5 s: harter Skip zum nächsten geladenen Ankerpunkt.
-      const canAdvance = stackRef.current?.canAdvanceTo(next) ?? true;
-      if (!canAdvance) {
-        stackRef.current?.setTimeMs(renderMsRef.current);
-        if (stallSince === 0) stallSince = now;
-        if (now - stallSince > 5000) {
-          // Suche nächsten ready-Frame nach current
-          const cur = renderMsRef.current;
-          let jumped: number | null = null;
-          for (let i = 0; i < times.length; i++) {
-            if (times[i] > cur && stackRef.current?.canAdvanceTo(times[i])) {
-              jumped = times[i];
-              break;
-            }
-          }
-          if (jumped != null) {
-            next = jumped;
-            stallSince = 0;
-          } else {
-            raf = requestAnimationFrame(tick);
-            return;
-          }
-        } else {
-          // Nichts weiterdrehen; nur Filmstrip aktuell halten.
-          raf = requestAnimationFrame(tick);
-          return;
-        }
-      } else {
-        stallSince = 0;
-      }
 
       renderMsRef.current = next;
       filmstripRef.current?.setTime(next);
