@@ -548,26 +548,18 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
   } | null>(null);
   const CACHE_MAX = 512;
 
-  // Timeline-Refs: nextFrame + progress werden pro Animation-Tick als Prop
-  // gesetzt; redrawRef liest sie über Refs, damit Play/Scrub dieselbe
-  // kontinuierliche Zeitachse nutzen.
-  const nextFrameRef = useRef<RadarFrame | null>(null);
-  const progressRef = useRef<number>(0);
-  const blendCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastTimelineKeyRef = useRef<string>("");
 
   useImperativeHandle(ref, () => ({
-    setTimeline: (f, nf, p) => {
-      const qp = Math.round(Math.max(0, Math.min(1, p)) * 12) / 12;
-      const key = `${f?.t ?? ""}|${nf?.t ?? ""}|${qp}`;
+    setTimeline: (f) => {
+      const key = f?.t ?? "";
       if (key === lastTimelineKeyRef.current) return;
       lastTimelineKeyRef.current = key;
       frameRef.current = f;
-      nextFrameRef.current = nf;
-      progressRef.current = qp;
       redrawRef.current();
     },
   }), []);
+
 
 
   const redrawRef = useRef<() => void>(() => {});
