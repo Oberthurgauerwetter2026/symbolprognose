@@ -67,25 +67,21 @@ function SwissOutline() {
   );
 }
 
-// ---------- Frame-Stack mit kontinuierlicher Cross-Fade-Interpolation ----------
-// Wichtige Eigenschaften:
-//  * Layers werden per ISO-Zeit indiziert und über mehrere Refetches hinweg
-//    stabil gehalten. Ein neues Manifest triggert KEINEN Remount vorhandener
-//    Layer — es werden nur neue Zeiten inkrementell montiert. Damit ist
-//    keine Frame-Aufflackern während des 60-Sek-Refetch möglich.
-//  * Ein interner Ready-Gate stellt sicher, dass eine noch nicht fertig
-//    geladene Zielebene niemals sichtbar wird: entweder zeigt der Stack den
-//    bereits vorhandenen Nachbarn mit Opacity 1, oder er wartet. Der Play-
-//    Loop nutzt `canAdvanceTo(ms)` und hält die Zeit an unfertigen Frames.
+// ---------- Frame-Stack mit stabilem Double-Buffer ----------
+// Leaflet-WMS-TileLayer werden hier bewusst nicht pro Satellitenzeit gemountet:
+// genau dieses Tile-/Layer-Churn erzeugt sichtbare Leerzustände im Tile-Pane.
+// Stattdessen lädt der Renderer pro Zeitpunkt ein komplettes GetMap-Bild,
+// dekodiert es im Hintergrund und blendet zwei dauerhaft gemountete <img>-Buffer
+// über eine kontinuierliche Zeitachse. Dadurch bleibt immer ein vollständiges
+// Bild sichtbar; React und Leaflet werden im RAF-Pfad nicht neu gerendert.
 
 type FrameEntry = {
   iso: string;
   t: number;
-  layer: L.TileLayer.WMS;
-  ready: boolean;
-  loadComplete: boolean;
-  readyScheduled: boolean;
-  decodePromises: Set<Promise<void>>;
+  url: string;
+  status: "idle" | "loading" | "ready" | "error";
+  image?: HTMLImageElement;
+  promise?: Promise<void>;
 };
 
 type FrameStackHandle = {
@@ -111,37 +107,118 @@ const FrameStack = forwardRef<
   ref,
 ) {
   const map = useMap();
-  // Alle jemals montierten Frames dieser Region/Layer-Session, per ISO.
   const entriesRef = useRef<Map<string, FrameEntry>>(new Map());
-  // Zeitlich sortierte Liste der aktuell relevanten (im Manifest enthaltenen)
-  // Einträge — für Prev/Next-Suche via binary search.
   const orderedRef = useRef<FrameEntry[]>([]);
-  const lastPairRef = useRef<[string, string] | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const imgARef = useRef<HTMLImageElement | null>(null);
+  const imgBRef = useRef<HTMLImageElement | null>(null);
+  const imgAIsoRef = useRef<string | null>(null);
+  const imgBIsoRef = useRef<string | null>(null);
   const lastVisibleIsoRef = useRef<string | null>(null);
   const targetMsRef = useRef<number | null>(null);
   const preloadTimersRef = useRef<number[]>([]);
+  const viewportRef = useRef<{ key: string; bbox: string; width: number; height: number } | null>(null);
+  const [viewportKey, setViewportKey] = useState("");
   const onProgressRef = useRef(onProgress);
   useEffect(() => { onProgressRef.current = onProgress; }, [onProgress]);
 
-  // Setup / Teardown: nur bei Region- oder Layer-Wechsel.
+  const markProgress = useCallback(() => {
+    const total = orderedRef.current.length || 1;
+    let loaded = 0;
+    for (const e of orderedRef.current) if (e.status === "ready") loaded++;
+    onProgressRef.current(loaded, total);
+  }, []);
+
+  const computeViewport = useCallback(() => {
+    const size = map.getSize();
+    if (size.x <= 0 || size.y <= 0) return null;
+    const rawDpr = Math.min(window.devicePixelRatio || 1, 2);
+    const maxSide = 2048;
+    const scale = Math.max(1, Math.min(rawDpr, maxSide / size.x, maxSide / size.y));
+    const width = Math.max(1, Math.round(size.x * scale));
+    const height = Math.max(1, Math.round(size.y * scale));
+    const bounds = map.getBounds();
+    const crs = map.options.crs ?? L.CRS.EPSG3857;
+    const sw = crs.project(bounds.getSouthWest());
+    const ne = crs.project(bounds.getNorthEast());
+    const bbox = [sw.x, sw.y, ne.x, ne.y].map((n) => n.toFixed(2)).join(",");
+    return { key: `${bbox}:${width}x${height}`, bbox, width, height };
+  }, [map]);
+
+  const buildUrl = useCallback((iso: string): string | null => {
+    const vp = viewportRef.current;
+    if (!vp) return null;
+    const params = new URLSearchParams({
+      service: "WMS",
+      request: "GetMap",
+      version: "1.3.0",
+      layers: layer,
+      styles: "",
+      format: "image/png",
+      transparent: "false",
+      crs: "EPSG:3857",
+      bbox: vp.bbox,
+      width: String(vp.width),
+      height: String(vp.height),
+      time: iso,
+    });
+    return `${WMS_URL}?${params.toString()}`;
+  }, [layer]);
+
+  // Stabile Overlay-DOM-Knoten einmal anlegen. Die beiden Bildbuffer bleiben
+  // während Playback/Scrubbing dauerhaft gemountet; es werden nur src/opacity
+  // aktualisiert.
   useEffect(() => {
-    entriesRef.current = new Map();
-    orderedRef.current = [];
-    lastPairRef.current = null;
-    lastVisibleIsoRef.current = null;
-    targetMsRef.current = null;
+    const root = map.getContainer();
+    const container = L.DomUtil.create("div", "satellite-image-stack", root);
+    const imgA = new Image();
+    const imgB = new Image();
+    imgA.decoding = "async";
+    imgB.decoding = "async";
+    imgA.alt = "Satellitenbild vorheriger Zeitpunkt";
+    imgB.alt = "Satellitenbild nächster Zeitpunkt";
+    imgA.className = "satellite-buffer-image";
+    imgB.className = "satellite-buffer-image";
+    imgA.style.opacity = "0";
+    imgB.style.opacity = "0";
+    container.append(imgA, imgB);
+    containerRef.current = container;
+    imgARef.current = imgA;
+    imgBRef.current = imgB;
+
     return () => {
       for (const timer of preloadTimersRef.current) window.clearTimeout(timer);
       preloadTimersRef.current = [];
-      for (const e of entriesRef.current.values()) e.layer.remove();
+      container.remove();
       entriesRef.current.clear();
       orderedRef.current = [];
-      lastPairRef.current = null;
+      imgAIsoRef.current = null;
+      imgBIsoRef.current = null;
       lastVisibleIsoRef.current = null;
       targetMsRef.current = null;
+      containerRef.current = null;
+      imgARef.current = null;
+      imgBRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, layer]);
+  }, [map]);
+
+  // Viewport-/Region-Änderungen erzeugen neue GetMap-URLs. Das sichtbare alte
+  // Bild bleibt stehen, bis die neuen Bilder dekodiert wurden.
+  useEffect(() => {
+    const updateViewport = () => {
+      const next = computeViewport();
+      if (!next || next.key === viewportRef.current?.key) return;
+      viewportRef.current = next;
+      setViewportKey(next.key);
+    };
+    updateViewport();
+    const raf = requestAnimationFrame(updateViewport);
+    map.on("resize moveend zoomend", updateViewport);
+    return () => {
+      cancelAnimationFrame(raf);
+      map.off("resize moveend zoomend", updateViewport);
+    };
+  }, [computeViewport, map]);
 
   const neighborsAt = useCallback((ms: number): { prev: FrameEntry | null; next: FrameEntry | null; alpha: number } => {
     const arr = orderedRef.current;
@@ -170,7 +247,7 @@ const FrameStack = forwardRef<
   const findReadyNeighbor = useCallback((fromIndex: number, dir: -1 | 1): FrameEntry | null => {
     const arr = orderedRef.current;
     for (let i = fromIndex; i >= 0 && i < arr.length; i += dir) {
-      if (arr[i].ready) return arr[i];
+      if (arr[i].status === "ready") return arr[i];
     }
     return null;
   }, []);
@@ -179,11 +256,26 @@ const FrameStack = forwardRef<
     const arr = orderedRef.current;
     if (arr.length === 0) return false;
     const { prev, next } = neighborsAt(ms);
-    if (prev?.ready || next?.ready) return true;
+    if (prev?.status === "ready" || next?.status === "ready") return true;
     const stickyIso = lastVisibleIsoRef.current;
     const sticky = stickyIso ? entriesRef.current.get(stickyIso) : null;
-    return !!sticky?.ready;
+    return sticky?.status === "ready";
   }, [neighborsAt]);
+
+  const setImgSource = useCallback((slot: "a" | "b", entry: FrameEntry | null) => {
+    const img = slot === "a" ? imgARef.current : imgBRef.current;
+    if (!img) return;
+    const isoRef = slot === "a" ? imgAIsoRef : imgBIsoRef;
+    if (!entry || entry.status !== "ready") {
+      img.style.opacity = "0";
+      isoRef.current = null;
+      return;
+    }
+    if (isoRef.current !== entry.iso) {
+      img.src = entry.url;
+      isoRef.current = entry.iso;
+    }
+  }, []);
 
   const applyTime = useCallback((ms: number) => {
     const arr = orderedRef.current;
@@ -196,17 +288,17 @@ const FrameStack = forwardRef<
     let effAlpha = 0;
 
     if (prev === next) {
-      if (prev.ready) { showA = prev; effAlpha = 0; }
-    } else if (prev.ready && next.ready) {
+      if (prev.status === "ready") { showA = prev; effAlpha = 0; }
+    } else if (prev.status === "ready" && next.status === "ready") {
       showA = prev; showB = next; effAlpha = alpha;
-    } else if (prev.ready) {
+    } else if (prev.status === "ready") {
       showA = prev; effAlpha = 0;
-    } else if (next.ready) {
+    } else if (next.status === "ready") {
       showA = next; effAlpha = 0;
     } else {
       const stickyIso = lastVisibleIsoRef.current;
       const sticky = stickyIso ? entriesRef.current.get(stickyIso) : null;
-      if (sticky && sticky.ready) {
+      if (sticky?.status === "ready") {
         showA = sticky;
       } else {
         const idxPrev = arr.indexOf(prev);
@@ -218,114 +310,78 @@ const FrameStack = forwardRef<
 
     if (!showA && !showB) return;
 
-    if (showA) showA.layer.setZIndex(1000);
-    if (showB) showB.layer.setZIndex(1001);
+    const imgA = imgARef.current;
+    const imgB = imgBRef.current;
+    if (!imgA || !imgB) return;
 
     if (showA && showB) {
-      showA.layer.setOpacity(1 - effAlpha);
-      showB.layer.setOpacity(effAlpha);
+      setImgSource("a", showA);
+      setImgSource("b", showB);
+      imgA.style.opacity = String(1 - effAlpha);
+      imgB.style.opacity = String(effAlpha);
       lastVisibleIsoRef.current = effAlpha >= 0.5 ? showB.iso : showA.iso;
-      lastPairRef.current = [showA.iso, showB.iso];
     } else if (showA) {
-      showA.layer.setOpacity(1);
+      setImgSource("a", showA);
+      setImgSource("b", null);
+      imgA.style.opacity = "1";
+      imgB.style.opacity = "0";
       lastVisibleIsoRef.current = showA.iso;
-      lastPairRef.current = [showA.iso, showA.iso];
     }
+  }, [findReadyNeighbor, neighborsAt, setImgSource]);
 
-    for (const [iso, e] of entriesRef.current) {
-      if (iso !== showA?.iso && iso !== showB?.iso && e.ready) {
-        e.layer.setOpacity(0);
-      }
-    }
-  }, [findReadyNeighbor, neighborsAt]);
+  const ensureFrame = useCallback((entry: FrameEntry) => {
+    if (entry.status === "ready" || entry.status === "loading") return entry.promise;
+    entry.status = "loading";
+    const image = new Image();
+    image.decoding = "async";
+    const promise = new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error(`Satellite image failed: ${entry.iso}`));
+      image.src = entry.url;
+    })
+      .then(() => image.decode?.().catch(() => undefined))
+      .then(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      .then(() => {
+        entry.status = "ready";
+        entry.image = image;
+        markProgress();
+        const target = targetMsRef.current;
+        if (target !== null) applyTime(target);
+      })
+      .catch(() => {
+        entry.status = "error";
+        markProgress();
+      });
+    entry.promise = promise;
+    return promise;
+  }, [applyTime, markProgress]);
 
-  // Diff-Mount: neue Frames inkrementell hinzufügen. Bestehende Layer bleiben
-  // erhalten; es wird nur ein unsichtbarer Back-Buffer vorgeladen.
+  // Cache/Preload: URLs sind pro Viewport stabil. Bereits dekodierte Bilder
+  // werden wiederverwendet; neue Manifest-Zeiten werden nur ergänzt.
   useEffect(() => {
-    if (frames.length === 0) return;
+    if (frames.length === 0 || !viewportRef.current) return;
 
     for (const timer of preloadTimersRef.current) window.clearTimeout(timer);
     preloadTimersRef.current = [];
+    const nextEntries = new Map<string, FrameEntry>();
 
-    const markProgress = () => {
-      const total = orderedRef.current.length || 1;
-      let loaded = 0;
-      for (const e of orderedRef.current) if (e.ready) loaded++;
-      onProgressRef.current(loaded, total);
-    };
-
-    const paintTargetAfterReady = () => {
-      const target = targetMsRef.current;
-      if (target !== null) applyTime(target);
-    };
-
-    const scheduleReady = (entry: FrameEntry) => {
-      if (entry.ready || entry.readyScheduled || !entry.loadComplete) return;
-      entry.readyScheduled = true;
-      const pending = Array.from(entry.decodePromises);
-      void Promise.allSettled(pending).then(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (!entriesRef.current.has(entry.iso)) return;
-            entry.ready = true;
-            entry.readyScheduled = false;
-            markProgress();
-            paintTargetAfterReady();
-          });
-        });
-      });
-    };
-
-    const opts: L.WMSOptions & {
-      keepBuffer?: number;
-      updateWhenZooming?: boolean;
-      detectRetina?: boolean;
-      className?: string;
-    } = {
-      layers: layer,
-      format: "image/png",
-      transparent: false,
-      version: "1.3.0",
-      crs: L.CRS.EPSG3857,
-      tileSize: 512,
-      keepBuffer: 1,
-      updateWhenZooming: false,
-      detectRetina: true,
-      className: "satellite-wms-tile",
-      attribution:
-        'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
-    };
-
-    const mountEntry = (iso: string): FrameEntry | null => {
-      if (entriesRef.current.has(iso)) return entriesRef.current.get(iso)!;
+    const getOrCreateEntry = (iso: string): FrameEntry | null => {
+      const url = buildUrl(iso);
+      if (!url) return null;
+      const existing = entriesRef.current.get(iso);
+      if (existing?.url === url) {
+        nextEntries.set(iso, existing);
+        return existing;
+      }
       const t = Date.parse(iso);
       if (Number.isNaN(t)) return null;
-      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 0 });
-      tl.setParams({ time: iso } as unknown as L.WMSParams, false);
       const entry: FrameEntry = {
         iso,
         t,
-        layer: tl,
-        ready: false,
-        loadComplete: false,
-        readyScheduled: false,
-        decodePromises: new Set(),
+        url,
+        status: "idle",
       };
-      tl.on("tileload", (event) => {
-        const tile = (event as L.TileEvent).tile as HTMLImageElement | undefined;
-        if (!tile || typeof tile.decode !== "function") return;
-        const decodePromise = tile.decode().catch(() => undefined).finally(() => {
-          entry.decodePromises.delete(decodePromise);
-          scheduleReady(entry);
-        });
-        entry.decodePromises.add(decodePromise);
-      });
-      tl.on("load", () => {
-        entry.loadComplete = true;
-        scheduleReady(entry);
-      });
-      tl.addTo(map);
-      entriesRef.current.set(iso, entry);
+      nextEntries.set(iso, entry);
       return entry;
     };
 
@@ -346,27 +402,32 @@ const FrameStack = forwardRef<
       if (b >= 0) pushUnique(isoOrder[b]);
     }
 
+    const rebuilt: FrameEntry[] = [];
+    for (const f of frames) {
+      const e = getOrCreateEntry(f.time);
+      if (e) rebuilt.push(e);
+    }
+    entriesRef.current = nextEntries;
+    orderedRef.current = rebuilt;
+
+    markProgress();
+
     for (const [i, iso] of priority.entries()) {
-      if (i < 4) {
-        mountEntry(iso);
+      const entry = nextEntries.get(iso);
+      if (!entry) continue;
+      if (i < 3) {
+        void ensureFrame(entry);
       } else {
-        const timer = window.setTimeout(() => mountEntry(iso), 70 * (i - 3));
+        const timer = window.setTimeout(() => {
+          const latest = entriesRef.current.get(iso);
+          if (latest) void ensureFrame(latest);
+        }, 55 * (i - 2));
         preloadTimersRef.current.push(timer);
       }
     }
 
-    const rebuilt: FrameEntry[] = [];
-    for (const f of frames) {
-      const e = entriesRef.current.get(f.time);
-      if (e) rebuilt.push(e);
-    }
-    orderedRef.current = rebuilt;
-
-    let loaded = 0;
-    for (const e of rebuilt) if (e.ready) loaded++;
-    onProgressRef.current(loaded, rebuilt.length);
     if (targetMsRef.current !== null) applyTime(targetMsRef.current);
-  }, [frames, layer, map, initialIso, applyTime]);
+  }, [frames, layer, initialIso, viewportKey, buildUrl, ensureFrame, markProgress, applyTime]);
 
   useImperativeHandle(
     ref,
@@ -378,7 +439,7 @@ const FrameStack = forwardRef<
       canAdvanceTo: (ms: number) => {
         const { prev, next } = neighborsAt(ms);
         if (!prev || !next) return false;
-        return prev.ready && next.ready;
+        return prev.status === "ready" && next.status === "ready";
       },
       hasRenderableAt,
     }),
