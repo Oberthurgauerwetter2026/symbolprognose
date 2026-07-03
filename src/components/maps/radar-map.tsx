@@ -1504,7 +1504,7 @@ function MeasurementCanvasOverlay({
   };
 
   useEffect(() => {
-    redrawRef.current();
+    redraw();
   }, [payload, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
 
   return null;
