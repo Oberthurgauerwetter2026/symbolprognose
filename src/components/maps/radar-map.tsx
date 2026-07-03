@@ -1084,11 +1084,11 @@ const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
 
 
 
-  // Timeline-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
+  // Timeline-Sync: nextFrame/progress werden weiterhin in Refs gespiegelt
+  // (Filmstrip/Scrub bleiben unverändert), lösen aber keinen Redraw mehr aus.
   useEffect(() => {
     nextFrameRef.current = nextFrame ?? null;
     progressRef.current = typeof progress === "number" ? progress : 0;
-    redrawRef.current();
   }, [nextFrame, progress]);
 
   // Canvas-Opacity nachziehen.
