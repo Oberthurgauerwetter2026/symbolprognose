@@ -13,9 +13,9 @@ import { r2ObjectUrlCandidates } from "./r2-url.server";
  *     Darstellung ausserhalb des CombiPrecip-Ausschnitts (gleiche Farbskala).
  *
  * Vorhersage (> now):
- *   - ICON-CH1 `minutely_15` bis +24 h, danach stündliche ICON-Frames bis +48 h.
- *   - Fehlende Viertelstundenwerte fallen auf reine Intensitäts-Interpolation
- *     zwischen benachbarten Modellstunden zurück.
+ *   - Durchgehend 15-Minuten-Frames bis +48 h.
+ *   - Direkte ICON-CH1-`minutely_15`-Slots werden bevorzugt; fehlende
+ *     Viertelstundenwerte werden aus benachbarten Modellstunden interpoliert.
  *
  * Keine Wind-Advektion, kein Nowcast, keine künstliche Zell-Extrapolation.
  */
