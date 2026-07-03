@@ -1599,28 +1599,6 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
       return out;
     };
 
-    const sampleRasterAt = (raster: DecodedRadar, fx: number, fy: number) => {
-      const arr = ensureSmooth(raster);
-      const rw = raster.w;
-      const rh = raster.h;
-      const x0 = Math.max(0, Math.min(rw - 1, Math.floor(fx)));
-      const y0 = Math.max(0, Math.min(rh - 1, Math.floor(fy)));
-      const x1 = Math.min(rw - 1, x0 + 1);
-      const y1 = Math.min(rh - 1, y0 + 1);
-      const tx = Math.max(0, Math.min(1, fx - x0));
-      const ty = Math.max(0, Math.min(1, fy - y0));
-      const v00 = arr[y0 * rw + x0];
-      const v01 = arr[y0 * rw + x1];
-      const v10 = arr[y1 * rw + x0];
-      const v11 = arr[y1 * rw + x1];
-      return (
-        v00 * (1 - tx) * (1 - ty) +
-        v01 * tx * (1 - ty) +
-        v10 * (1 - tx) * ty +
-        v11 * tx * ty
-      );
-    };
-
     const hashContour = (ix: number, iy: number) => {
       let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
       h = (h ^ (h >>> 13)) * 1274126177;
@@ -1706,6 +1684,48 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
       return v;
     };
 
+    const buildGridOffscreen = (key: string, vals: number[]): HTMLCanvasElement | null => {
+      const cached = renderCacheRef.current.get(key);
+      if (cached) {
+        renderCacheRef.current.delete(key);
+        renderCacheRef.current.set(key, cached);
+        return cached;
+      }
+      if (!payload) return null;
+      const out = document.createElement("canvas");
+      out.width = lowW;
+      out.height = lowH;
+      const outCtx = out.getContext("2d");
+      if (!outCtx) return null;
+      const img = outCtx.createImageData(lowW, lowH);
+      const dArr = img.data;
+      for (let ly = 0; ly < lowH; ly++) {
+        for (let lx = 0; lx < lowW; lx++) {
+          const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
+          if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
+          const v = sampleGridAt(vals, ll.lng, ll.lat);
+          if (v < 0.05) continue;
+          const [r, g, b, a] = colorFor(v);
+          if (a === 0) continue;
+          const alpha = Math.round(a * 255);
+          if (alpha === 0) continue;
+          const idx = (ly * lowW + lx) * 4;
+          dArr[idx] = r;
+          dArr[idx + 1] = g;
+          dArr[idx + 2] = b;
+          dArr[idx + 3] = alpha;
+        }
+      }
+      outCtx.putImageData(img, 0, 0);
+      renderCacheRef.current.set(key, out);
+      while (renderCacheRef.current.size > 48) {
+        const firstKey = renderCacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        renderCacheRef.current.delete(firstKey);
+      }
+      return out;
+    };
+
     const activeNextFrame = activeNextFrameRef.current;
     const blendProgress = Math.max(0, Math.min(1, activeProgressRef.current));
     const nextRaster =
@@ -1716,45 +1736,23 @@ const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
       !activeNextFrame?.precipUrl && activeNextFrame?.values && activeNextFrame.values.length > 0
         ? activeNextFrame.values
         : null;
-    const canBlendNext = !!activeNextFrame && blendProgress > 0 && (nextRaster || (payload && nextVals));
-
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
-        if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
-        const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
-        const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
-        if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
-        let v = sampleAt(fx, fy);
-        if (canBlendNext) {
-          let nv = 0;
-          if (nextRaster) {
-            const nfx = ((ll.lng - minLon) / lonSpan) * (nextRaster.w - 1);
-            const nfy = ((maxLat - ll.lat) / latSpan) * (nextRaster.h - 1);
-            nv = sampleRasterAt(nextRaster, nfx, nfy);
-          } else if (nextVals) {
-            nv = sampleGridAt(nextVals, ll.lng, ll.lat);
-          }
-          v = v * (1 - blendProgress) + nv * blendProgress;
-        }
-        if (v < 0.05) continue;
-        const [r, g, b, a] = colorFor(v);
-        if (a === 0) continue;
-        const alpha = Math.round(a * 255);
-        if (alpha === 0) continue;
-        const idx = (ly * lowW + lx) * 4;
-        dArr[idx] = r;
-        dArr[idx + 1] = g;
-        dArr[idx + 2] = b;
-        dArr[idx + 3] = alpha;
-      }
-    }
-    offCtx.putImageData(img, 0, 0);
+    const off = buildRasterOffscreen(`${viewKey}|radar|${url}`, src);
+    if (!off) return;
+    const nextOff = nextRaster
+      ? buildRasterOffscreen(`${viewKey}|radar|${activeNextFrame?.precipUrl ?? activeNextFrame?.t ?? "next"}`, nextRaster)
+      : nextVals
+        ? buildGridOffscreen(`${viewKey}|grid|${activeNextFrame?.t ?? "next"}`, nextVals)
+        : null;
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+    if (nextOff && blendProgress > 0) {
+      ctx.globalAlpha = blendProgress;
+      ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
   };
