@@ -2347,8 +2347,6 @@ export function RadarMap({
                       ref={precipOverlayRef}
                       payload={data}
                       frame={gridFrame}
-                      nextFrame={showGrid ? overlayNext : null}
-                      progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
                       contour={gridFrame.source !== "radar"}
                       prewarmFrames={[]}
@@ -2362,8 +2360,6 @@ export function RadarMap({
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
                       payload={data}
-                      nextFrame={overlayNext}
-                      progress={overlayProg}
                     />
                   )}
                 </>
