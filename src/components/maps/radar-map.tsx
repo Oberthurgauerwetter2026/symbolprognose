@@ -2695,7 +2695,7 @@ export function RadarMap({
                       progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
                       contour={gridFrame.source !== "radar"}
-                      prewarmFrames={playing ? [] : nearbyPrewarmFrames}
+                      prewarmFrames={[]}
                     />
                   )}
                   {showPng && (
