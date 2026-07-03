@@ -143,155 +143,6 @@ const FrameStack = forwardRef<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, layer]);
 
-  // Diff-Mount: neue Frames inkrementell hinzufügen, obsolete NICHT sofort
-  // entfernen (nur wenn sie nicht mehr sichtbar sind und weit ausserhalb des
-  // aktuellen Fensters liegen).
-  useEffect(() => {
-    if (frames.length === 0) return;
-
-    for (const timer of preloadTimersRef.current) window.clearTimeout(timer);
-    preloadTimersRef.current = [];
-
-    const markProgress = () => {
-      const total = orderedRef.current.length || 1;
-      let loaded = 0;
-      for (const e of orderedRef.current) if (e.ready) loaded++;
-      onProgressRef.current(loaded, total);
-    };
-
-    const paintTargetAfterReady = () => {
-      const target = targetMsRef.current;
-      if (target !== null) applyTime(target);
-    };
-
-    const scheduleReady = (entry: FrameEntry) => {
-      if (entry.ready || entry.readyScheduled || !entry.loadComplete) return;
-      entry.readyScheduled = true;
-      const pending = Array.from(entry.decodePromises);
-      void Promise.allSettled(pending).then(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (!entriesRef.current.has(entry.iso)) return;
-            entry.ready = true;
-            entry.readyScheduled = false;
-            markProgress();
-            paintTargetAfterReady();
-          });
-        });
-      });
-    };
-
-    const opts: L.WMSOptions & {
-      keepBuffer?: number;
-      updateWhenZooming?: boolean;
-      detectRetina?: boolean;
-      className?: string;
-    } = {
-      layers: layer,
-      format: "image/png",
-      transparent: false,
-      version: "1.3.0",
-      crs: L.CRS.EPSG3857,
-      tileSize: 512,
-      keepBuffer: 1,
-      updateWhenZooming: false,
-      detectRetina: true,
-      className: "satellite-wms-tile",
-      attribution:
-        'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
-    };
-
-    const mountEntry = (iso: string): FrameEntry | null => {
-      if (entriesRef.current.has(iso)) return entriesRef.current.get(iso)!;
-      const t = Date.parse(iso);
-      if (Number.isNaN(t)) return null;
-      // Neuer Layer startet unsichtbar; der Ready-Handler oder der nächste
-      // setTimeMs-Aufruf entscheidet, wann er sichtbar wird.
-      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 0 });
-      tl.setParams({ time: iso } as unknown as L.WMSParams, false);
-      const entry: FrameEntry = {
-        iso,
-        t,
-        layer: tl,
-        ready: false,
-        loadComplete: false,
-        readyScheduled: false,
-        decodePromises: new Set(),
-      };
-      tl.on("tileload", (event) => {
-        const tile = (event as L.TileEvent).tile as HTMLImageElement | undefined;
-        if (!tile || typeof tile.decode !== "function") return;
-        const decodePromise = tile.decode().catch(() => undefined).finally(() => {
-          entry.decodePromises.delete(decodePromise);
-          scheduleReady(entry);
-        });
-        entry.decodePromises.add(decodePromise);
-      });
-      tl.on("load", () => {
-        entry.loadComplete = true;
-        scheduleReady(entry);
-      });
-      tl.addTo(map);
-      entriesRef.current.set(iso, entry);
-      return entry;
-    };
-
-    // ordered aus neuem Manifest neu bauen.
-    const nextOrdered: FrameEntry[] = [];
-    for (const f of frames) {
-      const existing = entriesRef.current.get(f.time);
-      if (existing) {
-        nextOrdered.push(existing);
-      } else {
-        // Zunächst placeholder-artig hinzufügen; tatsächliches Mounten passiert
-        // priorisiert weiter unten.
-      }
-    }
-
-    // Reihenfolge: initial → nächster Loop-Frame → radial → rest.
-    const isoOrder = frames.map((f) => f.time);
-    const initIdxRaw = initialIso ? isoOrder.indexOf(initialIso) : -1;
-    const initIdx = initIdxRaw >= 0 ? initIdxRaw : Math.max(0, isoOrder.length - 1);
-    const priority: string[] = [];
-    const pushUnique = (iso: string | undefined) => {
-      if (iso && !priority.includes(iso)) priority.push(iso);
-    };
-    pushUnique(isoOrder[initIdx]);
-    pushUnique(isoOrder[(initIdx + 1) % isoOrder.length]);
-    pushUnique(isoOrder[Math.max(0, initIdx - 1)]);
-    for (let d = 1; d < isoOrder.length; d++) {
-      const a = initIdx + d;
-      const b = initIdx - d;
-      if (a < isoOrder.length) pushUnique(isoOrder[a]);
-      if (b >= 0) pushUnique(isoOrder[b]);
-    }
-
-    // Die sichtbaren/benachbarten Frames sofort, den Rest gestaffelt preloaden.
-    for (const [i, iso] of priority.entries()) {
-      if (i < 4) {
-        mountEntry(iso);
-      } else {
-        const timer = window.setTimeout(() => mountEntry(iso), 70 * (i - 3));
-        preloadTimersRef.current.push(timer);
-      }
-    }
-
-    // ordered final zusammensetzen (nach t sortiert; Manifest ist bereits sortiert).
-    const rebuilt: FrameEntry[] = [];
-    for (const f of frames) {
-      const e = entriesRef.current.get(f.time);
-      if (e) rebuilt.push(e);
-    }
-    orderedRef.current = rebuilt;
-
-    // Progress initial anstoßen.
-    let loaded = 0;
-    for (const e of rebuilt) if (e.ready) loaded++;
-    onProgressRef.current(loaded, rebuilt.length);
-    if (targetMsRef.current !== null) applyTime(targetMsRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frames, layer, map, initialIso, applyTime]);
-
   const neighborsAt = useCallback((ms: number): { prev: FrameEntry | null; next: FrameEntry | null; alpha: number } => {
     const arr = orderedRef.current;
     if (arr.length === 0) return { prev: null, next: null, alpha: 0 };
@@ -387,6 +238,135 @@ const FrameStack = forwardRef<
       }
     }
   }, [findReadyNeighbor, neighborsAt]);
+
+  // Diff-Mount: neue Frames inkrementell hinzufügen. Bestehende Layer bleiben
+  // erhalten; es wird nur ein unsichtbarer Back-Buffer vorgeladen.
+  useEffect(() => {
+    if (frames.length === 0) return;
+
+    for (const timer of preloadTimersRef.current) window.clearTimeout(timer);
+    preloadTimersRef.current = [];
+
+    const markProgress = () => {
+      const total = orderedRef.current.length || 1;
+      let loaded = 0;
+      for (const e of orderedRef.current) if (e.ready) loaded++;
+      onProgressRef.current(loaded, total);
+    };
+
+    const paintTargetAfterReady = () => {
+      const target = targetMsRef.current;
+      if (target !== null) applyTime(target);
+    };
+
+    const scheduleReady = (entry: FrameEntry) => {
+      if (entry.ready || entry.readyScheduled || !entry.loadComplete) return;
+      entry.readyScheduled = true;
+      const pending = Array.from(entry.decodePromises);
+      void Promise.allSettled(pending).then(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!entriesRef.current.has(entry.iso)) return;
+            entry.ready = true;
+            entry.readyScheduled = false;
+            markProgress();
+            paintTargetAfterReady();
+          });
+        });
+      });
+    };
+
+    const opts: L.WMSOptions & {
+      keepBuffer?: number;
+      updateWhenZooming?: boolean;
+      detectRetina?: boolean;
+      className?: string;
+    } = {
+      layers: layer,
+      format: "image/png",
+      transparent: false,
+      version: "1.3.0",
+      crs: L.CRS.EPSG3857,
+      tileSize: 512,
+      keepBuffer: 1,
+      updateWhenZooming: false,
+      detectRetina: true,
+      className: "satellite-wms-tile",
+      attribution:
+        'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
+    };
+
+    const mountEntry = (iso: string): FrameEntry | null => {
+      if (entriesRef.current.has(iso)) return entriesRef.current.get(iso)!;
+      const t = Date.parse(iso);
+      if (Number.isNaN(t)) return null;
+      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: 0 });
+      tl.setParams({ time: iso } as unknown as L.WMSParams, false);
+      const entry: FrameEntry = {
+        iso,
+        t,
+        layer: tl,
+        ready: false,
+        loadComplete: false,
+        readyScheduled: false,
+        decodePromises: new Set(),
+      };
+      tl.on("tileload", (event) => {
+        const tile = (event as L.TileEvent).tile as HTMLImageElement | undefined;
+        if (!tile || typeof tile.decode !== "function") return;
+        const decodePromise = tile.decode().catch(() => undefined).finally(() => {
+          entry.decodePromises.delete(decodePromise);
+          scheduleReady(entry);
+        });
+        entry.decodePromises.add(decodePromise);
+      });
+      tl.on("load", () => {
+        entry.loadComplete = true;
+        scheduleReady(entry);
+      });
+      tl.addTo(map);
+      entriesRef.current.set(iso, entry);
+      return entry;
+    };
+
+    const isoOrder = frames.map((f) => f.time);
+    const initIdxRaw = initialIso ? isoOrder.indexOf(initialIso) : -1;
+    const initIdx = initIdxRaw >= 0 ? initIdxRaw : Math.max(0, isoOrder.length - 1);
+    const priority: string[] = [];
+    const pushUnique = (iso: string | undefined) => {
+      if (iso && !priority.includes(iso)) priority.push(iso);
+    };
+    pushUnique(isoOrder[initIdx]);
+    pushUnique(isoOrder[(initIdx + 1) % isoOrder.length]);
+    pushUnique(isoOrder[Math.max(0, initIdx - 1)]);
+    for (let d = 1; d < isoOrder.length; d++) {
+      const a = initIdx + d;
+      const b = initIdx - d;
+      if (a < isoOrder.length) pushUnique(isoOrder[a]);
+      if (b >= 0) pushUnique(isoOrder[b]);
+    }
+
+    for (const [i, iso] of priority.entries()) {
+      if (i < 4) {
+        mountEntry(iso);
+      } else {
+        const timer = window.setTimeout(() => mountEntry(iso), 70 * (i - 3));
+        preloadTimersRef.current.push(timer);
+      }
+    }
+
+    const rebuilt: FrameEntry[] = [];
+    for (const f of frames) {
+      const e = entriesRef.current.get(f.time);
+      if (e) rebuilt.push(e);
+    }
+    orderedRef.current = rebuilt;
+
+    let loaded = 0;
+    for (const e of rebuilt) if (e.ready) loaded++;
+    onProgressRef.current(loaded, rebuilt.length);
+    if (targetMsRef.current !== null) applyTime(targetMsRef.current);
+  }, [frames, layer, map, initialIso, applyTime]);
 
   useImperativeHandle(
     ref,
