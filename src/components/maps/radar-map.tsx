@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import { useQuery } from "@tanstack/react-query";
@@ -459,7 +459,19 @@ function timelineStateForMs(
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
-function PrecipOverlay({
+type TimelineOverlayHandle = {
+  setTimeline: (frame: RadarFrame | null, nextFrame: RadarFrame | null, progress: number) => void;
+};
+
+const PrecipOverlay = forwardRef<TimelineOverlayHandle, {
+  payload: RadarPayload;
+  frame: RadarFrame | null;
+  nextFrame?: RadarFrame | null;
+  progress?: number;
+  opacity?: number;
+  contour?: boolean;
+  prewarmFrames?: RadarFrame[];
+}>(function PrecipOverlay({
   payload,
   frame,
   nextFrame,
@@ -475,10 +487,11 @@ function PrecipOverlay({
   opacity?: number;
   contour?: boolean;
   prewarmFrames?: RadarFrame[];
-}) {
+}, ref) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
+  const frameRef = useRef<RadarFrame | null>(frame);
 
   // Advektives Resampling wurde entfernt — pro Framepaar wechselnde Shift-
   // Vektoren liessen die Prognose-Bänder sichtbar wackeln. Jetzt wird nur noch
@@ -550,6 +563,20 @@ function PrecipOverlay({
   const nextFrameRef = useRef<RadarFrame | null>(null);
   const progressRef = useRef<number>(0);
   const blendCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastTimelineKeyRef = useRef<string>("");
+
+  useImperativeHandle(ref, () => ({
+    setTimeline: (f, nf, p) => {
+      const qp = Math.round(Math.max(0, Math.min(1, p)) * 12) / 12;
+      const key = `${f?.t ?? ""}|${nf?.t ?? ""}|${qp}`;
+      if (key === lastTimelineKeyRef.current) return;
+      lastTimelineKeyRef.current = key;
+      frameRef.current = f;
+      nextFrameRef.current = nf;
+      progressRef.current = qp;
+      redrawRef.current();
+    },
+  }), []);
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -571,13 +598,16 @@ function PrecipOverlay({
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
-    if (!cv || !frame) return;
+    const activeFrame = frameRef.current;
+    if (!cv || !activeFrame) return;
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
-    cv.width = size.x * dpr;
-    cv.height = size.y * dpr;
-    cv.style.width = size.x + "px";
-    cv.style.height = size.y + "px";
+    const targetW = size.x * dpr;
+    const targetH = size.y * dpr;
+    if (cv.width !== targetW) cv.width = targetW;
+    if (cv.height !== targetH) cv.height = targetH;
+    if (cv.style.width !== `${size.x}px`) cv.style.width = size.x + "px";
+    if (cv.style.height !== `${size.y}px`) cv.style.height = size.y + "px";
     const topLeft = map.containerPointToLayerPoint([0, 0]);
     L.DomUtil.setPosition(cv, topLeft);
     const ctx = cv.getContext("2d");
@@ -587,9 +617,9 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
-    const vals = frame.values;
-    const snowVals = frame.snowValues;
-    const STEP = 1;
+    const vals = activeFrame.values;
+    const snowVals = activeFrame.snowValues;
+    const STEP = 64;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
 
@@ -683,7 +713,7 @@ function PrecipOverlay({
       lookupRef.current = lookup;
     }
 
-    const cacheKey = `${frame.t}|${frame.source ?? ""}`;
+    const cacheKey = `${activeFrame.t}|${activeFrame.source ?? ""}`;
     let off = cacheRef.current.get(cacheKey) ?? null;
     let lowW: number;
     let lowH: number;
@@ -784,33 +814,25 @@ function PrecipOverlay({
       prog > 0 &&
       prog < 1 &&
       !!nf.t &&
-      nf.t !== frame.t &&
-      !!frame.values &&
-      frame.values.length > 0 &&
+      nf.t !== activeFrame.t &&
+      !!activeFrame.values &&
+      activeFrame.values.length > 0 &&
       !!nf.values &&
       nf.values.length > 0;
-    const blended = blendActive && nf ? buildBlendedOffscreenRef.current(frame, nf, prog) : null;
-
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (blended) {
-      // Kontinuierlicher Zwischenzustand exakt zwischen den beiden
-      // Nachbarframes: gleiche Position/Geometrie, linear interpolierte
-      // Intensität. Keine künstliche Verschiebung.
-      ctx.drawImage(blended, 0, 0, blended.width, blended.height, 0, 0, size.x, size.y);
-    } else {
-      ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-      // Fallback nur für fehlende Grid-Werte; reguläre Frames laufen über den
-      // Intensitäts-Zwischenzustand oben.
-      if (nf && prog > 0 && nf.t !== frame.t) {
-        const nextOff = buildOffscreenRef.current(nf);
-        if (nextOff) {
-          ctx.globalAlpha = Math.min(1, Math.max(0, prog));
-          ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
-          ctx.globalAlpha = 1;
-        }
+    ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+    if (blendActive && nf) {
+      const nextOff = buildOffscreenRef.current(nf);
+      if (nextOff) {
+        // Für Play/Scrub keine teure Pixel-Neuberechnung pro Zwischenzeit:
+        // beide echten Nachbarframes sind gecacht, die kontinuierliche Phase
+        // entsteht als GPU-günstige Alpha-Überblendung.
+        ctx.globalAlpha = Math.min(1, Math.max(0, prog));
+        ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
+        ctx.globalAlpha = 1;
       }
     }
     ctx.restore();
@@ -1004,6 +1026,7 @@ function PrecipOverlay({
 
   // Frame-/Payload-Wechsel neu zeichnen.
   useEffect(() => {
+    frameRef.current = frame;
     redrawRef.current();
   }, [frame, payload]);
 
@@ -1097,7 +1120,7 @@ function PrecipOverlay({
   }, [opacity]);
 
   return null;
-}
+});
 
 /**
  * Messungs-PNG (MCH CombiPrecip) → Canvas-Layer mit identischer Optik wie
@@ -1105,15 +1128,7 @@ function PrecipOverlay({
  * (RGB → nächste SCALE-Bande), beim Rendern bilinear über Lat/Lon gesampelt
  * und mit harten Farbbändern (`colorFor`) gezeichnet. Kein Glätten, kein Blur.
  */
-function MeasurementCanvasOverlay({
-  url,
-  bounds,
-  opacity,
-  prefetchUrls,
-  payload,
-  nextFrame,
-  progress = 0,
-}: {
+const MeasurementCanvasOverlay = forwardRef<TimelineOverlayHandle, {
   url: string;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
@@ -1121,7 +1136,15 @@ function MeasurementCanvasOverlay({
   payload?: RadarPayload;
   nextFrame?: RadarFrame | null;
   progress?: number;
-}) {
+}>(function MeasurementCanvasOverlay({
+  url,
+  bounds,
+  opacity,
+  prefetchUrls,
+  payload,
+  nextFrame,
+  progress = 0,
+}, ref) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
@@ -1130,12 +1153,25 @@ function MeasurementCanvasOverlay({
   const nextSourceRef = useRef<DecodedRadar | null>(null);
   const nextSourceUrlRef = useRef<string | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
+  const renderCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const activeNextFrameRef = useRef<RadarFrame | null>(nextFrame ?? null);
+  const activeProgressRef = useRef(progress);
   const DECODE_CACHE_MAX = 96;
 
   const redrawRef = useRef<() => void>(() => {});
   function redraw() {
     redrawRef.current();
   }
+
+  useImperativeHandle(ref, () => ({
+    setTimeline: (_frame, nf, p) => {
+      const qp = Math.round(Math.max(0, Math.min(1, p)) * 12) / 12;
+      if (activeNextFrameRef.current?.t === nf?.t && activeProgressRef.current === qp) return;
+      activeNextFrameRef.current = nf;
+      activeProgressRef.current = qp;
+      redrawRef.current();
+    },
+  }), []);
 
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
     if (src.smoothMmh) return src.smoothMmh;
@@ -1271,6 +1307,11 @@ function MeasurementCanvasOverlay({
       cancelled = true;
     };
   }, [url]);
+
+  useEffect(() => {
+    activeNextFrameRef.current = nextFrame ?? null;
+    activeProgressRef.current = progress;
+  }, [nextFrame, progress]);
 
   useEffect(() => {
     const nextUrl = nextFrame?.precipUrl;
@@ -1470,36 +1511,45 @@ function MeasurementCanvasOverlay({
     if (!cv || !src) return;
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
-    cv.width = size.x * dpr;
-    cv.height = size.y * dpr;
-    cv.style.width = size.x + "px";
-    cv.style.height = size.y + "px";
+    const targetW = size.x * dpr;
+    const targetH = size.y * dpr;
+    if (cv.width !== targetW) cv.width = targetW;
+    if (cv.height !== targetH) cv.height = targetH;
+    if (cv.style.width !== `${size.x}px`) cv.style.width = size.x + "px";
+    if (cv.style.height !== `${size.y}px`) cv.style.height = size.y + "px";
     const tl = map.containerPointToLayerPoint([0, 0]);
     L.DomUtil.setPosition(cv, tl);
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, cv.width, cv.height);
 
-    const STEP = 1;
+    const STEP = 64;
     const lowW = Math.max(1, Math.ceil(size.x / STEP));
     const lowH = Math.max(1, Math.ceil(size.y / STEP));
-    const off = document.createElement("canvas");
-    off.width = lowW;
-    off.height = lowH;
-    const offCtx = off.getContext("2d");
-    if (!offCtx) return;
-    const img = offCtx.createImageData(lowW, lowH);
-    const dArr = img.data;
+    const viewKey = `${size.x}x${size.y}@${dpr}|${map.getZoom()}|${map.getBounds().toBBoxString()}|${bounds.minLat},${bounds.maxLat},${bounds.minLon},${bounds.maxLon}`;
     const { minLat, maxLat, minLon, maxLon } = bounds;
     const latSpan = maxLat - minLat;
     const lonSpan = maxLon - minLon;
 
-    const sw = src.w;
-    const sh = src.h;
-    // 3×3-Box-Filter über das mm/h-Quellraster: einmal pro PNG gecacht.
-    const smoothMmh = ensureSmooth(src);
+    const buildRasterOffscreen = (key: string, raster: DecodedRadar): HTMLCanvasElement | null => {
+      const cached = renderCacheRef.current.get(key);
+      if (cached) {
+        renderCacheRef.current.delete(key);
+        renderCacheRef.current.set(key, cached);
+        return cached;
+      }
+      const out = document.createElement("canvas");
+      out.width = lowW;
+      out.height = lowH;
+      const outCtx = out.getContext("2d");
+      if (!outCtx) return null;
+      const img = outCtx.createImageData(lowW, lowH);
+      const dArr = img.data;
+      const sw = raster.w;
+      const sh = raster.h;
+      const smoothMmh = ensureSmooth(raster);
 
-    const sampleAt = (fx: number, fy: number) => {
+      const sampleAt = (fx: number, fy: number) => {
       // Bilineare 4-Tap-Interpolation auf dem geglätteten Feld.
       const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
       const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
@@ -1517,28 +1567,36 @@ function MeasurementCanvasOverlay({
         v10 * (1 - tx) * ty +
         v11 * tx * ty
       );
-    };
+      };
 
-    const sampleRasterAt = (raster: DecodedRadar, fx: number, fy: number) => {
-      const arr = ensureSmooth(raster);
-      const rw = raster.w;
-      const rh = raster.h;
-      const x0 = Math.max(0, Math.min(rw - 1, Math.floor(fx)));
-      const y0 = Math.max(0, Math.min(rh - 1, Math.floor(fy)));
-      const x1 = Math.min(rw - 1, x0 + 1);
-      const y1 = Math.min(rh - 1, y0 + 1);
-      const tx = Math.max(0, Math.min(1, fx - x0));
-      const ty = Math.max(0, Math.min(1, fy - y0));
-      const v00 = arr[y0 * rw + x0];
-      const v01 = arr[y0 * rw + x1];
-      const v10 = arr[y1 * rw + x0];
-      const v11 = arr[y1 * rw + x1];
-      return (
-        v00 * (1 - tx) * (1 - ty) +
-        v01 * tx * (1 - ty) +
-        v10 * (1 - tx) * ty +
-        v11 * tx * ty
-      );
+      for (let ly = 0; ly < lowH; ly++) {
+        for (let lx = 0; lx < lowW; lx++) {
+          const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
+          if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
+          const fx = ((ll.lng - minLon) / lonSpan) * (sw - 1);
+          const fy = ((maxLat - ll.lat) / latSpan) * (sh - 1);
+          if (fx < 0 || fx > sw - 1 || fy < 0 || fy > sh - 1) continue;
+          const v = sampleAt(fx, fy);
+          if (v < 0.05) continue;
+          const [r, g, b, a] = colorFor(v);
+          if (a === 0) continue;
+          const alpha = Math.round(a * 255);
+          if (alpha === 0) continue;
+          const idx = (ly * lowW + lx) * 4;
+          dArr[idx] = r;
+          dArr[idx + 1] = g;
+          dArr[idx + 2] = b;
+          dArr[idx + 3] = alpha;
+        }
+      }
+      outCtx.putImageData(img, 0, 0);
+      renderCacheRef.current.set(key, out);
+      while (renderCacheRef.current.size > 48) {
+        const firstKey = renderCacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        renderCacheRef.current.delete(firstKey);
+      }
+      return out;
     };
 
     const hashContour = (ix: number, iy: number) => {
@@ -1619,60 +1677,82 @@ function MeasurementCanvasOverlay({
       let v = v00 * (1 - tx) * (1 - ty) + v01 * tx * (1 - ty) + v10 * (1 - tx) * ty + v11 * tx * ty;
       // Der erste Prognose-Zustand am Seam muss exakt dieselbe Kontur-Logik
       // nutzen wie PrecipOverlay, sonst entsteht am Quellenwechsel ein Sprung.
-      if (nextFrame?.source !== "radar" && v > 0) {
+      const activeNextFrame = activeNextFrameRef.current;
+      if (activeNextFrame?.source !== "radar" && v > 0) {
         v *= contourScaleAt(fx, fy, nLon, nLat);
       }
       return v;
     };
 
-    const blendProgress = Math.max(0, Math.min(1, progress));
+    const buildGridOffscreen = (key: string, vals: number[]): HTMLCanvasElement | null => {
+      const cached = renderCacheRef.current.get(key);
+      if (cached) {
+        renderCacheRef.current.delete(key);
+        renderCacheRef.current.set(key, cached);
+        return cached;
+      }
+      if (!payload) return null;
+      const out = document.createElement("canvas");
+      out.width = lowW;
+      out.height = lowH;
+      const outCtx = out.getContext("2d");
+      if (!outCtx) return null;
+      const img = outCtx.createImageData(lowW, lowH);
+      const dArr = img.data;
+      for (let ly = 0; ly < lowH; ly++) {
+        for (let lx = 0; lx < lowW; lx++) {
+          const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
+          if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
+          const v = sampleGridAt(vals, ll.lng, ll.lat);
+          if (v < 0.05) continue;
+          const [r, g, b, a] = colorFor(v);
+          if (a === 0) continue;
+          const alpha = Math.round(a * 255);
+          if (alpha === 0) continue;
+          const idx = (ly * lowW + lx) * 4;
+          dArr[idx] = r;
+          dArr[idx + 1] = g;
+          dArr[idx + 2] = b;
+          dArr[idx + 3] = alpha;
+        }
+      }
+      outCtx.putImageData(img, 0, 0);
+      renderCacheRef.current.set(key, out);
+      while (renderCacheRef.current.size > 48) {
+        const firstKey = renderCacheRef.current.keys().next().value;
+        if (firstKey === undefined) break;
+        renderCacheRef.current.delete(firstKey);
+      }
+      return out;
+    };
+
+    const activeNextFrame = activeNextFrameRef.current;
+    const blendProgress = Math.max(0, Math.min(1, activeProgressRef.current));
     const nextRaster =
-      nextFrame?.precipUrl && nextSourceUrlRef.current === nextFrame.precipUrl
+      activeNextFrame?.precipUrl && nextSourceUrlRef.current === activeNextFrame.precipUrl
         ? nextSourceRef.current
         : null;
     const nextVals =
-      !nextFrame?.precipUrl && nextFrame?.values && nextFrame.values.length > 0
-        ? nextFrame.values
+      !activeNextFrame?.precipUrl && activeNextFrame?.values && activeNextFrame.values.length > 0
+        ? activeNextFrame.values
         : null;
-    const canBlendNext = !!nextFrame && blendProgress > 0 && (nextRaster || (payload && nextVals));
-
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
-        if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
-        const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
-        const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
-        if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
-        let v = sampleAt(fx, fy);
-        if (canBlendNext) {
-          let nv = 0;
-          if (nextRaster) {
-            const nfx = ((ll.lng - minLon) / lonSpan) * (nextRaster.w - 1);
-            const nfy = ((maxLat - ll.lat) / latSpan) * (nextRaster.h - 1);
-            nv = sampleRasterAt(nextRaster, nfx, nfy);
-          } else if (nextVals) {
-            nv = sampleGridAt(nextVals, ll.lng, ll.lat);
-          }
-          v = v * (1 - blendProgress) + nv * blendProgress;
-        }
-        if (v < 0.05) continue;
-        const [r, g, b, a] = colorFor(v);
-        if (a === 0) continue;
-        const alpha = Math.round(a * 255);
-        if (alpha === 0) continue;
-        const idx = (ly * lowW + lx) * 4;
-        dArr[idx] = r;
-        dArr[idx + 1] = g;
-        dArr[idx + 2] = b;
-        dArr[idx + 3] = alpha;
-      }
-    }
-    offCtx.putImageData(img, 0, 0);
+    const off = buildRasterOffscreen(`${viewKey}|radar|${url}`, src);
+    if (!off) return;
+    const nextOff = nextRaster
+      ? buildRasterOffscreen(`${viewKey}|radar|${activeNextFrame?.precipUrl ?? activeNextFrame?.t ?? "next"}`, nextRaster)
+      : nextVals
+        ? buildGridOffscreen(`${viewKey}|grid|${activeNextFrame?.t ?? "next"}`, nextVals)
+        : null;
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
+    if (nextOff && blendProgress > 0) {
+      ctx.globalAlpha = blendProgress;
+      ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
   };
@@ -1687,7 +1767,7 @@ function MeasurementCanvasOverlay({
   }, [nextFrame, progress, payload]);
 
   return null;
-}
+});
 
 /**
  * Hagel-Punkt-Overlay für MESS-Frames: leitet aus der Niederschlagsintensität
@@ -1908,7 +1988,21 @@ function fmtBubble(d: Date, frame: RadarFrame | null): string {
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
 
-function FilmstripTimeline({
+type FilmstripTimelineHandle = {
+  setTime: (ms: number) => void;
+};
+
+type FilmstripTimelineProps = {
+  frames: RadarFrame[];
+  idx: number;
+  onChange: (i: number) => void;
+  onScrubMs?: (ms: number, commit?: boolean) => void;
+  isMobile: boolean;
+  playing: boolean;
+  visualMs?: number | null;
+};
+
+const FilmstripTimeline = forwardRef<FilmstripTimelineHandle, FilmstripTimelineProps>(function FilmstripTimeline({
   frames,
   idx,
   onChange,
@@ -1916,24 +2010,25 @@ function FilmstripTimeline({
   isMobile,
   playing,
   visualMs,
-}: {
-  frames: RadarFrame[];
-  idx: number;
-  onChange: (i: number) => void;
-  onScrubMs?: (ms: number | null) => void;
-  isMobile: boolean;
-  playing: boolean;
-  visualMs?: number | null;
-}) {
+}, ref) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const bubbleRef = useRef<HTMLSpanElement | null>(null);
+  const bubbleTipRef = useRef<HTMLSpanElement | null>(null);
   const [containerW, setContainerW] = useState(0);
+  const containerWRef = useRef(0);
 
   useEffect(() => {
     if (!containerRef.current) return;
-    setContainerW(containerRef.current.getBoundingClientRect().width);
+    const initialW = containerRef.current.getBoundingClientRect().width;
+    containerWRef.current = initialW;
+    setContainerW(initialW);
     const ro = new ResizeObserver((entries) => {
       const e = entries[0];
-      if (e) setContainerW(e.contentRect.width);
+      if (e) {
+        containerWRef.current = e.contentRect.width;
+        setContainerW(e.contentRect.width);
+      }
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
@@ -2003,14 +2098,41 @@ function FilmstripTimeline({
   const currentFrame = frames[nearestIndexForMs(motionMs)] ?? frames[displayIdx] ?? null;
   const timelineColor = timelineColorFor(currentFrame);
   const bubbleLabel = fmtBubble(new Date(motionMs), currentFrame);
+  const currentMotionRef = useRef(motionMs);
+  const draggingRef = useRef(false);
+
+  const paintTime = (ms: number) => {
+    currentMotionRef.current = Math.max(tMin, Math.min(tMax, ms));
+    const w = containerWRef.current || containerW;
+    const x = w / 2 - ((currentMotionRef.current - tMin) / 3_600_000) * PX_PER_HOUR;
+    if (stripRef.current) stripRef.current.style.transform = `translate3d(${x}px,0,0)`;
+    const frame = frames[nearestIndexForMs(currentMotionRef.current)] ?? null;
+    const color = timelineColorFor(frame);
+    if (bubbleRef.current) {
+      bubbleRef.current.textContent = fmtBubble(new Date(currentMotionRef.current), frame);
+      bubbleRef.current.style.background = color;
+    }
+    if (bubbleTipRef.current) bubbleTipRef.current.style.borderTopColor = color;
+    if (containerRef.current) {
+      containerRef.current.style.setProperty("--tw-ring-color", color);
+      containerRef.current.setAttribute("aria-valuenow", String(nearestIndexForMs(currentMotionRef.current)));
+    }
+  };
+
+  useImperativeHandle(ref, () => ({ setTime: paintTime }), [frames, tMin, tMax, PX_PER_HOUR, containerW]);
+
+  useEffect(() => {
+    if (!draggingRef.current) paintTime(motionMs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [motionMs, frames, containerW]);
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
   const pendingTargetRef = useRef<number | null>(null);
   const onDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragStartRef.current = { x: e.clientX, ms: motionMs };
-    setDragMs(motionMs);
+    draggingRef.current = true;
+    dragStartRef.current = { x: e.clientX, ms: currentMotionRef.current };
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       try { navigator.vibrate(6); } catch { /* ignore */ }
     }
@@ -2034,13 +2156,8 @@ function FilmstripTimeline({
       rafPendingRef.current = null;
       const t = pendingTargetRef.current;
       if (t === null) return;
-      // Idx auf nächsten Cadence-Frame snappen (hartes Bild-Schalten),
-      // aber Bubble/Marker am kontinuierlichen Drag-Wert lassen.
-      snapAndEmit(t);
-      setDragMs(t);
-      // Kontinuierliche Scrub-Zeit nach oben durchreichen: erlaubt dem
-      // Karten-Overlay, zwischen zwei Cadence-Frames direkt zu rendern.
-      onScrubMs?.(t);
+      paintTime(t);
+      onScrubMs?.(t, false);
     });
   };
   const onUp = (e: React.PointerEvent) => {
@@ -2050,8 +2167,9 @@ function FilmstripTimeline({
       rafPendingRef.current = null;
     }
     pendingTargetRef.current = null;
+    draggingRef.current = false;
+    onScrubMs?.(currentMotionRef.current, true);
     setDragMs(null);
-    onScrubMs?.(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
@@ -2065,12 +2183,14 @@ function FilmstripTimeline({
       <div className="relative h-7">
         <div className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center">
           <span
+            ref={bubbleRef}
             className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
             style={{ background: timelineColor }}
           >
             {bubbleLabel}
           </span>
           <span
+            ref={bubbleTipRef}
             className="h-0 w-0"
             style={{
               borderLeft: "5px solid transparent",
@@ -2115,11 +2235,12 @@ function FilmstripTimeline({
 
         {/* Scrollender Strip */}
         <div
+          ref={stripRef}
           className="absolute inset-y-0 left-0 will-change-transform"
           style={{
             width: `${totalWidth}px`,
             transform: `translate3d(${translateX}px,0,0)`,
-            transition: dragging || playing ? "none" : "transform 220ms cubic-bezier(.22,1,.36,1)",
+            transition: dragging || playing ? "none" : "transform 160ms cubic-bezier(.22,1,.36,1)",
           }}
         >
           {/* Messungs-Band (grau) */}
@@ -2177,7 +2298,7 @@ function FilmstripTimeline({
       </div>
     </div>
   );
-}
+});
 
 
 
@@ -2316,6 +2437,10 @@ export function RadarMap({
   useEffect(() => {
     renderMsRef.current = renderMs;
   }, [renderMs]);
+  const filmstripRef = useRef<FilmstripTimelineHandle | null>(null);
+  const precipOverlayRef = useRef<TimelineOverlayHandle | null>(null);
+  const lastReactSyncRef = useRef(0);
+  const lastOverlaySyncRef = useRef(0);
 
   const stepCursorForIndex = (cur: number | null): number => {
     if (playStepIndices.length === 0 || cur === null) return 0;
@@ -2332,10 +2457,42 @@ export function RadarMap({
   const setTimelineToIndex = (target: number | null) => {
     if (target === null || !frames[target]) return;
     const targetMs = Date.parse(frames[target].t);
+    renderMsRef.current = targetMs;
     setIdx(target);
     setRenderMs(targetMs);
     setPlayVisualMs(null);
     setScrubVisualMs(null);
+    filmstripRef.current?.setTime(targetMs);
+  };
+
+  const setTimelineTime = (targetMs: number, opts?: { commit?: boolean; syncOverlay?: boolean }) => {
+    if (frames.length === 0) return;
+    const firstMs = Date.parse(frames[0].t);
+    const lastMs = Date.parse(frames[frames.length - 1].t);
+    const ms = Math.max(firstMs, Math.min(lastMs, targetMs));
+    renderMsRef.current = ms;
+    filmstripRef.current?.setTime(ms);
+    const timelineState = timelineStateForMs(frames, ms);
+    const now = performance.now();
+    if (opts?.syncOverlay || opts?.commit || now - lastOverlaySyncRef.current > 180) {
+      lastOverlaySyncRef.current = now;
+      precipOverlayRef.current?.setTimeline(timelineState.frame, timelineState.nextFrame, timelineState.progress);
+    }
+
+    const nearestIdx = timelineState.displayIdx;
+    const shouldSyncReact =
+      opts?.commit === true ||
+      nearestIdx !== idxRef.current ||
+      now - lastReactSyncRef.current > 500;
+    if (shouldSyncReact) {
+      lastReactSyncRef.current = now;
+      idxRef.current = nearestIdx;
+      setIdx(nearestIdx);
+      setRenderMs(ms);
+    }
+    if (opts?.syncOverlay || opts?.commit || now - lastReactSyncRef.current < 8) {
+      setPlayVisualMs(ms);
+    }
   };
 
   // Play-Loop: kontinuierliche Zeitachse. Kein Quellen-Sonderfall am Seam;
@@ -2360,8 +2517,7 @@ export function RadarMap({
     const idxMs = Date.parse(frames[startIdx]?.t ?? frames[idxRef.current ?? 0]?.t ?? frames[0].t);
     const startMs = Math.max(firstMs, Math.min(lastMs, scrubVisualMs ?? renderMsRef.current ?? idxMs));
     playTimeRef.current = startMs;
-    setPlayVisualMs(startMs);
-    setRenderMs(startMs);
+    setTimelineTime(startMs, { commit: true, syncOverlay: true });
 
     const tick = (now: number) => {
       const dt = now - last;
@@ -2370,8 +2526,7 @@ export function RadarMap({
       const nextMs = prevMs + (dt * REF_GAP_MS) / FRAME_MS;
       if (nextMs >= lastMs) {
         playTimeRef.current = lastMs;
-        setPlayVisualMs(lastMs);
-        setRenderMs(lastMs);
+        setTimelineTime(lastMs, { commit: true, syncOverlay: true });
         const endIdx = nearestFrameIndexForMs(frames, lastMs);
         idxRef.current = endIdx;
         setIdx(endIdx);
@@ -2379,8 +2534,7 @@ export function RadarMap({
         return;
       }
       playTimeRef.current = nextMs;
-      setPlayVisualMs(nextMs);
-      setRenderMs(nextMs);
+      setTimelineTime(nextMs);
       const nextIdx = nearestFrameIndexForMs(frames, nextMs);
       if (nextIdx !== idxRef.current) {
         idxRef.current = nextIdx;
@@ -2409,12 +2563,18 @@ export function RadarMap({
     [playStepIndices, frames],
   );
   // Alle Radar-PNG-URLs für Pre-Decode (Scrub ohne Stocker).
+  const nearbyPrewarmFrames = useMemo(() => {
+    if (idx === null || frames.length === 0) return [] as RadarFrame[];
+    const start = Math.max(0, idx - 4);
+    const end = Math.min(frames.length, idx + 10);
+    return frames.slice(start, end);
+  }, [frames, idx]);
   const radarUrls = useMemo(
     () =>
-      frames
+      nearbyPrewarmFrames
         .filter((f) => f.source === "radar" && !!f.precipUrl)
         .map((f) => f.precipUrl as string),
-    [frames],
+    [nearbyPrewarmFrames],
   );
 
   const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
@@ -2564,17 +2724,19 @@ export function RadarMap({
                 <>
                   {gridFrame && (
                     <PrecipOverlay
+                      ref={precipOverlayRef}
                       payload={data}
                       frame={gridFrame}
                       nextFrame={showGrid ? overlayNext : null}
                       progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
                       contour={gridFrame.source !== "radar"}
-                      prewarmFrames={frames}
+                      prewarmFrames={[]}
                     />
                   )}
                   {showPng && (
                     <MeasurementCanvasOverlay
+                      ref={precipOverlayRef}
                       url={overlayFrame.precipUrl as string}
                       bounds={ib}
                       opacity={opacityVal}
@@ -2733,14 +2895,17 @@ export function RadarMap({
                   {/* Track */}
                   <div className="min-w-0 flex-1">
                     <FilmstripTimeline
+                      ref={filmstripRef}
                       frames={stripFrames}
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
                       visualMs={scrubVisualMs ?? playVisualMs ?? renderMs}
-                      onScrubMs={(ms) => {
-                        setScrubVisualMs(ms);
-                        if (ms !== null) setRenderMs(ms);
+                      onScrubMs={(ms, commit) => {
+                        setTimelineTime(ms, { commit, syncOverlay: commit });
+                        if (commit) {
+                          setScrubVisualMs(null);
+                        }
                       }}
                       onChange={(i: number) => {
                         const target = playStepIndices[i];
