@@ -1625,7 +1625,8 @@ const FilmstripTimeline = forwardRef<FilmstripTimelineHandle, FilmstripTimelineP
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
   const frameMs = times[displayIdx] ?? tMin;
-  // Strip, Bubble und Karten-Overlay laufen auf derselben kontinuierlichen Zeit.
+  // Strip und Bubble dürfen während Drag/Play weich laufen; die Karte selbst
+  // snappt unten wieder hart auf den ausgewählten Frame.
   const motionMs = dragging
     ? (dragMs as number)
     : visualMs != null
