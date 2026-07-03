@@ -622,6 +622,22 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   const filmstripRef = useRef<FilmstripHandle | null>(null);
   const stackRef = useRef<FrameStackHandle | null>(null);
 
+  // Throttled loaded-Counter — vermeidet Render-Feuer bei jedem Tile-Load-Event.
+  const loadedPendingRef = useRef<number | null>(null);
+  const loadedTimerRef = useRef<number | null>(null);
+  const handleStackProgress = useCallback((l: number, _total: number) => {
+    loadedPendingRef.current = l;
+    if (loadedTimerRef.current !== null) return;
+    loadedTimerRef.current = window.setTimeout(() => {
+      loadedTimerRef.current = null;
+      const v = loadedPendingRef.current;
+      if (v !== null) setLoaded(v);
+    }, 200);
+  }, []);
+  useEffect(() => () => {
+    if (loadedTimerRef.current !== null) window.clearTimeout(loadedTimerRef.current);
+  }, []);
+
   // Übersetzt Play-Rate: `speedMs` ist die reale Zeit pro Frame-Schritt.
   // Rate = stepMinutes*60000 timeline-ms pro speedMs real-ms.
   const rateRef = useRef<number>(1);
