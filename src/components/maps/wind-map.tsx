@@ -24,6 +24,7 @@ import thurgauData from "@/data/thurgau.json";
 import { getWindFrames, type WindPayload, type WindFrame } from "@/lib/wind.functions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { FilmstripTimeline } from "./filmstrip-timeline";
 
 const BRAND = "#2561a1";
 const REGION = regionData as unknown as FeatureCollection;
