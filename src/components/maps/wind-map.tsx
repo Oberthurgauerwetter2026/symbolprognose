@@ -1042,7 +1042,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
   const showArrows = arrowsOn;
 
   return (
-    <div className={cn("@container", bare ? "flex h-full w-full flex-col" : "space-y-3")}>
+    <div className={cn("@container", bare ? "relative flex h-full w-full flex-col" : "space-y-3")}>
       <div
         className={cn(
           "relative overflow-hidden shadow-lg",
