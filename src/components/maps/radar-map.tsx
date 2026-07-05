@@ -2295,11 +2295,28 @@ export function RadarMap({
                   {/* Track */}
                   <div className="min-w-0 flex-1">
                     <FilmstripTimeline
-                      frames={stripFrames}
+                      frames={stripFrames.map((f) => ({ ms: Date.parse(f.t) }))}
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
                       visualMs={scrubVisualMs ?? playVisualMs ?? renderMs}
+                      color={(() => {
+                        const f = stripFrames[stripIdx] ?? null;
+                        return timelineColorFor(f);
+                      })()}
+                      bandMode="measurement-forecast"
+                      ariaLabel="Radar-Zeit"
+                      formatBubble={(d) => {
+                        // Frame anhand der Bubble-Zeit bestimmen (nächster in stripFrames).
+                        const target = d.getTime();
+                        let best: RadarFrame | null = null;
+                        let bestDt = Infinity;
+                        for (const f of stripFrames) {
+                          const dt = Math.abs(Date.parse(f.t) - target);
+                          if (dt < bestDt) { bestDt = dt; best = f; }
+                        }
+                        return fmtBubble(d, best);
+                      }}
                       onScrubMs={(ms) => {
                         setScrubVisualMs(ms);
                         if (ms !== null) setRenderMs(ms);
@@ -2311,6 +2328,7 @@ export function RadarMap({
                       }}
                     />
                   </div>
+
 
                   {/* Next */}
                   <button
