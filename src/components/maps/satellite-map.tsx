@@ -25,6 +25,7 @@ import {
   type SatelliteRegionId,
   type SatelliteFrame,
 } from "@/lib/satellite.functions";
+import { FilmstripTimeline } from "./filmstrip-timeline";
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#2561a1";
