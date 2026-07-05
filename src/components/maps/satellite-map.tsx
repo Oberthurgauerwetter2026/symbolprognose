@@ -500,8 +500,8 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
               </div>
             </div>
           </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
+
