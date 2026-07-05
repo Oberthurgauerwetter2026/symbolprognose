@@ -1219,13 +1219,19 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
                   <ChevronLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                 </button>
                 <div className="min-w-0 flex-1">
-                  <WindTimeline
-                    frames={frames}
-                    idx={idx}
+                  <FilmstripTimeline
+                    frames={frames.map((f) => ({ ms: Date.parse(f.t) }))}
+                    idx={idx ?? 0}
                     isMobile={isMobile}
-                    onChange={(i) => { setIdx(i); setPlaying(false); }}
+                    playing={playing}
+                    color={BRAND}
+                    bandMode="forecast-only"
+                    ariaLabel="Windprognose-Zeit"
+                    formatBubble={fmtBubble}
+                    onChange={(i: number) => { setIdx(i); setPlaying(false); }}
                   />
                 </div>
+
                 <button
                   type="button"
                   onClick={() => { setPlaying(false); setIdx((cur) => Math.min(frames.length - 1, (cur ?? 0) + 1)); }}
