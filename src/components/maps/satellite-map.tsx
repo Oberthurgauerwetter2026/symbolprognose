@@ -416,13 +416,19 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 </button>
 
                 <div className="min-w-0 flex-1">
-                  <SatelliteTimeline
-                    frames={frames}
+                  <FilmstripTimeline
+                    frames={frames.map((f) => ({ ms: Date.parse(f.time) }))}
                     idx={index}
                     onChange={handleTimelineChange}
                     isMobile={isMobile}
+                    playing={playing}
+                    color={BRAND}
+                    bandMode="measurement-only"
+                    ariaLabel="Satellit-Zeit"
+                    formatBubble={fmtBubble}
                   />
                 </div>
+
 
                 <button
                   type="button"
