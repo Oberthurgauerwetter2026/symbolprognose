@@ -1316,7 +1316,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
             )}
           </div>
         </div>
-      </div>
+
 
       {data && (
         <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
