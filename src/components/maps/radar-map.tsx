@@ -25,6 +25,7 @@ import thurgauData from "@/data/thurgau.json";
 
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { cn } from "@/lib/utils";
+import { FilmstripTimeline } from "./filmstrip-timeline";
 import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 
 
