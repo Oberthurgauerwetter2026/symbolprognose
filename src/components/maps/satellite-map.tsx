@@ -390,11 +390,25 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           </div>
         )}
 
+      </div>
 
-        {/* Steuerpanel — schwebend unten in der Karte (analog Radar) */}
-        {total > 0 && (
-          <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3">
-            <div className="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white/90 p-2 text-neutral-900 shadow-lg backdrop-blur sm:p-2.5">
+      {/* Steuerpanel — bare: schwebend über der Karte; sonst Panel unter der Karte (analog Radar) */}
+      {total > 0 && (
+        <div
+          className={cn(
+            bare
+              ? "pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3"
+              : "w-full",
+          )}
+        >
+          <div
+            className={cn(
+              "rounded-xl border border-neutral-200 p-2 text-neutral-900 sm:p-2.5",
+              bare
+                ? "pointer-events-auto bg-white/90 shadow-lg backdrop-blur"
+                : "bg-white shadow-sm",
+            )}
+          >
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
@@ -443,6 +457,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                   <PopoverTrigger asChild>
                     <button
                       type="button"
+
                       className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                       aria-label="Wiedergabe-Einstellungen"
                     >
