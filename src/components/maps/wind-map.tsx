@@ -1181,10 +1181,25 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
             </div>
           ))}
         </div>
+      </div>
 
-        {/* Steuerung */}
-        <div className="pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3">
-          <div className="pointer-events-auto rounded-xl border border-neutral-200/80 bg-white/90 p-2 text-neutral-900 shadow-lg backdrop-blur sm:p-2.5">
+      {/* Steuerpanel — bare: schwebend über der Karte; sonst Panel unter der Karte (analog Radar) */}
+      <div
+        className={cn(
+          bare
+            ? "pointer-events-none absolute inset-x-2 bottom-2 z-[450] sm:inset-x-3 sm:bottom-3"
+            : "w-full",
+        )}
+      >
+        <div
+          className={cn(
+            "rounded-xl border border-neutral-200 p-2 text-neutral-900 sm:p-2.5",
+            bare
+              ? "pointer-events-auto bg-white/90 shadow-lg backdrop-blur"
+              : "bg-white shadow-sm",
+          )}
+        >
+
             {isLoading && (
               <p className="text-center text-xs text-neutral-500">Lade Winddaten …</p>
             )}
