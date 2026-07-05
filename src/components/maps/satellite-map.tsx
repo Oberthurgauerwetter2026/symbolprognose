@@ -25,6 +25,7 @@ import {
   type SatelliteRegionId,
   type SatelliteFrame,
 } from "@/lib/satellite.functions";
+import { FilmstripTimeline } from "./filmstrip-timeline";
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#2561a1";
@@ -168,14 +169,8 @@ function FrameStack({
   return null;
 }
 
-// ---------- Timeline (analog MeteoTimeline) ----------
-
-function fmtDayLong(d: Date): string {
-  const wd = WEEKDAY_LONG[d.getDay()];
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${wd}, ${dd}.${mm}.${d.getFullYear()}`;
-}
+// ---------- Timeline ----------
+// SatelliteTimeline wurde durch die geteilte FilmstripTimeline ersetzt.
 
 function fmtBubble(d: Date): string {
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
@@ -184,231 +179,6 @@ function fmtBubble(d: Date): string {
   return `${wd}, ${hh}:${mm}`;
 }
 
-function SatelliteTimeline({
-  frames,
-  idx,
-  onChange,
-  isMobile,
-}: {
-  frames: SatelliteFrame[];
-  idx: number;
-  onChange: (i: number) => void;
-  isMobile: boolean;
-}) {
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const [dragging, setDragging] = useState(false);
-
-  const times = useMemo(() => frames.map((f) => Date.parse(f.time)), [frames]);
-  const tMin = times[0] ?? 0;
-  const tMax = times[times.length - 1] ?? 1;
-  const span = Math.max(1, tMax - tMin);
-
-  const pctForMs = (ms: number) => Math.max(0, Math.min(100, ((ms - tMin) / span) * 100));
-  const pctForIdx = (i: number) => pctForMs(times[i] ?? tMin);
-
-  const idxFromClientX = (clientX: number): number => {
-    const el = trackRef.current;
-    if (!el) return idx;
-    const r = el.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-    const target = tMin + pct * span;
-    let best = 0;
-    let bestDt = Infinity;
-    for (let i = 0; i < times.length; i++) {
-      const dt = Math.abs(times[i] - target);
-      if (dt < bestDt) {
-        bestDt = dt;
-        best = i;
-      }
-    }
-    return best;
-  };
-
-  const rafRef = useRef<number | null>(null);
-  const pendingXRef = useRef<number | null>(null);
-  const flushPending = () => {
-    rafRef.current = null;
-    const x = pendingXRef.current;
-    pendingXRef.current = null;
-    if (x != null) onChange(idxFromClientX(x));
-  };
-  const cancelPending = () => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    pendingXRef.current = null;
-  };
-  useEffect(() => () => cancelPending(), []);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    setDragging(true);
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      try { navigator.vibrate(8); } catch { /* ignore */ }
-    }
-    onChange(idxFromClientX(e.clientX));
-  };
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragging) return;
-    pendingXRef.current = e.clientX;
-    if (rafRef.current != null) return;
-    rafRef.current = requestAnimationFrame(flushPending);
-  };
-  const handlePointerUp = (e: React.PointerEvent) => {
-    setDragging(false);
-    cancelPending();
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch { /* ignore */ }
-  };
-
-  const hourTicks = useMemo(() => {
-    const startMs = Math.ceil(tMin / 3600000) * 3600000;
-    const out: { ms: number; pct: number; hour: number }[] = [];
-    for (let t = startMs; t <= tMax; t += 3600000) {
-      const d = new Date(t);
-      out.push({ ms: t, pct: pctForMs(t), hour: d.getHours() });
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tMin, tMax]);
-
-  const dayBreaks = hourTicks.filter((t) => t.hour === 0);
-
-  const daySegments = useMemo(() => {
-    const breaks = [tMin, ...dayBreaks.map((b) => b.ms), tMax];
-    const segs: { startPct: number; endPct: number; label: string }[] = [];
-    for (let i = 0; i < breaks.length - 1; i++) {
-      const a = breaks[i];
-      const b = breaks[i + 1];
-      if (b <= a) continue;
-      const mid = new Date((a + b) / 2);
-      segs.push({ startPct: pctForMs(a), endPct: pctForMs(b), label: fmtDayLong(mid) });
-    }
-    return segs;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tMin, tMax, dayBreaks.length]);
-
-  const handlePct = pctForIdx(idx);
-  const currentMs = times[idx] ?? tMax;
-  const bubbleLabel = fmtBubble(new Date(currentMs));
-  const labelStep = isMobile ? 3 : 1;
-
-  return (
-    <div className="select-none">
-      <div className="relative pt-5 pb-4">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-4">
-          {hourTicks.map((t, i) => {
-            if (i % labelStep !== 0) return null;
-            return (
-              <span
-                key={`hl-${t.ms}`}
-                className="absolute -translate-x-1/2 text-[9px] font-medium tabular-nums text-neutral-500"
-                style={{ left: `${t.pct}%`, top: 0 }}
-              >
-                {String(t.hour).padStart(2, "0")}
-              </span>
-            );
-          })}
-        </div>
-
-        <div
-          ref={trackRef}
-          role="slider"
-          aria-label="Satellit-Zeit"
-          aria-valuemin={0}
-          aria-valuemax={frames.length - 1}
-          aria-valuenow={idx}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowLeft") {
-              e.preventDefault();
-              onChange(Math.max(0, idx - 1));
-            } else if (e.key === "ArrowRight") {
-              e.preventDefault();
-              onChange(Math.min(frames.length - 1, idx + 1));
-            }
-          }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="relative flex h-7 w-full cursor-pointer touch-none items-center outline-none focus-visible:ring-2 focus-visible:ring-offset-2 rounded sm:h-6"
-          style={{ ['--tw-ring-color' as never]: BRAND }}
-        >
-          <div className="relative h-[4px] w-full overflow-hidden rounded-full bg-neutral-200">
-            <div
-              className="absolute inset-y-0 left-0 right-0"
-              style={{ background: BRAND, opacity: 0.25 }}
-            />
-            {hourTicks.map((t) => (
-              <span
-                key={`ht-${t.ms}`}
-                className="absolute top-0 h-full w-px bg-neutral-300"
-                style={{ left: `${t.pct}%` }}
-              />
-            ))}
-          </div>
-
-          {dayBreaks.map((b) => (
-            <span
-              key={`db-${b.ms}`}
-              className="pointer-events-none absolute inset-y-0 w-px bg-neutral-300"
-              style={{ left: `${b.pct}%` }}
-            />
-          ))}
-
-          <div
-            className="pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${handlePct}%` }}
-          >
-            <div className="relative h-6 w-[2px] rounded-sm bg-neutral-900/70">
-              <div
-                className="absolute left-1/2 top-1/2 h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md before:absolute before:-inset-3 before:content-['']"
-                style={{ background: BRAND }}
-              />
-            </div>
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
-              <span
-                className="whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm"
-                style={{ background: BRAND }}
-              >
-                {bubbleLabel}
-              </span>
-              <span
-                className="h-0 w-0"
-                style={{
-                  borderLeft: "4px solid transparent",
-                  borderRight: "4px solid transparent",
-                  borderTop: `4px solid ${BRAND}`,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4">
-          {daySegments.map((s, i) => {
-            const width = Math.max(0, s.endPct - s.startPct);
-            if (width < (isMobile ? 18 : 10)) return null;
-            return (
-              <span
-                key={`ds-${i}`}
-                className="absolute top-0 text-[10px] font-medium text-neutral-600 truncate"
-                style={{ left: `${s.startPct}%`, width: `${width}%`, textAlign: "center" }}
-              >
-                {s.label}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Main ----------
 
 export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   const [regionId, setRegionId] = useState<SatelliteRegionId>("alpen-ch");
@@ -646,13 +416,19 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 </button>
 
                 <div className="min-w-0 flex-1">
-                  <SatelliteTimeline
-                    frames={frames}
+                  <FilmstripTimeline
+                    frames={frames.map((f) => ({ ms: Date.parse(f.time) }))}
                     idx={index}
                     onChange={handleTimelineChange}
                     isMobile={isMobile}
+                    playing={playing}
+                    color={BRAND}
+                    bandMode="measurement-only"
+                    ariaLabel="Satellit-Zeit"
+                    formatBubble={fmtBubble}
                   />
                 </div>
+
 
                 <button
                   type="button"
