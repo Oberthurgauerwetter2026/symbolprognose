@@ -1147,26 +1147,6 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
           <ZoomControl position="topright" />
         </MapContainer>
 
-        {/* Quellen-Badge */}
-        <div className="pointer-events-none absolute left-3 top-3 z-[400] flex flex-col gap-1">
-          <span
-            className="rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-md"
-            style={{ background: BRAND }}
-          >
-            Modellprognose
-          </span>
-          {currentFrame && (
-            <span className="rounded-md bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-md">
-              {new Intl.DateTimeFormat("de-CH", {
-                weekday: "short",
-                day: "2-digit",
-                month: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              }).format(new Date(currentFrame.t))}
-            </span>
-          )}
-        </div>
 
         {/* Legende */}
         <div className="pointer-events-none absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
