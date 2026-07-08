@@ -9,9 +9,12 @@ import { setResponseHeader } from "@tanstack/react-start/server";
 
 export type SatelliteRegionId =
   | "alpen-ch"
+  | "alpen-ch-hd"
   | "europa-geocolour"
   | "europa-ir"
   | "global-ir";
+
+export type SatelliteProvider = "eumetsat-wms" | "gibs-wmts";
 
 export interface SatelliteRegion {
   id: SatelliteRegionId;
@@ -19,6 +22,9 @@ export interface SatelliteRegion {
   shortLabel: string;
   layer: string;
   fallbackLayer?: string;
+  provider?: SatelliteProvider;
+  /** Nur für GIBS: WMTS TileMatrixSet */
+  tileMatrixSet?: string;
   center: [number, number];
   zoom: number;
   stepMinutes: number;
@@ -41,6 +47,20 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     latencyMinutes: 20,
     source: "EUMETSAT · Meteosat-12 (MTG-FCI HRFI) GeoColour",
     description: "MTG FCI HRFI GeoColour über Schweiz und Alpen — Tag/Nacht (~1 km)",
+  },
+  {
+    id: "alpen-ch-hd",
+    label: "Schweiz HD (Tag)",
+    shortLabel: "Schweiz HD",
+    provider: "gibs-wmts",
+    layer: "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
+    tileMatrixSet: "GoogleMapsCompatible_Level9",
+    center: [46.7, 8.5],
+    zoom: 7,
+    stepMinutes: 1440,
+    latencyMinutes: 12 * 60,
+    source: "NASA GIBS · VIIRS NOAA-20 Corrected Reflectance (Truecolor)",
+    description: "Polar-Umlaufsatellit VIIRS Truecolor (~375 m), 1 Bild/Tag",
   },
   {
     id: "europa-geocolour",
@@ -95,16 +115,16 @@ export interface SatelliteFrame {
 
 export interface SatelliteManifest {
   region: SatelliteRegionId;
+  provider: SatelliteProvider;
   layer: string;
   fallbackLayer?: string;
+  tileMatrixSet?: string;
   source: string;
   frames: SatelliteFrame[];
   updatedAt: string;
 }
 
 function totalHoursFor(region: SatelliteRegion): number {
-  // HRFI-Layer: kürzeres Fenster = schnellere Ladezeit, da pro Frame ~6 Tiles à ~40 KB.
-  // Global-IR: 5 h, da Step 180 min sonst zu wenig Frames.
   if (region.id === "global-ir") return 5;
   return 3;
 }
@@ -115,6 +135,23 @@ function floorToStep(date: Date, stepMin: number): Date {
 }
 
 function buildFrames(region: SatelliteRegion, now: Date): SatelliteFrame[] {
+  const provider = region.provider ?? "eumetsat-wms";
+
+  if (provider === "gibs-wmts") {
+    // GIBS: 5 tägliche Frames (Vortag zurück 5 Tage). TIME = YYYY-MM-DD.
+    const frames: SatelliteFrame[] = [];
+    const latest = new Date(now.getTime() - region.latencyMinutes * 60_000);
+    latest.setUTCHours(0, 0, 0, 0);
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date(latest.getTime() - i * 86_400_000);
+      const yyyy = d.getUTCFullYear();
+      const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(d.getUTCDate()).padStart(2, "0");
+      frames.push({ time: `${yyyy}-${mm}-${dd}`, label: `${dd}.${mm}.` });
+    }
+    return frames;
+  }
+
   const latestMs = now.getTime() - region.latencyMinutes * 60_000;
   const latest = floorToStep(new Date(latestMs), region.stepMinutes);
   const count = Math.floor((totalHoursFor(region) * 60) / region.stepMinutes);
@@ -136,8 +173,10 @@ export const getSatelliteManifest = createServerFn({ method: "GET" })
     setResponseHeader("Cache-Control", "public, max-age=60");
     return {
       region: region.id,
+      provider: region.provider ?? "eumetsat-wms",
       layer: region.layer,
       fallbackLayer: region.fallbackLayer,
+      tileMatrixSet: region.tileMatrixSet,
       source: region.source,
       frames: buildFrames(region, now),
       updatedAt: now.toISOString(),

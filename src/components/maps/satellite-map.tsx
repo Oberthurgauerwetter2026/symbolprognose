@@ -87,22 +87,26 @@ function SwissOutline() {
  * (radial vom aktiven Index aus).
  */
 function FrameStack({
+  provider,
   layer,
   fallbackLayer,
+  tileMatrixSet,
   frames,
   activeIndex,
   initialIndex,
   onProgress,
 }: {
+  provider: "eumetsat-wms" | "gibs-wmts";
   layer: string;
   fallbackLayer?: string;
+  tileMatrixSet?: string;
   frames: SatelliteFrame[];
   activeIndex: number;
   initialIndex: number;
   onProgress: (loaded: number, total: number) => void;
 }) {
   const map = useMap();
-  const layersRef = useRef<(L.TileLayer.WMS | null)[]>([]);
+  const layersRef = useRef<(L.TileLayer | null)[]>([]);
   const loadedRef = useRef<Set<number>>(new Set());
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
@@ -116,7 +120,7 @@ function FrameStack({
     loadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
 
-    const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean; format_options?: string } = {
+    const wmsOpts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean; format_options?: string } = {
       layers: effectiveLayer,
       format: "image/jpeg",
       transparent: false,
@@ -130,11 +134,29 @@ function FrameStack({
         'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
 
+    const gibsOpts: L.TileLayerOptions = {
+      tileSize: 256,
+      minZoom: 1,
+      maxZoom: 9,
+      attribution:
+        'Oberthurgauer Wetter · © <a href="https://earthdata.nasa.gov/" target="_blank" rel="noopener">NASA GIBS</a> · VIIRS NOAA-20',
+    };
+
     const mountFrame = (i: number) => {
       if (i < 0 || i >= frames.length || layersRef.current[i]) return;
       const f = frames[i];
-      const tl = hiDpiWms(WMS_URL, { ...opts, opacity: i === activeIndex ? 1 : 0 });
-      tl.setParams({ time: f.time } as unknown as L.WMSParams, false);
+      let tl: L.TileLayer;
+      if (provider === "gibs-wmts") {
+        const tms = tileMatrixSet ?? "GoogleMapsCompatible_Level9";
+        const url =
+          `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${effectiveLayer}` +
+          `/default/${f.time}/${tms}/{z}/{y}/{x}.jpg`;
+        tl = L.tileLayer(url, { ...gibsOpts, opacity: i === activeIndex ? 1 : 0 });
+      } else {
+        const wl = hiDpiWms(WMS_URL, { ...wmsOpts, opacity: i === activeIndex ? 1 : 0 });
+        wl.setParams({ time: f.time } as unknown as L.WMSParams, false);
+        tl = wl;
+      }
       tl.on("load", () => {
         if (!loadedRef.current.has(i)) {
           loadedRef.current.add(i);
@@ -142,7 +164,12 @@ function FrameStack({
         }
       });
       tl.on("tileerror", () => {
-        if (!triedFallbackRef.current && fallbackLayer && fallbackLayer !== effectiveLayer) {
+        if (
+          provider === "eumetsat-wms" &&
+          !triedFallbackRef.current &&
+          fallbackLayer &&
+          fallbackLayer !== effectiveLayer
+        ) {
           triedFallbackRef.current = true;
           setEffectiveLayer(fallbackLayer);
         }
@@ -383,8 +410,10 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           {frames.length > 0 && (
             <FrameStack
               key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              provider={data?.provider ?? region.provider ?? "eumetsat-wms"}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
+              tileMatrixSet={data?.tileMatrixSet ?? region.tileMatrixSet}
               frames={frames}
               activeIndex={index}
               initialIndex={initialIndexRef.current}
