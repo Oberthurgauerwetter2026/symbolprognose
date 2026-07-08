@@ -164,14 +164,13 @@ function FrameStack({
         }
       });
       tl.on("tileerror", () => {
-        if (
-          provider === "eumetsat-wms" &&
-          !triedFallbackRef.current &&
-          fallbackLayer &&
-          fallbackLayer !== effectiveLayer
-        ) {
+        if (triedFallbackRef.current) return;
+        if (provider === "eumetsat-wms" && fallbackLayer && fallbackLayer !== effectiveLayer) {
           triedFallbackRef.current = true;
           setEffectiveLayer(fallbackLayer);
+        } else if (provider === "gibs-wmts" && effectiveLayer !== "MODIS_Terra_CorrectedReflectance_TrueColor") {
+          triedFallbackRef.current = true;
+          setEffectiveLayer("MODIS_Terra_CorrectedReflectance_TrueColor");
         }
       });
       tl.addTo(map);
