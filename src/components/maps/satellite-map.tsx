@@ -116,7 +116,7 @@ function FrameStack({
     loadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
 
-    const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean } = {
+    const opts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean; format_options?: string } = {
       layers: effectiveLayer,
       format: "image/jpeg",
       transparent: false,
@@ -125,6 +125,7 @@ function FrameStack({
       tileSize: 512,
       keepBuffer: 0,
       updateWhenZooming: false,
+      format_options: "antialias:full;interpolation:bicubic",
       attribution:
         'Oberthurgauer Wetter · © <a href="https://www.eumetsat.int/" target="_blank" rel="noopener">EUMETSAT</a>',
     };
@@ -132,7 +133,7 @@ function FrameStack({
     const mountFrame = (i: number) => {
       if (i < 0 || i >= frames.length || layersRef.current[i]) return;
       const f = frames[i];
-      const tl = L.tileLayer.wms(WMS_URL, { ...opts, opacity: i === activeIndex ? 1 : 0 });
+      const tl = hiDpiWms(WMS_URL, { ...opts, opacity: i === activeIndex ? 1 : 0 });
       tl.setParams({ time: f.time } as unknown as L.WMSParams, false);
       tl.on("load", () => {
         if (!loadedRef.current.has(i)) {
