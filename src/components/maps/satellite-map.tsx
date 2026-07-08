@@ -248,11 +248,11 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
 
   const total = frames.length;
   const ready = total > 0 && loaded >= 1;
-  const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
-  const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
 
   const lastTimeRef = useRef<string | null>(null);
   const initialIndexRef = useRef<number>(0);
+  const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
+  const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
   useEffect(() => {
     if (frames.length === 0) return;
     if (lastTimeRef.current === null) {
