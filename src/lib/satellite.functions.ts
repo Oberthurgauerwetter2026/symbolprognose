@@ -9,9 +9,12 @@ import { setResponseHeader } from "@tanstack/react-start/server";
 
 export type SatelliteRegionId =
   | "alpen-ch"
+  | "alpen-ch-hd"
   | "europa-geocolour"
   | "europa-ir"
   | "global-ir";
+
+export type SatelliteProvider = "eumetsat-wms" | "gibs-wmts";
 
 export interface SatelliteRegion {
   id: SatelliteRegionId;
@@ -19,6 +22,9 @@ export interface SatelliteRegion {
   shortLabel: string;
   layer: string;
   fallbackLayer?: string;
+  provider?: SatelliteProvider;
+  /** Nur für GIBS: WMTS TileMatrixSet */
+  tileMatrixSet?: string;
   center: [number, number];
   zoom: number;
   stepMinutes: number;
@@ -41,6 +47,20 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     latencyMinutes: 20,
     source: "EUMETSAT · Meteosat-12 (MTG-FCI HRFI) GeoColour",
     description: "MTG FCI HRFI GeoColour über Schweiz und Alpen — Tag/Nacht (~1 km)",
+  },
+  {
+    id: "alpen-ch-hd",
+    label: "Schweiz HD (Tag)",
+    shortLabel: "Schweiz HD",
+    provider: "gibs-wmts",
+    layer: "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
+    tileMatrixSet: "GoogleMapsCompatible_Level9",
+    center: [46.7, 8.5],
+    zoom: 7,
+    stepMinutes: 1440,
+    latencyMinutes: 12 * 60,
+    source: "NASA GIBS · VIIRS NOAA-20 Corrected Reflectance (Truecolor)",
+    description: "Polar-Umlaufsatellit VIIRS Truecolor (~375 m), 1 Bild/Tag",
   },
   {
     id: "europa-geocolour",
