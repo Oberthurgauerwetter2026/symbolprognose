@@ -36,7 +36,7 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     layer: "mtg_hrfi:rgb_geocolour",
     fallbackLayer: "mtg_fd:rgb_geocolour",
     center: [46.7, 8.5],
-    zoom: 8,
+    zoom: 7,
     stepMinutes: 10,
     latencyMinutes: 20,
     source: "EUMETSAT · Meteosat-12 (MTG-FCI HRFI) GeoColour",
