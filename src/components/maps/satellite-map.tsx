@@ -110,6 +110,8 @@ function FrameStack({
   const loadedRef = useRef<Set<number>>(new Set());
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
+  const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
+  const clampedInitialIndex = frames.length > 0 ? Math.min(Math.max(initialIndex, 0), frames.length - 1) : 0;
 
   useEffect(() => {
     setEffectiveLayer(layer);
@@ -151,9 +153,9 @@ function FrameStack({
         const url =
           `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${effectiveLayer}` +
           `/default/${f.time}/${tms}/{z}/{y}/{x}.jpg`;
-        tl = L.tileLayer(url, { ...gibsOpts, opacity: i === activeIndex ? 1 : 0 });
+        tl = L.tileLayer(url, { ...gibsOpts, opacity: i === clampedActiveIndex ? 1 : 0 });
       } else {
-        const wl = hiDpiWms(WMS_URL, { ...wmsOpts, opacity: i === activeIndex ? 1 : 0 });
+        const wl = hiDpiWms(WMS_URL, { ...wmsOpts, opacity: i === clampedActiveIndex ? 1 : 0 });
         wl.setParams({ time: f.time } as unknown as L.WMSParams, false);
         tl = wl;
       }
@@ -177,14 +179,14 @@ function FrameStack({
       layersRef.current[i] = tl;
     };
 
-    mountFrame(initialIndex);
+    mountFrame(clampedInitialIndex);
     onProgress(0, frames.length);
 
     let cancelled = false;
     const order: number[] = [];
     for (let d = 1; d < frames.length; d++) {
-      const a = initialIndex + d;
-      const b = initialIndex - d;
+      const a = clampedInitialIndex + d;
+      const b = clampedInitialIndex - d;
       if (a < frames.length) order.push(a);
       if (b >= 0) order.push(b);
     }
@@ -204,11 +206,11 @@ function FrameStack({
       layersRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, effectiveLayer, frames]);
+  }, [map, provider, effectiveLayer, tileMatrixSet, frames, clampedInitialIndex]);
 
   useEffect(() => {
-    layersRef.current.forEach((tl, i) => tl?.setOpacity(i === activeIndex ? 1 : 0));
-  }, [activeIndex]);
+    layersRef.current.forEach((tl, i) => tl?.setOpacity(i === clampedActiveIndex ? 1 : 0));
+  }, [clampedActiveIndex]);
 
   return null;
 }
@@ -246,6 +248,8 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
 
   const total = frames.length;
   const ready = total > 0 && loaded >= 1;
+  const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
+  const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
 
   const lastTimeRef = useRef<string | null>(null);
   const initialIndexRef = useRef<number>(0);
@@ -269,6 +273,13 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       lastTimeRef.current = frames[last].time;
     }
   }, [frames]);
+
+  useEffect(() => {
+    if (total === 0 || index === safeIndex) return;
+    setIndex(safeIndex);
+    lastTimeRef.current = frames[safeIndex]?.time ?? null;
+    initialIndexRef.current = safeIndex;
+  }, [frames, index, safeIndex, total]);
 
   useEffect(() => {
     setLoaded(0);
@@ -414,8 +425,8 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
               tileMatrixSet={data?.tileMatrixSet ?? region.tileMatrixSet}
               frames={frames}
-              activeIndex={index}
-              initialIndex={initialIndexRef.current}
+              activeIndex={safeIndex}
+              initialIndex={safeInitialIndex}
               onProgress={(l) => setLoaded(l)}
             />
           )}
@@ -468,7 +479,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleTimelineChange(Math.max(index - 1, 0))}
+                  onClick={() => handleTimelineChange(Math.max(safeIndex - 1, 0))}
                   className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                   aria-label="Vorheriger Frame"
                 >
@@ -478,7 +489,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
                 <div className="min-w-0 flex-1">
                   <FilmstripTimeline
                     frames={frames.map((f) => ({ ms: Date.parse(f.time) }))}
-                    idx={index}
+                    idx={safeIndex}
                     onChange={handleTimelineChange}
                     isMobile={isMobile}
                     playing={playing}
@@ -492,7 +503,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
 
                 <button
                   type="button"
-                  onClick={() => handleTimelineChange(Math.min(index + 1, total - 1))}
+                  onClick={() => handleTimelineChange(Math.min(safeIndex + 1, total - 1))}
                   className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                   aria-label="Nächster Frame"
                 >
