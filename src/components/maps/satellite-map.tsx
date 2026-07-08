@@ -410,8 +410,10 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           {frames.length > 0 && (
             <FrameStack
               key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              provider={data?.provider ?? region.provider ?? "eumetsat-wms"}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
+              tileMatrixSet={data?.tileMatrixSet ?? region.tileMatrixSet}
               frames={frames}
               activeIndex={index}
               initialIndex={initialIndexRef.current}
