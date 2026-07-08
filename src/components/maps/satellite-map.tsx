@@ -30,6 +30,23 @@ import { FilmstripTimeline } from "./filmstrip-timeline";
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#2561a1";
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
+
+// HiDPI-fähige WMS-Kachel: fragt bei devicePixelRatio > 1 die doppelte
+// Pixelauflösung beim GeoServer an und skaliert per CSS zurück auf tileSize.
+const HiDpiWMS = L.TileLayer.WMS.extend({
+  getTileUrl(coords: L.Coords) {
+    const url = L.TileLayer.WMS.prototype.getTileUrl.call(this, coords);
+    const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+    if (dpr <= 1) return url;
+    const size = (this.options as L.WMSOptions).tileSize as number;
+    const hi = Math.round(size * dpr);
+    return url
+      .replace(/([?&])WIDTH=\d+/i, `$1WIDTH=${hi}`)
+      .replace(/([?&])HEIGHT=\d+/i, `$1HEIGHT=${hi}`);
+  },
+});
+const hiDpiWms = (url: string, options: L.WMSOptions) =>
+  new (HiDpiWMS as unknown as new (u: string, o: L.WMSOptions) => L.TileLayer.WMS)(url, options);
 const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
 const SPEEDS = [
