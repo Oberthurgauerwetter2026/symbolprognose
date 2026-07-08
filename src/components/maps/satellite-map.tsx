@@ -245,7 +245,7 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const total = frames.length;
-  const ready = total > 0 && loaded / total >= 0.8;
+  const ready = total > 0 && loaded >= 1;
 
   const lastTimeRef = useRef<string | null>(null);
   const initialIndexRef = useRef<number>(0);
