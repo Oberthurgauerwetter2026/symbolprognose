@@ -58,7 +58,7 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     center: [46.7, 8.5],
     zoom: 7,
     stepMinutes: 1440,
-    latencyMinutes: 12 * 60,
+    latencyMinutes: 30 * 60,
     source: "NASA GIBS · VIIRS NOAA-20 Corrected Reflectance (Truecolor)",
     description: "Polar-Umlaufsatellit VIIRS Truecolor (~375 m), 1 Bild/Tag",
   },
