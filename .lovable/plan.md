@@ -1,39 +1,29 @@
-## Ziel
-Bildqualität der Satellitenkarte (MTG-FCI HRFI) sichtbar erhöhen — ohne Layout- oder Feature-Änderungen.
+## Diagnose
+Dein Display meldet `devicePixelRatio = 1`, deshalb greift der HiDPI-Trick nicht. Wichtiger noch: MTG-FCI HRFI GeoColour hat nativ ~1–1.4 km/Pixel. Bei Zoom 8 zeigt Leaflet ~300 m/Pixel — das Bild wird also grundsätzlich ~4× hochskaliert. Keine Client-Einstellung macht daraus ein scharfes Bild; die Datenauflösung ist die harte Grenze.
 
-## Aktuelle Situation
-- WMS-Layer: `mtg_hrfi:rgb_geocolour` (native ~1 km), Fallback `mtg_fd:rgb_geocolour` (~3 km)
-- `tileSize: 512`, `format: image/jpeg`
-- Region CH: fester `zoom = 7`; DPR/Retina wird nicht berücksichtigt → auf HiDPI-Bildschirmen werden Tiles hochskaliert (unscharf)
-- Kein `Sharpen`/`Interpolation`-Parameter Richtung GeoServer
+## Lösungswege
 
-## Vorgeschlagene Verbesserungen
+### A) Supersampling erzwingen (kleiner Effekt, kostenlos)
+GeoServer immer mit 2× Pixeln anfragen (nicht nur bei dpr>1) und per CSS auf Kachelgröße skalieren. Bringt etwas glattere Kanten (Server rendert mit bicubic), aber die native ~1 km-Grenze bleibt.
 
-### 1. HiDPI/Retina-Tiles (größter Effekt)
-GeoServer WMS kann Tiles in doppelter Pixeldichte liefern. Statt fester 512 px:
-- `tileSize: 512`, aber `width`/`height` in der WMS-Anfrage auf `1024` (via `FORMAT_OPTIONS=dpi:180` oder Leaflet-Trick: eigene `TileLayer.WMS`-Subclass, die bei `devicePixelRatio > 1` die interne `getTileUrl` mit doppelter Auflösung anfragt und per CSS auf 512 CSS-px skaliert).
-- Bewirkt auf Retina/4K-Displays gestochen scharfe Darstellung.
+### B) Zoom an native Auflösung anpassen (echter Schärfegewinn)
+CH-Region von Zoom 8 → 7 zurück. Bei Zoom 7 entspricht ein Kartenpixel ~600 m — nahe an nativen ~1 km, dadurch wirken Wolkenkanten scharf statt "aufgeblasen". Nachteil: Ausschnitt zeigt mehr Umgebung.
 
-### 2. Zoomstufe für Schweiz erhöhen
-- CH-Region derzeit `zoom: 7`. Bei MTG HRFI (~1 km) ist `zoom 8` noch sinnvoll (Pixelgröße ~150 m/Tile-px). 
-- Vorschlag: CH auf `zoom: 8` anheben (Alpen/Wolkenstrukturen deutlich detaillierter). Andere Regionen unverändert.
+### C) Höher aufgelöste Quelle als zusätzliche Region (großer Effekt, nur tagsüber)
+NASA GIBS liefert Truecolor-Satellitenbilder als WMTS in **250 m** (MODIS Terra/Aqua) bzw. **375 m** (VIIRS SNPP/NOAA-20). Update: 1×/Tag, Kachelserver stabil und frei. Ideal als neue Region "Schweiz HD (Tag, MODIS/VIIRS)" mit eigenem Manifest — keine 10-Minuten-Animation, aber ein sehr scharfes Tagesbild.
+- Layer z. B. `VIIRS_NOAA20_CorrectedReflectance_TrueColor` (375 m)
+- Endpoint: `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/...`
+- Zeit-Parameter `TIME=YYYY-MM-DD`
 
-### 3. PNG statt JPEG (optional, Qualität > Bandbreite)
-- `format: "image/png"` liefert artefaktfreie Wolkenkanten (JPEG-Blocking verschwindet). Kostet ~2–3× mehr Bandbreite. Als Option erwägen, Standard bleibt JPEG.
+### D) MTG HRV/Sandwich (mittlerer Effekt, tagsüber)
+MTG FCI hat einen sichtbaren Hochauflösungskanal (~500 m). EUMETSAT-view stellt aktuell nur GeoColour bereit — keinen 500-m-RGB. Als "HD-Tag" ist Weg C überlegen.
 
-### 4. GeoServer-Rendering-Hints
-- Über `FORMAT_OPTIONS=antialias:full` bzw. `tiled:true` und Interpolation `bicubic` (WMS-Vendor-Params) leicht schärfere Skalierung.
+## Empfehlung
+Kombination:
+1. **A umsetzen** (Supersampling immer aktiv) — allgemeine Verbesserung.
+2. **B umsetzen** (CH zurück auf Zoom 7) — behebt die "Weichzeichner"-Optik bei der bestehenden GeoColour-Ansicht.
+3. **C als neue Region** "Schweiz HD (Tag)" mit NASA GIBS VIIRS Truecolor — statisches Tagesbild, aber deutlich schärfer.
 
-## Empfohlene Umsetzung (schrittweise, minimal-invasiv)
-1. HiDPI-Tiles aktivieren (custom WMS-Klasse, nur `wms.getTileUrl` überschreiben, verdoppelt `WIDTH`/`HEIGHT` bei `devicePixelRatio >= 2`). Betrifft nur `satellite-map.tsx`.
-2. CH-Zoom in `src/lib/satellite.functions.ts` von 7 → 8.
-3. Vendor-Params `format_options=antialias:full;interpolation:bicubic` an WMS-Requests anhängen.
-
-Punkt 3 (PNG) nur auf Wunsch — kostet Traffic.
-
-## Technische Details
-- Datei-Änderungen: `src/components/maps/satellite-map.tsx`, `src/lib/satellite.functions.ts`.
-- Keine Änderungen an UI, Timeline, Backend oder Datenmanifest.
-- Fallback-Logik (`mtg_fd`) bleibt erhalten.
-
-Frage: Alle drei Schritte umsetzen, oder nur HiDPI + Zoom (empfohlener Default)?
+## Frage
+- Nur A+B (schnell, keine neue Datenquelle), oder
+- A+B+C (zusätzlicher HD-Tag-Layer über NASA GIBS)?
