@@ -6,7 +6,12 @@
  */
 
 let lastDispatchAt = 0;
-const MIN_INTERVAL_MS = 60_000;
+// 4 min: verhindert, dass GitHub Actions einen zweiten Run in die
+// `radar-ingest` Concurrency-Queue schiebt und den älteren wartenden Run
+// cancelt ("Canceling since a higher priority waiting request ... exists").
+// Cloudflare-Cron feuert alle 5 min; überschüssige Trigger werden mit 429
+// (throttled) beantwortet.
+const MIN_INTERVAL_MS = 4 * 60_000;
 
 export type DispatchResult =
   | { ok: true; dispatchedAt: string; ref: string }
