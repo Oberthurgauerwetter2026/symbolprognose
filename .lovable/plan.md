@@ -1,21 +1,33 @@
-## Befund
+## Problem
 
-Die normalen Satellitenbilder laden. Beim Wechsel auf „Schweiz HD“ wird aber kein einziges GIBS/HD-Tile angefordert. Ursache ist ein Index-Fehler beim Regionswechsel: Die Karte übernimmt kurz den alten Frame-Index der 10-Minuten-Animation, der für die 5 täglichen HD-Frames außerhalb des gültigen Bereichs liegt. Dadurch mountet `FrameStack` keinen Layer, es entstehen keine Bild-Requests, und die Anzeige bleibt bei `0/5`.
+Cloudflare-Cron triggert `/api/public/radar/ingest-trigger` alle 5 min. Wenn ein Ingest-Run länger dauert als 5 min, staut sich in GitHub Actions ein zweiter Run in der `radar-ingest` Concurrency-Queue. Sobald der Worker nochmal triggert, verwirft GitHub den wartenden Run mit:
 
-## Plan
+> Canceling since a higher priority waiting request for radar-ingest exists
 
-1. **Index beim Regions-/Frame-Wechsel absichern**
-   - Den an `FrameStack` übergebenen `initialIndex` auf den gültigen Bereich `0..frames.length-1` begrenzen.
-   - Beim Wechsel auf eine Region mit anderer Frame-Anzahl sofort auf den letzten verfügbaren Frame springen.
+Das ist harmlos, aber die Actions-History füllt sich mit „Cancelled" Runs.
 
-2. **FrameStack robuster machen**
-   - In `FrameStack` zusätzlich defensiv clampen, damit auch bei zukünftigen Daten-/Regionwechseln immer mindestens ein gültiger Frame gemountet wird.
-   - Effekt-Abhängigkeiten sauber ergänzen, damit Provider/Layer/TileMatrix-Wechsel zuverlässig neue Tile-Layer erzeugen.
+## Lösung: Server-seitig entzerren
 
-3. **HD-Timeline korrekt halten**
-   - Sicherstellen, dass die täglichen HD-Frames nicht durch einen alten Stunden-Index blockiert werden.
-   - Optional nur minimal: Labels bleiben wie bisher, Fokus ist das Laden der Bilder.
+`src/lib/radar-dispatch.server.ts` hat bereits einen In-Memory-Throttle (`MIN_INTERVAL_MS = 60_000`, 1 min). Das ist zu kurz — der eigentliche Ingest braucht meistens 3–6 min. Wir erhöhen den Throttle so, dass zwischen zwei erfolgreichen Dispatches genug Zeit liegt, dass der vorherige Run typischerweise fertig ist.
 
-4. **Verifikation**
-   - Im Browser auf `/karten/satellit` testen.
-   - „Schweiz HD“ anklicken und prüfen, dass GIBS-Bildkacheln im DOM erscheinen, mindestens ein Tile lädt, `0/5` verschwindet und ein sichtbares Bild angezeigt wird.
+### Änderung
+
+**`src/lib/radar-dispatch.server.ts`**
+- `MIN_INTERVAL_MS` von `60_000` (1 min) → `4 * 60_000` (4 min).
+- Kommentar ergänzen: „verhindert, dass GitHub Actions einen zweiten Run in die `radar-ingest` Concurrency-Queue schiebt und den älteren wartenden Run cancelt".
+
+### Warum 4 min
+
+- Cloudflare-Cron feuert alle 5 min. Bei 4 min Throttle wird jeder Cron-Trigger, bei dem der letzte Dispatch <4 min her ist, mit 429 beantwortet — der Worker loggt „429 throttled" (kein Fehler).
+- Der laufende Ingest hat damit typischerweise Zeit zu enden, bevor ein neuer Dispatch in die Queue geht. Cancels durch die 1-Slot-Warteschlange werden selten statt regelmäßig.
+
+### Was NICHT geändert wird
+
+- `.github/workflows/radar-ingest.yml` `cancel-in-progress: false` bleibt — laufende Ingests sollen nicht mitten im Upload abgebrochen werden.
+- Cloudflare-Worker Cron (`*/5 * * * *`) bleibt — die 5-min-Kadenz ist für Frame-Freshness sinnvoll, der Server dedupliziert.
+- Andere Dispatch-Helper (`arome`, `symbol`, `openmeteo`, `mch`) haben eigene Throttles und sind nicht betroffen.
+
+## Verifikation
+
+- Nach Deploy: GitHub-Actions-History von `radar-ingest` beobachten — Cancels sollten von „fast jedem Run" auf „selten" fallen.
+- Cloudflare-Worker `/status` zeigt `lastRadar.status = 429` für Throttle-Fälle statt `202` — gewollt.
