@@ -1,60 +1,59 @@
 ## Ziel
 
-Die Prognose-Animation im Radar soll aussehen wie ein klassisches Wetterradar (MeteoSchweiz/DWD): zusammenhängende Echos, die sich zwischen den Zeitschritten kontinuierlich verlagern. Kein Aufglühen, kein Abglühen, kein künstliches „Weiterschieben" mehr. Neue/verschwindende Zellen dürfen nur dann erscheinen/verschwinden, wenn die Prognosedaten das hergeben.
+Prognose-Niederschlagsflächen sollen nicht mehr wie glatte Kapseln/Würste/Sechsecke aussehen, sondern wie echte Radar-Echos: unregelmäßige, leicht ausgefranste Konturen, natürliche Verformung während der Animation, kein wiederkehrendes Muster. Zusätzlich sollen die isolierten „Verunreinigungen" (einzelne verstreute Pixel im rechten Screenshot) verschwinden. Messung (MCH-PNG) bleibt unverändert.
 
-**Messung (MCH-CombiPrecip-PNG) bleibt unverändert** — nur die Grid-Prognose (`PrecipOverlay` mit `contour=true`) wird umgebaut.
+## Ursache heute
 
-## Diagnose
+Die Prognose rendert aus einem sehr groben Grid (36×22) mit reiner bilinearer Interpolation und `imageSmoothingQuality: "high"`. Dadurch entstehen zwangsläufig glatte, ellipsen-/kapselartige Blobs. Isolierte Grid-Zellen mit >0.1 mm/h werden 1:1 als kleine ovale Klumpen gerendert → „Verunreinigungen".
 
-Zwei Effekte in `src/components/maps/radar-map.tsx` erzeugen den kritisierten Look:
+Optical-Flow-Warp aus dem letzten Schritt bleibt korrekt — er verschiebt die Felder, formt sie aber nicht.
 
-1. `PrecipOverlay` läuft für Prognose-Frames mit `contour={true}` — das aktiviert einen fbm-Value-Noise-Modulator (`contourScale`), der aus den ICON-Feldern eine wolkige, sich am Rand ausfransende Struktur erzeugt. Das ist die „Partikel/Glow"-Optik.
-2. Zwischen zwei Prognose-Frames wird nur die **Intensität** interpoliert (`buildBlendedOffscreenRef`: `v = (1−p)·A(x) + p·B(x)`). Kein Advektions- oder Optical-Flow-Warp — Zellen wechseln also durch Ein-/Ausblenden statt sich zu verlagern.
+## Änderungen (nur `src/components/maps/radar-map.tsx`, nur Prognose-Pfad)
 
-## Umbau
+### 1. Organische Kontur per Domain-Warp
 
-### 1. Glow-/Contour-Modulation vollständig entfernen
+In beiden Sample-Loops (Single-Frame ab Zeile ~799 und Blend-Loop ab Zeile ~1044) wird die Grid-Sample-Koordinate `(fxRaw, fyRaw)` vor dem `sampleAt`-Aufruf mit einem **niederfrequenten fBm-Noise-Feld** verzerrt:
 
-In `PrecipOverlay`:
-- `contour`-Prop streichen (samt Aufrufstelle in `RadarMap`).
-- `contourScale`-Feld aus `lookupRef` entfernen, samt fbm/valueNoise/warp-Block.
-- `minV` fest auf `0.1` (gleicher Threshold wie Messung).
-- Prognose-Grid mit derselben Pipeline rendern wie die Messung: bilineare Nachbar-Interpolation der Grid-Werte + harte Farbbänder via `colorFor` (bereits vorhanden).
+- 2 Oktaven Value-Noise, Basis-Wellenlänge ≈ 1.2 Grid-Zellen (in Grid-Koordinaten).
+- Amplitude ≈ 0.55 Grid-Zellen in x/y — genug, um sichtbare Ausfransungen und ineinander verlaufende Ränder zu erzeugen, zu wenig, um Position/Bewegung zu verfälschen.
+- Deterministisch gehasht aus `(gridX, gridY, tSlot)`. `tSlot = Math.floor(frameIndex + progress * 4) / 4` — die Verformung driftet damit langsam über die Animation (Zellen „atmen"), springt aber nicht sichtbar.
+- Beim Blend-Loop wird zusätzlich die Warp-Amplitude linear zwischen den zwei Framepaaren geglättet, damit die Deformation über den Optical-Flow-Warp keine sichtbare Sprungnaht bekommt.
 
-Damit sehen Prognose-Frames aus wie klassische Radar-Echos: geschlossene, kantige Flächen in den MCH-Farbbändern.
+Ergebnis: Ränder werden unregelmäßig, Zellen wachsen zusammen bzw. teilen sich rein durch die Konturverformung — der geometrische Grundriss verschwindet.
 
-### 2. Optical-Flow-Morphing zwischen benachbarten Prognose-Frames
+### 2. Zusätzliche Kantenrauhigkeit
 
-Neuer Helper in `radar-map.tsx` (nur clientseitig, im Overlay-Modul):
+Nach dem verzerrten Sample wird der Wert mit einem zweiten, feineren fBm (Wellenlänge ≈ 0.5 Grid-Zellen, Amplitude ±12 %) moduliert:  
+`v *= 1 + 0.12 * noiseHi(gx, gy, tSlot)`
 
-- **Flow-Schätzung** pro Framepaar `(A, B)` auf dem nativen Grid (`nLat × nLon`, klein, typ. ≤ 200×200): Horn–Schunck, ~40 Iterationen, α ≈ 2. Input sind die Rohwerte (mm/h, ggf. auf `log(1+v)` gemappt für stabilere Gradienten). Ergebnis: zwei Float32Arrays `u`, `v` (Verschiebung pro Gridzelle in Gridkoordinaten pro Framepaar).
-- **Cache**: `Map<key, {u,v}>` mit Key `${A.t}|${B.t}`, LRU, Deckel z. B. 32 Einträge. Berechnung idle-gescheduled beim ersten Bedarf, blockiert den ersten Render nicht (Fallback: reine Intensitäts-Interpolation, bis Flow bereit ist).
-- **Morph-Sampling** in `buildBlendedOffscreenRef` (ersetzt heutige Intensitäts-Blende):
-  - Für jeden Low-Res-Pixel: `(fx, fy)` in Gridkoords bestimmen (schon vorhanden via `lookup`), Flow `(uxy, vxy)` an `(fx, fy)` bilinear sampeln.
-  - `vA = sample(A.values, fx − p·uxy, fy − p·vxy)`
-  - `vB = sample(B.values, fx + (1−p)·uxy, fy + (1−p)·vxy)`
-  - `v = (1 − p)·vA + p·vB` (Standard-Bild-Morphing / bidirektionaler Warp).
-  - Analog für `snowValues`.
-  - Farbe wie gehabt via `colorFor(v)`.
-- **Effekt**: Ein Echo, das in A bei X und in B bei X+Δ liegt, wandert kontinuierlich von X nach X+Δ, statt bei X auszublenden und bei X+Δ einzublenden. Kein künstlicher Vorwärts-Shift, weil `u`/`v` direkt aus den Daten kommen; wo Δ ≈ 0 ist, gibt es keine Bewegung — wo eine Zelle in A oder B fehlt, bleibt nur der Intensitätsanteil und die Zelle entsteht/vergeht wie im Datensatz.
+Wirkung nur nahe der Isolinien (`colorFor` quantisiert ja hart in Bänder): dort entstehen kleine „Auszipfelungen" wie bei echtem Radar. In dichten Kerngebieten hat die Modulation keinen sichtbaren Effekt (Farbband bleibt).
 
-### 3. Aufrufstelle
+### 3. Denoise / „Verunreinigungen" entfernen
 
-In `RadarMap` (Zeile ~2130): `contour={gridFrame.source !== "radar"}` wird entfernt; `<PrecipOverlay …>` bekommt kein `contour`-Prop mehr. Alles andere (Opacity, Prewarm, Snow, Hail) bleibt.
+Vor dem Rendern (einmal pro Frame, gecached zusammen mit dem Grid-Lookup) wird ein Cleanup-Pass über die Grid-Werte ausgeführt:
 
-### 4. Was NICHT geändert wird
+- Für jede Zelle mit `v ≥ 0.1 mm/h`: zähle Nachbarzellen (3×3) mit `v ≥ 0.1`.
+- Bei `< 2` Nachbarn: Zelle wird für's Rendering auf 0 gesetzt (Kopie, Rohdaten bleiben unangetastet, damit Optical-Flow und andere Auswertungen unverändert bleiben).
+- Wirkung: klassische morphologische Öffnung → einzelne Streu-Pixel/Punkte verschwinden, zusammenhängende Felder bleiben identisch.
 
-- `MeasurementCanvasOverlay` (MCH-PNG) — 1:1 unverändert.
-- Farbskala (`SCALE`, `colorFor`), Timeline, Play-Loop, Filmstrip, Hail-Layer.
-- Datenpfad (`getRadarFrames`, `radar.functions.ts`, R2-Ingest).
+Denselben Filter analog für `snowValues`.
+
+### 4. Rendering-Feinheiten
+
+- `imageSmoothingQuality` beim finalen `drawImage` von `"high"` auf `"medium"` — die Kanten wirken damit weniger geglättet, ohne pixelig zu werden. Domain-Warp liefert die Struktur; kein zusätzlicher Blur.
+- Keine Änderung an Farbskala, Bänder, Legende, Timeline, Messung, Hagel oder Schnee-Farben.
+
+## Unverändert
+
+- MCH-CombiPrecip-Messung (`MeasurementCanvasOverlay`, PNG-Pfad).
+- Horn–Schunck-Optical-Flow zwischen zwei Prognosefeldern.
+- Farbskalen `SCALE`, `colorFor`, `snowColorFor`, Legende.
+- Datenstruktur `RadarPayload`, Backend `src/lib/radar.functions.ts`.
+- Timeline, Filmstrip, Play/Scrub, Prewarm-Cache.
 
 ## Technische Details
 
-- Horn–Schunck-Kernel bleibt vollständig im Client, keine neue Abhängigkeit.
-- Kosten pro Framepaar: ~ `nLat·nLon·iters` Multiply-Adds; für 200×200 × 40 Iter ≈ 1.6 M Ops → wenige ms auf Desktop, einmalig pro Paar, danach nur Sample-Blend im Redraw-Pfad.
-- Cache-Invalidierung: Flow-Cache pro Framepaar (unabhängig vom View-Key, weil er im Gridraum lebt); Redraw-Cache (`cacheRef`) unverändert.
-- Fallback ohne Flow (erste Frames, Rechenzeit-Limit): heutige Intensitäts-Interpolation — visuell identisch zu jetzt, aber nur als kurzer Übergang.
-
-## Betroffene Datei
-
-- `src/components/maps/radar-map.tsx` (einzige Änderung)
+- Noise: kleiner, allokationsfreier Hash-basierter Value-Noise inline in `radar-map.tsx` (keine neue Dependency). Signatur `noise2(x, y, z) → [-1, 1]`.
+- `tSlot`-Quantisierung verhindert, dass der Warp bei jedem Sub-Frame neu jittert (was als Flimmern sichtbar wäre).
+- Denoise-Kopie in einem `Float32Array` pro Frame, memoisiert per `WeakMap<number[], Float32Array>` auf die `values`-Referenz — kostet praktisch nichts nach dem ersten Render.
+- Nur der Prognose-Rendering-Pfad wird berührt; Messung (`hasRealRadar` + `precipUrl`) bleibt bit-genau gleich.
