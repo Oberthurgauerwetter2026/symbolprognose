@@ -566,12 +566,24 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
   if (frames.length === 0) {
-    throw new Error(
+    const warning =
       warnings.length > 0
         ? `Radardaten nicht verfügbar: ${warnings.join("; ")}`
-        : "Radardaten nicht verfügbar",
-    );
+        : "Radardaten nicht verfügbar";
+    console.warn(`[radar] ${warning}`);
+    return {
+      bbox: BBOX,
+      imageBbox,
+      gridLat: lats,
+      gridLon: lons,
+      frames: [],
+      generatedAt: new Date().toISOString(),
+      hasRealRadar: false,
+      hasHail: false,
+      warning,
+    } satisfies RadarPayload;
   }
+
 
   // R2-PNG-URLs auf Same-Origin-Proxy umschreiben, damit der Browser sie als
   // `crossOrigin="anonymous"` ohne Canvas-Taint lesen kann.
