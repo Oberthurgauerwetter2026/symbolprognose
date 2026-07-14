@@ -1094,14 +1094,14 @@ function PrecipOverlay({
         let sx = fxRaw;
         let sy = fyRaw;
         if (isForecastFrame) {
-          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
+          const w = warpSample(fxRaw, fyRaw, 0, 0.55);
           sx = w[0];
           sy = w[1];
         }
         let v = sampleAt(vals, sx, sy);
         const minV = 0.1;
         if (v < minV) continue;
-        if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
+        if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, 0);
         let snowFrac = 0;
         if (snowVals) {
           const sv = sampleAt(snowVals, sx, sy);
