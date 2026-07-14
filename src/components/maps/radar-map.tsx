@@ -386,10 +386,130 @@ function StableImageOverlay({
   return null;
 }
 
-// Keine Advektion/Optical-Flow-Schätzung: Zwischenzustände entstehen strikt aus
-// den zwei benachbarten Datenframes auf derselben geographischen Zeitachse.
-// Dadurch gibt es keine frei erzeugten Bewegungsrichtungen und keine
-// frameweise wechselnden Shift-Vektoren, die als wildes Springen sichtbar wären.
+// Optical-Flow (Horn–Schunck) zwischen zwei Prognose-Feldern auf dem nativen
+// ICON-Grid. Ergebnis: Verschiebungsfeld (u,v) in Gridindex-Einheiten pro
+// vollem Framepaar-Gap. Wird pro Framepaar einmal berechnet und in einer
+// modulweiten LRU-Map gecacht, damit das Morphing beim Play/Scrub nur
+// noch zweimal warpend samplet (bidirektionales Bild-Morphing).
+type FlowField = { u: Float32Array; v: Float32Array; w: number; h: number };
+const FLOW_CACHE = new Map<string, FlowField>();
+const FLOW_CACHE_MAX = 32;
+
+function computeHornSchunckFlow(
+  aVals: number[] | Float32Array,
+  bVals: number[] | Float32Array,
+  w: number,
+  h: number,
+  iters = 40,
+  alpha2 = 4,
+): FlowField {
+  // log(1+v) skaliert die Skala (0.1 … 80 mm/h) auf einen kompakten Bereich
+  // und stabilisiert die Gradienten für Horn–Schunck.
+  const n = w * h;
+  const I1 = new Float32Array(n);
+  const I2 = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    I1[i] = Math.log1p(Math.max(0, aVals[i] ?? 0));
+    I2[i] = Math.log1p(Math.max(0, bVals[i] ?? 0));
+  }
+  const Ix = new Float32Array(n);
+  const Iy = new Float32Array(n);
+  const It = new Float32Array(n);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const xL = x > 0 ? x - 1 : x;
+      const xR = x < w - 1 ? x + 1 : x;
+      const yU = y > 0 ? y - 1 : y;
+      const yD = y < h - 1 ? y + 1 : y;
+      Ix[i] = ((I1[y * w + xR] - I1[y * w + xL]) + (I2[y * w + xR] - I2[y * w + xL])) * 0.25;
+      Iy[i] = ((I1[yD * w + x] - I1[yU * w + x]) + (I2[yD * w + x] - I2[yU * w + x])) * 0.25;
+      It[i] = I2[i] - I1[i];
+    }
+  }
+  const u = new Float32Array(n);
+  const v = new Float32Array(n);
+  const uBar = new Float32Array(n);
+  const vBar = new Float32Array(n);
+  for (let k = 0; k < iters; k++) {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        const xL = x > 0 ? x - 1 : x;
+        const xR = x < w - 1 ? x + 1 : x;
+        const yU = y > 0 ? y - 1 : y;
+        const yD = y < h - 1 ? y + 1 : y;
+        uBar[i] = (u[y * w + xL] + u[y * w + xR] + u[yU * w + x] + u[yD * w + x]) * 0.25;
+        vBar[i] = (v[y * w + xL] + v[y * w + xR] + v[yU * w + x] + v[yD * w + x]) * 0.25;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const num = Ix[i] * uBar[i] + Iy[i] * vBar[i] + It[i];
+      const den = alpha2 + Ix[i] * Ix[i] + Iy[i] * Iy[i];
+      const f = num / den;
+      u[i] = uBar[i] - Ix[i] * f;
+      v[i] = vBar[i] - Iy[i] * f;
+    }
+  }
+  return { u, v, w, h };
+}
+
+function getFlowField(
+  a: RadarFrame,
+  b: RadarFrame,
+  w: number,
+  h: number,
+): FlowField | null {
+  if (!a.values || !b.values || a.values.length !== w * h || b.values.length !== w * h) {
+    return null;
+  }
+  const key = `${a.t}|${b.t}`;
+  const hit = FLOW_CACHE.get(key);
+  if (hit) {
+    FLOW_CACHE.delete(key);
+    FLOW_CACHE.set(key, hit);
+    return hit;
+  }
+  const flow = computeHornSchunckFlow(a.values, b.values, w, h);
+  FLOW_CACHE.set(key, flow);
+  while (FLOW_CACHE.size > FLOW_CACHE_MAX) {
+    const firstKey = FLOW_CACHE.keys().next().value;
+    if (firstKey === undefined) break;
+    FLOW_CACHE.delete(firstKey);
+  }
+  return flow;
+}
+
+function sampleBilinear(
+  arr: number[] | Float32Array,
+  fx: number,
+  fy: number,
+  w: number,
+  h: number,
+): number {
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const x1 = x0 + 1;
+  const y1 = y0 + 1;
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const inX0 = x0 >= 0 && x0 < w;
+  const inX1 = x1 >= 0 && x1 < w;
+  const inY0 = y0 >= 0 && y0 < h;
+  const inY1 = y1 >= 0 && y1 < h;
+  if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+  const v00 = inX0 && inY0 ? arr[y0 * w + x0] : 0;
+  const v01 = inX1 && inY0 ? arr[y0 * w + x1] : 0;
+  const v10 = inX0 && inY1 ? arr[y1 * w + x0] : 0;
+  const v11 = inX1 && inY1 ? arr[y1 * w + x1] : 0;
+  return (
+    v00 * (1 - tx) * (1 - ty) +
+    v01 * tx * (1 - ty) +
+    v10 * (1 - tx) * ty +
+    v11 * tx * ty
+  );
+}
+
 
 function nearestFrameIndexForMs(frames: RadarFrame[], targetMs: number): number {
   if (frames.length === 0) return 0;
@@ -466,7 +586,6 @@ function PrecipOverlay({
   nextFrame,
   progress,
   opacity = 1,
-  contour = false,
   prewarmFrames,
 }: {
   payload: RadarPayload;
@@ -474,7 +593,6 @@ function PrecipOverlay({
   nextFrame?: RadarFrame | null;
   progress?: number;
   opacity?: number;
-  contour?: boolean;
   prewarmFrames?: RadarFrame[];
 }) {
   const map = useMap();
@@ -601,7 +719,7 @@ function PrecipOverlay({
 
     // View-Key — Cache invalidiert bei Pan/Zoom/Resize/DPR-Wechsel.
     const center = map.getCenter();
-    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}|${STEP}|${contour ? "f" : "m"}`;
+    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}|${STEP}`;
     if (viewKey !== viewKeyRef.current) {
       cacheRef.current.clear();
       lookupRef.current = null;
@@ -613,39 +731,6 @@ function PrecipOverlay({
       const fx = new Float32Array(lowWForView * lowHForView);
       const fy = new Float32Array(lowWForView * lowHForView);
       const valid = new Uint8Array(lowWForView * lowHForView);
-      const contourScale = contour ? new Float32Array(lowWForView * lowHForView) : undefined;
-
-      const hash = (ix: number, iy: number) => {
-        let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
-        h = (h ^ (h >>> 13)) * 1274126177;
-        h = h ^ (h >>> 16);
-        return ((h >>> 0) % 10000) / 10000;
-      };
-      const smooth = (u: number) => u * u * (3 - 2 * u);
-      const valueNoise = (x: number, y: number) => {
-        const ix = Math.floor(x);
-        const iy = Math.floor(y);
-        const fxN = smooth(x - ix);
-        const fyN = smooth(y - iy);
-        const a = hash(ix, iy);
-        const b = hash(ix + 1, iy);
-        const c = hash(ix, iy + 1);
-        const d = hash(ix + 1, iy + 1);
-        return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
-      };
-      const fbm = (x: number, y: number) => {
-        let v = 0;
-        let amp = 0.5;
-        let freq = 1;
-        for (let o = 0; o < 5; o++) {
-          v += valueNoise(x * freq, y * freq) * amp;
-          amp *= 0.5;
-          freq *= 2.1;
-        }
-        return v;
-      };
-      const COS = 0.866;
-      const SIN = 0.5;
 
       for (let ly = 0; ly < lowHForView; ly++) {
         for (let lx = 0; lx < lowWForView; lx++) {
@@ -661,33 +746,12 @@ function PrecipOverlay({
           fx[cell] = fxRaw;
           fy[cell] = fyRaw;
           valid[cell] = 1;
-
-          if (contourScale) {
-            const sx = fxRaw * 0.9;
-            const sy = fyRaw * 0.85;
-            const rx = sx * COS - sy * SIN;
-            const ry = sx * SIN + sy * COS;
-            const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-            const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
-            const n = fbm(rx + warpX, ry + warpY);
-            const mod = 0.25 + n * 1.55;
-            const env1 = fbm(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
-            const env2 = fbm(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
-            const env3 = fbm(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
-            const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
-            const edgeNX = Math.min(fxRaw, nLon - 1 - fxRaw) / (nLon - 1);
-            const edgeNY = Math.min(fyRaw, nLat - 1 - fyRaw) / (nLat - 1);
-            const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
-            const edgeJitter = 0.55 + fbm(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
-            const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
-            const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
-            contourScale[cell] = mod * envelope;
-          }
         }
       }
-      lookup = { key: viewKey, lowW: lowWForView, lowH: lowHForView, fx, fy, valid, contourScale };
+      lookup = { key: viewKey, lowW: lowWForView, lowH: lowHForView, fx, fy, valid };
       lookupRef.current = lookup;
     }
+
 
     const cacheKey = `${frame.t}|${frame.source ?? ""}`;
     let off = cacheRef.current.get(cacheKey) ?? null;
@@ -739,14 +803,11 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          let v = sampleAt(vals, fxRaw, fyRaw);
+          const v = sampleAt(vals, fxRaw, fyRaw);
 
-          if (contour && v > 0 && lookup.contourScale) {
-            v = v * lookup.contourScale[cell];
-          }
-
-          const minV = contour ? 0.05 : 0.1;
+          const minV = 0.1;
           if (v < minV) continue;
+
 
           let snowFrac = 0;
           if (snowVals) {
@@ -877,11 +938,8 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        let v = sampleAt(vals, fxRaw, fyRaw);
-        if (contour && v > 0 && lookup.contourScale) {
-          v = v * lookup.contourScale[cell];
-        }
-        const minV = contour ? 0.05 : 0.1;
+        const v = sampleAt(vals, fxRaw, fyRaw);
+        const minV = 0.1;
         if (v < minV) continue;
         let snowFrac = 0;
         if (snowVals) {
@@ -972,23 +1030,44 @@ function PrecipOverlay({
 
     const aSnow = a.snowValues;
     const bSnow = b.snowValues;
+
+    // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
+    // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
+    // gleichen Tick), fällt der Warp still auf reine Intensitäts-Interpolation
+    // zurück.
+    const flow = getFlowField(a, b, nLon, nLat);
+    const warpAdx = flow ? -s : 0;
+    const warpAdy = flow ? -s : 0;
+    const warpBdx = flow ? 1 - s : 0;
+    const warpBdy = flow ? 1 - s : 0;
+
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
         const cell = ly * lowW + lx;
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const va = sampleAt(aVals, fxRaw, fyRaw);
-        const vb = sampleAt(bVals, fxRaw, fyRaw);
-        let v = oneMinusS * va + s * vb;
-        if (contour && v > 0 && lookup.contourScale) v = v * lookup.contourScale[cell];
-        const minV = contour ? 0.05 : 0.1;
+
+        let ux = 0;
+        let uy = 0;
+        if (flow) {
+          ux = sampleBilinear(flow.u, fxRaw, fyRaw, nLon, nLat);
+          uy = sampleBilinear(flow.v, fxRaw, fyRaw, nLon, nLat);
+        }
+
+        // Bidirektionaler Warp: A entlang +u nach vorn geschoben, B entlang −u
+        // zurückgeschoben, so dass korrespondierende Echos sich zwischen A und
+        // B linear in ihrer Position bewegen.
+        const va = sampleAt(aVals, fxRaw + ux * warpAdx, fyRaw + uy * warpAdy);
+        const vb = sampleAt(bVals, fxRaw + ux * warpBdx, fyRaw + uy * warpBdy);
+        const v = oneMinusS * va + s * vb;
+        const minV = 0.1;
         if (v < minV) continue;
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, fxRaw, fyRaw) : 0;
-          const sb = bSnow ? sampleAt(bSnow, fxRaw, fyRaw) : 0;
+          const sa = aSnow ? sampleAt(aSnow, fxRaw + ux * warpAdx, fyRaw + uy * warpAdy) : 0;
+          const sb = bSnow ? sampleAt(bSnow, fxRaw + ux * warpBdx, fyRaw + uy * warpBdy) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
@@ -1085,7 +1164,7 @@ function PrecipOverlay({
       map.off("movestart zoomstart resize", reset);
       map.off("moveend zoomend", start);
     };
-  }, [prewarmFrames, payload, contour, map]);
+  }, [prewarmFrames, payload, map]);
 
 
 
@@ -2133,7 +2212,6 @@ export function RadarMap({
                       nextFrame={showGrid ? overlayNext : null}
                       progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
-                      contour={gridFrame.source !== "radar"}
                       prewarmFrames={frames}
                     />
                   )}
