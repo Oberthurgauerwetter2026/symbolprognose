@@ -1,43 +1,35 @@
-## Problem
-
-Die Prognose-Animation flackert/flimmert, weil zwei prozedurale Effekte pro (Sub-)Frame neu berechnet werden:
-
-1. **Domain-Warp (`warpSample` / `fbm2`)** verzerrt die Sample-Koordinaten mit einem zeitabhängigen Noise-Feld. Der Warp-Offset ändert sich zwischen Frames → Kanten wackeln, Zellen „atmen" sichtbar.
-2. **Edge-Jitter (`edgeJitter`)** moduliert die Intensität nahe der Isolinien mit `z*3+1` in Noise-Koordinaten. In Kombination mit den **hart quantisierten Farbbändern** aus `colorFor` springen Pixel bei jedem Frame in ein anderes Band → klassisches Flackern an den Rändern.
-
-Die Bewegung selbst (Horn–Schunck Optical Flow) ist korrekt und bleibt erhalten. Sie soll allein für die Verlagerung der Felder verantwortlich sein — genau wie bei MeteoSchweiz / MCH.
-
 ## Ziel
 
-Prognose-Niederschlag sieht aus wie MCH-CombiPrecip: zusammenhängende, weiche, farblich gestufte Radar-Echos, die sich fliessend über die Karte verlagern. Kein Flackern, kein Flimmern, kein prozedurales „Atmen".
+Prognose-Frames werden **exakt gleich** gerendert wie die Messung: dieselben harten Farbbänder, dieselbe Pixel-Struktur, keine Überblendung zwischen Frames, keine prozeduralen Effekte. Ein Prognose-Frame sieht aus wie ein Messrahmen — beim Weiterschalten wechselt das Bild direkt, so wie Messframes heute auch direkt wechseln.
 
 ## Änderungen (nur `src/components/maps/radar-map.tsx`, nur Prognose-Pfad)
 
-### 1. Prozedurale Deformation entfernen
-- `warpSample(...)`-Aufrufe in allen drei Render-Loops (Inline-Single-Frame, Prewarm-Cache, Blend-Loop mit Optical Flow) rausnehmen. `fxRaw / fyRaw` gehen direkt in `sampleAt`.
-- `edgeJitter(...)`-Multiplikation entfernen — der `v`-Wert kommt unverändert aus der bilinearen Interpolation.
-- Hilfsfunktionen `warpSample`, `edgeJitter`, `fbm2`, `valueNoise2`, `_valueNoise2Int`, `_hash3i` bleiben als reine Utilities im File erhalten, werden aber nicht mehr aufgerufen (können in einem späteren Cleanup entfernt werden). Kein Verhalten hängt sonst dran.
+### 1. Crossfade / Optical-Flow-Blend entfernen
+- Der Blend-Loop, der zwei Prognose-Frames per Horn–Schunck-Flow (`u,v`) und `prog`-Gewichtung mischt, wird für die Prognose deaktiviert. `blendActive` ist für Prognose-Frames immer `false`; es wird immer der aktuelle Einzelframe gezeichnet.
+- `buildBlendedOffscreenRef` / `FLOW_CACHE` / `blendCanvasRef` bleiben als Code erhalten, werden aber nicht mehr aufgerufen (späterer Cleanup möglich). Kein Verhalten hängt sonst dran.
+- Sub-Frame-Fortschritt (`prog`) hat für Prognose keine visuelle Wirkung mehr — der Frame wird beim Übergang zum nächsten Zeitschritt hart gewechselt, identisch zum Messverhalten.
 
-### 2. Weiche Farbbänder für Prognose
-- Prognose-Rendering nutzt `colorForSmooth` statt `colorFor`. Log-Interpolation zwischen den SCALE-Stufen gibt sanfte Farbübergänge → keine harten Iso-Sprünge mehr, an denen Optical-Flow-Subpixel-Bewegung als Flimmern sichtbar wird.
-- Messung (`frame.source === "radar"`, MCH-PNG-Pfad) bleibt bit-genau bei `colorFor` bzw. dem gelieferten PNG — unverändert.
+### 2. Prognose zeichnet wie Messung
+- Prognose-Rendering nutzt denselben Pfad wie `MeasurementCanvasOverlay`: `colorFor(v)` (harte Bänder), keine `colorForSmooth`-Interpolation.
+- `denoiseGrid` wird für Prognose entfernt — die Messung zeigt Rohpixel inkl. Streu-Zellen, die Prognose soll dieselbe Struktur haben.
+- `imageSmoothingEnabled = true` / `Quality = "high"` beim `drawImage` bleibt (wie in der Messung).
+- Keine `warpSample`- / `edgeJitter`-Aufrufe (bereits entfernt) — bleiben entfernt.
 
-### 3. Denoise beibehalten
-- `denoiseGrid` (morphologische Öffnung, isolierte Streu-Pixel raus) bleibt aktiv — sie ist zeitlich stabil (per-frame gecached auf `values`-Referenz) und trägt nicht zum Flackern bei.
-
-### 4. Rendering-Feinheiten
-- `imageSmoothingQuality` beim finalen `drawImage` der Prognose zurück auf `"high"`. Ohne die prozedurale Struktur ist ein weicheres Resampling gewollt und ergibt MCH-ähnliche runde Echo-Ränder.
-- Keine Änderung an: Farbskala `SCALE`, Legende, Schnee-Farben, Hagel, Timeline, Filmstrip, Play/Scrub, Prewarm-Cache-Keys, Horn–Schunck Optical Flow (u,v), Blend-Gewichtung, Cache-Grössen.
-
-## Unverändert
-
-- MCH-CombiPrecip-Messung (`MeasurementCanvasOverlay`, PNG-Pfad) — bit-genau.
-- Horn–Schunck Optical-Flow, `FLOW_CACHE`, Frame-Pair-Auswahl.
+### 3. Unverändert
+- `MeasurementCanvasOverlay` und der MCH-PNG-Pfad — bit-genau.
+- Farbskala `SCALE`, Legende, Schnee-Farben, Hagel-Overlay.
+- Timeline, Filmstrip, Play/Scrub, Frame-Auswahl, Prewarm-Cache-Keys.
 - `radar.functions.ts`, `RadarPayload`, Backend, Ingest.
-- Farbdefinitionen, Legende, UI-Kontrollen.
 
 ## Erwartetes Ergebnis
 
-- Kein sichtbares Flackern/Flimmern zwischen Sub-Frames mehr.
-- Felder verlagern sich durchgehend via Optical Flow — Form ändert sich nur, wenn die Daten sie ändern.
-- Ränder wirken weich und gestuft wie auf meteoschweiz.admin.ch/…/niederschlag.
+- Prognose-Zellen haben **exakt** dieselbe organische, gepixelte Form wie Messzellen — keine geometrischen Kapseln, keine glatten Farbverläufe, keine ausgefransten Ränder aus Noise.
+- Beim Abspielen wechselt das Prognosebild frameweise (wie die Messung), ohne Überblendung, ohne künstliche Bewegung zwischen Zeitschritten.
+- Formen und Positionen entsprechen 1:1 den Prognosedaten pro Zeitschritt.
+
+## Technische Details
+
+- `blendActive` (Zeile ~985) wird auf `frame.source === "radar" && ...` eingeschränkt bzw. für Forecast auf `false` gesetzt; damit greift der Einzel-Frame-Zweig (`ctx.drawImage(offscreen, ...)`).
+- In allen drei Render-Loops (inline single-frame Zeile ~955, prewarm-cache Zeile ~1098, blend-loop Zeile ~1255) wird `isForecastFrame ? colorForSmooth(v) : colorFor(v)` durch `colorFor(v)` ersetzt.
+- `denoiseGrid`-Aufrufe für Prognose (Zeilen ~842, ~1040, ~1140, ~1193) werden durch die Rohwerte ersetzt: `const values = rawVals; const snow = rawSnow;`.
+- Blend-Loop-Code bleibt physisch im File, wird aber durch die `blendActive`-Bedingung nicht mehr betreten.
