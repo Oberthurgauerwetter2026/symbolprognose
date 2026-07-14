@@ -844,8 +844,7 @@ function PrecipOverlay({
     const snowVals = isForecastFrame
       ? denoiseGrid(rawSnow, payload.gridLon.length, payload.gridLat.length) ?? rawSnow
       : rawSnow;
-    // Noise/Warp zeit-invariant im Grid-Koordinatensystem verankert (world space),
-    // damit sich Konturen nur bewegen, wenn sich die Datenfelder tatsächlich ändern.
+    const zSlot = isForecastFrame ? Date.parse(frame.t) / 900000 : 0;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
@@ -942,7 +941,7 @@ function PrecipOverlay({
           let sx = fxRaw;
           let sy = fyRaw;
           if (isForecastFrame) {
-            const w = warpSample(fxRaw, fyRaw, 0, 0.55);
+            const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
             sx = w[0];
             sy = w[1];
           }
@@ -952,7 +951,7 @@ function PrecipOverlay({
           const minV = 0.1;
           if (v < minV) continue;
 
-          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, 0);
+          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
           let snowFrac = 0;
           if (snowVals) {
@@ -1051,7 +1050,7 @@ function PrecipOverlay({
     const snowVals = isForecastFrame
       ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
       : rawSnow;
-    // Noise/Warp zeit-invariant, world-space anchored.
+    const zSlot = isForecastFrame ? Date.parse(f.t) / 900000 : 0;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -1094,14 +1093,14 @@ function PrecipOverlay({
         let sx = fxRaw;
         let sy = fyRaw;
         if (isForecastFrame) {
-          const w = warpSample(fxRaw, fyRaw, 0, 0.55);
+          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
           sx = w[0];
           sy = w[1];
         }
         let v = sampleAt(vals, sx, sy);
         const minV = 0.1;
         if (v < minV) continue;
-        if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, 0);
+        if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
         let snowFrac = 0;
         if (snowVals) {
           const sv = sampleAt(snowVals, sx, sy);
@@ -1207,10 +1206,12 @@ function PrecipOverlay({
       ? denoiseGrid(rawBSnow, nLon, nLat) ?? rawBSnow
       : rawBSnow;
 
-    // Domain-Warp und Edge-Jitter sind zeit-invariant und im Grid-Koordinaten-
-    // system verankert — die Rauschverformung „haftet" am Material und wird
-    // niemals pro Frame neu gesampelt. Bewegung entsteht ausschliesslich durch
-    // den Optical-Flow-Warp unten.
+    // Zeit-Slot für den Domain-Warp: zwischen A und B linear interpoliert,
+    // damit die organische Deformation über den Framewechsel driftet, statt
+    // zu springen.
+    const zA = Date.parse(a.t) / 900000;
+    const zB = Date.parse(b.t) / 900000;
+    const zSlot = zA + (zB - zA) * s;
 
     // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
     // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
@@ -1244,39 +1245,28 @@ function PrecipOverlay({
         const bSx = fxRaw + ux * warpBdx;
         const bSy = fyRaw + uy * warpBdy;
 
-        // Domain-Warp separat für A und B an der jeweils flow-verschobenen
-        // Material-Position auswerten — so „reist" die Rauschverformung mit
-        // dem Echo mit, statt am Bildschirm-Ort stehen zu bleiben.
-        let dxA = 0;
-        let dyA = 0;
-        let dxB = 0;
-        let dyB = 0;
+        // Zusätzlicher Domain-Warp (fBm) — gleiche Verzerrung auf A und B,
+        // damit die Ränder organisch werden und beide Frames deckungsgleich
+        // deformiert bleiben (kein Geister-Doppelbild).
+        let dxN = 0;
+        let dyN = 0;
         if (isForecastPair) {
-          const wA = warpSample(aSx, aSy, 0, 0.55);
-          dxA = wA[0] - aSx;
-          dyA = wA[1] - aSy;
-          const wB = warpSample(bSx, bSy, 0, 0.55);
-          dxB = wB[0] - bSx;
-          dyB = wB[1] - bSy;
+          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
+          dxN = w[0] - fxRaw;
+          dyN = w[1] - fyRaw;
         }
 
-        const va = sampleAt(aVals, aSx + dxA, aSy + dyA);
-        const vb = sampleAt(bVals, bSx + dxB, bSy + dyB);
+        const va = sampleAt(aVals, aSx + dxN, aSy + dyN);
+        const vb = sampleAt(bVals, bSx + dxN, bSy + dyN);
         let v = oneMinusS * va + s * vb;
         const minV = 0.1;
         if (v < minV) continue;
-        if (isForecastPair) {
-          // Kantenrauhigkeit ebenfalls material-fest: an aSx/aSy bzw. bSx/bSy
-          // anankern und mit demselben s zwischen den Frames überblenden.
-          const jA = edgeJitter(aSx, aSy, 0);
-          const jB = edgeJitter(bSx, bSy, 0);
-          v *= oneMinusS * jA + s * jB;
-        }
+        if (isForecastPair) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, aSx + dxA, aSy + dyA) : 0;
-          const sb = bSnow ? sampleAt(bSnow, bSx + dxB, bSy + dyB) : 0;
+          const sa = aSnow ? sampleAt(aSnow, aSx + dxN, aSy + dyN) : 0;
+          const sb = bSnow ? sampleAt(bSnow, bSx + dxN, bSy + dyN) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }

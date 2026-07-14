@@ -1,48 +1,59 @@
-## Ursache des Flackerns
+## Ziel
 
-Der aktuelle Domain-Warp wertet den Noise mit einem **zeitabhängigen** `zSlot` aus (`Date.parse(t)/900_000`, im Blend-Loop sogar linear zwischen zwei Frames driftend). Damit wird das Noise-Feld pro Animation-Tick neu abgetastet → Konturen zappeln.
+Prognose-Niederschlagsflächen sollen nicht mehr wie glatte Kapseln/Würste/Sechsecke aussehen, sondern wie echte Radar-Echos: unregelmäßige, leicht ausgefranste Konturen, natürliche Verformung während der Animation, kein wiederkehrendes Muster. Zusätzlich sollen die isolierten „Verunreinigungen" (einzelne verstreute Pixel im rechten Screenshot) verschwinden. Messung (MCH-PNG) bleibt unverändert.
 
-Zusätzlich wird im Blend-Loop derselbe Warp-Offset `(dxN, dyN)` bei `(fxRaw, fyRaw)` (fester Bildschirm-Grid-Ort) für A und B verwendet. Wenn der Optical-Flow das Feld verschiebt, bleibt der Noise-Offset stehen — das Feature „läuft" durch eine ortsfeste Rauschmaske und deformiert sich sichtbar pro Frame.
+## Ursache heute
 
-## Fix (nur `src/components/maps/radar-map.tsx`, nur Prognose)
+Die Prognose rendert aus einem sehr groben Grid (36×22) mit reiner bilinearer Interpolation und `imageSmoothingQuality: "high"`. Dadurch entstehen zwangsläufig glatte, ellipsen-/kapselartige Blobs. Isolierte Grid-Zellen mit >0.1 mm/h werden 1:1 als kleine ovale Klumpen gerendert → „Verunreinigungen".
 
-### 1. Noise wird zeitlich eingefroren
+Optical-Flow-Warp aus dem letzten Schritt bleibt korrekt — er verschiebt die Felder, formt sie aber nicht.
 
-- `zSlot` in **allen drei Render-Loops** auf konstant `0` setzen (single-frame, buildOffscreen, buildBlended).
-- `edgeJitter(..., z)` intern ebenfalls z=0 verwenden.
-- Effekt: Value-Noise ist eine reine Funktion von (x, y) im Grid-Koordinatensystem — „haftet" in world space und wird niemals pro Frame neu gesampelt.
+## Änderungen (nur `src/components/maps/radar-map.tsx`, nur Prognose-Pfad)
 
-### 2. Warp folgt der Materie (Optical-Flow-kohärent)
+### 1. Organische Kontur per Domain-Warp
 
-Im Blend-Loop wird der Domain-Warp separat für A und B ausgewertet, jeweils an der bereits durch den Optical-Flow verschobenen Sample-Position:
+In beiden Sample-Loops (Single-Frame ab Zeile ~799 und Blend-Loop ab Zeile ~1044) wird die Grid-Sample-Koordinate `(fxRaw, fyRaw)` vor dem `sampleAt`-Aufruf mit einem **niederfrequenten fBm-Noise-Feld** verzerrt:
 
-- `dxA, dyA = warpSample(aSx, aSy) − (aSx, aSy)`
-- `dxB, dyB = warpSample(bSx, bSy) − (bSx, bSy)`
-- `va = sampleAt(aVals, aSx + dxA, aSy + dyA)`
-- `vb = sampleAt(bVals, bSx + dxB, bSy + dyB)`
+- 2 Oktaven Value-Noise, Basis-Wellenlänge ≈ 1.2 Grid-Zellen (in Grid-Koordinaten).
+- Amplitude ≈ 0.55 Grid-Zellen in x/y — genug, um sichtbare Ausfransungen und ineinander verlaufende Ränder zu erzeugen, zu wenig, um Position/Bewegung zu verfälschen.
+- Deterministisch gehasht aus `(gridX, gridY, tSlot)`. `tSlot = Math.floor(frameIndex + progress * 4) / 4` — die Verformung driftet damit langsam über die Animation (Zellen „atmen"), springt aber nicht sichtbar.
+- Beim Blend-Loop wird zusätzlich die Warp-Amplitude linear zwischen den zwei Framepaaren geglättet, damit die Deformation über den Optical-Flow-Warp keine sichtbare Sprungnaht bekommt.
 
-Damit sitzt die Rauschverformung fest am Material: Ein Echo, das laut Flow von Grid-Position P (Frame A) nach P′ (Frame B) wandert, trägt in beiden Frames denselben Warp-Offset. Zwischen den zwei Zeitschritten wird die Fläche nur noch translatiert/rotiert (durch den Flow) und sanft deformiert (weil `dxA/dyA` sich langsam ändert, wenn die Flow-Trajektorie eine variierende Region des Noise-Felds durchquert) — kein Zittern, kein Neu-Rauschen.
+Ergebnis: Ränder werden unregelmäßig, Zellen wachsen zusammen bzw. teilen sich rein durch die Konturverformung — der geometrische Grundriss verschwindet.
 
-Analog für `snowFrac`: die Snow-Samples werden mit denselben `(dxA, dyA)` bzw. `(dxB, dyB)` versorgt.
+### 2. Zusätzliche Kantenrauhigkeit
 
-### 3. Edge-Jitter identisch anankern
+Nach dem verzerrten Sample wird der Wert mit einem zweiten, feineren fBm (Wellenlänge ≈ 0.5 Grid-Zellen, Amplitude ±12 %) moduliert:  
+`v *= 1 + 0.12 * noiseHi(gx, gy, tSlot)`
 
-- Single-frame und buildOffscreen: `edgeJitter(fxRaw, fyRaw, 0)` — anker am Grid, stabil.
-- Blend-Loop: der Multiplikator wird an der Material-Position ausgewertet, in derselben Logik wie der Warp: für die kombinierte Intensität wird zwischen `edgeJitter(aSx, aSy, 0)` und `edgeJitter(bSx, bSy, 0)` mit demselben `s` interpoliert. So bleibt die Kantentextur eines Echos beim Wandern konstant.
+Wirkung nur nahe der Isolinien (`colorFor` quantisiert ja hart in Bänder): dort entstehen kleine „Auszipfelungen" wie bei echtem Radar. In dichten Kerngebieten hat die Modulation keinen sichtbaren Effekt (Farbband bleibt).
 
-### 4. Cleanup
+### 3. Denoise / „Verunreinigungen" entfernen
 
-- Variablen `zA`, `zB`, `zSlot`-Interpolation entfernen.
-- Kommentare aktualisieren („zeit-invariant, world-space anchored").
+Vor dem Rendern (einmal pro Frame, gecached zusammen mit dem Grid-Lookup) wird ein Cleanup-Pass über die Grid-Werte ausgeführt:
 
-## Was unverändert bleibt
+- Für jede Zelle mit `v ≥ 0.1 mm/h`: zähle Nachbarzellen (3×3) mit `v ≥ 0.1`.
+- Bei `< 2` Nachbarn: Zelle wird für's Rendering auf 0 gesetzt (Kopie, Rohdaten bleiben unangetastet, damit Optical-Flow und andere Auswertungen unverändert bleiben).
+- Wirkung: klassische morphologische Öffnung → einzelne Streu-Pixel/Punkte verschwinden, zusammenhängende Felder bleiben identisch.
 
-- Optical-Flow-Warp (Horn–Schunck) — sorgt weiterhin für die gleichmäßige Translation/Rotation der Felder mit konstanter Geschwindigkeit über die 15-min-Intervalle.
-- Denoise (morphologische Öffnung).
-- Farbskala, Bänder, Legende.
-- Messung / MCH-PNG-Pfad.
-- Datenlogik, Backend, Timeline.
+Denselben Filter analog für `snowValues`.
 
-## Erwartetes Verhalten
+### 4. Rendering-Feinheiten
 
-Radar-Loop wie DWD/MeteoSwiss: Zellen bewegen sich ruhig und kontinuierlich, ihre organische Form bleibt zwischen zwei Prognoseterminen visuell konstant und deformiert sich nur, wenn sich die Prognose-Daten selbst ändern.
+- `imageSmoothingQuality` beim finalen `drawImage` von `"high"` auf `"medium"` — die Kanten wirken damit weniger geglättet, ohne pixelig zu werden. Domain-Warp liefert die Struktur; kein zusätzlicher Blur.
+- Keine Änderung an Farbskala, Bänder, Legende, Timeline, Messung, Hagel oder Schnee-Farben.
+
+## Unverändert
+
+- MCH-CombiPrecip-Messung (`MeasurementCanvasOverlay`, PNG-Pfad).
+- Horn–Schunck-Optical-Flow zwischen zwei Prognosefeldern.
+- Farbskalen `SCALE`, `colorFor`, `snowColorFor`, Legende.
+- Datenstruktur `RadarPayload`, Backend `src/lib/radar.functions.ts`.
+- Timeline, Filmstrip, Play/Scrub, Prewarm-Cache.
+
+## Technische Details
+
+- Noise: kleiner, allokationsfreier Hash-basierter Value-Noise inline in `radar-map.tsx` (keine neue Dependency). Signatur `noise2(x, y, z) → [-1, 1]`.
+- `tSlot`-Quantisierung verhindert, dass der Warp bei jedem Sub-Frame neu jittert (was als Flimmern sichtbar wäre).
+- Denoise-Kopie in einem `Float32Array` pro Frame, memoisiert per `WeakMap<number[], Float32Array>` auf die `values`-Referenz — kostet praktisch nichts nach dem ersten Render.
+- Nur der Prognose-Rendering-Pfad wird berührt; Messung (`hasRealRadar` + `precipUrl`) bleibt bit-genau gleich.
