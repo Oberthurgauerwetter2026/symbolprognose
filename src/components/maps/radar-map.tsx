@@ -1164,7 +1164,7 @@ function PrecipOverlay({
       map.off("movestart zoomstart resize", reset);
       map.off("moveend zoomend", start);
     };
-  }, [prewarmFrames, payload, contour, map]);
+  }, [prewarmFrames, payload, map]);
 
 
 
