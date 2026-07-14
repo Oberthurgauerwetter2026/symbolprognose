@@ -935,15 +935,27 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          const v = sampleAt(vals, fxRaw, fyRaw);
+          // Prognose: Domain-Warp verzerrt die Sample-Koordinaten mit einem
+          // niederfrequenten fBm-Feld, damit die Radar-Echos organisch
+          // ausgefranste Ränder bekommen. Messung (`radar`) bleibt exakt.
+          let sx = fxRaw;
+          let sy = fyRaw;
+          if (isForecastFrame) {
+            const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
+            sx = w[0];
+            sy = w[1];
+          }
+
+          let v = sampleAt(vals, sx, sy);
 
           const minV = 0.1;
           if (v < minV) continue;
 
+          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
           let snowFrac = 0;
           if (snowVals) {
-            const sv = sampleAt(snowVals, fxRaw, fyRaw);
+            const sv = sampleAt(snowVals, sx, sy);
             if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
           }
 
