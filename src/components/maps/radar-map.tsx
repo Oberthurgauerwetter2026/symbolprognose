@@ -116,6 +116,130 @@ function colorForSmooth(mmh: number): [number, number, number, number] {
 }
 
 
+// ---------------------------------------------------------------------------
+// Organische Radar-Echo-Optik für die Prognose:
+// Domain-Warp + feine Intensitäts-Modulation aus deterministischem Value-Noise
+// verwandeln die glatten, kapselförmigen Grid-Blobs in unregelmäßige, an den
+// Rändern ausgefranste Zellen, ohne die Position der Datenfelder zu verfälschen.
+// Zusätzlich entfernt eine morphologische Öffnung isolierte Streu-Pixel.
+// Alle Funktionen sind ausschliesslich für den Prognose-Renderpfad gedacht —
+// Messung bleibt unangetastet.
+// ---------------------------------------------------------------------------
+
+function _hash3i(x: number, y: number, z: number): number {
+  let h = ((x | 0) * 374761393) ^ ((y | 0) * 668265263) ^ ((z | 0) * 1442695040);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return ((h >>> 0) / 4294967295) * 2 - 1;
+}
+
+function _valueNoise2Int(x: number, y: number, z: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const n00 = _hash3i(xi, yi, z);
+  const n10 = _hash3i(xi + 1, yi, z);
+  const n01 = _hash3i(xi, yi + 1, z);
+  const n11 = _hash3i(xi + 1, yi + 1, z);
+  const nx0 = n00 * (1 - u) + n10 * u;
+  const nx1 = n01 * (1 - u) + n11 * u;
+  return nx0 * (1 - v) + nx1 * v;
+}
+
+function valueNoise2(x: number, y: number, z: number): number {
+  const zi = Math.floor(z);
+  const zf = z - zi;
+  const a = _valueNoise2Int(x, y, zi);
+  const b = _valueNoise2Int(x, y, zi + 1);
+  return a * (1 - zf) + b * zf;
+}
+
+function fbm2(x: number, y: number, z: number, octaves: number): number {
+  let sum = 0;
+  let amp = 1;
+  let freq = 1;
+  let norm = 0;
+  for (let i = 0; i < octaves; i++) {
+    sum += amp * valueNoise2(x * freq, y * freq, z);
+    norm += amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return sum / norm;
+}
+
+const _DENOISE_CACHE: WeakMap<object, number[]> = new WeakMap();
+function denoiseGrid(
+  vals: number[] | undefined,
+  nLon: number,
+  nLat: number,
+  threshold = 0.1,
+  minNb = 2,
+): number[] | undefined {
+  if (!vals || vals.length !== nLon * nLat) return vals;
+  const key = vals as unknown as object;
+  const cached = _DENOISE_CACHE.get(key);
+  if (cached) return cached;
+  const out = new Array<number>(vals.length);
+  for (let y = 0; y < nLat; y++) {
+    for (let x = 0; x < nLon; x++) {
+      const i = y * nLon + x;
+      const v = vals[i];
+      if (v < threshold) {
+        out[i] = v;
+        continue;
+      }
+      let nb = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= nLat) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const xx = x + dx;
+          if (xx < 0 || xx >= nLon) continue;
+          if (vals[yy * nLon + xx] >= threshold) nb++;
+        }
+      }
+      out[i] = nb < minNb ? 0 : v;
+    }
+  }
+  _DENOISE_CACHE.set(key, out);
+  return out;
+}
+
+/**
+ * Domain-Warp: verzerrt (fxRaw, fyRaw) mit einem niederfrequenten fBm-Feld,
+ * damit die Radar-Echos organisch ausgefranste Ränder bekommen. Amplitude
+ * in Grid-Zellen, Zeitachse `z` sorgt für langsame, atmende Deformation.
+ * Nur für Prognose-Frames aufrufen.
+ */
+function warpSample(
+  fx: number,
+  fy: number,
+  z: number,
+  ampCells = 0.55,
+): [number, number] {
+  const wx = fbm2(fx * 0.85, fy * 0.85, z, 2);
+  const wy = fbm2(fx * 0.85 + 31.7, fy * 0.85 + 17.3, z, 2);
+  return [fx + wx * ampCells, fy + wy * ampCells];
+}
+
+/**
+ * Feine Intensitäts-Modulation nahe der Isolinien — erzeugt zusätzliche
+ * Zipfel/Fransen an den Bandgrenzen von `colorFor`, ohne dichte Kerne
+ * sichtbar zu ändern.
+ */
+function edgeJitter(fx: number, fy: number, z: number): number {
+  return 1 + 0.12 * valueNoise2(fx * 2.1, fy * 2.1, z * 3 + 1);
+}
+
+
+
+
+
 
 
 // Schnee-Farbskala (mm/h Wasser-Äquivalent) — MeteoSchweiz: leicht / stark.
