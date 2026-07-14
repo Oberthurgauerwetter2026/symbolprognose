@@ -1051,7 +1051,7 @@ function PrecipOverlay({
     const snowVals = isForecastFrame
       ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
       : rawSnow;
-    const zSlot = isForecastFrame ? Date.parse(f.t) / 900000 : 0;
+    // Noise/Warp zeit-invariant, world-space anchored.
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
