@@ -1235,33 +1235,25 @@ function PrecipOverlay({
         const bSx = fxRaw + ux * warpBdx;
         const bSy = fyRaw + uy * warpBdy;
 
-        // Zusätzlicher Domain-Warp (fBm) — gleiche Verzerrung auf A und B,
-        // damit die Ränder organisch werden und beide Frames deckungsgleich
-        // deformiert bleiben (kein Geister-Doppelbild).
-        let dxN = 0;
-        let dyN = 0;
-        if (isForecastPair) {
-          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
-          dxN = w[0] - fxRaw;
-          dyN = w[1] - fyRaw;
-        }
-
-        const va = sampleAt(aVals, aSx + dxN, aSy + dyN);
-        const vb = sampleAt(bVals, bSx + dxN, bSy + dyN);
+        const va = sampleAt(aVals, aSx, aSy);
+        const vb = sampleAt(bVals, bSx, bSy);
         let v = oneMinusS * va + s * vb;
         const minV = 0.1;
         if (v < minV) continue;
-        if (isForecastPair) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, aSx + dxN, aSy + dyN) : 0;
-          const sb = bSnow ? sampleAt(bSnow, bSx + dxN, bSy + dyN) : 0;
+          const sa = aSnow ? sampleAt(aSnow, aSx, aSy) : 0;
+          const sb = bSnow ? sampleAt(bSnow, bSx, bSy) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
-        const [rC, gC, bC, aC] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
+        const [rC, gC, bC, aC] = snowFrac > 0.3
+          ? snowColorFor(v)
+          : isForecastPair
+            ? colorForSmooth(v)
+            : colorFor(v);
         if (aC === 0) continue;
         const alpha = Math.round(aC * 255);
         if (alpha === 0) continue;
