@@ -2212,7 +2212,6 @@ export function RadarMap({
                       nextFrame={showGrid ? overlayNext : null}
                       progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
-                      contour={gridFrame.source !== "radar"}
                       prewarmFrames={frames}
                     />
                   )}
