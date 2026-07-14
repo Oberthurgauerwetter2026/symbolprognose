@@ -976,17 +976,10 @@ function PrecipOverlay({
 
     const nf = nextFrameRef.current;
     const prog = progressRef.current;
-    const blendActive =
-      !!nf &&
-      prog > 0 &&
-      prog < 1 &&
-      !!nf.t &&
-      nf.t !== frame.t &&
-      !!frame.values &&
-      frame.values.length > 0 &&
-      !!nf.values &&
-      nf.values.length > 0;
-    const blended = blendActive && nf ? buildBlendedOffscreenRef.current(frame, nf, prog) : null;
+    // Crossfade/Optical-Flow-Blend deaktiviert — Prognose wechselt hart wie die Messung.
+    const blendActive = false;
+    void nf; void prog;
+    const blended: HTMLCanvasElement | null = null;
 
     ctx.save();
     ctx.scale(dpr, dpr);
