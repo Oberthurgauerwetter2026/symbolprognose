@@ -838,13 +838,9 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    const vals = isForecastFrame
-      ? denoiseGrid(rawVals, payload.gridLon.length, payload.gridLat.length) ?? rawVals
-      : rawVals;
-    const snowVals = isForecastFrame
-      ? denoiseGrid(rawSnow, payload.gridLon.length, payload.gridLat.length) ?? rawSnow
-      : rawSnow;
-    const zSlot = isForecastFrame ? Date.parse(frame.t) / 900000 : 0;
+    const vals = rawVals;
+    const snowVals = rawSnow;
+    const zSlot = 0;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
@@ -951,9 +947,7 @@ function PrecipOverlay({
 
           const [r, g, b, a] = snowFrac > 0.3
             ? snowColorFor(v)
-            : isForecastFrame
-              ? colorForSmooth(v)
-              : colorFor(v);
+            : colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
           if (alpha === 0) continue;
@@ -980,42 +974,13 @@ function PrecipOverlay({
       }
     }
 
-    const nf = nextFrameRef.current;
-    const prog = progressRef.current;
-    const blendActive =
-      !!nf &&
-      prog > 0 &&
-      prog < 1 &&
-      !!nf.t &&
-      nf.t !== frame.t &&
-      !!frame.values &&
-      frame.values.length > 0 &&
-      !!nf.values &&
-      nf.values.length > 0;
-    const blended = blendActive && nf ? buildBlendedOffscreenRef.current(frame, nf, prog) : null;
+    // Crossfade/Optical-Flow-Blend deaktiviert — Prognose wechselt hart wie die Messung.
 
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (blended) {
-      // Kontinuierlicher Zwischenzustand exakt zwischen den beiden
-      // Nachbarframes: gleiche Position/Geometrie, linear interpolierte
-      // Intensität. Keine künstliche Verschiebung.
-      ctx.drawImage(blended, 0, 0, blended.width, blended.height, 0, 0, size.x, size.y);
-    } else {
-      ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-      // Fallback nur für fehlende Grid-Werte; reguläre Frames laufen über den
-      // Intensitäts-Zwischenzustand oben.
-      if (nf && prog > 0 && nf.t !== frame.t) {
-        const nextOff = buildOffscreenRef.current(nf);
-        if (nextOff) {
-          ctx.globalAlpha = Math.min(1, Math.max(0, prog));
-          ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
-          ctx.globalAlpha = 1;
-        }
-      }
-    }
+    ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
 
@@ -1036,13 +1001,9 @@ function PrecipOverlay({
     const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
-    const vals = isForecastFrame
-      ? denoiseGrid(rawVals, nLon, nLat) ?? rawVals
-      : rawVals;
-    const snowVals = isForecastFrame
-      ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
-      : rawSnow;
-    const zSlot = isForecastFrame ? Date.parse(f.t) / 900000 : 0;
+    const vals = rawVals;
+    const snowVals = rawSnow;
+    const zSlot = 0;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -1094,9 +1055,7 @@ function PrecipOverlay({
         }
         const [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
-          : isForecastFrame
-            ? colorForSmooth(v)
-            : colorFor(v);
+          : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
