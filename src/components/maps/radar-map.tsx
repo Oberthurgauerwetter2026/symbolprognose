@@ -599,7 +599,7 @@ function PrecipOverlay({
 
     // View-Key — Cache invalidiert bei Pan/Zoom/Resize/DPR-Wechsel.
     const center = map.getCenter();
-    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}|${STEP}|${contour ? "f" : "m"}`;
+    const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}|${STEP}`;
     if (viewKey !== viewKeyRef.current) {
       cacheRef.current.clear();
       lookupRef.current = null;
@@ -611,39 +611,6 @@ function PrecipOverlay({
       const fx = new Float32Array(lowWForView * lowHForView);
       const fy = new Float32Array(lowWForView * lowHForView);
       const valid = new Uint8Array(lowWForView * lowHForView);
-      const contourScale = contour ? new Float32Array(lowWForView * lowHForView) : undefined;
-
-      const hash = (ix: number, iy: number) => {
-        let h = (ix * 374761393 + iy * 668265263 + 1013904223) | 0;
-        h = (h ^ (h >>> 13)) * 1274126177;
-        h = h ^ (h >>> 16);
-        return ((h >>> 0) % 10000) / 10000;
-      };
-      const smooth = (u: number) => u * u * (3 - 2 * u);
-      const valueNoise = (x: number, y: number) => {
-        const ix = Math.floor(x);
-        const iy = Math.floor(y);
-        const fxN = smooth(x - ix);
-        const fyN = smooth(y - iy);
-        const a = hash(ix, iy);
-        const b = hash(ix + 1, iy);
-        const c = hash(ix, iy + 1);
-        const d = hash(ix + 1, iy + 1);
-        return a * (1 - fxN) * (1 - fyN) + b * fxN * (1 - fyN) + c * (1 - fxN) * fyN + d * fxN * fyN;
-      };
-      const fbm = (x: number, y: number) => {
-        let v = 0;
-        let amp = 0.5;
-        let freq = 1;
-        for (let o = 0; o < 5; o++) {
-          v += valueNoise(x * freq, y * freq) * amp;
-          amp *= 0.5;
-          freq *= 2.1;
-        }
-        return v;
-      };
-      const COS = 0.866;
-      const SIN = 0.5;
 
       for (let ly = 0; ly < lowHForView; ly++) {
         for (let lx = 0; lx < lowWForView; lx++) {
@@ -659,33 +626,12 @@ function PrecipOverlay({
           fx[cell] = fxRaw;
           fy[cell] = fyRaw;
           valid[cell] = 1;
-
-          if (contourScale) {
-            const sx = fxRaw * 0.9;
-            const sy = fyRaw * 0.85;
-            const rx = sx * COS - sy * SIN;
-            const ry = sx * SIN + sy * COS;
-            const warpX = (fbm(rx * 0.35 + 17.3, ry * 0.35 - 4.1) - 0.5) * 2.6;
-            const warpY = (fbm(rx * 0.35 - 9.7, ry * 0.35 + 23.4) - 0.5) * 2.6;
-            const n = fbm(rx + warpX, ry + warpY);
-            const mod = 0.25 + n * 1.55;
-            const env1 = fbm(rx * 0.11 - 5.7, ry * 0.11 + 11.2);
-            const env2 = fbm(rx * 0.45 + 31.1, ry * 0.45 - 7.4);
-            const env3 = fbm(rx * 1.6 - 17.9, ry * 1.6 + 4.3);
-            const envRaw = env1 * 0.5 + env2 * 0.35 + env3 * 0.15;
-            const edgeNX = Math.min(fxRaw, nLon - 1 - fxRaw) / (nLon - 1);
-            const edgeNY = Math.min(fyRaw, nLat - 1 - fyRaw) / (nLat - 1);
-            const edgeRaw = Math.max(0, Math.min(edgeNX, edgeNY)) * 2;
-            const edgeJitter = 0.55 + fbm(rx * 0.55 + 71.3, ry * 0.55 - 19.8) * 0.9;
-            const edgeMask = Math.max(0, Math.min(1, edgeRaw * edgeJitter));
-            const envelope = Math.max(0, envRaw * 2.9 - 1.05) * edgeMask;
-            contourScale[cell] = mod * envelope;
-          }
         }
       }
-      lookup = { key: viewKey, lowW: lowWForView, lowH: lowHForView, fx, fy, valid, contourScale };
+      lookup = { key: viewKey, lowW: lowWForView, lowH: lowHForView, fx, fy, valid };
       lookupRef.current = lookup;
     }
+
 
     const cacheKey = `${frame.t}|${frame.source ?? ""}`;
     let off = cacheRef.current.get(cacheKey) ?? null;
