@@ -1140,9 +1140,18 @@ function PrecipOverlay({
   ): HTMLCanvasElement | null => {
     const lookup = lookupRef.current;
     if (!lookup) return null;
-    const aVals = a.values;
-    const bVals = b.values;
-    if (!aVals || aVals.length === 0 || !bVals || bVals.length === 0) return null;
+    const rawAVals = a.values;
+    const rawBVals = b.values;
+    if (!rawAVals || rawAVals.length === 0 || !rawBVals || rawBVals.length === 0) return null;
+    const nLatEarly = payload.gridLat.length;
+    const nLonEarly = payload.gridLon.length;
+    const isForecastPair = a.source !== "radar" || b.source !== "radar";
+    const aVals = isForecastPair
+      ? denoiseGrid(rawAVals, nLonEarly, nLatEarly) ?? rawAVals
+      : rawAVals;
+    const bVals = isForecastPair
+      ? denoiseGrid(rawBVals, nLonEarly, nLatEarly) ?? rawBVals
+      : rawBVals;
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
