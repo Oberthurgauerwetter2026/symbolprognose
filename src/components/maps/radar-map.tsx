@@ -116,6 +116,130 @@ function colorForSmooth(mmh: number): [number, number, number, number] {
 }
 
 
+// ---------------------------------------------------------------------------
+// Organische Radar-Echo-Optik für die Prognose:
+// Domain-Warp + feine Intensitäts-Modulation aus deterministischem Value-Noise
+// verwandeln die glatten, kapselförmigen Grid-Blobs in unregelmäßige, an den
+// Rändern ausgefranste Zellen, ohne die Position der Datenfelder zu verfälschen.
+// Zusätzlich entfernt eine morphologische Öffnung isolierte Streu-Pixel.
+// Alle Funktionen sind ausschliesslich für den Prognose-Renderpfad gedacht —
+// Messung bleibt unangetastet.
+// ---------------------------------------------------------------------------
+
+function _hash3i(x: number, y: number, z: number): number {
+  let h = ((x | 0) * 374761393) ^ ((y | 0) * 668265263) ^ ((z | 0) * 1442695040);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return ((h >>> 0) / 4294967295) * 2 - 1;
+}
+
+function _valueNoise2Int(x: number, y: number, z: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const n00 = _hash3i(xi, yi, z);
+  const n10 = _hash3i(xi + 1, yi, z);
+  const n01 = _hash3i(xi, yi + 1, z);
+  const n11 = _hash3i(xi + 1, yi + 1, z);
+  const nx0 = n00 * (1 - u) + n10 * u;
+  const nx1 = n01 * (1 - u) + n11 * u;
+  return nx0 * (1 - v) + nx1 * v;
+}
+
+function valueNoise2(x: number, y: number, z: number): number {
+  const zi = Math.floor(z);
+  const zf = z - zi;
+  const a = _valueNoise2Int(x, y, zi);
+  const b = _valueNoise2Int(x, y, zi + 1);
+  return a * (1 - zf) + b * zf;
+}
+
+function fbm2(x: number, y: number, z: number, octaves: number): number {
+  let sum = 0;
+  let amp = 1;
+  let freq = 1;
+  let norm = 0;
+  for (let i = 0; i < octaves; i++) {
+    sum += amp * valueNoise2(x * freq, y * freq, z);
+    norm += amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return sum / norm;
+}
+
+const _DENOISE_CACHE: WeakMap<object, number[]> = new WeakMap();
+function denoiseGrid(
+  vals: number[] | undefined,
+  nLon: number,
+  nLat: number,
+  threshold = 0.1,
+  minNb = 2,
+): number[] | undefined {
+  if (!vals || vals.length !== nLon * nLat) return vals;
+  const key = vals as unknown as object;
+  const cached = _DENOISE_CACHE.get(key);
+  if (cached) return cached;
+  const out = new Array<number>(vals.length);
+  for (let y = 0; y < nLat; y++) {
+    for (let x = 0; x < nLon; x++) {
+      const i = y * nLon + x;
+      const v = vals[i];
+      if (v < threshold) {
+        out[i] = v;
+        continue;
+      }
+      let nb = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = y + dy;
+        if (yy < 0 || yy >= nLat) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const xx = x + dx;
+          if (xx < 0 || xx >= nLon) continue;
+          if (vals[yy * nLon + xx] >= threshold) nb++;
+        }
+      }
+      out[i] = nb < minNb ? 0 : v;
+    }
+  }
+  _DENOISE_CACHE.set(key, out);
+  return out;
+}
+
+/**
+ * Domain-Warp: verzerrt (fxRaw, fyRaw) mit einem niederfrequenten fBm-Feld,
+ * damit die Radar-Echos organisch ausgefranste Ränder bekommen. Amplitude
+ * in Grid-Zellen, Zeitachse `z` sorgt für langsame, atmende Deformation.
+ * Nur für Prognose-Frames aufrufen.
+ */
+function warpSample(
+  fx: number,
+  fy: number,
+  z: number,
+  ampCells = 0.55,
+): [number, number] {
+  const wx = fbm2(fx * 0.85, fy * 0.85, z, 2);
+  const wy = fbm2(fx * 0.85 + 31.7, fy * 0.85 + 17.3, z, 2);
+  return [fx + wx * ampCells, fy + wy * ampCells];
+}
+
+/**
+ * Feine Intensitäts-Modulation nahe der Isolinien — erzeugt zusätzliche
+ * Zipfel/Fransen an den Bandgrenzen von `colorFor`, ohne dichte Kerne
+ * sichtbar zu ändern.
+ */
+function edgeJitter(fx: number, fy: number, z: number): number {
+  return 1 + 0.12 * valueNoise2(fx * 2.1, fy * 2.1, z * 3 + 1);
+}
+
+
+
+
+
 
 
 // Schnee-Farbskala (mm/h Wasser-Äquivalent) — MeteoSchweiz: leicht / stark.
@@ -711,8 +835,16 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
-    const vals = frame.values;
-    const snowVals = frame.snowValues;
+    const isForecastFrame = frame.source !== "radar";
+    const rawVals = frame.values;
+    const rawSnow = frame.snowValues;
+    const vals = isForecastFrame
+      ? denoiseGrid(rawVals, payload.gridLon.length, payload.gridLat.length) ?? rawVals
+      : rawVals;
+    const snowVals = isForecastFrame
+      ? denoiseGrid(rawSnow, payload.gridLon.length, payload.gridLat.length) ?? rawSnow
+      : rawSnow;
+    const zSlot = isForecastFrame ? Date.parse(frame.t) / 900000 : 0;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
@@ -803,15 +935,27 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          const v = sampleAt(vals, fxRaw, fyRaw);
+          // Prognose: Domain-Warp verzerrt die Sample-Koordinaten mit einem
+          // niederfrequenten fBm-Feld, damit die Radar-Echos organisch
+          // ausgefranste Ränder bekommen. Messung (`radar`) bleibt exakt.
+          let sx = fxRaw;
+          let sy = fyRaw;
+          if (isForecastFrame) {
+            const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
+            sx = w[0];
+            sy = w[1];
+          }
+
+          let v = sampleAt(vals, sx, sy);
 
           const minV = 0.1;
           if (v < minV) continue;
 
+          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
           let snowFrac = 0;
           if (snowVals) {
-            const sv = sampleAt(snowVals, fxRaw, fyRaw);
+            const sv = sampleAt(snowVals, sx, sy);
             if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
           }
 
@@ -861,7 +1005,7 @@ function PrecipOverlay({
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = "medium";
     if (blended) {
       // Kontinuierlicher Zwischenzustand exakt zwischen den beiden
       // Nachbarframes: gleiche Position/Geometrie, linear interpolierte
@@ -897,8 +1041,16 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
-    const vals = f.values;
-    const snowVals = f.snowValues;
+    const isForecastFrame = f.source !== "radar";
+    const rawVals = f.values;
+    const rawSnow = f.snowValues;
+    const vals = isForecastFrame
+      ? denoiseGrid(rawVals, nLon, nLat) ?? rawVals
+      : rawVals;
+    const snowVals = isForecastFrame
+      ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
+      : rawSnow;
+    const zSlot = isForecastFrame ? Date.parse(f.t) / 900000 : 0;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -938,12 +1090,20 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const v = sampleAt(vals, fxRaw, fyRaw);
+        let sx = fxRaw;
+        let sy = fyRaw;
+        if (isForecastFrame) {
+          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
+          sx = w[0];
+          sy = w[1];
+        }
+        let v = sampleAt(vals, sx, sy);
         const minV = 0.1;
         if (v < minV) continue;
+        if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
         let snowFrac = 0;
         if (snowVals) {
-          const sv = sampleAt(snowVals, fxRaw, fyRaw);
+          const sv = sampleAt(snowVals, sx, sy);
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
         const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
@@ -980,9 +1140,18 @@ function PrecipOverlay({
   ): HTMLCanvasElement | null => {
     const lookup = lookupRef.current;
     if (!lookup) return null;
-    const aVals = a.values;
-    const bVals = b.values;
-    if (!aVals || aVals.length === 0 || !bVals || bVals.length === 0) return null;
+    const rawAVals = a.values;
+    const rawBVals = b.values;
+    if (!rawAVals || rawAVals.length === 0 || !rawBVals || rawBVals.length === 0) return null;
+    const nLatEarly = payload.gridLat.length;
+    const nLonEarly = payload.gridLon.length;
+    const isForecastPair = a.source !== "radar" || b.source !== "radar";
+    const aVals = isForecastPair
+      ? denoiseGrid(rawAVals, nLonEarly, nLatEarly) ?? rawAVals
+      : rawAVals;
+    const bVals = isForecastPair
+      ? denoiseGrid(rawBVals, nLonEarly, nLatEarly) ?? rawBVals
+      : rawBVals;
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
@@ -1028,8 +1197,21 @@ function PrecipOverlay({
       );
     };
 
-    const aSnow = a.snowValues;
-    const bSnow = b.snowValues;
+    const rawASnow = a.snowValues;
+    const rawBSnow = b.snowValues;
+    const aSnow = isForecastPair
+      ? denoiseGrid(rawASnow, nLon, nLat) ?? rawASnow
+      : rawASnow;
+    const bSnow = isForecastPair
+      ? denoiseGrid(rawBSnow, nLon, nLat) ?? rawBSnow
+      : rawBSnow;
+
+    // Zeit-Slot für den Domain-Warp: zwischen A und B linear interpoliert,
+    // damit die organische Deformation über den Framewechsel driftet, statt
+    // zu springen.
+    const zA = Date.parse(a.t) / 900000;
+    const zB = Date.parse(b.t) / 900000;
+    const zSlot = zA + (zB - zA) * s;
 
     // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
     // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
@@ -1058,16 +1240,33 @@ function PrecipOverlay({
         // Bidirektionaler Warp: A entlang +u nach vorn geschoben, B entlang −u
         // zurückgeschoben, so dass korrespondierende Echos sich zwischen A und
         // B linear in ihrer Position bewegen.
-        const va = sampleAt(aVals, fxRaw + ux * warpAdx, fyRaw + uy * warpAdy);
-        const vb = sampleAt(bVals, fxRaw + ux * warpBdx, fyRaw + uy * warpBdy);
-        const v = oneMinusS * va + s * vb;
+        const aSx = fxRaw + ux * warpAdx;
+        const aSy = fyRaw + uy * warpAdy;
+        const bSx = fxRaw + ux * warpBdx;
+        const bSy = fyRaw + uy * warpBdy;
+
+        // Zusätzlicher Domain-Warp (fBm) — gleiche Verzerrung auf A und B,
+        // damit die Ränder organisch werden und beide Frames deckungsgleich
+        // deformiert bleiben (kein Geister-Doppelbild).
+        let dxN = 0;
+        let dyN = 0;
+        if (isForecastPair) {
+          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
+          dxN = w[0] - fxRaw;
+          dyN = w[1] - fyRaw;
+        }
+
+        const va = sampleAt(aVals, aSx + dxN, aSy + dyN);
+        const vb = sampleAt(bVals, bSx + dxN, bSy + dyN);
+        let v = oneMinusS * va + s * vb;
         const minV = 0.1;
         if (v < minV) continue;
+        if (isForecastPair) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, fxRaw + ux * warpAdx, fyRaw + uy * warpAdy) : 0;
-          const sb = bSnow ? sampleAt(bSnow, fxRaw + ux * warpBdx, fyRaw + uy * warpBdy) : 0;
+          const sa = aSnow ? sampleAt(aSnow, aSx + dxN, aSy + dyN) : 0;
+          const sb = bSnow ? sampleAt(bSnow, bSx + dxN, bSy + dyN) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
