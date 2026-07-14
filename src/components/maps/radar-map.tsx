@@ -1001,13 +1001,9 @@ function PrecipOverlay({
     const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
-    const vals = isForecastFrame
-      ? denoiseGrid(rawVals, nLon, nLat) ?? rawVals
-      : rawVals;
-    const snowVals = isForecastFrame
-      ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
-      : rawSnow;
-    const zSlot = isForecastFrame ? Date.parse(f.t) / 900000 : 0;
+    const vals = rawVals;
+    const snowVals = rawSnow;
+    const zSlot = 0;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
