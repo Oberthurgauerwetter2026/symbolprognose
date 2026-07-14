@@ -1055,9 +1055,7 @@ function PrecipOverlay({
         }
         const [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
-          : isForecastFrame
-            ? colorForSmooth(v)
-            : colorFor(v);
+          : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
