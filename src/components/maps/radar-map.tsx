@@ -386,10 +386,130 @@ function StableImageOverlay({
   return null;
 }
 
-// Keine Advektion/Optical-Flow-Schätzung: Zwischenzustände entstehen strikt aus
-// den zwei benachbarten Datenframes auf derselben geographischen Zeitachse.
-// Dadurch gibt es keine frei erzeugten Bewegungsrichtungen und keine
-// frameweise wechselnden Shift-Vektoren, die als wildes Springen sichtbar wären.
+// Optical-Flow (Horn–Schunck) zwischen zwei Prognose-Feldern auf dem nativen
+// ICON-Grid. Ergebnis: Verschiebungsfeld (u,v) in Gridindex-Einheiten pro
+// vollem Framepaar-Gap. Wird pro Framepaar einmal berechnet und in einer
+// modulweiten LRU-Map gecacht, damit das Morphing beim Play/Scrub nur
+// noch zweimal warpend samplet (bidirektionales Bild-Morphing).
+type FlowField = { u: Float32Array; v: Float32Array; w: number; h: number };
+const FLOW_CACHE = new Map<string, FlowField>();
+const FLOW_CACHE_MAX = 32;
+
+function computeHornSchunckFlow(
+  aVals: number[] | Float32Array,
+  bVals: number[] | Float32Array,
+  w: number,
+  h: number,
+  iters = 40,
+  alpha2 = 4,
+): FlowField {
+  // log(1+v) skaliert die Skala (0.1 … 80 mm/h) auf einen kompakten Bereich
+  // und stabilisiert die Gradienten für Horn–Schunck.
+  const n = w * h;
+  const I1 = new Float32Array(n);
+  const I2 = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    I1[i] = Math.log1p(Math.max(0, aVals[i] ?? 0));
+    I2[i] = Math.log1p(Math.max(0, bVals[i] ?? 0));
+  }
+  const Ix = new Float32Array(n);
+  const Iy = new Float32Array(n);
+  const It = new Float32Array(n);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const xL = x > 0 ? x - 1 : x;
+      const xR = x < w - 1 ? x + 1 : x;
+      const yU = y > 0 ? y - 1 : y;
+      const yD = y < h - 1 ? y + 1 : y;
+      Ix[i] = ((I1[y * w + xR] - I1[y * w + xL]) + (I2[y * w + xR] - I2[y * w + xL])) * 0.25;
+      Iy[i] = ((I1[yD * w + x] - I1[yU * w + x]) + (I2[yD * w + x] - I2[yU * w + x])) * 0.25;
+      It[i] = I2[i] - I1[i];
+    }
+  }
+  const u = new Float32Array(n);
+  const v = new Float32Array(n);
+  const uBar = new Float32Array(n);
+  const vBar = new Float32Array(n);
+  for (let k = 0; k < iters; k++) {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        const xL = x > 0 ? x - 1 : x;
+        const xR = x < w - 1 ? x + 1 : x;
+        const yU = y > 0 ? y - 1 : y;
+        const yD = y < h - 1 ? y + 1 : y;
+        uBar[i] = (u[y * w + xL] + u[y * w + xR] + u[yU * w + x] + u[yD * w + x]) * 0.25;
+        vBar[i] = (v[y * w + xL] + v[y * w + xR] + v[yU * w + x] + v[yD * w + x]) * 0.25;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const num = Ix[i] * uBar[i] + Iy[i] * vBar[i] + It[i];
+      const den = alpha2 + Ix[i] * Ix[i] + Iy[i] * Iy[i];
+      const f = num / den;
+      u[i] = uBar[i] - Ix[i] * f;
+      v[i] = vBar[i] - Iy[i] * f;
+    }
+  }
+  return { u, v, w, h };
+}
+
+function getFlowField(
+  a: RadarFrame,
+  b: RadarFrame,
+  w: number,
+  h: number,
+): FlowField | null {
+  if (!a.values || !b.values || a.values.length !== w * h || b.values.length !== w * h) {
+    return null;
+  }
+  const key = `${a.t}|${b.t}`;
+  const hit = FLOW_CACHE.get(key);
+  if (hit) {
+    FLOW_CACHE.delete(key);
+    FLOW_CACHE.set(key, hit);
+    return hit;
+  }
+  const flow = computeHornSchunckFlow(a.values, b.values, w, h);
+  FLOW_CACHE.set(key, flow);
+  while (FLOW_CACHE.size > FLOW_CACHE_MAX) {
+    const firstKey = FLOW_CACHE.keys().next().value;
+    if (firstKey === undefined) break;
+    FLOW_CACHE.delete(firstKey);
+  }
+  return flow;
+}
+
+function sampleBilinear(
+  arr: number[] | Float32Array,
+  fx: number,
+  fy: number,
+  w: number,
+  h: number,
+): number {
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const x1 = x0 + 1;
+  const y1 = y0 + 1;
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const inX0 = x0 >= 0 && x0 < w;
+  const inX1 = x1 >= 0 && x1 < w;
+  const inY0 = y0 >= 0 && y0 < h;
+  const inY1 = y1 >= 0 && y1 < h;
+  if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+  const v00 = inX0 && inY0 ? arr[y0 * w + x0] : 0;
+  const v01 = inX1 && inY0 ? arr[y0 * w + x1] : 0;
+  const v10 = inX0 && inY1 ? arr[y1 * w + x0] : 0;
+  const v11 = inX1 && inY1 ? arr[y1 * w + x1] : 0;
+  return (
+    v00 * (1 - tx) * (1 - ty) +
+    v01 * tx * (1 - ty) +
+    v10 * (1 - tx) * ty +
+    v11 * tx * ty
+  );
+}
+
 
 function nearestFrameIndexForMs(frames: RadarFrame[], targetMs: number): number {
   if (frames.length === 0) return 0;
