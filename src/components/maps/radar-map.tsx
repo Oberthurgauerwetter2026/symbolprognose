@@ -1240,16 +1240,33 @@ function PrecipOverlay({
         // Bidirektionaler Warp: A entlang +u nach vorn geschoben, B entlang −u
         // zurückgeschoben, so dass korrespondierende Echos sich zwischen A und
         // B linear in ihrer Position bewegen.
-        const va = sampleAt(aVals, fxRaw + ux * warpAdx, fyRaw + uy * warpAdy);
-        const vb = sampleAt(bVals, fxRaw + ux * warpBdx, fyRaw + uy * warpBdy);
-        const v = oneMinusS * va + s * vb;
+        const aSx = fxRaw + ux * warpAdx;
+        const aSy = fyRaw + uy * warpAdy;
+        const bSx = fxRaw + ux * warpBdx;
+        const bSy = fyRaw + uy * warpBdy;
+
+        // Zusätzlicher Domain-Warp (fBm) — gleiche Verzerrung auf A und B,
+        // damit die Ränder organisch werden und beide Frames deckungsgleich
+        // deformiert bleiben (kein Geister-Doppelbild).
+        let dxN = 0;
+        let dyN = 0;
+        if (isForecastPair) {
+          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
+          dxN = w[0] - fxRaw;
+          dyN = w[1] - fyRaw;
+        }
+
+        const va = sampleAt(aVals, aSx + dxN, aSy + dyN);
+        const vb = sampleAt(bVals, bSx + dxN, bSy + dyN);
+        let v = oneMinusS * va + s * vb;
         const minV = 0.1;
         if (v < minV) continue;
+        if (isForecastPair) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, fxRaw + ux * warpAdx, fyRaw + uy * warpAdy) : 0;
-          const sb = bSnow ? sampleAt(bSnow, fxRaw + ux * warpBdx, fyRaw + uy * warpBdy) : 0;
+          const sa = aSnow ? sampleAt(aSnow, aSx + dxN, aSy + dyN) : 0;
+          const sb = bSnow ? sampleAt(bSnow, bSx + dxN, bSy + dyN) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
