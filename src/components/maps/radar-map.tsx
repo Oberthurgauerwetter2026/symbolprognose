@@ -117,59 +117,14 @@ function colorForSmooth(mmh: number): [number, number, number, number] {
 
 
 // ---------------------------------------------------------------------------
-// Organische Radar-Echo-Optik für die Prognose:
-// Domain-Warp + feine Intensitäts-Modulation aus deterministischem Value-Noise
-// verwandeln die glatten, kapselförmigen Grid-Blobs in unregelmäßige, an den
-// Rändern ausgefranste Zellen, ohne die Position der Datenfelder zu verfälschen.
-// Zusätzlich entfernt eine morphologische Öffnung isolierte Streu-Pixel.
-// Alle Funktionen sind ausschliesslich für den Prognose-Renderpfad gedacht —
-// Messung bleibt unangetastet.
+// Prognose-Bereinigung:
+//   * `denoiseGrid` entfernt isolierte Streu-Pixel im ICON-CH1-Grid.
+//   * `dropSmallClusters` verwirft zusammenhängende Cluster < minSize (4er-
+//     Nachbarschaft) — vermeidet einzelne Regenflecken, die auf der Karte
+//     als „Verunreinigungen" auftauchen.
+// Beide Filter cachen ihr Ergebnis pro Eingangsarray, damit derselbe Frame
+// nicht bei jedem Redraw neu bearbeitet wird.
 // ---------------------------------------------------------------------------
-
-function _hash3i(x: number, y: number, z: number): number {
-  let h = ((x | 0) * 374761393) ^ ((y | 0) * 668265263) ^ ((z | 0) * 1442695040);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  h = h ^ (h >>> 16);
-  return ((h >>> 0) / 4294967295) * 2 - 1;
-}
-
-function _valueNoise2Int(x: number, y: number, z: number): number {
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const xf = x - xi;
-  const yf = y - yi;
-  const u = xf * xf * (3 - 2 * xf);
-  const v = yf * yf * (3 - 2 * yf);
-  const n00 = _hash3i(xi, yi, z);
-  const n10 = _hash3i(xi + 1, yi, z);
-  const n01 = _hash3i(xi, yi + 1, z);
-  const n11 = _hash3i(xi + 1, yi + 1, z);
-  const nx0 = n00 * (1 - u) + n10 * u;
-  const nx1 = n01 * (1 - u) + n11 * u;
-  return nx0 * (1 - v) + nx1 * v;
-}
-
-function valueNoise2(x: number, y: number, z: number): number {
-  const zi = Math.floor(z);
-  const zf = z - zi;
-  const a = _valueNoise2Int(x, y, zi);
-  const b = _valueNoise2Int(x, y, zi + 1);
-  return a * (1 - zf) + b * zf;
-}
-
-function fbm2(x: number, y: number, z: number, octaves: number): number {
-  let sum = 0;
-  let amp = 1;
-  let freq = 1;
-  let norm = 0;
-  for (let i = 0; i < octaves; i++) {
-    sum += amp * valueNoise2(x * freq, y * freq, z);
-    norm += amp;
-    amp *= 0.5;
-    freq *= 2;
-  }
-  return sum / norm;
-}
 
 const _DENOISE_CACHE: WeakMap<object, number[]> = new WeakMap();
 function denoiseGrid(
@@ -177,7 +132,7 @@ function denoiseGrid(
   nLon: number,
   nLat: number,
   threshold = 0.1,
-  minNb = 2,
+  minNb = 3,
 ): number[] | undefined {
   if (!vals || vals.length !== nLon * nLat) return vals;
   const key = vals as unknown as object;
@@ -210,31 +165,60 @@ function denoiseGrid(
   return out;
 }
 
-/**
- * Domain-Warp: verzerrt (fxRaw, fyRaw) mit einem niederfrequenten fBm-Feld,
- * damit die Radar-Echos organisch ausgefranste Ränder bekommen. Amplitude
- * in Grid-Zellen, Zeitachse `z` sorgt für langsame, atmende Deformation.
- * Nur für Prognose-Frames aufrufen.
- */
-function warpSample(
-  fx: number,
-  fy: number,
-  z: number,
-  ampCells = 0.55,
-): [number, number] {
-  const wx = fbm2(fx * 0.85, fy * 0.85, z, 2);
-  const wy = fbm2(fx * 0.85 + 31.7, fy * 0.85 + 17.3, z, 2);
-  return [fx + wx * ampCells, fy + wy * ampCells];
+const _CLUSTER_CACHE: WeakMap<object, number[]> = new WeakMap();
+function dropSmallClusters(
+  vals: number[] | undefined,
+  nLon: number,
+  nLat: number,
+  threshold = 0.1,
+  minSize = 4,
+): number[] | undefined {
+  if (!vals || vals.length !== nLon * nLat) return vals;
+  const key = vals as unknown as object;
+  const cached = _CLUSTER_CACHE.get(key);
+  if (cached) return cached;
+  const n = vals.length;
+  const label = new Int32Array(n).fill(-1);
+  const stack = new Int32Array(n);
+  const keep = new Uint8Array(n);
+  let curLabel = 0;
+  for (let start = 0; start < n; start++) {
+    if (vals[start] < threshold || label[start] !== -1) continue;
+    let sp = 0;
+    stack[sp++] = start;
+    label[start] = curLabel;
+    const members: number[] = [];
+    while (sp > 0) {
+      const idx = stack[--sp];
+      members.push(idx);
+      const x = idx % nLon;
+      const y = (idx - x) / nLon;
+      const neighbors = [
+        x > 0 ? idx - 1 : -1,
+        x < nLon - 1 ? idx + 1 : -1,
+        y > 0 ? idx - nLon : -1,
+        y < nLat - 1 ? idx + nLon : -1,
+      ];
+      for (const nb of neighbors) {
+        if (nb < 0) continue;
+        if (label[nb] !== -1) continue;
+        if (vals[nb] < threshold) continue;
+        label[nb] = curLabel;
+        stack[sp++] = nb;
+      }
+    }
+    if (members.length >= minSize) {
+      for (const m of members) keep[m] = 1;
+    }
+    curLabel++;
+  }
+  const out = new Array<number>(n);
+  for (let i = 0; i < n; i++) out[i] = keep[i] ? vals[i] : 0;
+  _CLUSTER_CACHE.set(key, out);
+  return out;
 }
 
-/**
- * Feine Intensitäts-Modulation nahe der Isolinien — erzeugt zusätzliche
- * Zipfel/Fransen an den Bandgrenzen von `colorFor`, ohne dichte Kerne
- * sichtbar zu ändern.
- */
-function edgeJitter(fx: number, fy: number, z: number): number {
-  return 1 + 0.12 * valueNoise2(fx * 2.1, fy * 2.1, z * 3 + 1);
-}
+
 
 
 
