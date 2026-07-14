@@ -825,9 +825,17 @@ function PrecipOverlay({
 
           const [r, g, b, a] = snowFrac > 0.3
             ? snowColorFor(v)
-            : colorFor(v);
+            : isForecastFrame
+              ? colorForSmooth(v)
+              : colorFor(v);
           if (a === 0) continue;
-          const alpha = Math.round(a * 255);
+          // Weiches Rand-Alpha für Prognose: unterhalb 0.3 mm/h linear
+          // gegen 0 ausblenden — vermeidet harte Iso-Konturen/Ringe.
+          let alphaF = a;
+          if (isForecastFrame && snowFrac <= 0.3 && v < 0.3) {
+            alphaF = a * Math.max(0, (v - 0.1) / 0.2);
+          }
+          const alpha = Math.round(alphaF * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
           data[idx] = r;
@@ -836,6 +844,7 @@ function PrecipOverlay({
           data[idx + 3] = alpha;
         }
       }
+
 
       off = document.createElement("canvas");
       off.width = lowW;
