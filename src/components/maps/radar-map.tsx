@@ -997,7 +997,7 @@ function PrecipOverlay({
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "medium";
+    ctx.imageSmoothingQuality = "high";
     if (blended) {
       // Kontinuierlicher Zwischenzustand exakt zwischen den beiden
       // Nachbarframes: gleiche Position/Geometrie, linear interpolierte
