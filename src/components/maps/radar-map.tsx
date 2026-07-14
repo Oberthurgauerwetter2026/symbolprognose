@@ -2464,6 +2464,11 @@ export function RadarMap({
                 Radardaten konnten nicht geladen werden.
               </p>
             )}
+            {!isLoading && !error && data && frames.length === 0 && (
+              <p className="text-center text-xs text-neutral-600">
+                {data.warning ?? "Radardaten sind derzeit nicht verfügbar."}
+              </p>
+            )}
 
             {data && frames.length > 0 && idx !== null && (
               <>
