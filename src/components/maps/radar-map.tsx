@@ -985,24 +985,7 @@ function PrecipOverlay({
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (blended) {
-      // Kontinuierlicher Zwischenzustand exakt zwischen den beiden
-      // Nachbarframes: gleiche Position/Geometrie, linear interpolierte
-      // Intensität. Keine künstliche Verschiebung.
-      ctx.drawImage(blended, 0, 0, blended.width, blended.height, 0, 0, size.x, size.y);
-    } else {
-      ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
-      // Fallback nur für fehlende Grid-Werte; reguläre Frames laufen über den
-      // Intensitäts-Zwischenzustand oben.
-      if (nf && prog > 0 && nf.t !== frame.t) {
-        const nextOff = buildOffscreenRef.current(nf);
-        if (nextOff) {
-          ctx.globalAlpha = Math.min(1, Math.max(0, prog));
-          ctx.drawImage(nextOff, 0, 0, nextOff.width, nextOff.height, 0, 0, size.x, size.y);
-          ctx.globalAlpha = 1;
-        }
-      }
-    }
+    ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
 
