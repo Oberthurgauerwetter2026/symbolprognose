@@ -1197,8 +1197,21 @@ function PrecipOverlay({
       );
     };
 
-    const aSnow = a.snowValues;
-    const bSnow = b.snowValues;
+    const rawASnow = a.snowValues;
+    const rawBSnow = b.snowValues;
+    const aSnow = isForecastPair
+      ? denoiseGrid(rawASnow, nLon, nLat) ?? rawASnow
+      : rawASnow;
+    const bSnow = isForecastPair
+      ? denoiseGrid(rawBSnow, nLon, nLat) ?? rawBSnow
+      : rawBSnow;
+
+    // Zeit-Slot für den Domain-Warp: zwischen A und B linear interpoliert,
+    // damit die organische Deformation über den Framewechsel driftet, statt
+    // zu springen.
+    const zA = Date.parse(a.t) / 900000;
+    const zB = Date.parse(b.t) / 900000;
+    const zSlot = zA + (zB - zA) * s;
 
     // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
     // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
