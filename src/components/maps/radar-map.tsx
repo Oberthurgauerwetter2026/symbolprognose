@@ -942,7 +942,7 @@ function PrecipOverlay({
           let sx = fxRaw;
           let sy = fyRaw;
           if (isForecastFrame) {
-            const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
+            const w = warpSample(fxRaw, fyRaw, 0, 0.55);
             sx = w[0];
             sy = w[1];
           }
