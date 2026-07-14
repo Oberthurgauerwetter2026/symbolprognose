@@ -955,15 +955,22 @@ function PrecipOverlay({
         }
         const [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
-          : colorFor(v);
+          : isForecastFrame
+            ? colorForSmooth(v)
+            : colorFor(v);
         if (a === 0) continue;
-        const alpha = Math.round(a * 255);
+        let alphaF = a;
+        if (isForecastFrame && snowFrac <= 0.3 && v < 0.3) {
+          alphaF = a * Math.max(0, (v - 0.1) / 0.2);
+        }
+        const alpha = Math.round(alphaF * 255);
         if (alpha === 0) continue;
         const px = (ly * lowW + lx) * 4;
         data[px] = r;
         data[px + 1] = g;
         data[px + 2] = b;
         data[px + 3] = alpha;
+
       }
     }
     offCtx.putImageData(img, 0, 0);
