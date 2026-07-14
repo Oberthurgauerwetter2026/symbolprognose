@@ -700,9 +700,25 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
+    // Prognose: Streu-Pixel + Klein-Cluster („Verunreinigungen") entfernen,
+    // sodass nur zusammenhängende Regenfelder gerendert werden.
+    const vals = isForecastFrame
+      ? dropSmallClusters(
+          denoiseGrid(rawVals, nLon, nLat, 0.1, 3) ?? rawVals,
+          nLon,
+          nLat,
+          0.1,
+          4,
+        ) ?? rawVals
+      : rawVals;
+    // Schnee-Grid an derselben Maske ausrichten (Punkte ohne Regen ⇒ kein Schnee).
+    let snowVals = rawSnow;
+    if (isForecastFrame && rawSnow && vals && vals.length === rawSnow.length) {
+      const masked = new Array<number>(rawSnow.length);
+      for (let i = 0; i < rawSnow.length; i++) masked[i] = vals[i] > 0 ? rawSnow[i] : 0;
+      snowVals = masked;
+    }
+
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
