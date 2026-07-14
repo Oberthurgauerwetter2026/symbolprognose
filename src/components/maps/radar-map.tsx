@@ -844,7 +844,8 @@ function PrecipOverlay({
     const snowVals = isForecastFrame
       ? denoiseGrid(rawSnow, payload.gridLon.length, payload.gridLat.length) ?? rawSnow
       : rawSnow;
-    const zSlot = isForecastFrame ? Date.parse(frame.t) / 900000 : 0;
+    // Noise/Warp zeit-invariant im Grid-Koordinatensystem verankert (world space),
+    // damit sich Konturen nur bewegen, wenn sich die Datenfelder tatsächlich ändern.
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
