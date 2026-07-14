@@ -803,14 +803,11 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          let v = sampleAt(vals, fxRaw, fyRaw);
+          const v = sampleAt(vals, fxRaw, fyRaw);
 
-          if (contour && v > 0 && lookup.contourScale) {
-            v = v * lookup.contourScale[cell];
-          }
-
-          const minV = contour ? 0.05 : 0.1;
+          const minV = 0.1;
           if (v < minV) continue;
+
 
           let snowFrac = 0;
           if (snowVals) {
