@@ -1207,12 +1207,10 @@ function PrecipOverlay({
       ? denoiseGrid(rawBSnow, nLon, nLat) ?? rawBSnow
       : rawBSnow;
 
-    // Zeit-Slot für den Domain-Warp: zwischen A und B linear interpoliert,
-    // damit die organische Deformation über den Framewechsel driftet, statt
-    // zu springen.
-    const zA = Date.parse(a.t) / 900000;
-    const zB = Date.parse(b.t) / 900000;
-    const zSlot = zA + (zB - zA) * s;
+    // Domain-Warp und Edge-Jitter sind zeit-invariant und im Grid-Koordinaten-
+    // system verankert — die Rauschverformung „haftet" am Material und wird
+    // niemals pro Frame neu gesampelt. Bewegung entsteht ausschliesslich durch
+    // den Optical-Flow-Warp unten.
 
     // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
     // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
