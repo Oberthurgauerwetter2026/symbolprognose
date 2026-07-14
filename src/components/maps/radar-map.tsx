@@ -1030,23 +1030,44 @@ function PrecipOverlay({
 
     const aSnow = a.snowValues;
     const bSnow = b.snowValues;
+
+    // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
+    // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
+    // gleichen Tick), fällt der Warp still auf reine Intensitäts-Interpolation
+    // zurück.
+    const flow = getFlowField(a, b, nLon, nLat);
+    const warpAdx = flow ? -s : 0;
+    const warpAdy = flow ? -s : 0;
+    const warpBdx = flow ? 1 - s : 0;
+    const warpBdy = flow ? 1 - s : 0;
+
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
         const cell = ly * lowW + lx;
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const va = sampleAt(aVals, fxRaw, fyRaw);
-        const vb = sampleAt(bVals, fxRaw, fyRaw);
-        let v = oneMinusS * va + s * vb;
-        if (contour && v > 0 && lookup.contourScale) v = v * lookup.contourScale[cell];
-        const minV = contour ? 0.05 : 0.1;
+
+        let ux = 0;
+        let uy = 0;
+        if (flow) {
+          ux = sampleBilinear(flow.u, fxRaw, fyRaw, nLon, nLat);
+          uy = sampleBilinear(flow.v, fxRaw, fyRaw, nLon, nLat);
+        }
+
+        // Bidirektionaler Warp: A entlang +u nach vorn geschoben, B entlang −u
+        // zurückgeschoben, so dass korrespondierende Echos sich zwischen A und
+        // B linear in ihrer Position bewegen.
+        const va = sampleAt(aVals, fxRaw + ux * warpAdx, fyRaw + uy * warpAdy);
+        const vb = sampleAt(bVals, fxRaw + ux * warpBdx, fyRaw + uy * warpBdy);
+        const v = oneMinusS * va + s * vb;
+        const minV = 0.1;
         if (v < minV) continue;
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, fxRaw, fyRaw) : 0;
-          const sb = bSnow ? sampleAt(bSnow, fxRaw, fyRaw) : 0;
+          const sa = aSnow ? sampleAt(aSnow, fxRaw + ux * warpAdx, fyRaw + uy * warpAdy) : 0;
+          const sb = bSnow ? sampleAt(bSnow, fxRaw + ux * warpBdx, fyRaw + uy * warpBdy) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
