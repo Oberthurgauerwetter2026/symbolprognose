@@ -1244,28 +1244,39 @@ function PrecipOverlay({
         const bSx = fxRaw + ux * warpBdx;
         const bSy = fyRaw + uy * warpBdy;
 
-        // Zusätzlicher Domain-Warp (fBm) — gleiche Verzerrung auf A und B,
-        // damit die Ränder organisch werden und beide Frames deckungsgleich
-        // deformiert bleiben (kein Geister-Doppelbild).
-        let dxN = 0;
-        let dyN = 0;
+        // Domain-Warp separat für A und B an der jeweils flow-verschobenen
+        // Material-Position auswerten — so „reist" die Rauschverformung mit
+        // dem Echo mit, statt am Bildschirm-Ort stehen zu bleiben.
+        let dxA = 0;
+        let dyA = 0;
+        let dxB = 0;
+        let dyB = 0;
         if (isForecastPair) {
-          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
-          dxN = w[0] - fxRaw;
-          dyN = w[1] - fyRaw;
+          const wA = warpSample(aSx, aSy, 0, 0.55);
+          dxA = wA[0] - aSx;
+          dyA = wA[1] - aSy;
+          const wB = warpSample(bSx, bSy, 0, 0.55);
+          dxB = wB[0] - bSx;
+          dyB = wB[1] - bSy;
         }
 
-        const va = sampleAt(aVals, aSx + dxN, aSy + dyN);
-        const vb = sampleAt(bVals, bSx + dxN, bSy + dyN);
+        const va = sampleAt(aVals, aSx + dxA, aSy + dyA);
+        const vb = sampleAt(bVals, bSx + dxB, bSy + dyB);
         let v = oneMinusS * va + s * vb;
         const minV = 0.1;
         if (v < minV) continue;
-        if (isForecastPair) v *= edgeJitter(fxRaw, fyRaw, zSlot);
+        if (isForecastPair) {
+          // Kantenrauhigkeit ebenfalls material-fest: an aSx/aSy bzw. bSx/bSy
+          // anankern und mit demselben s zwischen den Frames überblenden.
+          const jA = edgeJitter(aSx, aSy, 0);
+          const jB = edgeJitter(bSx, bSy, 0);
+          v *= oneMinusS * jA + s * jB;
+        }
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, aSx + dxN, aSy + dyN) : 0;
-          const sb = bSnow ? sampleAt(bSnow, bSx + dxN, bSy + dyN) : 0;
+          const sa = aSnow ? sampleAt(aSnow, aSx + dxA, aSy + dyA) : 0;
+          const sb = bSnow ? sampleAt(bSnow, bSx + dxB, bSy + dyB) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
