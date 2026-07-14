@@ -117,14 +117,59 @@ function colorForSmooth(mmh: number): [number, number, number, number] {
 
 
 // ---------------------------------------------------------------------------
-// Prognose-Bereinigung:
-//   * `denoiseGrid` entfernt isolierte Streu-Pixel im ICON-CH1-Grid.
-//   * `dropSmallClusters` verwirft zusammenhängende Cluster < minSize (4er-
-//     Nachbarschaft) — vermeidet einzelne Regenflecken, die auf der Karte
-//     als „Verunreinigungen" auftauchen.
-// Beide Filter cachen ihr Ergebnis pro Eingangsarray, damit derselbe Frame
-// nicht bei jedem Redraw neu bearbeitet wird.
+// Organische Radar-Echo-Optik für die Prognose:
+// Domain-Warp + feine Intensitäts-Modulation aus deterministischem Value-Noise
+// verwandeln die glatten, kapselförmigen Grid-Blobs in unregelmäßige, an den
+// Rändern ausgefranste Zellen, ohne die Position der Datenfelder zu verfälschen.
+// Zusätzlich entfernt eine morphologische Öffnung isolierte Streu-Pixel.
+// Alle Funktionen sind ausschliesslich für den Prognose-Renderpfad gedacht —
+// Messung bleibt unangetastet.
 // ---------------------------------------------------------------------------
+
+function _hash3i(x: number, y: number, z: number): number {
+  let h = ((x | 0) * 374761393) ^ ((y | 0) * 668265263) ^ ((z | 0) * 1442695040);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return ((h >>> 0) / 4294967295) * 2 - 1;
+}
+
+function _valueNoise2Int(x: number, y: number, z: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const n00 = _hash3i(xi, yi, z);
+  const n10 = _hash3i(xi + 1, yi, z);
+  const n01 = _hash3i(xi, yi + 1, z);
+  const n11 = _hash3i(xi + 1, yi + 1, z);
+  const nx0 = n00 * (1 - u) + n10 * u;
+  const nx1 = n01 * (1 - u) + n11 * u;
+  return nx0 * (1 - v) + nx1 * v;
+}
+
+function valueNoise2(x: number, y: number, z: number): number {
+  const zi = Math.floor(z);
+  const zf = z - zi;
+  const a = _valueNoise2Int(x, y, zi);
+  const b = _valueNoise2Int(x, y, zi + 1);
+  return a * (1 - zf) + b * zf;
+}
+
+function fbm2(x: number, y: number, z: number, octaves: number): number {
+  let sum = 0;
+  let amp = 1;
+  let freq = 1;
+  let norm = 0;
+  for (let i = 0; i < octaves; i++) {
+    sum += amp * valueNoise2(x * freq, y * freq, z);
+    norm += amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return sum / norm;
+}
 
 const _DENOISE_CACHE: WeakMap<object, number[]> = new WeakMap();
 function denoiseGrid(
@@ -132,7 +177,7 @@ function denoiseGrid(
   nLon: number,
   nLat: number,
   threshold = 0.1,
-  minNb = 3,
+  minNb = 2,
 ): number[] | undefined {
   if (!vals || vals.length !== nLon * nLat) return vals;
   const key = vals as unknown as object;
@@ -165,60 +210,31 @@ function denoiseGrid(
   return out;
 }
 
-const _CLUSTER_CACHE: WeakMap<object, number[]> = new WeakMap();
-function dropSmallClusters(
-  vals: number[] | undefined,
-  nLon: number,
-  nLat: number,
-  threshold = 0.1,
-  minSize = 4,
-): number[] | undefined {
-  if (!vals || vals.length !== nLon * nLat) return vals;
-  const key = vals as unknown as object;
-  const cached = _CLUSTER_CACHE.get(key);
-  if (cached) return cached;
-  const n = vals.length;
-  const label = new Int32Array(n).fill(-1);
-  const stack = new Int32Array(n);
-  const keep = new Uint8Array(n);
-  let curLabel = 0;
-  for (let start = 0; start < n; start++) {
-    if (vals[start] < threshold || label[start] !== -1) continue;
-    let sp = 0;
-    stack[sp++] = start;
-    label[start] = curLabel;
-    const members: number[] = [];
-    while (sp > 0) {
-      const idx = stack[--sp];
-      members.push(idx);
-      const x = idx % nLon;
-      const y = (idx - x) / nLon;
-      const neighbors = [
-        x > 0 ? idx - 1 : -1,
-        x < nLon - 1 ? idx + 1 : -1,
-        y > 0 ? idx - nLon : -1,
-        y < nLat - 1 ? idx + nLon : -1,
-      ];
-      for (const nb of neighbors) {
-        if (nb < 0) continue;
-        if (label[nb] !== -1) continue;
-        if (vals[nb] < threshold) continue;
-        label[nb] = curLabel;
-        stack[sp++] = nb;
-      }
-    }
-    if (members.length >= minSize) {
-      for (const m of members) keep[m] = 1;
-    }
-    curLabel++;
-  }
-  const out = new Array<number>(n);
-  for (let i = 0; i < n; i++) out[i] = keep[i] ? vals[i] : 0;
-  _CLUSTER_CACHE.set(key, out);
-  return out;
+/**
+ * Domain-Warp: verzerrt (fxRaw, fyRaw) mit einem niederfrequenten fBm-Feld,
+ * damit die Radar-Echos organisch ausgefranste Ränder bekommen. Amplitude
+ * in Grid-Zellen, Zeitachse `z` sorgt für langsame, atmende Deformation.
+ * Nur für Prognose-Frames aufrufen.
+ */
+function warpSample(
+  fx: number,
+  fy: number,
+  z: number,
+  ampCells = 0.55,
+): [number, number] {
+  const wx = fbm2(fx * 0.85, fy * 0.85, z, 2);
+  const wy = fbm2(fx * 0.85 + 31.7, fy * 0.85 + 17.3, z, 2);
+  return [fx + wx * ampCells, fy + wy * ampCells];
 }
 
-
+/**
+ * Feine Intensitäts-Modulation nahe der Isolinien — erzeugt zusätzliche
+ * Zipfel/Fransen an den Bandgrenzen von `colorFor`, ohne dichte Kerne
+ * sichtbar zu ändern.
+ */
+function edgeJitter(fx: number, fy: number, z: number): number {
+  return 1 + 0.12 * valueNoise2(fx * 2.1, fy * 2.1, z * 3 + 1);
+}
 
 
 
@@ -494,10 +510,129 @@ function StableImageOverlay({
   return null;
 }
 
-// (Optical-Flow / Horn–Schunck / bilineare Flow-Samples entfernt — Prognose
-//  wechselt hart wie die Messung, ohne Crossfade oder simulierte Bewegung.)
+// Optical-Flow (Horn–Schunck) zwischen zwei Prognose-Feldern auf dem nativen
+// ICON-Grid. Ergebnis: Verschiebungsfeld (u,v) in Gridindex-Einheiten pro
+// vollem Framepaar-Gap. Wird pro Framepaar einmal berechnet und in einer
+// modulweiten LRU-Map gecacht, damit das Morphing beim Play/Scrub nur
+// noch zweimal warpend samplet (bidirektionales Bild-Morphing).
+type FlowField = { u: Float32Array; v: Float32Array; w: number; h: number };
+const FLOW_CACHE = new Map<string, FlowField>();
+const FLOW_CACHE_MAX = 32;
 
+function computeHornSchunckFlow(
+  aVals: number[] | Float32Array,
+  bVals: number[] | Float32Array,
+  w: number,
+  h: number,
+  iters = 40,
+  alpha2 = 4,
+): FlowField {
+  // log(1+v) skaliert die Skala (0.1 … 80 mm/h) auf einen kompakten Bereich
+  // und stabilisiert die Gradienten für Horn–Schunck.
+  const n = w * h;
+  const I1 = new Float32Array(n);
+  const I2 = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    I1[i] = Math.log1p(Math.max(0, aVals[i] ?? 0));
+    I2[i] = Math.log1p(Math.max(0, bVals[i] ?? 0));
+  }
+  const Ix = new Float32Array(n);
+  const Iy = new Float32Array(n);
+  const It = new Float32Array(n);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const xL = x > 0 ? x - 1 : x;
+      const xR = x < w - 1 ? x + 1 : x;
+      const yU = y > 0 ? y - 1 : y;
+      const yD = y < h - 1 ? y + 1 : y;
+      Ix[i] = ((I1[y * w + xR] - I1[y * w + xL]) + (I2[y * w + xR] - I2[y * w + xL])) * 0.25;
+      Iy[i] = ((I1[yD * w + x] - I1[yU * w + x]) + (I2[yD * w + x] - I2[yU * w + x])) * 0.25;
+      It[i] = I2[i] - I1[i];
+    }
+  }
+  const u = new Float32Array(n);
+  const v = new Float32Array(n);
+  const uBar = new Float32Array(n);
+  const vBar = new Float32Array(n);
+  for (let k = 0; k < iters; k++) {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        const xL = x > 0 ? x - 1 : x;
+        const xR = x < w - 1 ? x + 1 : x;
+        const yU = y > 0 ? y - 1 : y;
+        const yD = y < h - 1 ? y + 1 : y;
+        uBar[i] = (u[y * w + xL] + u[y * w + xR] + u[yU * w + x] + u[yD * w + x]) * 0.25;
+        vBar[i] = (v[y * w + xL] + v[y * w + xR] + v[yU * w + x] + v[yD * w + x]) * 0.25;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const num = Ix[i] * uBar[i] + Iy[i] * vBar[i] + It[i];
+      const den = alpha2 + Ix[i] * Ix[i] + Iy[i] * Iy[i];
+      const f = num / den;
+      u[i] = uBar[i] - Ix[i] * f;
+      v[i] = vBar[i] - Iy[i] * f;
+    }
+  }
+  return { u, v, w, h };
+}
 
+function getFlowField(
+  a: RadarFrame,
+  b: RadarFrame,
+  w: number,
+  h: number,
+): FlowField | null {
+  if (!a.values || !b.values || a.values.length !== w * h || b.values.length !== w * h) {
+    return null;
+  }
+  const key = `${a.t}|${b.t}`;
+  const hit = FLOW_CACHE.get(key);
+  if (hit) {
+    FLOW_CACHE.delete(key);
+    FLOW_CACHE.set(key, hit);
+    return hit;
+  }
+  const flow = computeHornSchunckFlow(a.values, b.values, w, h);
+  FLOW_CACHE.set(key, flow);
+  while (FLOW_CACHE.size > FLOW_CACHE_MAX) {
+    const firstKey = FLOW_CACHE.keys().next().value;
+    if (firstKey === undefined) break;
+    FLOW_CACHE.delete(firstKey);
+  }
+  return flow;
+}
+
+function sampleBilinear(
+  arr: number[] | Float32Array,
+  fx: number,
+  fy: number,
+  w: number,
+  h: number,
+): number {
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const x1 = x0 + 1;
+  const y1 = y0 + 1;
+  const tx = fx - x0;
+  const ty = fy - y0;
+  const inX0 = x0 >= 0 && x0 < w;
+  const inX1 = x1 >= 0 && x1 < w;
+  const inY0 = y0 >= 0 && y0 < h;
+  const inY1 = y1 >= 0 && y1 < h;
+  if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+  const v00 = inX0 && inY0 ? arr[y0 * w + x0] : 0;
+  const v01 = inX1 && inY0 ? arr[y0 * w + x1] : 0;
+  const v10 = inX0 && inY1 ? arr[y1 * w + x0] : 0;
+  const v11 = inX1 && inY1 ? arr[y1 * w + x1] : 0;
+  return (
+    v00 * (1 - tx) * (1 - ty) +
+    v01 * tx * (1 - ty) +
+    v10 * (1 - tx) * ty +
+    v11 * tx * ty
+  );
+}
 
 
 function nearestFrameIndexForMs(frames: RadarFrame[], targetMs: number): number {
@@ -572,15 +707,18 @@ function timelineStateForMs(
 function PrecipOverlay({
   payload,
   frame,
+  nextFrame,
+  progress,
   opacity = 1,
   prewarmFrames,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
+  nextFrame?: RadarFrame | null;
+  progress?: number;
   opacity?: number;
   prewarmFrames?: RadarFrame[];
 }) {
-
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
@@ -700,25 +838,9 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    // Prognose: Streu-Pixel + Klein-Cluster („Verunreinigungen") entfernen,
-    // sodass nur zusammenhängende Regenfelder gerendert werden.
-    const vals = isForecastFrame
-      ? dropSmallClusters(
-          denoiseGrid(rawVals, nLon, nLat, 0.1, 3) ?? rawVals,
-          nLon,
-          nLat,
-          0.1,
-          4,
-        ) ?? rawVals
-      : rawVals;
-    // Schnee-Grid an derselben Maske ausrichten (Punkte ohne Regen ⇒ kein Schnee).
-    let snowVals = rawSnow;
-    if (isForecastFrame && rawSnow && vals && vals.length === rawSnow.length) {
-      const masked = new Array<number>(rawSnow.length);
-      for (let i = 0; i < rawSnow.length; i++) masked[i] = vals[i] > 0 ? rawSnow[i] : 0;
-      snowVals = masked;
-    }
-
+    const vals = rawVals;
+    const snowVals = rawSnow;
+    const zSlot = 0;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
@@ -825,17 +947,9 @@ function PrecipOverlay({
 
           const [r, g, b, a] = snowFrac > 0.3
             ? snowColorFor(v)
-            : isForecastFrame
-              ? colorForSmooth(v)
-              : colorFor(v);
+            : colorFor(v);
           if (a === 0) continue;
-          // Weiches Rand-Alpha für Prognose: unterhalb 0.3 mm/h linear
-          // gegen 0 ausblenden — vermeidet harte Iso-Konturen/Ringe.
-          let alphaF = a;
-          if (isForecastFrame && snowFrac <= 0.3 && v < 0.3) {
-            alphaF = a * Math.max(0, (v - 0.1) / 0.2);
-          }
-          const alpha = Math.round(alphaF * 255);
+          const alpha = Math.round(a * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
           data[idx] = r;
@@ -844,7 +958,6 @@ function PrecipOverlay({
           data[idx + 3] = alpha;
         }
       }
-
 
       off = document.createElement("canvas");
       off.width = lowW;
@@ -888,23 +1001,10 @@ function PrecipOverlay({
     const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
-    if (!rawVals || rawVals.length === 0) return null;
-    const vals = isForecastFrame
-      ? dropSmallClusters(
-          denoiseGrid(rawVals, nLon, nLat, 0.1, 3) ?? rawVals,
-          nLon,
-          nLat,
-          0.1,
-          4,
-        ) ?? rawVals
-      : rawVals;
-    let snowVals = rawSnow;
-    if (isForecastFrame && rawSnow && vals && vals.length === rawSnow.length) {
-      const masked = new Array<number>(rawSnow.length);
-      for (let i = 0; i < rawSnow.length; i++) masked[i] = vals[i] > 0 ? rawSnow[i] : 0;
-      snowVals = masked;
-    }
-
+    const vals = rawVals;
+    const snowVals = rawSnow;
+    const zSlot = 0;
+    if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
     const off = document.createElement("canvas");
@@ -955,22 +1055,15 @@ function PrecipOverlay({
         }
         const [r, g, b, a] = snowFrac > 0.3
           ? snowColorFor(v)
-          : isForecastFrame
-            ? colorForSmooth(v)
-            : colorFor(v);
+          : colorFor(v);
         if (a === 0) continue;
-        let alphaF = a;
-        if (isForecastFrame && snowFrac <= 0.3 && v < 0.3) {
-          alphaF = a * Math.max(0, (v - 0.1) / 0.2);
-        }
-        const alpha = Math.round(alphaF * 255);
+        const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
         const px = (ly * lowW + lx) * 4;
         data[px] = r;
         data[px + 1] = g;
         data[px + 2] = b;
         data[px + 3] = alpha;
-
       }
     }
     offCtx.putImageData(img, 0, 0);
@@ -983,9 +1076,156 @@ function PrecipOverlay({
     return off;
   };
 
-  // (Blend-/Crossfade-/Optical-Flow-Pfad entfernt.)
+  // Kontinuierlicher Zwischenframe zwischen zwei Datenframes a→b mit Progress
+  // p ∈ (0,1). Es werden ausschliesslich die beiden Nachbarframes an derselben
+  // Kartenposition gesampelt und deren Intensitäten interpoliert.
+  const buildBlendedOffscreenRef = useRef<
+    (a: RadarFrame, b: RadarFrame, p: number) => HTMLCanvasElement | null
+  >(() => null);
+  buildBlendedOffscreenRef.current = (
+    a: RadarFrame,
+    b: RadarFrame,
+    p: number,
+  ): HTMLCanvasElement | null => {
+    const lookup = lookupRef.current;
+    if (!lookup) return null;
+    const rawAVals = a.values;
+    const rawBVals = b.values;
+    if (!rawAVals || rawAVals.length === 0 || !rawBVals || rawBVals.length === 0) return null;
+    const nLatEarly = payload.gridLat.length;
+    const nLonEarly = payload.gridLon.length;
+    const isForecastPair = a.source !== "radar" || b.source !== "radar";
+    const aVals = isForecastPair
+      ? denoiseGrid(rawAVals, nLonEarly, nLatEarly) ?? rawAVals
+      : rawAVals;
+    const bVals = isForecastPair
+      ? denoiseGrid(rawBVals, nLonEarly, nLatEarly) ?? rawBVals
+      : rawBVals;
+    const { gridLat, gridLon } = payload;
+    const nLat = gridLat.length;
+    const nLon = gridLon.length;
 
+    const s = Math.max(0, Math.min(1, p));
+    const oneMinusS = 1 - s;
 
+    const lowW = lookup.lowW;
+    const lowH = lookup.lowH;
+    let mc = blendCanvasRef.current;
+    if (!mc || mc.width !== lowW || mc.height !== lowH) {
+      mc = document.createElement("canvas");
+      mc.width = lowW;
+      mc.height = lowH;
+      blendCanvasRef.current = mc;
+    }
+    const offCtx = mc.getContext("2d");
+    if (!offCtx) return null;
+    const img = offCtx.createImageData(lowW, lowH);
+    const data = img.data;
+
+    const sampleAt = (arr: number[], fx: number, fy: number) => {
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = x0 + 1;
+      const y1 = y0 + 1;
+      const txL = fx - x0;
+      const tyL = fy - y0;
+      const inX0 = x0 >= 0 && x0 < nLon;
+      const inX1 = x1 >= 0 && x1 < nLon;
+      const inY0 = y0 >= 0 && y0 < nLat;
+      const inY1 = y1 >= 0 && y1 < nLat;
+      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
+      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
+      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
+      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
+      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      return (
+        v00 * (1 - txL) * (1 - tyL) +
+        v01 * txL * (1 - tyL) +
+        v10 * (1 - txL) * tyL +
+        v11 * txL * tyL
+      );
+    };
+
+    const rawASnow = a.snowValues;
+    const rawBSnow = b.snowValues;
+    const aSnow = isForecastPair
+      ? denoiseGrid(rawASnow, nLon, nLat) ?? rawASnow
+      : rawASnow;
+    const bSnow = isForecastPair
+      ? denoiseGrid(rawBSnow, nLon, nLat) ?? rawBSnow
+      : rawBSnow;
+
+    // Zeit-Slot für den Domain-Warp: zwischen A und B linear interpoliert,
+    // damit die organische Deformation über den Framewechsel driftet, statt
+    // zu springen.
+    const zA = Date.parse(a.t) / 900000;
+    const zB = Date.parse(b.t) / 900000;
+    const zSlot = zA + (zB - zA) * s;
+
+    // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
+    // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
+    // gleichen Tick), fällt der Warp still auf reine Intensitäts-Interpolation
+    // zurück.
+    const flow = getFlowField(a, b, nLon, nLat);
+    const warpAdx = flow ? -s : 0;
+    const warpAdy = flow ? -s : 0;
+    const warpBdx = flow ? 1 - s : 0;
+    const warpBdy = flow ? 1 - s : 0;
+
+    for (let ly = 0; ly < lowH; ly++) {
+      for (let lx = 0; lx < lowW; lx++) {
+        const cell = ly * lowW + lx;
+        if (!lookup.valid[cell]) continue;
+        const fxRaw = lookup.fx[cell];
+        const fyRaw = lookup.fy[cell];
+
+        let ux = 0;
+        let uy = 0;
+        if (flow) {
+          ux = sampleBilinear(flow.u, fxRaw, fyRaw, nLon, nLat);
+          uy = sampleBilinear(flow.v, fxRaw, fyRaw, nLon, nLat);
+        }
+
+        // Bidirektionaler Warp: A entlang +u nach vorn geschoben, B entlang −u
+        // zurückgeschoben, so dass korrespondierende Echos sich zwischen A und
+        // B linear in ihrer Position bewegen.
+        const aSx = fxRaw + ux * warpAdx;
+        const aSy = fyRaw + uy * warpAdy;
+        const bSx = fxRaw + ux * warpBdx;
+        const bSy = fyRaw + uy * warpBdy;
+
+        const va = sampleAt(aVals, aSx, aSy);
+        const vb = sampleAt(bVals, bSx, bSy);
+        let v = oneMinusS * va + s * vb;
+        const minV = 0.1;
+        if (v < minV) continue;
+
+        let snowFrac = 0;
+        if (aSnow || bSnow) {
+          const sa = aSnow ? sampleAt(aSnow, aSx, aSy) : 0;
+          const sb = bSnow ? sampleAt(bSnow, bSx, bSy) : 0;
+          const sv = oneMinusS * sa + s * sb;
+          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+        }
+
+        const [rC, gC, bC, aC] = snowFrac > 0.3
+          ? snowColorFor(v)
+          : isForecastPair
+            ? colorForSmooth(v)
+            : colorFor(v);
+        if (aC === 0) continue;
+        const alpha = Math.round(aC * 255);
+        if (alpha === 0) continue;
+        const pix = cell * 4;
+        data[pix] = rC;
+        data[pix + 1] = gC;
+        data[pix + 2] = bC;
+        data[pix + 3] = alpha;
+      }
+    }
+    offCtx.putImageData(img, 0, 0);
+    return mc;
+  };
 
   // Frame-/Payload-Wechsel neu zeichnen.
   useEffect(() => {
@@ -1068,8 +1308,12 @@ function PrecipOverlay({
 
 
 
-
-
+  // Timeline-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
+  useEffect(() => {
+    nextFrameRef.current = nextFrame ?? null;
+    progressRef.current = typeof progress === "number" ? progress : 0;
+    redraw();
+  }, [nextFrame, progress]);
 
   // Canvas-Opacity nachziehen.
   useEffect(() => {
@@ -2105,6 +2349,8 @@ export function RadarMap({
                     <PrecipOverlay
                       payload={data}
                       frame={gridFrame}
+                      nextFrame={showGrid ? overlayNext : null}
+                      progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
                       prewarmFrames={frames}
                     />
