@@ -466,7 +466,6 @@ function PrecipOverlay({
   nextFrame,
   progress,
   opacity = 1,
-  contour = false,
   prewarmFrames,
 }: {
   payload: RadarPayload;
@@ -474,7 +473,6 @@ function PrecipOverlay({
   nextFrame?: RadarFrame | null;
   progress?: number;
   opacity?: number;
-  contour?: boolean;
   prewarmFrames?: RadarFrame[];
 }) {
   const map = useMap();
