@@ -952,7 +952,7 @@ function PrecipOverlay({
           const minV = 0.1;
           if (v < minV) continue;
 
-          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
+          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, 0);
 
           let snowFrac = 0;
           if (snowVals) {
