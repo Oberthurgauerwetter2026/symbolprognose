@@ -935,23 +935,13 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          // Prognose: Domain-Warp verzerrt die Sample-Koordinaten mit einem
-          // niederfrequenten fBm-Feld, damit die Radar-Echos organisch
-          // ausgefranste Ränder bekommen. Messung (`radar`) bleibt exakt.
-          let sx = fxRaw;
-          let sy = fyRaw;
-          if (isForecastFrame) {
-            const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
-            sx = w[0];
-            sy = w[1];
-          }
+          const sx = fxRaw;
+          const sy = fyRaw;
 
           let v = sampleAt(vals, sx, sy);
 
           const minV = 0.1;
           if (v < minV) continue;
-
-          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
           let snowFrac = 0;
           if (snowVals) {
@@ -961,7 +951,9 @@ function PrecipOverlay({
 
           const [r, g, b, a] = snowFrac > 0.3
             ? snowColorFor(v)
-            : colorFor(v);
+            : isForecastFrame
+              ? colorForSmooth(v)
+              : colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
           if (alpha === 0) continue;
@@ -1005,7 +997,7 @@ function PrecipOverlay({
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "medium";
+    ctx.imageSmoothingQuality = "high";
     if (blended) {
       // Kontinuierlicher Zwischenzustand exakt zwischen den beiden
       // Nachbarframes: gleiche Position/Geometrie, linear interpolierte
@@ -1090,23 +1082,21 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        let sx = fxRaw;
-        let sy = fyRaw;
-        if (isForecastFrame) {
-          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
-          sx = w[0];
-          sy = w[1];
-        }
+        const sx = fxRaw;
+        const sy = fyRaw;
         let v = sampleAt(vals, sx, sy);
         const minV = 0.1;
         if (v < minV) continue;
-        if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
         let snowFrac = 0;
         if (snowVals) {
           const sv = sampleAt(snowVals, sx, sy);
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
-        const [r, g, b, a] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
+        const [r, g, b, a] = snowFrac > 0.3
+          ? snowColorFor(v)
+          : isForecastFrame
+            ? colorForSmooth(v)
+            : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -1245,33 +1235,25 @@ function PrecipOverlay({
         const bSx = fxRaw + ux * warpBdx;
         const bSy = fyRaw + uy * warpBdy;
 
-        // Zusätzlicher Domain-Warp (fBm) — gleiche Verzerrung auf A und B,
-        // damit die Ränder organisch werden und beide Frames deckungsgleich
-        // deformiert bleiben (kein Geister-Doppelbild).
-        let dxN = 0;
-        let dyN = 0;
-        if (isForecastPair) {
-          const w = warpSample(fxRaw, fyRaw, zSlot, 0.55);
-          dxN = w[0] - fxRaw;
-          dyN = w[1] - fyRaw;
-        }
-
-        const va = sampleAt(aVals, aSx + dxN, aSy + dyN);
-        const vb = sampleAt(bVals, bSx + dxN, bSy + dyN);
+        const va = sampleAt(aVals, aSx, aSy);
+        const vb = sampleAt(bVals, bSx, bSy);
         let v = oneMinusS * va + s * vb;
         const minV = 0.1;
         if (v < minV) continue;
-        if (isForecastPair) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
         let snowFrac = 0;
         if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, aSx + dxN, aSy + dyN) : 0;
-          const sb = bSnow ? sampleAt(bSnow, bSx + dxN, bSy + dyN) : 0;
+          const sa = aSnow ? sampleAt(aSnow, aSx, aSy) : 0;
+          const sb = bSnow ? sampleAt(bSnow, bSx, bSy) : 0;
           const sv = oneMinusS * sa + s * sb;
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
 
-        const [rC, gC, bC, aC] = snowFrac > 0.3 ? snowColorFor(v) : colorFor(v);
+        const [rC, gC, bC, aC] = snowFrac > 0.3
+          ? snowColorFor(v)
+          : isForecastPair
+            ? colorForSmooth(v)
+            : colorFor(v);
         if (aC === 0) continue;
         const alpha = Math.round(aC * 255);
         if (alpha === 0) continue;
