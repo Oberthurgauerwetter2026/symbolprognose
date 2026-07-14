@@ -888,10 +888,23 @@ function PrecipOverlay({
     const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
-    if (!vals || vals.length === 0) return null;
+    if (!rawVals || rawVals.length === 0) return null;
+    const vals = isForecastFrame
+      ? dropSmallClusters(
+          denoiseGrid(rawVals, nLon, nLat, 0.1, 3) ?? rawVals,
+          nLon,
+          nLat,
+          0.1,
+          4,
+        ) ?? rawVals
+      : rawVals;
+    let snowVals = rawSnow;
+    if (isForecastFrame && rawSnow && vals && vals.length === rawSnow.length) {
+      const masked = new Array<number>(rawSnow.length);
+      for (let i = 0; i < rawSnow.length; i++) masked[i] = vals[i] > 0 ? rawSnow[i] : 0;
+      snowVals = masked;
+    }
+
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
     const off = document.createElement("canvas");
