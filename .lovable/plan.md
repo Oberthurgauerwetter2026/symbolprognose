@@ -1,35 +1,51 @@
 ## Ziel
 
-Prognose-Frames werden **exakt gleich** gerendert wie die Messung: dieselben harten Farbbänder, dieselbe Pixel-Struktur, keine Überblendung zwischen Frames, keine prozeduralen Effekte. Ein Prognose-Frame sieht aus wie ein Messrahmen — beim Weiterschalten wechselt das Bild direkt, so wie Messframes heute auch direkt wechseln.
+Prognose-Rendering in `src/components/maps/radar-map.tsx` so anpassen, dass:
+- die isolierten Streu-Pixel („Verunreinigungen") verschwinden,
+- keine erkennbaren geometrischen Formen (Kapseln/Würste/Quadrate) mehr sichtbar sind,
+- keine Crossfades / Optical-Flow-Blends mehr aktiv sind (harter Frame-Wechsel wie Messung),
+- die Zellen weich, wolkenartig, ohne Ringmuster gerendert werden.
 
-## Änderungen (nur `src/components/maps/radar-map.tsx`, nur Prognose-Pfad)
+Nur Frontend, nur `radar-map.tsx`. Backend, Skala, Legende, Timeline, Ingest bleiben unberührt.
 
-### 1. Crossfade / Optical-Flow-Blend entfernen
-- Der Blend-Loop, der zwei Prognose-Frames per Horn–Schunck-Flow (`u,v`) und `prog`-Gewichtung mischt, wird für die Prognose deaktiviert. `blendActive` ist für Prognose-Frames immer `false`; es wird immer der aktuelle Einzelframe gezeichnet.
-- `buildBlendedOffscreenRef` / `FLOW_CACHE` / `blendCanvasRef` bleiben als Code erhalten, werden aber nicht mehr aufgerufen (späterer Cleanup möglich). Kein Verhalten hängt sonst dran.
-- Sub-Frame-Fortschritt (`prog`) hat für Prognose keine visuelle Wirkung mehr — der Frame wird beim Übergang zum nächsten Zeitschritt hart gewechselt, identisch zum Messverhalten.
+## Ursachenanalyse
 
-### 2. Prognose zeichnet wie Messung
-- Prognose-Rendering nutzt denselben Pfad wie `MeasurementCanvasOverlay`: `colorFor(v)` (harte Bänder), keine `colorForSmooth`-Interpolation.
-- `denoiseGrid` wird für Prognose entfernt — die Messung zeigt Rohpixel inkl. Streu-Zellen, die Prognose soll dieselbe Struktur haben.
-- `imageSmoothingEnabled = true` / `Quality = "high"` beim `drawImage` bleibt (wie in der Messung).
-- Keine `warpSample`- / `edgeJitter`-Aufrufe (bereits entfernt) — bleiben entfernt.
+- **„Kapseln / Würste"** entstehen weil `colorFor(v)` harte Farbbänder quantisiert. Bilineare Interpolation auf dem groben ~7 km ICON-CH1-Grid erzeugt glatte Gradienten, die durch die harten Bänder als konzentrische Ovale sichtbar werden. Das ist der Effekt, den der Nutzer als „geometrische Formen" wahrnimmt.
+- **„Verunreinigungen"** = einzelne aktive Grid-Punkte ohne Nachbarn, die nach dem Upsampling als isolierte Flecken auftauchen. Aktuell wird `denoiseGrid` in den Prognose-Renderpfaden gar nicht mehr aufgerufen (`vals = rawVals`).
+- **Crossfade** ist zwar visuell aus (`buildBlendedOffscreenRef` wird nicht mehr aufgerufen), der tote Code steht aber noch drin und stiftet Verwirrung.
 
-### 3. Unverändert
-- `MeasurementCanvasOverlay` und der MCH-PNG-Pfad — bit-genau.
-- Farbskala `SCALE`, Legende, Schnee-Farben, Hagel-Overlay.
-- Timeline, Filmstrip, Play/Scrub, Frame-Auswahl, Prewarm-Cache-Keys.
-- `radar.functions.ts`, `RadarPayload`, Backend, Ingest.
+## Änderungen (nur `src/components/maps/radar-map.tsx`)
+
+1. **Prognose-Farbgebung weich statt hart quantisiert.**
+   In beiden Prognose-Renderpfaden (`redrawRef.current` ab Zeile 820 und `buildOffscreenRef.current` ab Zeile 992) für `frame.source !== "radar"`:
+   - Statt `colorFor(v)` → `colorForSmooth(v)` verwenden.
+   - Nur Regen — Schnee und Messung bleiben unverändert (`colorFor` / `snowColorFor`).
+   - Zusätzlich weiche Rand-Alpha: unterhalb ~0.3 mm/h Alpha linear gegen 0 ausblenden (fransiger, wolkenartiger Rand ohne Iso-Konturen).
+
+2. **Denoise für Prognose wieder aktivieren, in stärkerer Form.**
+   Vor dem Render-Loop, wenn `isForecastFrame`:
+   - `vals = denoiseGrid(rawVals, nLon, nLat, 0.1, 3)` (min. 3 Nachbarn > 0.1 mm/h) → entfernt isolierte 1-Pixel-Echos.
+   - Zusätzliche Connected-Component-Filterung: Zellen, deren zusammenhängender Cluster < 4 Grid-Punkte hat, werden auf 0 gesetzt. Kleine Helferfunktion `dropSmallClusters(vals, nLon, nLat, 0.1, 4)` neu in Datei einfügen (BFS auf 4er-Nachbarschaft, cached per `WeakMap` wie `_DENOISE_CACHE`).
+   - Snow-Grid wird über dieselbe Maske reduziert (auf 0 gesetzt, wenn zugehöriger Regen 0 wurde), damit keine Schnee-Streupixel übrig bleiben.
+
+3. **Crossfade-/Optical-Flow-Code entfernen.**
+   - `buildBlendedOffscreenRef`, `blendCanvasRef`, `getFlowField`, `FLOW_CACHE`, `sampleBilinear` und die Prop `nextFrame` / `progress` aus `PrecipOverlay` + Aufrufer entfernen.
+   - `nextFrameRef` / `progressRef` löschen.
+   - `colorForSmooth` bleibt (wird jetzt in Punkt 1 verwendet).
+   - Kommentar bei Zeile 977 durch Sauber-Zustand ersetzen.
+
+4. **Domain-Warp-/Noise-Helfer entfernen** (`fbm2`, `valueNoise2`, `_valueNoise2Int`, `_hash3i`, `warpSample`, `edgeJitter`), da nirgends mehr referenziert. Reduziert Verwechslungsgefahr und Dead Code.
+
+5. **Aufrufer in der Datei** (`<PrecipOverlay …>`, ~Zeile 2355) auf neue Prop-Signatur ohne `nextFrame`/`progress` anpassen. `prewarmFrames` bleibt.
 
 ## Erwartetes Ergebnis
 
-- Prognose-Zellen haben **exakt** dieselbe organische, gepixelte Form wie Messzellen — keine geometrischen Kapseln, keine glatten Farbverläufe, keine ausgefransten Ränder aus Noise.
-- Beim Abspielen wechselt das Prognosebild frameweise (wie die Messung), ohne Überblendung, ohne künstliche Bewegung zwischen Zeitschritten.
-- Formen und Positionen entsprechen 1:1 den Prognosedaten pro Zeitschritt.
+- Prognose-Zellen: weiche, wolkenartige Verläufe ohne konzentrische Ringe / Kapselformen.
+- Keine einzelnen Streu-Pixel mehr (Cluster < 4 werden entfernt).
+- Frame-Wechsel hart wie in der Messung, ohne Crossfade oder simulierte Bewegung.
+- Messung-Renderpfad und -PNG bleiben bit-identisch.
 
-## Technische Details
+## Nicht-Ziele
 
-- `blendActive` (Zeile ~985) wird auf `frame.source === "radar" && ...` eingeschränkt bzw. für Forecast auf `false` gesetzt; damit greift der Einzel-Frame-Zweig (`ctx.drawImage(offscreen, ...)`).
-- In allen drei Render-Loops (inline single-frame Zeile ~955, prewarm-cache Zeile ~1098, blend-loop Zeile ~1255) wird `isForecastFrame ? colorForSmooth(v) : colorFor(v)` durch `colorFor(v)` ersetzt.
-- `denoiseGrid`-Aufrufe für Prognose (Zeilen ~842, ~1040, ~1140, ~1193) werden durch die Rohwerte ersetzt: `const values = rawVals; const snow = rawSnow;`.
-- Blend-Loop-Code bleibt physisch im File, wird aber durch die `blendActive`-Bedingung nicht mehr betreten.
+- Keine Änderung an Backend, `radar.functions.ts`, R2-Ingest, Farbskala, Legende, Timeline, Snow/Hail-Overlays, Measurement-Overlay.
+- Keine künstliche Bewegung / Nowcast-Advektion.
