@@ -1,31 +1,39 @@
-## Diagnose
+## Ziel
 
-- Die Radar-Messung ist frisch und sichtbar: `radar/frames.json` ist aktuell und enthält Mess-Frames.
-- Die Prognose fehlt weiterhin, weil `radar/forecast-frames.json` im Cache **404** liefert.
-- Der Open-Meteo-Cache ist noch alt (`version: oberthurgau-openmeteo-cache-v4...`, `generatedAt: 14:29Z`) und wurde seit der neuen PNG-Prognose-Logik nicht erfolgreich neu geschrieben.
-- Die Open-Meteo-Trigger kommen aktuell als **429/throttled** zurück; dadurch startet bzw. vollendet der Ingest nicht zuverlässig genug, um das Forecast-Manifest zu erzeugen.
+Herausfinden, warum `radar/forecast-frames.json` in R2 nicht erzeugt wird, und gezielt fixen.
 
-## Plan
+## Voraussetzung
 
-### 1. Open-Meteo-Dispatch reparieren
-- Die Throttle-Logik so ändern, dass fehlgeschlagene oder alte Runs den Forecast nicht dauerhaft blockieren.
-- `429`-Antworten mit aussagekräftigem Grund im Endpoint zurückgeben (`active-run`, `recent-run`, `interval`) und im Cron-Worker-Status sichtbar machen.
-- Recent-run-Guard nur für erfolgreiche/aktive Runs anwenden, nicht für fehlgeschlagene Runs, die bereits keinen Forecast erzeugt haben.
+Der GitHub-Connector ist im Workspace aktuell **nicht verbunden** — ich kann die Actions-Logs nicht direkt lesen. Zwei Wege:
 
-### 2. Forecast-Erzeugung robuster machen
-- `scripts/ingest_openmeteo.py` so anpassen, dass `radar/forecast-frames.json` immer geschrieben wird, auch wenn einzelne PNG-Batches teilweise ausfallen.
-- Falls die dichte ICON-CH1-Abfrage scheitert, aus dem vorhandenen Sparse-Cache ein temporäres Forecast-Manifest erzeugen, damit wenigstens eine sichtbare Prognose vorhanden ist statt gar keiner.
-- Den Referenz-Zeitpunkt nicht nur aus `phase1_dense[0]` lesen, weil ein Platzhalter im ersten Batch aktuell dazu führen kann, dass komplett keine PNGs erzeugt werden.
+- **A (empfohlen)**: GitHub-Connector über die Lovable-Connector-Einstellungen verbinden. Dann kann ich `owner/repo` per REST-API abfragen (`actions/workflows/openmeteo-ingest.yml/runs`, `jobs`, `logs`) und den echten Fehler des letzten Runs sehen.
+- **B**: Du gibst mir den Fehler-Text des letzten fehlgeschlagenen `openmeteo-ingest`-Runs (die letzten ~50 Zeilen des Job-Logs, insbesondere um `phase1_dense` / `rasterize_forecast_pngs` / `write_forecast_manifest`).
 
-### 3. Debug-Endpoint auf Preview/Live angleichen
-- Sicherstellen, dass `/api/public/debug/r2-cache` immer ein `forecast`-Feld ausgibt.
-- Zusätzlich anzeigen: `forecast.error`, `frameCount`, `latestT`, Open-Meteo-Version und Alter des Forecast-Caches.
+## Vorgehen nach Log-Zugriff
 
-### 4. Client-Fallback verbessern
-- Wenn kein Forecast-Manifest existiert, nicht nur einen Hinweis zeigen, sondern optional die vorhandenen Modellwerte aus `openmeteo/forecast.json` als Canvas-Prognose verwenden.
-- Sobald PNG-Prognosen verfügbar sind, automatisch wieder auf die hochauflösenden Forecast-PNGs wechseln.
+1. **Letzten Run inspizieren**
+   - Status (`success` / `failure`), Dauer, Exit-Code
+   - Rate-Limit-Meldungen (`429`, `Minutely API request limit exceeded`)
+   - Ob `phase1_dense` ausgefallen ist und ob der Sparse-Fallback in `rasterize_forecast_pngs` gegriffen hat
+   - Ob `write_forecast_manifest` überhaupt aufgerufen wurde und wie viele Frames geschrieben wurden
 
-### 5. Verifikation
-- Debug-Endpoint prüfen: `forecast.frameCount > 0` und `latestT > now`.
-- Radar-Serverfunktion prüfen: Frames mit `t > now` müssen zurückkommen.
-- `/karten/radar` visuell prüfen: Timeline muss Messung + Prognose enthalten.
+2. **Diagnose je nach Befund**
+   - **Dense-Grid scheitert komplett** → `SKIP_PHASE1_DENSE=1` als Workflow-Env, oder `GRID_LAT_DENSE=40 / GRID_LON_DENSE=48` (~3.6 km). Der Sparse-Fallback in `rasterize_forecast_pngs` schreibt dann PNGs aus dem 22×36-Grid.
+   - **Rasterizer wirft Exception** → gezielter Fix in `scripts/ingest_openmeteo.py`, z.B. NaN-Handling oder fehlende Achsen bei Sparse-Input.
+   - **Manifest-Upload scheitert** → R2-Credentials/Key prüfen.
+   - **Alte Cache-Version verhindert Ingest** (siehe `oberthurgau-openmeteo-cache-v4-ch1-wind` von 14:29Z) → Version bumpen, damit Retry erzwungen wird.
+
+3. **Deployment-Check**
+   - Prüfen, ob `src/routes/api/public/debug/r2-cache.ts` mit dem `forecast`-Feld überhaupt schon deployt ist (aktuell fehlt es in der Response — entweder Build noch nicht durch oder Endpoint gecacht).
+
+4. **Manueller Retrigger**
+   - Über GitHub-API `workflow_dispatch` auf `openmeteo-ingest.yml` auslösen und den Run beobachten.
+
+5. **Verifikation**
+   - `radar/forecast-frames.json` in R2 vorhanden, `frameCount > 0`
+   - `/api/public/debug/r2-cache` zeigt `forecast.futureFrameCount > 0`
+   - Karte `/karten/radar` zeigt Timeline über `now` hinaus mit Prognose-Frames
+
+## Nächster Schritt
+
+Bitte GitHub-Connector verbinden **oder** die Log-Ausgabe des letzten `openmeteo-ingest`-Runs hier einfügen. Danach setze ich Schritt 1–5 um.
