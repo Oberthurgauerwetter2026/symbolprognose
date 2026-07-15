@@ -419,7 +419,11 @@ def main() -> None:
     mode = "ONLY_PHASEA" if only_phaseA else ("SKIP_PHASEA" if skip_phaseA else "FULL")
     print(f"OPENMETEO INGEST START version={VERSION} mode={mode}")
     pts = build_grid()
-    print(f"grid points: {len(pts)}")
+    dense_lats, dense_lons, dense_pts = build_grid_dense()
+    print(
+        f"grid points: sparse={len(pts)} dense={len(dense_pts)} "
+        f"({len(dense_lats)}×{len(dense_lons)} ≈ native ICON-CH1)"
+    )
 
     # phase1: ICON-CH1 — minutely_15 für Radar/Nowcast (15-min-Schiene gibt es
     # nur bei CH1), zusätzlich hourly Wind-Felder für die nahtlose
@@ -504,15 +508,20 @@ def main() -> None:
     # weiterverwendet, damit forecast.json immer ein vollständiges Set behält.
     prev = read_existing_payload(s3, bucket, key) or {}
 
-    # ---- phase1 (Radar/Nowcast) ----
+    # ---- phase1 (Radar/Nowcast) auf dichtem Native-Grid für PNG-Rasterung ----
+    r2_public_url = os.environ.get("R2_PUBLIC_URL") or ""
     if only_phaseA:
         phase1 = prev.get("phase1") or prev.get("phaseB") or []
+        phase1_dense = None
         print(f"phase1 übernommen aus Cache: {len(phase1)} locations")
     else:
-        print(f"fetch phase1 (ICON-CH1 minutely_15) in chunks of {chunk_p1} …")
-        phase1 = chunk_fetch("phase1", p1, pts, chunk_p1, optional=True)
-        if phase1 is None:
-            print("phase1 failed — versuche Fallback auf bestehenden R2-Cache …")
+        print(
+            f"fetch phase1 dense (ICON-CH1 minutely_15, {len(dense_pts)} pts) "
+            f"in chunks of {chunk_p1} …"
+        )
+        phase1_dense = chunk_fetch("phase1", p1, dense_pts, chunk_p1, optional=True)
+        if phase1_dense is None:
+            print("phase1 dense failed — versuche Fallback auf bestehenden R2-Cache …")
             prev_phase1 = prev.get("phase1") or prev.get("phaseB")
             if isinstance(prev_phase1, list) and prev_phase1:
                 phase1 = prev_phase1
@@ -520,7 +529,25 @@ def main() -> None:
             else:
                 sys.exit("phase1 failed and no cached fallback available")
         else:
-            print(f"  -> {len(phase1)} locations")
+            print(f"  -> {len(phase1_dense)} dense locations")
+            # Für R2-JSON auf Sparse-Grid herunterrechnen (kompaktes Payload,
+            # gleiche Struktur wie bisher).
+            phase1 = downsample_phase1(dense_lats, dense_lons, phase1_dense, pts)
+            print(f"  -> downsampled to sparse: {len(phase1)} locations")
+
+    # ---- Prognose-PNGs rasterisieren + Manifest schreiben ----
+    if phase1_dense and r2_public_url:
+        try:
+            forecast_frames = rasterize_forecast_pngs(
+                s3, bucket, r2_public_url, dense_lats, dense_lons, phase1_dense
+            )
+            write_forecast_manifest(s3, bucket, forecast_frames)
+        except Exception as exc:
+            print(f"WARN: forecast PNG rasterization failed: {exc!r}")
+    elif phase1_dense and not r2_public_url:
+        print("WARN: R2_PUBLIC_URL not set — skipping forecast PNG rasterization")
+
+
 
     # ---- phase2 (ICON-CH2 hourly — nahtlose CH1-Verlängerung) ----
     if only_phaseA:
