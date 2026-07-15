@@ -707,18 +707,15 @@ function timelineStateForMs(
 function PrecipOverlay({
   payload,
   frame,
-  nextFrame,
-  progress,
   opacity = 1,
   prewarmFrames,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
   opacity?: number;
   prewarmFrames?: RadarFrame[];
 }) {
+
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
