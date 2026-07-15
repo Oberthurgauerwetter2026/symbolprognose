@@ -165,11 +165,22 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
 
 
 
-def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optional: bool = False) -> list | None:
+def chunk_fetch(
+    label: str,
+    base_params: dict,
+    pts: list,
+    chunk_size: int,
+    optional: bool = False,
+    max_fail_pct: float = 0.0,
+) -> list | None:
     """Open-Meteo Bulk-Requests in Batches, parallelisiert mit kleinem ThreadPool.
 
     Reihenfolge der Ergebnisse entspricht strikt der Eingabe-Punktliste,
     damit phaseX[i] weiter zu pts[i] passt.
+
+    `max_fail_pct` (nur mit `optional=True`): erlaubte Ausfallquote einzelner
+    Batches. Fehlende Batches werden mit `{}`-Platzhaltern gefüllt, damit die
+    Punkt-Reihenfolge intakt bleibt (der Konsument prüft `minutely_15`).
     """
     total = len(pts)
     n_batches = (total + chunk_size - 1) // chunk_size
@@ -187,24 +198,40 @@ def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optio
         params["longitude"] = ",".join(f"{p[1]:.4f}" for p in batch)
         sub_label = f"{label} batch {bi + 1}/{n_batches} ({len(batch)} pts)"
         res = fetch(sub_label, params, optional=optional)
-        return bi, sub_label, res
+        return bi, sub_label, res, len(batch)
 
     try:
         batch_sleep = float(os.environ.get("BATCH_SLEEP_S", "0"))
     except ValueError:
         batch_sleep = 0.0
 
+    failed = 0
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = [ex.submit(run, bi) for bi in range(n_batches)]
         for idx, fut in enumerate(futures):
-            bi, sub_label, res = fut.result()
+            bi, sub_label, res, batch_len = fut.result()
             if res is None:
-                print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
-                return None
-            results[bi] = res
-            print(f"  {sub_label} ok")
+                failed += 1
+                if not optional or max_fail_pct <= 0:
+                    print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
+                    return None
+                # Platzhalter, damit Reihenfolge/Anzahl stimmt
+                results[bi] = [{} for _ in range(batch_len)]
+                print(f"WARN: {sub_label} FAILED — placeholder inserted")
+            else:
+                results[bi] = res
+                print(f"  {sub_label} ok")
             if batch_sleep > 0 and idx < len(futures) - 1:
                 time.sleep(batch_sleep)
+
+    if failed > 0:
+        fail_pct = 100.0 * failed / max(1, n_batches)
+        print(f"[{label}] {failed}/{n_batches} batches failed ({fail_pct:.1f}%)")
+        if fail_pct > max_fail_pct:
+            print(
+                f"[{label}] failure rate {fail_pct:.1f}% > allowed {max_fail_pct:.1f}% — abort",
+            )
+            return None
 
     out: list = []
     for r in results:
@@ -212,6 +239,7 @@ def chunk_fetch(label: str, base_params: dict, pts: list, chunk_size: int, optio
             return None
         out.extend(r)
     return out
+
 
 
 
