@@ -1,54 +1,32 @@
 ## Diagnose
 
-Der Log zeigt eindeutig: das 120×140 Dense-Grid (16 800 Punkte / 84 Batches à 200) sprengt das Open-Meteo Minutenlimit massiv. Bereits ab Batch 3 kommen `429 Minutely API request limit exceeded` + `Read timed out`. Die Retries mit Backoff (bis 142 s) stapeln sich, der Run läuft ins 60-min-Timeout des Workflows, und `write_forecast_manifest` wird nie erreicht → `radar/forecast-frames.json` bleibt 404.
+Open-Meteo zählt jeden Location-Punkt als 1 API-Call. Bei `CHUNK_PHASE1=150` und `FETCH_WORKERS=1` verbraucht der Ingest **150 Calls/Batch**. Nach 4 Batches (~600 Calls) in <1 min triggert das Minuten-Limit (`HTTP 429 Minutely API request limit exceeded`). Log zeigt exakt dieses Muster: Batch 1–4 ok, Batch 5 → 429, Backoff ~140 s. Batch 5–8 ok, Batch 9 → 429 wieder. Der Run läuft dadurch immer noch ~15–20 min statt <5 min.
 
-Zusätzlicher Nebeneffekt: die 84 langen Batches blockieren auch `phaseC` / `phase1_sparse`, sodass der gesamte Cache veraltet (85 min stale bereits beobachtet).
+Der eigentliche Fehler im letzten Fix: `BATCH_SLEEP_S=0`. Ohne Pause zwischen Batches gibt es kein Rate-Limiting-Sicherheitsnetz — nur die Retries fangen es ab, teuer und langsam.
 
-## Fix (zweistufig)
+## Fix
 
-### 1. Dense-Grid drastisch reduzieren
-
-In `.github/workflows/openmeteo-ingest.yml`:
+Nur ENV-Werte in `.github/workflows/openmeteo-ingest.yml` justieren. Kein Code-Change.
 
 ```yaml
-# vorher
-GRID_LAT_DENSE: "120"
-GRID_LON_DENSE: "140"
-CHUNK_PHASE1: "200"
-FETCH_WORKERS: "2"
-
-# nachher
-GRID_LAT_DENSE: "48"    # ~3 km, 48×56 = 2 688 Punkte
-GRID_LON_DENSE: "56"
-CHUNK_PHASE1: "150"     # 18 Batches statt 84
-FETCH_WORKERS: "1"      # keine parallelen Bursts → Minutenlimit sicher
+CHUNK_PHASE1: "120"       # war 150 → 5 Batches/min statt 4
+BATCH_SLEEP_S: "13"       # war 0 → 120 pts × ~4.6 Batches/min ≈ 550 Calls/min
 ```
 
-Rechnung: 2 688 / 150 ≈ **18 Batches sequentiell** statt 84 parallel. Open-Meteo erlaubt ~600 Calls/Minute pro IP — 18 sequentielle Requests laufen problemlos in <2 min durch, mit reichlich Puffer für phaseC und Sparse.
+Rechnung: 2688 Punkte ÷ 120 = **23 Batches**. Bei 13 s Sleep + ~2 s Fetch = ~15 s/Batch → ~5.75 min Gesamtdauer, sauber unter 60 min Timeout und unter dem 600-Calls/min-Limit (Puffer ~50 Calls).
 
-Auflösung sinkt von ~1 km auf ~3 km — für ein 2-h-Prognose-PNG des Oberthurgaus visuell kaum unterscheidbar, weil das ICON-CH1-Native-Grid ohnehin geglättet wird.
+`phaseC` (60er-Chunks, Sparse) läuft danach in wenigen Sekunden durch, weil das Minuten-Budget nicht mehr blockiert ist.
 
-### 2. Harte Timeout-Grenze + Sparse-Fallback aktiv lassen
+## Verifikation
 
-In `scripts/ingest_openmeteo.py` bleibt der bereits vorhandene Sparse-Fallback (22×36) in `rasterize_forecast_pngs` unverändert — falls das kleinere Dense-Grid trotzdem einmal >20 % Ausfälle produziert (`PHASE1_DENSE_MAX_FAIL_PCT=20`), rendert der Job die PNGs aus dem Sparse-Cache. So ist `radar/forecast-frames.json` **garantiert** vorhanden.
+Nach Merge Workflow manuell dispatchen und Log prüfen:
 
-Zusätzlich: `OM_READ_TIMEOUT` von 300 s auf 60 s senken, damit hängende Reads schneller als Fehler zählen und der Retry-Backoff greift, statt 5 min stumm zu blockieren.
+1. Keine `429 Minutely API request limit` mehr.
+2. `write_forecast_manifest ok` erscheint.
+3. `/api/public/debug/r2-cache`: `forecast.frameCount > 0`, `futureFrameCount > 0`, `ageSeconds < 600`.
 
-### 3. Manuell dispatchen und verifizieren
+Falls trotzdem noch vereinzelt 429 auftauchen: `BATCH_SLEEP_S` auf `18` erhöhen (dann ~4 Batches/min, ~480 Calls/min).
 
-Nach dem Merge:
+## Nicht geändert
 
-1. `workflow_dispatch` auf `openmeteo-ingest.yml` auslösen (Cron-Worker macht das ohnehin alle 30 min).
-2. `/api/public/debug/r2-cache` prüfen:
-   - `generatedAt` frisch (< 10 min)
-   - `forecast.frameCount > 0`
-   - `forecast.futureFrameCount > 0`
-3. `/karten/radar` prüfen: Timeline zeigt Frames über `now` hinaus.
-
-## Was NICHT geändert wird
-
-- Rasterizer-Logik, R2-Upload, Sparse-Grid (22×36), Symbol-Workflow, Client-Fallback — alle bleiben unverändert. Nur Grid-Größe, Chunk-Größe, Worker-Anzahl und Read-Timeout im Workflow-Env.
-
-## Erwartetes Ergebnis
-
-Ingest läuft in <5 min sauber durch, `radar/forecast-frames.json` wird alle 30 min neu geschrieben, Prognose erscheint auf der Karte. Falls das Minutenlimit weiter zickt, greift der Sparse-Fallback und liefert zumindest niedrig aufgelöste PNGs statt gar keine.
+- Python-Ingest-Script, Grid-Größen (48×56 bleibt), Sparse-Fallback, Radar/Symbol-Workflows, Client-Code.
