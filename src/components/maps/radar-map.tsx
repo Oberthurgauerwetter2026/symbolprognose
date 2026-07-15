@@ -1820,12 +1820,9 @@ export function RadarMap({
     () => playStepIndices.map((i) => frames[i]).filter(Boolean) as RadarFrame[],
     [playStepIndices, frames],
   );
-  // Alle Radar-PNG-URLs für Pre-Decode (Scrub ohne Stocker).
+  // Alle Radar-PNG-URLs (Messung + Prognose) für Pre-Decode (Scrub ohne Stocker).
   const radarUrls = useMemo(
-    () =>
-      frames
-        .filter((f) => f.source === "radar" && !!f.precipUrl)
-        .map((f) => f.precipUrl as string),
+    () => frames.filter((f) => !!f.precipUrl).map((f) => f.precipUrl as string),
     [frames],
   );
 
