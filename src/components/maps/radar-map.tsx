@@ -567,35 +567,33 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    // Despeckle: isolierte Einzelzellen (≤1 Nachbar > 0.1 mm/h) → 0.
-    // Kein Mittelwert, kein Blur — Werte grosser Flächen bleiben exakt.
-    const MIN_V = 0.1;
-    const despeckle = (src: number[] | undefined): number[] | undefined => {
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing analog zur Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — glättet Grid-Kanten zu
+    // organischen Blob-Rändern. Kein Denoise, kein Warp, kein Blend.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
-      const out = src.slice();
+      const out = new Array<number>(nLon * nLat);
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
-          const idx = y * nLon + x;
-          if (src[idx] < MIN_V) continue;
-          let neigh = 0;
+          let sum = 0;
+          let cnt = 0;
           for (let dy = -1; dy <= 1; dy++) {
             const yy = y + dy;
             if (yy < 0 || yy >= nLat) continue;
             for (let dx = -1; dx <= 1; dx++) {
-              if (dx === 0 && dy === 0) continue;
               const xx = x + dx;
               if (xx < 0 || xx >= nLon) continue;
-              if (src[yy * nLon + xx] >= MIN_V) neigh++;
+              sum += src[yy * nLon + xx];
+              cnt++;
             }
           }
-          if (neigh <= 1) out[idx] = 0;
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
         }
       }
       return out;
     };
-    const vals = isForecastFrame ? despeckle(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? despeckle(rawSnow) ?? rawSnow : rawSnow;
-
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
     if (!vals || vals.length === 0) return;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
@@ -758,35 +756,33 @@ function PrecipOverlay({
     const rawVals = f.values;
     const rawSnow = f.snowValues;
     if (!rawVals || rawVals.length === 0) return null;
-    // Despeckle: isolierte Einzelzellen (≤1 Nachbar > 0.1 mm/h) → 0.
-    // Kein Mittelwert, kein Blur — Werte grosser Flächen bleiben exakt.
-    const MIN_V = 0.1;
-    const despeckle = (src: number[] | undefined): number[] | undefined => {
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing wie in der Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — erzeugt organische Blob-
+    // Ränder statt rechteckiger Grid-Kanten, ohne Denoise oder Warp.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
-      const out = src.slice();
+      const out = new Array<number>(nLon * nLat);
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
-          const idx = y * nLon + x;
-          if (src[idx] < MIN_V) continue;
-          let neigh = 0;
+          let sum = 0;
+          let cnt = 0;
           for (let dy = -1; dy <= 1; dy++) {
             const yy = y + dy;
             if (yy < 0 || yy >= nLat) continue;
             for (let dx = -1; dx <= 1; dx++) {
-              if (dx === 0 && dy === 0) continue;
               const xx = x + dx;
               if (xx < 0 || xx >= nLon) continue;
-              if (src[yy * nLon + xx] >= MIN_V) neigh++;
+              sum += src[yy * nLon + xx];
+              cnt++;
             }
           }
-          if (neigh <= 1) out[idx] = 0;
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
         }
       }
       return out;
     };
-    const vals = isForecastFrame ? despeckle(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? despeckle(rawSnow) ?? rawSnow : rawSnow;
-
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -996,36 +992,31 @@ function MeasurementCanvasOverlay({
     });
   }
 
-  // Despeckle: isolierte Einzelpixel (Radar-Clutter/Bodenechos) → 0.
-  // Kein Mittelwert, kein Blur — echte Niederschlagsflächen bleiben exakt.
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
     if (src.smoothMmh) return src.smoothMmh;
     const sw = src.w;
     const sh = src.h;
-    const MIN_V = 0.1;
-    const out = new Float32Array(src.mmh);
+    const smooth = new Float32Array(sw * sh);
     for (let y = 0; y < sh; y++) {
       for (let x = 0; x < sw; x++) {
-        const idx = y * sw + x;
-        if (src.mmh[idx] < MIN_V) continue;
-        let neigh = 0;
+        let sum = 0;
+        let cnt = 0;
         for (let dy = -1; dy <= 1; dy++) {
           const yy = y + dy;
           if (yy < 0 || yy >= sh) continue;
           for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue;
             const xx = x + dx;
             if (xx < 0 || xx >= sw) continue;
-            if (src.mmh[yy * sw + xx] >= MIN_V) neigh++;
+            sum += src.mmh[yy * sw + xx];
+            cnt++;
           }
         }
-        if (neigh <= 1) out[idx] = 0;
+        smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
       }
     }
-    src.smoothMmh = out;
-    return out;
+    src.smoothMmh = smooth;
+    return smooth;
   };
-
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
