@@ -1,39 +1,54 @@
-## Ziel
+## Diagnose
 
-Herausfinden, warum `radar/forecast-frames.json` in R2 nicht erzeugt wird, und gezielt fixen.
+Der Log zeigt eindeutig: das 120×140 Dense-Grid (16 800 Punkte / 84 Batches à 200) sprengt das Open-Meteo Minutenlimit massiv. Bereits ab Batch 3 kommen `429 Minutely API request limit exceeded` + `Read timed out`. Die Retries mit Backoff (bis 142 s) stapeln sich, der Run läuft ins 60-min-Timeout des Workflows, und `write_forecast_manifest` wird nie erreicht → `radar/forecast-frames.json` bleibt 404.
 
-## Voraussetzung
+Zusätzlicher Nebeneffekt: die 84 langen Batches blockieren auch `phaseC` / `phase1_sparse`, sodass der gesamte Cache veraltet (85 min stale bereits beobachtet).
 
-Der GitHub-Connector ist im Workspace aktuell **nicht verbunden** — ich kann die Actions-Logs nicht direkt lesen. Zwei Wege:
+## Fix (zweistufig)
 
-- **A (empfohlen)**: GitHub-Connector über die Lovable-Connector-Einstellungen verbinden. Dann kann ich `owner/repo` per REST-API abfragen (`actions/workflows/openmeteo-ingest.yml/runs`, `jobs`, `logs`) und den echten Fehler des letzten Runs sehen.
-- **B**: Du gibst mir den Fehler-Text des letzten fehlgeschlagenen `openmeteo-ingest`-Runs (die letzten ~50 Zeilen des Job-Logs, insbesondere um `phase1_dense` / `rasterize_forecast_pngs` / `write_forecast_manifest`).
+### 1. Dense-Grid drastisch reduzieren
 
-## Vorgehen nach Log-Zugriff
+In `.github/workflows/openmeteo-ingest.yml`:
 
-1. **Letzten Run inspizieren**
-   - Status (`success` / `failure`), Dauer, Exit-Code
-   - Rate-Limit-Meldungen (`429`, `Minutely API request limit exceeded`)
-   - Ob `phase1_dense` ausgefallen ist und ob der Sparse-Fallback in `rasterize_forecast_pngs` gegriffen hat
-   - Ob `write_forecast_manifest` überhaupt aufgerufen wurde und wie viele Frames geschrieben wurden
+```yaml
+# vorher
+GRID_LAT_DENSE: "120"
+GRID_LON_DENSE: "140"
+CHUNK_PHASE1: "200"
+FETCH_WORKERS: "2"
 
-2. **Diagnose je nach Befund**
-   - **Dense-Grid scheitert komplett** → `SKIP_PHASE1_DENSE=1` als Workflow-Env, oder `GRID_LAT_DENSE=40 / GRID_LON_DENSE=48` (~3.6 km). Der Sparse-Fallback in `rasterize_forecast_pngs` schreibt dann PNGs aus dem 22×36-Grid.
-   - **Rasterizer wirft Exception** → gezielter Fix in `scripts/ingest_openmeteo.py`, z.B. NaN-Handling oder fehlende Achsen bei Sparse-Input.
-   - **Manifest-Upload scheitert** → R2-Credentials/Key prüfen.
-   - **Alte Cache-Version verhindert Ingest** (siehe `oberthurgau-openmeteo-cache-v4-ch1-wind` von 14:29Z) → Version bumpen, damit Retry erzwungen wird.
+# nachher
+GRID_LAT_DENSE: "48"    # ~3 km, 48×56 = 2 688 Punkte
+GRID_LON_DENSE: "56"
+CHUNK_PHASE1: "150"     # 18 Batches statt 84
+FETCH_WORKERS: "1"      # keine parallelen Bursts → Minutenlimit sicher
+```
 
-3. **Deployment-Check**
-   - Prüfen, ob `src/routes/api/public/debug/r2-cache.ts` mit dem `forecast`-Feld überhaupt schon deployt ist (aktuell fehlt es in der Response — entweder Build noch nicht durch oder Endpoint gecacht).
+Rechnung: 2 688 / 150 ≈ **18 Batches sequentiell** statt 84 parallel. Open-Meteo erlaubt ~600 Calls/Minute pro IP — 18 sequentielle Requests laufen problemlos in <2 min durch, mit reichlich Puffer für phaseC und Sparse.
 
-4. **Manueller Retrigger**
-   - Über GitHub-API `workflow_dispatch` auf `openmeteo-ingest.yml` auslösen und den Run beobachten.
+Auflösung sinkt von ~1 km auf ~3 km — für ein 2-h-Prognose-PNG des Oberthurgaus visuell kaum unterscheidbar, weil das ICON-CH1-Native-Grid ohnehin geglättet wird.
 
-5. **Verifikation**
-   - `radar/forecast-frames.json` in R2 vorhanden, `frameCount > 0`
-   - `/api/public/debug/r2-cache` zeigt `forecast.futureFrameCount > 0`
-   - Karte `/karten/radar` zeigt Timeline über `now` hinaus mit Prognose-Frames
+### 2. Harte Timeout-Grenze + Sparse-Fallback aktiv lassen
 
-## Nächster Schritt
+In `scripts/ingest_openmeteo.py` bleibt der bereits vorhandene Sparse-Fallback (22×36) in `rasterize_forecast_pngs` unverändert — falls das kleinere Dense-Grid trotzdem einmal >20 % Ausfälle produziert (`PHASE1_DENSE_MAX_FAIL_PCT=20`), rendert der Job die PNGs aus dem Sparse-Cache. So ist `radar/forecast-frames.json` **garantiert** vorhanden.
 
-Bitte GitHub-Connector verbinden **oder** die Log-Ausgabe des letzten `openmeteo-ingest`-Runs hier einfügen. Danach setze ich Schritt 1–5 um.
+Zusätzlich: `OM_READ_TIMEOUT` von 300 s auf 60 s senken, damit hängende Reads schneller als Fehler zählen und der Retry-Backoff greift, statt 5 min stumm zu blockieren.
+
+### 3. Manuell dispatchen und verifizieren
+
+Nach dem Merge:
+
+1. `workflow_dispatch` auf `openmeteo-ingest.yml` auslösen (Cron-Worker macht das ohnehin alle 30 min).
+2. `/api/public/debug/r2-cache` prüfen:
+   - `generatedAt` frisch (< 10 min)
+   - `forecast.frameCount > 0`
+   - `forecast.futureFrameCount > 0`
+3. `/karten/radar` prüfen: Timeline zeigt Frames über `now` hinaus.
+
+## Was NICHT geändert wird
+
+- Rasterizer-Logik, R2-Upload, Sparse-Grid (22×36), Symbol-Workflow, Client-Fallback — alle bleiben unverändert. Nur Grid-Größe, Chunk-Größe, Worker-Anzahl und Read-Timeout im Workflow-Env.
+
+## Erwartetes Ergebnis
+
+Ingest läuft in <5 min sauber durch, `radar/forecast-frames.json` wird alle 30 min neu geschrieben, Prognose erscheint auf der Karte. Falls das Minutenlimit weiter zickt, greift der Sparse-Fallback und liefert zumindest niedrig aufgelöste PNGs statt gar keine.
