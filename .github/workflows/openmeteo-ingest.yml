@@ -39,7 +39,7 @@ jobs:
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
           CHUNK_PHASE1: "120"
           CHUNK_PHASEC: "60"
-          BATCH_SLEEP_S: "20"
+          BATCH_SLEEP_S: "30"
           OM_CONNECT_TIMEOUT: "30"
           OM_READ_TIMEOUT: "60"
           FETCH_WORKERS: "1"

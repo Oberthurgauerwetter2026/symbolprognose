@@ -1,30 +1,27 @@
 ## Diagnose
 
-Trotz `BATCH_SLEEP_S=13` triggert Open-Meteo weiterhin `429 Minutely API request limit`. Muster im Log: **jeder 5.–6. Batch failed**. 5 Batches × 120 Punkte in ~65 s ≈ ~550 Calls/min — rechnerisch unter dem 600er-Limit, aber Open-Meteo misst in einem **gleitenden Minutenfenster**, und wenn ein Retry-Backoff (63 s) einen Batch ins nächste Fenster schiebt, überlappen die Zählungen und der nächste Batch schlägt sofort wieder auf.
+Auch mit `BATCH_SLEEP_S=20` triggert Open-Meteo weiterhin `429 Minutely API request limit` — exakt bei Batch 6, 11, 16 (jeder 5. Batch). Muster: **5 Batches × 120 pts = 600 Calls** landen im gleitenden 60-s-Fenster von Open-Meteo. Bei 22 s Abstand ist Batch 6 nach ~110 s dran, aber die 429-Zählung überlappt aus dem vorherigen Fenster.
 
-Zusätzlich: die zwei folgenden `Read timed out`-Retries nach jedem 429 sind Symptom, nicht Ursache — Open-Meteo hält die Verbindung offen, antwortet aber nicht, solange das Ratelimit noch aktiv ist.
+Der im letzten Plan bereits vorgesehene Fallback greift jetzt.
 
 ## Fix
 
 Nur ENV in `.github/workflows/openmeteo-ingest.yml`:
 
 ```yaml
-BATCH_SLEEP_S: "20"   # war 13
+BATCH_SLEEP_S: "30"   # war 20
 ```
 
-Rechnung: 120 pts alle ~22 s (Sleep 20 s + ~2 s Fetch) = ~2.7 Batches/min = **~325 Calls/min** — sattes Sicherheitsnetz unter 600, robust gegen gleitendes Fenster. 23 Batches × 22 s ≈ **8.5 min** Gesamtdauer, immer noch weit unter 60 min Workflow-Timeout.
+Rechnung: 120 pts alle ~32 s = **~225 Calls/min** — solider Puffer, auch bei Retry-Backoff-Überlappung. 23 Batches × 32 s ≈ **12.3 min** Gesamtdauer, weit unter 60 min Workflow-Timeout.
 
 `CHUNK_PHASE1=120`, `CHUNK_PHASEC=60`, `FETCH_WORKERS=1` bleiben. Kein Code-Change.
 
 ## Verifikation
 
 Workflow manuell dispatchen, im Log prüfen:
-
-1. Keine `429 Minutely API request limit`-WARN mehr (vereinzelte Read-Timeouts sind ok).
+1. Keine `429 Minutely API request limit`-WARN mehr (vereinzelte Read-Timeouts sind ok, das ist Netz).
 2. `write_forecast_manifest ok` erscheint.
 3. `/api/public/debug/r2-cache`: `forecast.frameCount > 0`, `futureFrameCount > 0`, `ageSeconds < 900`.
-
-Falls doch noch 429 durchrutschen: `BATCH_SLEEP_S=30` (dann ~13 min Gesamtdauer, immer noch unkritisch).
 
 ## Nicht geändert
 
