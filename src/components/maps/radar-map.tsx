@@ -1159,13 +1159,6 @@ function PrecipOverlay({
 
 
 
-  // Timeline-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
-  useEffect(() => {
-    nextFrameRef.current = nextFrame ?? null;
-    progressRef.current = typeof progress === "number" ? progress : 0;
-    redraw();
-  }, [nextFrame, progress]);
-
   // Canvas-Opacity nachziehen.
   useEffect(() => {
     const cv = canvasRef.current;
