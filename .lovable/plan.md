@@ -1,29 +1,44 @@
+## Ziel
+
+Auf `/karten/radar` **nur** die isolierten Einzelpixel-Artefakte entfernen — Sprenkel in der Messung und Einzel-Kacheln in der Prognose. **Kein** Glätten (kein Boxcar, kein Gauss), **kein** Crossfade, keine Blend-Effekte. Kanten, Farbbänder, harte Frame-Wechsel bleiben exakt wie jetzt.
+
 ## Diagnose
 
-Auch mit `BATCH_SLEEP_S=30` schlägt Batch 6/11/16 wieder mit `429 Minutely API request limit` fehl. Ursache ist nicht die Netto-Rate (5×120 = 600 Calls in ~150 s ≈ 240/min ist eigentlich unter dem Limit), sondern **Retry-Overshoot**: sobald ein Batch retryt, sendet er die vollen 120 Locations erneut — bei 3 Retries plötzlich +360 Calls im gleitenden 60-s-Fenster. Das kippt die Nachbar-Batches ins 429.
+Beide Artefakte im Screenshot sind isolierte Einzelzellen im Quell-Grid:
+- **Messung**: 1-Pixel-Clutter im MCH-Radar (Bodenechos), Nachbarn ~0.
+- **Prognose**: einzelne Grid-Zellen mit sprunghaft höherem Wert als alle Nachbarn (numerisches Modell-Rauschen bei ~3 km), erscheinen nach bilinearer Interpolation als rechteckige Kachel.
 
-Ergo: die Batchgrösse selbst ist zu grob. Eine kleinere Chunk-Grösse macht sowohl den Grund­verkehr feiner (weniger 429-Anfälligkeit) als auch Retries billiger (60 statt 120 zusätzliche Calls).
+Beides lässt sich mit einem **Despeckle-Filter** entfernen, der die Werte *nicht* mittelt:
 
-## Fix
+> Für jede Zelle: zähle Nachbarn (8er-Kernel) mit Wert ≥ min-Threshold (0.1 mm/h). Sind es ≤ 1, setze die Zelle auf 0. Sonst unverändert lassen.
 
-Nur ENV in `.github/workflows/openmeteo-ingest.yml`:
+Das killt echte 1- und 2-Pixel-Spikes, aber **berührt keinen Wert einer echten Niederschlagsfläche** (dort haben Zellen ≥ 3 Nachbarn > 0). Kein Averaging → keine Glättung, keine weichen Kanten.
 
-```yaml
-CHUNK_PHASE1: "60"    # war 120
-BATCH_SLEEP_S: "20"   # war 30 — bei halber Batchgrösse wieder runter
-```
+## Änderungen (nur `src/components/maps/radar-map.tsx`)
 
-Rechnung: 60 Calls / 22 s ≈ **164 Calls/min**, komfortabler Puffer auch bei Retry-Overshoot (+60 statt +120). 45 Batches × 22 s ≈ **16.5 min**, weit unter dem 60-min-Timeout.
+### A) Prognose (`PrecipOverlay`)
 
-`CHUNK_PHASEC=60`, `FETCH_WORKERS=1`, Grid-Größen, `PHASE1_DENSE_MAX_FAIL_PCT=20` bleiben. Kein Python-Change.
+Die bestehende `smooth3x3`-Funktion (in `redrawRef` und `buildOffscreenRef`, zwei identische Kopien) durch `despeckle` ersetzen — 8-Nachbarn-Zählung, isolierte Zellen → 0, alle anderen Werte **unverändert**. Auf `vals` und `snowVals` anwenden. Kommentar entsprechend anpassen (aktuell "3×3-Boxcar-Smoothing … glättet Grid-Kanten" ist dann falsch).
 
-## Verifikation
+### B) Messung (`MeasurementCanvasOverlay.ensureSmooth`)
 
-Workflow manuell dispatchen, im Log prüfen:
-1. Keine wiederkehrenden `429 Minutely API request limit`-WARN mehr (vereinzelte Read-Timeouts akzeptabel).
-2. `write_forecast_manifest ok` erscheint.
-3. `/api/public/debug/r2-cache`: `forecast.frameCount > 0`, `futureFrameCount > 0`, `ageSeconds < 900`.
+Umbenennen zu `ensureDespeckled` (samt einer Umbenennung des Feldes `smoothMmh` → `cleanMmh` im `DecodedRadar`-Typ) und dieselbe Despeckle-Logik einsetzen — kein Mean-Filter mehr. Cache-Semantik bleibt (einmal berechnet, in `DecodedRadar` gehalten). Aufrufstelle bei Zeile 1292 folgt der Umbenennung.
+
+### C) Kein Crossfade / kein Blend
+
+Im Code sind Crossfade/Optical-Flow-Blend bereits deaktiviert (Kommentar Zeile 731). Nichts hinzufügen. Frame-Wechsel bleiben hart.
 
 ## Nicht geändert
 
-Python-Script, Grid-Größen, phaseC, Radar-/Symbol-Workflows, Client-Code.
+- Farbskalen (`SCALE`, `SNOW_SCALE`), harte Band-Quantisierung.
+- Bilineare Interpolation im Canvas-Downsample (nicht Datenglättung — nur Pixel-Rasterung).
+- Ingest (`scripts/ingest_*`), R2-Cache, `radar.functions.ts`.
+- Timeline, Prewarm, LRU-Cache-Größen.
+- Andere Karten (Wind, Niederschlag, Satellit).
+
+## Verifikation
+
+1. `/karten/radar`: Aktueller Frame — keine isolierten Sprenkel innerhalb der Region. Grosse Regenfläche unverändert in Form und Farbe.
+2. Timeline auf Prognose-Frame — keine solitären orange/gelben Rechteckkacheln mehr, aber Bandkanten der Hauptfläche exakt so scharf wie vorher.
+3. Play: harter Frame-Wechsel wie bisher, kein Fade.
+4. Vergleich zu Screenshot: Sprenkel weg, Blöcke weg, alles andere identisch.
