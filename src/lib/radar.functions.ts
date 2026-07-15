@@ -145,6 +145,36 @@ type ForecastManifest = {
   frames: ForecastManifestFrame[];
 };
 
+function locHasMinutely(loc: unknown): loc is LocResponse & {
+  minutely_15: { time: string[]; precipitation: (number | null)[]; snowfall?: (number | null)[] };
+} {
+  const m = (loc as LocResponse | undefined)?.minutely_15;
+  return Array.isArray(m?.time) && Array.isArray(m?.precipitation);
+}
+
+function locHasHourly(loc: unknown): loc is LocResponse & {
+  hourly: { time: string[]; precipitation: (number | null)[]; snowfall?: (number | null)[] };
+} {
+  const h = (loc as LocResponse | undefined)?.hourly;
+  return Array.isArray(h?.time) && Array.isArray(h?.precipitation);
+}
+
+function referenceMinutely(locations: LocResponse[] | null): LocResponse["minutely_15"] | null {
+  if (!locations) return null;
+  for (const loc of locations) {
+    if (locHasMinutely(loc) && loc.minutely_15.time.length > 0) return loc.minutely_15;
+  }
+  return null;
+}
+
+function referenceHourly(locations: LocResponse[] | null): LocResponse["hourly"] | null {
+  if (!locations) return null;
+  for (const loc of locations) {
+    if (locHasHourly(loc) && loc.hourly.time.length > 0) return loc.hourly;
+  }
+  return null;
+}
+
 function validManifestFrame(frame: ManifestFrame): frame is ManifestFrame & { t: string } {
   return typeof frame?.t === "string" && !Number.isNaN(Date.parse(frame.t));
 }
@@ -393,6 +423,91 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       ch1Count++;
     }
     console.info(`[radar] forecast pngs: ${ch1Count} frames`);
+  }
+
+  // ---- Fallback: Modell-Prognose direkt aus openmeteo/forecast.json ----
+  // Wenn das vorgerasterte Forecast-Manifest noch fehlt, darf die Timeline
+  // nicht bei der Messung enden. Dann rendern wir die vorhandenen ICON-CH1-
+  // Werte als Canvas-Frames. Sobald Forecast-PNGs vorhanden sind, bleibt der
+  // native PNG-Pfad oben maßgebend.
+  if (!hasForecastPngs && r1) {
+    const ref = referenceMinutely(r1 as LocResponse[]);
+    let fallbackCount = 0;
+    if (ref?.time?.length) {
+      const hasSnow = Array.isArray(ref.snowfall);
+      for (let ti = 0; ti < ref.time.length; ti++) {
+        const tMs = Date.parse(`${ref.time[ti]}Z`);
+        if (Number.isNaN(tMs)) continue;
+        if (tMs <= now) continue;
+        if (tMs > forecastCutoff) continue;
+
+        const values = new Array<number>(pts.length);
+        const snowValues = hasSnow ? new Array<number>(pts.length) : undefined;
+        for (let pi = 0; pi < pts.length; pi++) {
+          const loc = r1[pi] as LocResponse | undefined;
+          const v = loc?.minutely_15?.precipitation?.[ti];
+          values[pi] = typeof v === "number" ? v * 4 : 0;
+          if (snowValues) {
+            const s = loc?.minutely_15?.snowfall?.[ti];
+            snowValues[pi] = typeof s === "number" ? s * 4 : 0;
+          }
+        }
+
+        frames.push({
+          t: new Date(tMs).toISOString(),
+          source: "icon-ch1",
+          sourceT: new Date(tMs).toISOString(),
+          values,
+          snowValues,
+        });
+        fallbackCount++;
+      }
+    }
+    if (fallbackCount > 0) {
+      console.info(`[radar] forecast fallback from ICON-CH1 grid: ${fallbackCount} frames`);
+      warnings.push("Prognose läuft vorübergehend im Modellraster, bis die hochaufgelösten PNGs neu erzeugt sind");
+    }
+  }
+
+  // ICON-CH2 hourly erweitert den Fallback, wenn CH1-Minutely vor +48 h endet.
+  if (!hasForecastPngs && r2) {
+    const latestForecastMs = frames.reduce((latest, f) => {
+      if (f.source === "radar") return latest;
+      const tMs = Date.parse(f.t);
+      return Number.isNaN(tMs) ? latest : Math.max(latest, tMs);
+    }, now);
+    const ref = referenceHourly(r2 as LocResponse[]);
+    let ch2Count = 0;
+    if (ref?.time?.length) {
+      const hasSnow = Array.isArray(ref.snowfall);
+      for (let ti = 0; ti < ref.time.length; ti++) {
+        const tMs = Date.parse(`${ref.time[ti]}Z`);
+        if (Number.isNaN(tMs)) continue;
+        if (tMs <= latestForecastMs + 10 * 60_000) continue;
+        if (tMs > forecastCutoff) continue;
+
+        const values = new Array<number>(pts.length);
+        const snowValues = hasSnow ? new Array<number>(pts.length) : undefined;
+        for (let pi = 0; pi < pts.length; pi++) {
+          const loc = r2[pi] as LocResponse | undefined;
+          const v = loc?.hourly?.precipitation?.[ti];
+          values[pi] = typeof v === "number" ? v : 0;
+          if (snowValues) {
+            const s = loc?.hourly?.snowfall?.[ti];
+            snowValues[pi] = typeof s === "number" ? s : 0;
+          }
+        }
+        frames.push({
+          t: new Date(tMs).toISOString(),
+          source: "icon-ch2",
+          sourceT: new Date(tMs).toISOString(),
+          values,
+          snowValues,
+        });
+        ch2Count++;
+      }
+    }
+    if (ch2Count > 0) console.info(`[radar] forecast fallback from ICON-CH2 grid: ${ch2Count} frames`);
   }
 
 
