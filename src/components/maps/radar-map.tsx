@@ -787,12 +787,8 @@ function PrecipOverlay({
   } | null>(null);
   const CACHE_MAX = 512;
 
-  // Timeline-Refs: nextFrame + progress werden pro Animation-Tick als Prop
-  // gesetzt; redrawRef liest sie über Refs, damit Play/Scrub dieselbe
-  // kontinuierliche Zeitachse nutzen.
-  const nextFrameRef = useRef<RadarFrame | null>(null);
-  const progressRef = useRef<number>(0);
-  const blendCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+
 
 
   const redrawRef = useRef<() => void>(() => {});
