@@ -133,6 +133,18 @@ type Manifest = {
   frames: ManifestFrame[];
 };
 
+type ForecastManifestFrame = {
+  t: string;
+  precipUrl: string;
+  source?: "icon-ch1" | "icon-ch2";
+  hasPrecip?: boolean;
+};
+type ForecastManifest = {
+  bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+  generatedAt: string;
+  frames: ForecastManifestFrame[];
+};
+
 function validManifestFrame(frame: ManifestFrame): frame is ManifestFrame & { t: string } {
   return typeof frame?.t === "string" && !Number.isNaN(Date.parse(frame.t));
 }
@@ -171,6 +183,45 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
       return json;
     } catch (e) {
       console.warn(`[radar] manifest fetch error ${url}: ${(e as Error).message}`);
+    }
+  }
+
+  return null;
+}
+
+async function fetchR2ForecastManifest(): Promise<ForecastManifest | null> {
+  const candidates = [
+    ...r2ObjectUrlCandidates(process.env.RADAR_MANIFEST_URL, "radar/forecast-frames.json"),
+    ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "radar/forecast-frames.json"),
+    ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, "radar/forecast-frames.json"),
+  ].filter((url, index, all) => all.indexOf(url) === index);
+
+  if (candidates.length === 0) return null;
+
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {
+        cf: { cacheTtl: 30 } as unknown as undefined,
+      } as RequestInit);
+      if (!res.ok) {
+        console.warn(`[radar] forecast manifest fetch ${url} -> ${res.status}`);
+        continue;
+      }
+      const json = (await res.json()) as ForecastManifest;
+      if (!json?.bbox || !Array.isArray(json.frames)) {
+        console.warn(`[radar] forecast manifest ${url} has invalid shape`);
+        continue;
+      }
+      json.frames = json.frames.filter(
+        (f) =>
+          typeof f?.t === "string" &&
+          typeof f?.precipUrl === "string" &&
+          !Number.isNaN(Date.parse(f.t)),
+      );
+      console.log(`[radar] forecast manifest loaded from ${url}: ${json.frames.length} frames`);
+      return json;
+    } catch (e) {
+      console.warn(`[radar] forecast manifest fetch error ${url}: ${(e as Error).message}`);
     }
   }
 
