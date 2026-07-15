@@ -24,18 +24,33 @@ ENV (optional):
 """
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import boto3
 import requests
 
-VERSION = "oberthurgau-openmeteo-cache-v4-ch1-wind"
+VERSION = "oberthurgau-openmeteo-cache-v5-ch1-native-pngs"
 API = "https://api.open-meteo.com/v1/forecast"
+
+# Farbskala (mm/h → RGBA) — MUSS mit
+# scripts/ingest_radar.py::PRECIP_SCALE und SCALE in
+# src/components/maps/radar-map.tsx übereinstimmen.
+PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
+    (0.1,   (150, 195, 235, 235)),
+    (0.3,   ( 95, 155, 220, 255)),
+    (0.8,   ( 40,  90, 195, 255)),
+    (2.0,   ( 55, 170,  75, 255)),
+    (5.0,   (245, 220,  55, 255)),
+    (15.0,  (240, 140,  35, 255)),
+    (40.0,  (220,  40,  40, 255)),
+    (80.0,  (170,  40, 180, 255)),
+]
 
 
 def env(name: str) -> str:
@@ -63,16 +78,38 @@ def make_s3():
     )
 
 
+def _bbox():
+    return {
+        "min_lat": envf("BBOX_MIN_LAT", 46.85),
+        "max_lat": envf("BBOX_MAX_LAT", 48.30),
+        "min_lon": envf("BBOX_MIN_LON", 8.15),
+        "max_lon": envf("BBOX_MAX_LON", 10.55),
+    }
+
+
 def build_grid():
-    min_lat = envf("BBOX_MIN_LAT", 46.85)
-    max_lat = envf("BBOX_MAX_LAT", 48.30)
-    min_lon = envf("BBOX_MIN_LON", 8.15)
-    max_lon = envf("BBOX_MAX_LON", 10.55)
+    """Grobe Radar/Wind-/Bias-Punkte (~5–7 km) — Kompat-Grid für phase2/A/C
+    und für den bias-correction-Pfad in radar.functions.ts."""
+    bb = _bbox()
     n_lat = envi("GRID_LAT", 22)
     n_lon = envi("GRID_LON", 36)
-    lats = [min_lat + (max_lat - min_lat) * i / (n_lat - 1) for i in range(n_lat)]
-    lons = [min_lon + (max_lon - min_lon) * j / (n_lon - 1) for j in range(n_lon)]
+    lats = [bb["min_lat"] + (bb["max_lat"] - bb["min_lat"]) * i / (n_lat - 1) for i in range(n_lat)]
+    lons = [bb["min_lon"] + (bb["max_lon"] - bb["min_lon"]) * j / (n_lon - 1) for j in range(n_lon)]
     return [(la, lo) for la in lats for lo in lons]
+
+
+def build_grid_dense():
+    """Native-Auflösung fürs Prognose-Raster (~1 km, ICON-CH1 native).
+    Ausschliesslich für die PNG-Rasterung genutzt; Werte werden NICHT als
+    grosse Zahlenlisten an den Client geschickt."""
+    bb = _bbox()
+    n_lat = envi("GRID_LAT_DENSE", 120)
+    n_lon = envi("GRID_LON_DENSE", 140)
+    lats = [bb["min_lat"] + (bb["max_lat"] - bb["min_lat"]) * i / (n_lat - 1) for i in range(n_lat)]
+    lons = [bb["min_lon"] + (bb["max_lon"] - bb["min_lon"]) * j / (n_lon - 1) for j in range(n_lon)]
+    pts = [(la, lo) for la in lats for lo in lons]
+    return lats, lons, pts
+
 
 
 def fetch(label: str, params: dict, optional: bool = False) -> list | None:
