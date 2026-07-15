@@ -521,7 +521,7 @@ function PrecipOverlay({
   // kontinuierliche Zeitachse nutzen.
   const nextFrameRef = useRef<RadarFrame | null>(null);
   const progressRef = useRef<number>(0);
-  const blendCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -730,9 +730,34 @@ function PrecipOverlay({
     const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
+    if (!rawVals || rawVals.length === 0) return null;
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing wie in der Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — erzeugt organische Blob-
+    // Ränder statt rechteckiger Grid-Kanten, ohne Denoise oder Warp.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
+      if (!src || src.length !== nLon * nLat) return src;
+      const out = new Array<number>(nLon * nLat);
+      for (let y = 0; y < nLat; y++) {
+        for (let x = 0; x < nLon; x++) {
+          let sum = 0;
+          let cnt = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const yy = y + dy;
+            if (yy < 0 || yy >= nLat) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx;
+              if (xx < 0 || xx >= nLon) continue;
+              sum += src[yy * nLon + xx];
+              cnt++;
+            }
+          }
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
+        }
+      }
+      return out;
+    };
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
