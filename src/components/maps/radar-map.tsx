@@ -831,9 +831,12 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
+    const vals = isForecastFrame ? denoiseGrid(rawVals, nLon, nLat) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame && rawSnow
+      ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
+      : rawSnow;
+    const zSlot = Date.parse(frame.t) / 900_000;
+
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
