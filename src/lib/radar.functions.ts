@@ -239,9 +239,10 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   );
 
 
-  const [cacheRes, manifestRes] = await Promise.allSettled([
+  const [cacheRes, manifestRes, forecastManifestRes] = await Promise.allSettled([
     fetchOpenMeteoCache(),
     fetchR2Manifest(),
+    fetchR2ForecastManifest(),
   ]);
 
   const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
