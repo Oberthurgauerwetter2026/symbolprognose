@@ -115,6 +115,50 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
           }
         }
 
+        // Forecast-Manifest (PNG-Prognose) separat spiegeln.
+        let forecast:
+          | {
+              manifestUrl?: string;
+              generatedAt?: string;
+              ageSeconds?: number | null;
+              frameCount?: number;
+              latestT?: string | null;
+              error?: string;
+            }
+          | null = null;
+        const fcUrls = [
+          ...r2ObjectUrlCandidates(process.env.RADAR_MANIFEST_URL, "radar/forecast-frames.json"),
+          ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "radar/forecast-frames.json"),
+          ...r2ObjectUrlCandidates(base, "radar/forecast-frames.json"),
+        ].filter((url, index, all) => all.indexOf(url) === index);
+        for (const url of fcUrls) {
+          try {
+            const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
+            if (!res.ok) {
+              forecast = { manifestUrl: url, error: `HTTP ${res.status}` };
+              continue;
+            }
+            const fm = (await res.json()) as {
+              generatedAt?: string;
+              frames?: Array<{ t?: string }>;
+            };
+            const frames = fm.frames ?? [];
+            const latest = frames[frames.length - 1]?.t ?? null;
+            forecast = {
+              manifestUrl: url,
+              generatedAt: fm.generatedAt,
+              ageSeconds: fm.generatedAt
+                ? Math.round((Date.now() - Date.parse(fm.generatedAt)) / 1000)
+                : null,
+              frameCount: frames.length,
+              latestT: latest,
+            };
+            break;
+          } catch (e) {
+            forecast = { manifestUrl: url, error: (e as Error).message };
+          }
+        }
+
         return Response.json(
           {
             r2PublicUrl: base,
@@ -131,9 +175,11 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
             },
             gridPoints: cache?.grid?.points?.length ?? null,
             radar,
+            forecast,
           },
           { headers: { "Cache-Control": "no-store" } },
         );
+
       },
     },
   },
