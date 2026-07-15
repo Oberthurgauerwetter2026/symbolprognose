@@ -2190,11 +2190,10 @@ export function RadarMap({
                     <PrecipOverlay
                       payload={data}
                       frame={gridFrame}
-                      nextFrame={showGrid ? overlayNext : null}
-                      progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
                       prewarmFrames={frames}
                     />
+
                   )}
                   {showPng && (
                     <MeasurementCanvasOverlay
