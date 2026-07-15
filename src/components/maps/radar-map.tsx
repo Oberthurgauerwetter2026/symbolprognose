@@ -707,18 +707,15 @@ function timelineStateForMs(
 function PrecipOverlay({
   payload,
   frame,
-  nextFrame,
-  progress,
   opacity = 1,
   prewarmFrames,
 }: {
   payload: RadarPayload;
   frame: RadarFrame | null;
-  nextFrame?: RadarFrame | null;
-  progress?: number;
   opacity?: number;
   prewarmFrames?: RadarFrame[];
 }) {
+
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
@@ -787,12 +784,8 @@ function PrecipOverlay({
   } | null>(null);
   const CACHE_MAX = 512;
 
-  // Timeline-Refs: nextFrame + progress werden pro Animation-Tick als Prop
-  // gesetzt; redrawRef liest sie über Refs, damit Play/Scrub dieselbe
-  // kontinuierliche Zeitachse nutzen.
-  const nextFrameRef = useRef<RadarFrame | null>(null);
-  const progressRef = useRef<number>(0);
-  const blendCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -838,9 +831,12 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
+    const vals = isForecastFrame ? denoiseGrid(rawVals, nLon, nLat) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame && rawSnow
+      ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
+      : rawSnow;
+    const zSlot = Date.parse(frame.t) / 900_000;
+
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
@@ -881,7 +877,7 @@ function PrecipOverlay({
     }
 
 
-    const cacheKey = `${frame.t}|${frame.source ?? ""}`;
+    const cacheKey = `${frame.t}|${frame.source ?? ""}|w1`;
     let off = cacheRef.current.get(cacheKey) ?? null;
     let lowW: number;
     let lowH: number;
@@ -931,10 +927,16 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          const sx = fxRaw;
-          const sy = fyRaw;
+          let sx = fxRaw;
+          let sy = fyRaw;
+          if (isForecastFrame) {
+            const w = warpSample(fxRaw, fyRaw, zSlot, 0.6);
+            sx = w[0];
+            sy = w[1];
+          }
 
           let v = sampleAt(vals, sx, sy);
+          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
           const minV = 0.1;
           if (v < minV) continue;
@@ -944,6 +946,7 @@ function PrecipOverlay({
             const sv = sampleAt(snowVals, sx, sy);
             if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
           }
+
 
           const [r, g, b, a] = snowFrac > 0.3
             ? snowColorFor(v)
@@ -992,7 +995,7 @@ function PrecipOverlay({
   buildOffscreenRef.current = (f: RadarFrame): HTMLCanvasElement | null => {
     const lookup = lookupRef.current;
     if (!lookup) return null;
-    const cacheKey = `${f.t}|${f.source ?? ""}`;
+    const cacheKey = `${f.t}|${f.source ?? ""}|w1`;
     const existing = cacheRef.current.get(cacheKey);
     if (existing) return existing;
     const { gridLat, gridLon } = payload;
@@ -1001,9 +1004,12 @@ function PrecipOverlay({
     const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
+    const vals = isForecastFrame ? denoiseGrid(rawVals, nLon, nLat) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame && rawSnow
+      ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
+      : rawSnow;
+    const zSlot = Date.parse(f.t) / 900_000;
+
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -1043,11 +1049,18 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const sx = fxRaw;
-        const sy = fyRaw;
+        let sx = fxRaw;
+        let sy = fyRaw;
+        if (isForecastFrame) {
+          const w = warpSample(fxRaw, fyRaw, zSlot, 0.6);
+          sx = w[0];
+          sy = w[1];
+        }
         let v = sampleAt(vals, sx, sy);
+        if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
         const minV = 0.1;
         if (v < minV) continue;
+
         let snowFrac = 0;
         if (snowVals) {
           const sv = sampleAt(snowVals, sx, sy);
@@ -1079,153 +1092,8 @@ function PrecipOverlay({
   // Kontinuierlicher Zwischenframe zwischen zwei Datenframes a→b mit Progress
   // p ∈ (0,1). Es werden ausschliesslich die beiden Nachbarframes an derselben
   // Kartenposition gesampelt und deren Intensitäten interpoliert.
-  const buildBlendedOffscreenRef = useRef<
-    (a: RadarFrame, b: RadarFrame, p: number) => HTMLCanvasElement | null
-  >(() => null);
-  buildBlendedOffscreenRef.current = (
-    a: RadarFrame,
-    b: RadarFrame,
-    p: number,
-  ): HTMLCanvasElement | null => {
-    const lookup = lookupRef.current;
-    if (!lookup) return null;
-    const rawAVals = a.values;
-    const rawBVals = b.values;
-    if (!rawAVals || rawAVals.length === 0 || !rawBVals || rawBVals.length === 0) return null;
-    const nLatEarly = payload.gridLat.length;
-    const nLonEarly = payload.gridLon.length;
-    const isForecastPair = a.source !== "radar" || b.source !== "radar";
-    const aVals = isForecastPair
-      ? denoiseGrid(rawAVals, nLonEarly, nLatEarly) ?? rawAVals
-      : rawAVals;
-    const bVals = isForecastPair
-      ? denoiseGrid(rawBVals, nLonEarly, nLatEarly) ?? rawBVals
-      : rawBVals;
-    const { gridLat, gridLon } = payload;
-    const nLat = gridLat.length;
-    const nLon = gridLon.length;
+  // (Crossfade/Optical-Flow-Blend entfernt — Prognose wechselt hart wie die Messung.)
 
-    const s = Math.max(0, Math.min(1, p));
-    const oneMinusS = 1 - s;
-
-    const lowW = lookup.lowW;
-    const lowH = lookup.lowH;
-    let mc = blendCanvasRef.current;
-    if (!mc || mc.width !== lowW || mc.height !== lowH) {
-      mc = document.createElement("canvas");
-      mc.width = lowW;
-      mc.height = lowH;
-      blendCanvasRef.current = mc;
-    }
-    const offCtx = mc.getContext("2d");
-    if (!offCtx) return null;
-    const img = offCtx.createImageData(lowW, lowH);
-    const data = img.data;
-
-    const sampleAt = (arr: number[], fx: number, fy: number) => {
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = x0 + 1;
-      const y1 = y0 + 1;
-      const txL = fx - x0;
-      const tyL = fy - y0;
-      const inX0 = x0 >= 0 && x0 < nLon;
-      const inX1 = x1 >= 0 && x1 < nLon;
-      const inY0 = y0 >= 0 && y0 < nLat;
-      const inY1 = y1 >= 0 && y1 < nLat;
-      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-      return (
-        v00 * (1 - txL) * (1 - tyL) +
-        v01 * txL * (1 - tyL) +
-        v10 * (1 - txL) * tyL +
-        v11 * txL * tyL
-      );
-    };
-
-    const rawASnow = a.snowValues;
-    const rawBSnow = b.snowValues;
-    const aSnow = isForecastPair
-      ? denoiseGrid(rawASnow, nLon, nLat) ?? rawASnow
-      : rawASnow;
-    const bSnow = isForecastPair
-      ? denoiseGrid(rawBSnow, nLon, nLat) ?? rawBSnow
-      : rawBSnow;
-
-    // Zeit-Slot für den Domain-Warp: zwischen A und B linear interpoliert,
-    // damit die organische Deformation über den Framewechsel driftet, statt
-    // zu springen.
-    const zA = Date.parse(a.t) / 900000;
-    const zB = Date.parse(b.t) / 900000;
-    const zSlot = zA + (zB - zA) * s;
-
-    // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
-    // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
-    // gleichen Tick), fällt der Warp still auf reine Intensitäts-Interpolation
-    // zurück.
-    const flow = getFlowField(a, b, nLon, nLat);
-    const warpAdx = flow ? -s : 0;
-    const warpAdy = flow ? -s : 0;
-    const warpBdx = flow ? 1 - s : 0;
-    const warpBdy = flow ? 1 - s : 0;
-
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const cell = ly * lowW + lx;
-        if (!lookup.valid[cell]) continue;
-        const fxRaw = lookup.fx[cell];
-        const fyRaw = lookup.fy[cell];
-
-        let ux = 0;
-        let uy = 0;
-        if (flow) {
-          ux = sampleBilinear(flow.u, fxRaw, fyRaw, nLon, nLat);
-          uy = sampleBilinear(flow.v, fxRaw, fyRaw, nLon, nLat);
-        }
-
-        // Bidirektionaler Warp: A entlang +u nach vorn geschoben, B entlang −u
-        // zurückgeschoben, so dass korrespondierende Echos sich zwischen A und
-        // B linear in ihrer Position bewegen.
-        const aSx = fxRaw + ux * warpAdx;
-        const aSy = fyRaw + uy * warpAdy;
-        const bSx = fxRaw + ux * warpBdx;
-        const bSy = fyRaw + uy * warpBdy;
-
-        const va = sampleAt(aVals, aSx, aSy);
-        const vb = sampleAt(bVals, bSx, bSy);
-        let v = oneMinusS * va + s * vb;
-        const minV = 0.1;
-        if (v < minV) continue;
-
-        let snowFrac = 0;
-        if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, aSx, aSy) : 0;
-          const sb = bSnow ? sampleAt(bSnow, bSx, bSy) : 0;
-          const sv = oneMinusS * sa + s * sb;
-          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
-        }
-
-        const [rC, gC, bC, aC] = snowFrac > 0.3
-          ? snowColorFor(v)
-          : isForecastPair
-            ? colorForSmooth(v)
-            : colorFor(v);
-        if (aC === 0) continue;
-        const alpha = Math.round(aC * 255);
-        if (alpha === 0) continue;
-        const pix = cell * 4;
-        data[pix] = rC;
-        data[pix + 1] = gC;
-        data[pix + 2] = bC;
-        data[pix + 3] = alpha;
-      }
-    }
-    offCtx.putImageData(img, 0, 0);
-    return mc;
-  };
 
   // Frame-/Payload-Wechsel neu zeichnen.
   useEffect(() => {
@@ -1307,13 +1175,6 @@ function PrecipOverlay({
   }, [prewarmFrames, payload, map]);
 
 
-
-  // Timeline-Sync: nextFrame/progress in Refs spiegeln und Redraw triggern.
-  useEffect(() => {
-    nextFrameRef.current = nextFrame ?? null;
-    progressRef.current = typeof progress === "number" ? progress : 0;
-    redraw();
-  }, [nextFrame, progress]);
 
   // Canvas-Opacity nachziehen.
   useEffect(() => {
@@ -2349,11 +2210,10 @@ export function RadarMap({
                     <PrecipOverlay
                       payload={data}
                       frame={gridFrame}
-                      nextFrame={showGrid ? overlayNext : null}
-                      progress={showGrid ? overlayProg : 0}
                       opacity={showGrid ? opacityVal : 0}
                       prewarmFrames={frames}
                     />
+
                   )}
                   {showPng && (
                     <MeasurementCanvasOverlay
