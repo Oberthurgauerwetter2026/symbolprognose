@@ -564,36 +564,40 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
-    const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    // Für Prognose-Frames: 3×3-Boxcar-Smoothing analog zur Messungs-Pipeline
-    // (`MeasurementCanvasOverlay.ensureSmooth`) — glättet Grid-Kanten zu
-    // organischen Blob-Rändern. Kein Denoise, kein Warp, kein Blend.
-    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
+    // Isolated-cell filter: entfernt einzelne Sprenkel im Grid, ohne zu
+    // glätten. Wird sowohl auf Prognose- als auch auf Messungs-Frames
+    // angewendet.
+    const removeIsolated = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
-      const out = new Array<number>(nLon * nLat);
+      const THR = 0.05;
+      const out = src.slice();
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
-          let sum = 0;
-          let cnt = 0;
+          const i = y * nLon + x;
+          if (src[i] <= THR) continue;
+          let zeros = 0;
+          let neighbors = 0;
           for (let dy = -1; dy <= 1; dy++) {
             const yy = y + dy;
             if (yy < 0 || yy >= nLat) continue;
             for (let dx = -1; dx <= 1; dx++) {
+              if (dx === 0 && dy === 0) continue;
               const xx = x + dx;
               if (xx < 0 || xx >= nLon) continue;
-              sum += src[yy * nLon + xx];
-              cnt++;
+              neighbors++;
+              if (src[yy * nLon + xx] <= THR) zeros++;
             }
           }
-          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
+          if (neighbors >= 3 && zeros >= 6) out[i] = 0;
         }
       }
       return out;
     };
-    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
+    const vals = removeIsolated(rawVals) ?? rawVals;
+    const snowVals = removeIsolated(rawSnow) ?? rawSnow;
+
     if (!vals || vals.length === 0) return;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
