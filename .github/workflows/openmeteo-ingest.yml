@@ -37,12 +37,12 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
-          CHUNK_PHASE1: "180"
+          CHUNK_PHASE1: "150"
           CHUNK_PHASEC: "60"
           BATCH_SLEEP_S: "0"
           OM_CONNECT_TIMEOUT: "30"
-          OM_READ_TIMEOUT: "300"
-          FETCH_WORKERS: "3"
+          OM_READ_TIMEOUT: "60"
+          FETCH_WORKERS: "1"
           BBOX_MIN_LAT: "46.85"
           BBOX_MAX_LAT: "48.30"
           BBOX_MIN_LON: "8.15"
@@ -50,11 +50,11 @@ jobs:
           # Sparse-Grid (Wind, Bias, phaseA/C) — bleibt bewusst grob.
           GRID_LAT: "22"
           GRID_LON: "36"
-          # Dense-Grid für die Prognose-PNGs — ~1.8 km, nahe ICON-CH2 native.
-          # Bewusst nicht auf 120×140 (~1 km), um Open-Meteo-Rate-Limit
-          # sicher zu unterschreiten. Bei zusätzlichem Budget höher setzen.
-          GRID_LAT_DENSE: "80"
-          GRID_LON_DENSE: "96"
+          # Dense-Grid für die Prognose-PNGs — ~3 km, 48×56 = 2688 Punkte.
+          # Bewusst konservativ, damit Open-Meteo-Minutenlimit sicher
+          # unterschritten wird (18 Batches sequentiell statt 84 parallel).
+          GRID_LAT_DENSE: "48"
+          GRID_LON_DENSE: "56"
           # Erlaubte Ausfallquote (%) einzelner Batches für phase1 dense,
           # bevor die PNG-Rasterung aufgegeben wird.
           PHASE1_DENSE_MAX_FAIL_PCT: "20"
