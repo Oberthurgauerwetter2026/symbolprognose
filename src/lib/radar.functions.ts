@@ -247,6 +247,8 @@ export const getRadarFrames = createServerFn({ method: "GET" })
 
   const cache = cacheRes.status === "fulfilled" ? cacheRes.value : null;
   const manifest = manifestRes.status === "fulfilled" ? manifestRes.value : null;
+  const forecastManifest =
+    forecastManifestRes.status === "fulfilled" ? forecastManifestRes.value : null;
 
   const cacheGrid = gridFromCachePoints(cache?.grid?.points);
   const cacheGridStale = cacheGridLooksStale(cache?.grid?.points);
