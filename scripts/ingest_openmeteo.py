@@ -225,10 +225,189 @@ def read_existing_payload(s3, bucket: str, key: str) -> dict | None:
         return None
 
 
-
-
 def _envflag(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+# ---------------------------------------------------------------------------
+# Prognose-PNG-Rasterung (ICON-CH1 minutely_15 → native ~1 km PNGs).
+# Analog zum Messungs-Ingest (scripts/ingest_radar.py) — dieselbe Farbskala,
+# damit Prognose- und Messungs-Frames im Client identisch aussehen.
+# ---------------------------------------------------------------------------
+
+def _index_minutely_times(loc: dict) -> dict[str, int]:
+    times = ((loc or {}).get("minutely_15") or {}).get("time") or []
+    return {t: i for i, t in enumerate(times)}
+
+
+def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> bytes:
+    """`mmh_row_major` ist [lat_asc * lon_asc] mit len = n_lat*n_lon.
+    Rendert ein n_lon × n_lat RGBA-PNG mit PRECIP_SCALE; Zeile 0 = maxLat."""
+    import numpy as np
+    from PIL import Image
+
+    arr = np.asarray(mmh_row_major, dtype=np.float32).reshape(n_lat, n_lon)
+    # Bildzeile 0 muss max_lat entsprechen (PNG top-left = NW).
+    arr = np.flipud(arr)
+    rgba = np.zeros((n_lat, n_lon, 4), dtype=np.uint8)
+    for thresh, color in PRECIP_SCALE:
+        mask = np.isfinite(arr) & (arr >= thresh)
+        rgba[mask] = color
+    img = Image.fromarray(rgba, mode="RGBA")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def _purge_forecast_pngs(s3, bucket: str) -> int:
+    paginator = s3.get_paginator("list_objects_v2")
+    purged = 0
+    for page in paginator.paginate(Bucket=bucket, Prefix="radar/forecast/"):
+        for obj in page.get("Contents", []) or []:
+            s3.delete_object(Bucket=bucket, Key=obj["Key"])
+            purged += 1
+    return purged
+
+
+def rasterize_forecast_pngs(
+    s3,
+    bucket: str,
+    public_url: str,
+    lats: list[float],
+    lons: list[float],
+    phase1_dense: list | None,
+) -> list[dict]:
+    """Baut aus `phase1_dense` (ICON-CH1 minutely_15) für jeden 15-min-Slot
+    ab jetzt bis +48 h ein PNG und lädt es nach `radar/forecast/<ISO>.png`.
+    Gibt eine Liste von Manifest-Einträgen zurück."""
+    if not phase1_dense or not lats or not lons:
+        print("forecast-pngs: no phase1_dense data — skipping")
+        return []
+
+    n_lat = len(lats)
+    n_lon = len(lons)
+    n_pts = n_lat * n_lon
+    if len(phase1_dense) != n_pts:
+        print(
+            f"forecast-pngs: dense grid mismatch ({len(phase1_dense)} vs {n_pts}) — skipping",
+        )
+        return []
+
+    # Zeit-Achse aus dem ersten Punkt lesen; alle Punkte teilen dieselbe.
+    ref_times: list[str] = ((phase1_dense[0] or {}).get("minutely_15") or {}).get("time") or []
+    if not ref_times:
+        print("forecast-pngs: no minutely_15 times in phase1 — skipping")
+        return []
+
+    # Pro Punkt: Zeit-Index → Value-Array (mm pro 15 min → mm/h × 4).
+    per_pt_precip: list[list[float | None]] = []
+    for loc in phase1_dense:
+        m = (loc or {}).get("minutely_15") or {}
+        precip = m.get("precipitation") or []
+        per_pt_precip.append(precip)
+
+    # ISO in UTC. Open-Meteo minutely_15 kommt ohne Timezone-Suffix.
+    now = datetime.now(tz=timezone.utc)
+    horizon = now + timedelta(hours=48)
+    past = now - timedelta(hours=1)
+
+    _purged = _purge_forecast_pngs(s3, bucket)
+    if _purged:
+        print(f"forecast-pngs: purged {_purged} old objects")
+
+    manifest_entries: list[dict] = []
+    uploaded = 0
+    for ti, t_iso in enumerate(ref_times):
+        try:
+            t_dt = datetime.fromisoformat(t_iso).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if t_dt < past or t_dt > horizon:
+            continue
+        # Werte pro Grid-Punkt aggregieren; None → 0.
+        frame_vals: list[float] = [0.0] * n_pts
+        any_positive = False
+        for pi in range(n_pts):
+            arr = per_pt_precip[pi]
+            v = arr[ti] if ti < len(arr) else None
+            if v is None:
+                frame_vals[pi] = 0.0
+            else:
+                fv = float(v) * 4.0  # mm/15min → mm/h
+                if fv > 0.05:
+                    any_positive = True
+                frame_vals[pi] = fv
+
+        # Auch komplett trockene Frames rendern (leerer PNG), damit die
+        # Timeline lückenlos bleibt. Nutzt die "any_positive" nur für Logging.
+        png = _render_frame_png(n_lat, n_lon, frame_vals)
+        # Dateiname: YYYYMMDDTHHMM.png, Zeit auf 15-min gerundet.
+        stamp = t_dt.strftime("%Y%m%dT%H%M")
+        key = f"radar/forecast/{stamp}.png"
+        s3.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=png,
+            ContentType="image/png",
+            CacheControl="public, max-age=31536000, immutable",
+        )
+        uploaded += 1
+        manifest_entries.append({
+            "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
+            "precipUrl": f"{public_url.rstrip('/')}/{key}",
+            "source": "icon-ch1",
+            "hasPrecip": any_positive,
+        })
+    print(f"forecast-pngs: uploaded {uploaded} frames")
+    return manifest_entries
+
+
+def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
+    bb = _bbox()
+    body: dict = {
+        "bbox": {
+            "minLat": bb["min_lat"],
+            "maxLat": bb["max_lat"],
+            "minLon": bb["min_lon"],
+            "maxLon": bb["max_lon"],
+        },
+        "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "version": VERSION,
+        "frames": sorted(frames, key=lambda f: f["t"]),
+    }
+    s3.put_object(
+        Bucket=bucket,
+        Key="radar/forecast-frames.json",
+        Body=json.dumps(body, separators=(",", ":")).encode("utf-8"),
+        ContentType="application/json",
+        CacheControl="public, max-age=30",
+    )
+    print(f"forecast-manifest: {len(frames)} entries")
+
+
+def downsample_phase1(
+    dense_lats: list[float],
+    dense_lons: list[float],
+    phase1_dense: list,
+    sparse_pts: list[tuple[float, float]],
+) -> list:
+    """Weist jedem Sparse-Punkt den nächsten Dense-Punkt zu. Bewahrt die
+    bestehende Struktur (minutely_15/hourly) 1:1, damit
+    radar.functions.ts und Bias-Korrektur unverändert weiterlaufen."""
+    if not phase1_dense:
+        return []
+    n_lon = len(dense_lons)
+    n_lat = len(dense_lats)
+    if len(phase1_dense) != n_lat * n_lon:
+        return phase1_dense  # Struktur unbekannt → weiterreichen
+    out: list = []
+    for la, lo in sparse_pts:
+        # Nächster Index in lats/lons.
+        i_lat = min(range(n_lat), key=lambda i: abs(dense_lats[i] - la))
+        i_lon = min(range(n_lon), key=lambda j: abs(dense_lons[j] - lo))
+        out.append(phase1_dense[i_lat * n_lon + i_lon])
+    return out
+
 
 
 def main() -> None:
