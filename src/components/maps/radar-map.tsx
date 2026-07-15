@@ -2095,6 +2095,13 @@ export function RadarMap({
                 {data.warning ?? "Radardaten sind derzeit nicht verfügbar."}
               </p>
             )}
+            {!isLoading && !error && data && frames.length > 0 && data.hasRealRadar &&
+              !frames.some((f) => Date.parse(f.t) > Date.now()) && (
+                <p className="text-center text-xs text-amber-700">
+                  Prognose-Layer wird gerade neu berechnet – bislang nur Messdaten sichtbar.
+                </p>
+              )}
+
 
             {data && frames.length > 0 && idx !== null && (
               <>
