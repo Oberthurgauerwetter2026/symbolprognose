@@ -123,6 +123,8 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
               ageSeconds?: number | null;
               frameCount?: number;
               latestT?: string | null;
+              futureFrameCount?: number;
+              fallbackAvailable?: boolean;
               error?: string;
             }
           | null = null;
@@ -144,6 +146,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
             };
             const frames = fm.frames ?? [];
             const latest = frames[frames.length - 1]?.t ?? null;
+            const now = Date.now();
             forecast = {
               manifestUrl: url,
               generatedAt: fm.generatedAt,
@@ -152,11 +155,27 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
                 : null,
               frameCount: frames.length,
               latestT: latest,
+              futureFrameCount: frames.filter((f) => f.t && Date.parse(f.t) > now).length,
+              fallbackAvailable: !!(
+                (cache?.phase1?.length ?? cache?.phaseB?.length ?? 0) > 0 && cache?.grid?.points?.length
+              ),
             };
             break;
           } catch (e) {
             forecast = { manifestUrl: url, error: (e as Error).message };
           }
+        }
+        if (!forecast) {
+          forecast = {
+            error: fcUrls.length > 0 ? "not checked" : "no forecast manifest URL configured",
+            fallbackAvailable: !!(
+              (cache?.phase1?.length ?? cache?.phaseB?.length ?? 0) > 0 && cache?.grid?.points?.length
+            ),
+          };
+        } else if (forecast.error) {
+          forecast.fallbackAvailable = !!(
+            (cache?.phase1?.length ?? cache?.phaseB?.length ?? 0) > 0 && cache?.grid?.points?.length
+          );
         }
 
         return Response.json(

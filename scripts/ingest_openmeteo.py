@@ -111,6 +111,13 @@ def build_grid_dense():
     return lats, lons, pts
 
 
+def grid_axes_from_points(pts: list[tuple[float, float]]) -> tuple[list[float], list[float]]:
+    """Extrahiert lat/lon-Achsen aus einer row-major Punktliste."""
+    lats = sorted({p[0] for p in pts})
+    lons = sorted({p[1] for p in pts})
+    return lats, lons
+
+
 
 def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     # 429 = Minutenlimit -> volle Minute warten (API sagt explizit "try again in one minute").
@@ -321,8 +328,18 @@ def rasterize_forecast_pngs(
         )
         return []
 
-    # Zeit-Achse aus dem ersten Punkt lesen; alle Punkte teilen dieselbe.
-    ref_times: list[str] = ((phase1_dense[0] or {}).get("minutely_15") or {}).get("time") or []
+    # Zeit-Achse aus dem ersten gültigen Punkt lesen; einzelne fehlgeschlagene
+    # Batches werden als `{}`-Platzhalter eingefügt und dürfen die Rasterung
+    # nicht komplett blockieren.
+    ref_loc = next(
+        (
+            loc for loc in phase1_dense
+            if ((loc or {}).get("minutely_15") or {}).get("time")
+            and ((loc or {}).get("minutely_15") or {}).get("precipitation")
+        ),
+        None,
+    )
+    ref_times: list[str] = ((ref_loc or {}).get("minutely_15") or {}).get("time") or []
     if not ref_times:
         print("forecast-pngs: no minutely_15 times in phase1 — skipping")
         return []
@@ -571,15 +588,26 @@ def main() -> None:
             print(f"  -> downsampled to sparse: {len(phase1)} locations")
 
     # ---- Prognose-PNGs rasterisieren + Manifest schreiben ----
-    if phase1_dense and r2_public_url:
+    raster_lats = dense_lats
+    raster_lons = dense_lons
+    raster_phase1 = phase1_dense
+    if not raster_phase1 and isinstance(phase1, list) and len(phase1) == len(pts):
+        # Fallback: wenn der Dense-Fetch scheitert, wenigstens aus dem
+        # bestehenden Sparse-Cache PNGs/Manifest erzeugen. Die App ersetzt das
+        # später automatisch wieder durch die dichteren PNGs.
+        raster_lats, raster_lons = grid_axes_from_points(pts)
+        raster_phase1 = phase1
+        print("forecast-pngs: using sparse cache fallback for forecast manifest")
+
+    if raster_phase1 and r2_public_url:
         try:
             forecast_frames = rasterize_forecast_pngs(
-                s3, bucket, r2_public_url, dense_lats, dense_lons, phase1_dense
+                s3, bucket, r2_public_url, raster_lats, raster_lons, raster_phase1
             )
             write_forecast_manifest(s3, bucket, forecast_frames)
         except Exception as exc:
             print(f"WARN: forecast PNG rasterization failed: {exc!r}")
-    elif phase1_dense and not r2_public_url:
+    elif raster_phase1 and not r2_public_url:
         print("WARN: R2_PUBLIC_URL not set — skipping forecast PNG rasterization")
 
 

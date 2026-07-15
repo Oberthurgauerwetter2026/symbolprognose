@@ -7,10 +7,9 @@
  *   2. Aktive-Run-Check via GitHub API: existiert bereits ein Run im
  *      Status queued/waiting/pending/requested/in_progress für
  *      `openmeteo-ingest.yml`, wird KEIN neuer Dispatch ausgelöst.
- *   3. Recent-Run-Guard via GitHub API: war der letzte Run (egal mit
- *      welchem Status/Conclusion) jünger als RECENT_RUN_GUARD_MS, wird
- *      ebenfalls NICHT dispatcht. Schützt instanzübergreifend gegen
- *      doppelte Cron-Trigger und gegen unnötige Leerläufe.
+ *   3. Recent-Run-Guard via GitHub API: nur erfolgreiche oder noch nicht
+ *      abgeschlossene Runs blockieren. Fehlgeschlagene Runs dürfen sofort
+ *      neu versucht werden, damit die Radar-Prognose nicht dauerhaft fehlt.
  */
 
 // Cron triggert Open-Meteo alle 30 min. Der Ingest dauert oft mehrere
@@ -125,7 +124,8 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
     const latest = runs[0];
     if (latest) {
       const ageMs = now - new Date(latest.created_at).getTime();
-      if (ageMs < RECENT_RUN_GUARD_MS) {
+      const blocksRetry = latest.status !== "completed" || latest.conclusion === "success";
+      if (blocksRetry && ageMs < RECENT_RUN_GUARD_MS) {
         return {
           ok: false,
           throttled: true,
