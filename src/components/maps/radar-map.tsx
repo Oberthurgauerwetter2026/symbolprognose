@@ -996,31 +996,36 @@ function MeasurementCanvasOverlay({
     });
   }
 
+  // Despeckle: isolierte Einzelpixel (Radar-Clutter/Bodenechos) → 0.
+  // Kein Mittelwert, kein Blur — echte Niederschlagsflächen bleiben exakt.
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
     if (src.smoothMmh) return src.smoothMmh;
     const sw = src.w;
     const sh = src.h;
-    const smooth = new Float32Array(sw * sh);
+    const MIN_V = 0.1;
+    const out = new Float32Array(src.mmh);
     for (let y = 0; y < sh; y++) {
       for (let x = 0; x < sw; x++) {
-        let sum = 0;
-        let cnt = 0;
+        const idx = y * sw + x;
+        if (src.mmh[idx] < MIN_V) continue;
+        let neigh = 0;
         for (let dy = -1; dy <= 1; dy++) {
           const yy = y + dy;
           if (yy < 0 || yy >= sh) continue;
           for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
             const xx = x + dx;
             if (xx < 0 || xx >= sw) continue;
-            sum += src.mmh[yy * sw + xx];
-            cnt++;
+            if (src.mmh[yy * sw + xx] >= MIN_V) neigh++;
           }
         }
-        smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
+        if (neigh <= 1) out[idx] = 0;
       }
     }
-    src.smoothMmh = smooth;
-    return smooth;
+    src.smoothMmh = out;
+    return out;
   };
+
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
