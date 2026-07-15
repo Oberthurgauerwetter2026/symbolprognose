@@ -547,7 +547,14 @@ def main() -> None:
             f"fetch phase1 dense (ICON-CH1 minutely_15, {len(dense_pts)} pts) "
             f"in chunks of {chunk_p1} …"
         )
-        phase1_dense = chunk_fetch("phase1", p1, dense_pts, chunk_p1, optional=True)
+        try:
+            max_fail_pct = float(os.environ.get("PHASE1_DENSE_MAX_FAIL_PCT", "20"))
+        except ValueError:
+            max_fail_pct = 20.0
+        phase1_dense = chunk_fetch(
+            "phase1", p1, dense_pts, chunk_p1, optional=True, max_fail_pct=max_fail_pct,
+        )
+
         if phase1_dense is None:
             print("phase1 dense failed — versuche Fallback auf bestehenden R2-Cache …")
             prev_phase1 = prev.get("phase1") or prev.get("phaseB")
