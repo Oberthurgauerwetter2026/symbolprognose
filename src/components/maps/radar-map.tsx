@@ -927,10 +927,16 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          const sx = fxRaw;
-          const sy = fyRaw;
+          let sx = fxRaw;
+          let sy = fyRaw;
+          if (isForecastFrame) {
+            const w = warpSample(fxRaw, fyRaw, zSlot, 0.6);
+            sx = w[0];
+            sy = w[1];
+          }
 
           let v = sampleAt(vals, sx, sy);
+          if (isForecastFrame) v *= edgeJitter(fxRaw, fyRaw, zSlot);
 
           const minV = 0.1;
           if (v < minV) continue;
@@ -940,6 +946,7 @@ function PrecipOverlay({
             const sv = sampleAt(snowVals, sx, sy);
             if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
           }
+
 
           const [r, g, b, a] = snowFrac > 0.3
             ? snowColorFor(v)
