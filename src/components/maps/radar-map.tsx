@@ -995,7 +995,7 @@ function PrecipOverlay({
   buildOffscreenRef.current = (f: RadarFrame): HTMLCanvasElement | null => {
     const lookup = lookupRef.current;
     if (!lookup) return null;
-    const cacheKey = `${f.t}|${f.source ?? ""}`;
+    const cacheKey = `${f.t}|${f.source ?? ""}|w1`;
     const existing = cacheRef.current.get(cacheKey);
     if (existing) return existing;
     const { gridLat, gridLon } = payload;
@@ -1004,9 +1004,12 @@ function PrecipOverlay({
     const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
+    const vals = isForecastFrame ? denoiseGrid(rawVals, nLon, nLat) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame && rawSnow
+      ? denoiseGrid(rawSnow, nLon, nLat) ?? rawSnow
+      : rawSnow;
+    const zSlot = Date.parse(f.t) / 900_000;
+
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
