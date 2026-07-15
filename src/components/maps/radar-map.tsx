@@ -992,31 +992,40 @@ function MeasurementCanvasOverlay({
     });
   }
 
+  // Isolated-cell filter: entfernt einzelne Sprenkel/Clutter-Pixel, ohne zu
+  // glätten. Wenn ein "nasses" Pixel (> THR) mind. 6 von max. 8 Nachbarn
+  // hat, die "trocken" sind, wird es auf 0 gesetzt. Zusammenhängende
+  // Niederschlagsbänder bleiben bit-genau erhalten.
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
     if (src.smoothMmh) return src.smoothMmh;
     const sw = src.w;
     const sh = src.h;
-    const smooth = new Float32Array(sw * sh);
+    const THR = 0.05;
+    const out = new Float32Array(src.mmh);
     for (let y = 0; y < sh; y++) {
       for (let x = 0; x < sw; x++) {
-        let sum = 0;
-        let cnt = 0;
+        const i = y * sw + x;
+        if (src.mmh[i] <= THR) continue;
+        let zeros = 0;
+        let neighbors = 0;
         for (let dy = -1; dy <= 1; dy++) {
           const yy = y + dy;
           if (yy < 0 || yy >= sh) continue;
           for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
             const xx = x + dx;
             if (xx < 0 || xx >= sw) continue;
-            sum += src.mmh[yy * sw + xx];
-            cnt++;
+            neighbors++;
+            if (src.mmh[yy * sw + xx] <= THR) zeros++;
           }
         }
-        smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
+        if (neighbors >= 3 && zeros >= 6) out[i] = 0;
       }
     }
-    src.smoothMmh = smooth;
-    return smooth;
+    src.smoothMmh = out;
+    return out;
   };
+
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
