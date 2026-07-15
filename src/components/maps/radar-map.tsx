@@ -564,40 +564,36 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
+    const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    // Isolated-cell filter: entfernt einzelne Sprenkel im Grid, ohne zu
-    // glätten. Wird sowohl auf Prognose- als auch auf Messungs-Frames
-    // angewendet.
-    const removeIsolated = (src: number[] | undefined): number[] | undefined => {
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing analog zur Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — glättet Grid-Kanten zu
+    // organischen Blob-Rändern. Kein Denoise, kein Warp, kein Blend.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
-      const THR = 0.05;
-      const out = src.slice();
+      const out = new Array<number>(nLon * nLat);
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
-          const i = y * nLon + x;
-          if (src[i] <= THR) continue;
-          let zeros = 0;
-          let neighbors = 0;
+          let sum = 0;
+          let cnt = 0;
           for (let dy = -1; dy <= 1; dy++) {
             const yy = y + dy;
             if (yy < 0 || yy >= nLat) continue;
             for (let dx = -1; dx <= 1; dx++) {
-              if (dx === 0 && dy === 0) continue;
               const xx = x + dx;
               if (xx < 0 || xx >= nLon) continue;
-              neighbors++;
-              if (src[yy * nLon + xx] <= THR) zeros++;
+              sum += src[yy * nLon + xx];
+              cnt++;
             }
           }
-          if (neighbors >= 3 && zeros >= 6) out[i] = 0;
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
         }
       }
       return out;
     };
-    const vals = removeIsolated(rawVals) ?? rawVals;
-    const snowVals = removeIsolated(rawSnow) ?? rawSnow;
-
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
     if (!vals || vals.length === 0) return;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
@@ -756,40 +752,37 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
+    const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
     if (!rawVals || rawVals.length === 0) return null;
-    // Isolated-cell filter — identisch zum Live-Render, damit Cache und
-    // Live-Bild bit-genau übereinstimmen.
-    const removeIsolated = (src: number[] | undefined): number[] | undefined => {
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing wie in der Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — erzeugt organische Blob-
+    // Ränder statt rechteckiger Grid-Kanten, ohne Denoise oder Warp.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
-      const THR = 0.05;
-      const out = src.slice();
+      const out = new Array<number>(nLon * nLat);
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
-          const i = y * nLon + x;
-          if (src[i] <= THR) continue;
-          let zeros = 0;
-          let neighbors = 0;
+          let sum = 0;
+          let cnt = 0;
           for (let dy = -1; dy <= 1; dy++) {
             const yy = y + dy;
             if (yy < 0 || yy >= nLat) continue;
             for (let dx = -1; dx <= 1; dx++) {
-              if (dx === 0 && dy === 0) continue;
               const xx = x + dx;
               if (xx < 0 || xx >= nLon) continue;
-              neighbors++;
-              if (src[yy * nLon + xx] <= THR) zeros++;
+              sum += src[yy * nLon + xx];
+              cnt++;
             }
           }
-          if (neighbors >= 3 && zeros >= 6) out[i] = 0;
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
         }
       }
       return out;
     };
-    const vals = removeIsolated(rawVals) ?? rawVals;
-    const snowVals = removeIsolated(rawSnow) ?? rawSnow;
-
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -999,40 +992,31 @@ function MeasurementCanvasOverlay({
     });
   }
 
-  // Isolated-cell filter: entfernt einzelne Sprenkel/Clutter-Pixel, ohne zu
-  // glätten. Wenn ein "nasses" Pixel (> THR) mind. 6 von max. 8 Nachbarn
-  // hat, die "trocken" sind, wird es auf 0 gesetzt. Zusammenhängende
-  // Niederschlagsbänder bleiben bit-genau erhalten.
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
     if (src.smoothMmh) return src.smoothMmh;
     const sw = src.w;
     const sh = src.h;
-    const THR = 0.05;
-    const out = new Float32Array(src.mmh);
+    const smooth = new Float32Array(sw * sh);
     for (let y = 0; y < sh; y++) {
       for (let x = 0; x < sw; x++) {
-        const i = y * sw + x;
-        if (src.mmh[i] <= THR) continue;
-        let zeros = 0;
-        let neighbors = 0;
+        let sum = 0;
+        let cnt = 0;
         for (let dy = -1; dy <= 1; dy++) {
           const yy = y + dy;
           if (yy < 0 || yy >= sh) continue;
           for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue;
             const xx = x + dx;
             if (xx < 0 || xx >= sw) continue;
-            neighbors++;
-            if (src.mmh[yy * sw + xx] <= THR) zeros++;
+            sum += src.mmh[yy * sw + xx];
+            cnt++;
           }
         }
-        if (neighbors >= 3 && zeros >= 6) out[i] = 0;
+        smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
       }
     }
-    src.smoothMmh = out;
-    return out;
+    src.smoothMmh = smooth;
+    return smooth;
   };
-
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
