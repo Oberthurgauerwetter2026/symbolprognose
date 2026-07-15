@@ -87,154 +87,6 @@ function colorFor(mmh: number): [number, number, number, number] {
   return [band.rgb[0], band.rgb[1], band.rgb[2], band.a];
 }
 
-// Weiche Farbskala für Prognose-Frames — linear zwischen zwei Bändern blenden,
-// damit die ICON-CH1-Felder nicht als rechteckige Blöcke wirken.
-function colorForSmooth(mmh: number): [number, number, number, number] {
-  if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
-  if (mmh >= SCALE[SCALE.length - 1].mmh) {
-    const last = SCALE[SCALE.length - 1];
-    return [last.rgb[0], last.rgb[1], last.rgb[2], last.a];
-  }
-  for (let i = 0; i < SCALE.length - 1; i++) {
-    const lo = SCALE[i];
-    const hi = SCALE[i + 1];
-    if (mmh >= lo.mmh && mmh < hi.mmh) {
-      // log-Interpolation, weil die Skala selbst log-artig ist (0.1→0.3→0.8→2…).
-      const tt =
-        (Math.log(mmh) - Math.log(lo.mmh)) /
-        (Math.log(hi.mmh) - Math.log(lo.mmh));
-      const t = Math.max(0, Math.min(1, tt));
-      return [
-        Math.round(lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t),
-        Math.round(lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t),
-        Math.round(lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t),
-        lo.a + (hi.a - lo.a) * t,
-      ];
-    }
-  }
-  return [0, 0, 0, 0];
-}
-
-
-// ---------------------------------------------------------------------------
-// Organische Radar-Echo-Optik für die Prognose:
-// Domain-Warp + feine Intensitäts-Modulation aus deterministischem Value-Noise
-// verwandeln die glatten, kapselförmigen Grid-Blobs in unregelmäßige, an den
-// Rändern ausgefranste Zellen, ohne die Position der Datenfelder zu verfälschen.
-// Zusätzlich entfernt eine morphologische Öffnung isolierte Streu-Pixel.
-// Alle Funktionen sind ausschliesslich für den Prognose-Renderpfad gedacht —
-// Messung bleibt unangetastet.
-// ---------------------------------------------------------------------------
-
-function _hash3i(x: number, y: number, z: number): number {
-  let h = ((x | 0) * 374761393) ^ ((y | 0) * 668265263) ^ ((z | 0) * 1442695040);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  h = h ^ (h >>> 16);
-  return ((h >>> 0) / 4294967295) * 2 - 1;
-}
-
-function _valueNoise2Int(x: number, y: number, z: number): number {
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const xf = x - xi;
-  const yf = y - yi;
-  const u = xf * xf * (3 - 2 * xf);
-  const v = yf * yf * (3 - 2 * yf);
-  const n00 = _hash3i(xi, yi, z);
-  const n10 = _hash3i(xi + 1, yi, z);
-  const n01 = _hash3i(xi, yi + 1, z);
-  const n11 = _hash3i(xi + 1, yi + 1, z);
-  const nx0 = n00 * (1 - u) + n10 * u;
-  const nx1 = n01 * (1 - u) + n11 * u;
-  return nx0 * (1 - v) + nx1 * v;
-}
-
-function valueNoise2(x: number, y: number, z: number): number {
-  const zi = Math.floor(z);
-  const zf = z - zi;
-  const a = _valueNoise2Int(x, y, zi);
-  const b = _valueNoise2Int(x, y, zi + 1);
-  return a * (1 - zf) + b * zf;
-}
-
-function fbm2(x: number, y: number, z: number, octaves: number): number {
-  let sum = 0;
-  let amp = 1;
-  let freq = 1;
-  let norm = 0;
-  for (let i = 0; i < octaves; i++) {
-    sum += amp * valueNoise2(x * freq, y * freq, z);
-    norm += amp;
-    amp *= 0.5;
-    freq *= 2;
-  }
-  return sum / norm;
-}
-
-const _DENOISE_CACHE: WeakMap<object, number[]> = new WeakMap();
-function denoiseGrid(
-  vals: number[] | undefined,
-  nLon: number,
-  nLat: number,
-  threshold = 0.1,
-  minNb = 2,
-): number[] | undefined {
-  if (!vals || vals.length !== nLon * nLat) return vals;
-  const key = vals as unknown as object;
-  const cached = _DENOISE_CACHE.get(key);
-  if (cached) return cached;
-  const out = new Array<number>(vals.length);
-  for (let y = 0; y < nLat; y++) {
-    for (let x = 0; x < nLon; x++) {
-      const i = y * nLon + x;
-      const v = vals[i];
-      if (v < threshold) {
-        out[i] = v;
-        continue;
-      }
-      let nb = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        const yy = y + dy;
-        if (yy < 0 || yy >= nLat) continue;
-        for (let dx = -1; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0) continue;
-          const xx = x + dx;
-          if (xx < 0 || xx >= nLon) continue;
-          if (vals[yy * nLon + xx] >= threshold) nb++;
-        }
-      }
-      out[i] = nb < minNb ? 0 : v;
-    }
-  }
-  _DENOISE_CACHE.set(key, out);
-  return out;
-}
-
-/**
- * Domain-Warp: verzerrt (fxRaw, fyRaw) mit einem niederfrequenten fBm-Feld,
- * damit die Radar-Echos organisch ausgefranste Ränder bekommen. Amplitude
- * in Grid-Zellen, Zeitachse `z` sorgt für langsame, atmende Deformation.
- * Nur für Prognose-Frames aufrufen.
- */
-function warpSample(
-  fx: number,
-  fy: number,
-  z: number,
-  ampCells = 0.55,
-): [number, number] {
-  const wx = fbm2(fx * 0.85, fy * 0.85, z, 2);
-  const wy = fbm2(fx * 0.85 + 31.7, fy * 0.85 + 17.3, z, 2);
-  return [fx + wx * ampCells, fy + wy * ampCells];
-}
-
-/**
- * Feine Intensitäts-Modulation nahe der Isolinien — erzeugt zusätzliche
- * Zipfel/Fransen an den Bandgrenzen von `colorFor`, ohne dichte Kerne
- * sichtbar zu ändern.
- */
-function edgeJitter(fx: number, fy: number, z: number): number {
-  return 1 + 0.12 * valueNoise2(fx * 2.1, fy * 2.1, z * 3 + 1);
-}
 
 
 
@@ -510,129 +362,6 @@ function StableImageOverlay({
   return null;
 }
 
-// Optical-Flow (Horn–Schunck) zwischen zwei Prognose-Feldern auf dem nativen
-// ICON-Grid. Ergebnis: Verschiebungsfeld (u,v) in Gridindex-Einheiten pro
-// vollem Framepaar-Gap. Wird pro Framepaar einmal berechnet und in einer
-// modulweiten LRU-Map gecacht, damit das Morphing beim Play/Scrub nur
-// noch zweimal warpend samplet (bidirektionales Bild-Morphing).
-type FlowField = { u: Float32Array; v: Float32Array; w: number; h: number };
-const FLOW_CACHE = new Map<string, FlowField>();
-const FLOW_CACHE_MAX = 32;
-
-function computeHornSchunckFlow(
-  aVals: number[] | Float32Array,
-  bVals: number[] | Float32Array,
-  w: number,
-  h: number,
-  iters = 40,
-  alpha2 = 4,
-): FlowField {
-  // log(1+v) skaliert die Skala (0.1 … 80 mm/h) auf einen kompakten Bereich
-  // und stabilisiert die Gradienten für Horn–Schunck.
-  const n = w * h;
-  const I1 = new Float32Array(n);
-  const I2 = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    I1[i] = Math.log1p(Math.max(0, aVals[i] ?? 0));
-    I2[i] = Math.log1p(Math.max(0, bVals[i] ?? 0));
-  }
-  const Ix = new Float32Array(n);
-  const Iy = new Float32Array(n);
-  const It = new Float32Array(n);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      const xL = x > 0 ? x - 1 : x;
-      const xR = x < w - 1 ? x + 1 : x;
-      const yU = y > 0 ? y - 1 : y;
-      const yD = y < h - 1 ? y + 1 : y;
-      Ix[i] = ((I1[y * w + xR] - I1[y * w + xL]) + (I2[y * w + xR] - I2[y * w + xL])) * 0.25;
-      Iy[i] = ((I1[yD * w + x] - I1[yU * w + x]) + (I2[yD * w + x] - I2[yU * w + x])) * 0.25;
-      It[i] = I2[i] - I1[i];
-    }
-  }
-  const u = new Float32Array(n);
-  const v = new Float32Array(n);
-  const uBar = new Float32Array(n);
-  const vBar = new Float32Array(n);
-  for (let k = 0; k < iters; k++) {
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        const xL = x > 0 ? x - 1 : x;
-        const xR = x < w - 1 ? x + 1 : x;
-        const yU = y > 0 ? y - 1 : y;
-        const yD = y < h - 1 ? y + 1 : y;
-        uBar[i] = (u[y * w + xL] + u[y * w + xR] + u[yU * w + x] + u[yD * w + x]) * 0.25;
-        vBar[i] = (v[y * w + xL] + v[y * w + xR] + v[yU * w + x] + v[yD * w + x]) * 0.25;
-      }
-    }
-    for (let i = 0; i < n; i++) {
-      const num = Ix[i] * uBar[i] + Iy[i] * vBar[i] + It[i];
-      const den = alpha2 + Ix[i] * Ix[i] + Iy[i] * Iy[i];
-      const f = num / den;
-      u[i] = uBar[i] - Ix[i] * f;
-      v[i] = vBar[i] - Iy[i] * f;
-    }
-  }
-  return { u, v, w, h };
-}
-
-function getFlowField(
-  a: RadarFrame,
-  b: RadarFrame,
-  w: number,
-  h: number,
-): FlowField | null {
-  if (!a.values || !b.values || a.values.length !== w * h || b.values.length !== w * h) {
-    return null;
-  }
-  const key = `${a.t}|${b.t}`;
-  const hit = FLOW_CACHE.get(key);
-  if (hit) {
-    FLOW_CACHE.delete(key);
-    FLOW_CACHE.set(key, hit);
-    return hit;
-  }
-  const flow = computeHornSchunckFlow(a.values, b.values, w, h);
-  FLOW_CACHE.set(key, flow);
-  while (FLOW_CACHE.size > FLOW_CACHE_MAX) {
-    const firstKey = FLOW_CACHE.keys().next().value;
-    if (firstKey === undefined) break;
-    FLOW_CACHE.delete(firstKey);
-  }
-  return flow;
-}
-
-function sampleBilinear(
-  arr: number[] | Float32Array,
-  fx: number,
-  fy: number,
-  w: number,
-  h: number,
-): number {
-  const x0 = Math.floor(fx);
-  const y0 = Math.floor(fy);
-  const x1 = x0 + 1;
-  const y1 = y0 + 1;
-  const tx = fx - x0;
-  const ty = fy - y0;
-  const inX0 = x0 >= 0 && x0 < w;
-  const inX1 = x1 >= 0 && x1 < w;
-  const inY0 = y0 >= 0 && y0 < h;
-  const inY1 = y1 >= 0 && y1 < h;
-  if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-  const v00 = inX0 && inY0 ? arr[y0 * w + x0] : 0;
-  const v01 = inX1 && inY0 ? arr[y0 * w + x1] : 0;
-  const v10 = inX0 && inY1 ? arr[y1 * w + x0] : 0;
-  const v11 = inX1 && inY1 ? arr[y1 * w + x1] : 0;
-  return (
-    v00 * (1 - tx) * (1 - ty) +
-    v01 * tx * (1 - ty) +
-    v10 * (1 - tx) * ty +
-    v11 * tx * ty
-  );
-}
 
 
 function nearestFrameIndexForMs(frames: RadarFrame[], targetMs: number): number {
@@ -792,7 +521,7 @@ function PrecipOverlay({
   // kontinuierliche Zeitachse nutzen.
   const nextFrameRef = useRef<RadarFrame | null>(null);
   const progressRef = useRef<number>(0);
-  const blendCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -838,9 +567,34 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing analog zur Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — glättet Grid-Kanten zu
+    // organischen Blob-Rändern. Kein Denoise, kein Warp, kein Blend.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
+      if (!src || src.length !== nLon * nLat) return src;
+      const out = new Array<number>(nLon * nLat);
+      for (let y = 0; y < nLat; y++) {
+        for (let x = 0; x < nLon; x++) {
+          let sum = 0;
+          let cnt = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const yy = y + dy;
+            if (yy < 0 || yy >= nLat) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx;
+              if (xx < 0 || xx >= nLon) continue;
+              sum += src[yy * nLon + xx];
+              cnt++;
+            }
+          }
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
+        }
+      }
+      return out;
+    };
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
+    if (!vals || vals.length === 0) return;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
@@ -1001,9 +755,34 @@ function PrecipOverlay({
     const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    const zSlot = 0;
+    if (!rawVals || rawVals.length === 0) return null;
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing wie in der Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — erzeugt organische Blob-
+    // Ränder statt rechteckiger Grid-Kanten, ohne Denoise oder Warp.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
+      if (!src || src.length !== nLon * nLat) return src;
+      const out = new Array<number>(nLon * nLat);
+      for (let y = 0; y < nLat; y++) {
+        for (let x = 0; x < nLon; x++) {
+          let sum = 0;
+          let cnt = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const yy = y + dy;
+            if (yy < 0 || yy >= nLat) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx;
+              if (xx < 0 || xx >= nLon) continue;
+              sum += src[yy * nLon + xx];
+              cnt++;
+            }
+          }
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
+        }
+      }
+      return out;
+    };
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -1076,156 +855,6 @@ function PrecipOverlay({
     return off;
   };
 
-  // Kontinuierlicher Zwischenframe zwischen zwei Datenframes a→b mit Progress
-  // p ∈ (0,1). Es werden ausschliesslich die beiden Nachbarframes an derselben
-  // Kartenposition gesampelt und deren Intensitäten interpoliert.
-  const buildBlendedOffscreenRef = useRef<
-    (a: RadarFrame, b: RadarFrame, p: number) => HTMLCanvasElement | null
-  >(() => null);
-  buildBlendedOffscreenRef.current = (
-    a: RadarFrame,
-    b: RadarFrame,
-    p: number,
-  ): HTMLCanvasElement | null => {
-    const lookup = lookupRef.current;
-    if (!lookup) return null;
-    const rawAVals = a.values;
-    const rawBVals = b.values;
-    if (!rawAVals || rawAVals.length === 0 || !rawBVals || rawBVals.length === 0) return null;
-    const nLatEarly = payload.gridLat.length;
-    const nLonEarly = payload.gridLon.length;
-    const isForecastPair = a.source !== "radar" || b.source !== "radar";
-    const aVals = isForecastPair
-      ? denoiseGrid(rawAVals, nLonEarly, nLatEarly) ?? rawAVals
-      : rawAVals;
-    const bVals = isForecastPair
-      ? denoiseGrid(rawBVals, nLonEarly, nLatEarly) ?? rawBVals
-      : rawBVals;
-    const { gridLat, gridLon } = payload;
-    const nLat = gridLat.length;
-    const nLon = gridLon.length;
-
-    const s = Math.max(0, Math.min(1, p));
-    const oneMinusS = 1 - s;
-
-    const lowW = lookup.lowW;
-    const lowH = lookup.lowH;
-    let mc = blendCanvasRef.current;
-    if (!mc || mc.width !== lowW || mc.height !== lowH) {
-      mc = document.createElement("canvas");
-      mc.width = lowW;
-      mc.height = lowH;
-      blendCanvasRef.current = mc;
-    }
-    const offCtx = mc.getContext("2d");
-    if (!offCtx) return null;
-    const img = offCtx.createImageData(lowW, lowH);
-    const data = img.data;
-
-    const sampleAt = (arr: number[], fx: number, fy: number) => {
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = x0 + 1;
-      const y1 = y0 + 1;
-      const txL = fx - x0;
-      const tyL = fy - y0;
-      const inX0 = x0 >= 0 && x0 < nLon;
-      const inX1 = x1 >= 0 && x1 < nLon;
-      const inY0 = y0 >= 0 && y0 < nLat;
-      const inY1 = y1 >= 0 && y1 < nLat;
-      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-      return (
-        v00 * (1 - txL) * (1 - tyL) +
-        v01 * txL * (1 - tyL) +
-        v10 * (1 - txL) * tyL +
-        v11 * txL * tyL
-      );
-    };
-
-    const rawASnow = a.snowValues;
-    const rawBSnow = b.snowValues;
-    const aSnow = isForecastPair
-      ? denoiseGrid(rawASnow, nLon, nLat) ?? rawASnow
-      : rawASnow;
-    const bSnow = isForecastPair
-      ? denoiseGrid(rawBSnow, nLon, nLat) ?? rawBSnow
-      : rawBSnow;
-
-    // Zeit-Slot für den Domain-Warp: zwischen A und B linear interpoliert,
-    // damit die organische Deformation über den Framewechsel driftet, statt
-    // zu springen.
-    const zA = Date.parse(a.t) / 900000;
-    const zB = Date.parse(b.t) / 900000;
-    const zSlot = zA + (zB - zA) * s;
-
-    // Optical-Flow (Horn–Schunck) auf dem nativen Grid — Cache pro Framepaar.
-    // Wenn Flow (noch) nicht verfügbar (falsche Grid-Länge, erster Aufruf im
-    // gleichen Tick), fällt der Warp still auf reine Intensitäts-Interpolation
-    // zurück.
-    const flow = getFlowField(a, b, nLon, nLat);
-    const warpAdx = flow ? -s : 0;
-    const warpAdy = flow ? -s : 0;
-    const warpBdx = flow ? 1 - s : 0;
-    const warpBdy = flow ? 1 - s : 0;
-
-    for (let ly = 0; ly < lowH; ly++) {
-      for (let lx = 0; lx < lowW; lx++) {
-        const cell = ly * lowW + lx;
-        if (!lookup.valid[cell]) continue;
-        const fxRaw = lookup.fx[cell];
-        const fyRaw = lookup.fy[cell];
-
-        let ux = 0;
-        let uy = 0;
-        if (flow) {
-          ux = sampleBilinear(flow.u, fxRaw, fyRaw, nLon, nLat);
-          uy = sampleBilinear(flow.v, fxRaw, fyRaw, nLon, nLat);
-        }
-
-        // Bidirektionaler Warp: A entlang +u nach vorn geschoben, B entlang −u
-        // zurückgeschoben, so dass korrespondierende Echos sich zwischen A und
-        // B linear in ihrer Position bewegen.
-        const aSx = fxRaw + ux * warpAdx;
-        const aSy = fyRaw + uy * warpAdy;
-        const bSx = fxRaw + ux * warpBdx;
-        const bSy = fyRaw + uy * warpBdy;
-
-        const va = sampleAt(aVals, aSx, aSy);
-        const vb = sampleAt(bVals, bSx, bSy);
-        let v = oneMinusS * va + s * vb;
-        const minV = 0.1;
-        if (v < minV) continue;
-
-        let snowFrac = 0;
-        if (aSnow || bSnow) {
-          const sa = aSnow ? sampleAt(aSnow, aSx, aSy) : 0;
-          const sb = bSnow ? sampleAt(bSnow, bSx, bSy) : 0;
-          const sv = oneMinusS * sa + s * sb;
-          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
-        }
-
-        const [rC, gC, bC, aC] = snowFrac > 0.3
-          ? snowColorFor(v)
-          : isForecastPair
-            ? colorForSmooth(v)
-            : colorFor(v);
-        if (aC === 0) continue;
-        const alpha = Math.round(aC * 255);
-        if (alpha === 0) continue;
-        const pix = cell * 4;
-        data[pix] = rC;
-        data[pix + 1] = gC;
-        data[pix + 2] = bC;
-        data[pix + 3] = alpha;
-      }
-    }
-    offCtx.putImageData(img, 0, 0);
-    return mc;
-  };
 
   // Frame-/Payload-Wechsel neu zeichnen.
   useEffect(() => {
