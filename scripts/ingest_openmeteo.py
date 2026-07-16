@@ -280,10 +280,13 @@ def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> byt
     Rendert ein n_lon × n_lat RGBA-PNG mit PRECIP_SCALE; Zeile 0 = maxLat."""
     import numpy as np
     from PIL import Image
+    from _morph import clean_precip_field
 
     arr = np.asarray(mmh_row_major, dtype=np.float32).reshape(n_lat, n_lon)
     # Bildzeile 0 muss max_lat entsprechen (PNG top-left = NW).
     arr = np.flipud(arr)
+    # Speckles/Löcher bandweise entfernen — kein Blur, keine Konturglättung.
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=2, hole_area_px=2)
     rgba = np.zeros((n_lat, n_lon, 4), dtype=np.uint8)
     for thresh, color in PRECIP_SCALE:
         mask = np.isfinite(arr) & (arr >= thresh)
