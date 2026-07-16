@@ -1,60 +1,23 @@
-# Artefakte in Niederschlagsflächen — Ursache & Fix
+# Warum die Sprenkel noch sichtbar sind & Fix
 
-## Ursache
+## Diagnose
 
-Beide PNG-Rasterer (`scripts/ingest_radar.py::render_png` für Messung, `scripts/ingest_openmeteo.py::_render_frame_png` für Prognose) mappen die mm/h-Werte per einfachem Threshold-Vergleich pixelweise auf Farben:
+Der Morphologie-Filter ist im Code aktiv (`scripts/_morph.py` + Aufrufe in `ingest_radar.py` / `ingest_openmeteo.py`). Zwei Gründe, warum das Screenshot trotzdem Sprenkel zeigt:
 
-```python
-for thresh, color in scale:
-    mask = (values >= thresh)
-    rgba[mask] = color
-```
+1. **Parameter für Prognose zu schwach.** Der Fix wurde mit `min_area_px=2, hole_area_px=2` geschrieben, unter der Annahme eines groben ICON-Grids (22 × 36). Tatsächlich rendert `ingest_openmeteo.py` die Prognose-PNGs aber auf dem **Dense-Grid 48 × 56** (`GRID_LAT_DENSE`/`GRID_LON_DENSE` im Workflow). Auf diesem viel feineren Grid überleben Sprenkel mit 2–5 Pixel Fläche problemlos — genau das ist auf dem Screenshot zu sehen (Prognose Do, 21:45).
+2. **Ingest muss durchgelaufen sein.** PNGs im R2 werden erst beim nächsten `openmeteo-ingest.yml`-Lauf ersetzt (Cron alle 5 min).
 
-Es findet **keine räumliche Bereinigung** statt. In Kombination mit
-- Nearest-Neighbour-Reprojektion der MCH-CombiPrecip-Kacheln auf das WGS84-Ausgabegrid (`sample_to_bbox`), die vereinzelte Native-Pixel isoliert stehen lässt,
-- dem groben ICON-CH1-Grid (`n_lat × n_lon` ~1 km) mit numerischem Rauschen um Schwellwerte herum,
+## Fix
 
-entstehen an genau den Klassen-Übergängen (0.1 / 0.3 / 0.8 / 2.0 … mm/h) einzelne "Sprenkel"-Pixel, kleine Quadrate und winzige Löcher innerhalb geschlossener Flächen. Das ist keine Konturglättungs-Frage — die Artefakte sind echte Pixel im PNG.
+Nur die Parameter für die Prognose anheben, damit sie zum Dense-Grid passen — sonst nichts ändern.
 
-## Fix (nur an der Quelle, kein Blur/Crossfade/Konturglättung)
+- `scripts/ingest_openmeteo.py`: `clean_precip_field(arr, PRECIP_SCALE, min_area_px=6, hole_area_px=6)` (statt 2/2). Bei 48×56 entspricht 6 px ≈ 0.4 % der Bildfläche — sicher unterhalb realer Zellen, aber deutlich über typischen Sprenkel-Clustern.
+- `scripts/ingest_radar.py`: bleibt bei `4/4` (Ausgabegrid ~500×300, funktioniert bereits).
+- Anschliessend `openmeteo-ingest.yml` manuell triggern, damit der R2-Cache sofort mit bereinigten PNGs neu befüllt wird.
 
-Morphologische Bereinigung des **Werte-Arrays vor** dem Farb-Mapping, angewendet je Intensitätsband. Damit:
-- verschwinden isolierte Einzelpixel und kleine Inseln (< N Pixel),
-- werden winzige Löcher (< N Pixel) innerhalb zusammenhängender Flächen aufgefüllt,
-- bleiben Kontur, Auflösung und Farbskala unverändert (kein Weichzeichnen, keine Interpolation),
-- bleibt die Klassifikation deterministisch.
-
-### Algorithmus (identisch in beiden Skripten)
-
-Neue Hilfsfunktion `clean_precip_field(values, min_area_px, hole_area_px)`:
-
-1. Für jede Schwelle `t` in `PRECIP_SCALE` (aufsteigend):
-   - `mask = (values >= t)` (NaN ausgeschlossen).
-   - **Small-object-Removal**: Connected-Components auf `mask` (4-Konnektivität). Komponenten mit Fläche `< min_area_px` werden aus der Maske entfernt und der Wert an diesen Pixeln auf den nächst-tieferen Klassen-Schwellwert (bzw. `NaN`/0 unterhalb der untersten Klasse) zurückgesetzt.
-   - **Hole-Filling**: Komponenten der invertierten Maske (Löcher innerhalb der Fläche) mit Fläche `< hole_area_px`, die vom "positiven" Bereich umschlossen sind, werden gefüllt (Wert auf `t` angehoben).
-2. Ergebnis-Array geht unverändert in das bestehende `for thresh, color in scale: rgba[mask] = color`-Mapping. Kein Alpha-Blending, keine Kantenglättung.
-
-Connected-Components ohne SciPy-Abhängigkeit: eigene Flood-Fill-Implementierung mit NumPy + iterativem Stack (klein, ~40 Zeilen), damit `scripts/requirements.txt` nicht erweitert werden muss. Alternativ `scipy.ndimage.label` — dann `scipy` in `requirements.txt` ergänzen. Vorzugsvariante: **eigene 4-Konnektivitäts-Labelling-Funktion** in einem neuen Modul `scripts/_morph.py`, das beide Skripte importieren.
-
-### Parameter (Startwerte, konservativ)
-
-- Messung (`ingest_radar.py`, ~500 × 300 px Ausgabegrid): `min_area_px = 4`, `hole_area_px = 4`.
-- Prognose (`ingest_openmeteo.py`, ~36 × 22 px Grid): `min_area_px = 2`, `hole_area_px = 2` (Grid ist viel gröber; höhere Werte würden echte Zellen löschen).
-
-Werte sind isoliert konfigurierbar, damit sie bei Bedarf pro Skript nachgezogen werden können.
-
-## Änderungen
-
-- **Neu**: `scripts/_morph.py` — 4-Konnektivitäts-Labelling + `clean_precip_field(values, scale, min_area_px, hole_area_px) -> np.ndarray` (arbeitet band-weise wie oben beschrieben).
-- **Edit**: `scripts/ingest_radar.py`
-  - `render_png(values, scale)` ruft vor dem Farb-Mapping `values = clean_precip_field(values, scale, 4, 4)`.
-- **Edit**: `scripts/ingest_openmeteo.py`
-  - `_render_frame_png(...)` ruft vor dem Farb-Mapping `arr = clean_precip_field(arr, PRECIP_SCALE, 2, 2)`.
-
-Keine Änderungen an Frontend, Farbskalen, Manifesten, Cache oder Server-Funktionen. Nächster Ingest-Lauf (GitHub-Actions-Workflows `radar-ingest.yml` und `openmeteo-ingest.yml`) produziert bereinigte PNGs; alte werden im normalen Retention-Zyklus ersetzt.
+Keine Änderungen an Frontend, Farbskala, Konturen, Auflösung oder Manifesten.
 
 ## Verifikation
 
-1. `python -c "from scripts._morph import clean_precip_field; ..."` mit synthetischem Array (einzelner Speckle + kleines Loch) — beides muss entfernt/gefüllt werden.
-2. Workflow `radar-ingest.yml` manuell auslösen, ein Messungs-Frame in `/karten/radar` prüfen: keine Einzelpixel/Sprenkel mehr, Konturen sonst identisch.
-3. Workflow `openmeteo-ingest.yml` manuell auslösen, ein Prognose-Frame prüfen: Blöcke sind zusammenhängend, keine isolierten 1-Pixel-Quadrate.
+1. Nach dem Ingest ein Prognose-Frame im Radar-Layer prüfen: keine isolierten Pixel/Sprenkel mehr, Konturen unverändert.
+2. Ein Messungs-Frame prüfen: unverändert sauber (keine Regression).
