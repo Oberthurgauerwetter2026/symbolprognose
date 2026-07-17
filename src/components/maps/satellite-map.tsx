@@ -13,6 +13,7 @@ import {
   Maximize2,
   Minimize2,
   Loader2,
+  Zap,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,9 @@ import {
   type SatelliteRegionId,
   type SatelliteFrame,
 } from "@/lib/satellite.functions";
+import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 import { FilmstripTimeline } from "./filmstrip-timeline";
+
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#2561a1";
@@ -81,6 +84,102 @@ function SwissOutline() {
     />
   );
 }
+
+function LightningLayer({ strikes }: { strikes: LightningStrike[] }) {
+  const map = useMap();
+  const layerRef = useRef<L.LayerGroup | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const pane = map.getPane("lightning") ?? map.createPane("lightning");
+    pane.style.zIndex = "650";
+    pane.style.pointerEvents = "none";
+    const group = L.layerGroup([], { pane: "lightning" });
+    group.addTo(map);
+    layerRef.current = group;
+    return () => {
+      group.remove();
+      layerRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const group = layerRef.current;
+    if (!group) return;
+
+    let stopped = false;
+    const render = () => {
+      if (stopped || !layerRef.current) return;
+      const now = Date.now();
+      group.clearLayers();
+      for (const s of strikes) {
+        const t = Date.parse(s.t);
+        if (!Number.isFinite(t)) continue;
+        const ageMs = now - t;
+        if (ageMs < 0 || ageMs > 15 * 60_000) continue;
+        const ageMin = ageMs / 60_000;
+        let color: string;
+        let radius: number;
+        let opacity: number;
+        let glowColor: string;
+        if (ageMin < 2) {
+          color = "#fffbe0";
+          glowColor = "#fde047";
+          radius = 6;
+          opacity = 1;
+        } else if (ageMin < 8) {
+          color = "#fbbf24";
+          glowColor = "#f59e0b";
+          radius = 5;
+          opacity = 0.85 - ((ageMin - 2) / 6) * 0.5; // 0.85 → 0.35
+        } else {
+          color = "#b91c1c";
+          glowColor = "#7f1d1d";
+          radius = 3.5;
+          opacity = 0.35 - ((ageMin - 8) / 7) * 0.25; // 0.35 → 0.10
+        }
+        opacity = Math.max(0.08, Math.min(1, opacity));
+
+        // Halo (Glow)
+        L.circleMarker([s.lat, s.lon], {
+          pane: "lightning",
+          radius: radius + 4,
+          stroke: false,
+          fill: true,
+          fillColor: glowColor,
+          fillOpacity: opacity * 0.25,
+          interactive: false,
+        }).addTo(group);
+        // Kern
+        L.circleMarker([s.lat, s.lon], {
+          pane: "lightning",
+          radius,
+          stroke: true,
+          color,
+          weight: 1,
+          fill: true,
+          fillColor: color,
+          fillOpacity: opacity,
+          interactive: false,
+        }).addTo(group);
+      }
+      rafRef.current = window.setTimeout(() => {
+        rafRef.current = window.requestAnimationFrame(render);
+      }, 1000) as unknown as number;
+    };
+    render();
+    return () => {
+      stopped = true;
+      if (rafRef.current !== null) {
+        window.clearTimeout(rafRef.current);
+        window.cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [strikes]);
+
+  return null;
+}
+
 
 /**
  * Mountet zuerst nur den aktiven Frame, dann inkrementell die übrigen
@@ -238,6 +337,24 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
     refetchInterval: 60_000,
   });
 
+  const [showLightning, setShowLightning] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("sat.lightning") === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("sat.lightning", showLightning ? "1" : "0");
+  }, [showLightning]);
+  const { data: lightningData } = useQuery({
+    queryKey: ["lightning"],
+    queryFn: () => getLightningStrikes(),
+    enabled: showLightning,
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+  });
+  const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
+
+
   const frames = useMemo(() => data?.frames ?? [], [data]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -387,7 +504,23 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             </div>
           )}
         </div>
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowLightning((v) => !v)}
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-full border shadow-sm backdrop-blur transition focus-visible:outline-none focus-visible:ring-2",
+              showLightning
+                ? "border-amber-300 bg-amber-400 text-white hover:bg-amber-500"
+                : "border-neutral-200/80 bg-white/90 text-neutral-700 hover:bg-neutral-100",
+            )}
+            style={{ ['--tw-ring-color' as never]: BRAND }}
+            title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+            aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+            aria-pressed={showLightning}
+          >
+            <Zap className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -399,6 +532,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
         </div>
+
       </div>
       )}
 
@@ -435,7 +569,9 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             />
           )}
           {showSwiss && <SwissOutline />}
+          {showLightning && <LightningLayer strikes={lightningStrikes} />}
         </MapContainer>
+
 
         {isLoading && total === 0 && (
           <div className="absolute inset-0 z-[400] flex items-center justify-center bg-background/60 backdrop-blur-sm">

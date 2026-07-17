@@ -4,9 +4,11 @@ const KNOWN_R2_OBJECT_SUFFIXES = [
   "openmeteo/symbol.json",
   "mch/local_forecast.json",
   "arome/forecast.json",
+  "lightning/latest.json",
 ] as const;
 
-const KNOWN_R2_DIRECTORY_SUFFIXES = ["radar", "openmeteo", "mch", "arome"] as const;
+const KNOWN_R2_DIRECTORY_SUFFIXES = ["radar", "openmeteo", "mch", "arome", "lightning"] as const;
+
 
 function trimSlashes(value: string): string {
   return value.replace(/^\/+|\/+$/g, "");
@@ -61,7 +63,7 @@ export function r2ObjectUrlCandidates(rawUrl: string | null | undefined, objectK
     const root = trimmed
       .replace(/\/+$/g, "")
       .replace(new RegExp(`/${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), "")
-      .replace(/\/(radar|openmeteo|mch|arome)(\/[^/]+\.json)?$/i, "");
+      .replace(/\/(radar|openmeteo|mch|arome|lightning)(\/[^/]+\.json)?$/i, "");
     pushUnique(out, `${root}/${key}`);
   }
 
