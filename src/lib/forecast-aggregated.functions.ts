@@ -415,6 +415,23 @@ function overlayHourlyFromOpenMeteo(fc: ForecastResponse, omLoc: Loc | null): vo
  * bauen. Gibt `null` zurück, wenn der MCH-Cache fehlt oder der nächste
  * Punkt eine leere Zeitreihe hat (z. B. STAC-Item ohne Asset).
  */
+// Haversine-Abstand in km — für Distanz-Gates zwischen Ziel und Cache-Punkt.
+function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLon = toRad(bLon - aLon);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+// Maximal-Abstände, ab denen der Cache-Punkt nicht mehr repräsentativ ist
+// (Höhen-Unterschiede in den Alpen/Voralpen → direktes Open-Meteo mit DEM).
+const MCH_MAX_KM = 5;
+const PHASEA_MAX_KM = 4;
+
 async function forecastFromMchCache(
   lat: number,
   lon: number,
@@ -423,6 +440,8 @@ async function forecastFromMchCache(
 ): Promise<{ fc: ForecastResponse; loc: MchLocalForecastLocation } | null> {
   const best = pickNearestMch(mchLocs, lat, lon);
   if (!best?.hourly?.time?.length) return null;
+  const distKm = haversineKm(lat, lon, best.latitude, best.longitude);
+  if (distKm > MCH_MAX_KM) return null;
   const fc = buildForecastFromMchLoc(best);
   const omLoc = omLocs ? pickNearest(omLocs, lat, lon) : null;
   overlayHourlyFromOpenMeteo(fc, omLoc);
@@ -439,6 +458,11 @@ async function forecastFromCache(
   if (!locs) return null;
   const best = pickNearest(locs, lat, lon);
   if (!best?.hourly?.time?.length) return null;
+  const bLat = best.latitude;
+  const bLon = best.longitude;
+  if (typeof bLat === "number" && typeof bLon === "number") {
+    if (haversineKm(lat, lon, bLat, bLon) > PHASEA_MAX_KM) return null;
+  }
   const fc = buildForecastFromCacheLoc(best);
   const mosmix = await fetchMosmix({ data: { latitude: lat, longitude: lon } }).catch(
     (e) => {
@@ -448,6 +472,7 @@ async function forecastFromCache(
   );
   return applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
 }
+
 
 
 
