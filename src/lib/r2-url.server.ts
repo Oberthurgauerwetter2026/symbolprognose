@@ -4,9 +4,11 @@ const KNOWN_R2_OBJECT_SUFFIXES = [
   "openmeteo/symbol.json",
   "mch/local_forecast.json",
   "arome/forecast.json",
+  "lightning/latest.json",
 ] as const;
 
-const KNOWN_R2_DIRECTORY_SUFFIXES = ["radar", "openmeteo", "mch", "arome"] as const;
+const KNOWN_R2_DIRECTORY_SUFFIXES = ["radar", "openmeteo", "mch", "arome", "lightning"] as const;
+
 
 function trimSlashes(value: string): string {
   return value.replace(/^\/+|\/+$/g, "");
