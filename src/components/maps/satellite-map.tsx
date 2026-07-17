@@ -59,16 +59,48 @@ const SPEEDS = [
   { label: "4×", ms: 125 },
 ];
 
-function FlyToRegion({ regionId }: { regionId: SatelliteRegionId }) {
+// Schweiz-Bounds inkl. kleinem Puffer (Bodensee, Genfersee, Tessin sichtbar).
+const CH_BOUNDS: L.LatLngBoundsLiteral = [
+  [45.75, 5.9],
+  [47.85, 10.55],
+];
+const CH_CENTER: [number, number] = [46.8, 8.23];
+
+function FlyToRegion({ regionId, fitBounds }: { regionId: SatelliteRegionId; fitBounds?: boolean }) {
   const map = useMap();
   useEffect(() => {
+    if (fitBounds) {
+      const apply = () => {
+        map.invalidateSize();
+        const bounds = L.latLngBounds(CH_BOUNDS);
+        // Padding in px, damit die Schweiz nicht am Rand klebt.
+        const raw = map.getBoundsZoom(bounds, true, L.point(12, 12));
+        const z = Math.max(5, Math.min(9, Math.floor(raw)));
+        map.setMinZoom(z);
+        map.setMaxZoom(z);
+        map.setView(CH_CENTER, z, { animate: false });
+      };
+      apply();
+      const container = map.getContainer();
+      let raf = 0;
+      const ro = new ResizeObserver(() => {
+        window.clearTimeout(raf);
+        raf = window.setTimeout(apply, 150) as unknown as number;
+      });
+      ro.observe(container);
+      return () => {
+        ro.disconnect();
+        window.clearTimeout(raf);
+      };
+    }
     const r = getRegion(regionId);
     map.setMinZoom(r.zoom);
     map.setMaxZoom(r.zoom);
     map.setView(r.center, r.zoom, { animate: true });
-  }, [regionId, map]);
+  }, [regionId, map, fitBounds]);
   return null;
 }
+
 
 function SwissOutline() {
   return (
@@ -554,7 +586,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
           worldCopyJump
           className="absolute inset-0 z-0 bg-black"
         >
-          <FlyToRegion regionId={regionId} />
+          <FlyToRegion regionId={regionId} fitBounds={loop} />
           {frames.length > 0 && (
             <FrameStack
               key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}

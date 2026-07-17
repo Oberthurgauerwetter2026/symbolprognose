@@ -1,44 +1,29 @@
 ## Ziel
-Blitze auf der Satellit-Karte einblenden. MTG-Lightning-Imager-Daten wären fachlich naheliegend, sind über EUMETSAT aber nur mit Consumer-Key/Secret und einem eigenen Ingest-Pipelinelauf (Datei-Download, Entpacken, Rasterung) nutzbar – das sprengt den Rahmen einer einfachen Erweiterung. Als pragmatische, sofort umsetzbare Lösung nutzen wir **Blitzortung.org** (bodenbasiertes Community-Netz, Sekunden-Latenz, weltweit inkl. Alpenraum).
 
-Darstellung: **Punkte mit Fade-Out** (klassischer Look, gut über Satellitenbild lesbar), **ein-/ausblendbar** via Toggle rechts oben (neben Vollbild). Default: aus, damit die Karte optisch nicht überladen wird.
+Im Satellit-Loop-Widget (`/embed/satellit-loop`) soll die ganze Schweiz bei beliebiger Widget-Grösse immer sichtbar sein. Aktuell ist Zoom fix auf 7 (`alpen-ch`), wodurch bei kleineren Iframes Teile der Schweiz abgeschnitten werden und bei grossen Iframes viel Leerraum entsteht.
 
-## Änderungen
+## Änderungen (nur `src/components/maps/satellite-map.tsx`)
 
-### 1. Ingest: `scripts/ingest_blitzortung.py` (neu)
-- Läuft in bestehendem GitHub-Actions-Cron (neuer Workflow `blitzortung-ingest.yml`, alle 2 Min).
-- Zieht via Blitzortung Websocket-/HTTP-Feed die letzten ~15 min Strikes im Alpen-Bounding-Box (lat 44–49, lon 5–12).
-- Schreibt `lightning/latest.json` nach R2 mit `{ generatedAt, strikes: [{ t, lat, lon }] }` (max ~2000 Einträge, 15-min-Fenster).
-- Attribution-Vermerk in Kartenfooter.
+1. **Schweiz-Bounds als Konstante** definieren (ungefähr `[[45.75, 5.9], [47.85, 10.55]]`), plus kleines Padding, damit Grenzregionen nicht am Rand kleben.
 
-### 2. `src/lib/lightning.functions.ts` (neu)
-- Server-Fn `getLightningStrikes` (unauth, öffentlich), liest `lightning/latest.json` aus R2 mit `Cache-Control: 30s`.
+2. **`FlyToRegion`** erweitert einen neuen Modus `fitBounds`:
+   - Normal (wie bisher): `setMinZoom/MaxZoom/View` auf `region.zoom` und `region.center`.
+   - Wenn `fitBounds`-Prop gesetzt (nur im Loop): `map.getBoundsZoom(CH_BOUNDS, true)` berechnet den grössten Zoom, bei dem die Schweiz komplett in den Container passt. Der Wert wird auf ganzzahlige Zoomstufen abgerundet (WMS/WMTS liefert nur diskrete Zooms), auf ein sinnvolles Fenster geklammert (min 5, max 9) und mit `setMinZoom/MaxZoom/setView(CH_CENTER, z)` fixiert.
+   - Ein `ResizeObserver` auf dem Map-Container ruft die Fit-Berechnung erneut auf, wenn sich die Iframe-Grösse ändert (z. B. responsives Widget). Debounce ~150 ms.
 
-### 3. `src/components/maps/satellite-map.tsx`
-- Neuer State `showLightning` (Default `false`, in `localStorage` gespiegelt).
-- Neuer Toggle-Button in der Top-Bar (⚡ Icon aus `lucide-react`) neben dem Vollbild-Button; auch in der `bare`-Ansicht sichtbar (im `loop`-Modus **nicht** – Widget bleibt clean).
-- Bei `showLightning`: `useQuery(['lightning'])` alle 30 s, rendert eine neue `LightningLayer`-Komponente (SVG-Overlay via Leaflet `Pane` mit `zIndex: 650`).
-- Jeder Strike wird als kleiner Kreis mit Glow gezeichnet, Alter → Opacity/Grösse:
-  - 0–2 min: hell weiss/gelb, voll opak, radius 6 px
-  - 2–8 min: gelb→orange, opacity 0.7→0.3
-  - 8–15 min: dunkelrot, opacity 0.2, radius 3 px
-  - >15 min: nicht mehr gezeichnet
-- Kein Zusammenhang mit `regionId`, funktioniert für Schweiz & Alpen gleich.
+3. **`SatelliteMap`** übergibt `fitBounds={loop}` an `FlyToRegion`. Für Nicht-Loop-Ansicht bleibt alles unverändert.
 
-### 4. `.github/workflows/blitzortung-ingest.yml` (neu)
-- `schedule: */2 * * * *`, `python -u scripts/ingest_blitzortung.py`, Concurrency-Guard analog zu bestehenden Ingest-Workflows.
+4. **FrameStack-Key**: Der `key` enthält bereits `regionId` und `layer`. Da `regionId` beim Loop weiterhin `alpen-ch` bleibt und der Zoom sich lediglich zwischen ganzzahligen Stufen bewegt, muss der Zoom nicht in den Key. WMS-Kacheln reagieren automatisch auf Zoomänderung.
 
-### 5. Attribution
-- Kleiner Hinweis „Blitze: Blitzortung.org" unten rechts über der Karte, nur wenn `showLightning` aktiv.
+5. **Frame-Prefetch**: Der bestehende `<link rel="prefetch">`-Pfad bleibt gleich (basiert auf `frame.url`, nicht auf dem Kartenzoom).
 
-## Nicht enthalten
-- Keine MTG-LI-Integration (später möglich – separater Ingest via EUMETSAT Data Store).
-- Kein Loop/Playback der Blitze (immer „aktuelle 15 min"-Live-Ansicht).
-- Kein Einfluss auf Radar-, Wind- oder Lokalprognose-Karten.
-- Keine Änderungen an bestehenden Satelliten-Frames, Ingest oder Snippets.
+## Nicht-Änderungen
 
-## Verifikation
-- `bun run build:dev` grün.
-- Playwright: `/karten/satellit` – Toggle ⚡ aktivierbar, Punkte erscheinen an plausiblen Positionen, verblassen über die Zeit.
-- `/embed/satellit` mit `?lightning=1` bewusst **nicht** unterstützt (Widget-Look bleibt unverändert); klassisches Embed zeigt Toggle regulär.
-- Wenn `lightning/latest.json` fehlt → Toggle bleibt sichtbar, Layer ist leer, keine Fehler.
+- Volle App-Ansicht, andere Embeds und Regions-Umschalter bleiben unverändert.
+- Es werden keine Regionen ergänzt oder entfernt; der Loop nutzt weiterhin `alpen-ch` (MTG GeoColour).
+- Blitz-Overlay, Filmstrip, Attributions-UI unangetastet.
+
+## Verifizierung
+
+- Playwright-Screenshot des Loop-Embeds bei drei Grössen (300×200, 640×360, 1200×700). Erwartung: gesamter CH-Umriss inkl. Bodensee, Genfersee und Tessin sichtbar, mit ~10 px Rand.
+- Kontrolle, dass in der Nicht-Loop-Ansicht Region-Tabs und der bisherige Zoom unverändert funktionieren.
