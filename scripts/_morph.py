@@ -79,13 +79,9 @@ def clean_precip_field(
     scale: list,
     min_area_px: int,
     hole_area_px: int,
-    min_total_area_px: int | None = None,
 ) -> np.ndarray:
     """Bereinigt `values` bandweise anhand der Schwellen in `scale`.
 
-    - Entfernt zuerst komplette Niederschlagsinseln (`>= erste Schwelle`) mit
-      Fläche `< min_total_area_px` vollständig. Das verhindert isolierte
-      Einzelpixel / Mini-Quadrate unabhängig vom Intensitätsband.
     - Entfernt Komponenten `>= t` mit Fläche `< min_area_px` (Wert wird auf
       den nächst-tieferen Schwellwert bzw. 0/NaN gesenkt, damit dieser Pixel
       in einer tieferen Klasse landet).
@@ -105,20 +101,6 @@ def clean_precip_field(
 
     h, w = out.shape
     finite = np.isfinite(out)
-
-    # Gesamtmaske zuerst bereinigen: echte Niederschlagsflächen müssen als
-    # physikalisch zusammenhängende Regionen bestehen. Diese Operation setzt
-    # nur vollständig isolierte Mini-Inseln unterhalb der ersten Schwelle auf 0;
-    # sie glättet keine Konturen und verändert keine Auflösung.
-    total_min = min_total_area_px if min_total_area_px is not None else min_area_px
-    if total_min > 1:
-        precip_mask = finite & (out >= thresholds[0])
-        if precip_mask.any():
-            labels_total, sizes_total = _label_4conn(precip_mask)
-            small_total = np.where(sizes_total < total_min)[0]
-            small_total = small_total[small_total > 0]
-            if small_total.size > 0:
-                out[np.isin(labels_total, small_total)] = 0.0
 
     for i, t in enumerate(thresholds):
         # Fallback-Wert für Pixel, die aus dem Band herausfallen:
