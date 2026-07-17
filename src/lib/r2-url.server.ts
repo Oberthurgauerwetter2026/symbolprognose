@@ -63,7 +63,7 @@ export function r2ObjectUrlCandidates(rawUrl: string | null | undefined, objectK
     const root = trimmed
       .replace(/\/+$/g, "")
       .replace(new RegExp(`/${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), "")
-      .replace(/\/(radar|openmeteo|mch|arome)(\/[^/]+\.json)?$/i, "");
+      .replace(/\/(radar|openmeteo|mch|arome|lightning)(\/[^/]+\.json)?$/i, "");
     pushUnique(out, `${root}/${key}`);
   }
 
