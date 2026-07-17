@@ -13,6 +13,7 @@ import {
   Maximize2,
   Minimize2,
   Loader2,
+  Zap,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,9 @@ import {
   type SatelliteRegionId,
   type SatelliteFrame,
 } from "@/lib/satellite.functions";
+import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 import { FilmstripTimeline } from "./filmstrip-timeline";
+
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#2561a1";
