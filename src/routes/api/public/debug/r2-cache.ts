@@ -178,6 +178,47 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
           );
         }
 
+        // Lightning-Manifest (Blitzortung) spiegeln
+        let lightning:
+          | {
+              url?: string;
+              status?: number;
+              generatedAt?: string;
+              ageSeconds?: number | null;
+              strikeCount?: number;
+              debug?: unknown;
+              error?: string;
+            }
+          | null = null;
+        const lnUrls = r2ObjectUrlCandidates(base, "lightning/latest.json");
+        for (const url of lnUrls) {
+          try {
+            const res = await fetch(url, { cf: { cacheTtl: 5 } } as RequestInit);
+            if (!res.ok) {
+              lightning = { url, status: res.status, error: `HTTP ${res.status}` };
+              continue;
+            }
+            const j = (await res.json()) as {
+              generatedAt?: string;
+              strikes?: unknown[];
+              debug?: unknown;
+            };
+            lightning = {
+              url,
+              status: 200,
+              generatedAt: j.generatedAt,
+              ageSeconds: j.generatedAt
+                ? Math.round((Date.now() - Date.parse(j.generatedAt)) / 1000)
+                : null,
+              strikeCount: Array.isArray(j.strikes) ? j.strikes.length : 0,
+              debug: j.debug,
+            };
+            break;
+          } catch (e) {
+            lightning = { url, error: (e as Error).message };
+          }
+        }
+
         return Response.json(
           {
             r2PublicUrl: base,
@@ -195,6 +236,7 @@ export const Route = createFileRoute("/api/public/debug/r2-cache")({
             gridPoints: cache?.grid?.points?.length ?? null,
             radar,
             forecast,
+            lightning,
           },
           { headers: { "Cache-Control": "no-store" } },
         );

@@ -8,7 +8,7 @@ Lon 5–12) und schreibt `lightning/latest.json` nach R2.
 
 Best-effort: Wenn der Websocket nicht erreichbar ist oder das Protokoll
 sich ändert, wird eine leere Datei geschrieben, damit das UI trotzdem
-sauber weiterläuft.
+sauber weiterläuft. Ein `debug`-Feld protokolliert, was passiert ist.
 
 Blitzortung ist ein Community-Projekt. Attribution im UI ist Pflicht.
 
@@ -60,21 +60,28 @@ def _decode(text: str) -> str:
     return "".join(result)
 
 
-async def _collect_strikes() -> list[dict]:
+async def _collect_strikes(debug: dict) -> list[dict]:
     try:
         import websockets  # type: ignore
     except ImportError:
         print("websockets lib fehlt — überspringe Live-Fetch", file=sys.stderr)
+        debug["websocketsMissing"] = True
         return []
 
     strikes: list[dict] = []
     seen: set[tuple[float, float, str]] = set()
     deadline = time.monotonic() + LISTEN_S
+    debug["rawMessages"] = 0
+    debug["decodedOk"] = 0
+    debug["strikesGlobal"] = 0
+    debug["endpointsTried"] = []
+    debug["endpointOk"] = None
 
     for endpoint in BO_ENDPOINTS:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
+        debug["endpointsTried"].append(endpoint)
         try:
             async with websockets.connect(endpoint, open_timeout=8, ping_timeout=15) as ws:
                 await ws.send('{"a": 111}')
@@ -86,16 +93,19 @@ async def _collect_strikes() -> list[dict]:
                         raw = await asyncio.wait_for(ws.recv(), timeout=min(left, 20))
                     except asyncio.TimeoutError:
                         break
+                    debug["rawMessages"] += 1
                     try:
                         text = _decode(raw if isinstance(raw, str) else raw.decode("utf-8", "ignore"))
                         obj = json.loads(text)
                     except Exception:
                         continue
+                    debug["decodedOk"] += 1
                     lat = obj.get("lat")
                     lon = obj.get("lon")
                     ts_ns = obj.get("time")
                     if lat is None or lon is None or ts_ns is None:
                         continue
+                    debug["strikesGlobal"] += 1
                     if not (BBOX["minLat"] <= lat <= BBOX["maxLat"] and BBOX["minLon"] <= lon <= BBOX["maxLon"]):
                         continue
                     try:
@@ -107,10 +117,12 @@ async def _collect_strikes() -> list[dict]:
                         continue
                     seen.add(key)
                     strikes.append({"t": t_iso, "lat": round(lat, 4), "lon": round(lon, 4)})
-                # ein erfolgreicher Endpoint reicht
+                debug["endpointOk"] = endpoint
                 break
         except Exception as e:
-            print(f"BO endpoint {endpoint} fail: {e}", file=sys.stderr)
+            msg = f"BO endpoint {endpoint} fail: {e}"
+            print(msg, file=sys.stderr)
+            debug.setdefault("endpointErrors", []).append(msg)
             continue
 
     return strikes
@@ -131,13 +143,20 @@ def _prune_window(strikes: list[dict]) -> list[dict]:
 
 
 def main() -> int:
-    strikes = asyncio.run(_collect_strikes())
+    debug: dict = {"listenSeconds": LISTEN_S, "windowMinutes": WINDOW_MIN}
+    try:
+        strikes = asyncio.run(_collect_strikes(debug))
+    except Exception as e:
+        debug["fatal"] = str(e)
+        strikes = []
     strikes = _prune_window(strikes)
+    debug["strikesInBBox"] = len(strikes)
     payload = {
         "generatedAt": datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "bbox": BBOX,
         "strikes": strikes,
         "attribution": "Blitze: Blitzortung.org",
+        "debug": debug,
     }
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
 
@@ -158,7 +177,7 @@ def main() -> int:
         ContentType="application/json",
         CacheControl="public, max-age=20",
     )
-    print(f"uploaded {len(strikes)} strikes (window={WINDOW_MIN} min)")
+    print(f"uploaded {len(strikes)} strikes (window={WINDOW_MIN} min) debug={debug}")
     return 0
 
 
