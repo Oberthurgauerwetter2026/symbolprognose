@@ -586,7 +586,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
           worldCopyJump
           className="absolute inset-0 z-0 bg-black"
         >
-          <FlyToRegion regionId={regionId} />
+          <FlyToRegion regionId={regionId} fitBounds={loop} />
           {frames.length > 0 && (
             <FrameStack
               key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
