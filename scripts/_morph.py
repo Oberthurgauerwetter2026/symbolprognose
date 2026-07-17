@@ -74,72 +74,117 @@ def _label_4conn(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return labels, sizes
 
 
+def _component_neighbor_classes(classes: np.ndarray, component: np.ndarray) -> np.ndarray:
+    """Klassenwerte der 4-Nachbarn einer Komponente."""
+    h, w = classes.shape
+    vals: list[np.ndarray] = []
+    for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        y0 = max(0, -dy)
+        y1 = h - max(0, dy)
+        x0 = max(0, -dx)
+        x1 = w - max(0, dx)
+        center = component[y0:y1, x0:x1]
+        if not center.any():
+            continue
+        neigh_component = component[y0 + dy:y1 + dy, x0 + dx:x1 + dx]
+        neigh_values = classes[y0 + dy:y1 + dy, x0 + dx:x1 + dx]
+        boundary = center & ~neigh_component
+        if boundary.any():
+            vals.append(neigh_values[boundary])
+    if not vals:
+        return np.array([], dtype=classes.dtype)
+    return np.concatenate(vals)
+
+
+def _touches_border(labels: np.ndarray, lab: int) -> bool:
+    return (
+        bool(np.any(labels[0, :] == lab))
+        or bool(np.any(labels[-1, :] == lab))
+        or bool(np.any(labels[:, 0] == lab))
+        or bool(np.any(labels[:, -1] == lab))
+    )
+
+
+def _dominant(values: np.ndarray, max_class: int) -> int | None:
+    if values.size == 0:
+        return None
+    counts = np.bincount(values.astype(np.int16), minlength=max_class + 1)
+    return int(np.argmax(counts))
+
+
+def _replace_small_components(
+    classes: np.ndarray,
+    class_id: int,
+    max_area_px: int,
+    *,
+    fill_holes: bool,
+) -> None:
+    if max_area_px < 1:
+        return
+    labels, sizes = _label_4conn(classes == class_id)
+    if labels.max() <= 0:
+        return
+
+    max_class = int(classes.max())
+    small = [lab for lab in range(1, len(sizes)) if sizes[lab] <= max_area_px]
+    for lab in small:
+        if fill_holes and _touches_border(labels, lab):
+            continue
+        component = labels == lab
+        neigh = _component_neighbor_classes(classes, component)
+        if fill_holes:
+            # Transparente Mini-Löcher nur mit umliegendem Niederschlag füllen.
+            neigh = neigh[neigh > 0]
+            target = _dominant(neigh, max_class)
+            if target is not None:
+                classes[component] = target
+            continue
+
+        # Kleine farbige Inseln/Punkte innerhalb einer Fläche werden in die
+        # dominante Nachbar-Niederschlagsklasse aufgenommen. Isolierte
+        # Niederschlags-Inseln im Hintergrund verschwinden vollständig.
+        positive_neigh = neigh[neigh > 0]
+        target = _dominant(positive_neigh, max_class)
+        classes[component] = target if target is not None else 0
+
+
 def clean_precip_field(
     values: np.ndarray,
     scale: list,
     min_area_px: int,
     hole_area_px: int,
 ) -> np.ndarray:
-    """Bereinigt `values` bandweise anhand der Schwellen in `scale`.
+    """Bereinigt `values` auf diskreten Farbklassen vor dem PNG-Mapping.
 
-    - Entfernt Komponenten `>= t` mit Fläche `< min_area_px` (Wert wird auf
-      den nächst-tieferen Schwellwert bzw. 0/NaN gesenkt, damit dieser Pixel
-      in einer tieferen Klasse landet).
-    - Füllt Löcher (`< t`) mit Fläche `< hole_area_px`, die vollständig
-      innerhalb einer `>= t`-Region liegen (Wert wird auf `t` angehoben).
-
-    `scale` ist die Liste `[(thresh, rgba), ...]` aufsteigend sortiert.
-    Werte in `values` dürfen NaN sein (werden als "nicht Niederschlag"
-    behandelt und nicht verändert).
+    Die Bereinigung arbeitet rein topologisch auf den später sichtbaren
+    Niederschlagsklassen: kleine farbige Inseln werden durch die dominante
+    4-Nachbar-Klasse ersetzt, isolierte Mini-Niederschlagsgebiete entfernt und
+    kleine transparente Löcher innerhalb von Flächen gefüllt. Keine
+    Interpolation, kein Blur, keine Konturglättung, keine Auflösungsänderung.
     """
     if values.size == 0:
         return values
-    out = values.astype(np.float32, copy=True)
+
     thresholds = [float(t) for t, _ in scale]
     if not thresholds:
-        return out
+        return values.astype(np.float32, copy=True)
 
-    h, w = out.shape
-    finite = np.isfinite(out)
+    finite = np.isfinite(values)
+    classes = np.zeros(values.shape, dtype=np.int16)
+    for idx, t in enumerate(thresholds, start=1):
+        classes[finite & (values >= t)] = idx
 
-    for i, t in enumerate(thresholds):
-        # Fallback-Wert für Pixel, die aus dem Band herausfallen:
-        # der nächst-tiefere Schwellwert minus ein Epsilon (bzw. 0 unterhalb
-        # der ersten Klasse). So bleibt der Pixel in einer tieferen Klasse
-        # und wird nicht komplett transparent, ausser er ist schon unter t0.
-        lower = thresholds[i - 1] if i > 0 else 0.0
-        demote_value = max(0.0, lower - 1e-6) if i > 0 else 0.0
+    if not np.any(classes > 0):
+        return np.zeros(values.shape, dtype=np.float32)
 
-        mask = finite & (out >= t)
-        if mask.any() and min_area_px > 1:
-            labels, sizes = _label_4conn(mask)
-            small = np.where(sizes < min_area_px)[0]
-            # Label 0 = Background ausschliessen.
-            small = small[small > 0]
-            if small.size > 0:
-                small_mask = np.isin(labels, small)
-                out[small_mask] = demote_value
+    hole_area = max(0, int(hole_area_px))
+    speckle_area = max(0, int(min_area_px))
 
-        # Löcher füllen: alles < t innerhalb der Fläche, das eine kleine
-        # zusammenhängende Komponente bildet und den Bildrand NICHT berührt.
-        if hole_area_px > 1:
-            mask_after = finite & (out >= t)
-            if mask_after.any():
-                hole_mask = ~mask_after
-                labels_h, sizes_h = _label_4conn(hole_mask)
-                if labels_h.max() > 0:
-                    # Randberührende Komponenten sind "aussen", nicht Löcher.
-                    border = np.concatenate([
-                        labels_h[0, :], labels_h[-1, :],
-                        labels_h[:, 0], labels_h[:, -1],
-                    ])
-                    outside = set(int(x) for x in border.tolist() if x != 0)
-                    small_holes = [
-                        lab for lab in range(1, len(sizes_h))
-                        if lab not in outside and sizes_h[lab] < hole_area_px
-                    ]
-                    if small_holes:
-                        fill = np.isin(labels_h, np.array(small_holes, dtype=np.int32))
-                        out[fill] = t
+    _replace_small_components(classes, 0, hole_area, fill_holes=True)
+    for class_id in range(1, len(thresholds) + 1):
+        _replace_small_components(classes, class_id, speckle_area, fill_holes=False)
 
+    out = np.zeros(values.shape, dtype=np.float32)
+    for idx, t in enumerate(thresholds, start=1):
+        out[classes == idx] = t
     return out

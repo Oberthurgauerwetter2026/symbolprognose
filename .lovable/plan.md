@@ -1,23 +1,32 @@
-# Warum die Sprenkel noch sichtbar sind & Fix
+## Plan
 
-## Diagnose
+1. **Ursache beheben statt Optik kaschieren**
+   - Die sichtbaren Punkte sind keine Crossfade-/Frontend-Artefakte, sondern einzelne kleine Raster-Komponenten im fertigen Niederschlags-PNG.
+   - Die aktuelle Bereinigung entfernt zwar sehr kleine Komponenten pro Intensitätsband, ist aber zu konservativ und demotet höhere Einzelpixel nur in tiefere Klassen. Dadurch bleiben gelbe/grüne Sprenkel als hellere oder tiefere Pixel innerhalb/bei Flächen sichtbar.
 
-Der Morphologie-Filter ist im Code aktiv (`scripts/_morph.py` + Aufrufe in `ingest_radar.py` / `ingest_openmeteo.py`). Zwei Gründe, warum das Screenshot trotzdem Sprenkel zeigt:
+2. **Bereinigung auf Farbbänder statt Rohwerte umstellen**
+   - Vor dem PNG-Färben wird das Niederschlagsfeld in diskrete Farbklassen quantisiert.
+   - Kleine isolierte Komponenten werden dann auf Klassenebene entfernt, nicht nur schrittweise auf den nächsttieferen Schwellenwert geschoben.
+   - Ergebnis: Einzelpixel, kleine Quadrate und Mini-Inseln verschwinden vollständig aus dem Niederschlagsbild, ohne Blur, ohne Crossfade, ohne Konturglättung.
 
-1. **Parameter für Prognose zu schwach.** Der Fix wurde mit `min_area_px=2, hole_area_px=2` geschrieben, unter der Annahme eines groben ICON-Grids (22 × 36). Tatsächlich rendert `ingest_openmeteo.py` die Prognose-PNGs aber auf dem **Dense-Grid 48 × 56** (`GRID_LAT_DENSE`/`GRID_LON_DENSE` im Workflow). Auf diesem viel feineren Grid überleben Sprenkel mit 2–5 Pixel Fläche problemlos — genau das ist auf dem Screenshot zu sehen (Prognose Do, 21:45).
-2. **Ingest muss durchgelaufen sein.** PNGs im R2 werden erst beim nächsten `openmeteo-ingest.yml`-Lauf ersetzt (Cron alle 5 min).
+3. **Keine Änderung an Farben, Formen, Auflösung oder Frontend**
+   - Die bestehende Farbskala bleibt exakt gleich.
+   - Die PNG-Auflösung bleibt gleich.
+   - Leaflet/ImageOverlay, Opacity, Timeline, Crossfade-Verhalten und Karten-Styling bleiben unverändert.
+   - Es wird nur die Erzeugung der PNG-Rasterdaten angepasst.
 
-## Fix
+4. **Messung und Prognose identisch behandeln**
+   - `scripts/ingest_radar.py`: Radar-Messungs-PNGs mit derselben robusteren Klassenbereinigung erzeugen.
+   - `scripts/ingest_openmeteo.py`: Prognose-PNGs mit derselben Logik erzeugen, damit Messung und Prognose konsistent bleiben.
+   - Die vorhandene `_morph.py` wird gezielt erweitert, statt eine optische Nachbearbeitung einzubauen.
 
-Nur die Parameter für die Prognose anheben, damit sie zum Dense-Grid passen — sonst nichts ändern.
+5. **Cache-Neuerzeugung erzwingen**
+   - Die Radar-Ingest-Version wird angehoben, damit alte, bereits gespeicherte PNGs nicht weiterverwendet werden.
+   - Forecast-PNGs werden beim nächsten Open-Meteo-Ingest ohnehin neu geschrieben; die Bereinigung greift dort bei der nächsten Cache-Erzeugung.
 
-- `scripts/ingest_openmeteo.py`: `clean_precip_field(arr, PRECIP_SCALE, min_area_px=6, hole_area_px=6)` (statt 2/2). Bei 48×56 entspricht 6 px ≈ 0.4 % der Bildfläche — sicher unterhalb realer Zellen, aber deutlich über typischen Sprenkel-Clustern.
-- `scripts/ingest_radar.py`: bleibt bei `4/4` (Ausgabegrid ~500×300, funktioniert bereits).
-- Anschliessend `openmeteo-ingest.yml` manuell triggern, damit der R2-Cache sofort mit bereinigten PNGs neu befüllt wird.
-
-Keine Änderungen an Frontend, Farbskala, Konturen, Auflösung oder Manifesten.
-
-## Verifikation
-
-1. Nach dem Ingest ein Prognose-Frame im Radar-Layer prüfen: keine isolierten Pixel/Sprenkel mehr, Konturen unverändert.
-2. Ein Messungs-Frame prüfen: unverändert sauber (keine Regression).
+6. **Validierung**
+   - Mit einem synthetischen Raster prüfen, dass:
+     - Einzelpixel und kleine Quadrate verschwinden,
+     - zusammenhängende Niederschlagsflächen erhalten bleiben,
+     - keine Weichzeichnung oder Konturverschiebung entsteht,
+     - Farben/Schwellen unverändert bleiben.
