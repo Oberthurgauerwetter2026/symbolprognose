@@ -1897,11 +1897,15 @@ export function RadarMap({
                     />
                   )}
                   {showPng && (
-                    <MeasurementCanvasOverlay
+                    <StableImageOverlay
                       url={overlayFrame.precipUrl as string}
-                      bounds={ib}
+                      bounds={[
+                        [ib.minLat, ib.minLon],
+                        [ib.maxLat, ib.maxLon],
+                      ]}
                       opacity={opacityVal}
-                      prefetchUrls={radarUrls}
+                      zIndex={460}
+                      className="mch-precip"
                     />
                   )}
 
