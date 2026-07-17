@@ -1,23 +1,31 @@
-# Warum die Sprenkel noch sichtbar sind & Fix
+## Ziel
+Die sichtbaren einzelnen Pixel, kleinen Quadrate und Inseln in den Niederschlagsflächen werden direkt in der Erzeugungs- und Render-Kette entfernt – ohne Crossfade, Blur, Weichzeichnen, Konturglättung oder Änderung der Auflösung.
 
 ## Diagnose
+- Die serverseitige Morphologie ist bereits eingebaut, aber im Frontend wird für Messungs-PNGs nochmals ein eigenes Canvas-Resampling verwendet.
+- Dieses Frontend-Resampling decodiert das PNG zurück in Klassen, macht aktuell eine 3×3-Mittelung und sampled bilinear. Dadurch können neue punktförmige Restflächen bzw. kleine Inseln sichtbar werden, obwohl das PNG selbst bereinigt wurde.
+- Zusätzlich kann der Fallback-Canvas für Modellraster weiterhin unreine Einzelzellen zeigen, falls Forecast-PNGs gerade fehlen oder noch nicht neu erzeugt wurden.
 
-Der Morphologie-Filter ist im Code aktiv (`scripts/_morph.py` + Aufrufe in `ingest_radar.py` / `ingest_openmeteo.py`). Zwei Gründe, warum das Screenshot trotzdem Sprenkel zeigt:
+## Umsetzung
+1. **Serverseitige Bereinigung verstärken, aber konturerhaltend**
+   - Die bestehende `scripts/_morph.py`-Logik so erweitern, dass zusammenhängende Niederschlagsflächen nicht nur pro Intensitätsband, sondern auch als Gesamt-Niederschlagsmaske bereinigt werden.
+   - Isolierte Gesamtflächen unter einer kleinen Mindestfläche werden auf 0 gesetzt.
+   - Danach bleiben die bestehenden bandweisen Regeln für kleine Inseln/Löcher innerhalb der Intensitätsklassen erhalten.
 
-1. **Parameter für Prognose zu schwach.** Der Fix wurde mit `min_area_px=2, hole_area_px=2` geschrieben, unter der Annahme eines groben ICON-Grids (22 × 36). Tatsächlich rendert `ingest_openmeteo.py` die Prognose-PNGs aber auf dem **Dense-Grid 48 × 56** (`GRID_LAT_DENSE`/`GRID_LON_DENSE` im Workflow). Auf diesem viel feineren Grid überleben Sprenkel mit 2–5 Pixel Fläche problemlos — genau das ist auf dem Screenshot zu sehen (Prognose Do, 21:45).
-2. **Ingest muss durchgelaufen sein.** PNGs im R2 werden erst beim nächsten `openmeteo-ingest.yml`-Lauf ersetzt (Cron alle 5 min).
+2. **Messungs-Rasterung robuster machen**
+   - In `scripts/ingest_radar.py` die Mindestfläche leicht erhöhen, passend zur 240×144-Ausgabe, damit 1–2-Pixel-Cluster sicher verschwinden.
+   - Kein Blur, keine Interpolation, keine veränderte Ausgabegröße.
 
-## Fix
+3. **Prognose-Rasterung robuster machen**
+   - In `scripts/ingest_openmeteo.py` die Dense-Grid-Bereinigung weiter auf die tatsächliche 48×56-Prognose-PNG-Größe abstimmen.
+   - Kleine isolierte Modellzellen werden vor dem Farb-Mapping entfernt, nicht optisch kaschiert.
 
-Nur die Parameter für die Prognose anheben, damit sie zum Dense-Grid passen — sonst nichts ändern.
+4. **Frontend als Fehlerquelle entfernen**
+   - In `src/components/maps/radar-map.tsx` die 3×3-Mittelung und bilineare Re-Konstruktion der Messungs-PNGs entfernen.
+   - Vorgerasterte PNGs werden als harte Klassen/Nearest-Neighbour dargestellt, damit der Browser keine neuen Zwischenwerte oder Sprenkel erzeugt.
+   - Falls Canvas-Fallback nötig ist, auch dort keine Mittelung/Crossfade/Blur verwenden.
 
-- `scripts/ingest_openmeteo.py`: `clean_precip_field(arr, PRECIP_SCALE, min_area_px=6, hole_area_px=6)` (statt 2/2). Bei 48×56 entspricht 6 px ≈ 0.4 % der Bildfläche — sicher unterhalb realer Zellen, aber deutlich über typischen Sprenkel-Clustern.
-- `scripts/ingest_radar.py`: bleibt bei `4/4` (Ausgabegrid ~500×300, funktioniert bereits).
-- Anschliessend `openmeteo-ingest.yml` manuell triggern, damit der R2-Cache sofort mit bereinigten PNGs neu befüllt wird.
-
-Keine Änderungen an Frontend, Farbskala, Konturen, Auflösung oder Manifesten.
-
-## Verifikation
-
-1. Nach dem Ingest ein Prognose-Frame im Radar-Layer prüfen: keine isolierten Pixel/Sprenkel mehr, Konturen unverändert.
-2. Ein Messungs-Frame prüfen: unverändert sauber (keine Regression).
+5. **Verifikation**
+   - Lokal prüfen, dass der Morphologie-Filter isolierte Pixel/kleine Quadrate entfernt und zusammenhängende Flächen unverändert lässt.
+   - Preview prüfen, ob Messung und Prognose ohne punktförmige Artefakte angezeigt werden.
+   - Hinweis: Bereits im Cache liegende R2-PNGs werden erst nach dem nächsten Ingest/Workflow vollständig ersetzt.
