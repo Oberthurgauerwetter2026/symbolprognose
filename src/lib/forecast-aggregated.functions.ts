@@ -587,20 +587,34 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
       console.error("[aggregated-forecast] phaseA cache read failed", err);
     }
 
-    // 3) Last Resort: direkter Open-Meteo-Call.
+    // 3) Last Resort: direkter Open-Meteo-Call für die echte Koordinate
+    //    (DEM-Höhenkorrektur greift dort automatisch — wichtig für Bergpunkte
+    //    wie Säntis, wo die Talstationen aus MCH/phaseA falsche Werte liefern).
     console.warn(
       "[aggregated-forecast] all caches missed for",
       data.lat,
       data.lon,
       "— falling back to direct Open-Meteo",
     );
+    const cacheKey = `${data.lat.toFixed(4)},${data.lon.toFixed(4)}`;
+    const cached = directForecastCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < DIRECT_TTL_MS) return cached.fc;
     try {
-      return await fetchForecast(data.lat, data.lon);
+      const fc = await fetchForecast(data.lat, data.lon);
+      directForecastCache.set(cacheKey, { fc, at: Date.now() });
+      if (directForecastCache.size > 128) {
+        // FIFO-Trim, damit der Modul-Cache nicht unbegrenzt wächst.
+        const firstKey = directForecastCache.keys().next().value;
+        if (firstKey) directForecastCache.delete(firstKey);
+      }
+      return fc;
     } catch (err) {
       console.error("[aggregated-forecast] hard fail", err);
+      if (cached) return cached.fc;
       return emptyForecast(data.lat, data.lon);
     }
   });
+
 
 /**
  * Batch-Variante: liest den Symbol-Cache **einmal** und liefert die Prognose
