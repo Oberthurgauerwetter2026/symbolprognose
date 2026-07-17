@@ -430,7 +430,7 @@ function timelineStateForMs(
 }
 
 /**
- * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
+ * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit nächstgelegenen Zellen
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
 function PrecipOverlay({
@@ -474,7 +474,7 @@ function PrecipOverlay({
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
         cv.style.filter = "contrast(1.1)";
-        (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
+        (cv.style as unknown as { imageRendering: string }).imageRendering = "pixelated";
 
         pane.appendChild(cv);
         this._canvas = cv;
@@ -567,33 +567,9 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    // Für Prognose-Frames: 3×3-Boxcar-Smoothing analog zur Messungs-Pipeline
-    // (`MeasurementCanvasOverlay.ensureSmooth`) — glättet Grid-Kanten zu
-    // organischen Blob-Rändern. Kein Denoise, kein Warp, kein Blend.
-    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
-      if (!src || src.length !== nLon * nLat) return src;
-      const out = new Array<number>(nLon * nLat);
-      for (let y = 0; y < nLat; y++) {
-        for (let x = 0; x < nLon; x++) {
-          let sum = 0;
-          let cnt = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            const yy = y + dy;
-            if (yy < 0 || yy >= nLat) continue;
-            for (let dx = -1; dx <= 1; dx++) {
-              const xx = x + dx;
-              if (xx < 0 || xx >= nLon) continue;
-              sum += src[yy * nLon + xx];
-              cnt++;
-            }
-          }
-          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
-        }
-      }
-      return out;
-    };
-    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
+    void isForecastFrame;
+    const vals = rawVals;
+    const snowVals = rawSnow;
     if (!vals || vals.length === 0) return;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
@@ -653,29 +629,12 @@ function PrecipOverlay({
       const img = ctx.createImageData(lowW, lowH);
       const data = img.data;
 
-      // Bilineare Sample-Funktion.
+      // Nächstgelegene Zelle: keine Zwischenwerte, keine optische Glättung.
       const sampleAt = (arr: number[], fx: number, fy: number) => {
-        const x0 = Math.floor(fx);
-        const y0 = Math.floor(fy);
-        const x1 = x0 + 1;
-        const y1 = y0 + 1;
-        const txL = fx - x0;
-        const tyL = fy - y0;
-        const inX0 = x0 >= 0 && x0 < nLon;
-        const inX1 = x1 >= 0 && x1 < nLon;
-        const inY0 = y0 >= 0 && y0 < nLat;
-        const inY1 = y1 >= 0 && y1 < nLat;
-        if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-        const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-        const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-        const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-        const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-        return (
-          v00 * (1 - txL) * (1 - tyL) +
-          v01 * txL * (1 - tyL) +
-          v10 * (1 - txL) * tyL +
-          v11 * txL * tyL
-        );
+        const x = Math.round(fx);
+        const y = Math.round(fy);
+        if (x < 0 || x >= nLon || y < 0 || y >= nLat) return 0;
+        return arr[y * nLon + x] ?? 0;
       };
 
       for (let ly = 0; ly < lowH; ly++) {
@@ -732,8 +691,7 @@ function PrecipOverlay({
 
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
@@ -752,37 +710,11 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
-    const isForecastFrame = f.source !== "radar";
     const rawVals = f.values;
     const rawSnow = f.snowValues;
     if (!rawVals || rawVals.length === 0) return null;
-    // Für Prognose-Frames: 3×3-Boxcar-Smoothing wie in der Messungs-Pipeline
-    // (`MeasurementCanvasOverlay.ensureSmooth`) — erzeugt organische Blob-
-    // Ränder statt rechteckiger Grid-Kanten, ohne Denoise oder Warp.
-    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
-      if (!src || src.length !== nLon * nLat) return src;
-      const out = new Array<number>(nLon * nLat);
-      for (let y = 0; y < nLat; y++) {
-        for (let x = 0; x < nLon; x++) {
-          let sum = 0;
-          let cnt = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            const yy = y + dy;
-            if (yy < 0 || yy >= nLat) continue;
-            for (let dx = -1; dx <= 1; dx++) {
-              const xx = x + dx;
-              if (xx < 0 || xx >= nLon) continue;
-              sum += src[yy * nLon + xx];
-              cnt++;
-            }
-          }
-          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
-        }
-      }
-      return out;
-    };
-    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
+    const vals = rawVals;
+    const snowVals = rawSnow;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -794,27 +726,10 @@ function PrecipOverlay({
     const img = offCtx.createImageData(lowW, lowH);
     const data = img.data;
     const sampleAt = (arr: number[], fx: number, fy: number) => {
-      const x0 = Math.floor(fx);
-      const y0 = Math.floor(fy);
-      const x1 = x0 + 1;
-      const y1 = y0 + 1;
-      const txL = fx - x0;
-      const tyL = fy - y0;
-      const inX0 = x0 >= 0 && x0 < nLon;
-      const inX1 = x1 >= 0 && x1 < nLon;
-      const inY0 = y0 >= 0 && y0 < nLat;
-      const inY1 = y1 >= 0 && y1 < nLat;
-      if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-      const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-      const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-      const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-      const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
-      return (
-        v00 * (1 - txL) * (1 - tyL) +
-        v01 * txL * (1 - tyL) +
-        v10 * (1 - txL) * tyL +
-        v11 * txL * tyL
-      );
+      const x = Math.round(fx);
+      const y = Math.round(fy);
+      if (x < 0 || x >= nLon || y < 0 || y >= nLat) return 0;
+      return arr[y * nLon + x] ?? 0;
     };
     for (let ly = 0; ly < lowH; ly++) {
       for (let lx = 0; lx < lowW; lx++) {
