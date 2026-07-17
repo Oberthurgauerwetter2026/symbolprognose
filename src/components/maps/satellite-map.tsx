@@ -400,8 +400,10 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
           </button>
         </div>
       </div>
+      )}
 
       {/* Map */}
+
       <div className={cn("relative", bare ? "h-full min-h-[400px]" : "h-[620px]")}>
         <MapContainer
           center={region.center}
