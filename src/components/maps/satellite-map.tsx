@@ -226,7 +226,7 @@ function fmtBubble(d: Date): string {
 }
 
 
-export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
+export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; loop?: boolean } = {}) {
   const [regionId, setRegionId] = useState<SatelliteRegionId>("alpen-ch");
   const region = useMemo(() => getRegion(regionId), [regionId]);
   const isMobile = useIsMobile();
@@ -350,7 +350,9 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       )}
     >
       {/* Top bar */}
+      {!loop && (
       <div className="pointer-events-none absolute left-3 right-3 top-3 z-[500] flex items-start justify-between gap-2">
+
         <div className="pointer-events-auto flex min-w-0 items-center gap-2">
           <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-neutral-200/80 bg-white/90 p-0.5 shadow-sm backdrop-blur">
             {SATELLITE_REGIONS.map((r) => {
@@ -398,8 +400,10 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Map */}
+
       <div className={cn("relative", bare ? "h-full min-h-[400px]" : "h-[620px]")}>
         <MapContainer
           center={region.center}
@@ -450,7 +454,8 @@ export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
       </div>
 
       {/* Steuerpanel — bare: schwebend über der Karte; sonst Panel unter der Karte (analog Radar) */}
-      {total > 0 && (
+      {!loop && total > 0 && (
+
         <div
           className={cn(
             bare
