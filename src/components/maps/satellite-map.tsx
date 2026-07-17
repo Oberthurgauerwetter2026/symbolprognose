@@ -226,7 +226,7 @@ function fmtBubble(d: Date): string {
 }
 
 
-export function SatelliteMap({ bare = false }: { bare?: boolean } = {}) {
+export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; loop?: boolean } = {}) {
   const [regionId, setRegionId] = useState<SatelliteRegionId>("alpen-ch");
   const region = useMemo(() => getRegion(regionId), [regionId]);
   const isMobile = useIsMobile();
