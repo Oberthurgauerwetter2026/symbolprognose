@@ -454,7 +454,8 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
       </div>
 
       {/* Steuerpanel — bare: schwebend über der Karte; sonst Panel unter der Karte (analog Radar) */}
-      {total > 0 && (
+      {!loop && total > 0 && (
+
         <div
           className={cn(
             bare
