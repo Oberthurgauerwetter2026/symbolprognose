@@ -569,7 +569,9 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             />
           )}
           {showSwiss && <SwissOutline />}
+          {showLightning && <LightningLayer strikes={lightningStrikes} />}
         </MapContainer>
+
 
         {isLoading && total === 0 && (
           <div className="absolute inset-0 z-[400] flex items-center justify-center bg-background/60 backdrop-blur-sm">
