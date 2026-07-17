@@ -506,6 +506,10 @@ function setCdnCacheHeaders() {
   );
 }
 
+// In-Memory-Guard für direkte Open-Meteo-Calls (5 min TTL pro gerundetem Punkt).
+const DIRECT_TTL_MS = 5 * 60 * 1000;
+const directForecastCache = new Map<string, { fc: ForecastResponse; at: number }>();
+
 function emptyForecast(lat: number, lon: number): ForecastResponse {
   return sanitizeForecast({
     latitude: lat,
