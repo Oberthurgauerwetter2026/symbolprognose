@@ -1,32 +1,43 @@
-## Plan
+## Diagnose
 
-1. **Ursache beheben statt Optik kaschieren**
-   - Die sichtbaren Punkte sind keine Crossfade-/Frontend-Artefakte, sondern einzelne kleine Raster-Komponenten im fertigen Niederschlags-PNG.
-   - Die aktuelle Bereinigung entfernt zwar sehr kleine Komponenten pro Intensitätsband, ist aber zu konservativ und demotet höhere Einzelpixel nur in tiefere Klassen. Dadurch bleiben gelbe/grüne Sprenkel als hellere oder tiefere Pixel innerhalb/bei Flächen sichtbar.
+Auf `/karten/radar` liefert `getRadarFrames` in der Preview-Umgebung eine leere Framesliste zurück, mit der Warnung:
 
-2. **Bereinigung auf Farbbänder statt Rohwerte umstellen**
-   - Vor dem PNG-Färben wird das Niederschlagsfeld in diskrete Farbklassen quantisiert.
-   - Kleine isolierte Komponenten werden dann auf Klassenebene entfernt, nicht nur schrittweise auf den nächsttieferen Schwellenwert geschoben.
-   - Ergebnis: Einzelpixel, kleine Quadrate und Mini-Inseln verschwinden vollständig aus dem Niederschlagsbild, ohne Blur, ohne Crossfade, ohne Konturglättung.
+```
+Radardaten nicht verfügbar: Open-Meteo-Cache temporär nicht verfügbar;
+MCH-Radarmessungen temporär nicht verfügbar;
+Prognose-PNGs (ICON-CH1) temporär nicht verfügbar
+```
 
-3. **Keine Änderung an Farben, Formen, Auflösung oder Frontend**
-   - Die bestehende Farbskala bleibt exakt gleich.
-   - Die PNG-Auflösung bleibt gleich.
-   - Leaflet/ImageOverlay, Opacity, Timeline, Crossfade-Verhalten und Karten-Styling bleiben unverändert.
-   - Es wird nur die Erzeugung der PNG-Rasterdaten angepasst.
+Ursache steht in den Dev-Server-Logs:
 
-4. **Messung und Prognose identisch behandeln**
-   - `scripts/ingest_radar.py`: Radar-Messungs-PNGs mit derselben robusteren Klassenbereinigung erzeugen.
-   - `scripts/ingest_openmeteo.py`: Prognose-PNGs mit derselben Logik erzeugen, damit Messung und Prognose konsistent bleiben.
-   - Die vorhandene `_morph.py` wird gezielt erweitert, statt eine optische Nachbearbeitung einzubauen.
+```
+[radar] no R2 radar manifest URL configured — falling back to model data only
+```
 
-5. **Cache-Neuerzeugung erzwingen**
-   - Die Radar-Ingest-Version wird angehoben, damit alte, bereits gespeicherte PNGs nicht weiterverwendet werden.
-   - Forecast-PNGs werden beim nächsten Open-Meteo-Ingest ohnehin neu geschrieben; die Bereinigung greift dort bei der nächsten Cache-Erzeugung.
+`src/lib/radar.functions.ts` und `src/lib/openmeteo-cache.server.ts` bauen ihre R2-URLs aus `process.env.RADAR_MANIFEST_URL` / `RADAR_R2_PUBLIC_URL` / `R2_PUBLIC_URL`. In `.env` ist aber **keine** dieser Variablen gesetzt — deshalb liefert `r2ObjectUrlCandidates(...)` ein leeres Array, jeder Fetch entfällt und alle drei Quellen (Open-Meteo-Cache, Radar-Manifest, Forecast-Manifest) fallen weg → 0 Frames → "keine Daten".
 
-6. **Validierung**
-   - Mit einem synthetischen Raster prüfen, dass:
-     - Einzelpixel und kleine Quadrate verschwinden,
-     - zusammenhängende Niederschlagsflächen erhalten bleiben,
-     - keine Weichzeichnung oder Konturverschiebung entsteht,
-     - Farben/Schwellen unverändert bleiben.
+Der Debug-Endpoint bestätigt, dass auf der veröffentlichten Umgebung dieselbe Variable auf
+`https://pub-2273d12392334ebd9bdba291a60d5398.r2.dev`
+zeigt und der R2-Bucket alle Daten (Cache v5, Manifest v23-class-clean, 72 Frames, aktueller Precip-Frame 12:25Z) korrekt bereitstellt. Die Datenpipeline ist also gesund — es fehlt nur die Env-Konfiguration im lokalen/Preview-Build.
+
+## Fix
+
+Eine einzige Zeile in `.env` ergänzen (identisch zum Wert aus der Live-Umgebung):
+
+```
+R2_PUBLIC_URL="https://pub-2273d12392334ebd9bdba291a60d5398.r2.dev"
+```
+
+Damit finden `radar.functions.ts`, `openmeteo-cache.server.ts` und der Debug-/Proxy-Pfad denselben Bucket wie die Produktion; `r2ObjectUrlCandidates` liefert wieder Kandidaten für `radar/frames.json`, `radar/forecast-frames.json` und `openmeteo/forecast.json`.
+
+## Was NICHT geändert wird
+
+- Keine Änderung an `radar.functions.ts`, `r2-url.server.ts`, `radar-map.tsx`, den Ingest-Skripten oder den Farb-/Form-/Kontur-Einstellungen.
+- Kein Crossfade, kein Blur, keine Glättung — die Artefakt-Bereinigung aus `v23-class-clean` bleibt unangetastet.
+- Keine Neuerzeugung von PNGs.
+
+## Verifikation
+
+1. Preview neu laden → Server-Fn `getRadarFrames` gibt Frames statt `[]` zurück, Warnung verschwindet.
+2. Dev-Server-Log zeigt `[radar] manifest loaded from … 72 frames` statt "no R2 radar manifest URL configured".
+3. Karte zeigt die vom Cronjob erzeugten sauberen (v23) PNGs.
