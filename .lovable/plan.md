@@ -1,29 +1,35 @@
-## Ziel
+# Warum keine Blitze sichtbar sind
 
-Im Satellit-Loop-Widget (`/embed/satellit-loop`) soll die ganze Schweiz bei beliebiger Widget-Grösse immer sichtbar sein. Aktuell ist Zoom fix auf 7 (`alpen-ch`), wodurch bei kleineren Iframes Teile der Schweiz abgeschnitten werden und bei grossen Iframes viel Leerraum entsteht.
+`GET https://…r2.dev/lightning/latest.json` → **HTTP 404**. Die Datei existiert schlicht noch nicht in R2. Der Server-Fn fällt daher auf `emptyPayload()` zurück (`strikes: []`) — genau das zeigt auch die letzte Network-Response.
 
-## Änderungen (nur `src/components/maps/satellite-map.tsx`)
+Zwei mögliche Ursachen:
+1. Der GitHub-Actions-Workflow `blitzortung-ingest.yml` ist noch nie erfolgreich gelaufen (neu hinzugefügt, Cron greift erst nach Merge auf `main`, oder er schlägt fehl).
+2. Selbst wenn er läuft: das Blitzortung-WS-Protokoll ist undokumentiert; wenn `_decode`/`a:111` nicht (mehr) passt, kommen 0 Strikes und die Datei würde zwar geschrieben, wäre aber leer — dann sähen wir aber `HTTP 200` mit `strikes: []`. Der 404 sagt: der Workflow hat noch nicht einmal einen Upload gemacht.
 
-1. **Schweiz-Bounds als Konstante** definieren (ungefähr `[[45.75, 5.9], [47.85, 10.55]]`), plus kleines Padding, damit Grenzregionen nicht am Rand kleben.
+# Plan
 
-2. **`FlyToRegion`** erweitert einen neuen Modus `fitBounds`:
-   - Normal (wie bisher): `setMinZoom/MaxZoom/View` auf `region.zoom` und `region.center`.
-   - Wenn `fitBounds`-Prop gesetzt (nur im Loop): `map.getBoundsZoom(CH_BOUNDS, true)` berechnet den grössten Zoom, bei dem die Schweiz komplett in den Container passt. Der Wert wird auf ganzzahlige Zoomstufen abgerundet (WMS/WMTS liefert nur diskrete Zooms), auf ein sinnvolles Fenster geklammert (min 5, max 9) und mit `setMinZoom/MaxZoom/setView(CH_CENTER, z)` fixiert.
-   - Ein `ResizeObserver` auf dem Map-Container ruft die Fit-Berechnung erneut auf, wenn sich die Iframe-Grösse ändert (z. B. responsives Widget). Debounce ~150 ms.
+1. **Ingest robuster + selbstdiagnostisch machen** (`scripts/ingest_blitzortung.py`)
+   - Immer eine Datei schreiben, auch wenn `websockets` fehlt oder alle Endpoints scheitern (bereits so, aber verifizieren).
+   - Ein zusätzliches Feld `debug` in den Payload aufnehmen: `{ endpointsTried, endpointOk, rawMessages, decodedOk, strikesInBBox }`, damit wir per `curl` sofort sehen, warum 0 Strikes ankamen.
+   - Fallback-BBox-Filter lockern: kurzzeitig auch `strikesGlobal` mitzählen (nur im `debug`-Feld, nicht im UI), um zu erkennen, ob überhaupt Nachrichten reinkommen.
 
-3. **`SatelliteMap`** übergibt `fitBounds={loop}` an `FlyToRegion`. Für Nicht-Loop-Ansicht bleibt alles unverändert.
+2. **Workflow manuell antriggerbar bestätigen** (`.github/workflows/blitzortung-ingest.yml`)
+   - `workflow_dispatch` ist bereits gesetzt. Nach dem Push kannst du den Workflow einmal manuell starten; der Cron greift erst danach zuverlässig.
+   - Timeout auf 6 Min anheben (aktuell 5), damit `BO_LISTEN_S=120` + Setup Puffer hat.
 
-4. **FrameStack-Key**: Der `key` enthält bereits `regionId` und `layer`. Da `regionId` beim Loop weiterhin `alpen-ch` bleibt und der Zoom sich lediglich zwischen ganzzahligen Stufen bewegt, muss der Zoom nicht in den Key. WMS-Kacheln reagieren automatisch auf Zoomänderung.
+3. **Debug-Endpoint erweitern** (`src/routes/api/public/debug/r2-cache.ts`)
+   - Zusätzlich `lightning/latest.json` prüfen und `strikes.length`, `generatedAt`, ggf. `debug` ausgeben, damit wir Statuscheck ohne R2-Auth machen können.
 
-5. **Frame-Prefetch**: Der bestehende `<link rel="prefetch">`-Pfad bleibt gleich (basiert auf `frame.url`, nicht auf dem Kartenzoom).
+4. **UI: kleiner Statushinweis** (`src/components/maps/satellite-map.tsx`)
+   - Wenn `showLightning` aktiv und `strikes.length === 0`: dezenter Chip „Keine aktiven Blitze im Alpenraum" statt „stiller" Karte, damit klar ist: Toggle funktioniert, es blitzt nur nicht.
 
-## Nicht-Änderungen
+# Was du danach tun musst
 
-- Volle App-Ansicht, andere Embeds und Regions-Umschalter bleiben unverändert.
-- Es werden keine Regionen ergänzt oder entfernt; der Loop nutzt weiterhin `alpen-ch` (MTG GeoColour).
-- Blitz-Overlay, Filmstrip, Attributions-UI unangetastet.
+- Änderungen mergen, damit der Cron-Workflow auf `main` läuft.
+- Einmal **Actions → Blitzortung Ingest → Run workflow** klicken.
+- Danach `curl …/lightning/latest.json` → sollte JSON liefern; im `debug`-Feld steht dann, ob überhaupt Nachrichten ankamen.
 
-## Verifizierung
+# Nicht Teil des Plans
 
-- Playwright-Screenshot des Loop-Embeds bei drei Grössen (300×200, 640×360, 1200×700). Erwartung: gesamter CH-Umriss inkl. Bodensee, Genfersee und Tessin sichtbar, mit ~10 px Rand.
-- Kontrolle, dass in der Nicht-Loop-Ansicht Region-Tabs und der bisherige Zoom unverändert funktionieren.
+- Umstieg auf EUMETSAT MTG LI (aufwendiger, Auth-Setup) — nur wenn Blitzortung dauerhaft keine Daten liefert.
+- Änderungen am Fade-/Rendering-Layer selbst (funktioniert, sobald Strikes eintreffen).
