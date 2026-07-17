@@ -350,7 +350,9 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
       )}
     >
       {/* Top bar */}
+      {!loop && (
       <div className="pointer-events-none absolute left-3 right-3 top-3 z-[500] flex items-start justify-between gap-2">
+
         <div className="pointer-events-auto flex min-w-0 items-center gap-2">
           <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-full border border-neutral-200/80 bg-white/90 p-0.5 shadow-sm backdrop-blur">
             {SATELLITE_REGIONS.map((r) => {
