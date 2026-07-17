@@ -337,6 +337,24 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
     refetchInterval: 60_000,
   });
 
+  const [showLightning, setShowLightning] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("sat.lightning") === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("sat.lightning", showLightning ? "1" : "0");
+  }, [showLightning]);
+  const { data: lightningData } = useQuery({
+    queryKey: ["lightning"],
+    queryFn: () => getLightningStrikes(),
+    enabled: showLightning,
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+  });
+  const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
+
+
   const frames = useMemo(() => data?.frames ?? [], [data]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
