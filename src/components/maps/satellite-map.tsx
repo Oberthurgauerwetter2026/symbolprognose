@@ -85,6 +85,102 @@ function SwissOutline() {
   );
 }
 
+function LightningLayer({ strikes }: { strikes: LightningStrike[] }) {
+  const map = useMap();
+  const layerRef = useRef<L.LayerGroup | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const pane = map.getPane("lightning") ?? map.createPane("lightning");
+    pane.style.zIndex = "650";
+    pane.style.pointerEvents = "none";
+    const group = L.layerGroup([], { pane: "lightning" });
+    group.addTo(map);
+    layerRef.current = group;
+    return () => {
+      group.remove();
+      layerRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const group = layerRef.current;
+    if (!group) return;
+
+    let stopped = false;
+    const render = () => {
+      if (stopped || !layerRef.current) return;
+      const now = Date.now();
+      group.clearLayers();
+      for (const s of strikes) {
+        const t = Date.parse(s.t);
+        if (!Number.isFinite(t)) continue;
+        const ageMs = now - t;
+        if (ageMs < 0 || ageMs > 15 * 60_000) continue;
+        const ageMin = ageMs / 60_000;
+        let color: string;
+        let radius: number;
+        let opacity: number;
+        let glowColor: string;
+        if (ageMin < 2) {
+          color = "#fffbe0";
+          glowColor = "#fde047";
+          radius = 6;
+          opacity = 1;
+        } else if (ageMin < 8) {
+          color = "#fbbf24";
+          glowColor = "#f59e0b";
+          radius = 5;
+          opacity = 0.85 - ((ageMin - 2) / 6) * 0.5; // 0.85 → 0.35
+        } else {
+          color = "#b91c1c";
+          glowColor = "#7f1d1d";
+          radius = 3.5;
+          opacity = 0.35 - ((ageMin - 8) / 7) * 0.25; // 0.35 → 0.10
+        }
+        opacity = Math.max(0.08, Math.min(1, opacity));
+
+        // Halo (Glow)
+        L.circleMarker([s.lat, s.lon], {
+          pane: "lightning",
+          radius: radius + 4,
+          stroke: false,
+          fill: true,
+          fillColor: glowColor,
+          fillOpacity: opacity * 0.25,
+          interactive: false,
+        }).addTo(group);
+        // Kern
+        L.circleMarker([s.lat, s.lon], {
+          pane: "lightning",
+          radius,
+          stroke: true,
+          color,
+          weight: 1,
+          fill: true,
+          fillColor: color,
+          fillOpacity: opacity,
+          interactive: false,
+        }).addTo(group);
+      }
+      rafRef.current = window.setTimeout(() => {
+        rafRef.current = window.requestAnimationFrame(render);
+      }, 1000) as unknown as number;
+    };
+    render();
+    return () => {
+      stopped = true;
+      if (rafRef.current !== null) {
+        window.clearTimeout(rafRef.current);
+        window.cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [strikes]);
+
+  return null;
+}
+
+
 /**
  * Mountet zuerst nur den aktiven Frame, dann inkrementell die übrigen
  * (radial vom aktiven Index aus).
