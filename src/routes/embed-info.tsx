@@ -110,6 +110,16 @@ function EmbedInfo() {
           </p>
           <SnippetBlock snippet={buildAmriswilSnippet(url, "/api/public/embed/region-lokal-static", 520)} />
         </section>
+        <section className="space-y-3">
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+            Satellit Loop (Schweiz &amp; Alpen, ohne Bedienleiste)
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Automatischer Loop der MTG-Satellitenbilder – keine Regions-Umschaltung, keine Zeitleiste. Ideal als reines Widget.
+          </p>
+          <SnippetBlock snippet={buildSimpleSnippet(url, "/embed/satellit-loop", 520)} />
+        </section>
+
 
         <section className="space-y-6">
           <div>

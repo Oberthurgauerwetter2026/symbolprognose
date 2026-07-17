@@ -21,6 +21,7 @@ import { Route as KartenNiederschlagRouteImport } from './routes/karten.niedersc
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
+import { Route as EmbedSatellitLoopRouteImport } from './routes/embed.satellit-loop'
 import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedRegionRouteImport } from './routes/embed.region'
@@ -95,6 +96,11 @@ const InternIconsRoute = InternIconsRouteImport.update({
 const EmbedWindRoute = EmbedWindRouteImport.update({
   id: '/embed/wind',
   path: '/embed/wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedSatellitLoopRoute = EmbedSatellitLoopRouteImport.update({
+  id: '/embed/satellit-loop',
+  path: '/embed/satellit-loop',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedSatellitRoute = EmbedSatellitRouteImport.update({
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
+  '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
+  '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
+  '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -280,6 +289,7 @@ export interface FileRouteTypes {
     | '/embed/region'
     | '/embed/region-lokal'
     | '/embed/satellit'
+    | '/embed/satellit-loop'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -309,6 +319,7 @@ export interface FileRouteTypes {
     | '/embed/region'
     | '/embed/region-lokal'
     | '/embed/satellit'
+    | '/embed/satellit-loop'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -338,6 +349,7 @@ export interface FileRouteTypes {
     | '/embed/region'
     | '/embed/region-lokal'
     | '/embed/satellit'
+    | '/embed/satellit-loop'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -368,6 +380,7 @@ export interface RootRouteChildren {
   EmbedRegionRoute: typeof EmbedRegionRoute
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
   EmbedSatellitRoute: typeof EmbedSatellitRoute
+  EmbedSatellitLoopRoute: typeof EmbedSatellitLoopRoute
   EmbedWindRoute: typeof EmbedWindRoute
   InternIconsRoute: typeof InternIconsRoute
   KartenLokalRoute: typeof KartenLokalRoute
@@ -471,6 +484,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/wind'
       fullPath: '/embed/wind'
       preLoaderRoute: typeof EmbedWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/satellit-loop': {
+      id: '/embed/satellit-loop'
+      path: '/embed/satellit-loop'
+      fullPath: '/embed/satellit-loop'
+      preLoaderRoute: typeof EmbedSatellitLoopRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/satellit': {
@@ -592,6 +612,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedRegionRoute: EmbedRegionRoute,
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
   EmbedSatellitRoute: EmbedSatellitRoute,
+  EmbedSatellitLoopRoute: EmbedSatellitLoopRoute,
   EmbedWindRoute: EmbedWindRoute,
   InternIconsRoute: InternIconsRoute,
   KartenLokalRoute: KartenLokalRoute,
