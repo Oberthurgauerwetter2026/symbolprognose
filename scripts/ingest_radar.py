@@ -493,7 +493,7 @@ def sample_to_bbox(values: np.ndarray, meta: dict) -> np.ndarray:
 def render_png(values: np.ndarray, scale: list[tuple[float, tuple[int, int, int, int]]]) -> bytes:
     from _morph import clean_precip_field
     # Bereinige Speckles/Löcher pro Intensitätsband, bevor gefärbt wird.
-    values = clean_precip_field(values, scale, min_area_px=4, hole_area_px=4)
+    values = clean_precip_field(values, scale, min_area_px=8, hole_area_px=6, min_total_area_px=10)
     h, w = values.shape
     rgba = np.zeros((h, w, 4), dtype=np.uint8)
     for thresh, color in scale:
