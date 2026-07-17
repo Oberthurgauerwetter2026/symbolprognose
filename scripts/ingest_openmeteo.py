@@ -286,7 +286,7 @@ def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> byt
     # Bildzeile 0 muss max_lat entsprechen (PNG top-left = NW).
     arr = np.flipud(arr)
     # Speckles/Löcher bandweise entfernen — kein Blur, keine Konturglättung.
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=6, hole_area_px=6)
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=9, hole_area_px=9)
     rgba = np.zeros((n_lat, n_lon, 4), dtype=np.uint8)
     for thresh, color in PRECIP_SCALE:
         mask = np.isfinite(arr) & (arr >= thresh)
