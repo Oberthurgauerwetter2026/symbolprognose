@@ -43,7 +43,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v22-native-raster"
+RADAR_INGEST_VERSION = "v23-class-clean"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # RZC instant rate, mm/h
@@ -493,7 +493,7 @@ def sample_to_bbox(values: np.ndarray, meta: dict) -> np.ndarray:
 def render_png(values: np.ndarray, scale: list[tuple[float, tuple[int, int, int, int]]]) -> bytes:
     from _morph import clean_precip_field
     # Bereinige Speckles/Löcher pro Intensitätsband, bevor gefärbt wird.
-    values = clean_precip_field(values, scale, min_area_px=4, hole_area_px=4)
+    values = clean_precip_field(values, scale, min_area_px=9, hole_area_px=9)
     h, w = values.shape
     rgba = np.zeros((h, w, 4), dtype=np.uint8)
     for thresh, color in scale:
