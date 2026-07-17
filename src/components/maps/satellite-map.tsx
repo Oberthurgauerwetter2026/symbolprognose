@@ -603,6 +603,11 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
           {showSwiss && <SwissOutline />}
           {showLightning && <LightningLayer strikes={lightningStrikes} />}
         </MapContainer>
+        {showLightning && lightningStrikes.length === 0 && (
+          <div className="pointer-events-none absolute left-3 top-3 z-[450] rounded-md border bg-card/85 px-2.5 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+            Keine aktiven Blitze im Alpenraum
+          </div>
+        )}
 
 
         {isLoading && total === 0 && (
