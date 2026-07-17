@@ -504,7 +504,23 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             </div>
           )}
         </div>
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowLightning((v) => !v)}
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-full border shadow-sm backdrop-blur transition focus-visible:outline-none focus-visible:ring-2",
+              showLightning
+                ? "border-amber-300 bg-amber-400 text-white hover:bg-amber-500"
+                : "border-neutral-200/80 bg-white/90 text-neutral-700 hover:bg-neutral-100",
+            )}
+            style={{ ['--tw-ring-color' as never]: BRAND }}
+            title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+            aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+            aria-pressed={showLightning}
+          >
+            <Zap className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -516,6 +532,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
         </div>
+
       </div>
       )}
 
