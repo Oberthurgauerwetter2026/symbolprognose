@@ -429,8 +429,8 @@ function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): nu
 
 // Maximal-Abstände, ab denen der Cache-Punkt nicht mehr repräsentativ ist
 // (Höhen-Unterschiede in den Alpen/Voralpen → direktes Open-Meteo mit DEM).
-const MCH_MAX_KM = 5;
-const PHASEA_MAX_KM = 4;
+const MCH_MAX_KM = 8;
+const PHASEA_MAX_KM = 6;
 
 async function forecastFromMchCache(
   lat: number,
