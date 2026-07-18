@@ -1,41 +1,37 @@
 ## Problem
 
-Höher gelegene bzw. weiter entfernte Orte (Säntis, Alpenorte außerhalb Oberthurgau) laden in der Lokalprognose nicht mehr. Ursache liegt in `src/lib/forecast-aggregated.functions.ts`:
+Auf dem Screenshot ist im Sat-Widget (loop-Modus) der Westen der Schweiz (Genfersee) angeschnitten, obwohl der Loop-Modus die Schweiz vollständig anzeigen soll. Zusätzlich fehlt ein Datum-/Zeit-Stempel für den aktuell angezeigten Frame.
 
-- Die Distanz-Gates `MCH_MAX_KM = 5` und `PHASEA_MAX_KM = 4` wurden bewusst eng gesetzt, damit Bergpunkte nicht auf Talstationen gemappt werden.
-- Fallen beide Cache-Pfade durch, wird `fetchForecast(lat, lon)` direkt gegen `api.open-meteo.com` aufgerufen. Vom Cloudflare-Worker-Egress trifft das oft ein IP-Rate-Limit (429) — das war ja der ganze Grund, weshalb wir überhaupt einen R2-Cache haben.
-- Beim Fehler liefert `emptyForecast()` eine syntaktisch valide, aber inhaltlich leere Response → im UI erscheinen fehlende/0-Werte statt einer sinnvollen Prognose.
+## Ursache
 
-Ergebnis: Für alle Orte, die weiter als 4–5 km vom nächsten Cachepunkt liegen (typischerweise Berge und Alpen-Punkte außerhalb des Oberthurgau-BBOX), gibt es faktisch keine Daten mehr.
+In `src/components/maps/satellite-map.tsx`, `FlyToRegion`:
 
-## Ziel
+```ts
+const raw = map.getBoundsZoom(bounds, true, L.point(12, 12));
+```
 
-Berg-/Fernorte laden wieder verlässlich, ohne dass die 2024 eingeführte Höhenkorrektur für Säntis & Co. wieder auf Talstationen zurückfällt.
+Der zweite Parameter `inside=true` liefert laut Leaflet-Doku den **minimalen Zoom, bei dem der Viewport in die Bounds passt** — also das Gegenteil. Für „ganze Schweiz sichtbar" muss `inside=false` (Default) verwendet werden: max. Zoom, bei dem die Bounds komplett in den Viewport passen.
 
-## Änderungen (nur `src/lib/forecast-aggregated.functions.ts`)
+## Änderungen — nur `src/components/maps/satellite-map.tsx`
 
-1. **Direct-Open-Meteo mit Retry + Stale-Toleranz**
-   - `fetchForecast` in eine kleine Retry-Schleife (2 Versuche, 400 ms Backoff) legen.
-   - Bei Erfolg wie bisher in `directForecastCache` legen; der bestehende TTL-Cache wird bei Ausfall zusätzlich als **stale** zurückgegeben (Alter ignorieren) statt sofort `emptyForecast` zu liefern.
+1. **Bounds-Fit korrigieren**
+   - `map.getBoundsZoom(bounds, false, L.point(12, 12))` (statt `true`).
+   - Zusätzlich `map.fitBounds(bounds, { padding: [12, 12], animate: false })` verwenden, damit auch der Center passt (aktuell wird `CH_CENTER` statisch gesetzt — bei sehr breiten Widget-Containern kann das leicht mittig zu weit östlich wirken).
+   - `minZoom`/`maxZoom` weiterhin auf den ermittelten Integer-Zoom fixieren, damit der Layer scharf bleibt.
 
-2. **Cache-Nearest-Fallback statt Empty**
-   - Wenn der direkte Call scheitert **und** kein stale-Cache existiert: den **nächsten MCH- bzw. phaseA-Punkt ohne Distanz-Gate** verwenden.
-   - Wird dieser Notfallpfad genutzt, wird das im Response-Header `x-forecast-fallback: nearest-cache` markiert (Debug) — im UI unverändert.
-
-3. **Distanz-Gates leicht öffnen, ohne Höhenqualität zu verlieren**
-   - `MCH_MAX_KM: 5 → 8`, `PHASEA_MAX_KM: 4 → 6`. Damit werden mehr Alpenvorlandsorte im ersten Anlauf sauber bedient; echte Berggipfel bleiben außerhalb und gehen weiterhin über den direkten (jetzt robusten) Open-Meteo-Pfad — der die DEM-Höhenkorrektur mitliefert.
-
-4. **Warn-Logs vereinheitlichen**
-   - Bei Nutzung des Nearest-Fallbacks eine klare `console.warn`-Zeile mit Distanz, damit spätere Ingest-Erweiterungen (z. B. dedizierte Berg-Punkte im BBOX) datengetrieben entschieden werden können.
+2. **Datum/Zeit-Overlay im Loop-Widget**
+   - Neues kleines Chip oben rechts (`absolute right-3 top-3`), semantische Tokens (`bg-card/85`, `text-foreground`, `border`, `backdrop-blur-sm`).
+   - Zeigt `frames[safeIndex].time` als `DD.MM. HH:mm` in Europe/Zurich-Zeitzone.
+   - Nur rendern, wenn `loop && frames.length > 0`.
+   - Positionierung so, dass sie mit dem bestehenden „Keine Blitze"-Chip (oben links) nicht kollidiert.
 
 ## Nicht in diesem Plan
 
-- Keine Änderungen am `WeatherWidget`, an `SPOTS`, `MapTabs` oder der UI.
-- Kein Ausbau des Ingest-BBOX oder neuer Höhen-Layer — reine Server-Aggregator-Robustheit.
-- Keine Lapse-Rate-Korrektur (könnte in einem Folge-Plan kommen, wenn nach dem Fix immer noch Temperaturausreißer auftreten).
+- Keine Änderungen am Nicht-Loop-Modus (dort ist Filmstrip mit Zeitanzeige vorhanden).
+- Keine Änderung an Regionen/Layers/CH_BOUNDS-Werten selbst.
 
 ## Technische Details
 
-- Datei: `src/lib/forecast-aggregated.functions.ts`
-- Neue interne Helper: `fetchForecastWithRetry(lat, lon)` und `pickAnyNearest(...)` (Cache-Nearest ohne Distanz-Gate) im selben Modul.
-- Der bestehende `emptyForecast(...)`-Pfad bleibt als allerletzte Notbremse erhalten, wird aber nur noch erreicht, wenn weder MCH- noch phaseA-Cache irgendwelche Punkte enthält.
+- Datei: `src/components/maps/satellite-map.tsx`
+- Zeit-Formatierung: `Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })`
+- Chip als kleines `<div>` außerhalb des `MapContainer` innerhalb des `relative`-Wrappers, `pointer-events-none`, `z-[450]` (gleich wie der bestehende Lightning-Chip).

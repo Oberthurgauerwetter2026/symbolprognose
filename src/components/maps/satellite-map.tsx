@@ -73,12 +73,12 @@ function FlyToRegion({ regionId, fitBounds }: { regionId: SatelliteRegionId; fit
       const apply = () => {
         map.invalidateSize();
         const bounds = L.latLngBounds(CH_BOUNDS);
-        // Padding in px, damit die Schweiz nicht am Rand klebt.
-        const raw = map.getBoundsZoom(bounds, true, L.point(12, 12));
+        // inside=false: max. Zoom, bei dem die Bounds komplett in den Viewport passen.
+        const raw = map.getBoundsZoom(bounds, false, L.point(12, 12));
         const z = Math.max(5, Math.min(9, Math.floor(raw)));
         map.setMinZoom(z);
         map.setMaxZoom(z);
-        map.setView(CH_CENTER, z, { animate: false });
+        map.fitBounds(bounds, { padding: [12, 12], animate: false, maxZoom: z });
       };
       apply();
       const container = map.getContainer();
@@ -606,6 +606,17 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
         {showLightning && lightningStrikes.length === 0 && (
           <div className="pointer-events-none absolute left-3 top-3 z-[450] rounded-md border bg-card/85 px-2.5 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
             Keine aktiven Blitze im Alpenraum
+          </div>
+        )}
+        {loop && frames.length > 0 && frames[safeIndex]?.time && (
+          <div className="pointer-events-none absolute right-3 top-3 z-[450] rounded-md border bg-card/85 px-2.5 py-1 font-mono text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
+            {new Intl.DateTimeFormat("de-CH", {
+              timeZone: "Europe/Zurich",
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            }).format(new Date(frames[safeIndex].time))}
           </div>
         )}
 
