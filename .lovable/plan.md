@@ -1,35 +1,41 @@
-# Warum keine Blitze sichtbar sind
+## Problem
 
-`GET https://…r2.dev/lightning/latest.json` → **HTTP 404**. Die Datei existiert schlicht noch nicht in R2. Der Server-Fn fällt daher auf `emptyPayload()` zurück (`strikes: []`) — genau das zeigt auch die letzte Network-Response.
+Höher gelegene bzw. weiter entfernte Orte (Säntis, Alpenorte außerhalb Oberthurgau) laden in der Lokalprognose nicht mehr. Ursache liegt in `src/lib/forecast-aggregated.functions.ts`:
 
-Zwei mögliche Ursachen:
-1. Der GitHub-Actions-Workflow `blitzortung-ingest.yml` ist noch nie erfolgreich gelaufen (neu hinzugefügt, Cron greift erst nach Merge auf `main`, oder er schlägt fehl).
-2. Selbst wenn er läuft: das Blitzortung-WS-Protokoll ist undokumentiert; wenn `_decode`/`a:111` nicht (mehr) passt, kommen 0 Strikes und die Datei würde zwar geschrieben, wäre aber leer — dann sähen wir aber `HTTP 200` mit `strikes: []`. Der 404 sagt: der Workflow hat noch nicht einmal einen Upload gemacht.
+- Die Distanz-Gates `MCH_MAX_KM = 5` und `PHASEA_MAX_KM = 4` wurden bewusst eng gesetzt, damit Bergpunkte nicht auf Talstationen gemappt werden.
+- Fallen beide Cache-Pfade durch, wird `fetchForecast(lat, lon)` direkt gegen `api.open-meteo.com` aufgerufen. Vom Cloudflare-Worker-Egress trifft das oft ein IP-Rate-Limit (429) — das war ja der ganze Grund, weshalb wir überhaupt einen R2-Cache haben.
+- Beim Fehler liefert `emptyForecast()` eine syntaktisch valide, aber inhaltlich leere Response → im UI erscheinen fehlende/0-Werte statt einer sinnvollen Prognose.
 
-# Plan
+Ergebnis: Für alle Orte, die weiter als 4–5 km vom nächsten Cachepunkt liegen (typischerweise Berge und Alpen-Punkte außerhalb des Oberthurgau-BBOX), gibt es faktisch keine Daten mehr.
 
-1. **Ingest robuster + selbstdiagnostisch machen** (`scripts/ingest_blitzortung.py`)
-   - Immer eine Datei schreiben, auch wenn `websockets` fehlt oder alle Endpoints scheitern (bereits so, aber verifizieren).
-   - Ein zusätzliches Feld `debug` in den Payload aufnehmen: `{ endpointsTried, endpointOk, rawMessages, decodedOk, strikesInBBox }`, damit wir per `curl` sofort sehen, warum 0 Strikes ankamen.
-   - Fallback-BBox-Filter lockern: kurzzeitig auch `strikesGlobal` mitzählen (nur im `debug`-Feld, nicht im UI), um zu erkennen, ob überhaupt Nachrichten reinkommen.
+## Ziel
 
-2. **Workflow manuell antriggerbar bestätigen** (`.github/workflows/blitzortung-ingest.yml`)
-   - `workflow_dispatch` ist bereits gesetzt. Nach dem Push kannst du den Workflow einmal manuell starten; der Cron greift erst danach zuverlässig.
-   - Timeout auf 6 Min anheben (aktuell 5), damit `BO_LISTEN_S=120` + Setup Puffer hat.
+Berg-/Fernorte laden wieder verlässlich, ohne dass die 2024 eingeführte Höhenkorrektur für Säntis & Co. wieder auf Talstationen zurückfällt.
 
-3. **Debug-Endpoint erweitern** (`src/routes/api/public/debug/r2-cache.ts`)
-   - Zusätzlich `lightning/latest.json` prüfen und `strikes.length`, `generatedAt`, ggf. `debug` ausgeben, damit wir Statuscheck ohne R2-Auth machen können.
+## Änderungen (nur `src/lib/forecast-aggregated.functions.ts`)
 
-4. **UI: kleiner Statushinweis** (`src/components/maps/satellite-map.tsx`)
-   - Wenn `showLightning` aktiv und `strikes.length === 0`: dezenter Chip „Keine aktiven Blitze im Alpenraum" statt „stiller" Karte, damit klar ist: Toggle funktioniert, es blitzt nur nicht.
+1. **Direct-Open-Meteo mit Retry + Stale-Toleranz**
+   - `fetchForecast` in eine kleine Retry-Schleife (2 Versuche, 400 ms Backoff) legen.
+   - Bei Erfolg wie bisher in `directForecastCache` legen; der bestehende TTL-Cache wird bei Ausfall zusätzlich als **stale** zurückgegeben (Alter ignorieren) statt sofort `emptyForecast` zu liefern.
 
-# Was du danach tun musst
+2. **Cache-Nearest-Fallback statt Empty**
+   - Wenn der direkte Call scheitert **und** kein stale-Cache existiert: den **nächsten MCH- bzw. phaseA-Punkt ohne Distanz-Gate** verwenden.
+   - Wird dieser Notfallpfad genutzt, wird das im Response-Header `x-forecast-fallback: nearest-cache` markiert (Debug) — im UI unverändert.
 
-- Änderungen mergen, damit der Cron-Workflow auf `main` läuft.
-- Einmal **Actions → Blitzortung Ingest → Run workflow** klicken.
-- Danach `curl …/lightning/latest.json` → sollte JSON liefern; im `debug`-Feld steht dann, ob überhaupt Nachrichten ankamen.
+3. **Distanz-Gates leicht öffnen, ohne Höhenqualität zu verlieren**
+   - `MCH_MAX_KM: 5 → 8`, `PHASEA_MAX_KM: 4 → 6`. Damit werden mehr Alpenvorlandsorte im ersten Anlauf sauber bedient; echte Berggipfel bleiben außerhalb und gehen weiterhin über den direkten (jetzt robusten) Open-Meteo-Pfad — der die DEM-Höhenkorrektur mitliefert.
 
-# Nicht Teil des Plans
+4. **Warn-Logs vereinheitlichen**
+   - Bei Nutzung des Nearest-Fallbacks eine klare `console.warn`-Zeile mit Distanz, damit spätere Ingest-Erweiterungen (z. B. dedizierte Berg-Punkte im BBOX) datengetrieben entschieden werden können.
 
-- Umstieg auf EUMETSAT MTG LI (aufwendiger, Auth-Setup) — nur wenn Blitzortung dauerhaft keine Daten liefert.
-- Änderungen am Fade-/Rendering-Layer selbst (funktioniert, sobald Strikes eintreffen).
+## Nicht in diesem Plan
+
+- Keine Änderungen am `WeatherWidget`, an `SPOTS`, `MapTabs` oder der UI.
+- Kein Ausbau des Ingest-BBOX oder neuer Höhen-Layer — reine Server-Aggregator-Robustheit.
+- Keine Lapse-Rate-Korrektur (könnte in einem Folge-Plan kommen, wenn nach dem Fix immer noch Temperaturausreißer auftreten).
+
+## Technische Details
+
+- Datei: `src/lib/forecast-aggregated.functions.ts`
+- Neue interne Helper: `fetchForecastWithRetry(lat, lon)` und `pickAnyNearest(...)` (Cache-Nearest ohne Distanz-Gate) im selben Modul.
+- Der bestehende `emptyForecast(...)`-Pfad bleibt als allerletzte Notbremse erhalten, wird aber nur noch erreicht, wenn weder MCH- noch phaseA-Cache irgendwelche Punkte enthält.
