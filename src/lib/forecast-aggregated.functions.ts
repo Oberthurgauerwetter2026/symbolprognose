@@ -591,9 +591,9 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
       console.error("[aggregated-forecast] phaseA cache read failed", err);
     }
 
-    // 3) Last Resort: direkter Open-Meteo-Call für die echte Koordinate
-    //    (DEM-Höhenkorrektur greift dort automatisch — wichtig für Bergpunkte
-    //    wie Säntis, wo die Talstationen aus MCH/phaseA falsche Werte liefern).
+    // 3) Robuster Open-Meteo-Direct-Call mit Retry (DEM-Höhenkorrektur wichtig
+    //    für Bergpunkte wie Säntis). Bei Failure: stale-Cache oder Nearest-Cache
+    //    ohne Distanz-Gate — nie mehr leere Response, solange irgendein Cache lebt.
     console.warn(
       "[aggregated-forecast] all caches missed for",
       data.lat,
@@ -604,20 +604,97 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
     const cached = directForecastCache.get(cacheKey);
     if (cached && Date.now() - cached.at < DIRECT_TTL_MS) return cached.fc;
     try {
-      const fc = await fetchForecast(data.lat, data.lon);
+      const fc = await fetchForecastWithRetry(data.lat, data.lon);
       directForecastCache.set(cacheKey, { fc, at: Date.now() });
       if (directForecastCache.size > 128) {
-        // FIFO-Trim, damit der Modul-Cache nicht unbegrenzt wächst.
         const firstKey = directForecastCache.keys().next().value;
         if (firstKey) directForecastCache.delete(firstKey);
       }
       return fc;
     } catch (err) {
-      console.error("[aggregated-forecast] hard fail", err);
-      if (cached) return cached.fc;
+      console.error("[aggregated-forecast] direct Open-Meteo failed", err);
+      // 3a) stale direct-Cache tolerieren
+      if (cached) {
+        console.warn("[aggregated-forecast] serving stale direct cache for", cacheKey);
+        return cached.fc;
+      }
+      // 3b) letzter Ausweg: nächster Cache-Punkt OHNE Distanz-Gate
+      const nearest = await nearestCacheFallback(data.lat, data.lon);
+      if (nearest) return nearest;
       return emptyForecast(data.lat, data.lon);
     }
   });
+
+/**
+ * Kleiner Retry-Wrapper um `fetchForecast()`. Open-Meteo antwortet vom
+ * Cloudflare-Worker-Egress hin und wieder mit 429/5xx; ein einzelner Retry
+ * mit 400 ms Backoff reicht in der Praxis, um transiente Fehler zu glätten.
+ */
+async function fetchForecastWithRetry(lat: number, lon: number): Promise<ForecastResponse> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchForecast(lat, lon);
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+/**
+ * Notfall-Fallback: nächster MCH- bzw. phaseA-Cachepunkt ohne Distanz-Gate.
+ * Wird nur benutzt, wenn der direkte Open-Meteo-Call scheitert und kein
+ * stale direct-Cache existiert. Temperatur kann für Bergpunkte abweichen —
+ * besser als eine leere Prognose.
+ */
+async function nearestCacheFallback(
+  lat: number,
+  lon: number,
+): Promise<ForecastResponse | null> {
+  try {
+    const mch = await getMchLocalForecastCache();
+    if (mch?.locations?.length) {
+      const best = pickNearestMch(mch.locations, lat, lon);
+      if (best?.hourly?.time?.length) {
+        const distKm = haversineKm(lat, lon, best.latitude, best.longitude);
+        console.warn(
+          "[aggregated-forecast] nearest-cache fallback (MCH)",
+          `${distKm.toFixed(1)} km`,
+        );
+        const omLocs = await loadSymbolLocs().catch(() => null);
+        const fc = buildForecastFromMchLoc(best);
+        overlayHourlyFromOpenMeteo(fc, omLocs ? pickNearest(omLocs, lat, lon) : null);
+        enrichDailyFromHourly(fc, best.latitude, best.longitude, best.utc_offset_seconds ?? 0);
+        return sanitizeForecast(fc);
+      }
+    }
+  } catch (err) {
+    console.error("[aggregated-forecast] nearest MCH fallback failed", err);
+  }
+  try {
+    const locs = await loadSymbolLocs();
+    if (locs?.length) {
+      const best = pickNearest(locs, lat, lon);
+      if (best?.hourly?.time?.length) {
+        const bLat = best.latitude;
+        const bLon = best.longitude;
+        if (typeof bLat === "number" && typeof bLon === "number") {
+          console.warn(
+            "[aggregated-forecast] nearest-cache fallback (phaseA)",
+            `${haversineKm(lat, lon, bLat, bLon).toFixed(1)} km`,
+          );
+        }
+        return buildForecastFromCacheLoc(best);
+      }
+    }
+  } catch (err) {
+    console.error("[aggregated-forecast] nearest phaseA fallback failed", err);
+  }
+  return null;
+}
+
 
 
 /**
