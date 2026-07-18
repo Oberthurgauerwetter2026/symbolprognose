@@ -73,12 +73,12 @@ function FlyToRegion({ regionId, fitBounds }: { regionId: SatelliteRegionId; fit
       const apply = () => {
         map.invalidateSize();
         const bounds = L.latLngBounds(CH_BOUNDS);
-        // Padding in px, damit die Schweiz nicht am Rand klebt.
-        const raw = map.getBoundsZoom(bounds, true, L.point(12, 12));
+        // inside=false: max. Zoom, bei dem die Bounds komplett in den Viewport passen.
+        const raw = map.getBoundsZoom(bounds, false, L.point(12, 12));
         const z = Math.max(5, Math.min(9, Math.floor(raw)));
         map.setMinZoom(z);
         map.setMaxZoom(z);
-        map.setView(CH_CENTER, z, { animate: false });
+        map.fitBounds(bounds, { padding: [12, 12], animate: false, maxZoom: z });
       };
       apply();
       const container = map.getContainer();
