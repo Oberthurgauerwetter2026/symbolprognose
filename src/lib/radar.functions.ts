@@ -522,10 +522,14 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     }
   }
 
-  // ICON-CH2 hourly erweitert den Fallback, wenn CH1-Minutely vor +48 h endet.
-  if (!hasForecastPngs && r2) {
-    const latestForecastMs = frames.reduce((latest, f) => {
+  // ICON-CH2 hourly erweitert die Prognose, wenn CH1-Minutely vor +48 h endet.
+  // Wir wollen die zusätzlichen mm/h-Werte auch dann, wenn bereits Forecast-PNGs
+  // vorhanden sind — sonst hätten die Summenkarten am Horizont keine Frames.
+  if (r2) {
+    // Spätester Zeitpunkt, für den wir bereits Grid-Werte haben (nicht nur PNGs).
+    const latestWithValuesMs = frames.reduce((latest, f) => {
       if (f.source === "radar") return latest;
+      if (!f.values || f.values.length === 0) return latest;
       const tMs = Date.parse(f.t);
       return Number.isNaN(tMs) ? latest : Math.max(latest, tMs);
     }, now);
@@ -536,7 +540,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       for (let ti = 0; ti < ref.time.length; ti++) {
         const tMs = Date.parse(`${ref.time[ti]}Z`);
         if (Number.isNaN(tMs)) continue;
-        if (tMs <= latestForecastMs + 10 * 60_000) continue;
+        if (tMs <= latestWithValuesMs + 10 * 60_000) continue;
         if (tMs > forecastCutoff) continue;
 
         const values = new Array<number>(pts.length);
@@ -560,7 +564,8 @@ export const getRadarFrames = createServerFn({ method: "GET" })
         ch2Count++;
       }
     }
-    if (ch2Count > 0) console.info(`[radar] forecast fallback from ICON-CH2 grid: ${ch2Count} frames`);
+    if (ch2Count > 0)
+      console.info(`[radar] forecast fallback from ICON-CH2 grid: ${ch2Count} frames`);
   }
 
 
