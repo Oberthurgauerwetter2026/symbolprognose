@@ -1,37 +1,25 @@
 ## Problem
 
-Auf dem Screenshot ist im Sat-Widget (loop-Modus) der Westen der Schweiz (Genfersee) angeschnitten, obwohl der Loop-Modus die Schweiz vollständig anzeigen soll. Zusätzlich fehlt ein Datum-/Zeit-Stempel für den aktuell angezeigten Frame.
+Auf `/karten/niederschlag` zeigen die 12/24/48h-Summen keine Daten mehr (Max 0.0 mm, 0% Fläche ≥1 mm, 0 Frames).
 
-## Ursache
+## Ursache (verifiziert in `src/lib/radar.functions.ts` + `precip-accum-map.tsx`)
 
-In `src/components/maps/satellite-map.tsx`, `FlyToRegion`:
+Seit die Prognose aus vor-gerasterten PNGs kommt, füllt `getRadarFrames()` die Forecast-Frames mit `values: []` (Zeile 419) und liefert nur noch `precipUrl`. Der Canvas-Fallback aus dem ICON-CH1-Grid läuft explizit nur, wenn `!hasForecastPngs`.
 
-```ts
-const raw = map.getBoundsZoom(bounds, true, L.point(12, 12));
-```
+`accumulatePrecip()` in `precip-accum-map.tsx` filtert aber genau nach numerischen Werten (`f.values.length === nPts`) — mit leeren Arrays fällt jeder Forecast-Frame raus, deshalb 0 Frames und Max 0 mm. Die Summenkarte hat keinen PNG-Pfad, sie braucht mm/h pro Grid-Punkt.
 
-Der zweite Parameter `inside=true` liefert laut Leaflet-Doku den **minimalen Zoom, bei dem der Viewport in die Bounds passt** — also das Gegenteil. Für „ganze Schweiz sichtbar" muss `inside=false` (Default) verwendet werden: max. Zoom, bei dem die Bounds komplett in den Viewport passen.
+## Fix (nur `src/lib/radar.functions.ts`)
 
-## Änderungen — nur `src/components/maps/satellite-map.tsx`
+Beim Aufbau der PNG-basierten Prognose-Frames zusätzlich `values`/`snowValues` aus dem vorhandenen ICON-CH1-Cache (`r1.minutely_15`) füllen, wenn Grid und Zeitindex passen. Fallback bleibt: ICON-CH2 `hourly` für Zeiten, an denen CH1-Minutely nichts liefert.
 
-1. **Bounds-Fit korrigieren**
-   - `map.getBoundsZoom(bounds, false, L.point(12, 12))` (statt `true`).
-   - Zusätzlich `map.fitBounds(bounds, { padding: [12, 12], animate: false })` verwenden, damit auch der Center passt (aktuell wird `CH_CENTER` statisch gesetzt — bei sehr breiten Widget-Containern kann das leicht mittig zu weit östlich wirken).
-   - `minZoom`/`maxZoom` weiterhin auf den ermittelten Integer-Zoom fixieren, damit der Layer scharf bleibt.
+Konkret:
 
-2. **Datum/Zeit-Overlay im Loop-Widget**
-   - Neues kleines Chip oben rechts (`absolute right-3 top-3`), semantische Tokens (`bg-card/85`, `text-foreground`, `border`, `backdrop-blur-sm`).
-   - Zeigt `frames[safeIndex].time` als `DD.MM. HH:mm` in Europe/Zurich-Zeitzone.
-   - Nur rendern, wenn `loop && frames.length > 0`.
-   - Positionierung so, dass sie mit dem bestehenden „Keine Blitze"-Chip (oben links) nicht kollidiert.
+1. Aus `r1` einen `forecastMinutelyIdx: Map<tMs, idx>` bauen (analog zu `pastTimeIdx`).
+2. In der `for`-Schleife über `forecastManifest.frames`: wenn `r1` vorhanden und Grid nicht stale, per Zeit-Match (±10 min) das Werte-Array befüllen, sonst leeres Array beibehalten.
+3. Optional: CH2-Hourly-Ergänzung auch dann laufen lassen, wenn `hasForecastPngs === true`, aber nur für Zeitpunkte jenseits des CH1-Minutely-Endes — damit 48h-Summen bis zum Horizont durchgehen.
 
-## Nicht in diesem Plan
+Kein Rendering-Code, kein Ingest-Script, keine Datenbank angefasst. Radar-Animation nutzt weiter `precipUrl`; die Summenkarte bekommt jetzt zusätzlich die numerischen Werte, die sie erwartet.
 
-- Keine Änderungen am Nicht-Loop-Modus (dort ist Filmstrip mit Zeitanzeige vorhanden).
-- Keine Änderung an Regionen/Layers/CH_BOUNDS-Werten selbst.
+## Verifikation
 
-## Technische Details
-
-- Datei: `src/components/maps/satellite-map.tsx`
-- Zeit-Formatierung: `Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })`
-- Chip als kleines `<div>` außerhalb des `MapContainer` innerhalb des `relative`-Wrappers, `pointer-events-none`, `z-[450]` (gleich wie der bestehende Lightning-Chip).
+Nach dem Fix `/karten/niederschlag` neu laden: `framesUsed` > 0, `Max` und `%≥1 mm` plausibel, alle drei Karten (12/24/48 h) gefüllt.

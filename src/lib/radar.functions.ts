@@ -406,23 +406,76 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   if (!hasForecastPngs) {
     warnings.push("Prognose-PNGs (ICON-CH1) temporär nicht verfügbar");
   } else {
+    // Zeit-Index aus ICON-CH1 minutely_15, um Prognose-Frames zusätzlich mit
+    // numerischen mm/h-Werten pro Grid-Punkt zu befüllen. Die Summenkarte
+    // (`/karten/niederschlag`) hat keinen PNG-Pfad und braucht `values`.
+    const ref1Fc = r1 ? (r1[0] as LocResponse | undefined)?.minutely_15 : undefined;
+    const hasFcSnow = Array.isArray(
+      (r1?.[0] as LocResponse | undefined)?.minutely_15?.snowfall,
+    );
+    const fcTimeIdx = new Map<number, number>();
+    if (ref1Fc?.time) {
+      for (let ti = 0; ti < ref1Fc.time.length; ti++) {
+        fcTimeIdx.set(Date.parse(ref1Fc.time[ti] + "Z"), ti);
+      }
+    }
+    const findFcIdx = (tMs: number): number => {
+      const exact = fcTimeIdx.get(tMs);
+      if (typeof exact === "number") return exact;
+      let best = -1;
+      let bestDt = 10 * 60_000 + 1;
+      for (const [tm, idx] of fcTimeIdx) {
+        const dt = Math.abs(tm - tMs);
+        if (dt < bestDt) {
+          bestDt = dt;
+          best = idx;
+        }
+      }
+      return best;
+    };
+
     let ch1Count = 0;
+    let ch1WithValues = 0;
     for (const mf of forecastManifest!.frames) {
       const tMs = Date.parse(mf.t);
       if (Number.isNaN(tMs)) continue;
       if (tMs <= now) continue;
       if (tMs > forecastCutoff) continue;
+
+      let values: number[] = [];
+      let snowValues: number[] | undefined;
+      if (r1 && fcTimeIdx.size > 0) {
+        const ti = findFcIdx(tMs);
+        if (ti >= 0) {
+          values = new Array(pts.length);
+          if (hasFcSnow) snowValues = new Array(pts.length);
+          for (let pi = 0; pi < pts.length; pi++) {
+            const loc = r1[pi] as LocResponse | undefined;
+            const v = loc?.minutely_15?.precipitation?.[ti];
+            values[pi] = typeof v === "number" ? v * 4 : 0;
+            if (snowValues) {
+              const s = loc?.minutely_15?.snowfall?.[ti];
+              snowValues[pi] = typeof s === "number" ? s * 4 : 0;
+            }
+          }
+          ch1WithValues++;
+        }
+      }
+
       frames.push({
         t: mf.t,
         source: mf.source ?? "icon-ch1",
         sourceT: mf.t,
-        values: [],
+        values,
+        snowValues,
         precipUrl: mf.precipUrl,
         imageBbox: forecastImageBbox,
       });
       ch1Count++;
     }
-    console.info(`[radar] forecast pngs: ${ch1Count} frames`);
+    console.info(
+      `[radar] forecast pngs: ${ch1Count} frames (${ch1WithValues} mit Grid-Werten)`,
+    );
   }
 
   // ---- Fallback: Modell-Prognose direkt aus openmeteo/forecast.json ----
@@ -469,10 +522,14 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     }
   }
 
-  // ICON-CH2 hourly erweitert den Fallback, wenn CH1-Minutely vor +48 h endet.
-  if (!hasForecastPngs && r2) {
-    const latestForecastMs = frames.reduce((latest, f) => {
+  // ICON-CH2 hourly erweitert die Prognose, wenn CH1-Minutely vor +48 h endet.
+  // Wir wollen die zusätzlichen mm/h-Werte auch dann, wenn bereits Forecast-PNGs
+  // vorhanden sind — sonst hätten die Summenkarten am Horizont keine Frames.
+  if (r2) {
+    // Spätester Zeitpunkt, für den wir bereits Grid-Werte haben (nicht nur PNGs).
+    const latestWithValuesMs = frames.reduce((latest, f) => {
       if (f.source === "radar") return latest;
+      if (!f.values || f.values.length === 0) return latest;
       const tMs = Date.parse(f.t);
       return Number.isNaN(tMs) ? latest : Math.max(latest, tMs);
     }, now);
@@ -483,7 +540,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       for (let ti = 0; ti < ref.time.length; ti++) {
         const tMs = Date.parse(`${ref.time[ti]}Z`);
         if (Number.isNaN(tMs)) continue;
-        if (tMs <= latestForecastMs + 10 * 60_000) continue;
+        if (tMs <= latestWithValuesMs + 10 * 60_000) continue;
         if (tMs > forecastCutoff) continue;
 
         const values = new Array<number>(pts.length);
@@ -507,7 +564,8 @@ export const getRadarFrames = createServerFn({ method: "GET" })
         ch2Count++;
       }
     }
-    if (ch2Count > 0) console.info(`[radar] forecast fallback from ICON-CH2 grid: ${ch2Count} frames`);
+    if (ch2Count > 0)
+      console.info(`[radar] forecast fallback from ICON-CH2 grid: ${ch2Count} frames`);
   }
 
 
