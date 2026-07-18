@@ -608,6 +608,17 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             Keine aktiven Blitze im Alpenraum
           </div>
         )}
+        {loop && frames.length > 0 && frames[safeIndex]?.time && (
+          <div className="pointer-events-none absolute right-3 top-3 z-[450] rounded-md border bg-card/85 px-2.5 py-1 font-mono text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
+            {new Intl.DateTimeFormat("de-CH", {
+              timeZone: "Europe/Zurich",
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            }).format(new Date(frames[safeIndex].time))}
+          </div>
+        )}
 
 
         {isLoading && total === 0 && (
