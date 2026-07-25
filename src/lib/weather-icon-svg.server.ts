@@ -281,6 +281,8 @@ export interface RenderIconOpts {
   cloudLow?: number;
   cloudMid?: number;
   cloudHigh?: number;
+  /** 2 m-Temperatur in °C zum Icon-Zeitpunkt. Gate für Schnee-Icons. */
+  temp?: number;
 }
 
 export function renderWeatherIconSvg(o: RenderIconOpts): string {
@@ -290,7 +292,7 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
     size = 48,
     precip,
     precipProb,
-    isSnow,
+    isSnow: isSnowRaw,
     scope = "hourly",
     precipHours,
     thunderHours,
@@ -298,7 +300,9 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
     cloudLow,
     cloudMid,
     cloudHigh,
+    temp,
   } = o;
+
   const hasMch =
     typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
   const isDay = o.isDay ?? (hasMch ? (mchCode as number) < 100 : true);
