@@ -1,13 +1,12 @@
-Änderung in `src/components/maps/satellite-map.tsx`:
+## Ziel
+Der gelbe Schweiz-Umriss soll nicht nur in „Schweiz & Alpen", sondern auch in der Region „Europa GeoColour" sichtbar sein.
 
-- `SwissOutline` Komponente: GeoJSON-Stil `color` von `#ffffff` auf ein gelb (z. B. `#facc15` Tailwind yellow-400) umstellen, damit der Schweiz-Umriss im Satellitenbild gelb statt weiss dargestellt wird.
+## Änderung
+`src/components/maps/satellite-map.tsx` (Zeile 491):
 
 ```text
-Vorher:
-color: "#ffffff"
-
-Nachher:
-color: "#facc15"
+Vorher: const showSwiss = regionId === "alpen-ch";
+Nachher: const showSwiss = regionId === "alpen-ch" || regionId === "europa-geocolour";
 ```
 
-Keine weiteren Dateien oder Logik betroffen.
+Keine weiteren Anpassungen nötig — `SwissOutline` und die Render-Logik bleiben unverändert. IR-Regionen (Europa IR, Global IR) bleiben ohne Umriss, da dort ein gelber Vektor auf Graustufen weniger sinnvoll ist.
