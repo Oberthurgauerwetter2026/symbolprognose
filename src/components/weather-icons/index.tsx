@@ -689,7 +689,7 @@ export function WeatherIcon({
     }
     return <IconRain {...props} />;
   }
-  if (code === 85 || code === 86) return <IconSnow {...props} />;
+  if (code === 85 || code === 86) return (tNum !== null && tNum > 3) ? <IconRain {...props} /> : <IconSnow {...props} />;
   if (code >= 95) return <IconThunderstorm {...props} />;
   return <IconCloudy {...props} />;
 }
