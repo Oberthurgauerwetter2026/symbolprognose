@@ -420,6 +420,9 @@ function mchToIcon(
   const pureSnow = new Set([10, 14, 15, 16]);
   const showerSnow = new Set([11, 19, 20, 22, 23]);
   if (t !== null) {
+    if (code === 35 && t > 2) {
+      return <IconThunderstorm {...p} />;
+    }
     if (mixCodes.has(code) && t > 2) {
       return showerSnow.has(code) && isDay ? <IconSunShower {...p} /> : <IconRain {...p} />;
     }
@@ -676,7 +679,7 @@ export function WeatherIcon({
     }
     return <IconRain {...props} />;
   }
-  if (code >= 71 && code <= 77) return (tNum !== null && tNum > 3) ? <IconRain {...props} /> : <IconSnow {...props} />;
+  if (code >= 71 && code <= 77) return (tNum !== null && tNum > snowTempMax) ? <IconRain {...props} /> : <IconSnow {...props} />;
   if (code === 80 || code === 81) {
     if (scope === "daily") {
       return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
@@ -689,7 +692,7 @@ export function WeatherIcon({
     }
     return <IconRain {...props} />;
   }
-  if (code === 85 || code === 86) return (tNum !== null && tNum > 3) ? <IconRain {...props} /> : <IconSnow {...props} />;
+  if (code === 85 || code === 86) return (tNum !== null && tNum > snowTempMax) ? <IconRain {...props} /> : <IconSnow {...props} />;
   if (code >= 95) return <IconThunderstorm {...props} />;
   return <IconCloudy {...props} />;
 }
