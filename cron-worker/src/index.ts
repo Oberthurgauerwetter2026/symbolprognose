@@ -154,6 +154,12 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    const provided = request.headers.get("x-trigger-secret") ?? "";
+    if (!env.RADAR_TRIGGER_SECRET || provided !== env.RADAR_TRIGGER_SECRET) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
+
     if (url.pathname === "/" || url.pathname === "/status") {
       return Response.json({
         worker: "symbolprognose-radar-cron",
