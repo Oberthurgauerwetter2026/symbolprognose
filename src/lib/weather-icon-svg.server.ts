@@ -394,7 +394,7 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   if (code >= 71 && code <= 77) return (tNum !== null && tNum > 3) ? IRain(size) : ISnow(size);
   if (code === 80 || code === 81) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IDrizzle(size);
   if (code === 82) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IRain(size);
-  if (code === 85 || code === 86) return ISnow(size);
+  if (code === 85 || code === 86) return (tNum !== null && tNum > 3) ? IRain(size) : ISnow(size);
   if (code >= 95) return IThunderstorm(size);
   return ICloudy(size);
 }
