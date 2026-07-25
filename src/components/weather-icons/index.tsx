@@ -423,7 +423,7 @@ function mchToIcon(
     if (mixCodes.has(code) && t > 2) {
       return showerSnow.has(code) && isDay ? <IconSunShower {...p} /> : <IconRain {...p} />;
     }
-    if (pureSnow.has(code) && t > 4) {
+    if (pureSnow.has(code) && t > 3) {
       return <IconRain {...p} />;
     }
   }
