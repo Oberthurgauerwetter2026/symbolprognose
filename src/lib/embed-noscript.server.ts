@@ -139,7 +139,7 @@ export async function buildLokalNoscriptData({
           typeof d.sunshine_duration?.[i] === "number" && Number.isFinite(d.sunshine_duration[i])
             ? Math.max(0, Math.min(1, d.sunshine_duration[i] / (15 * 3600)))
             : null,
-        isSnow: snowSig || (d.snowfall_sum?.[i] ?? 0) > 0.1,
+        isSnow: (snowSig || (d.snowfall_sum?.[i] ?? 0) > 0.1) && (num(d.temperature_2m_max, i) ?? -99) <= 3,
         cloudLow: layerN ? lowSum / n : null,
         cloudMid: layerN ? midSum / n : null,
         cloudHigh: layerN ? highSum / n : null,
