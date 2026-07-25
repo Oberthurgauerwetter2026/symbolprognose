@@ -121,6 +121,8 @@ function renderStaticForecast(data: StaticForecastData): string {
         thunderHours: n(d.thunderHours),
         sunshineRatio: n(d.sunshineRatio),
         isSnow: d.isSnow,
+        temp: n(d.tMax),
+
         cloudLow: n(d.cloudLow),
         cloudMid: n(d.cloudMid),
         cloudHigh: n(d.cloudHigh),
