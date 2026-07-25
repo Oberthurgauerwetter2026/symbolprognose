@@ -228,10 +228,19 @@ function pickWetDaily(opts: {
 
 // ---------- MCH → existing icon set mapping (mirrors mchToIcon) ----------
 
-function renderMchIconSvg(mchCode: number, size: number, isDayOverride?: boolean): string {
+function renderMchIconSvg(mchCode: number, size: number, isDayOverride?: boolean, temp?: number): string {
   const code = mchCode >= 100 ? mchCode - 100 : mchCode;
   const isNight = typeof isDayOverride === "boolean" ? !isDayOverride : mchCode >= 100;
   const isDay = !isNight;
+  const t = typeof temp === "number" && Number.isFinite(temp) ? temp : null;
+  const mixCodes = new Set([11, 17, 18, 19, 20, 21, 22, 23]);
+  const pureSnow = new Set([10, 14, 15, 16]);
+  const showerSnow = new Set([11, 19, 20, 22, 23]);
+  if (t !== null) {
+    if (code === 35 && t > 2) return IThunderstorm(size);
+    if (mixCodes.has(code) && t > 2) return showerSnow.has(code) && isDay ? ISunShower(size) : IRain(size);
+    if (pureSnow.has(code) && t > 3) return IRain(size);
+  }
   switch (code) {
     case 1: return isDay ? IClear(size) : IClearNight(size);
     case 2: return IMostlyClear(size, isDay);
@@ -310,7 +319,7 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   // MCH-Pictogramm hat Vorrang — 1:1 das MeteoSwiss-Symbol, gerendert
   // im bestehenden Icon-Stil (Mondsichel, puffige Wolken).
   if (hasMch) {
-    return renderMchIconSvg(mchCode as number, size, o.isDay);
+    return renderMchIconSvg(mchCode as number, size, o.isDay, temp);
   }
 
 
@@ -391,10 +400,10 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   if (code === 45 || code === 48) return IFog(size);
   if (code >= 51 && code <= 57) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IDrizzle(size);
   if (code >= 61 && code <= 67) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IRain(size);
-  if (code >= 71 && code <= 77) return (tNum !== null && tNum > 3) ? IRain(size) : ISnow(size);
+  if (code >= 71 && code <= 77) return (tNum !== null && tNum > snowTempMax) ? IRain(size) : ISnow(size);
   if (code === 80 || code === 81) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IDrizzle(size);
   if (code === 82) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IRain(size);
-  if (code === 85 || code === 86) return (tNum !== null && tNum > 3) ? IRain(size) : ISnow(size);
+  if (code === 85 || code === 86) return (tNum !== null && tNum > snowTempMax) ? IRain(size) : ISnow(size);
   if (code >= 95) return IThunderstorm(size);
   return ICloudy(size);
 }
