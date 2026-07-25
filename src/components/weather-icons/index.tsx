@@ -501,7 +501,7 @@ export function WeatherIcon({
   className,
   precip,
   precipProb,
-  isSnow,
+  isSnow: isSnowRaw,
   scope = "hourly",
   precipHours,
   thunderHours,
@@ -543,8 +543,16 @@ export function WeatherIcon({
     return mchToIcon(mchCode as number, isDay, size, className, temp);
   }
 
+  // Temperatur-Gate: Open-Meteo/ICON melden „snowfall" auch dann, wenn der
+  // Niederschlag in der Höhe als Schnee fällt und am Boden längst Regen ist.
+  // Ohne Gate erscheinen Schneeflocken bei 18 °C. Stündlich hart bei > 2 °C,
+  // täglich (Tagesmax übergeben) bei > 3 °C herabstufen.
+  const tNum = typeof temp === "number" && Number.isFinite(temp) ? temp : null;
+  const snowTempMax = scope === "hourly" ? 2 : 3;
+  const isSnow = !!isSnowRaw && (tNum === null || tNum <= snowTempMax);
 
   const props = { size, className };
+
 
   // Override: Wenn das Modell selbst klaren Niederschlag prognostiziert,
   // aber den weathercode auf „bedeckt/teils bewölkt" stehen lässt, das Niederschlags-Icon erzwingen.
