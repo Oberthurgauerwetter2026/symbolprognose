@@ -64,7 +64,7 @@ export async function buildLokalNoscriptData({
       precipProb: num(h.precipitation_probability, i),
       windSpeed: num(h.windspeed_10m, i),
       isDay: isDayHour(h.time[i] ?? ""),
-      isSnow: (h.snowfall?.[i] ?? 0) > 0.05,
+      isSnow: (h.snowfall?.[i] ?? 0) > 0.05 && (num(h.temperature_2m, i) ?? -99) <= 2,
       cloudLow: num(h.cloud_cover_low, i),
       cloudMid: num(h.cloud_cover_mid, i),
       cloudHigh: num(h.cloud_cover_high, i),
