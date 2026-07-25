@@ -423,7 +423,7 @@ function mchToIcon(
     if (mixCodes.has(code) && t > 2) {
       return showerSnow.has(code) && isDay ? <IconSunShower {...p} /> : <IconRain {...p} />;
     }
-    if (pureSnow.has(code) && t > 4) {
+    if (pureSnow.has(code) && t > 3) {
       return <IconRain {...p} />;
     }
   }
@@ -501,7 +501,7 @@ export function WeatherIcon({
   className,
   precip,
   precipProb,
-  isSnow,
+  isSnow: isSnowRaw,
   scope = "hourly",
   precipHours,
   thunderHours,
@@ -543,8 +543,16 @@ export function WeatherIcon({
     return mchToIcon(mchCode as number, isDay, size, className, temp);
   }
 
+  // Temperatur-Gate: Open-Meteo/ICON melden „snowfall" auch dann, wenn der
+  // Niederschlag in der Höhe als Schnee fällt und am Boden längst Regen ist.
+  // Ohne Gate erscheinen Schneeflocken bei 18 °C. Stündlich hart bei > 2 °C,
+  // täglich (Tagesmax übergeben) bei > 3 °C herabstufen.
+  const tNum = typeof temp === "number" && Number.isFinite(temp) ? temp : null;
+  const snowTempMax = scope === "hourly" ? 2 : 3;
+  const isSnow = !!isSnowRaw && (tNum === null || tNum <= snowTempMax);
 
   const props = { size, className };
+
 
   // Override: Wenn das Modell selbst klaren Niederschlag prognostiziert,
   // aber den weathercode auf „bedeckt/teils bewölkt" stehen lässt, das Niederschlags-Icon erzwingen.
@@ -668,7 +676,7 @@ export function WeatherIcon({
     }
     return <IconRain {...props} />;
   }
-  if (code >= 71 && code <= 77) return <IconSnow {...props} />;
+  if (code >= 71 && code <= 77) return (tNum !== null && tNum > 3) ? <IconRain {...props} /> : <IconSnow {...props} />;
   if (code === 80 || code === 81) {
     if (scope === "daily") {
       return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
@@ -681,7 +689,7 @@ export function WeatherIcon({
     }
     return <IconRain {...props} />;
   }
-  if (code === 85 || code === 86) return <IconSnow {...props} />;
+  if (code === 85 || code === 86) return (tNum !== null && tNum > 3) ? <IconRain {...props} /> : <IconSnow {...props} />;
   if (code >= 95) return <IconThunderstorm {...props} />;
   return <IconCloudy {...props} />;
 }

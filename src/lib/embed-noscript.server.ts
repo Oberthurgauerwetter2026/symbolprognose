@@ -64,7 +64,7 @@ export async function buildLokalNoscriptData({
       precipProb: num(h.precipitation_probability, i),
       windSpeed: num(h.windspeed_10m, i),
       isDay: isDayHour(h.time[i] ?? ""),
-      isSnow: (h.snowfall?.[i] ?? 0) > 0.05,
+      isSnow: (h.snowfall?.[i] ?? 0) > 0.05 && (num(h.temperature_2m, i) ?? -99) <= 2,
       cloudLow: num(h.cloud_cover_low, i),
       cloudMid: num(h.cloud_cover_mid, i),
       cloudHigh: num(h.cloud_cover_high, i),
@@ -80,7 +80,7 @@ export async function buildLokalNoscriptData({
           windSpeed: num(h.windspeed_10m, startIdx),
           windDirection: num(h.winddirection_10m, startIdx),
           isDay: isDayHour(h.time[startIdx] ?? ""),
-          isSnow: (h.snowfall?.[startIdx] ?? 0) > 0.05,
+          isSnow: (h.snowfall?.[startIdx] ?? 0) > 0.05 && (num(h.temperature_2m, startIdx) ?? -99) <= 2,
           cloudLow: num(h.cloud_cover_low, startIdx),
           cloudMid: num(h.cloud_cover_mid, startIdx),
           cloudHigh: num(h.cloud_cover_high, startIdx),
@@ -116,7 +116,7 @@ export async function buildLokalNoscriptData({
       for (const idx of slice) {
         const wc = h.weathercode?.[idx];
         if (wc === 95 || wc === 96 || wc === 99) thunderHours++;
-        if ((h.snowfall?.[idx] ?? 0) > 0.05) snowSig = true;
+        if ((h.snowfall?.[idx] ?? 0) > 0.05 && (h.temperature_2m?.[idx] ?? -99) <= 2) snowSig = true;
         const lo = h.cloud_cover_low?.[idx];
         const mi = h.cloud_cover_mid?.[idx];
         const hi = h.cloud_cover_high?.[idx];
@@ -139,7 +139,7 @@ export async function buildLokalNoscriptData({
           typeof d.sunshine_duration?.[i] === "number" && Number.isFinite(d.sunshine_duration[i])
             ? Math.max(0, Math.min(1, d.sunshine_duration[i] / (15 * 3600)))
             : null,
-        isSnow: snowSig || (d.snowfall_sum?.[i] ?? 0) > 0.1,
+        isSnow: (snowSig || (d.snowfall_sum?.[i] ?? 0) > 0.1) && (num(d.temperature_2m_max, i) ?? -99) <= 3,
         cloudLow: layerN ? lowSum / n : null,
         cloudMid: layerN ? midSum / n : null,
         cloudHigh: layerN ? highSum / n : null,

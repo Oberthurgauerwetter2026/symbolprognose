@@ -96,6 +96,8 @@ function renderStaticForecast(data: StaticForecastData): string {
         precipProb: n(h.precipProb),
         isDay: h.isDay,
         isSnow: h.isSnow,
+        temp: n(h.temperature),
+
         cloudLow: n(h.cloudLow),
         cloudMid: n(h.cloudMid),
         cloudHigh: n(h.cloudHigh),
@@ -119,6 +121,8 @@ function renderStaticForecast(data: StaticForecastData): string {
         thunderHours: n(d.thunderHours),
         sunshineRatio: n(d.sunshineRatio),
         isSnow: d.isSnow,
+        temp: n(d.tMax),
+
         cloudLow: n(d.cloudLow),
         cloudMid: n(d.cloudMid),
         cloudHigh: n(d.cloudHigh),
@@ -137,6 +141,8 @@ function renderStaticForecast(data: StaticForecastData): string {
           precip: n(current.precipitation),
           isDay: current.isDay,
           isSnow: current.isSnow,
+          temp: n(current.temperature),
+
           cloudLow: n(current.cloudLow),
           cloudMid: n(current.cloudMid),
           cloudHigh: n(current.cloudHigh),

@@ -281,6 +281,8 @@ export interface RenderIconOpts {
   cloudLow?: number;
   cloudMid?: number;
   cloudHigh?: number;
+  /** 2 m-Temperatur in °C zum Icon-Zeitpunkt. Gate für Schnee-Icons. */
+  temp?: number;
 }
 
 export function renderWeatherIconSvg(o: RenderIconOpts): string {
@@ -290,7 +292,7 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
     size = 48,
     precip,
     precipProb,
-    isSnow,
+    isSnow: isSnowRaw,
     scope = "hourly",
     precipHours,
     thunderHours,
@@ -298,7 +300,9 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
     cloudLow,
     cloudMid,
     cloudHigh,
+    temp,
   } = o;
+
   const hasMch =
     typeof mchCode === "number" && Number.isFinite(mchCode) && mchCode >= 1;
   const isDay = o.isDay ?? (hasMch ? (mchCode as number) < 100 : true);
@@ -311,8 +315,15 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
 
 
 
+  // Temperatur-Gate für Schnee: verhindert Schneeflocken bei Plusgraden,
+  // wenn Open-Meteo/ICON snowfall aus Höhenschichten meldet.
+  const tNum = typeof temp === "number" && Number.isFinite(temp) ? temp : null;
+  const snowTempMax = scope === "hourly" ? 2 : 3;
+  const isSnow = !!isSnowRaw && (tNum === null || tNum <= snowTempMax);
+
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
   const wmoIsThunder = code === 95 || code === 96 || code === 99;
+
 
   if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
     const th = thunderHours ?? 0;
@@ -380,10 +391,10 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   if (code === 45 || code === 48) return IFog(size);
   if (code >= 51 && code <= 57) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IDrizzle(size);
   if (code >= 61 && code <= 67) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IRain(size);
-  if (code >= 71 && code <= 77) return ISnow(size);
+  if (code >= 71 && code <= 77) return (tNum !== null && tNum > 3) ? IRain(size) : ISnow(size);
   if (code === 80 || code === 81) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IDrizzle(size);
   if (code === 82) return scope === "daily" ? pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow }) : IRain(size);
-  if (code === 85 || code === 86) return ISnow(size);
+  if (code === 85 || code === 86) return (tNum !== null && tNum > 3) ? IRain(size) : ISnow(size);
   if (code >= 95) return IThunderstorm(size);
   return ICloudy(size);
 }
