@@ -676,7 +676,7 @@ export function WeatherIcon({
     }
     return <IconRain {...props} />;
   }
-  if (code >= 71 && code <= 77) return <IconSnow {...props} />;
+  if (code >= 71 && code <= 77) return (tNum !== null && tNum > 3) ? <IconRain {...props} /> : <IconSnow {...props} />;
   if (code === 80 || code === 81) {
     if (scope === "daily") {
       return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
