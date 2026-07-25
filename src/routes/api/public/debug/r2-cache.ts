@@ -6,10 +6,25 @@ import { r2ObjectUrlCandidates } from "@/lib/r2-url.server";
  * Debug-Endpoint: zeigt Meta-Infos zum R2-Open-Meteo-Cache + Radar-Manifest.
  * Aufruf: /api/public/debug/r2-cache
  */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return result === 0;
+}
+
 export const Route = createFileRoute("/api/public/debug/r2-cache")({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        const secret = process.env.RADAR_TRIGGER_SECRET;
+        if (!secret) {
+          return Response.json({ ok: false, error: "Server misconfigured" }, { status: 500 });
+        }
+        const provided = request.headers.get("x-trigger-secret") ?? "";
+        if (!timingSafeEqual(provided, secret)) {
+          return new Response("Unauthorized", { status: 401 });
+        }
         const base = process.env.R2_PUBLIC_URL ?? null;
         const cache = await getOpenMeteoCache();
         const ageSec = cache?.generatedAt

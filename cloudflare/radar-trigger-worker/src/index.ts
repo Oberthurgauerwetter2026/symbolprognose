@@ -43,7 +43,11 @@ export default {
   },
 
   // Optional: manueller Test via HTTP GET (z.B. wrangler dev).
-  async fetch(_request: Request, env: Env) {
+  async fetch(request: Request, env: Env) {
+    const provided = request.headers.get("x-trigger-secret") ?? "";
+    if (!env.TRIGGER_SECRET || provided !== env.TRIGGER_SECRET) {
+      return new Response("Unauthorized", { status: 401 });
+    }
     await trigger(env);
     return new Response("ok", { status: 200 });
   },

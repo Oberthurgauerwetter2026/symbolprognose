@@ -33,7 +33,6 @@ export const Route = createFileRoute("/api/public/symbol/ingest-trigger")({
 
       POST: async ({ request }) => {
         const secret = process.env.RADAR_TRIGGER_SECRET;
-        const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
         if (!secret) {
           return Response.json(
             { ok: false, error: "Server misconfigured: missing RADAR_TRIGGER_SECRET" },
@@ -42,17 +41,7 @@ export const Route = createFileRoute("/api/public/symbol/ingest-trigger")({
         }
 
         const providedSecret = request.headers.get("x-trigger-secret") ?? "";
-        const providedApiKey =
-          request.headers.get("apikey") ??
-          (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-
-        const secretOk = timingSafeEqual(providedSecret, secret);
-        const apiKeyOk =
-          !!publishableKey &&
-          !!providedApiKey &&
-          timingSafeEqual(providedApiKey, publishableKey);
-
-        if (!secretOk && !apiKeyOk) {
+        if (!timingSafeEqual(providedSecret, secret)) {
           return Response.json(
             { ok: false, error: "Unauthorized" },
             { status: 401, headers: CORS_HEADERS },
