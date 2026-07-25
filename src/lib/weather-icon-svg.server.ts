@@ -315,8 +315,15 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
 
 
 
+  // Temperatur-Gate für Schnee: verhindert Schneeflocken bei Plusgraden,
+  // wenn Open-Meteo/ICON snowfall aus Höhenschichten meldet.
+  const tNum = typeof temp === "number" && Number.isFinite(temp) ? temp : null;
+  const snowTempMax = scope === "hourly" ? 2 : 3;
+  const isSnow = !!isSnowRaw && (tNum === null || tNum <= snowTempMax);
+
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
   const wmoIsThunder = code === 95 || code === 96 || code === 99;
+
 
   if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
     const th = thunderHours ?? 0;
