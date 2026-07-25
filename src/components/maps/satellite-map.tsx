@@ -488,7 +488,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
     [frames],
   );
 
-  const showSwiss = regionId === "alpen-ch";
+  const showSwiss = regionId === "alpen-ch" || regionId === "europa-geocolour";
 
   return (
     <div
