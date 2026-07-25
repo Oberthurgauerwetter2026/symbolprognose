@@ -665,6 +665,8 @@ function DayStrip({
                   precipHours={d.precipitation_hours?.[i]}
                   thunderHours={d.thunderstorm_hours?.[i]}
                   isSnow={(d.snowfall_sum?.[i] ?? 0) > 0.1}
+                  temp={d.temperature_2m_max?.[i]}
+
                   sunshineRatio={(d.sunshine_duration?.[i] ?? 0) / (15 * 3600)}
                   cloudLow={d.cloud_cover_low_mean?.[i]}
                   cloudMid={d.cloud_cover_mid_mean?.[i]}
