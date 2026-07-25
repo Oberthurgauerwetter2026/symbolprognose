@@ -141,6 +141,8 @@ function renderStaticForecast(data: StaticForecastData): string {
           precip: n(current.precipitation),
           isDay: current.isDay,
           isSnow: current.isSnow,
+          temp: n(current.temperature),
+
           cloudLow: n(current.cloudLow),
           cloudMid: n(current.cloudMid),
           cloudHigh: n(current.cloudHigh),
