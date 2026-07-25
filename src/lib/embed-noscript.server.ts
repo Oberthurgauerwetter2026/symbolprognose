@@ -116,7 +116,7 @@ export async function buildLokalNoscriptData({
       for (const idx of slice) {
         const wc = h.weathercode?.[idx];
         if (wc === 95 || wc === 96 || wc === 99) thunderHours++;
-        if ((h.snowfall?.[idx] ?? 0) > 0.05) snowSig = true;
+        if ((h.snowfall?.[idx] ?? 0) > 0.05 && (h.temperature_2m?.[idx] ?? -99) <= 2) snowSig = true;
         const lo = h.cloud_cover_low?.[idx];
         const mi = h.cloud_cover_mid?.[idx];
         const hi = h.cloud_cover_high?.[idx];
