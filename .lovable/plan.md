@@ -1,25 +1,43 @@
-## Problem
+# Fix: Schneeflocken bei Plusgraden in der Symbolprognose
 
-Auf `/karten/niederschlag` zeigen die 12/24/48h-Summen keine Daten mehr (Max 0.0 mm, 0% Fläche ≥1 mm, 0 Frames).
+## Ursache
 
-## Ursache (verifiziert in `src/lib/radar.functions.ts` + `precip-accum-map.tsx`)
+Der `isSnow`-Flag wird an mehreren Stellen allein aus `snowfall > 0.05 mm` (stündlich) bzw. `snowfall_sum > 0.1 mm` (täglich) abgeleitet. Open-Meteo/ICON melden aber „snowfall" auch dann, wenn der Niederschlag in höheren Luftschichten als Schnee fällt und am Boden längst als Regen ankommt (Schmelzgrenze weit oberhalb 2 m). Es existiert bisher nur im MCH-Pfad (`mchToIcon`) ein Temperatur-Gate — im generischen WMO-Pfad (`WeatherIcon`, `weather-icon-svg.server.ts`, Embed-Noscript, RegionMap) läuft `isSnow` ungeprüft durch und liefert `IconSnow` bei 18 °C.
 
-Seit die Prognose aus vor-gerasterten PNGs kommt, füllt `getRadarFrames()` die Forecast-Frames mit `values: []` (Zeile 419) und liefert nur noch `precipUrl`. Der Canvas-Fallback aus dem ICON-CH1-Grid läuft explizit nur, wenn `!hasForecastPngs`.
+## Änderungen
 
-`accumulatePrecip()` in `precip-accum-map.tsx` filtert aber genau nach numerischen Werten (`f.values.length === nPts`) — mit leeren Arrays fällt jeder Forecast-Frame raus, deshalb 0 Frames und Max 0 mm. Die Summenkarte hat keinen PNG-Pfad, sie braucht mm/h pro Grid-Punkt.
+### 1. Zentrale Regel im WeatherIcon-Dispatcher (`src/components/weather-icons/index.tsx`)
 
-## Fix (nur `src/lib/radar.functions.ts`)
+Direkt am Anfang von `WeatherIcon` (und analog im MCH-Zweig weiter genutzt) einen einheitlichen Temperatur-Filter für `isSnow` einbauen:
 
-Beim Aufbau der PNG-basierten Prognose-Frames zusätzlich `values`/`snowValues` aus dem vorhandenen ICON-CH1-Cache (`r1.minutely_15`) füllen, wenn Grid und Zeitindex passen. Fallback bleibt: ICON-CH2 `hourly` für Zeiten, an denen CH1-Minutely nichts liefert.
+- Stündlich: `isSnow` nur akzeptieren wenn `temp <= 2 °C` (bzw. `temp` unbekannt).
+- Täglich: `isSnow` nur akzeptieren wenn `temp <= 3 °C` (Tagesmittel/Max heuristisch — hier reicht die bereits übergebene `temp`, sonst falsy).
 
-Konkret:
+Dieser gefilterte Wert (`snowActive`) ersetzt `isSnow` in allen nachfolgenden Zweigen (Gewitter mit Schnee, `wet && isSnow`, Schnee-Override Zeile 595, Daily-Fallbacks).
 
-1. Aus `r1` einen `forecastMinutelyIdx: Map<tMs, idx>` bauen (analog zu `pastTimeIdx`).
-2. In der `for`-Schleife über `forecastManifest.frames`: wenn `r1` vorhanden und Grid nicht stale, per Zeit-Match (±10 min) das Werte-Array befüllen, sonst leeres Array beibehalten.
-3. Optional: CH2-Hourly-Ergänzung auch dann laufen lassen, wenn `hasForecastPngs === true`, aber nur für Zeitpunkte jenseits des CH1-Minutely-Endes — damit 48h-Summen bis zum Horizont durchgehen.
+### 2. Server-SVG (`src/lib/weather-icon-svg.server.ts`)
 
-Kein Rendering-Code, kein Ingest-Script, keine Datenbank angefasst. Radar-Animation nutzt weiter `precipUrl`; die Summenkarte bekommt jetzt zusätzlich die numerischen Werte, die sie erwartet.
+Gleiche `snowActive`-Ableitung am Anfang von `renderWeatherIconSvg`. Die Funktion bekommt bereits `temp` (falls nicht: Signatur erweitern und Aufrufer in `embed-noscript.server.ts` durchreichen). Alle `isSnow`-Verwendungen dort werden auf `snowActive` umgestellt.
+
+### 3. Embed-Noscript (`src/lib/embed-noscript.server.ts`)
+
+Bei der Berechnung von `isSnow` an drei Stellen (Zeilen 67/83/142) zusätzlich `temperature_2m[i] <= 2` (stündlich) bzw. `temperature_2m_max[i] <= 3` (täglich) fordern. Temperatur an den Server-SVG-Aufruf weitergeben.
+
+### 4. Widget & RegionMap
+
+- `src/components/weather-widget.tsx` (Zeilen 667, 1137): `temp` mitgeben (bereits verfügbar via `d.temperature_2m_max[i]` bzw. `h.temperature_2m[idx]`) — der Temperatur-Filter in `WeatherIcon` greift dann automatisch.
+- `src/components/region-map.tsx`: `temp` an `WeatherIcon` durchreichen, falls noch nicht geschehen.
+
+### 5. MCH-Pfad
+
+Der bereits vorhandene Gate in `mchToIcon` (Zeile 418ff.) wird beibehalten, aber leicht großzügiger: Schwelle für `pureSnow` von `t > 4` auf `t > 3` senken und für `mixCodes` von `t > 2` auf `t > 2` (unverändert). Damit alle Pfade konsistent bei ~2–3 °C umschalten.
+
+## Nicht geändert
+
+- Daten-Ingest (`snowfall`-Rohwerte bleiben unverändert im Cache; nur die Icon-Auswahl wird korrigiert).
+- Niederschlagsmenge, Regenwahrscheinlichkeit, Charts.
 
 ## Verifikation
 
-Nach dem Fix `/karten/niederschlag` neu laden: `framesUsed` > 0, `Max` und `%≥1 mm` plausibel, alle drei Karten (12/24/48 h) gefüllt.
+- Preview mit einem Ort öffnen, an dem in den nächsten Tagen 15–25 °C und `snowfall > 0` gemeldet werden (Screenshot des Users: Amriswil, `/karten/lokal`). Sicherstellen, dass keine Schnee-Icons erscheinen.
+- Winter-Fall gegenprüfen: temp = −2 °C + snowfall → Schnee-Icon bleibt.
