@@ -80,7 +80,7 @@ export async function buildLokalNoscriptData({
           windSpeed: num(h.windspeed_10m, startIdx),
           windDirection: num(h.winddirection_10m, startIdx),
           isDay: isDayHour(h.time[startIdx] ?? ""),
-          isSnow: (h.snowfall?.[startIdx] ?? 0) > 0.05,
+          isSnow: (h.snowfall?.[startIdx] ?? 0) > 0.05 && (num(h.temperature_2m, startIdx) ?? -99) <= 2,
           cloudLow: num(h.cloud_cover_low, startIdx),
           cloudMid: num(h.cloud_cover_mid, startIdx),
           cloudHigh: num(h.cloud_cover_high, startIdx),
