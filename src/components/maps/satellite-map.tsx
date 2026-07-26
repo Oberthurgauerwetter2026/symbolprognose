@@ -107,7 +107,7 @@ function SwissOutline() {
     <GeoJSON
       data={SWITZERLAND}
       style={{
-        color: "#facc15",
+        color: BRAND,
         weight: 1.5,
         opacity: 0.9,
         fill: false,
