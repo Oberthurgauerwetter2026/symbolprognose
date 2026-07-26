@@ -11,8 +11,7 @@ export type SatelliteRegionId =
   | "alpen-ch"
   | "alpen-ch-hd"
   | "europa-geocolour"
-  | "europa-ir"
-  | "global-ir";
+  | "europa-ir";
 
 export type SatelliteProvider = "eumetsat-wms" | "gibs-wmts";
 
@@ -74,18 +73,6 @@ export const SATELLITE_REGIONS: SatelliteRegion[] = [
     source: "EUMETSAT · Meteosat-12 (MTG-FCI HRFI) IR 10.5 µm",
     description: "10.5 µm Infrarot HRFI — Wolkentemperatur",
   },
-  {
-    id: "global-ir",
-    label: "Global Infrarot",
-    shortLabel: "Global IR",
-    layer: "mumi:worldcloudmap_ir108",
-    center: [20, 0],
-    zoom: 2,
-    stepMinutes: 180,
-    latencyMinutes: 60,
-    source: "EUMETSAT · Globales IR-Composite",
-    description: "Globales IR-Mosaik (3-stündliches Welt-Composite)",
-  },
 ];
 
 export function getRegion(id: SatelliteRegionId): SatelliteRegion {
@@ -110,8 +97,7 @@ export interface SatelliteManifest {
   updatedAt: string;
 }
 
-function totalHoursFor(region: SatelliteRegion): number {
-  if (region.id === "global-ir") return 5;
+function totalHoursFor(_region: SatelliteRegion): number {
   return 3;
 }
 
