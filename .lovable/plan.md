@@ -1,27 +1,30 @@
-# Schweiz-Umriss: Farbe auf Banner-Blau ändern
+# Global IR aus Satellitenbild entfernen
 
 ## Ziel
-Im Satellitenbild (Komponente `SwissOutline`) soll der Schweiz-Umriss nicht mehr gelb (`#facc15`), sondern das gleiche Blau wie das App-Banner/Logo (`#2561a1`) verwenden.
+Die Satellitenregion „Global Infrarot" (`global-ir`) soll aus dem Satellitenbild vollständig entfernt werden — sie ist aus der Region-Auswahl und dem Datenmodell nicht mehr verfügbar.
 
 ## Nachweis aus dem Code
-- In `src/components/maps/satellite-map.tsx` steht der aktuelle Umriss auf Zeile 110: `color: "#facc15"`.
-- Die Bannerfarbe ist im selben File als `BRAND = "#2561a1"` (Zeile 34) und in `src/components/app-sidebar.tsx` als Hintergrund des App-Logos verwendet (Zeile 29).
+- In `src/lib/satellite.functions.ts` ist der Typ `SatelliteRegionId` aktuell:
+  ```ts
+  "alpen-ch" | "alpen-ch-hd" | "europa-geocolour" | "europa-ir" | "global-ir";
+  ```
+- Die Region `global-ir` ist in `SATELLITE_REGIONS` (Zeilen 78–88) definiert:
+  - Label: „Global Infrarot"
+  - Layer: `mumi:worldcloudmap_ir108`
+  - 3-stündliches Welt-Composite
+- `totalHoursFor()` hat einen Sonderfall nur für `global-ir` (Zeile 114).
+- Keine weiteren Referenzen auf `global-ir` im gesamten `src/`-Ordner (bestätigt durch `rg`).
 
-## Änderung
-In `src/components/maps/satellite-map.tsx` wird die Zeile
-```ts
-color: "#facc15",
-```
-geändert in
-```ts
-color: BRAND,
-```
-(wobei `BRAND` bereits mit `#2561a1` am Modulanfang definiert ist).
+## Änderungen
+### `src/lib/satellite.functions.ts`
+1. `SatelliteRegionId`-Union: `"global-ir"` entfernen.
+2. `SATELLITE_REGIONS[]`: Eintrag `global-ir` entfernen.
+3. `totalHoursFor()`: Spezialfall `region.id === "global-ir"` entfernen; Funktion retourniert dann einfach `3` für alle verbleibenden Regionen.
 
 ## Keine weiteren Änderungen
-- Keine Routing- oder API-Änderungen.
-- Keine Datenbank- oder Backend-Änderungen.
-- Keine Einflüsse auf Lightning-Layer, Satelliten-Kachelanimation oder Steuerpanel.
+- Die UI-Region-Auswahl in `src/components/maps/satellite-map.tsx` iteriert bereits über `SATELLITE_REGIONS`, wodurch der Button automatisch verschwindet.
+- Keine Backend-/API-Änderungen nötig; die Route `/karten/satellit` und der Server-Fn `getSatelliteManifest` bleiben unverändert.
 
 ## Validierung
-Nach der Änderung wird der Umriss in den Regionen „Schweiz & Alpen" und „Europa GeoColour" in der Live-Vorschau visuell auf Blau geprüft.
+- Nach der Änderung erscheint in der Satelliten-Region-Auswahl nur noch: „Schweiz & Alpen", „Europa Geo", „Europa IR".
+- Typecheck wird durchgeführt, um sicherzustellen, dass keine versteckten `global-ir`-Referenzen verbleiben.
