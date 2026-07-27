@@ -185,11 +185,13 @@ function FitRegion() {
 }
 
 function labelIcon(name: string, level: number): L.DivIcon {
-  const color = level > 0 ? "#20242b" : "#33404d";
-  const weight = level > 0 ? 700 : 500;
+  const color = level > 0 ? "#14181f" : "#2a3540";
+  const weight = level > 0 ? 800 : 600;
+  const size = level > 0 ? 14 : 13;
   return L.divIcon({
     className: "warn-label",
-    html: `<div style="pointer-events:none;transform:translate(-50%,-50%);font:${weight} 11px/1.1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${color};text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;text-align:center">${name}</div>`,
+    html: `<div style="pointer-events:none;transform:translate(-50%,-50%);font:${weight} ${size}px/1.15 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${color};text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 4px #fff,0 1px 2px #fff;white-space:nowrap;text-align:center;letter-spacing:0.01em">${name}</div>`,
+
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
