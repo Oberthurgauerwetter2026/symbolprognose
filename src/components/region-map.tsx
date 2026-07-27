@@ -451,6 +451,7 @@ function SpotMarker({
           cloudLow={cloudLow}
           cloudMid={cloudMid}
           cloudHigh={cloudHigh}
+          warning={warning}
         />,
       ),
     );
@@ -462,7 +463,8 @@ function SpotMarker({
       iconSize: [ICON_W, ICON_H],
       iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
-  }, [data, mode, dayIdx, absoluteHour, spot]);
+  }, [data, mode, dayIdx, absoluteHour, spot, warning]);
+
 
 
   return (
