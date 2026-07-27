@@ -10,6 +10,16 @@ import { weatherLabel, windDirectionLabel } from "@/lib/weather";
 export interface LokalNoscriptData {
   locationName: string;
   generatedAt?: string;
+  warnings?: Array<{
+    id: string;
+    title: string;
+    level: number;
+    color: string;
+    range: string;
+    description?: string;
+    impact?: string;
+  }>;
+
   current?: {
     time: string;
     temperature?: number | null;
