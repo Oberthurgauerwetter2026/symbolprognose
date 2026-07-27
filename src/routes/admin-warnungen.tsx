@@ -177,7 +177,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       value,
       title: touchedText ? f.title : warningTitle(hazard, level),
       description: touchedText ? f.description : fillTemplate(tpl.description, value),
-      impact: touchedText ? f.impact : tpl.impact,
+      impact: touchedText ? f.impact : templateImpact(tpl),
     }));
   };
 
