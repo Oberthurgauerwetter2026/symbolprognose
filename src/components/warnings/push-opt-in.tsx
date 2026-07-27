@@ -278,21 +278,27 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
           Wie funktioniert das?
         </button>
         {howOpen && (
-          <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-muted-foreground">
-
-            <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
-            <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis.</li>
-            <li>
-              Sobald für eine deiner Gemeinden eine Warnung ausgegeben wird (manuell oder automatisch
-              bei Gewitterzug), erhältst du eine Meldung.
-            </li>
-            <li>Ein Tipp auf die Meldung öffnet die Warnkarte.</li>
-            <li>
-              Hinweis iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert
-              werden, sonst erlaubt iOS keine Push-Meldungen.
-            </li>
-          </ol>
+          <div className="mt-2 space-y-2">
+            <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-[13px] font-medium leading-relaxed text-foreground">
+              iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert und
+              von dort geöffnet werden – sonst erlaubt iOS gar keine Push-Meldungen.
+            </p>
+            <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-muted-foreground">
+              <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
+              <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis, dort „Erlauben“ wählen.</li>
+              <li>
+                Sobald für eine deiner Gemeinden eine Warnung ausgegeben wird (manuell oder automatisch
+                bei Gewitterzug), erhältst du eine Meldung.
+              </li>
+              <li>Ein Tipp auf die Meldung öffnet die Warnkarte.</li>
+              <li>
+                Klappt es nicht: Die Seite in einem eigenen Browser-Tab (nicht im eingebetteten
+                Vorschaufenster) öffnen und prüfen, ob Benachrichtigungen für die Seite blockiert sind.
+              </li>
+            </ol>
+          </div>
         )}
+
       </div>
     </div>
   );
