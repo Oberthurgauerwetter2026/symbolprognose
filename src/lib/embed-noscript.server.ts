@@ -7,6 +7,42 @@
  */
 import type { LokalNoscriptData } from "@/components/embeds/lokal-noscript";
 import { getAggregatedForecast } from "./forecast-aggregated.functions";
+import { readActiveWarnings } from "./warnings.server";
+import { regionIdForPoint } from "./warnings-lookup";
+import {
+  LEVELS,
+  formatRange,
+  warningTitle,
+  type HazardId,
+  type WarnLevel,
+} from "./warnings-config";
+
+async function buildWarnings(lat: number, lon: number): Promise<LokalNoscriptData["warnings"]> {
+  try {
+    const regionId = regionIdForPoint(lat, lon);
+    if (!regionId) return [];
+    const rows = await readActiveWarnings();
+    return rows
+      .filter((w) => w.regionIds.includes(regionId))
+      .sort((a, b) => b.level - a.level)
+      .map((w) => {
+        const lvl = Math.max(1, Math.min(3, w.level)) as WarnLevel;
+        return {
+          id: w.id,
+          title: w.title || warningTitle(w.hazard as HazardId, lvl),
+          level: lvl,
+          color: LEVELS[lvl].color,
+          range: formatRange(w.valid_from, w.valid_to),
+          description: w.description,
+          impact: w.impact,
+        };
+      });
+  } catch (err) {
+    console.error("[embed-noscript] warnings failed", err);
+    return [];
+  }
+}
+
 
 const MAX_HOURLY = 18;
 const MAX_DAILY = 7;
