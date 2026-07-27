@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { BellOff, BellRing, Check, Circle, Loader2 } from "lucide-react";
+import { BellOff, BellRing, Check, ChevronDown, Circle, Loader2 } from "lucide-react";
 import { REGIONS } from "@/lib/warnings-config";
 import { getPushPublicKey, savePushSubscription, removePushSubscription } from "@/lib/warnings.functions";
 
