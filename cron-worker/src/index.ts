@@ -16,6 +16,7 @@ export interface Env {
   OPENMETEO_TARGET_URL?: string;
   AROME_TARGET_URL?: string;
   MCH_TARGET_URL?: string;
+  WARN_TARGET_URL?: string;
   RADAR_TRIGGER_SECRET: string;
 }
 
@@ -31,6 +32,7 @@ const lastSymbol: RunRecord = { at: null, status: null, body: null };
 const lastOpenmeteo: RunRecord = { at: null, status: null, body: null };
 const lastArome: RunRecord = { at: null, status: null, body: null };
 const lastMch: RunRecord = { at: null, status: null, body: null };
+const lastWarn: RunRecord = { at: null, status: null, body: null };
 
 async function triggerEndpoint(
   url: string,
@@ -73,7 +75,7 @@ async function triggerEndpoint(
 
 async function triggerFiveMin(
   env: Env,
-  opts: { includeOpenmeteo: boolean; includeArome: boolean; includeMch: boolean },
+  opts: { includeOpenmeteo: boolean; includeArome: boolean; includeMch: boolean; includeWarn?: boolean },
 ): Promise<void> {
   const tasks: Promise<void>[] = [];
   tasks.push(
@@ -104,6 +106,11 @@ async function triggerFiveMin(
       ),
     );
   }
+  if (opts.includeWarn && env.WARN_TARGET_URL) {
+    tasks.push(
+      triggerEndpoint(env.WARN_TARGET_URL, env.RADAR_TRIGGER_SECRET, "warn", lastWarn),
+    );
+  }
   if (opts.includeMch && env.MCH_TARGET_URL) {
     tasks.push(
       triggerEndpoint(env.MCH_TARGET_URL, env.RADAR_TRIGGER_SECRET, "mch", lastMch),
@@ -127,7 +134,7 @@ async function triggerSymbol(env: Env): Promise<void> {
 
 async function triggerAll(env: Env): Promise<void> {
   await Promise.all([
-    triggerFiveMin(env, { includeOpenmeteo: true, includeArome: true, includeMch: true }),
+    triggerFiveMin(env, { includeOpenmeteo: true, includeArome: true, includeMch: true, includeWarn: true }),
     triggerSymbol(env),
   ]);
 }
@@ -147,7 +154,11 @@ export default {
       const includeOpenmeteo = minute % 30 === 0;
       const includeArome = minute === 0;
       const includeMch = minute === 0;
-      ctx.waitUntil(triggerFiveMin(env, { includeOpenmeteo, includeArome, includeMch }));
+      // Gewitter-Autowarnung alle 15 Minuten.
+      const includeWarn = minute % 15 === 0;
+      ctx.waitUntil(
+        triggerFiveMin(env, { includeOpenmeteo, includeArome, includeMch, includeWarn }),
+      );
     }
   },
 
@@ -171,6 +182,7 @@ export default {
           openmeteo: env.OPENMETEO_TARGET_URL ?? null,
           arome: env.AROME_TARGET_URL ?? null,
           mch: env.MCH_TARGET_URL ?? null,
+          warn: env.WARN_TARGET_URL ?? null,
         },
         lastRadar,
         lastEps,
@@ -178,6 +190,7 @@ export default {
         lastOpenmeteo,
         lastArome,
         lastMch,
+        lastWarn,
       });
     }
 
@@ -191,7 +204,16 @@ export default {
         lastOpenmeteo,
         lastArome,
         lastMch,
+        lastWarn,
       });
+    }
+
+    if (url.pathname === "/run/warn" && request.method === "POST") {
+      if (!env.WARN_TARGET_URL) {
+        return Response.json({ ok: false, error: "WARN_TARGET_URL not configured" }, { status: 500 });
+      }
+      await triggerEndpoint(env.WARN_TARGET_URL, env.RADAR_TRIGGER_SECRET, "warn", lastWarn);
+      return Response.json({ ok: true, lastWarn });
     }
 
     if (url.pathname === "/run/eps" && request.method === "POST") {
