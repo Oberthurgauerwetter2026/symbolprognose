@@ -1,14 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
+import { LazyRadarMap } from "@/components/maps/lazy-maps";
 import { getMap } from "@/lib/maps-config";
 import { getRadarFrames } from "@/lib/radar.functions";
-
-const def = getMap("radar");
-const RadarMap = lazy(() =>
-  import("@/components/maps/radar-map").then((module) => ({ default: module.RadarMap })),
-);
 
 export const Route = createFileRoute("/karten/radar")({
   ssr: false,
@@ -24,19 +20,19 @@ export const Route = createFileRoute("/karten/radar")({
   head: () => ({
     meta: [
       { title: "Niederschlagsradar Oberthurgau · Niederschlags-Animation" },
-      { name: "description", content: def.description },
+      { name: "description", content: getMap("radar").description },
     ],
   }),
 });
 
-
 function KartenRadarPage() {
+  const def = getMap("radar");
   return (
     <DashboardLayout title={def.label} subtitle={def.description}>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="radar" />
         <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
-          <RadarMap />
+          <LazyRadarMap />
         </Suspense>
       </div>
     </DashboardLayout>

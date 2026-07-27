@@ -1,19 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
+import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
 import { getMap } from "@/lib/maps-config";
 import { getRadarFrames } from "@/lib/radar.functions";
-
-const def = getMap("niederschlag");
-
-const PrecipAccumMap = lazy(() =>
-  import("@/components/maps/precip-accum-map").then((module) => ({
-    default: module.PrecipAccumMap,
-  })),
-);
 
 export const Route = createFileRoute("/karten/niederschlag")({
   ssr: false,
@@ -21,12 +14,13 @@ export const Route = createFileRoute("/karten/niederschlag")({
   head: () => ({
     meta: [
       { title: "Niederschlagssummen Oberthurgau · 12 / 24 / 48 h" },
-      { name: "description", content: def.description },
+      { name: "description", content: getMap("niederschlag").description },
     ],
   }),
 });
 
 function KartenNiederschlagPage() {
+  const def = getMap("niederschlag");
   return (
     <DashboardLayout title={def.label} subtitle={def.description}>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
@@ -77,7 +71,7 @@ function PrecipDashboard() {
         <div className="space-y-6">
           {[12, 24, 48].map((h) => (
             <Suspense key={h} fallback={<div className="h-[420px] rounded-lg bg-zinc-200" />}>
-              <PrecipAccumMap
+              <LazyPrecipAccumMap
                 hours={h as 12 | 24 | 48}
                 frames={data.frames}
                 gridLat={data.gridLat}

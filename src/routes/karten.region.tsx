@@ -1,11 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
-
-const RegionMap = lazy(() =>
-  import("@/components/region-map").then((module) => ({ default: module.RegionMap })),
-);
+import { LazyRegionMap } from "@/components/maps/lazy-maps";
 
 export const Route = createFileRoute("/karten/region")({
   ssr: false,
@@ -34,7 +31,7 @@ function KartenRegionPage() {
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="region" />
         <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
-          <RegionMap />
+          <LazyRegionMap />
         </Suspense>
       </div>
     </DashboardLayout>
