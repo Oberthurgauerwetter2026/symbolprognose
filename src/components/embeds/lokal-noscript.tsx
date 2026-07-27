@@ -102,6 +102,27 @@ export function LokalNoscript({ data }: { data: LokalNoscriptData }) {
         </p>
       </header>
 
+      {data.warnings && data.warnings.length > 0 && (
+        <section className="space-y-2">
+          {data.warnings.map((w) => (
+            <div
+              key={w.id}
+              className="rounded-lg border-l-4 border border-border bg-card p-3"
+              style={{ borderLeftColor: w.color }}
+            >
+              <p className="text-sm font-semibold" style={{ color: w.color }}>
+                {w.title}
+              </p>
+              <p className="text-xs text-muted-foreground">{w.range}</p>
+              {w.description ? <p className="mt-1 text-sm">{w.description}</p> : null}
+              {w.impact ? <p className="text-sm text-muted-foreground">{w.impact}</p> : null}
+            </div>
+          ))}
+        </section>
+      )}
+
+
+
       {c && (
         <section className="rounded-lg border border-border bg-card p-4">
           <h2 className="text-base font-semibold">
