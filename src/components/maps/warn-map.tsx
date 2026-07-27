@@ -276,7 +276,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   return (
     <div className={cn("@container space-y-3", className)}>
       {/* Banner mit Gefahrenarten */}
-      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-2 shadow-sm sm:flex-wrap sm:overflow-visible">
+      <div className="flex flex-nowrap items-center gap-2 overflow-x-auto rounded-xl border border-border bg-card p-2.5 shadow-sm sm:flex-wrap sm:overflow-visible">
         <button
           type="button"
           onClick={() => {
@@ -284,7 +284,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             setSelected(null);
           }}
           className={cn(
-            "shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition",
+            "shrink-0 rounded-lg px-3.5 py-2.5 text-sm font-semibold transition",
             hazard === "alle" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70",
           )}
         >
@@ -304,7 +304,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               }}
               title={h.label}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition",
+                "flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition",
                 on ? "border-foreground" : "border-transparent hover:bg-muted/60",
               )}
               style={
@@ -313,27 +313,28 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                   : undefined
               }
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-5 w-5" />
               <span className="hidden @sm:inline">{h.label}</span>
-              {lvl > 0 && <span className="rounded bg-black/15 px-1 text-[10px] font-bold">{lvl}</span>}
+              {lvl > 0 && <span className="rounded bg-black/15 px-1.5 text-xs font-bold">{lvl}</span>}
             </button>
           );
         })}
-        <div className="ml-auto flex shrink-0 items-center gap-2 pr-1 text-xs text-muted-foreground">
-          {query.isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        <div className="ml-auto flex shrink-0 items-center gap-2 pr-1 text-sm text-muted-foreground">
+          {query.isFetching && <Loader2 className="h-4 w-4 animate-spin" />}
           {maxLevel === 0 ? (
-            <span className="flex items-center gap-1.5 font-medium text-foreground">
-              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: LEVELS[0].color }} />
+            <span className="flex items-center gap-1.5 font-semibold text-foreground">
+              <span className="inline-block h-3 w-3 rounded-full" style={{ background: LEVELS[0].color }} />
               Keine Warnungen aktiv
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 font-medium text-foreground">
-              <AlertTriangle className="h-3.5 w-3.5" />
+            <span className="flex items-center gap-1.5 font-semibold text-foreground">
+              <AlertTriangle className="h-4 w-4" />
               Höchste Stufe {maxLevel}
             </span>
           )}
         </div>
       </div>
+
 
       <div className={cn("grid gap-3", bare ? "grid-cols-1" : "@3xl:grid-cols-[1fr_320px]")}>
         <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-[560px]">
@@ -443,23 +444,23 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         {/* Info-Panel */}
         <aside className="space-y-3">
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <h2 className="text-base font-semibold text-foreground">
+            <h2 className="text-lg font-semibold text-foreground">
               {selected ? regionName(selected) : "Region Oberthurgau"}
             </h2>
             {selected && (
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="mt-1 text-sm text-muted-foreground underline"
+                className="mt-1 text-base text-muted-foreground underline"
               >
                 Auswahl aufheben
               </button>
             )}
             {query.data?.warning && (
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{query.data.warning}</p>
+              <p className="mt-3 text-base leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
             {selectedWarnings.length === 0 ? (
-              <p className="mt-3 text-sm leading-relaxed text-foreground">
+              <p className="mt-3 text-base leading-relaxed text-foreground">
                 Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
                 besondere Gefahr.
               </p>
@@ -477,30 +478,30 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                   return (
                     <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                       <div
-                        className="flex items-center gap-2 px-3 py-2 text-sm font-semibold"
+                        className="flex items-center gap-2 px-3.5 py-2.5 text-base font-semibold"
                         style={{ background: def.color, color: def.textOnColor }}
                       >
-                        <Icon className="h-4 w-4 shrink-0" />
+                        <Icon className="h-5 w-5 shrink-0" />
                         {w.title || `${h.title} (Stufe ${w.level})`}
                       </div>
-                      <div className="space-y-3 p-3">
-                        <p className="text-sm font-medium text-muted-foreground">
+                      <div className="space-y-3.5 p-3.5">
+                        <p className="text-base font-medium text-muted-foreground">
                           {formatRange(w.validFrom, w.validTo)}
                         </p>
-                        <p className="text-sm leading-relaxed text-foreground">{w.description}</p>
+                        <p className="text-base leading-relaxed text-foreground">{w.description}</p>
                         {impactText && (
-                          <p className="text-sm leading-relaxed text-foreground">
+                          <p className="text-base leading-relaxed text-foreground">
                             <span className="font-semibold">Mögliche Auswirkungen: </span>
                             {impactText}
                           </p>
                         )}
                         {adviceText && (
-                          <p className="text-sm leading-relaxed text-foreground">
+                          <p className="text-base leading-relaxed text-foreground">
                             <span className="font-semibold">Empfohlenes Verhalten: </span>
                             {adviceText}
                           </p>
                         )}
-                        <p className="text-sm leading-relaxed text-muted-foreground">
+                        <p className="text-base leading-relaxed text-muted-foreground">
                           {w.regionIds.length === REGIONS.length
                             ? "Ganze Region"
                             : w.regionIds.map((r) => regionName(r)).join(", ")}
@@ -517,13 +518,14 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
           {!bare && (
             <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                <BellRing className="h-4 w-4" /> Warnungen abonnieren
+              <h3 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+                <BellRing className="h-5 w-5" /> Warnungen abonnieren
               </h3>
               <PushOptIn defaultRegionId={selected} />
             </div>
           )}
         </aside>
+
       </div>
     </div>
   );

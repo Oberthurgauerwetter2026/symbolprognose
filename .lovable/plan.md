@@ -1,21 +1,27 @@
-## Warum die Meldung erscheint
+## 1. Warnfenster (Info-Panel) – grössere Texte
+`src/components/maps/warn-map.tsx`, Bereich Info-Panel (ca. Zeilen 443–515):
+- Überschrift „Region Oberthurgau“ / Gemeindename von `text-base` auf `text-lg`.
+- Warnungs-Kopfzeile (farbiger Balken mit Titel) von `text-sm` auf `text-base`, Icon 4→5.
+- Gültigkeitszeitraum, Beschreibung, „Mögliche Auswirkungen“, „Empfohlenes Verhalten“ und Gemeindeliste von `text-sm` auf `text-base` mit `leading-relaxed`; Innenabstände leicht erhöht (p-3 → p-3.5, space-y-3 → space-y-3.5).
+- „Zurzeit keine Warnungen“-Text ebenfalls auf `text-base`.
+- Titel „Warnungen abonnieren“ auf `text-base`.
 
-In `src/components/warnings/push-opt-in.tsx` (Zeile 63/64) wird beim Klick auf „Benachrichtigungen aktivieren“ `Notification.requestPermission()` aufgerufen. Liefert der Browser etwas anderes als `"granted"` zurück, wird pauschal „Benachrichtigungen wurden nicht erlaubt.“ angezeigt.
+## 2. Banner (Gefahrenarten-Leiste) grösser
+Gleiche Datei, Bereich Banner (ca. Zeilen 279–336):
+- Buttons: Padding `px-3 py-2` → `px-3.5 py-2.5`, Schrift `text-xs` → `text-sm`, Icons `h-4 w-4` → `h-5 w-5`, Stufen-Badge `text-[10px]` → `text-xs`.
+- Statusanzeige rechts („Höchste Stufe“ / „Keine Warnungen aktiv“) auf `text-sm`, Icons entsprechend grösser.
+- Horizontales Scrollen auf schmalen Geräten bleibt erhalten.
 
-Typische Ursachen, die aktuell alle gleich aussehen:
-1. **Vorschau im eingebetteten Fenster** – die App läuft in der Lovable-Vorschau in einem Frame; Browser lehnen die Berechtigungsabfrage dort ohne Rückfrage ab. In der veröffentlichten Version bzw. in einem eigenen Tab funktioniert sie.
-2. **Berechtigung früher abgelehnt** (`Notification.permission === "denied"`) – der Browser fragt dann nie wieder; man muss die Einstellung in der Adressleiste/Website-Einstellungen zurücksetzen.
-3. **Dialog weggeklickt** (`"default"`) – einfach nochmals versuchen.
-4. **iPhone/iPad** – Push funktioniert nur, wenn die Seite zuvor über „Zum Home-Bildschirm“ installiert wurde.
+## 3. Neue Symbole
+Neue Datei `src/components/warnings/hazard-icons.tsx` mit zwei SVG-Komponenten im Lucide-Stil (24×24, `stroke="currentColor"`, `strokeWidth 2`, `className`-Prop – damit sie überall dort funktionieren, wo heute ein Lucide-Icon steht):
+- `SlipperyCarIcon`: Auto in leichter Schräglage mit zwei geschwungenen Schleuderspuren darunter (Strassenglätte).
+- `WindsockIcon`: Mast mit im Wind stehendem, gestreiftem Windsack (Wind).
 
-## Vorgeschlagene Verbesserung
+In `src/lib/warnings-config.ts`:
+- `icon: CarFront` → `SlipperyCarIcon`, `icon: Wind` → `WindsockIcon`; nicht mehr benötigte Lucide-Importe entfernen.
+- Der Typ `icon` wird von `LucideIcon` auf einen kompatiblen Komponententyp (`ComponentType<{ className?: string }>`) erweitert, damit eigene SVGs erlaubt sind.
 
-In `src/components/warnings/push-opt-in.tsx`:
-- Vor dem Aufruf prüfen, ob die Seite in einem Frame läuft (`window.top !== window.self`) und dann statt der generischen Fehlermeldung den Hinweis „Bitte die Seite in einem eigenen Browser-Tab öffnen“ mit Link auf die Seite (`target="_blank"`) zeigen.
-- Rückgabewert differenziert auswerten:
-  - `denied` → Text „Benachrichtigungen sind für diese Seite blockiert. In den Website-Einstellungen des Browsers (Schloss-Symbol in der Adressleiste) wieder erlauben und erneut versuchen.“
-  - `default` → „Die Abfrage wurde abgebrochen – bitte nochmals auf ‚Benachrichtigungen aktivieren‘ tippen.“
-- Zusätzlich beim Laden `Notification.permission` auslesen und bei `denied` schon vorab einen Hinweis über dem Button einblenden, statt erst nach dem Klick.
-- iOS-Hinweis (Home-Bildschirm) wird im bestehenden Ausklapper „Wie funktioniert das?“ prominenter platziert.
+Die Symbole erscheinen dadurch automatisch überall gleich: Banner, Warnkarte, Warn-Badges in Lokal-/Symbolprognose und Admin-Tool.
 
-Keine Backend-Änderungen nötig.
+## Prüfung
+Screenshot der Route `/karten/warnungen` (Desktop und schmal) zur Kontrolle von Lesbarkeit, Banner-Umbruch und den beiden neuen Symbolen.

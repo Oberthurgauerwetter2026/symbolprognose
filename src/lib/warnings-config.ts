@@ -8,28 +8,30 @@ import {
   CloudLightning,
   CloudRain,
   Snowflake,
-  CarFront,
-  Wind,
   ThermometerSnowflake,
-  type LucideIcon,
 } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
+import { SlipperyCarIcon, WindsockIcon } from "@/components/warnings/hazard-icons";
 import type { FeatureCollection } from "geojson";
 import regionData from "@/data/region.json";
 
 export type HazardId = "gewitter" | "regen" | "schnee" | "glaette" | "wind" | "frost";
 export type WarnLevel = 1 | 2 | 3;
 
+export type HazardIcon = ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
+
 export interface HazardDef {
   id: HazardId;
   label: string;
   /** Titelbaustein: „Gewitterwarnung (Stufe 2)“ */
   title: string;
-  icon: LucideIcon;
+  icon: HazardIcon;
   /** Optionales Messfeld, das die Redaktion selbst ergänzen kann. */
   paramLabel: string;
   paramUnit: string;
   paramPlaceholder: string;
 }
+
 
 export const HAZARDS: HazardDef[] = [
   {
@@ -63,7 +65,7 @@ export const HAZARDS: HazardDef[] = [
     id: "glaette",
     label: "Strassenglätte",
     title: "Warnung vor Strassenglätte",
-    icon: CarFront,
+    icon: SlipperyCarIcon,
     paramLabel: "Temperatur",
     paramUnit: "°C",
     paramPlaceholder: "z. B. -3",
@@ -72,7 +74,7 @@ export const HAZARDS: HazardDef[] = [
     id: "wind",
     label: "Wind",
     title: "Windwarnung",
-    icon: Wind,
+    icon: WindsockIcon,
     paramLabel: "Böenspitzen",
     paramUnit: "km/h",
     paramPlaceholder: "z. B. 90",
