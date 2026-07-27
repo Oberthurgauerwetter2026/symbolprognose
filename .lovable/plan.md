@@ -1,28 +1,47 @@
-## Diagnose (verifiziert)
+## Ziel
 
-Die Seite liefert vom Server korrektes HTML (HTTP 200), bricht aber im Browser ab. Playwright zeigt den echten Fehler:
+Sechs Punkte an der Wetterwarnkarte und der Benachrichtigungs-Box beheben bzw. verbessern.
 
-```text
-The requested module '/src/routes/karten.radar.tsx?tsr-shared=1'
-does not provide an export named 'def'
-```
+## 1. Hover färbt Gemeinden grün (Bug)
 
-Ursache: Beim automatischen Code-Splitting der Routen werden `component`/`head` in eigene Chunks ausgelagert. Alles, was diese Chunks brauchen, muss aus dem „shared“-Teil der Routendatei exportierbar sein. In mehreren Routendateien stehen jedoch Laufzeit-Konstanten im Modul-Scope:
+In `src/components/maps/warn-map.tsx` werden die Hover-Handler in `onEachFeature` nur beim ersten Rendern gesetzt. `mouseout` ruft dort eine eingefrorene `styleFor`-Version auf – aus der Zeit, als noch keine Warnungen geladen waren. Deshalb springt eine gewarnte Gemeinde nach dem Überfahren auf Grün (Stufe 0).
 
-- `src/routes/karten.radar.tsx` – `const def = getMap("radar")`, `const RadarMap = lazy(...)`
-- `src/routes/karten.satellit.tsx` – `def`, `SatelliteMap`
-- `src/routes/karten.niederschlag.tsx` – `def`, `PrecipAccumMap`
-- `src/routes/karten.region.tsx` – `RegionMap`
-- `src/routes/karten.wind.tsx` – `def`
-- `src/routes/karten.warnungen.tsx` – `def`
+Fix: die aktuellen Warnstufen über eine Ref halten, auf die die Handler zugreifen, sodass `mouseout` immer den echten aktuellen Stil zurücksetzt. Hover verändert dann nur noch Rahmenstärke/-farbe, nie die Füllfarbe.
 
-Weil der Router-Baum alle Routendateien lädt, reisst dieser eine kaputte Chunk-Import die gesamte App mit – daher auch auf `/karten/warnungen` nur eine weisse Seite.
+## 2. Legende nur auf Klick
 
-## Fix
+Legende wird zum ein-/ausklappbaren Overlay: kleiner Button „Legende“ unten links auf der Karte; nach Klick öffnet sich das Farbschema-Panel mit einem X zum Schliessen. Standard: geschlossen.
 
-1. **Lazy-Map-Komponenten auslagern**: neue Datei `src/components/maps/lazy-maps.ts`, die `RadarMap`, `SatelliteMap`, `PrecipAccumMap`, `RegionMap` als `lazy(...)`-Exporte bereitstellt. Die Routen importieren sie nur noch.
-2. **`def`-Konstanten entfernen**: In jeder betroffenen Routendatei `getMap("…")` direkt innerhalb von `head()` und innerhalb der Seitenkomponente aufrufen, statt im Modul-Scope.
-3. **Restliche Routen prüfen** (`karten.lokal.tsx` mit `searchSchema`, `index.tsx`): `searchSchema` wird von `validateSearch` im geteilten Teil genutzt und ist unkritisch; nur wenn ein Chunk ihn braucht, wird er ebenfalls ausgelagert.
-4. **Verifikation**: Alle Kartenrouten (`/karten/warnungen`, `/karten/radar`, `/karten/satellit`, `/karten/wind`, `/karten/region`, `/karten/niederschlag`, `/`) per Browser-Test laden und auf Konsolenfehler prüfen; Screenshot der Warnkarte als Nachweis.
+## 3. Karte mobiltauglich
 
-Keine Änderung an Backend, Daten oder Design – rein struktureller Fix der Routendateien.
+- Gefahren-Banner: horizontal scrollbare Chip-Leiste statt Umbruch-Chaos; Statusanzeige („Höchste Stufe …“) rückt auf Mobile in eine eigene Zeile.
+- Karte/Panel: einspaltig auf Mobile, Kartenhöhe reduziert (ca. 380 px), Info-Panel darunter.
+- Touch: Legenden-Toggle und Gemeinde-Auswahl mit ausreichend grossen Trefferflächen; Hover-Effekte nur bei echten Zeigergeräten.
+- Zoom-Control und Labels bleiben lesbar (Label-Schrift leicht grösser).
+
+## 4. Benachrichtigungen: Standard 0 Gemeinden
+
+In `src/components/warnings/push-opt-in.tsx`:
+- Startzustand ist eine leere Auswahl statt „alle Gemeinden“; auch die automatische Vorauswahl über eine angeklickte Gemeinde entfällt (bzw. wird nur als Vorschlag gesetzt, wenn noch nichts gewählt ist – Standard bleibt leer).
+- Der Aktivieren-Button bleibt deaktiviert, bis mindestens eine Gemeinde angekreuzt ist (bestehendes Verhalten).
+
+## 5. Lesbarkeit der Benachrichtigungs-Box
+
+- Schriftgrössen von 10/11 px auf normale Grössen anheben (Text ~14 px, Chips ~13 px).
+- Kontrast erhöhen: Fliesstext in Vordergrundfarbe statt durchgehend gedämpft.
+- Mehr vertikaler Abstand zwischen Erklärtext, Auswahlzähler, Gemeindeliste, Button und Hinweisen.
+- Gemeinde-Chips grösser und mit deutlicherem Aktiv-Zustand (Häkchen + Farbfüllung bleiben).
+
+## 6. Warntexte wetterdiensttauglicher
+
+Die Vorlagen in `src/lib/warnings-config.ts` (`TEMPLATES`) werden überarbeitet nach dem Muster offizieller Dienste (MeteoSchweiz/DWD):
+
+- Einheitlicher Aufbau je Warnung: **Was** (Wetterereignis mit Kennwert), **Wann** (Gültigkeit, kommt bereits aus dem Zeitraum), **Auswirkungen**, **Verhaltenshinweis**.
+- Sachlicher, unpersönlicher Präsens-Stil, konkrete Schwellenwerte statt vager Formulierungen.
+- Neues Feld „Empfohlenes Verhalten“ pro Gefahr/Stufe, das im Info-Panel der Karte und in der Detailansicht unter „Mögliche Auswirkungen“ angezeigt wird.
+- Vorlagen bleiben editierbar: das Admin-Tool füllt sie weiterhin vor, die Redaktion kann sie überschreiben.
+
+## Technische Hinweise
+
+- Betroffene Dateien: `src/components/maps/warn-map.tsx`, `src/components/warnings/push-opt-in.tsx`, `src/lib/warnings-config.ts`, sowie die Anzeige des neuen Verhaltensfelds in `src/components/weather-widget.tsx`/Embeds, falls dort Warntexte gerendert werden.
+- Das neue Verhaltensfeld ist rein aus den Vorlagen abgeleitet; keine Datenbankänderung nötig, sofern es zusammen mit `impact` gespeichert wird. Alternativ eine kleine Migration für eine Spalte `advice` – ich würde ohne Migration starten und den Hinweis an den Auswirkungstext anhängen.
