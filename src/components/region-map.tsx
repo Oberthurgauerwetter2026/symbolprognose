@@ -641,6 +641,16 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
     gcTime: 1000 * 60 * 30,
   });
 
+  // Aktive Warnungen je Spot (Gemeinde per Punkt-in-Polygon).
+  const activeWarnings = useActiveWarnings();
+  const spotWarnings = useMemo(() => {
+    const out: Record<string, WarningDTO | null> = {};
+    for (const s of SPOTS) {
+      out[s.id] = topWarningFor(activeWarnings, regionIdForPoint(s.lat, s.lon));
+    }
+    return out;
+  }, [activeWarnings]);
+
 
   const days = useMemo(() => {
     const base = new Date();
