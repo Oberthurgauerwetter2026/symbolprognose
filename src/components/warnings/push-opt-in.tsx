@@ -34,11 +34,21 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [howOpen, setHowOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>([]);
+  const [blocked, setBlocked] = useState(false);
+  const [framed, setFramed] = useState(false);
+  const [pageUrl, setPageUrl] = useState("");
 
   useEffect(() => {
     setSupported(
       typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window,
     );
+    try {
+      setFramed(window.top !== window.self);
+    } catch {
+      setFramed(true);
+    }
+    setPageUrl(window.location.href);
+    if (typeof Notification !== "undefined") setBlocked(Notification.permission === "denied");
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
       const sub = await reg?.pushManager.getSubscription();
       setSubscribed(Boolean(sub));
@@ -61,7 +71,20 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     setMsg(null);
     try {
       const perm = await Notification.requestPermission();
-      if (perm !== "granted") throw new Error("Benachrichtigungen wurden nicht erlaubt.");
+      if (perm === "denied") {
+        setBlocked(true);
+        throw new Error(
+          framed
+            ? "Im eingebetteten Vorschaufenster erlaubt der Browser keine Benachrichtigungen. Bitte die Seite in einem eigenen Browser-Tab öffnen und dort nochmals aktivieren."
+            : "Benachrichtigungen sind für diese Seite blockiert. Über das Schloss-Symbol in der Adressleiste unter „Website-Einstellungen“ wieder erlauben und erneut versuchen.",
+        );
+      }
+      if (perm !== "granted") {
+        throw new Error(
+          "Die Abfrage wurde abgebrochen – bitte nochmals auf „Benachrichtigungen aktivieren“ tippen und im Browser-Dialog „Erlauben“ wählen.",
+        );
+      }
+
       const { publicKey } = await getPushPublicKey();
       if (!publicKey) throw new Error("Push ist auf dem Server nicht konfiguriert.");
       const reg = await navigator.serviceWorker.register("/push-sw.js");
