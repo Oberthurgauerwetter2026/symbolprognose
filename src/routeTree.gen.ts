@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as KarteRouteImport } from './routes/karte'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
+import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
@@ -48,6 +49,11 @@ const KarteRoute = KarteRouteImport.update({
 const EmbedInfoRoute = EmbedInfoRouteImport.update({
   id: '/embed-info',
   path: '/embed-info',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminWarnungenRoute = AdminWarnungenRouteImport.update({
+  id: '/admin-warnungen',
+  path: '/admin-warnungen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -200,6 +206,7 @@ const ApiPublicAromeIngestTriggerRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
     | '/embed/all'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
     | '/embed/all'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
     | '/embed/all'
@@ -396,6 +408,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AdminWarnungenRoute: typeof AdminWarnungenRoute
   EmbedInfoRoute: typeof EmbedInfoRoute
   KarteRoute: typeof KarteRoute
   EmbedAllRoute: typeof EmbedAllRoute
@@ -440,6 +453,13 @@ declare module '@tanstack/react-router' {
       path: '/embed-info'
       fullPath: '/embed-info'
       preLoaderRoute: typeof EmbedInfoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-warnungen': {
+      id: '/admin-warnungen'
+      path: '/admin-warnungen'
+      fullPath: '/admin-warnungen'
+      preLoaderRoute: typeof AdminWarnungenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -644,6 +664,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AdminWarnungenRoute: AdminWarnungenRoute,
   EmbedInfoRoute: EmbedInfoRoute,
   KarteRoute: KarteRoute,
   EmbedAllRoute: EmbedAllRoute,
