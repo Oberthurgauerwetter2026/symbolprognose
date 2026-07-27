@@ -31,6 +31,7 @@ import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
+import { Route as ApiPublicWarningsAutoThunderRouteImport } from './routes/api/public/warnings/auto-thunder'
 import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/public/symbol/ingest-trigger'
 import { Route as ApiPublicSnapshotMapRouteImport } from './routes/api/public/snapshot/$map'
 import { Route as ApiPublicRadarProxyRouteImport } from './routes/api/public/radar/proxy'
@@ -151,6 +152,12 @@ const EmbedAllRoute = EmbedAllRouteImport.update({
   path: '/embed/all',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWarningsAutoThunderRoute =
+  ApiPublicWarningsAutoThunderRouteImport.update({
+    id: '/api/public/warnings/auto-thunder',
+    path: '/api/public/warnings/auto-thunder',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicSymbolIngestTriggerRoute =
   ApiPublicSymbolIngestTriggerRouteImport.update({
     id: '/api/public/symbol/ingest-trigger',
@@ -235,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
+  '/api/public/warnings/auto-thunder': typeof ApiPublicWarningsAutoThunderRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -268,6 +276,7 @@ export interface FileRoutesByTo {
   '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
+  '/api/public/warnings/auto-thunder': typeof ApiPublicWarningsAutoThunderRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -302,6 +311,7 @@ export interface FileRoutesById {
   '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
+  '/api/public/warnings/auto-thunder': typeof ApiPublicWarningsAutoThunderRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
+    | '/api/public/warnings/auto-thunder'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -370,6 +381,7 @@ export interface FileRouteTypes {
     | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
+    | '/api/public/warnings/auto-thunder'
   id:
     | '__root__'
     | '/'
@@ -403,6 +415,7 @@ export interface FileRouteTypes {
     | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
+    | '/api/public/warnings/auto-thunder'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -437,6 +450,7 @@ export interface RootRouteChildren {
   ApiPublicRadarProxyRoute: typeof ApiPublicRadarProxyRoute
   ApiPublicSnapshotMapRoute: typeof ApiPublicSnapshotMapRoute
   ApiPublicSymbolIngestTriggerRoute: typeof ApiPublicSymbolIngestTriggerRoute
+  ApiPublicWarningsAutoThunderRoute: typeof ApiPublicWarningsAutoThunderRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -595,6 +609,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedAllRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/warnings/auto-thunder': {
+      id: '/api/public/warnings/auto-thunder'
+      path: '/api/public/warnings/auto-thunder'
+      fullPath: '/api/public/warnings/auto-thunder'
+      preLoaderRoute: typeof ApiPublicWarningsAutoThunderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/symbol/ingest-trigger': {
       id: '/api/public/symbol/ingest-trigger'
       path: '/api/public/symbol/ingest-trigger'
@@ -693,6 +714,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRadarProxyRoute: ApiPublicRadarProxyRoute,
   ApiPublicSnapshotMapRoute: ApiPublicSnapshotMapRoute,
   ApiPublicSymbolIngestTriggerRoute: ApiPublicSymbolIngestTriggerRoute,
+  ApiPublicWarningsAutoThunderRoute: ApiPublicWarningsAutoThunderRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
