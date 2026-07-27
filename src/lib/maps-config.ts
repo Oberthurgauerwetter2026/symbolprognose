@@ -29,6 +29,17 @@ export interface MapDefinition {
 
 export const MAPS: MapDefinition[] = [
   {
+    id: "warnungen",
+    label: "Wetterwarnungen",
+    shortLabel: "Warnungen",
+    description:
+      "Amtlich gestaltete Warnkarte für alle Gemeinden im Oberthurgau — Gewitter, Regen, Schnee, Strassenglätte, Wind und Frost in vier Gefahrenstufen.",
+    icon: TriangleAlert,
+    routePath: "/karten/warnungen",
+    embedPath: "/embed/warnungen",
+    status: "live",
+  },
+  {
     id: "region",
     label: "Wetterkarte Region",
     shortLabel: "Region",
