@@ -94,7 +94,7 @@ export interface AutoThunderResult {
 export async function runAutoThunder(): Promise<AutoThunderResult> {
   const cache = await getOpenMeteoCache();
   const points = cache?.grid?.points ?? [];
-  const locs = ((cache?.phase1 ?? cache?.phaseB ?? null) as LocMinutely[] | null) ?? null;
+  const locs = (cache?.phase1 ?? cache?.phaseB) as LocMinutely[] | undefined;
   if (!locs || locs.length !== points.length || points.length === 0) {
     return { detected: 0, created: 0, closed: await closeStale(), note: "Nowcast-Daten nicht verfügbar" };
   }
