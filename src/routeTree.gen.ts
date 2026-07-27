@@ -22,6 +22,7 @@ import { Route as KartenNiederschlagRouteImport } from './routes/karten.niedersc
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
+import { Route as EmbedWarnungenRouteImport } from './routes/embed.warnungen'
 import { Route as EmbedSatellitLoopRouteImport } from './routes/embed.satellit-loop'
 import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
@@ -102,6 +103,11 @@ const InternIconsRoute = InternIconsRouteImport.update({
 const EmbedWindRoute = EmbedWindRouteImport.update({
   id: '/embed/wind',
   path: '/embed/wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedWarnungenRoute = EmbedWarnungenRouteImport.update({
+  id: '/embed/warnungen',
+  path: '/embed/warnungen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedSatellitLoopRoute = EmbedSatellitLoopRouteImport.update({
@@ -203,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/warnungen'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -330,6 +340,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/warnungen'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -361,6 +372,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/warnungen'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -393,6 +405,7 @@ export interface RootRouteChildren {
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
   EmbedSatellitRoute: typeof EmbedSatellitRoute
   EmbedSatellitLoopRoute: typeof EmbedSatellitLoopRoute
+  EmbedWarnungenRoute: typeof EmbedWarnungenRoute
   EmbedWindRoute: typeof EmbedWindRoute
   InternIconsRoute: typeof InternIconsRoute
   KartenLokalRoute: typeof KartenLokalRoute
@@ -504,6 +517,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/wind'
       fullPath: '/embed/wind'
       preLoaderRoute: typeof EmbedWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/warnungen': {
+      id: '/embed/warnungen'
+      path: '/embed/warnungen'
+      fullPath: '/embed/warnungen'
+      preLoaderRoute: typeof EmbedWarnungenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/satellit-loop': {
@@ -633,6 +653,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
   EmbedSatellitRoute: EmbedSatellitRoute,
   EmbedSatellitLoopRoute: EmbedSatellitLoopRoute,
+  EmbedWarnungenRoute: EmbedWarnungenRoute,
   EmbedWindRoute: EmbedWindRoute,
   InternIconsRoute: InternIconsRoute,
   KartenLokalRoute: KartenLokalRoute,
