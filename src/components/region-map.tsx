@@ -337,6 +337,7 @@ function SpotMarker({
   absoluteHour,
   onClick,
   data,
+  warning,
 }: {
   spot: Spot;
   mode: "hourly" | "daily";
@@ -344,7 +345,9 @@ function SpotMarker({
   absoluteHour: number;
   onClick: () => void;
   data: ForecastResponse | undefined;
+  warning?: WarningDTO | null;
 }) {
+
 
 
   const icon = useMemo(() => {
