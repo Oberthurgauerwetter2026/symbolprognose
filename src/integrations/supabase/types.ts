@@ -14,7 +14,110 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          region_ids: string[]
+          updated_at: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          region_ids?: string[]
+          updated_at?: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          region_ids?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      warning_regions: {
+        Row: {
+          region_id: string
+          warning_id: string
+        }
+        Insert: {
+          region_id: string
+          warning_id: string
+        }
+        Update: {
+          region_id?: string
+          warning_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warning_regions_warning_id_fkey"
+            columns: ["warning_id"]
+            isOneToOne: false
+            referencedRelation: "warnings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      warnings: {
+        Row: {
+          active: boolean
+          auto_key: string | null
+          created_at: string
+          description: string
+          hazard: string
+          id: string
+          impact: string
+          level: number
+          params: Json
+          source: string
+          title: string | null
+          updated_at: string
+          valid_from: string
+          valid_to: string
+        }
+        Insert: {
+          active?: boolean
+          auto_key?: string | null
+          created_at?: string
+          description?: string
+          hazard: string
+          id?: string
+          impact?: string
+          level: number
+          params?: Json
+          source?: string
+          title?: string | null
+          updated_at?: string
+          valid_from?: string
+          valid_to: string
+        }
+        Update: {
+          active?: boolean
+          auto_key?: string | null
+          created_at?: string
+          description?: string
+          hazard?: string
+          id?: string
+          impact?: string
+          level?: number
+          params?: Json
+          source?: string
+          title?: string | null
+          updated_at?: string
+          valid_from?: string
+          valid_to?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       radar_cron_health: {
