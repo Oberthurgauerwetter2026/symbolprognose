@@ -24,11 +24,3 @@ function EmbedWind() {
     </EmbedShell>
   );
 }
-
-  head: () => ({
-    meta: [
-      { title: "Wind (Embed)" },
-      { name: "robots", content: "noindex" },
-    ],
-  }),
-});
