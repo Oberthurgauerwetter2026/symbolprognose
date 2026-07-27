@@ -441,64 +441,78 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
         {/* Info-Panel */}
         <aside className="space-y-3">
-          <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-            <h2 className="text-sm font-semibold text-foreground">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h2 className="text-base font-semibold text-foreground">
               {selected ? regionName(selected) : "Region Oberthurgau"}
             </h2>
             {selected && (
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="mt-0.5 text-[11px] text-muted-foreground underline"
+                className="mt-1 text-sm text-muted-foreground underline"
               >
                 Auswahl aufheben
               </button>
             )}
             {query.data?.warning && (
-              <p className="mt-2 text-xs text-muted-foreground">{query.data.warning}</p>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
             {selectedWarnings.length === 0 ? (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-3 text-sm leading-relaxed text-foreground">
                 Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
                 besondere Gefahr.
               </p>
             ) : (
-              <ul className="mt-3 space-y-3">
+              <ul className="mt-4 space-y-4">
                 {selectedWarnings.map((w) => {
                   const h = getHazard(w.hazard as HazardId);
                   const Icon = h.icon;
                   const def = LEVELS[w.level as 1 | 2 | 3];
+                  const impactRaw = w.impact ?? "";
+                  const cut = impactRaw.indexOf("Empfohlenes Verhalten:");
+                  const impactText = cut >= 0 ? impactRaw.slice(0, cut).trim() : impactRaw.trim();
+                  const adviceText =
+                    cut >= 0 ? impactRaw.slice(cut + "Empfohlenes Verhalten:".length).trim() : "";
                   return (
-                    <li key={w.id} className="rounded-lg border border-border p-2.5">
+                    <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                       <div
-                        className="-m-2.5 mb-2 flex items-center gap-2 rounded-t-lg px-2.5 py-1.5 text-xs font-semibold"
+                        className="flex items-center gap-2 px-3 py-2 text-sm font-semibold"
                         style={{ background: def.color, color: def.textOnColor }}
                       >
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4 shrink-0" />
                         {w.title || `${h.title} (Stufe ${w.level})`}
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        {formatRange(w.validFrom, w.validTo)}
-                      </p>
-                      <p className="mt-1.5 text-xs text-foreground">{w.description}</p>
-                      {w.impact && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">Mögliche Auswirkungen: </span>
-                          {w.impact}
+                      <div className="space-y-3 p-3">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {formatRange(w.validFrom, w.validTo)}
                         </p>
-                      )}
-                      <p className="mt-1.5 text-[11px] text-muted-foreground">
-                        {w.regionIds.length === REGIONS.length
-                          ? "Ganze Region"
-                          : w.regionIds.map((r) => regionName(r)).join(", ")}
-                        {w.source === "auto" ? " · automatisch (Radar)" : ""}
-                      </p>
+                        <p className="text-sm leading-relaxed text-foreground">{w.description}</p>
+                        {impactText && (
+                          <p className="text-sm leading-relaxed text-foreground">
+                            <span className="font-semibold">Mögliche Auswirkungen: </span>
+                            {impactText}
+                          </p>
+                        )}
+                        {adviceText && (
+                          <p className="text-sm leading-relaxed text-foreground">
+                            <span className="font-semibold">Empfohlenes Verhalten: </span>
+                            {adviceText}
+                          </p>
+                        )}
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                          {w.regionIds.length === REGIONS.length
+                            ? "Ganze Region"
+                            : w.regionIds.map((r) => regionName(r)).join(", ")}
+                          {w.source === "auto" ? " · automatisch (Radar)" : ""}
+                        </p>
+                      </div>
                     </li>
                   );
                 })}
               </ul>
             )}
           </div>
+
 
           {!bare && (
             <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
