@@ -36,7 +36,41 @@ function ringsOf(f: Feature): number[][][] {
   return [];
 }
 
-/** Flächengewichteter Schwerpunkt (grösster Ring) für die Beschriftung. */
+function pointInRing(x: number, y: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Kürzeste Distanz eines Punktes zum Polygonrand. */
+function distToRing(x: number, y: number, ring: number[][]): number {
+  let min = Infinity;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const ax = ring[j][0];
+    const ay = ring[j][1];
+    const bx = ring[i][0];
+    const by = ring[i][1];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = dx * dx + dy * dy;
+    const t = len ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / len)) : 0;
+    const px = ax + t * dx;
+    const py = ay + t * dy;
+    min = Math.min(min, Math.hypot(x - px, y - py));
+  }
+  return min;
+}
+
+/**
+ * Punkt maximaler Randdistanz („Pole of Inaccessibility“) im grössten Ring –
+ * liegt im Gegensatz zum Schwerpunkt immer sichtbar innerhalb der Fläche.
+ */
 function labelPoint(f: Feature): [number, number] {
   const rings = ringsOf(f);
   let best: number[][] = [];
@@ -52,19 +86,51 @@ function labelPoint(f: Feature): [number, number] {
       best = r;
     }
   }
-  let cx = 0;
-  let cy = 0;
-  let area = 0;
-  for (let i = 0, j = best.length - 1; i < best.length; j = i++) {
-    const f2 = best[j][0] * best[i][1] - best[i][0] * best[j][1];
-    area += f2;
-    cx += (best[j][0] + best[i][0]) * f2;
-    cy += (best[j][1] + best[i][1]) * f2;
+  if (!best.length) return [47.55, 9.3];
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of best) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
   }
-  area *= 0.5;
-  if (!area) return [best[0]?.[1] ?? 47.55, best[0]?.[0] ?? 9.3];
-  return [cy / (6 * area), cx / (6 * area)];
+
+  let bx = (minX + maxX) / 2;
+  let by = (minY + maxY) / 2;
+  let bestScore = -Infinity;
+  let stepX = (maxX - minX) / 24;
+  let stepY = (maxY - minY) / 24;
+  let x0 = minX;
+  let y0 = minY;
+  let x1 = maxX;
+  let y1 = maxY;
+
+  for (let pass = 0; pass < 3; pass++) {
+    for (let x = x0; x <= x1; x += stepX) {
+      for (let y = y0; y <= y1; y += stepY) {
+        if (!pointInRing(x, y, best)) continue;
+        const d = distToRing(x, y, best);
+        if (d > bestScore) {
+          bestScore = d;
+          bx = x;
+          by = y;
+        }
+      }
+    }
+    x0 = bx - stepX;
+    x1 = bx + stepX;
+    y0 = by - stepY;
+    y1 = by + stepY;
+    stepX /= 8;
+    stepY /= 8;
+  }
+  return [by, bx];
 }
+
 
 const REGION_META = REGION_FC.features.map((f) => {
   const name = String((f.properties as { name?: string } | null)?.name ?? "");
@@ -119,11 +185,13 @@ function FitRegion() {
 }
 
 function labelIcon(name: string, level: number): L.DivIcon {
-  const color = level > 0 ? "#20242b" : "#33404d";
-  const weight = level > 0 ? 700 : 500;
+  const color = level > 0 ? "#14181f" : "#2a3540";
+  const weight = level > 0 ? 800 : 600;
+  const size = level > 0 ? 14 : 13;
   return L.divIcon({
     className: "warn-label",
-    html: `<div style="pointer-events:none;transform:translate(-50%,-50%);font:${weight} 11px/1.1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${color};text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;text-align:center">${name}</div>`,
+    html: `<div style="pointer-events:none;transform:translate(-50%,-50%);font:${weight} ${size}px/1.15 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:${color};text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 4px #fff,0 1px 2px #fff;white-space:nowrap;text-align:center;letter-spacing:0.01em">${name}</div>`,
+
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -210,7 +278,10 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
       <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-2 shadow-sm sm:flex-wrap sm:overflow-visible">
         <button
           type="button"
-          onClick={() => setHazard("alle")}
+          onClick={() => {
+            setHazard("alle");
+            setSelected(null);
+          }}
           className={cn(
             "shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition",
             hazard === "alle" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70",
@@ -226,7 +297,10 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <button
               key={h.id}
               type="button"
-              onClick={() => setHazard(h.id)}
+              onClick={() => {
+                setHazard(h.id);
+                setSelected(null);
+              }}
               title={h.label}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition",
@@ -367,64 +441,78 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
         {/* Info-Panel */}
         <aside className="space-y-3">
-          <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-            <h2 className="text-sm font-semibold text-foreground">
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h2 className="text-base font-semibold text-foreground">
               {selected ? regionName(selected) : "Region Oberthurgau"}
             </h2>
             {selected && (
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="mt-0.5 text-[11px] text-muted-foreground underline"
+                className="mt-1 text-sm text-muted-foreground underline"
               >
                 Auswahl aufheben
               </button>
             )}
             {query.data?.warning && (
-              <p className="mt-2 text-xs text-muted-foreground">{query.data.warning}</p>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
             {selectedWarnings.length === 0 ? (
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-3 text-sm leading-relaxed text-foreground">
                 Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
                 besondere Gefahr.
               </p>
             ) : (
-              <ul className="mt-3 space-y-3">
+              <ul className="mt-4 space-y-4">
                 {selectedWarnings.map((w) => {
                   const h = getHazard(w.hazard as HazardId);
                   const Icon = h.icon;
                   const def = LEVELS[w.level as 1 | 2 | 3];
+                  const impactRaw = w.impact ?? "";
+                  const cut = impactRaw.indexOf("Empfohlenes Verhalten:");
+                  const impactText = cut >= 0 ? impactRaw.slice(0, cut).trim() : impactRaw.trim();
+                  const adviceText =
+                    cut >= 0 ? impactRaw.slice(cut + "Empfohlenes Verhalten:".length).trim() : "";
                   return (
-                    <li key={w.id} className="rounded-lg border border-border p-2.5">
+                    <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                       <div
-                        className="-m-2.5 mb-2 flex items-center gap-2 rounded-t-lg px-2.5 py-1.5 text-xs font-semibold"
+                        className="flex items-center gap-2 px-3 py-2 text-sm font-semibold"
                         style={{ background: def.color, color: def.textOnColor }}
                       >
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-4 w-4 shrink-0" />
                         {w.title || `${h.title} (Stufe ${w.level})`}
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        {formatRange(w.validFrom, w.validTo)}
-                      </p>
-                      <p className="mt-1.5 text-xs text-foreground">{w.description}</p>
-                      {w.impact && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">Mögliche Auswirkungen: </span>
-                          {w.impact}
+                      <div className="space-y-3 p-3">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          {formatRange(w.validFrom, w.validTo)}
                         </p>
-                      )}
-                      <p className="mt-1.5 text-[11px] text-muted-foreground">
-                        {w.regionIds.length === REGIONS.length
-                          ? "Ganze Region"
-                          : w.regionIds.map((r) => regionName(r)).join(", ")}
-                        {w.source === "auto" ? " · automatisch (Radar)" : ""}
-                      </p>
+                        <p className="text-sm leading-relaxed text-foreground">{w.description}</p>
+                        {impactText && (
+                          <p className="text-sm leading-relaxed text-foreground">
+                            <span className="font-semibold">Mögliche Auswirkungen: </span>
+                            {impactText}
+                          </p>
+                        )}
+                        {adviceText && (
+                          <p className="text-sm leading-relaxed text-foreground">
+                            <span className="font-semibold">Empfohlenes Verhalten: </span>
+                            {adviceText}
+                          </p>
+                        )}
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                          {w.regionIds.length === REGIONS.length
+                            ? "Ganze Region"
+                            : w.regionIds.map((r) => regionName(r)).join(", ")}
+                          {w.source === "auto" ? " · automatisch (Radar)" : ""}
+                        </p>
+                      </div>
                     </li>
                   );
                 })}
               </ul>
             )}
           </div>
+
 
           {!bare && (
             <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
