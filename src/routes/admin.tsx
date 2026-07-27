@@ -77,10 +77,12 @@ function AdminPage() {
           {error && <p className="text-xs text-red-600">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-zinc-900 text-white text-sm font-medium py-2 rounded-sm hover:bg-zinc-800"
+            disabled={busy}
+            className="w-full bg-zinc-900 text-white text-sm font-medium py-2 rounded-sm hover:bg-zinc-800 disabled:opacity-60"
           >
-            Entsperren
+            {busy ? "Prüfen …" : "Entsperren"}
           </button>
+
         </form>
       </div>
     );
