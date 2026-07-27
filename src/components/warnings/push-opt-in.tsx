@@ -217,12 +217,35 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         </div>
       )}
 
+      {!subscribed && (framed || blocked) && (
+        <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-[13px] leading-relaxed text-foreground">
+          {framed
+            ? "Hinweis: In diesem eingebetteten Vorschaufenster blockiert der Browser die Berechtigungsabfrage."
+            : "Hinweis: Benachrichtigungen sind für diese Seite im Browser blockiert – bitte über das Schloss-Symbol in der Adressleiste wieder erlauben."}
+          {framed && pageUrl ? (
+            <>
+              {" "}
+              <a
+                href={pageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold underline underline-offset-2"
+              >
+                Seite in eigenem Tab öffnen
+              </a>
+              .
+            </>
+          ) : null}
+        </p>
+      )}
 
       {subscribed && (
         <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
           Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden.
         </p>
       )}
+
+
 
       <button
         type="button"
