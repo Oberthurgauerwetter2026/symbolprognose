@@ -32,7 +32,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [msg, setMsg] = useState<string | null>(null);
   const [msgKind, setMsgKind] = useState<"ok" | "error">("ok");
   const [howOpen, setHowOpen] = useState(false);
-  const [regionIds, setRegionIds] = useState<string[]>(() => REGIONS.map((r) => r.id));
+  const [regionIds, setRegionIds] = useState<string[]>([]);
 
   useEffect(() => {
     setSupported(
@@ -44,9 +44,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     });
   }, []);
 
-  useEffect(() => {
-    if (defaultRegionId) setRegionIds([defaultRegionId]);
-  }, [defaultRegionId]);
+  // Bewusst keine Vorauswahl: die Nutzerin wählt ihre Gemeinden selbst.
+  void defaultRegionId;
 
   const toggleRegion = (id: string) =>
     setRegionIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
@@ -109,7 +108,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
 
   if (!supported) {
     return (
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p className="mt-3 text-sm text-muted-foreground">
         Dieser Browser unterstützt keine Push-Benachrichtigungen.
       </p>
     );
@@ -118,36 +117,36 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const none = regionIds.length === 0;
 
   return (
-    <div className="mt-2 space-y-2">
-      <p className="text-xs text-muted-foreground">
+    <div className="mt-3 space-y-4">
+      <p className="text-sm leading-relaxed text-foreground">
         Erhalte eine Meldung, sobald für deine Gemeinden eine Warnung ausgegeben wird.
       </p>
 
       {!subscribed && (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-foreground">
               Gewählte Gemeinden: {regionIds.length} von {REGIONS.length}
             </span>
-            <span className="flex gap-1">
+            <span className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setRegionIds(REGIONS.map((r) => r.id))}
-                className="rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-muted"
+                className="rounded-md border border-border px-2.5 py-1.5 text-sm font-medium hover:bg-muted"
               >
                 Alle
               </button>
               <button
                 type="button"
                 onClick={() => setRegionIds([])}
-                className="rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-muted"
+                className="rounded-md border border-border px-2.5 py-1.5 text-sm font-medium hover:bg-muted"
               >
                 Keine
               </button>
             </span>
           </div>
-          <div className="max-h-32 overflow-y-auto rounded-md border border-border p-2">
-            <div className="flex flex-wrap gap-1">
+          <div className="max-h-56 overflow-y-auto rounded-lg border border-border p-2.5">
+            <div className="flex flex-wrap gap-2">
               {REGIONS.map((r) => {
                 const on = regionIds.includes(r.id);
                 return (
@@ -157,16 +156,16 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
                     aria-pressed={on}
                     onClick={() => toggleRegion(r.id)}
                     className={
-                      "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] transition-colors " +
+                      "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm font-medium transition-colors " +
                       (on
                         ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background text-muted-foreground hover:bg-muted")
+                        : "border-border bg-background text-foreground hover:bg-muted")
                     }
                   >
                     {on ? (
-                      <Check className="h-2.5 w-2.5" />
+                      <Check className="h-4 w-4" />
                     ) : (
-                      <Circle className="h-2.5 w-2.5 opacity-50" />
+                      <Circle className="h-4 w-4 opacity-40" />
                     )}
                     {r.name}
                   </button>
@@ -175,13 +174,15 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             </div>
           </div>
           {none && (
-            <p className="text-[11px] text-destructive">Mindestens eine Gemeinde wählen.</p>
+            <p className="text-sm font-medium text-destructive">
+              Bitte mindestens eine Gemeinde ankreuzen.
+            </p>
           )}
         </div>
       )}
 
       {subscribed && (
-        <p className="rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px]">
+        <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
           Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden.
         </p>
       )}
@@ -190,20 +191,20 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         type="button"
         disabled={busy || (!subscribed && none)}
         onClick={subscribed ? unsubscribe : subscribe}
-        className="flex w-full items-center justify-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-3 text-sm font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : subscribed ? (
-          <BellOff className="h-3.5 w-3.5" />
+          <BellOff className="h-4 w-4" />
         ) : (
-          <BellRing className="h-3.5 w-3.5" />
+          <BellRing className="h-4 w-4" />
         )}
         {subscribed ? "Benachrichtigungen ausschalten" : "Benachrichtigungen aktivieren"}
       </button>
 
       {msg && (
-        <p className={"text-[11px] " + (msgKind === "error" ? "text-destructive" : "text-muted-foreground")}>
+        <p className={"text-sm " + (msgKind === "error" ? "text-destructive" : "text-foreground")}>
           {msg}
         </p>
       )}
@@ -212,12 +213,12 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         <button
           type="button"
           onClick={() => setHowOpen((v) => !v)}
-          className="text-[11px] underline text-muted-foreground"
+          className="text-sm font-medium text-foreground underline underline-offset-2"
         >
           Wie funktioniert das?
         </button>
         {howOpen && (
-          <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+          <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
             <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
             <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis.</li>
             <li>
@@ -235,3 +236,4 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     </div>
   );
 }
+

@@ -4,7 +4,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, BellRing, Loader2 } from "lucide-react";
+import { AlertTriangle, BellRing, Loader2, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
@@ -138,7 +138,10 @@ export interface WarnMapProps {
 export function WarnMap({ bare = false, className }: WarnMapProps) {
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
   const geoRef = useRef<L.GeoJSON | null>(null);
+  /** Immer aktuelle Stilfunktion für die Leaflet-Handler (sonst veralteter Closure-Stand). */
+  const styleRef = useRef<(f: Feature) => L.PathOptions>(() => ({}));
 
   const query = useQuery({
     queryKey: ["warnings"],
@@ -199,15 +202,17 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     };
   }
 
+  styleRef.current = styleFor;
+
   return (
     <div className={cn("@container space-y-3", className)}>
       {/* Banner mit Gefahrenarten */}
-      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card p-2 shadow-sm">
+      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-2 shadow-sm sm:flex-wrap sm:overflow-visible">
         <button
           type="button"
           onClick={() => setHazard("alle")}
           className={cn(
-            "rounded-lg px-3 py-2 text-xs font-semibold transition",
+            "shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition",
             hazard === "alle" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70",
           )}
         >
@@ -224,7 +229,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               onClick={() => setHazard(h.id)}
               title={h.label}
               className={cn(
-                "flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition",
+                "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition",
                 on ? "border-foreground" : "border-transparent hover:bg-muted/60",
               )}
               style={
@@ -234,12 +239,12 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               }
             >
               <Icon className="h-4 w-4" />
-              <span className="hidden @md:inline">{h.label}</span>
+              <span className="hidden @sm:inline">{h.label}</span>
               {lvl > 0 && <span className="rounded bg-black/15 px-1 text-[10px] font-bold">{lvl}</span>}
             </button>
           );
         })}
-        <div className="ml-auto flex items-center gap-2 pr-1 text-xs text-muted-foreground">
+        <div className="ml-auto flex shrink-0 items-center gap-2 pr-1 text-xs text-muted-foreground">
           {query.isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {maxLevel === 0 ? (
             <span className="flex items-center gap-1.5 font-medium text-foreground">
@@ -256,7 +261,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
       </div>
 
       <div className={cn("grid gap-3", bare ? "grid-cols-1" : "@3xl:grid-cols-[1fr_320px]")}>
-        <div className="relative h-[460px] overflow-hidden rounded-2xl shadow-lg sm:h-[560px]">
+        <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-[560px]">
           <MapContainer
             center={[47.555, 9.3]}
             zoom={11}
@@ -301,8 +306,12 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 const name = String((feature.properties as { name?: string } | null)?.name ?? "");
                 const id = slugifyRegion(name);
                 layer.on("click", () => setSelected((cur) => (cur === id ? null : id)));
-                layer.on("mouseover", () => (layer as L.Path).setStyle({ weight: 2.4, color: "#1f2937" }));
-                layer.on("mouseout", () => (layer as L.Path).setStyle(styleFor(feature as Feature)));
+                layer.on("mouseover", () =>
+                  (layer as L.Path).setStyle({ weight: 2.4, color: "#1f2937" }),
+                );
+                layer.on("mouseout", () =>
+                  (layer as L.Path).setStyle(styleRef.current(feature as Feature)),
+                );
               }}
             />
             {REGION_META.map((r) => (
@@ -317,18 +326,43 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <ZoomControl position="topright" />
           </MapContainer>
 
-          {/* Legende */}
-          <div className="pointer-events-none absolute bottom-3 left-3 z-[400] flex flex-col gap-1 rounded-md bg-card/95 p-2 text-[10px] shadow-md">
-            {[0, 1, 2, 3].map((l) => (
-              <div key={l} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-4 rounded-sm"
-                  style={{ background: LEVELS[l as 0 | 1 | 2 | 3].color }}
-                />
-                <span className="text-muted-foreground">{LEVELS[l as 0 | 1 | 2 | 3].label}</span>
+          {/* Legende – nur auf Klick */}
+          {legendOpen ? (
+            <div className="absolute bottom-3 left-3 z-[400] w-[210px] rounded-lg bg-card/95 p-3 text-xs shadow-lg">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="font-semibold text-foreground">Legende</span>
+                <button
+                  type="button"
+                  aria-label="Legende schliessen"
+                  onClick={() => setLegendOpen(false)}
+                  className="rounded p-1 text-muted-foreground hover:bg-muted"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-            ))}
-          </div>
+              <div className="flex flex-col gap-1.5">
+                {[0, 1, 2, 3].map((l) => (
+                  <div key={l} className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-3 w-5 shrink-0 rounded-sm"
+                      style={{ background: LEVELS[l as 0 | 1 | 2 | 3].color }}
+                    />
+                    <span className="text-muted-foreground">
+                      {LEVELS[l as 0 | 1 | 2 | 3].label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLegendOpen(true)}
+              className="absolute bottom-3 left-3 z-[400] flex items-center gap-1.5 rounded-lg bg-card/95 px-3 py-2 text-xs font-semibold text-foreground shadow-lg hover:bg-card"
+            >
+              <Info className="h-4 w-4" /> Legende
+            </button>
+          )}
         </div>
 
         {/* Info-Panel */}

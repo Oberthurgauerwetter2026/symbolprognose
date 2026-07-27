@@ -7,7 +7,9 @@ import {
   REGIONS,
   REGION_GROUPS,
   TEMPLATES,
+  templateImpact,
   fillTemplate,
+
   getHazard,
   regionName,
   warningTitle,
@@ -133,7 +135,8 @@ function emptyForm(): FormState {
     value: "",
     title: warningTitle("gewitter", 1),
     description: fillTemplate(TEMPLATES.gewitter[1].description),
-    impact: TEMPLATES.gewitter[1].impact,
+    impact: templateImpact(TEMPLATES.gewitter[1]),
+
     regionIds: [],
     active: true,
   };
@@ -174,7 +177,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       value,
       title: touchedText ? f.title : warningTitle(hazard, level),
       description: touchedText ? f.description : fillTemplate(tpl.description, value),
-      impact: touchedText ? f.impact : tpl.impact,
+      impact: touchedText ? f.impact : templateImpact(tpl),
     }));
   };
 

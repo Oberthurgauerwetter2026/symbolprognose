@@ -13,7 +13,7 @@
 
 import type { Feature, FeatureCollection } from "geojson";
 import regionData from "@/data/region.json";
-import { slugifyRegion, TEMPLATES, fillTemplate, warningTitle } from "@/lib/warnings-config";
+import { slugifyRegion, TEMPLATES, templateImpact, fillTemplate, warningTitle } from "@/lib/warnings-config";
 import { getOpenMeteoCache } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
@@ -172,7 +172,7 @@ export async function runAutoThunder(): Promise<AutoThunderResult> {
       valid_to: validTo,
       title: warningTitle("gewitter", level),
       description: `${base} Radar und Nowcast zeigen Spitzenintensitäten um ${Math.round(info.max)} mm/h.${motionText}`,
-      impact: tpl.impact,
+      impact: templateImpact(tpl),
       params: { value: String(Math.round(info.max)), auto: true },
       active: true,
       source: "auto",
