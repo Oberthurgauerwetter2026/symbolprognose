@@ -7,7 +7,9 @@ import {
   REGIONS,
   REGION_GROUPS,
   TEMPLATES,
+  templateImpact,
   fillTemplate,
+
   getHazard,
   regionName,
   warningTitle,
