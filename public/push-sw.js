@@ -1,0 +1,35 @@
+/* Service Worker nur für Wetterwarn-Push (kein App-Caching). */
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { title: "Wetterwarnung", body: event.data ? event.data.text() : "" };
+  }
+  const title = payload.title || "Wetterwarnung Oberthurgau";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body || "",
+      tag: payload.tag || "wetterwarnung",
+      data: { url: payload.url || "/karten/warnungen" },
+      icon: "/favicon.ico",
+      badge: "/favicon.ico",
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/karten/warnungen";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if (client.url.includes(url) && "focus" in client) return client.focus();
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

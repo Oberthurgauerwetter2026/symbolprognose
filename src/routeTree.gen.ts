@@ -11,9 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as KarteRouteImport } from './routes/karte'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
+import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
+import { Route as KartenWarnungenRouteImport } from './routes/karten.warnungen'
 import { Route as KartenSatellitRouteImport } from './routes/karten.satellit'
 import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
@@ -21,6 +23,7 @@ import { Route as KartenNiederschlagRouteImport } from './routes/karten.niedersc
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
+import { Route as EmbedWarnungenRouteImport } from './routes/embed.warnungen'
 import { Route as EmbedSatellitLoopRouteImport } from './routes/embed.satellit-loop'
 import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
@@ -28,6 +31,7 @@ import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
+import { Route as ApiPublicWarningsAutoThunderRouteImport } from './routes/api/public/warnings/auto-thunder'
 import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/public/symbol/ingest-trigger'
 import { Route as ApiPublicSnapshotMapRouteImport } from './routes/api/public/snapshot/$map'
 import { Route as ApiPublicRadarProxyRouteImport } from './routes/api/public/radar/proxy'
@@ -48,6 +52,11 @@ const EmbedInfoRoute = EmbedInfoRouteImport.update({
   path: '/embed-info',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminWarnungenRoute = AdminWarnungenRouteImport.update({
+  id: '/admin-warnungen',
+  path: '/admin-warnungen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -61,6 +70,11 @@ const IndexRoute = IndexRouteImport.update({
 const KartenWindRoute = KartenWindRouteImport.update({
   id: '/karten/wind',
   path: '/karten/wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenWarnungenRoute = KartenWarnungenRouteImport.update({
+  id: '/karten/warnungen',
+  path: '/karten/warnungen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KartenSatellitRoute = KartenSatellitRouteImport.update({
@@ -98,6 +112,11 @@ const EmbedWindRoute = EmbedWindRouteImport.update({
   path: '/embed/wind',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmbedWarnungenRoute = EmbedWarnungenRouteImport.update({
+  id: '/embed/warnungen',
+  path: '/embed/warnungen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmbedSatellitLoopRoute = EmbedSatellitLoopRouteImport.update({
   id: '/embed/satellit-loop',
   path: '/embed/satellit-loop',
@@ -133,6 +152,12 @@ const EmbedAllRoute = EmbedAllRouteImport.update({
   path: '/embed/all',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWarningsAutoThunderRoute =
+  ApiPublicWarningsAutoThunderRouteImport.update({
+    id: '/api/public/warnings/auto-thunder',
+    path: '/api/public/warnings/auto-thunder',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicSymbolIngestTriggerRoute =
   ApiPublicSymbolIngestTriggerRouteImport.update({
     id: '/api/public/symbol/ingest-trigger',
@@ -188,6 +213,7 @@ const ApiPublicAromeIngestTriggerRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -197,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -204,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -214,10 +242,12 @@ export interface FileRoutesByFullPath {
   '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
+  '/api/public/warnings/auto-thunder': typeof ApiPublicWarningsAutoThunderRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -227,6 +257,7 @@ export interface FileRoutesByTo {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -234,6 +265,7 @@ export interface FileRoutesByTo {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -244,11 +276,13 @@ export interface FileRoutesByTo {
   '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
+  '/api/public/warnings/auto-thunder': typeof ApiPublicWarningsAutoThunderRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -258,6 +292,7 @@ export interface FileRoutesById {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
   '/karten/lokal': typeof KartenLokalRoute
@@ -265,6 +300,7 @@ export interface FileRoutesById {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -275,12 +311,14 @@ export interface FileRoutesById {
   '/api/public/radar/proxy': typeof ApiPublicRadarProxyRoute
   '/api/public/snapshot/$map': typeof ApiPublicSnapshotMapRoute
   '/api/public/symbol/ingest-trigger': typeof ApiPublicSymbolIngestTriggerRoute
+  '/api/public/warnings/auto-thunder': typeof ApiPublicWarningsAutoThunderRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/admin'
+    | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
     | '/embed/all'
@@ -290,6 +328,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/warnungen'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -297,6 +336,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -307,10 +347,12 @@ export interface FileRouteTypes {
     | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
+    | '/api/public/warnings/auto-thunder'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
+    | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
     | '/embed/all'
@@ -320,6 +362,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/warnungen'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -327,6 +370,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -337,10 +381,12 @@ export interface FileRouteTypes {
     | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
+    | '/api/public/warnings/auto-thunder'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
     | '/embed/all'
@@ -350,6 +396,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/warnungen'
     | '/embed/wind'
     | '/intern/icons'
     | '/karten/lokal'
@@ -357,6 +404,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -367,11 +415,13 @@ export interface FileRouteTypes {
     | '/api/public/radar/proxy'
     | '/api/public/snapshot/$map'
     | '/api/public/symbol/ingest-trigger'
+    | '/api/public/warnings/auto-thunder'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AdminWarnungenRoute: typeof AdminWarnungenRoute
   EmbedInfoRoute: typeof EmbedInfoRoute
   KarteRoute: typeof KarteRoute
   EmbedAllRoute: typeof EmbedAllRoute
@@ -381,6 +431,7 @@ export interface RootRouteChildren {
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
   EmbedSatellitRoute: typeof EmbedSatellitRoute
   EmbedSatellitLoopRoute: typeof EmbedSatellitLoopRoute
+  EmbedWarnungenRoute: typeof EmbedWarnungenRoute
   EmbedWindRoute: typeof EmbedWindRoute
   InternIconsRoute: typeof InternIconsRoute
   KartenLokalRoute: typeof KartenLokalRoute
@@ -388,6 +439,7 @@ export interface RootRouteChildren {
   KartenRadarRoute: typeof KartenRadarRoute
   KartenRegionRoute: typeof KartenRegionRoute
   KartenSatellitRoute: typeof KartenSatellitRoute
+  KartenWarnungenRoute: typeof KartenWarnungenRoute
   KartenWindRoute: typeof KartenWindRoute
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
@@ -398,6 +450,7 @@ export interface RootRouteChildren {
   ApiPublicRadarProxyRoute: typeof ApiPublicRadarProxyRoute
   ApiPublicSnapshotMapRoute: typeof ApiPublicSnapshotMapRoute
   ApiPublicSymbolIngestTriggerRoute: typeof ApiPublicSymbolIngestTriggerRoute
+  ApiPublicWarningsAutoThunderRoute: typeof ApiPublicWarningsAutoThunderRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -414,6 +467,13 @@ declare module '@tanstack/react-router' {
       path: '/embed-info'
       fullPath: '/embed-info'
       preLoaderRoute: typeof EmbedInfoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-warnungen': {
+      id: '/admin-warnungen'
+      path: '/admin-warnungen'
+      fullPath: '/admin-warnungen'
+      preLoaderRoute: typeof AdminWarnungenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -435,6 +495,13 @@ declare module '@tanstack/react-router' {
       path: '/karten/wind'
       fullPath: '/karten/wind'
       preLoaderRoute: typeof KartenWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/warnungen': {
+      id: '/karten/warnungen'
+      path: '/karten/warnungen'
+      fullPath: '/karten/warnungen'
+      preLoaderRoute: typeof KartenWarnungenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/karten/satellit': {
@@ -486,6 +553,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedWindRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/embed/warnungen': {
+      id: '/embed/warnungen'
+      path: '/embed/warnungen'
+      fullPath: '/embed/warnungen'
+      preLoaderRoute: typeof EmbedWarnungenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/embed/satellit-loop': {
       id: '/embed/satellit-loop'
       path: '/embed/satellit-loop'
@@ -533,6 +607,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/all'
       fullPath: '/embed/all'
       preLoaderRoute: typeof EmbedAllRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/warnings/auto-thunder': {
+      id: '/api/public/warnings/auto-thunder'
+      path: '/api/public/warnings/auto-thunder'
+      fullPath: '/api/public/warnings/auto-thunder'
+      preLoaderRoute: typeof ApiPublicWarningsAutoThunderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/symbol/ingest-trigger': {
@@ -604,6 +685,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AdminWarnungenRoute: AdminWarnungenRoute,
   EmbedInfoRoute: EmbedInfoRoute,
   KarteRoute: KarteRoute,
   EmbedAllRoute: EmbedAllRoute,
@@ -613,6 +695,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
   EmbedSatellitRoute: EmbedSatellitRoute,
   EmbedSatellitLoopRoute: EmbedSatellitLoopRoute,
+  EmbedWarnungenRoute: EmbedWarnungenRoute,
   EmbedWindRoute: EmbedWindRoute,
   InternIconsRoute: InternIconsRoute,
   KartenLokalRoute: KartenLokalRoute,
@@ -620,6 +703,7 @@ const rootRouteChildren: RootRouteChildren = {
   KartenRadarRoute: KartenRadarRoute,
   KartenRegionRoute: KartenRegionRoute,
   KartenSatellitRoute: KartenSatellitRoute,
+  KartenWarnungenRoute: KartenWarnungenRoute,
   KartenWindRoute: KartenWindRoute,
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
@@ -630,6 +714,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRadarProxyRoute: ApiPublicRadarProxyRoute,
   ApiPublicSnapshotMapRoute: ApiPublicSnapshotMapRoute,
   ApiPublicSymbolIngestTriggerRoute: ApiPublicSymbolIngestTriggerRoute,
+  ApiPublicWarningsAutoThunderRoute: ApiPublicWarningsAutoThunderRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

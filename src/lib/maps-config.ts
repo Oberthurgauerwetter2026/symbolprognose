@@ -1,6 +1,6 @@
-import { Map as MapIcon, MapPin, Wind, CloudRain, Droplets, Satellite, type LucideIcon } from "lucide-react";
+import { Map as MapIcon, MapPin, Wind, CloudRain, Droplets, Satellite, TriangleAlert, type LucideIcon } from "lucide-react";
 
-export type MapId = "region" | "lokal" | "wind" | "radar" | "niederschlag" | "satellit";
+export type MapId = "region" | "lokal" | "wind" | "radar" | "niederschlag" | "satellit" | "warnungen";
 
 export interface MapDefinition {
   id: MapId;
@@ -14,13 +14,31 @@ export interface MapDefinition {
     | "/karten/wind"
     | "/karten/radar"
     | "/karten/niederschlag"
-    | "/karten/satellit";
-  embedPath?: "/embed/region" | "/embed/lokal" | "/embed/wind" | "/embed/radar" | "/embed/satellit";
+    | "/karten/satellit"
+    | "/karten/warnungen";
+  embedPath?:
+    | "/embed/region"
+    | "/embed/lokal"
+    | "/embed/wind"
+    | "/embed/radar"
+    | "/embed/satellit"
+    | "/embed/warnungen";
   status: "live" | "coming-soon";
   internal?: boolean;
 }
 
 export const MAPS: MapDefinition[] = [
+  {
+    id: "warnungen",
+    label: "Wetterwarnungen",
+    shortLabel: "Warnungen",
+    description:
+      "Amtlich gestaltete Warnkarte für alle Gemeinden im Oberthurgau — Gewitter, Regen, Schnee, Strassenglätte, Wind und Frost in vier Gefahrenstufen.",
+    icon: TriangleAlert,
+    routePath: "/karten/warnungen",
+    embedPath: "/embed/warnungen",
+    status: "live",
+  },
   {
     id: "region",
     label: "Wetterkarte Region",

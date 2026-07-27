@@ -1,0 +1,79 @@
+/**
+ * Web-Push-Versand (VAPID, Cloudflare-Worker-kompatibel).
+ * Server-only.
+ */
+
+import { buildPushPayload, type PushSubscription } from "@block65/webcrypto-web-push";
+import { adminClient, type WarningRow } from "@/lib/warnings.server";
+
+interface SubRow {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  region_ids: string[];
+}
+
+function vapid() {
+  return {
+    subject: process.env.VAPID_SUBJECT ?? "mailto:info@example.com",
+    publicKey: process.env.VAPID_PUBLIC_KEY,
+    privateKey: process.env.VAPID_PRIVATE_KEY,
+  };
+}
+
+export async function sendPush(
+  sub: SubRow,
+  payload: { title: string; body: string; url: string; tag?: string },
+): Promise<boolean> {
+  const keys = vapid();
+  if (!keys.publicKey || !keys.privateKey) return false;
+  const subscription: PushSubscription = {
+    endpoint: sub.endpoint,
+    expirationTime: null,
+    keys: { auth: sub.auth, p256dh: sub.p256dh },
+  };
+  try {
+    const init = await buildPushPayload({ data: payload, options: { ttl: 3600 } }, subscription, keys);
+    const res = await fetch(sub.endpoint, init as unknown as RequestInit);
+    if (res.status === 404 || res.status === 410) {
+      const sb = await adminClient();
+      await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+      return false;
+    }
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Benachrichtigt alle Abos, die mindestens eine betroffene Gemeinde abonniert haben. */
+export async function notifyWarning(warningId: string): Promise<number> {
+  const sb = await adminClient();
+  const { data: w } = await sb.from("warnings").select("*").eq("id", warningId).single();
+  if (!w) return 0;
+  const warning = w as unknown as WarningRow;
+  const { data: links } = await sb.from("warning_regions").select("region_id").eq("warning_id", warningId);
+  const regionIds = ((links ?? []) as { region_id: string }[]).map((l) => l.region_id);
+  if (!regionIds.length) return 0;
+
+  const { data: subs } = await sb
+    .from("push_subscriptions")
+    .select("endpoint, p256dh, auth, region_ids")
+    .overlaps("region_ids", regionIds);
+
+  const { regionName } = await import("@/lib/warnings-config");
+  const names = regionIds.map((id) => regionName(id));
+  const list = names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ");
+
+  let sent = 0;
+  for (const s of (subs ?? []) as SubRow[]) {
+    const ok = await sendPush(s, {
+      title: warning.title || `Warnung Stufe ${warning.level}`,
+      body: `${list}: ${warning.description}`,
+      url: "/karten/warnungen",
+      tag: warning.id,
+    });
+    if (ok) sent++;
+  }
+  return sent;
+}
