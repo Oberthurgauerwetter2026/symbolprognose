@@ -14,6 +14,7 @@ import { Route as EmbedInfoRouteImport } from './routes/embed-info'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
+import { Route as KartenWarnungenRouteImport } from './routes/karten.warnungen'
 import { Route as KartenSatellitRouteImport } from './routes/karten.satellit'
 import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
@@ -61,6 +62,11 @@ const IndexRoute = IndexRouteImport.update({
 const KartenWindRoute = KartenWindRouteImport.update({
   id: '/karten/wind',
   path: '/karten/wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenWarnungenRoute = KartenWarnungenRouteImport.update({
+  id: '/karten/warnungen',
+  path: '/karten/warnungen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KartenSatellitRoute = KartenSatellitRouteImport.update({
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -297,6 +306,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -327,6 +337,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -357,6 +368,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -388,6 +400,7 @@ export interface RootRouteChildren {
   KartenRadarRoute: typeof KartenRadarRoute
   KartenRegionRoute: typeof KartenRegionRoute
   KartenSatellitRoute: typeof KartenSatellitRoute
+  KartenWarnungenRoute: typeof KartenWarnungenRoute
   KartenWindRoute: typeof KartenWindRoute
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
@@ -435,6 +448,13 @@ declare module '@tanstack/react-router' {
       path: '/karten/wind'
       fullPath: '/karten/wind'
       preLoaderRoute: typeof KartenWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/warnungen': {
+      id: '/karten/warnungen'
+      path: '/karten/warnungen'
+      fullPath: '/karten/warnungen'
+      preLoaderRoute: typeof KartenWarnungenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/karten/satellit': {
@@ -620,6 +640,7 @@ const rootRouteChildren: RootRouteChildren = {
   KartenRadarRoute: KartenRadarRoute,
   KartenRegionRoute: KartenRegionRoute,
   KartenSatellitRoute: KartenSatellitRoute,
+  KartenWarnungenRoute: KartenWarnungenRoute,
   KartenWindRoute: KartenWindRoute,
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
