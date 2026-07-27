@@ -459,7 +459,63 @@ export function WeatherWidget({
   );
 }
 
+/* ---------------- Warnungen ---------------- */
+
+function WarningStrip({
+  warnings,
+  compact = false,
+}: {
+  warnings: WarningDTO[];
+  compact?: boolean;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  if (!warnings.length) return null;
+  if (compact) {
+    return (
+      <div className="mb-2 flex flex-wrap items-center gap-1.5 px-1">
+        {warnings.map((w) => (
+          <WarningBadge key={w.id} warning={w} size="sm" />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {warnings.map((w) => {
+        const open = openId === w.id;
+        return (
+          <div key={w.id} className="rounded-md border border-zinc-200 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setOpenId(open ? null : w.id)}
+              className="flex w-full items-center gap-3 px-3 py-2 text-left"
+            >
+              <WarningBadge warning={w} />
+              <span className="text-xs font-semibold text-zinc-600">
+                {formatRange(w.validFrom, w.validTo)}
+              </span>
+              <span className="ml-auto text-xs text-zinc-500" aria-hidden>
+                {open ? "▲" : "▼"}
+              </span>
+            </button>
+            {open && (
+              <div className="space-y-1 border-t border-zinc-100 px-3 py-2 text-sm text-zinc-700">
+                {w.description && <p>{w.description}</p>}
+                {w.impact && <p className="text-zinc-600">{w.impact}</p>}
+                <a href="/karten/warnungen" className="inline-block pt-1 text-xs font-semibold text-accent">
+                  Zur Warnkarte
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ---------------- DataStamp ---------------- */
+
 
 function DataStamp({ updatedAt }: { updatedAt: number }) {
   if (!updatedAt) return null;
