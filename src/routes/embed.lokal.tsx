@@ -9,8 +9,6 @@ import { buildLokalNoscriptData } from "@/lib/embed-noscript.server";
 import { WeatherWidget } from "@/components/weather-widget";
 import { LokalNoscript } from "@/components/embeds/lokal-noscript";
 
-const AMRISWIL = { name: "Amriswil", lat: 47.5469, lon: 9.2986 };
-
 const searchSchema = z.object({
   day: fallback(z.number().int().min(0).max(6).optional(), undefined).optional(),
 });
@@ -21,9 +19,9 @@ export const Route = createFileRoute("/embed/lokal")({
   loader: async () => {
     setEmbedCacheHeaders();
     const noscript = await buildLokalNoscriptData({
-      name: AMRISWIL.name,
-      lat: AMRISWIL.lat,
-      lon: AMRISWIL.lon,
+      name: "Amriswil",
+      lat: 47.5469,
+      lon: 9.2986,
     });
     return { noscript };
   },
@@ -50,7 +48,7 @@ function EmbedLokal() {
               initialDayIdx={day}
               detailOnly
               compact
-              lockedLocation={{ name: AMRISWIL.name, latitude: AMRISWIL.lat, longitude: AMRISWIL.lon }}
+              lockedLocation={{ name: "Amriswil", latitude: 47.5469, longitude: 9.2986 }}
             />
           </EmbedShell>
         </EmbedErrorBoundary>
