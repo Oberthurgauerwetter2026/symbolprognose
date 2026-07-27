@@ -18,6 +18,12 @@ import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
 import { Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+import { useActiveWarnings } from "@/hooks/use-warnings";
+import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
+import { WarningBadge } from "@/components/warnings/warning-badge";
+import { formatRange } from "@/lib/warnings-config";
+import type { WarningDTO } from "@/lib/warnings.functions";
+
 
 /* Inline windsock icon — Lucide-style stroke. */
 function WindsockIcon({ className, "aria-label": ariaLabel }: { className?: string; "aria-label"?: string }) {
