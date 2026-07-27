@@ -182,8 +182,16 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setSaving(true);
     setMsg(null);
+    if (!form.regionIds.length) {
+      setMsg("Bitte mindestens eine Gemeinde auswählen.");
+      return;
+    }
+    if (![1, 2, 3].includes(form.level)) {
+      setMsg("Bitte eine gültige Warnstufe wählen.");
+      return;
+    }
+    setSaving(true);
     try {
       await saveWarning({
         data: {
