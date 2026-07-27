@@ -315,6 +315,12 @@ export function WeatherWidget({
     return out;
   }, [forecast.data, now]);
 
+  const allWarnings = useActiveWarnings();
+  const localWarnings = useMemo(() => {
+    if (!location) return [];
+    const rid = regionIdForPoint(location.latitude, location.longitude);
+    return warningsForRegion(allWarnings, rid);
+  }, [allWarnings, location]);
 
   if (detailOnly) {
     const wrapperPad = compact
@@ -323,7 +329,9 @@ export function WeatherWidget({
     return (
       <div ref={rootRef} className={`@container bg-zinc-100 text-zinc-900 antialiased font-medium ${wrapperPad}`}>
         <div className="max-w-5xl mx-auto">
+          <WarningStrip warnings={localWarnings} compact />
           {location && forecast.isLoading && <SkeletonWidget />}
+
           {location && forecast.isError && (
             <div className="p-6 bg-zinc-50 border border-zinc-200 rounded-sm text-sm text-zinc-600">
               Wetterdaten konnten nicht geladen werden. Bitte später erneut versuchen.
