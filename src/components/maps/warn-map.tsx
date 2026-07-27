@@ -276,7 +276,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   return (
     <div className={cn("@container space-y-3", className)}>
       {/* Banner mit Gefahrenarten */}
-      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-2 shadow-sm sm:flex-wrap sm:overflow-visible">
+      <div className="flex flex-nowrap items-center gap-2 overflow-x-auto rounded-xl border border-border bg-card p-2.5 shadow-sm sm:flex-wrap sm:overflow-visible">
         <button
           type="button"
           onClick={() => {
@@ -284,7 +284,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             setSelected(null);
           }}
           className={cn(
-            "shrink-0 rounded-lg px-3 py-2 text-xs font-semibold transition",
+            "shrink-0 rounded-lg px-3.5 py-2.5 text-sm font-semibold transition",
             hazard === "alle" ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70",
           )}
         >
@@ -304,7 +304,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               }}
               title={h.label}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition",
+                "flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition",
                 on ? "border-foreground" : "border-transparent hover:bg-muted/60",
               )}
               style={
@@ -313,27 +313,28 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                   : undefined
               }
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-5 w-5" />
               <span className="hidden @sm:inline">{h.label}</span>
-              {lvl > 0 && <span className="rounded bg-black/15 px-1 text-[10px] font-bold">{lvl}</span>}
+              {lvl > 0 && <span className="rounded bg-black/15 px-1.5 text-xs font-bold">{lvl}</span>}
             </button>
           );
         })}
-        <div className="ml-auto flex shrink-0 items-center gap-2 pr-1 text-xs text-muted-foreground">
-          {query.isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        <div className="ml-auto flex shrink-0 items-center gap-2 pr-1 text-sm text-muted-foreground">
+          {query.isFetching && <Loader2 className="h-4 w-4 animate-spin" />}
           {maxLevel === 0 ? (
-            <span className="flex items-center gap-1.5 font-medium text-foreground">
-              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: LEVELS[0].color }} />
+            <span className="flex items-center gap-1.5 font-semibold text-foreground">
+              <span className="inline-block h-3 w-3 rounded-full" style={{ background: LEVELS[0].color }} />
               Keine Warnungen aktiv
             </span>
           ) : (
-            <span className="flex items-center gap-1.5 font-medium text-foreground">
-              <AlertTriangle className="h-3.5 w-3.5" />
+            <span className="flex items-center gap-1.5 font-semibold text-foreground">
+              <AlertTriangle className="h-4 w-4" />
               Höchste Stufe {maxLevel}
             </span>
           )}
         </div>
       </div>
+
 
       <div className={cn("grid gap-3", bare ? "grid-cols-1" : "@3xl:grid-cols-[1fr_320px]")}>
         <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-[560px]">
