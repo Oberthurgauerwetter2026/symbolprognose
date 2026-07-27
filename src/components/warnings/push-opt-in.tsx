@@ -32,7 +32,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [msg, setMsg] = useState<string | null>(null);
   const [msgKind, setMsgKind] = useState<"ok" | "error">("ok");
   const [howOpen, setHowOpen] = useState(false);
-  const [regionIds, setRegionIds] = useState<string[]>(() => REGIONS.map((r) => r.id));
+  const [regionIds, setRegionIds] = useState<string[]>([]);
 
   useEffect(() => {
     setSupported(
@@ -44,9 +44,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     });
   }, []);
 
-  useEffect(() => {
-    if (defaultRegionId) setRegionIds([defaultRegionId]);
-  }, [defaultRegionId]);
+  // Bewusst keine Vorauswahl: die Nutzerin wählt ihre Gemeinden selbst.
+  void defaultRegionId;
 
   const toggleRegion = (id: string) =>
     setRegionIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
