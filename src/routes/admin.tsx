@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type FormEvent } from "react";
 import { SPOTS } from "@/data/spots";
 import { nearestMosmixStation } from "@/data/mosmix-stations";
+import { checkAdminLogin } from "@/lib/warnings.functions";
 
-
-const ADMIN_PASSWORD = "wetter2026";
 const STORAGE_KEY = "wx_admin_unlocked";
 
 export const Route = createFileRoute("/admin")({
@@ -21,6 +21,8 @@ function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const login = useServerFn(checkAdminLogin);
 
   useEffect(() => {
     if (typeof window !== "undefined" && sessionStorage.getItem(STORAGE_KEY) === "1") {
@@ -28,14 +30,22 @@ function AdminPage() {
     }
   }, []);
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (pw === ADMIN_PASSWORD) {
-      sessionStorage.setItem(STORAGE_KEY, "1");
-      setUnlocked(true);
-      setError("");
-    } else {
-      setError("Falsches Passwort.");
+    setBusy(true);
+    setError("");
+    try {
+      const res = await login({ data: { password: pw } });
+      if (res.ok) {
+        sessionStorage.setItem(STORAGE_KEY, "1");
+        setUnlocked(true);
+      } else {
+        setError("Falsches Passwort.");
+      }
+    } catch {
+      setError("Anmeldung fehlgeschlagen.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -44,6 +54,7 @@ function AdminPage() {
     setUnlocked(false);
     setPw("");
   };
+
 
   if (!unlocked) {
     return (
@@ -66,10 +77,12 @@ function AdminPage() {
           {error && <p className="text-xs text-red-600">{error}</p>}
           <button
             type="submit"
-            className="w-full bg-zinc-900 text-white text-sm font-medium py-2 rounded-sm hover:bg-zinc-800"
+            disabled={busy}
+            className="w-full bg-zinc-900 text-white text-sm font-medium py-2 rounded-sm hover:bg-zinc-800 disabled:opacity-60"
           >
-            Entsperren
+            {busy ? "Prüfen …" : "Entsperren"}
           </button>
+
         </form>
       </div>
     );

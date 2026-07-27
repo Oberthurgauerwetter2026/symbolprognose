@@ -1,36 +1,27 @@
-# Warnhinweise in Symbol- und Lokalprognose
+## Ausgangslage (geprüft)
 
-Aktive Warnungen sollen nicht nur auf `/karten/warnungen` sichtbar sein, sondern auch dort, wo Nutzer die Prognose lesen: in der Symbolprognose (Regionkarte) und in der Lokalprognose (Wetter-Widget) – jeweils als Gefahrensymbol in der Warnfarbe (Gelb/Orange/Rot).
+- `/admin-warnungen` prüft das Passwort serverseitig gegen den Geheimwert `WARN_ADMIN_PASSWORD` (`src/lib/warnings.server.ts:101`, Server-Funktion `checkAdminLogin`).
+- `/admin` hat das Passwort noch fest im Frontend-Code stehen: `const ADMIN_PASSWORD = "wetter2026"` (`src/routes/admin.tsx:7`). Es ist damit erstens veraltet und zweitens für jeden im Browser lesbar.
 
-## Gemeinsame Basis
+## Ziel
 
-- Neues Hilfsmodul `src/lib/warnings-lookup.ts` (client-safe):
-  - `regionIdForPoint(lat, lon)` – Punkt-in-Polygon gegen `src/data/region.json`, Fallback: nächstgelegener Gemeindemittelpunkt.
-  - `topWarningFor(warnings, regionId)` – höchste Stufe, bei Gleichstand die früher endende.
-- Neue kleine Komponente `src/components/warnings/warning-badge.tsx`: Gefahren-Icon aus `HAZARDS` auf farbigem Chip (`LEVELS[level].color`), Grösse `sm`/`md`, Tooltip/Titel = Warntitel + Gültigkeit.
-- Datenquelle: bestehende Server-Funktion `listWarnings` (öffentlich, kein Auth), im Client via TanStack Query mit ~5 Min. Refetch.
+Beide Admin-Bereiche nutzen dasselbe, im Backend hinterlegte Passwort. Es gibt nur noch eine Stelle, an der es geändert werden muss.
 
-## Lokalprognose (`src/components/weather-widget.tsx`)
+## Umsetzung
 
-- Warnungen laden und über die aktuelle Koordinate die Region bestimmen.
-- Im Kopfbereich (neben Ortsname/aktueller Temperatur) eine Warnzeile: farbiges Gefahren-Icon + Titel („Gewitterwarnung (Stufe 2)“) + Zeitraum; mehrere Warnungen als Chip-Reihe.
-- Klick/Aufklappen zeigt Beschreibung und Auswirkung; Link auf `/karten/warnungen`.
-- Im `compact`/`detailOnly`-Embed-Modus nur die Chip-Reihe (kein Aufklapp-Text), damit die Embed-Höhe stabil bleibt.
-- Kein Rendering, wenn keine Warnung aktiv ist – Layout bleibt unverändert.
+1. `src/routes/admin.tsx`
+   - Hartkodiertes Passwort und den lokalen Vergleich entfernen.
+   - Login-Formular ruft die bestehende Server-Funktion `checkAdminLogin` auf (aus `src/lib/warnings.functions.ts`) und entsperrt nur bei `ok: true`.
+   - Ladezustand am Button („Prüfen …“) und Fehlermeldung „Falsches Passwort.“ beibehalten.
+   - Entsperr-Merker bleibt wie bisher in `sessionStorage` (`wx_admin_unlocked`), damit ein Reload nicht ausloggt; Abmelden löscht ihn.
 
-## Symbolprognose (`src/components/region-map.tsx`)
+2. Keine Änderungen an `/admin-warnungen`, an der Datenbank oder am Geheimwert nötig – dort läuft die Prüfung bereits über `WARN_ADMIN_PASSWORD`.
 
-- Warnungen laden, jedem Spot aus `src/data/spots.ts` per Koordinate eine Gemeinde zuordnen.
-- Am Spot-Marker zusätzlich ein kleines Gefahren-Icon in Warnfarbe (oben rechts am Symbol), damit das Wettersymbol selbst lesbar bleibt.
-- Optional dezenter farbiger Rahmen um das Marker-Label in der Stufenfarbe.
-- Popup/Tooltip des Spots ergänzt um Warntitel und Gültigkeit.
+## Hinweis
 
-## Noscript-/Embed-Fallbacks
+Das aktuell gültige Passwort ist das, das zuletzt für `WARN_ADMIN_PASSWORD` gesetzt wurde. Falls du es neu setzen willst, kann ich dafür das sichere Eingabeformular öffnen – danach gilt es automatisch für beide Seiten.
 
-- `src/components/embeds/lokal-noscript.tsx` erhält eine optionale Warnzeile; die Daten kommen aus dem Loader (`buildLokalNoscriptData` bzw. ergänzend `readActiveWarnings`) in `embed.lokal.tsx` und `embed.region-lokal.tsx`, damit der JS-freie Fallback dieselbe Warnung zeigt.
+## Technische Details
 
-## Technische Hinweise
-
-- Kein Schema- oder Backend-Umbau; nur Lesen über die bestehende öffentliche `listWarnings`-Funktion und die vorhandenen RLS-Policies.
-- Farben ausschliesslich aus `LEVELS` in `src/lib/warnings-config.ts`, keine neuen Hardcodes.
-- Point-in-Polygon rein geometrisch (Ray-Casting) auf dem bereits gebündelten `region.json`, kein zusätzlicher Netzwerk-Call.
+- `useServerFn(checkAdminLogin)` im Login-Handler, `await` mit `{ data: { password: pw } }`, Fehler abfangen und als generische Meldung anzeigen (keine Server-Details ins UI).
+- `/admin` bleibt eine reine Info-Seite (Modelle, MOSMIX-Zuordnung, Embed-Snippet), enthält also keine geheimen Inhalte; das Gate ist weiterhin nur ein einfacher Zugangsschutz, keine echte Benutzerverwaltung.
