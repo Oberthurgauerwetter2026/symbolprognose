@@ -63,6 +63,11 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 import { SPOTS, type Spot } from "@/data/spots";
+import { useActiveWarnings } from "@/hooks/use-warnings";
+import { regionIdForPoint, topWarningFor } from "@/lib/warnings-lookup";
+import { getHazard, LEVELS, type HazardId, type WarnLevel } from "@/lib/warnings-config";
+import type { WarningDTO } from "@/lib/warnings.functions";
+
 
 const BRAND = "#2561a1";
 
