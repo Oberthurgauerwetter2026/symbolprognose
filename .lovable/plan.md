@@ -1,12 +1,21 @@
-## Ziel
-Gemeindenamen auf der Warnkarte etwas kleiner darstellen und exakt in der Gemeindefläche zentrieren (aktuell laufen alle Namen nach rechts aus).
+## Warum die Meldung erscheint
 
-## Ursache
-In `src/components/maps/warn-map.tsx` erzeugt `labelIcon` ein DivIcon mit `iconSize: [0,0]`. Das innere `<div>` ist ein Block-Element und erbt damit die Breite 0; der Text mit `white-space:nowrap` fliesst nach rechts aus dem Element heraus. Das `translate(-50%,-50%)` bezieht sich auf diese Breite 0 und verschiebt daher nichts horizontal – der Name steht rechts vom Ankerpunkt statt darüber.
+In `src/components/warnings/push-opt-in.tsx` (Zeile 63/64) wird beim Klick auf „Benachrichtigungen aktivieren“ `Notification.requestPermission()` aufgerufen. Liefert der Browser etwas anderes als `"granted"` zurück, wird pauschal „Benachrichtigungen wurden nicht erlaubt.“ angezeigt.
 
-## Umsetzung
-1. `labelIcon` in `src/components/maps/warn-map.tsx`:
-   - Inneres Element auf `display:inline-block; width:max-content` umstellen (bzw. `position:absolute; left:0; top:0; transform:translate(-50%,-50%)`), damit die Verschiebung um die tatsächliche Textbreite erfolgt und der Name mittig über dem Ankerpunkt sitzt.
-   - Schriftgrössen reduzieren: gewarnte Gemeinden 14 → 12 px, ungewarnte 13 → 11 px; Halo/Textschatten leicht anpassen, damit die Lesbarkeit bei kleinerer Schrift erhalten bleibt.
-2. Ankerpunkt bleibt der bestehende „Pole of Inaccessibility“ (`labelPoint`) – dieser liegt bereits innerhalb der Fläche; mit der korrigierten Zentrierung sitzt der Text nun symmetrisch darum.
-3. Prüfung im Browser (Playwright-Screenshot der Route `/karten/warnungen`, Desktop und schmale Breite), ob alle Namen innerhalb ihrer Gemeinde liegen und lesbar bleiben.
+Typische Ursachen, die aktuell alle gleich aussehen:
+1. **Vorschau im eingebetteten Fenster** – die App läuft in der Lovable-Vorschau in einem Frame; Browser lehnen die Berechtigungsabfrage dort ohne Rückfrage ab. In der veröffentlichten Version bzw. in einem eigenen Tab funktioniert sie.
+2. **Berechtigung früher abgelehnt** (`Notification.permission === "denied"`) – der Browser fragt dann nie wieder; man muss die Einstellung in der Adressleiste/Website-Einstellungen zurücksetzen.
+3. **Dialog weggeklickt** (`"default"`) – einfach nochmals versuchen.
+4. **iPhone/iPad** – Push funktioniert nur, wenn die Seite zuvor über „Zum Home-Bildschirm“ installiert wurde.
+
+## Vorgeschlagene Verbesserung
+
+In `src/components/warnings/push-opt-in.tsx`:
+- Vor dem Aufruf prüfen, ob die Seite in einem Frame läuft (`window.top !== window.self`) und dann statt der generischen Fehlermeldung den Hinweis „Bitte die Seite in einem eigenen Browser-Tab öffnen“ mit Link auf die Seite (`target="_blank"`) zeigen.
+- Rückgabewert differenziert auswerten:
+  - `denied` → Text „Benachrichtigungen sind für diese Seite blockiert. In den Website-Einstellungen des Browsers (Schloss-Symbol in der Adressleiste) wieder erlauben und erneut versuchen.“
+  - `default` → „Die Abfrage wurde abgebrochen – bitte nochmals auf ‚Benachrichtigungen aktivieren‘ tippen.“
+- Zusätzlich beim Laden `Notification.permission` auslesen und bei `denied` schon vorab einen Hinweis über dem Button einblenden, statt erst nach dem Klick.
+- iOS-Hinweis (Home-Bildschirm) wird im bestehenden Ausklapper „Wie funktioniert das?“ prominenter platziert.
+
+Keine Backend-Änderungen nötig.

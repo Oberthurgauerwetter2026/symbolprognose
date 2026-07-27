@@ -34,11 +34,21 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [howOpen, setHowOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>([]);
+  const [blocked, setBlocked] = useState(false);
+  const [framed, setFramed] = useState(false);
+  const [pageUrl, setPageUrl] = useState("");
 
   useEffect(() => {
     setSupported(
       typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window,
     );
+    try {
+      setFramed(window.top !== window.self);
+    } catch {
+      setFramed(true);
+    }
+    setPageUrl(window.location.href);
+    if (typeof Notification !== "undefined") setBlocked(Notification.permission === "denied");
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
       const sub = await reg?.pushManager.getSubscription();
       setSubscribed(Boolean(sub));
@@ -61,7 +71,20 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     setMsg(null);
     try {
       const perm = await Notification.requestPermission();
-      if (perm !== "granted") throw new Error("Benachrichtigungen wurden nicht erlaubt.");
+      if (perm === "denied") {
+        setBlocked(true);
+        throw new Error(
+          framed
+            ? "Im eingebetteten Vorschaufenster erlaubt der Browser keine Benachrichtigungen. Bitte die Seite in einem eigenen Browser-Tab öffnen und dort nochmals aktivieren."
+            : "Benachrichtigungen sind für diese Seite blockiert. Über das Schloss-Symbol in der Adressleiste unter „Website-Einstellungen“ wieder erlauben und erneut versuchen.",
+        );
+      }
+      if (perm !== "granted") {
+        throw new Error(
+          "Die Abfrage wurde abgebrochen – bitte nochmals auf „Benachrichtigungen aktivieren“ tippen und im Browser-Dialog „Erlauben“ wählen.",
+        );
+      }
+
       const { publicKey } = await getPushPublicKey();
       if (!publicKey) throw new Error("Push ist auf dem Server nicht konfiguriert.");
       const reg = await navigator.serviceWorker.register("/push-sw.js");
@@ -194,12 +217,35 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         </div>
       )}
 
+      {!subscribed && (framed || blocked) && (
+        <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-[13px] leading-relaxed text-foreground">
+          {framed
+            ? "Hinweis: In diesem eingebetteten Vorschaufenster blockiert der Browser die Berechtigungsabfrage."
+            : "Hinweis: Benachrichtigungen sind für diese Seite im Browser blockiert – bitte über das Schloss-Symbol in der Adressleiste wieder erlauben."}
+          {framed && pageUrl ? (
+            <>
+              {" "}
+              <a
+                href={pageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold underline underline-offset-2"
+              >
+                Seite in eigenem Tab öffnen
+              </a>
+              .
+            </>
+          ) : null}
+        </p>
+      )}
 
       {subscribed && (
         <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
           Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden.
         </p>
       )}
+
+
 
       <button
         type="button"
@@ -232,21 +278,27 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
           Wie funktioniert das?
         </button>
         {howOpen && (
-          <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-muted-foreground">
-
-            <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
-            <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis.</li>
-            <li>
-              Sobald für eine deiner Gemeinden eine Warnung ausgegeben wird (manuell oder automatisch
-              bei Gewitterzug), erhältst du eine Meldung.
-            </li>
-            <li>Ein Tipp auf die Meldung öffnet die Warnkarte.</li>
-            <li>
-              Hinweis iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert
-              werden, sonst erlaubt iOS keine Push-Meldungen.
-            </li>
-          </ol>
+          <div className="mt-2 space-y-2">
+            <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-[13px] font-medium leading-relaxed text-foreground">
+              iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert und
+              von dort geöffnet werden – sonst erlaubt iOS gar keine Push-Meldungen.
+            </p>
+            <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-muted-foreground">
+              <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
+              <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis, dort „Erlauben“ wählen.</li>
+              <li>
+                Sobald für eine deiner Gemeinden eine Warnung ausgegeben wird (manuell oder automatisch
+                bei Gewitterzug), erhältst du eine Meldung.
+              </li>
+              <li>Ein Tipp auf die Meldung öffnet die Warnkarte.</li>
+              <li>
+                Klappt es nicht: Die Seite in einem eigenen Browser-Tab (nicht im eingebetteten
+                Vorschaufenster) öffnen und prüfen, ob Benachrichtigungen für die Seite blockiert sind.
+              </li>
+            </ol>
+          </div>
         )}
+
       </div>
     </div>
   );
