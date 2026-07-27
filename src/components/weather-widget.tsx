@@ -391,6 +391,10 @@ export function WeatherWidget({
           onToggleSnow={setSnow}
         />
 
+        <WarningStrip warnings={localWarnings} />
+
+
+
         {!location && (
           <div className="p-8 bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2">
             <div className="text-2xl" aria-hidden>↑</div>
