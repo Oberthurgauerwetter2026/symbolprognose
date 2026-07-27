@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/public/warnings/auto-thunder")({
         try {
           const { runAutoThunder } = await import("@/lib/auto-thunder.server");
           const result = await runAutoThunder();
-          return Response.json({ ok: true, ...result });
+          return Response.json({ ok: true, ...result }, { status: 202 });
         } catch (err) {
           return Response.json(
             { ok: false, error: err instanceof Error ? err.message : "unknown" },
