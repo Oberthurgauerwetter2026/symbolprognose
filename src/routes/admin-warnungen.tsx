@@ -133,7 +133,8 @@ function emptyForm(): FormState {
     value: "",
     title: warningTitle("gewitter", 1),
     description: fillTemplate(TEMPLATES.gewitter[1].description),
-    impact: TEMPLATES.gewitter[1].impact,
+    impact: templateImpact(TEMPLATES.gewitter[1]),
+
     regionIds: [],
     active: true,
   };
