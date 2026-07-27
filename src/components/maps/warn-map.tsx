@@ -297,7 +297,10 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <button
               key={h.id}
               type="button"
-              onClick={() => setHazard(h.id)}
+              onClick={() => {
+                setHazard(h.id);
+                setSelected(null);
+              }}
               title={h.label}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition",
