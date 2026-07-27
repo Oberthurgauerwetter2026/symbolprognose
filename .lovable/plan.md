@@ -1,27 +1,27 @@
-## Ausgangslage (geprüft)
+## Ausgangslage
 
-- `/admin-warnungen` prüft das Passwort serverseitig gegen den Geheimwert `WARN_ADMIN_PASSWORD` (`src/lib/warnings.server.ts:101`, Server-Funktion `checkAdminLogin`).
-- `/admin` hat das Passwort noch fest im Frontend-Code stehen: `const ADMIN_PASSWORD = "wetter2026"` (`src/routes/admin.tsx:7`). Es ist damit erstens veraltet und zweitens für jeden im Browser lesbar.
+In der Benachrichtigungs-Box (`src/components/warnings/push-opt-in.tsx`) sind alle Gemeinden per Default ausgewählt. Ausgewählt = dunkler Chip (schwarz), nicht ausgewählt = grauer Chip. Das ist heute nur an der Farbe erkennbar, ohne Beschriftung, Häkchen oder Zähler — genau der Punkt, den du bemängelst.
 
-## Ziel
+## So funktioniert die Benachrichtigung heute
 
-Beide Admin-Bereiche nutzen dasselbe, im Backend hinterlegte Passwort. Es gibt nur noch eine Stelle, an der es geändert werden muss.
+1. Du wählst Gemeinden und klickst „Benachrichtigungen aktivieren“.
+2. Der Browser fragt nach Erlaubnis; danach wird ein kleiner Hintergrunddienst (`public/push-sw.js`) registriert und ein Abo (Endpoint + Schlüssel + Gemeindeliste) in der Datenbank gespeichert.
+3. Sobald im Admin-Tool eine Warnung „sofort aktiv“ gespeichert wird (oder die Auto-Gewitterwarnung greift), sucht der Server alle Abos, deren Gemeindeliste sich mit den Warnregionen überschneidet, und schickt ihnen eine Push-Nachricht (Titel, Gemeinden, Beschreibung, Link auf die Warnkarte).
+4. Klick auf die Meldung öffnet `/karten/warnungen`.
+5. Voraussetzungen: HTTPS-Seite (Preview/veröffentlichte Domain), auf iPhone/iPad muss die Seite zuerst zum Home-Bildschirm hinzugefügt werden, sonst sind Push-Meldungen systemseitig nicht möglich.
 
-## Umsetzung
+## Was ich ändere (nur UI/Verständlichkeit)
 
-1. `src/routes/admin.tsx`
-   - Hartkodiertes Passwort und den lokalen Vergleich entfernen.
-   - Login-Formular ruft die bestehende Server-Funktion `checkAdminLogin` auf (aus `src/lib/warnings.functions.ts`) und entsperrt nur bei `ok: true`.
-   - Ladezustand am Button („Prüfen …“) und Fehlermeldung „Falsches Passwort.“ beibehalten.
-   - Entsperr-Merker bleibt wie bisher in `sessionStorage` (`wx_admin_unlocked`), damit ein Reload nicht ausloggt; Abmelden löscht ihn.
-
-2. Keine Änderungen an `/admin-warnungen`, an der Datenbank oder am Geheimwert nötig – dort läuft die Prüfung bereits über `WARN_ADMIN_PASSWORD`.
-
-## Hinweis
-
-Das aktuell gültige Passwort ist das, das zuletzt für `WARN_ADMIN_PASSWORD` gesetzt wurde. Falls du es neu setzen willst, kann ich dafür das sichere Eingabeformular öffnen – danach gilt es automatisch für beide Seiten.
+1. **Gemeinde-Chips eindeutig machen**
+   - Ausgewählte Chips: Häkchen-Icon + Farbe, nicht ausgewählte: leerer Kreis, deutlich blasser + Rahmen.
+   - `aria-pressed` für Screenreader/Barrierefreiheit.
+2. **Kopfzeile über der Liste**: „Gewählte Gemeinden: X von Y“ plus die Aktionen „Alle“ / „Keine“.
+3. **Aktiv-Button klarer**
+   - Bei 0 gewählten Gemeinden ist „Benachrichtigungen aktivieren“ deaktiviert mit Hinweistext „Mindestens eine Gemeinde wählen“ (statt still auf „alle“ zurückzufallen).
+   - Im aktivierten Zustand: grüner Status-Hinweis „Aktiv für X Gemeinden“ über dem Ausschalten-Button.
+4. **Kurzer Erklärtext / Ausklapper „Wie funktioniert das?“** mit den Punkten 1–5 oben in Kurzform, inkl. iOS-Hinweis (Home-Bildschirm).
+5. **Statusmeldungen** (aktiviert / abgelehnt / nicht unterstützt) bleiben, werden aber farblich als Erfolg bzw. Fehler unterschieden.
 
 ## Technische Details
 
-- `useServerFn(checkAdminLogin)` im Login-Handler, `await` mit `{ data: { password: pw } }`, Fehler abfangen und als generische Meldung anzeigen (keine Server-Details ins UI).
-- `/admin` bleibt eine reine Info-Seite (Modelle, MOSMIX-Zuordnung, Embed-Snippet), enthält also keine geheimen Inhalte; das Gate ist weiterhin nur ein einfacher Zugangsschutz, keine echte Benutzerverwaltung.
+Alle Änderungen bleiben in `src/components/warnings/push-opt-in.tsx`; Server-Funktionen, Datenbank und Versandlogik werden nicht angefasst. Farben über bestehende Design-Tokens, keine fixen Hex-Werte.
