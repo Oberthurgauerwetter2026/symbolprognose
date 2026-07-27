@@ -205,7 +205,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         type="button"
         disabled={busy || (!subscribed && none)}
         onClick={subscribed ? unsubscribe : subscribe}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-3 text-sm font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -227,12 +227,13 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         <button
           type="button"
           onClick={() => setHowOpen((v) => !v)}
-          className="text-sm font-medium text-foreground underline underline-offset-2"
+          className="text-[13px] font-medium text-muted-foreground underline underline-offset-2"
         >
           Wie funktioniert das?
         </button>
         {howOpen && (
-          <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground">
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-muted-foreground">
+
             <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
             <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis.</li>
             <li>
