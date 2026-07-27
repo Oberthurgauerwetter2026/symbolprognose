@@ -172,6 +172,7 @@ function MarkerPill({
   cloudLow,
   cloudMid,
   cloudHigh,
+  warning,
 }: {
   name: string;
   mode: "hourly" | "daily";
@@ -190,7 +191,10 @@ function MarkerPill({
   cloudLow?: number;
   cloudMid?: number;
   cloudHigh?: number;
+  warning?: WarningDTO | null;
 }) {
+  const warnLevel = warning ? LEVELS[(Math.max(1, Math.min(3, warning.level)) as WarnLevel)] : null;
+  const WarnIcon = warning ? getHazard(warning.hazard as HazardId).icon : null;
   return (
     <div
       className={MARKER_PILL_CLASS}
@@ -201,7 +205,7 @@ function MarkerPill({
         padding: "8px 16px 8px 28px",
         borderRadius: 999,
         background: BRAND,
-        border: "1px solid rgba(255,255,255,0.25)",
+        border: warnLevel ? `2px solid ${warnLevel.color}` : "1px solid rgba(255,255,255,0.25)",
         boxShadow: "0 2px 8px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.10)",
         fontFamily: '"Figtree", system-ui, sans-serif',
         color: "#fff",
@@ -211,6 +215,28 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
+      {warnLevel && WarnIcon && (
+        <span
+          style={{
+            position: "absolute",
+            top: -10,
+            right: -8,
+            width: 24,
+            height: 24,
+            borderRadius: 999,
+            background: warnLevel.color,
+            color: warnLevel.textOnColor,
+            border: "1.5px solid rgba(255,255,255,0.9)",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <WarnIcon width={15} height={15} strokeWidth={2.4} />
+        </span>
+      )}
+
       <span
         style={{
           position: "absolute",
