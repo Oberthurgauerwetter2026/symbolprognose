@@ -63,6 +63,11 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 import { SPOTS, type Spot } from "@/data/spots";
+import { useActiveWarnings } from "@/hooks/use-warnings";
+import { regionIdForPoint, topWarningFor } from "@/lib/warnings-lookup";
+import { getHazard, LEVELS, type HazardId, type WarnLevel } from "@/lib/warnings-config";
+import type { WarningDTO } from "@/lib/warnings.functions";
+
 
 const BRAND = "#2561a1";
 
@@ -167,6 +172,7 @@ function MarkerPill({
   cloudLow,
   cloudMid,
   cloudHigh,
+  warning,
 }: {
   name: string;
   mode: "hourly" | "daily";
@@ -185,7 +191,10 @@ function MarkerPill({
   cloudLow?: number;
   cloudMid?: number;
   cloudHigh?: number;
+  warning?: WarningDTO | null;
 }) {
+  const warnLevel = warning ? LEVELS[(Math.max(1, Math.min(3, warning.level)) as WarnLevel)] : null;
+  const WarnIcon = warning ? getHazard(warning.hazard as HazardId).icon : null;
   return (
     <div
       className={MARKER_PILL_CLASS}
@@ -196,7 +205,7 @@ function MarkerPill({
         padding: "8px 16px 8px 28px",
         borderRadius: 999,
         background: BRAND,
-        border: "1px solid rgba(255,255,255,0.25)",
+        border: warnLevel ? `2px solid ${warnLevel.color}` : "1px solid rgba(255,255,255,0.25)",
         boxShadow: "0 2px 8px rgba(0,0,0,0.18), 0 1px 2px rgba(0,0,0,0.10)",
         fontFamily: '"Figtree", system-ui, sans-serif',
         color: "#fff",
@@ -206,6 +215,28 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
+      {warnLevel && WarnIcon && (
+        <span
+          style={{
+            position: "absolute",
+            top: -10,
+            right: -8,
+            width: 24,
+            height: 24,
+            borderRadius: 999,
+            background: warnLevel.color,
+            color: warnLevel.textOnColor,
+            border: "1.5px solid rgba(255,255,255,0.9)",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <WarnIcon width={15} height={15} strokeWidth={2.4} />
+        </span>
+      )}
+
       <span
         style={{
           position: "absolute",
@@ -306,6 +337,7 @@ function SpotMarker({
   absoluteHour,
   onClick,
   data,
+  warning,
 }: {
   spot: Spot;
   mode: "hourly" | "daily";
@@ -313,7 +345,9 @@ function SpotMarker({
   absoluteHour: number;
   onClick: () => void;
   data: ForecastResponse | undefined;
+  warning?: WarningDTO | null;
 }) {
+
 
 
   const icon = useMemo(() => {
@@ -417,6 +451,7 @@ function SpotMarker({
           cloudLow={cloudLow}
           cloudMid={cloudMid}
           cloudHigh={cloudHigh}
+          warning={warning}
         />,
       ),
     );
@@ -428,7 +463,8 @@ function SpotMarker({
       iconSize: [ICON_W, ICON_H],
       iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
-  }, [data, mode, dayIdx, absoluteHour, spot]);
+  }, [data, mode, dayIdx, absoluteHour, spot, warning]);
+
 
 
   return (
@@ -604,6 +640,16 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
   });
+
+  // Aktive Warnungen je Spot (Gemeinde per Punkt-in-Polygon).
+  const activeWarnings = useActiveWarnings();
+  const spotWarnings = useMemo(() => {
+    const out: Record<string, WarningDTO | null> = {};
+    for (const s of SPOTS) {
+      out[s.id] = topWarningFor(activeWarnings, regionIdForPoint(s.lat, s.lon));
+    }
+    return out;
+  }, [activeWarnings]);
 
 
   const days = useMemo(() => {
@@ -798,6 +844,8 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               absoluteHour={absoluteHour}
               onClick={() => goToLokal(s)}
               data={forecasts?.[s.id]}
+              warning={spotWarnings[s.id]}
+
             />
           ))}
           <ZoomControl position="topright" />

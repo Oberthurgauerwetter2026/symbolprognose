@@ -18,6 +18,12 @@ import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
 import { Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+import { useActiveWarnings } from "@/hooks/use-warnings";
+import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
+import { WarningBadge } from "@/components/warnings/warning-badge";
+import { formatRange } from "@/lib/warnings-config";
+import type { WarningDTO } from "@/lib/warnings.functions";
+
 
 /* Inline windsock icon — Lucide-style stroke. */
 function WindsockIcon({ className, "aria-label": ariaLabel }: { className?: string; "aria-label"?: string }) {
@@ -309,6 +315,12 @@ export function WeatherWidget({
     return out;
   }, [forecast.data, now]);
 
+  const allWarnings = useActiveWarnings();
+  const localWarnings = useMemo(() => {
+    if (!location) return [];
+    const rid = regionIdForPoint(location.latitude, location.longitude);
+    return warningsForRegion(allWarnings, rid);
+  }, [allWarnings, location]);
 
   if (detailOnly) {
     const wrapperPad = compact
@@ -317,7 +329,9 @@ export function WeatherWidget({
     return (
       <div ref={rootRef} className={`@container bg-zinc-100 text-zinc-900 antialiased font-medium ${wrapperPad}`}>
         <div className="max-w-5xl mx-auto">
+          <WarningStrip warnings={localWarnings} compact />
           {location && forecast.isLoading && <SkeletonWidget />}
+
           {location && forecast.isError && (
             <div className="p-6 bg-zinc-50 border border-zinc-200 rounded-sm text-sm text-zinc-600">
               Wetterdaten konnten nicht geladen werden. Bitte später erneut versuchen.
@@ -376,6 +390,10 @@ export function WeatherWidget({
           snow={snow}
           onToggleSnow={setSnow}
         />
+
+        <WarningStrip warnings={localWarnings} />
+
+
 
         {!location && (
           <div className="p-8 bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2">
@@ -441,7 +459,63 @@ export function WeatherWidget({
   );
 }
 
+/* ---------------- Warnungen ---------------- */
+
+function WarningStrip({
+  warnings,
+  compact = false,
+}: {
+  warnings: WarningDTO[];
+  compact?: boolean;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  if (!warnings.length) return null;
+  if (compact) {
+    return (
+      <div className="mb-2 flex flex-wrap items-center gap-1.5 px-1">
+        {warnings.map((w) => (
+          <WarningBadge key={w.id} warning={w} size="sm" />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {warnings.map((w) => {
+        const open = openId === w.id;
+        return (
+          <div key={w.id} className="rounded-md border border-zinc-200 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setOpenId(open ? null : w.id)}
+              className="flex w-full items-center gap-3 px-3 py-2 text-left"
+            >
+              <WarningBadge warning={w} />
+              <span className="text-xs font-semibold text-zinc-600">
+                {formatRange(w.validFrom, w.validTo)}
+              </span>
+              <span className="ml-auto text-xs text-zinc-500" aria-hidden>
+                {open ? "▲" : "▼"}
+              </span>
+            </button>
+            {open && (
+              <div className="space-y-1 border-t border-zinc-100 px-3 py-2 text-sm text-zinc-700">
+                {w.description && <p>{w.description}</p>}
+                {w.impact && <p className="text-zinc-600">{w.impact}</p>}
+                <a href="/karten/warnungen" className="inline-block pt-1 text-xs font-semibold text-accent">
+                  Zur Warnkarte
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ---------------- DataStamp ---------------- */
+
 
 function DataStamp({ updatedAt }: { updatedAt: number }) {
   if (!updatedAt) return null;
