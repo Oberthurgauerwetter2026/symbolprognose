@@ -36,7 +36,41 @@ function ringsOf(f: Feature): number[][][] {
   return [];
 }
 
-/** Flächengewichteter Schwerpunkt (grösster Ring) für die Beschriftung. */
+function pointInRing(x: number, y: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Kürzeste Distanz eines Punktes zum Polygonrand. */
+function distToRing(x: number, y: number, ring: number[][]): number {
+  let min = Infinity;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const ax = ring[j][0];
+    const ay = ring[j][1];
+    const bx = ring[i][0];
+    const by = ring[i][1];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len = dx * dx + dy * dy;
+    const t = len ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / len)) : 0;
+    const px = ax + t * dx;
+    const py = ay + t * dy;
+    min = Math.min(min, Math.hypot(x - px, y - py));
+  }
+  return min;
+}
+
+/**
+ * Punkt maximaler Randdistanz („Pole of Inaccessibility“) im grössten Ring –
+ * liegt im Gegensatz zum Schwerpunkt immer sichtbar innerhalb der Fläche.
+ */
 function labelPoint(f: Feature): [number, number] {
   const rings = ringsOf(f);
   let best: number[][] = [];
@@ -52,19 +86,51 @@ function labelPoint(f: Feature): [number, number] {
       best = r;
     }
   }
-  let cx = 0;
-  let cy = 0;
-  let area = 0;
-  for (let i = 0, j = best.length - 1; i < best.length; j = i++) {
-    const f2 = best[j][0] * best[i][1] - best[i][0] * best[j][1];
-    area += f2;
-    cx += (best[j][0] + best[i][0]) * f2;
-    cy += (best[j][1] + best[i][1]) * f2;
+  if (!best.length) return [47.55, 9.3];
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of best) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
   }
-  area *= 0.5;
-  if (!area) return [best[0]?.[1] ?? 47.55, best[0]?.[0] ?? 9.3];
-  return [cy / (6 * area), cx / (6 * area)];
+
+  let bx = (minX + maxX) / 2;
+  let by = (minY + maxY) / 2;
+  let bestScore = -Infinity;
+  let stepX = (maxX - minX) / 24;
+  let stepY = (maxY - minY) / 24;
+  let x0 = minX;
+  let y0 = minY;
+  let x1 = maxX;
+  let y1 = maxY;
+
+  for (let pass = 0; pass < 3; pass++) {
+    for (let x = x0; x <= x1; x += stepX) {
+      for (let y = y0; y <= y1; y += stepY) {
+        if (!pointInRing(x, y, best)) continue;
+        const d = distToRing(x, y, best);
+        if (d > bestScore) {
+          bestScore = d;
+          bx = x;
+          by = y;
+        }
+      }
+    }
+    x0 = bx - stepX;
+    x1 = bx + stepX;
+    y0 = by - stepY;
+    y1 = by + stepY;
+    stepX /= 8;
+    stepY /= 8;
+  }
+  return [by, bx];
 }
+
 
 const REGION_META = REGION_FC.features.map((f) => {
   const name = String((f.properties as { name?: string } | null)?.name ?? "");
