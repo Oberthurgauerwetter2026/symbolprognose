@@ -1,47 +1,31 @@
-## Ziel
+## 1. Warntexte im Info-Panel lesbarer
 
-Sechs Punkte an der Wetterwarnkarte und der Benachrichtigungs-Box beheben bzw. verbessern.
+In `src/components/maps/warn-map.tsx` (Panel rechts, gleiche Darstellung im Embed):
+- Titelzeile der Warnung von 12 px auf ~14 px, Zeitraum von 11 px auf 13 px.
+- Beschreibung, „Mögliche Auswirkungen“ und Gemeindeliste auf ~14 px, Fliesstext in Vordergrundfarbe statt gedämpft (Labels bleiben gedämpft).
+- Klare Absätze: jede Textpassage (Zeitraum / Beschreibung / Auswirkungen+Verhalten / Gültigkeitsgebiet) mit deutlichem vertikalem Abstand und `leading-relaxed`, Karten-Padding etwas grösser.
+- „Empfohlenes Verhalten“ wird als eigener, fett eingeleiteter Absatz dargestellt statt angehängt.
 
-## 1. Hover färbt Gemeinden grün (Bug)
+## 2. Karte: Schrift und Zentrierung der Ortsnamen
 
-In `src/components/maps/warn-map.tsx` werden die Hover-Handler in `onEachFeature` nur beim ersten Rendern gesetzt. `mouseout` ruft dort eine eingefrorene `styleFor`-Version auf – aus der Zeit, als noch keine Warnungen geladen waren. Deshalb springt eine gewarnte Gemeinde nach dem Überfahren auf Grün (Stufe 0).
+In `warn-map.tsx`:
+- Label-Schrift von 11 px auf 13 px (gewarnte Gemeinden 14 px/bold), stärkerer weisser Halo für Lesbarkeit auf dem Relief.
+- Zentrierung verbessern: statt reinem Flächenschwerpunkt (der bei konkaven/länglichen Gemeinden neben oder ausserhalb der Fläche landet) wird der Punkt maximaler Distanz zum Rand innerhalb des grössten Rings bestimmt (Raster-Suche über die Bounding-Box, Point-in-Polygon-Test, Verfeinerung in zwei Durchgängen). Damit sitzt jeder Name sichtbar mittig in seiner Region.
 
-Fix: die aktuellen Warnstufen über eine Ref halten, auf die die Handler zugreifen, sodass `mouseout` immer den echten aktuellen Stil zurücksetzt. Hover verändert dann nur noch Rahmenstärke/-farbe, nie die Füllfarbe.
-
-## 2. Legende nur auf Klick
-
-Legende wird zum ein-/ausklappbaren Overlay: kleiner Button „Legende“ unten links auf der Karte; nach Klick öffnet sich das Farbschema-Panel mit einem X zum Schliessen. Standard: geschlossen.
-
-## 3. Karte mobiltauglich
-
-- Gefahren-Banner: horizontal scrollbare Chip-Leiste statt Umbruch-Chaos; Statusanzeige („Höchste Stufe …“) rückt auf Mobile in eine eigene Zeile.
-- Karte/Panel: einspaltig auf Mobile, Kartenhöhe reduziert (ca. 380 px), Info-Panel darunter.
-- Touch: Legenden-Toggle und Gemeinde-Auswahl mit ausreichend grossen Trefferflächen; Hover-Effekte nur bei echten Zeigergeräten.
-- Zoom-Control und Labels bleiben lesbar (Label-Schrift leicht grösser).
-
-## 4. Benachrichtigungen: Standard 0 Gemeinden
+## 3. Benachrichtigungen: kompakt und einklappbar
 
 In `src/components/warnings/push-opt-in.tsx`:
-- Startzustand ist eine leere Auswahl statt „alle Gemeinden“; auch die automatische Vorauswahl über eine angeklickte Gemeinde entfällt (bzw. wird nur als Vorschlag gesetzt, wenn noch nichts gewählt ist – Standard bleibt leer).
-- Der Aktivieren-Button bleibt deaktiviert, bis mindestens eine Gemeinde angekreuzt ist (bestehendes Verhalten).
+- Standardzustand: nur eine Zeile „Gemeinden wählen (0 von 12)“ mit Chevron. Die Gemeindeliste, die Alle/Keine-Schalter und der Hinweistext erscheinen erst nach dem Aufklappen.
+- Im aufgeklappten Zustand kompakter: kleinere Chips (Padding reduziert, ~13 px), engere Abstände, maximale Listenhöhe kleiner.
+- Der Aktivieren-Button bleibt immer sichtbar und weiterhin deaktiviert, solange 0 Gemeinden gewählt sind; die gewählte Anzahl steht in der Kopfzeile.
+- „Wie funktioniert das?“ bleibt als zweiter Ausklapper, ebenfalls kompakter.
 
-## 5. Lesbarkeit der Benachrichtigungs-Box
+## 4. Region-Auswahl zurücksetzen
 
-- Schriftgrössen von 10/11 px auf normale Grössen anheben (Text ~14 px, Chips ~13 px).
-- Kontrast erhöhen: Fliesstext in Vordergrundfarbe statt durchgehend gedämpft.
-- Mehr vertikaler Abstand zwischen Erklärtext, Auswahlzähler, Gemeindeliste, Button und Hinweisen.
-- Gemeinde-Chips grösser und mit deutlicherem Aktiv-Zustand (Häkchen + Farbfüllung bleiben).
-
-## 6. Warntexte wetterdiensttauglicher
-
-Die Vorlagen in `src/lib/warnings-config.ts` (`TEMPLATES`) werden überarbeitet nach dem Muster offizieller Dienste (MeteoSchweiz/DWD):
-
-- Einheitlicher Aufbau je Warnung: **Was** (Wetterereignis mit Kennwert), **Wann** (Gültigkeit, kommt bereits aus dem Zeitraum), **Auswirkungen**, **Verhaltenshinweis**.
-- Sachlicher, unpersönlicher Präsens-Stil, konkrete Schwellenwerte statt vager Formulierungen.
-- Neues Feld „Empfohlenes Verhalten“ pro Gefahr/Stufe, das im Info-Panel der Karte und in der Detailansicht unter „Mögliche Auswirkungen“ angezeigt wird.
-- Vorlagen bleiben editierbar: das Admin-Tool füllt sie weiterhin vor, die Redaktion kann sie überschreiben.
+Aktuell bleibt eine angeklickte Gemeinde (dicker Umriss) auch dann markiert, wenn danach ein anderer Gefahren-Filter gewählt wird. Künftig:
+- Klick auf „Alle“ oder eine Gefahrenart hebt die Gemeindeauswahl auf (`setSelected(null)`), das Info-Panel zeigt wieder die Regionsübersicht.
+- Klick auf die Karte ausserhalb einer Gemeinde bzw. erneuter Klick auf dieselbe Gemeinde hebt die Auswahl weiterhin auf.
 
 ## Technische Hinweise
 
-- Betroffene Dateien: `src/components/maps/warn-map.tsx`, `src/components/warnings/push-opt-in.tsx`, `src/lib/warnings-config.ts`, sowie die Anzeige des neuen Verhaltensfelds in `src/components/weather-widget.tsx`/Embeds, falls dort Warntexte gerendert werden.
-- Das neue Verhaltensfeld ist rein aus den Vorlagen abgeleitet; keine Datenbankänderung nötig, sofern es zusammen mit `impact` gespeichert wird. Alternativ eine kleine Migration für eine Spalte `advice` – ich würde ohne Migration starten und den Hinweis an den Auswirkungstext anhängen.
+Betroffene Dateien: `src/components/maps/warn-map.tsx` (Labels, Panel-Typografie, Reset bei Filterwechsel) und `src/components/warnings/push-opt-in.tsx` (Collapse-Zustand, kompaktere Chips). Keine Backend- oder Datenbankänderung nötig.
