@@ -186,10 +186,12 @@ export async function buildLokalNoscriptData({
     return {
       locationName: name,
       generatedAt: new Date().toISOString(),
+      warnings: await buildWarnings(lat, lon),
       current,
       hourly,
       daily,
     };
+
   } catch (err) {
     console.error("[embed-noscript] build failed", err);
     return emptyData(name);
