@@ -44,7 +44,8 @@ function publicClient() {
 
 export async function adminClient() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin;
+  // Die generierten Typen kennen die Warn-Tabellen (noch) nicht.
+  return supabaseAdmin as unknown as ReturnType<typeof publicClient>;
 }
 
 function attachRegions(
