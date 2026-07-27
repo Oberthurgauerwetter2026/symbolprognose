@@ -444,23 +444,23 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         {/* Info-Panel */}
         <aside className="space-y-3">
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <h2 className="text-base font-semibold text-foreground">
+            <h2 className="text-lg font-semibold text-foreground">
               {selected ? regionName(selected) : "Region Oberthurgau"}
             </h2>
             {selected && (
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="mt-1 text-sm text-muted-foreground underline"
+                className="mt-1 text-base text-muted-foreground underline"
               >
                 Auswahl aufheben
               </button>
             )}
             {query.data?.warning && (
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{query.data.warning}</p>
+              <p className="mt-3 text-base leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
             {selectedWarnings.length === 0 ? (
-              <p className="mt-3 text-sm leading-relaxed text-foreground">
+              <p className="mt-3 text-base leading-relaxed text-foreground">
                 Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
                 besondere Gefahr.
               </p>
@@ -478,30 +478,30 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                   return (
                     <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                       <div
-                        className="flex items-center gap-2 px-3 py-2 text-sm font-semibold"
+                        className="flex items-center gap-2 px-3.5 py-2.5 text-base font-semibold"
                         style={{ background: def.color, color: def.textOnColor }}
                       >
-                        <Icon className="h-4 w-4 shrink-0" />
+                        <Icon className="h-5 w-5 shrink-0" />
                         {w.title || `${h.title} (Stufe ${w.level})`}
                       </div>
-                      <div className="space-y-3 p-3">
-                        <p className="text-sm font-medium text-muted-foreground">
+                      <div className="space-y-3.5 p-3.5">
+                        <p className="text-base font-medium text-muted-foreground">
                           {formatRange(w.validFrom, w.validTo)}
                         </p>
-                        <p className="text-sm leading-relaxed text-foreground">{w.description}</p>
+                        <p className="text-base leading-relaxed text-foreground">{w.description}</p>
                         {impactText && (
-                          <p className="text-sm leading-relaxed text-foreground">
+                          <p className="text-base leading-relaxed text-foreground">
                             <span className="font-semibold">Mögliche Auswirkungen: </span>
                             {impactText}
                           </p>
                         )}
                         {adviceText && (
-                          <p className="text-sm leading-relaxed text-foreground">
+                          <p className="text-base leading-relaxed text-foreground">
                             <span className="font-semibold">Empfohlenes Verhalten: </span>
                             {adviceText}
                           </p>
                         )}
-                        <p className="text-sm leading-relaxed text-muted-foreground">
+                        <p className="text-base leading-relaxed text-muted-foreground">
                           {w.regionIds.length === REGIONS.length
                             ? "Ganze Region"
                             : w.regionIds.map((r) => regionName(r)).join(", ")}
@@ -518,13 +518,14 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
           {!bare && (
             <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                <BellRing className="h-4 w-4" /> Warnungen abonnieren
+              <h3 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+                <BellRing className="h-5 w-5" /> Warnungen abonnieren
               </h3>
               <PushOptIn defaultRegionId={selected} />
             </div>
           )}
         </aside>
+
       </div>
     </div>
   );
