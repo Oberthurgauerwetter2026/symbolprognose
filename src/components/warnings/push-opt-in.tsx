@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { BellOff, BellRing, Loader2 } from "lucide-react";
+import { BellOff, BellRing, Check, Circle, Loader2 } from "lucide-react";
 import { REGIONS } from "@/lib/warnings-config";
 import { getPushPublicKey, savePushSubscription, removePushSubscription } from "@/lib/warnings.functions";
 
@@ -30,6 +30,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [busy, setBusy] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgKind, setMsgKind] = useState<"ok" | "error">("ok");
+  const [howOpen, setHowOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>(() => REGIONS.map((r) => r.id));
 
   useEffect(() => {
@@ -48,6 +50,11 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
 
   const toggleRegion = (id: string) =>
     setRegionIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+
+  function note(text: string, kind: "ok" | "error" = "ok") {
+    setMsg(text);
+    setMsgKind(kind);
+  }
 
   async function subscribe() {
     setBusy(true);
@@ -70,13 +77,13 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
           endpoint: sub.endpoint,
           p256dh: bufToB64(sub.getKey("p256dh")),
           auth: bufToB64(sub.getKey("auth")),
-          regionIds: regionIds.length ? regionIds : REGIONS.map((r) => r.id),
+          regionIds,
         },
       });
       setSubscribed(true);
-      setMsg("Benachrichtigungen aktiviert.");
+      note(`Benachrichtigungen aktiviert für ${regionIds.length} Gemeinde${regionIds.length === 1 ? "" : "n"}.`);
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Aktivierung fehlgeschlagen.");
+      note(e instanceof Error ? e.message : "Aktivierung fehlgeschlagen.", "error");
     } finally {
       setBusy(false);
     }
@@ -92,9 +99,9 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         await sub.unsubscribe();
       }
       setSubscribed(false);
-      setMsg("Benachrichtigungen deaktiviert.");
+      note("Benachrichtigungen deaktiviert.");
     } catch {
-      setMsg("Deaktivierung fehlgeschlagen.");
+      note("Deaktivierung fehlgeschlagen.", "error");
     } finally {
       setBusy(false);
     }
@@ -108,37 +115,82 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     );
   }
 
+  const none = regionIds.length === 0;
+
   return (
     <div className="mt-2 space-y-2">
       <p className="text-xs text-muted-foreground">
         Erhalte eine Meldung, sobald für deine Gemeinden eine Warnung ausgegeben wird.
       </p>
+
       {!subscribed && (
-        <div className="max-h-32 overflow-y-auto rounded-md border border-border p-2">
-          <div className="flex flex-wrap gap-1">
-            {REGIONS.map((r) => (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-medium">
+              Gewählte Gemeinden: {regionIds.length} von {REGIONS.length}
+            </span>
+            <span className="flex gap-1">
               <button
-                key={r.id}
                 type="button"
-                onClick={() => toggleRegion(r.id)}
-                className={
-                  "rounded px-1.5 py-0.5 text-[10px] " +
-                  (regionIds.includes(r.id)
-                    ? "bg-foreground text-background"
-                    : "bg-muted text-muted-foreground")
-                }
+                onClick={() => setRegionIds(REGIONS.map((r) => r.id))}
+                className="rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-muted"
               >
-                {r.name}
+                Alle
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setRegionIds([])}
+                className="rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-muted"
+              >
+                Keine
+              </button>
+            </span>
           </div>
+          <div className="max-h-32 overflow-y-auto rounded-md border border-border p-2">
+            <div className="flex flex-wrap gap-1">
+              {REGIONS.map((r) => {
+                const on = regionIds.includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleRegion(r.id)}
+                    className={
+                      "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] transition-colors " +
+                      (on
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground hover:bg-muted")
+                    }
+                  >
+                    {on ? (
+                      <Check className="h-2.5 w-2.5" />
+                    ) : (
+                      <Circle className="h-2.5 w-2.5 opacity-50" />
+                    )}
+                    {r.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {none && (
+            <p className="text-[11px] text-destructive">Mindestens eine Gemeinde wählen.</p>
+          )}
         </div>
       )}
+
+      {subscribed && (
+        <p className="rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px]">
+          Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden.
+        </p>
+      )}
+
       <button
         type="button"
-        disabled={busy}
+        disabled={busy || (!subscribed && none)}
         onClick={subscribed ? unsubscribe : subscribe}
-        className="flex w-full items-center justify-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -149,7 +201,37 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         )}
         {subscribed ? "Benachrichtigungen ausschalten" : "Benachrichtigungen aktivieren"}
       </button>
-      {msg && <p className="text-[11px] text-muted-foreground">{msg}</p>}
+
+      {msg && (
+        <p className={"text-[11px] " + (msgKind === "error" ? "text-destructive" : "text-muted-foreground")}>
+          {msg}
+        </p>
+      )}
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setHowOpen((v) => !v)}
+          className="text-[11px] underline text-muted-foreground"
+        >
+          Wie funktioniert das?
+        </button>
+        {howOpen && (
+          <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-[11px] text-muted-foreground">
+            <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
+            <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis.</li>
+            <li>
+              Sobald für eine deiner Gemeinden eine Warnung ausgegeben wird (manuell oder automatisch
+              bei Gewitterzug), erhältst du eine Meldung.
+            </li>
+            <li>Ein Tipp auf die Meldung öffnet die Warnkarte.</li>
+            <li>
+              Hinweis iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert
+              werden, sonst erlaubt iOS keine Push-Meldungen.
+            </li>
+          </ol>
+        )}
+      </div>
     </div>
   );
 }
