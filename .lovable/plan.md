@@ -1,27 +1,28 @@
-## Ausgangslage
+## Diagnose (verifiziert)
 
-In der Benachrichtigungs-Box (`src/components/warnings/push-opt-in.tsx`) sind alle Gemeinden per Default ausgewählt. Ausgewählt = dunkler Chip (schwarz), nicht ausgewählt = grauer Chip. Das ist heute nur an der Farbe erkennbar, ohne Beschriftung, Häkchen oder Zähler — genau der Punkt, den du bemängelst.
+Die Seite liefert vom Server korrektes HTML (HTTP 200), bricht aber im Browser ab. Playwright zeigt den echten Fehler:
 
-## So funktioniert die Benachrichtigung heute
+```text
+The requested module '/src/routes/karten.radar.tsx?tsr-shared=1'
+does not provide an export named 'def'
+```
 
-1. Du wählst Gemeinden und klickst „Benachrichtigungen aktivieren“.
-2. Der Browser fragt nach Erlaubnis; danach wird ein kleiner Hintergrunddienst (`public/push-sw.js`) registriert und ein Abo (Endpoint + Schlüssel + Gemeindeliste) in der Datenbank gespeichert.
-3. Sobald im Admin-Tool eine Warnung „sofort aktiv“ gespeichert wird (oder die Auto-Gewitterwarnung greift), sucht der Server alle Abos, deren Gemeindeliste sich mit den Warnregionen überschneidet, und schickt ihnen eine Push-Nachricht (Titel, Gemeinden, Beschreibung, Link auf die Warnkarte).
-4. Klick auf die Meldung öffnet `/karten/warnungen`.
-5. Voraussetzungen: HTTPS-Seite (Preview/veröffentlichte Domain), auf iPhone/iPad muss die Seite zuerst zum Home-Bildschirm hinzugefügt werden, sonst sind Push-Meldungen systemseitig nicht möglich.
+Ursache: Beim automatischen Code-Splitting der Routen werden `component`/`head` in eigene Chunks ausgelagert. Alles, was diese Chunks brauchen, muss aus dem „shared“-Teil der Routendatei exportierbar sein. In mehreren Routendateien stehen jedoch Laufzeit-Konstanten im Modul-Scope:
 
-## Was ich ändere (nur UI/Verständlichkeit)
+- `src/routes/karten.radar.tsx` – `const def = getMap("radar")`, `const RadarMap = lazy(...)`
+- `src/routes/karten.satellit.tsx` – `def`, `SatelliteMap`
+- `src/routes/karten.niederschlag.tsx` – `def`, `PrecipAccumMap`
+- `src/routes/karten.region.tsx` – `RegionMap`
+- `src/routes/karten.wind.tsx` – `def`
+- `src/routes/karten.warnungen.tsx` – `def`
 
-1. **Gemeinde-Chips eindeutig machen**
-   - Ausgewählte Chips: Häkchen-Icon + Farbe, nicht ausgewählte: leerer Kreis, deutlich blasser + Rahmen.
-   - `aria-pressed` für Screenreader/Barrierefreiheit.
-2. **Kopfzeile über der Liste**: „Gewählte Gemeinden: X von Y“ plus die Aktionen „Alle“ / „Keine“.
-3. **Aktiv-Button klarer**
-   - Bei 0 gewählten Gemeinden ist „Benachrichtigungen aktivieren“ deaktiviert mit Hinweistext „Mindestens eine Gemeinde wählen“ (statt still auf „alle“ zurückzufallen).
-   - Im aktivierten Zustand: grüner Status-Hinweis „Aktiv für X Gemeinden“ über dem Ausschalten-Button.
-4. **Kurzer Erklärtext / Ausklapper „Wie funktioniert das?“** mit den Punkten 1–5 oben in Kurzform, inkl. iOS-Hinweis (Home-Bildschirm).
-5. **Statusmeldungen** (aktiviert / abgelehnt / nicht unterstützt) bleiben, werden aber farblich als Erfolg bzw. Fehler unterschieden.
+Weil der Router-Baum alle Routendateien lädt, reisst dieser eine kaputte Chunk-Import die gesamte App mit – daher auch auf `/karten/warnungen` nur eine weisse Seite.
 
-## Technische Details
+## Fix
 
-Alle Änderungen bleiben in `src/components/warnings/push-opt-in.tsx`; Server-Funktionen, Datenbank und Versandlogik werden nicht angefasst. Farben über bestehende Design-Tokens, keine fixen Hex-Werte.
+1. **Lazy-Map-Komponenten auslagern**: neue Datei `src/components/maps/lazy-maps.ts`, die `RadarMap`, `SatelliteMap`, `PrecipAccumMap`, `RegionMap` als `lazy(...)`-Exporte bereitstellt. Die Routen importieren sie nur noch.
+2. **`def`-Konstanten entfernen**: In jeder betroffenen Routendatei `getMap("…")` direkt innerhalb von `head()` und innerhalb der Seitenkomponente aufrufen, statt im Modul-Scope.
+3. **Restliche Routen prüfen** (`karten.lokal.tsx` mit `searchSchema`, `index.tsx`): `searchSchema` wird von `validateSearch` im geteilten Teil genutzt und ist unkritisch; nur wenn ein Chunk ihn braucht, wird er ebenfalls ausgelagert.
+4. **Verifikation**: Alle Kartenrouten (`/karten/warnungen`, `/karten/radar`, `/karten/satellit`, `/karten/wind`, `/karten/region`, `/karten/niederschlag`, `/`) per Browser-Test laden und auf Konsolenfehler prüfen; Screenshot der Warnkarte als Nachweis.
+
+Keine Änderung an Backend, Daten oder Design – rein struktureller Fix der Routendateien.
