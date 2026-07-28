@@ -331,7 +331,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   <button
                     key={h.id}
                     type="button"
-                    onClick={() => applyTemplate(h.id, form.level, form.value)}
+                    onClick={() => applyTemplate(h.id, form.level, form.valueFrom, form.valueTo)}
                     className={
                       "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs " +
                       (on ? "border-foreground bg-foreground text-background" : "border-border")
@@ -352,7 +352,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                 <button
                   key={l}
                   type="button"
-                  onClick={() => applyTemplate(form.hazard, l, form.value)}
+                  onClick={() => applyTemplate(form.hazard, l, form.valueFrom, form.valueTo)}
                   className="rounded-md border px-3 py-1.5 text-xs font-medium"
                   style={
                     form.level === l
