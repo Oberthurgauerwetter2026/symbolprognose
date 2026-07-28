@@ -4,14 +4,15 @@
  * Client- und serverseitig verwendbar (keine Node-/Browser-APIs).
  */
 
-import {
-  CloudLightning,
-  CloudRain,
-  Snowflake,
-  ThermometerSnowflake,
-} from "lucide-react";
+import { ThermometerSnowflake } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
-import { SlipperyCarIcon, WindsockIcon } from "@/components/warnings/hazard-icons";
+import {
+  BoltIcon,
+  RainDropsIcon,
+  SnowflakesIcon,
+  SlipperyCarIcon,
+  WindsockIcon,
+} from "@/components/warnings/hazard-icons";
 import type { FeatureCollection } from "geojson";
 import regionData from "@/data/region.json";
 
