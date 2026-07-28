@@ -539,14 +539,28 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            {textIsManual && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs sm:col-span-2">
+                <span className="text-muted-foreground">
+                  Texte wurden manuell angepasst – sie folgen den Mengenangaben nicht mehr
+                  automatisch.
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    applyTemplate(form.hazard, form.level, form.valueFrom, form.valueTo, true)
+                  }
+                  className="rounded-md border border-input bg-background px-2 py-1 font-medium"
+                >
+                  Text aus Vorlage neu erzeugen
+                </button>
+              </div>
+            )}
             <label className="text-xs font-medium sm:col-span-2">
               Titel
               <input
                 value={form.title}
-                onChange={(e) => {
-                  setTouchedText(true);
-                  setForm((f) => ({ ...f, title: e.target.value }));
-                }}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
               />
             </label>
@@ -555,10 +569,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               <textarea
                 rows={4}
                 value={form.description}
-                onChange={(e) => {
-                  setTouchedText(true);
-                  setForm((f) => ({ ...f, description: e.target.value }));
-                }}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
               />
             </label>
@@ -567,14 +578,12 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               <textarea
                 rows={4}
                 value={form.impact}
-                onChange={(e) => {
-                  setTouchedText(true);
-                  setForm((f) => ({ ...f, impact: e.target.value }));
-                }}
+                onChange={(e) => setForm((f) => ({ ...f, impact: e.target.value }))}
                 className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
               />
             </label>
           </div>
+
 
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-xs">
