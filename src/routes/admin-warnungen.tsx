@@ -202,25 +202,35 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   }, [password]);
 
   /** Vorlage anwenden, solange die Texte nicht manuell verändert wurden. */
+  /** True, sobald die Texte von der zuletzt erzeugten Vorlage abweichen. */
+  const textIsManual =
+    form.title !== lastTpl.title ||
+    form.description !== lastTpl.description ||
+    form.impact !== lastTpl.impact;
+
+  /** Vorlage anwenden, solange die Texte nicht manuell verändert wurden. */
   const applyTemplate = (
     hazard: HazardId,
     level: WarnLevel,
     valueFrom: string,
     valueTo: string,
+    force = false,
   ) => {
-    const tpl = TEMPLATES[hazard][level];
-    const value = combineValue(valueFrom, valueTo);
+    const t = genTexts(hazard, level, combineValue(valueFrom, valueTo));
+    const useTpl = force || !textIsManual;
+    setLastTpl(t);
     setForm((f) => ({
       ...f,
       hazard,
       level,
       valueFrom,
       valueTo,
-      title: touchedText ? f.title : warningTitle(hazard, level),
-      description: touchedText ? f.description : fillTemplate(tpl.description, value),
-      impact: touchedText ? f.impact : templateImpact(tpl),
+      title: useTpl ? t.title : f.title,
+      description: useTpl ? t.description : f.description,
+      impact: useTpl ? t.impact : f.impact,
     }));
   };
+
 
   /** Beginn setzen und Ende relativ dazu halten. */
   const setStart = (d: Date) => {
