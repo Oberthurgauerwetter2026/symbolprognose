@@ -297,6 +297,10 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
                 Sobald für eine deiner Gemeinden eine Warnung ausgegeben wird (manuell oder automatisch
                 bei Gewitterzug), erhältst du eine Meldung.
               </li>
+              <li>
+                Die Meldung zeigt den Warn-Titel (z. B. „Gewitterwarnung (Stufe 2)“), die Beschreibung,
+                die betroffenen Gemeinden und den Gültigkeitszeitraum.
+              </li>
               <li>Ein Tipp auf die Meldung öffnet die Warnkarte.</li>
               <li>
                 Klappt es nicht: Die Seite in einem eigenen Browser-Tab (nicht im eingebetteten
