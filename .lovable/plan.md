@@ -1,66 +1,31 @@
-Ziel: Die Warnkarte soll auf der WordPress-Seite `oberthurgauerwetter.ch` eingebettet werden können UND Benachrichtigungen sollen für die Nutzer funktionieren.
+## Ziel
 
-Kernproblem: Web-Push (Service Worker + Notification-Berechtigung) funktioniert in einem cross-origin Iframe praktisch nicht. Die Lösung ist eine Kombination aus eigener Domain, PWA-Installierbarkeit und einem schlanken Embed, das zur eigenständigen App verlinkt.
+Die Warnkarte läuft künftig unter **warnkarte.oberthurgauerwetter.ch**. Auf der WordPress-Seite bleibt die Karte als Iframe eingebettet, mit einem gut sichtbaren Button „In eigenem Tab öffnen“ – dort funktionieren dann auch die Push-Benachrichtigungen.
 
-## Schritt 1: PWA-Manifest für Installierbarkeit
+## Was du selbst machen musst (Domain)
 
-- `public/manifest.webmanifest` erstellen mit:
-  - `name: "Wetterwarnungen Oberthurgau"`
-  - `short_name: "Warnungen"`
-  - `start_url: "/karten/warnungen"`
-  - `scope: "/"`
-  - `display: "standalone"` (oder `minimal-ui`)
-  - Theme-/Background-Farben passend zur App
-  - Icon-Referenzen (z.B. auf vorhandenes Favicon oder neu generierte 192x192/512x512 Icons)
-- Head-Metadaten in `src/routes/__root.tsx` erweitern:
-  - `<link rel="manifest" href="/manifest.webmanifest">`
-  - `apple-touch-icon`
-  - `theme-color`
-- Dies ermöglicht „Zum Home-Bildschirm hinzufügen“, was für iOS Push zwingend nötig ist.
+1. In Lovable: **Project Settings → Domains → Connect Domain** → `warnkarte.oberthurgauerwetter.ch` eintragen.
+2. Beim Domain-Provider die angezeigten DNS-Einträge setzen (A-Record `warnkarte` → 185.158.133.1 + TXT `_lovable`).
+3. Warten bis Status „Active“ (meist Minuten, max. 72 h), danach publizieren.
 
-## Schritt 2: Dedizierte Embed-Route für die Warnkarte
+Erst danach greifen Push-Benachrichtigungen unter deiner eigenen Domain.
 
-- Neue Route `src/routes/embed.warnungen.tsx` unter `/embed/warnungen`:
-  - Nutzt `EmbedShell` (ohne Dashboard-Layout/Header/Sidebar)
-  - Zeigt nur die `WarnMap`
-  - Kein Push-Opt-In direkt im Iframe
-  - Zeigt stattdessen einen kleinen, klaren Hinweis: „Für Push-Benachrichtigungen die Warnkarte in eigenem Tab öffnen“ mit Link zur eigenständigen App
-- Cache-Header via `setEmbedCacheHeaders` setzen (wie bestehende Embed-Routen).
+## Was ich umsetze
 
-## Schritt 3: Push-Opt-In auf der eigenständigen Seite verbessern
+1. **Domain-Konstante**: eine zentrale Stelle mit der App-URL (`https://warnkarte.oberthurgauerwetter.ch`), die überall statt der Lovable-URL verwendet wird. Solange die Domain noch nicht aktiv ist, fällt sie automatisch auf die aktuelle Origin zurück, damit nichts bricht.
+2. **Push-Opt-In im Iframe**: Der Button „In eigenem Tab öffnen“ zeigt auf die neue Domain (`/karten/warnungen`) statt auf die Iframe-URL, damit Service Worker und Berechtigung dort registriert werden.
+3. **Prominenter Button in der Embed-Ansicht**: In `/embed/warnungen` kommt oben bzw. unter der Karte ein deutlich sichtbarer Button „Warnungen abonnieren – in eigenem Tab öffnen“, damit WP-Besucher den Weg finden.
+4. **Meta/SEO/PWA**: `canonical`, `og:url`, `og:image` und das PWA-Manifest (`start_url`, `scope`) auf die neue Domain ausrichten; Titel/Beschreibung bleiben.
+5. **Embed-Snippet aktualisieren**: In `/embed-info` das Iframe-Snippet für die Warnkarte auf die neue Domain umstellen, inkl. Copy-Paste-Code für WordPress (Custom-HTML-Block, responsive Höhe).
 
-- In `src/components/warnings/push-opt-in.tsx` und der Warnkarte:
-  - Wenn die Seite im Iframe erkannt wird (`framed === true`), Push-Dialog deaktivieren und stattdessen einen prominenten Button/Link anzeigen: „In eigenem Tab öffnen, um Benachrichtigungen zu aktivieren“
-  - Der Link führt zur eigenständigen App-URL.
-- Auf der eigenständigen Seite `/karten/warnungen` bleibt der normale Push-Registrierungs-Flow erhalten.
+## Technische Details
 
-## Schritt 4: Custom Domain (zwingend für die richtige Adresse)
+- Neue Datei `src/lib/site-url.ts` mit `SITE_URL` und `getAppUrl(path)`; clientseitig `window.location.origin`-Fallback, damit Preview weiter funktioniert.
+- `src/components/warnings/push-opt-in.tsx`: `pageUrl` aus `getAppUrl('/karten/warnungen')` statt aus der aktuellen Iframe-Location.
+- `src/routes/embed.warnungen.tsx`: Button-Leiste ergänzen (`target="_blank" rel="noreferrer"`).
+- `src/routes/__root.tsx` + `public/manifest.webmanifest`: URLs anpassen.
+- `src/routes/embed-info.tsx`: Snippet-String aktualisieren.
 
-- Eine Subdomain der WP-Domain verwenden, z.B. `warnkarte.oberthurgauerwetter.ch` oder `wetterwarnungen.oberthurgauerwetter.ch`.
-- Voraussetzung: Domain ist beim Nutzer verwaltbar (DNS A-Record auf `185.158.133.1` + TXT-Record für Verifikation).
-- In Lovable: Projekt veröffentlichen → Projekt-Einstellungen → Domains → Custom Domain hinzufügen.
-- Wichtig: Die App läuft dann unter der Domain des Nutzers. Der Service Worker ist dann unter dieser Domain registriert, was für Push nötig ist. Die WP-Hauptseite (`oberthurgauerwetter.ch`) und die App-Subdomain sind zwar technisch weiterhin cross-origin, aber die Nutzer öffnen die App direkt in der Subdomain für Push.
+## Hinweis
 
-## Schritt 5: WordPress-Einbindung
-
-- In WordPress anstelle der vollen App nur das Embed-Frame einbinden:
-  ```html
-  <iframe src="https://warnkarte.oberthurgauerwetter.ch/embed/warnungen"
-          width="100%" height="700" frameborder="0"
-          allow="geolocation"
-          loading="lazy"
-          title="Wetterwarnungen Oberthurgau">
-  </iframe>
-  ```
-- Zusätzlich einen auffälligen Button/Link in WP platzieren: „Warnkarte mit Benachrichtigungen öffnen“ → verlinkt zur eigenständigen App `https://warnkarte.oberthurgauerwetter.ch/karten/warnungen`.
-- Damit sehen die Besucher die Karte direkt in WP, und wer Push will, öffnet die App in einem eigenen Tab.
-
-## Schritt 6: Favicon / Icons prüfen
-
-- Falls `public/favicon.ico` existiert, wird es als Push-Icon verwendet.
-- Für bessere PWA-Installierbarkeit und Push-Icon 192x192 + 512x512 PNGs bereitstellen oder generieren.
-
-## Offene Frage vor Umsetzung
-
-- Welche Subdomain soll verwendet werden? (Vorschlag: `warnkarte.oberthurgauerwetter.ch` oder ein anderer Wunschname)
-- Soll ich direkt alle Schritte 1–5 umsetzen, oder zuerst nur den Embed + PWA-Teil, damit du die Domain später selbst verbindest?
+Push funktioniert pro Origin. Nutzer, die sich heute unter `symbolprognose.lovable.app` angemeldet haben, müssen sich unter der neuen Domain erneut anmelden – die alten Abos bleiben in der Datenbank, laufen aber über die alte Origin.
