@@ -608,7 +608,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                 type="button"
                 onClick={() => {
                   setForm(emptyForm());
-                  setTouchedText(false);
+                  setLastTpl(genTexts("gewitter", 1, ""));
                 }}
                 className="text-xs underline"
               >
