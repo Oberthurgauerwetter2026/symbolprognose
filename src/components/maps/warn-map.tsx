@@ -424,6 +424,11 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 );
               }}
             />
+            <GeoJSON
+              data={REGION_OUTLINE}
+              style={() => ({ color: "#1f4d80", weight: 2, opacity: 0.9, fill: false })}
+              interactive={false}
+            />
             {REGION_META.map((r) => (
               <Marker
                 key={r.id}
