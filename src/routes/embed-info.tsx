@@ -3,7 +3,7 @@ import { useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MAPS } from "@/lib/maps-config";
 
-const PUBLISHED_ORIGIN = "https://warnkarte-oberthurgau.lovable.app";
+const PUBLISHED_ORIGIN = "https://oberthurgauerwetter.lovable.app";
 
 export const Route = createFileRoute("/embed-info")({
   component: EmbedInfo,

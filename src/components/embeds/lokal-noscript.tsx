@@ -93,7 +93,7 @@ export function LokalNoscript({ data }: { data: LokalNoscriptData }) {
         <p className="text-xs text-muted-foreground">
           Statische Vorschau ohne JavaScript. Für die interaktive Version{" "}
           <a
-            href="https://warnkarte-oberthurgau.lovable.app/karten/lokal"
+            href="https://oberthurgauerwetter.lovable.app/karten/lokal"
             className="underline"
           >
             hier öffnen
