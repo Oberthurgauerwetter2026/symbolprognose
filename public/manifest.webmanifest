@@ -1,7 +1,7 @@
 {
-  "name": "Wetterwarnungen Oberthurgau",
-  "short_name": "Warnungen",
-  "description": "Aktuelle Wetterwarnungen und regionale Unwetterbenachrichtigungen für den Oberthurgau.",
+  "name": "Oberthurgauer Wetter",
+  "short_name": "OT Wetter",
+  "description": "Wetterboard Oberthurgau: Warnungen, Regions- und Lokalprognose, Wind, Radar und Satellit.",
   "start_url": "/karten/warnungen",
   "scope": "/",
   "display": "standalone",

@@ -1,38 +1,47 @@
 ## Ziel
 
-Kein DNS, kein Cyon-Webhosting, keine Subdomain. Die App läuft unter der Lovable-URL `warnkarte-oberthurgau.lovable.app`. Deine WordPress-Seite bindet die Warnkarte per Iframe ein; Benachrichtigungen aktivieren Nutzer über einen Button, der die App in einem eigenen Tab öffnet.
+Die App ist ein Wetterboard mit mehreren Produkten (Warnungen, Region, Lokal, Wind, Radar, Niederschlag, Satellit). Der Name „warnkarte-oberthurgau“ passt darum nicht als Dach-URL. Neue Adresse: **https://oberthurgauerwetter.lovable.app** – jedes Produkt bekommt darunter seinen eigenen Pfad und ein eigenes WordPress-Snippet.
 
-## Warum das funktioniert
+## 1. URL umstellen
 
-Push-Benachrichtigungen brauchen nur eine **stabile HTTPS-Origin** — es muss keine eigene Domain sein. `warnkarte-oberthurgau.lovable.app` erfüllt das vollständig: Service Worker, Berechtigungen und Abos bleiben dauerhaft an diese Adresse gebunden.
+- Projekt neu publizieren unter dem Slug `oberthurgauerwetter`.
+- Alle fest verdrahteten Vorkommen von `warnkarte-oberthurgau.lovable.app` ersetzen in:
+  - `src/lib/site-url.ts` (`SITE_URL`)
+  - `src/routes/__root.tsx`, `src/routes/karten.warnungen.tsx` (og:url / canonical)
+  - `src/routes/embed-info.tsx` (`PUBLISHED_ORIGIN`)
+  - `src/routes/api/public/snapshot/$map.ts`, `src/lib/snapshot.server.ts`
+  - `src/components/embeds/lokal-noscript.tsx`, `radar-noscript.tsx`
+- Meta-Titel/Beschreibungen im Root auf das Board formulieren („Oberthurgauer Wetter – Warnungen, Prognosen, Radar & Satellit“), Warnkarte bleibt eigene Route mit eigenem Titel.
+- PWA-Manifest: Name „Oberthurgauer Wetter“, `start_url` bleibt relativ.
 
-## Umsetzung
+Wichtig: Nach der Umbenennung ist die alte Adresse nicht mehr gültig. Die bereits eingebauten WP-Iframes müssen einmalig auf die neue Origin umgestellt werden.
 
-**1. Lovable-URL umbenennen**
-Beim nächsten Publish setze ich den Slug auf `warnkarte-oberthurgau`. Neue Adresse: `https://warnkarte-oberthurgau.lovable.app`
+## 2. Embed-Übersicht pro Produkt
 
-**2. Domain-Referenzen im Code zurückbauen**
-- `src/lib/site-url.ts`: `SITE_URL` von `warnkarte.oberthurgauerwetter.ch` auf `https://warnkarte-oberthurgau.lovable.app` ändern; die veraltete `LOVABLE_ORIGIN`-Konstante entfernen.
-- `src/routes/embed-info.tsx`: `PUBLISHED_ORIGIN` auf die neue Lovable-URL setzen.
-- `src/routes/__root.tsx` und `src/routes/karten.warnungen.tsx`: `canonical` und `og:url` auf die neue Adresse anpassen.
+`/embed-info` wird zur vollständigen Produktliste. Pro Produkt ein Abschnitt mit Beschreibung, empfohlener Höhe und fertigem Copy-Paste-Snippet:
 
-**3. WordPress-Snippet**
-Auf `/embed-info` steht dann das fertige Snippet zum Kopieren:
-
-```html
-<iframe src="https://warnkarte-oberthurgau.lovable.app/embed/warnungen"
-        style="width:100%;height:760px;border:0" loading="lazy"></iframe>
+```text
+Wetterwarnungen        /embed/warnungen           760px  (inkl. Push-Hinweis-Button)
+Lokalprognose Amriswil /api/public/embed/region-lokal-static  520px  (unverändert)
+Wetterkarte Region     /embed/region              600px
+Lokalprognose (Karte)  /embed/lokal               600px
+Wind                   /embed/wind                600px
+Radar                  /embed/radar               600px
+Satellit               /embed/satellit            600px
+Satellit Loop          /embed/satellit-loop       520px
+Komplett-Board (Tabs)  /embed/all                 760px
 ```
 
-**4. Hinweis-Button prüfen**
-Im Embed erscheint „Warnungen abonnieren – in eigenem Tab öffnen". Ich stelle sicher, dass er auf `https://warnkarte-oberthurgau.lovable.app/karten/warnungen` zeigt und im Iframe klar sichtbar platziert ist.
+- Das Amriswil-Snippet (`region-lokal-static`, `scrolling="no"`, `background:#ffffff`, `border-radius:8px`, 520 px) bleibt exakt in der bestehenden Form – nur die Domain im `src`/`preconnect` wird getauscht.
+- Jeder Abschnitt bekommt Titel, Kurzbeschreibung, Höhen-Hinweis und Kopieren-Button (bestehende `SnippetBlock`-Komponente).
+- Empfehlung im Text: pro Produkt eine eigene WordPress-Seite/Block, damit jedes Produkt einzeln benannt und verlinkt werden kann.
 
-**5. Publizieren** und die Karte im Live-Embed gegenprüfen.
+## 3. Push-Hinweis
 
-## Was du danach machst
+Bleibt wie gebaut: im Iframe kein Push möglich, der Button im Warn-Embed öffnet `oberthurgauerwetter.lovable.app/karten/warnungen` in eigenem Tab, dort funktionieren Benachrichtigungen.
 
-Auf deiner WordPress-Seite einen Block „Individuelles HTML" einfügen und das Snippet aus Schritt 3 einsetzen. Keine DNS-Einstellungen, kein Cyon-Eingriff nötig.
+## Technische Details
 
-## Einschränkung
-
-Die Adresse enthält weiterhin `lovable.app` statt deiner eigenen Domain. Deine Nutzer sehen sie nur, wenn sie auf den Abonnieren-Button klicken — die eingebettete Karte selbst zeigt keine URL. Falls dir das später doch zu unpassend wird, lässt sich eine eigene Domain jederzeit nachträglich verbinden, ohne dass die Einbindung neu gebaut werden muss.
+- `getAppUrl()` in `src/lib/site-url.ts` bleibt logisch unverändert, nur die Konstante ändert sich; Preview- und Localhost-Erkennung bleiben erhalten.
+- Keine DNS-/Cyon-Änderungen, kein Webhosting nötig.
+- Nach dem Merge einmal publizieren, danach die neuen Snippets aus `/embed-info` in WordPress einsetzen.
