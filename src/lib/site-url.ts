@@ -5,8 +5,6 @@
  */
 export const SITE_URL = "https://warnkarte-oberthurgau.lovable.app";
 
-/** Fallback-Origin, solange die eigene Domain noch nicht aktiv ist. */
-export const LOVABLE_ORIGIN = "https://warnkarte-oberthurgau.lovable.app";
 
 /** Origins, die zum Entwickeln/Testen dienen und nie umgeschrieben werden. */
 function isPreviewOrigin(origin: string): boolean {
