@@ -26,6 +26,7 @@ import { PushOptIn } from "@/components/warnings/push-opt-in";
 const REGION_FC = regionData as unknown as FeatureCollection;
 const LAKE = lakeData as unknown as FeatureCollection;
 const THURGAU = thurgauData as unknown as FeatureCollection;
+const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
 /* --------------------------- Geometrie-Hilfen -------------------------- */
 
