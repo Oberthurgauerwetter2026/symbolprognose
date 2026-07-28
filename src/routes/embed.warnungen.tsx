@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { EmbedShell } from "@/components/embed-shell";
 import { WarnMap } from "@/components/maps/warn-map";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
+import { SITE_URL } from "@/lib/site-url";
 
 export const Route = createFileRoute("/embed/warnungen")({
   ssr: false,
@@ -18,12 +19,12 @@ export const Route = createFileRoute("/embed/warnungen")({
             Für Wetterwarnungen per Push bitte die Warnkarte in einem eigenen Tab öffnen:
           </p>
           <a
-            href="/karten/warnungen"
+            href={`${SITE_URL}/karten/warnungen`}
             target="_blank"
             rel="noreferrer"
             className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-strong"
           >
-            Warnkarte mit Benachrichtigungen öffnen
+            Warnungen abonnieren – in eigenem Tab öffnen
           </a>
         </div>
       </div>

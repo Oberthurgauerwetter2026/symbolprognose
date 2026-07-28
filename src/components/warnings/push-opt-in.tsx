@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { BellOff, BellRing, Check, ChevronDown, Circle, Loader2 } from "lucide-react";
 import { REGIONS } from "@/lib/warnings-config";
+import { getAppUrl } from "@/lib/site-url";
 import { getPushPublicKey, savePushSubscription, removePushSubscription } from "@/lib/warnings.functions";
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
