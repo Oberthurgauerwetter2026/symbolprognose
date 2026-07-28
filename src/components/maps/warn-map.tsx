@@ -8,6 +8,7 @@ import { AlertTriangle, BellRing, Loader2, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import regionData from "@/data/region.json";
 import lakeData from "@/data/lake.json";
+import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 import {
   HAZARDS,
