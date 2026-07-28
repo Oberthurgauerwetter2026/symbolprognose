@@ -181,7 +181,8 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [touchedText, setTouchedText] = useState(false);
+  /** Zuletzt automatisch erzeugte Texte – zum Erkennen manueller Änderungen. */
+  const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, ""));
 
   const load = async () => {
     setLoading(true);
