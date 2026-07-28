@@ -366,37 +366,103 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label className="text-xs font-medium">
-              Gültig von
-              <input
-                type="datetime-local"
-                required
-                value={form.validFrom}
-                onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-              />
-            </label>
-            <label className="text-xs font-medium">
-              Gültig bis
-              <input
-                type="datetime-local"
-                required
-                value={form.validTo}
-                onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-              />
-            </label>
-            <label className="text-xs font-medium">
-              {getHazard(form.hazard).paramLabel} ({getHazard(form.hazard).paramUnit})
-              <input
-                value={form.value}
-                placeholder={getHazard(form.hazard).paramPlaceholder}
-                onChange={(e) => applyTemplate(form.hazard, form.level, e.target.value)}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-              />
-            </label>
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-2 text-xs font-medium">Gültigkeit</p>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              <span className="self-center text-[11px] text-muted-foreground">Beginn:</span>
+              {[
+                { label: "Jetzt", h: 0 },
+                { label: "in 1 Std.", h: 1 },
+                { label: "in 3 Std.", h: 3 },
+                { label: "Morgen 06:00", h: -1 },
+              ].map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={() => {
+                    if (c.h >= 0) setStart(new Date(Date.now() + c.h * 3600_000));
+                    else {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 1);
+                      d.setHours(6, 0, 0, 0);
+                      setStart(d);
+                    }
+                  }}
+                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <span className="self-center text-[11px] text-muted-foreground">Dauer:</span>
+              {[3, 6, 12, 24, 48].map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setDuration(h)}
+                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                >
+                  {h} Std.
+                </button>
+              ))}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium">
+                Gültig von
+                <input
+                  type="datetime-local"
+                  required
+                  value={form.validFrom}
+                  onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-xs font-medium">
+                Gültig bis
+                <input
+                  type="datetime-local"
+                  required
+                  value={form.validTo}
+                  onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                />
+              </label>
+            </div>
           </div>
+
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-2 text-xs font-medium">
+              {getHazard(form.hazard).paramLabel} ({getHazard(form.hazard).paramUnit}) – optional
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium">
+                von
+                <input
+                  inputMode="decimal"
+                  value={form.valueFrom}
+                  placeholder={getHazard(form.hazard).paramPlaceholder}
+                  onChange={(e) =>
+                    applyTemplate(form.hazard, form.level, e.target.value, form.valueTo)
+                  }
+                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-xs font-medium">
+                bis
+                <input
+                  inputMode="decimal"
+                  value={form.valueTo}
+                  placeholder="optional"
+                  onChange={(e) =>
+                    applyTemplate(form.hazard, form.level, form.valueFrom, e.target.value)
+                  }
+                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                />
+              </label>
+            </div>
+          </div>
+
 
           <div>
             <p className="mb-1.5 text-xs font-medium">Betroffene Gemeinden</p>
