@@ -190,18 +190,51 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   }, [password]);
 
   /** Vorlage anwenden, solange die Texte nicht manuell verändert wurden. */
-  const applyTemplate = (hazard: HazardId, level: WarnLevel, value: string) => {
+  const applyTemplate = (
+    hazard: HazardId,
+    level: WarnLevel,
+    valueFrom: string,
+    valueTo: string,
+  ) => {
     const tpl = TEMPLATES[hazard][level];
+    const value = combineValue(valueFrom, valueTo);
     setForm((f) => ({
       ...f,
       hazard,
       level,
-      value,
+      valueFrom,
+      valueTo,
       title: touchedText ? f.title : warningTitle(hazard, level),
       description: touchedText ? f.description : fillTemplate(tpl.description, value),
       impact: touchedText ? f.impact : templateImpact(tpl),
     }));
   };
+
+  /** Beginn setzen und Ende relativ dazu halten. */
+  const setStart = (d: Date) => {
+    d.setMinutes(Math.round(d.getMinutes() / 15) * 15, 0, 0);
+    setForm((f) => {
+      const prevFrom = new Date(f.validFrom).getTime();
+      const prevTo = new Date(f.validTo).getTime();
+      const span = Number.isFinite(prevFrom) && Number.isFinite(prevTo) && prevTo > prevFrom
+        ? prevTo - prevFrom
+        : 6 * 3600_000;
+      return {
+        ...f,
+        validFrom: toLocalInput(d),
+        validTo: toLocalInput(new Date(d.getTime() + span)),
+      };
+    });
+  };
+
+  const setDuration = (hours: number) => {
+    setForm((f) => {
+      const from = new Date(f.validFrom);
+      if (Number.isNaN(from.getTime())) return f;
+      return { ...f, validTo: toLocalInput(new Date(from.getTime() + hours * 3600_000)) };
+    });
+  };
+
 
   const preview = useMemo(() => LEVELS[form.level], [form.level]);
 
