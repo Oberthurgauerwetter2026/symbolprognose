@@ -65,12 +65,17 @@ export async function notifyWarning(warningId: string): Promise<number> {
   const { regionName } = await import("@/lib/warnings-config");
   const names = regionIds.map((id) => regionName(id));
   const list = names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ");
+  const period = formatRange(warning.valid_from, warning.valid_to);
+
+  const title =
+    warning.title || warningTitle(warning.hazard as HazardId, Math.max(1, Math.min(3, warning.level)) as WarnLevel);
+  const body = `${warning.description} Betroffene Gemeinden: ${list}. Gültig: ${period}`;
 
   let sent = 0;
   for (const s of (subs ?? []) as SubRow[]) {
     const ok = await sendPush(s, {
-      title: warning.title || `Warnung Stufe ${warning.level}`,
-      body: `${list}: ${warning.description}`,
+      title,
+      body,
       url: "/karten/warnungen",
       tag: warning.id,
     });
