@@ -262,7 +262,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           title: form.title,
           description: form.description,
           impact: form.impact,
-          value: form.value || null,
+          value: combineValue(form.valueFrom, form.valueTo) || null,
           regionIds: form.regionIds,
           active: form.active,
         },
