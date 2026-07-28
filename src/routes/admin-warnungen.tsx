@@ -145,7 +145,18 @@ interface FormState {
   active: boolean;
 }
 
+/** Vorlagentexte für eine Kombination aus Gefahr, Stufe und Messwert. */
+function genTexts(hazard: HazardId, level: WarnLevel, value: string) {
+  const tpl = TEMPLATES[hazard][level];
+  return {
+    title: warningTitle(hazard, level),
+    description: fillTemplate(tpl.description, value),
+    impact: templateImpact(tpl),
+  };
+}
+
 function emptyForm(): FormState {
+  const t = genTexts("gewitter", 1, "");
   return {
     id: null,
     hazard: "gewitter",
@@ -154,9 +165,9 @@ function emptyForm(): FormState {
     validTo: nowLocal(6),
     valueFrom: "",
     valueTo: "",
-    title: warningTitle("gewitter", 1),
-    description: fillTemplate(TEMPLATES.gewitter[1].description),
-    impact: templateImpact(TEMPLATES.gewitter[1]),
+    title: t.title,
+    description: t.description,
+    impact: t.impact,
 
     regionIds: [],
     active: true,
