@@ -377,23 +377,34 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <TileLayer
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
               maxZoom={18}
-              opacity={0.6}
+              opacity={0.55}
               attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a>'
             />
             <GeoJSON
+              data={OUTSIDE_CH_MASK}
+              style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
+              interactive={false}
+            />
+            <GeoJSON
               data={OUTSIDE_MASK}
-              style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.35 })}
+              style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
               interactive={false}
             />
             <GeoJSON
               data={LAKE}
-              style={() => ({ color: "#5ba8c8", weight: 1, fillColor: "#7ec8e3", fillOpacity: 0.3 })}
+              style={() => ({ color: "#5ba8c8", weight: 1.2, fillColor: "#7ec8e3", fillOpacity: 0.25 })}
+              interactive={false}
+            />
+            <GeoJSON
+              data={SWITZERLAND}
+              style={() => ({ color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })}
               interactive={false}
             />
             <GeoJSON
               data={THURGAU}
-              style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.35, fill: false })}
+              style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
               interactive={false}
+
             />
             <GeoJSON
               ref={(r) => {
