@@ -112,6 +112,17 @@ function EmbedInfo() {
         </section>
         <section className="space-y-3">
           <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
+            Wetterwarnkarte (mit Push-Hinweis)
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Zeigt die aktuelle Warnkarte für den Oberthurgau. Push-Benachrichtigungen können im iframe
+            nicht aktiviert werden — im Widget ist deshalb ein Button zur eigenständigen App eingebaut.
+          </p>
+          <SnippetBlock snippet={buildSimpleSnippet(url, "/embed/warnungen", 760)} />
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
             Satellit Loop (Schweiz &amp; Alpen, ohne Bedienleiste)
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -119,6 +130,7 @@ function EmbedInfo() {
           </p>
           <SnippetBlock snippet={buildSimpleSnippet(url, "/embed/satellit-loop", 520)} />
         </section>
+
 
 
         <section className="space-y-6">
