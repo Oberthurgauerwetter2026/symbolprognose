@@ -74,16 +74,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "A 5-day weather forecast widget for desktop and mobile, embeddable on WordPress websites." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "A 5-day weather forecast widget for desktop and mobile, embeddable on WordPress websites." },
+      { title: "Wetterwarnungen Oberthurgau · Symbolprognose" },
+      { name: "description", content: "Aktuelle Wetterwarnungen, regionale Unwetterbenachrichtigungen und Wetterkarten für den Oberthurgau." },
+      { name: "author", content: "Oberthurgauer Wetter" },
+      { name: "theme-color", content: "#2561a1" },
+      { property: "og:title", content: "Wetterwarnungen Oberthurgau · Symbolprognose" },
+      { property: "og:description", content: "Aktuelle Wetterwarnungen und regionale Unwetterbenachrichtigungen für den Oberthurgau." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "A 5-day weather forecast widget for desktop and mobile, embeddable on WordPress websites." },
+      { name: "twitter:site", content: "@OberthurgauWetter" },
+      { name: "twitter:title", content: "Wetterwarnungen Oberthurgau · Symbolprognose" },
+      { name: "twitter:description", content: "Aktuelle Wetterwarnungen und regionale Unwetterbenachrichtigungen für den Oberthurgau." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/22b507aa-a55b-49bc-b5f4-03d0a137199c/id-preview-97a24c55--190ceb62-232f-4af4-9fcc-a0a628f223d4.lovable.app-1779228758195.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/22b507aa-a55b-49bc-b5f4-03d0a137199c/id-preview-97a24c55--190ceb62-232f-4af4-9fcc-a0a628f223d4.lovable.app-1779228758195.png" },
     ],
@@ -92,6 +93,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
+      {
+        rel: "icon",
+        type: "image/png",
+        href: "/favicon.png",
+      },
+      {
+        rel: "apple-touch-icon",
+        href: "/icon-192.png",
+      },
+      {
+        rel: "manifest",
+        href: "/manifest.webmanifest",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -99,6 +113,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
+
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
