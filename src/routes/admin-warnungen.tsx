@@ -145,7 +145,18 @@ interface FormState {
   active: boolean;
 }
 
+/** Vorlagentexte für eine Kombination aus Gefahr, Stufe und Messwert. */
+function genTexts(hazard: HazardId, level: WarnLevel, value: string) {
+  const tpl = TEMPLATES[hazard][level];
+  return {
+    title: warningTitle(hazard, level),
+    description: fillTemplate(tpl.description, value),
+    impact: templateImpact(tpl),
+  };
+}
+
 function emptyForm(): FormState {
+  const t = genTexts("gewitter", 1, "");
   return {
     id: null,
     hazard: "gewitter",
@@ -154,9 +165,9 @@ function emptyForm(): FormState {
     validTo: nowLocal(6),
     valueFrom: "",
     valueTo: "",
-    title: warningTitle("gewitter", 1),
-    description: fillTemplate(TEMPLATES.gewitter[1].description),
-    impact: templateImpact(TEMPLATES.gewitter[1]),
+    title: t.title,
+    description: t.description,
+    impact: t.impact,
 
     regionIds: [],
     active: true,
@@ -170,7 +181,8 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [touchedText, setTouchedText] = useState(false);
+  /** Zuletzt automatisch erzeugte Texte – zum Erkennen manueller Änderungen. */
+  const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, ""));
 
   const load = async () => {
     setLoading(true);
@@ -190,25 +202,35 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   }, [password]);
 
   /** Vorlage anwenden, solange die Texte nicht manuell verändert wurden. */
+  /** True, sobald die Texte von der zuletzt erzeugten Vorlage abweichen. */
+  const textIsManual =
+    form.title !== lastTpl.title ||
+    form.description !== lastTpl.description ||
+    form.impact !== lastTpl.impact;
+
+  /** Vorlage anwenden, solange die Texte nicht manuell verändert wurden. */
   const applyTemplate = (
     hazard: HazardId,
     level: WarnLevel,
     valueFrom: string,
     valueTo: string,
+    force = false,
   ) => {
-    const tpl = TEMPLATES[hazard][level];
-    const value = combineValue(valueFrom, valueTo);
+    const t = genTexts(hazard, level, combineValue(valueFrom, valueTo));
+    const useTpl = force || !textIsManual;
+    setLastTpl(t);
     setForm((f) => ({
       ...f,
       hazard,
       level,
       valueFrom,
       valueTo,
-      title: touchedText ? f.title : warningTitle(hazard, level),
-      description: touchedText ? f.description : fillTemplate(tpl.description, value),
-      impact: touchedText ? f.impact : templateImpact(tpl),
+      title: useTpl ? t.title : f.title,
+      description: useTpl ? t.description : f.description,
+      impact: useTpl ? t.impact : f.impact,
     }));
   };
+
 
   /** Beginn setzen und Ende relativ dazu halten. */
   const setStart = (d: Date) => {
@@ -268,7 +290,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         },
       });
       setForm(emptyForm());
-      setTouchedText(false);
+      setLastTpl(genTexts("gewitter", 1, ""));
       setMsg("Gespeichert.");
       await load();
     } catch (err) {
@@ -284,7 +306,13 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       const p = (n: number) => String(n).padStart(2, "0");
       return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
     };
-    setTouchedText(true);
+    setLastTpl(
+      genTexts(
+        w.hazard as HazardId,
+        w.level as WarnLevel,
+        combineValue(splitValue(w.value).from, splitValue(w.value).to),
+      ),
+    );
     setForm({
       id: w.id,
       hazard: w.hazard as HazardId,
@@ -511,14 +539,28 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            {textIsManual && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs sm:col-span-2">
+                <span className="text-muted-foreground">
+                  Texte wurden manuell angepasst – sie folgen den Mengenangaben nicht mehr
+                  automatisch.
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    applyTemplate(form.hazard, form.level, form.valueFrom, form.valueTo, true)
+                  }
+                  className="rounded-md border border-input bg-background px-2 py-1 font-medium"
+                >
+                  Text aus Vorlage neu erzeugen
+                </button>
+              </div>
+            )}
             <label className="text-xs font-medium sm:col-span-2">
               Titel
               <input
                 value={form.title}
-                onChange={(e) => {
-                  setTouchedText(true);
-                  setForm((f) => ({ ...f, title: e.target.value }));
-                }}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                 className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
               />
             </label>
@@ -527,10 +569,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               <textarea
                 rows={4}
                 value={form.description}
-                onChange={(e) => {
-                  setTouchedText(true);
-                  setForm((f) => ({ ...f, description: e.target.value }));
-                }}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
               />
             </label>
@@ -539,14 +578,12 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               <textarea
                 rows={4}
                 value={form.impact}
-                onChange={(e) => {
-                  setTouchedText(true);
-                  setForm((f) => ({ ...f, impact: e.target.value }));
-                }}
+                onChange={(e) => setForm((f) => ({ ...f, impact: e.target.value }))}
                 className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
               />
             </label>
           </div>
+
 
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-xs">
@@ -571,7 +608,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                 type="button"
                 onClick={() => {
                   setForm(emptyForm());
-                  setTouchedText(false);
+                  setLastTpl(genTexts("gewitter", 1, ""));
                 }}
                 className="text-xs underline"
               >
