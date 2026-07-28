@@ -185,7 +185,7 @@ export async function buildRegionSnapshotSvg(): Promise<string> {
   const forecasts = await Promise.all(SPOTS.filter((s) => !s.minZoom).map(fetchSpotForecast));
   return buildSvg({
     title: "Wetterkarte Region Oberthurgau",
-    link: "https://oberthurgauerwetter.lovable.app/karten/region",
+    link: "https://oberthurgauer-wetter.lovable.app/karten/region",
     forecasts,
   });
 }
@@ -194,7 +194,7 @@ export async function buildLokalSnapshotSvg(): Promise<string> {
   const forecasts = await Promise.all(SPOTS.map(fetchSpotForecast));
   return buildSvg({
     title: "Lokalprognose Oberthurgau",
-    link: "https://oberthurgauerwetter.lovable.app/karten/lokal",
+    link: "https://oberthurgauer-wetter.lovable.app/karten/lokal",
     forecasts,
   });
 }
