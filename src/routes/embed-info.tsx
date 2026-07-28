@@ -75,96 +75,137 @@ function SnippetBlock({ snippet }: { snippet: string }) {
   );
 }
 
+interface Product {
+  id: string;
+  label: string;
+  path: string;
+  height: number;
+  description: string;
+  variant?: "amriswil";
+  note?: string;
+}
+
+/** Ein Eintrag pro Produkt des Wetterboards — jedes bekommt sein eigenes Snippet. */
+const PRODUCTS: Product[] = [
+  {
+    id: "warnungen",
+    label: "Wetterwarnungen",
+    path: "/embed/warnungen",
+    height: 760,
+    description:
+      "Warnkarte für alle Gemeinden im Oberthurgau: Gewitter, Regen, Schnee, Strassenglätte, Wind und Frost in vier Gefahrenstufen.",
+    note: "Push-Benachrichtigungen lassen sich im iframe nicht aktivieren — im Widget führt ein Button in einen eigenen Tab, dort funktioniert das Abo.",
+  },
+  {
+    id: "lokal-amriswil",
+    label: "Lokalprognose Amriswil (Monitor-Version)",
+    path: "/api/public/embed/region-lokal-static",
+    height: 520,
+    variant: "amriswil",
+    description:
+      "Kompakte HTML-Prognose mit Wettersymbolen, ohne JavaScript. Passt neben die TWINT-Spalte; die Höhe 520px ist auf die Unterkante des TWINT-Labels abgestimmt.",
+  },
+  {
+    id: "region",
+    label: "Wetterkarte Region",
+    path: "/embed/region",
+    height: 600,
+    description: "Symbolprognose, Temperatur und Wind für die Region Oberthurgau.",
+  },
+  {
+    id: "lokal",
+    label: "Lokalprognose (Karte)",
+    path: "/embed/lokal",
+    height: 600,
+    description: "5-Tage-Prognose im 3-Stunden-Takt für jeden Ort der Region.",
+  },
+  {
+    id: "wind",
+    label: "Wind",
+    path: "/embed/wind",
+    height: 600,
+    description: "Windrichtung, Windgeschwindigkeit und Böen auf der Regionskarte.",
+  },
+  {
+    id: "radar",
+    label: "Niederschlagsradar",
+    path: "/embed/radar",
+    height: 600,
+    description: "Radarmessung und Kurzfristprognose des Niederschlags.",
+  },
+  {
+    id: "satellit",
+    label: "Satellit (mit Bedienleiste)",
+    path: "/embed/satellit",
+    height: 600,
+    description: "MTG-Satellitenbilder mit Regionsauswahl und Zeitleiste.",
+  },
+  {
+    id: "satellit-loop",
+    label: "Satellit Loop (Schweiz & Alpen)",
+    path: "/embed/satellit-loop",
+    height: 520,
+    description:
+      "Automatischer Loop der MTG-Satellitenbilder — ohne Regions-Umschaltung und ohne Zeitleiste, als reines Widget.",
+  },
+  {
+    id: "all",
+    label: "Komplett-Board (alle Karten mit Tabs)",
+    path: "/embed/all",
+    height: 760,
+    description:
+      "Region, Lokalprognose, Wind und Radar in einer einzigen Einbettung. Besucher wechseln im iframe selbst.",
+  },
+];
+
 function EmbedInfo() {
   const url = PUBLISHED_ORIGIN;
 
   return (
     <DashboardLayout
       title="Embed-Snippets"
-      subtitle="iframe-Code für WordPress, pro Karte oder Komplett-Widget"
+      subtitle="iframe-Code für WordPress — ein Snippet pro Produkt"
     >
-      <div className="mx-auto w-full max-w-3xl space-y-10 px-4 py-8">
+      <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8">
         <p className="text-sm text-muted-foreground">
-          Füge im WordPress-Editor einen <strong>Custom-HTML-Block</strong> (oder iframe-Block) ein und kopiere das Snippet hinein.
+          Füge im WordPress-Editor einen <strong>Custom-HTML-Block</strong> (oder iframe-Block) ein und kopiere das
+          gewünschte Snippet hinein. Empfehlung: pro Produkt eine eigene Seite bzw. einen eigenen Block, damit jedes
+          Produkt einzeln benannt und verlinkt werden kann.
         </p>
         <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-          Die Snippets zeigen immer auf die publizierte URL <code>{PUBLISHED_ORIGIN}</code>. Nach Code-Änderungen zuerst publishen, damit sie in WordPress sichtbar werden.
+          Die Snippets zeigen immer auf die publizierte URL <code>{PUBLISHED_ORIGIN}</code>. Nach Code-Änderungen zuerst
+          publishen, damit sie in WordPress sichtbar werden.
         </p>
 
-        <section className="space-y-3">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Komplett-Widget (alle Karten mit Tabs)
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Region, Lokalprognose, Wind und Radar in einer einzigen Einbettung. Besucher wechseln im iframe selbst.
-          </p>
-          <SnippetBlock snippet={buildSimpleSnippet(url, "/embed/all", 760)} />
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Lokalprognose Amriswil
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Kompakte Monitor-Version mit Wettersymbolen: reine HTML-Prognose ohne JavaScript, passt neben die TWINT-Spalte. Die Höhe <code>520px</code> ist auf die Unterkante des TWINT-Labels abgestimmt und kann bei Bedarf angepasst werden.
-          </p>
-          <SnippetBlock snippet={buildAmriswilSnippet(url, "/api/public/embed/region-lokal-static", 520)} />
-        </section>
-        <section className="space-y-3">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Wetterwarnkarte (mit Push-Hinweis)
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Zeigt die aktuelle Warnkarte für den Oberthurgau. Push-Benachrichtigungen können im iframe
-            nicht aktiviert werden — im Widget ist deshalb ein Button zur eigenständigen App eingebaut.
-          </p>
-          <SnippetBlock snippet={buildSimpleSnippet(url, "/embed/warnungen", 760)} />
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Satellit Loop (Schweiz &amp; Alpen, ohne Bedienleiste)
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Automatischer Loop der MTG-Satellitenbilder – keine Regions-Umschaltung, keine Zeitleiste. Ideal als reines Widget.
-          </p>
-          <SnippetBlock snippet={buildSimpleSnippet(url, "/embed/satellit-loop", 520)} />
-        </section>
-
-
-
         <section className="space-y-6">
-          <div>
-            <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-              Einzelne Karten
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Jede Karte kann separat eingebunden werden.
-            </p>
-          </div>
-
-          {MAPS.filter((m) => !m.internal && m.embedPath).map((m) => {
-            const Icon = m.icon;
+          {PRODUCTS.map((p) => {
+            const map = MAPS.find((m) => m.embedPath === p.path);
+            const Icon = map?.icon;
+            const snippet =
+              p.variant === "amriswil"
+                ? buildAmriswilSnippet(url, p.path, p.height)
+                : buildSimpleSnippet(url, p.path, p.height);
             return (
-              <div key={m.id} className="space-y-2 rounded-2xl border border-border bg-card p-4">
-                <div className="flex items-center gap-2">
+              <div key={p.id} className="space-y-3 rounded-2xl border border-border bg-card p-4">
+                <div className="flex items-start gap-3">
                   <div
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"
                     style={{ background: "#2561a1" }}
                   >
-                    <Icon className="h-4 w-4" />
+                    {Icon ? <Icon className="h-4 w-4" /> : <span className="text-xs font-bold">OT</span>}
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">{m.label}</h3>
-                    <p className="text-xs text-muted-foreground">{m.description}</p>
+                  <div className="space-y-1">
+                    <h2 className="font-[family-name:var(--font-display)] text-base font-semibold text-foreground">
+                      {p.label}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">{p.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Pfad <code>{p.path}</code> · empfohlene Höhe <code>{p.height}px</code>
+                    </p>
+                    {p.note && <p className="text-xs text-amber-800">{p.note}</p>}
                   </div>
-                  {m.status === "coming-soon" && (
-                    <span className="ml-auto rounded bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      bald verfügbar
-                    </span>
-                  )}
                 </div>
-                <SnippetBlock snippet={buildSimpleSnippet(url, m.embedPath!, 600)} />
+                <SnippetBlock snippet={snippet} />
               </div>
             );
           })}
