@@ -36,7 +36,7 @@ export function RadarNoscript({ data }: { data: RadarNoscriptData }) {
         <p className="text-xs text-muted-foreground">
           Statische Vorschau ohne JavaScript. Für die animierte Karte mit Vorhersage{" "}
           <a
-            href="https://symbolprognose.lovable.app/karten/radar"
+            href="https://warnkarte-oberthurgau.lovable.app/karten/radar"
             className="underline"
           >
             hier öffnen

@@ -1,47 +1,38 @@
 ## Ziel
 
-`warnkarte.oberthurgauerwetter.ch` zeigt auf die Lovable-App. Die WordPress-Seite bettet die Warnkarte per Iframe ein; für Benachrichtigungen öffnen Nutzer die Subdomain in einem eigenen Tab.
+Kein DNS, kein Cyon-Webhosting, keine Subdomain. Die App läuft unter der Lovable-URL `warnkarte-oberthurgau.lovable.app`. Deine WordPress-Seite bindet die Warnkarte per Iframe ein; Benachrichtigungen aktivieren Nutzer über einen Button, der die App in einem eigenen Tab öffnet.
 
-## Teil A – Was du bei Cyon machst
+## Warum das funktioniert
 
-Im Cyon-DNS-Editor für `oberthurgauerwetter.ch`:
+Push-Benachrichtigungen brauchen nur eine **stabile HTTPS-Origin** — es muss keine eigene Domain sein. `warnkarte-oberthurgau.lovable.app` erfüllt das vollständig: Service Worker, Berechtigungen und Abos bleiben dauerhaft an diese Adresse gebunden.
 
-1. **Keine Subdomain** über das Formular aus deinem Screenshot anlegen (das erzeugt Webhosting auf Cyon und blockiert uns). Falls `warnkarte` dort schon existiert: löschen.
-2. Im **DNS-Editor** zwei Einträge anlegen:
+## Umsetzung
 
-```text
-Typ   Name        Wert
-A     warnkarte   185.158.133.1
-TXT   _lovable    lovable_verify=…  (exakter Wert kommt aus Lovable)
-```
+**1. Lovable-URL umbenennen**
+Beim nächsten Publish setze ich den Slug auf `warnkarte-oberthurgau`. Neue Adresse: `https://warnkarte-oberthurgau.lovable.app`
 
-3. Prüfen, dass für `warnkarte` **kein weiterer** A-, CNAME- oder Weiterleitungs-Eintrag existiert.
+**2. Domain-Referenzen im Code zurückbauen**
+- `src/lib/site-url.ts`: `SITE_URL` von `warnkarte.oberthurgauerwetter.ch` auf `https://warnkarte-oberthurgau.lovable.app` ändern; die veraltete `LOVABLE_ORIGIN`-Konstante entfernen.
+- `src/routes/embed-info.tsx`: `PUBLISHED_ORIGIN` auf die neue Lovable-URL setzen.
+- `src/routes/__root.tsx` und `src/routes/karten.warnungen.tsx`: `canonical` und `og:url` auf die neue Adresse anpassen.
 
-## Teil B – Was du in Lovable machst
-
-1. **Project Settings → Project → Domains → Connect Domain**
-2. `warnkarte.oberthurgauerwetter.ch` eingeben → Lovable zeigt den TXT-Wert an
-3. TXT-Wert bei Cyon eintragen, Status abwarten: Verifying → Setting up → **Active**
-4. Danach **Publish/Update** klicken
-
-## Teil C – Code-Anpassungen (mache ich)
-
-Der Grossteil ist bereits vorbereitet (`src/lib/site-url.ts`, Metadaten, Embed-Route). Offen sind zwei Robustheits-Punkte:
-
-1. **`public/manifest.webmanifest`**: `start_url` und `scope` von absoluten URLs auf relative Pfade (`/karten/warnungen`, `/`) umstellen. Absolute URLs brechen die PWA-Installation, solange die App noch unter `symbolprognose.lovable.app` läuft, und sind nach dem Domain-Wechsel unnötig.
-2. **`src/lib/site-url.ts`**: `getAppUrl` so anpassen, dass im Iframe nur dann auf `SITE_URL` gewechselt wird, wenn die Domain erreichbar ist – konkret: die Ziel-Domain bleibt fest verdrahtet, aber im Preview/Nicht-Produktions-Kontext wird die aktuelle Origin genutzt, damit du vor dem Domain-Go-Live testen kannst.
-
-## Teil D – WordPress-Einbindung
-
-Nach Domain-Aktivierung nutzt du dieses Snippet (steht schon auf `/embed-info`, ich prüfe die URL darin):
+**3. WordPress-Snippet**
+Auf `/embed-info` steht dann das fertige Snippet zum Kopieren:
 
 ```html
-<iframe src="https://warnkarte.oberthurgauerwetter.ch/embed/warnungen"
+<iframe src="https://warnkarte-oberthurgau.lovable.app/embed/warnungen"
         style="width:100%;height:760px;border:0" loading="lazy"></iframe>
 ```
 
-Im Iframe erscheint der Button „Warnungen abonnieren – in eigenem Tab öffnen", der auf die Subdomain führt. Dort funktionieren Push-Benachrichtigungen, weil der Service Worker an diese Origin gebunden ist.
+**4. Hinweis-Button prüfen**
+Im Embed erscheint „Warnungen abonnieren – in eigenem Tab öffnen". Ich stelle sicher, dass er auf `https://warnkarte-oberthurgau.lovable.app/karten/warnungen` zeigt und im Iframe klar sichtbar platziert ist.
 
-## Technische Notiz
+**5. Publizieren** und die Karte im Live-Embed gegenprüfen.
 
-Push im Iframe wird von allen Browsern blockiert (Permissions Policy + Third-Party-Storage). Deshalb ist der Tab-Wechsel keine Notlösung, sondern der einzige funktionierende Weg. Auf iOS muss der Nutzer die Seite zusätzlich über „Zum Home-Bildschirm" installieren, bevor Push verfügbar ist.
+## Was du danach machst
+
+Auf deiner WordPress-Seite einen Block „Individuelles HTML" einfügen und das Snippet aus Schritt 3 einsetzen. Keine DNS-Einstellungen, kein Cyon-Eingriff nötig.
+
+## Einschränkung
+
+Die Adresse enthält weiterhin `lovable.app` statt deiner eigenen Domain. Deine Nutzer sehen sie nur, wenn sie auf den Abonnieren-Button klicken — die eingebettete Karte selbst zeigt keine URL. Falls dir das später doch zu unpassend wird, lässt sich eine eigene Domain jederzeit nachträglich verbinden, ohne dass die Einbindung neu gebaut werden muss.
