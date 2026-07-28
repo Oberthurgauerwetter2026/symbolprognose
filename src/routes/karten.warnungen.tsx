@@ -14,9 +14,14 @@ export const Route = createFileRoute("/karten/warnungen")({
       { property: "og:title", content: "Wetterwarnungen Oberthurgau · Warnkarte" },
       { property: "og:description", content: getMap("warnungen").description },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://warnkarte.oberthurgauerwetter.ch/karten/warnungen" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    links: [
+      { rel: "canonical", href: "https://warnkarte.oberthurgauerwetter.ch/karten/warnungen" },
+    ],
   }),
+
 });
 
 function KartenWarnungenPage() {
