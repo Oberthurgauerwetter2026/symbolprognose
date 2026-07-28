@@ -81,7 +81,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Oberthurgauer Wetter · Warnungen, Prognosen, Radar & Satellit" },
       { property: "og:description", content: "Wetterboard für den Oberthurgau: Warnkarte, Regions- und Lokalprognose, Wind, Radar und Satellit." },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://oberthurgauerwetter.lovable.app/" },
+      { property: "og:url", content: "https://oberthurgauer-wetter.lovable.app/" },
       { property: "og:site_name", content: "Oberthurgauer Wetter" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@OberthurgauWetter" },

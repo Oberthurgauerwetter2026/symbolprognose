@@ -3,7 +3,7 @@
  * der eigenen Subdomain, damit Service Worker und Berechtigungen an eine
  * stabile Origin gebunden sind.
  */
-export const SITE_URL = "https://oberthurgauerwetter.lovable.app";
+export const SITE_URL = "https://oberthurgauer-wetter.lovable.app";
 
 
 /** Origins, die zum Entwickeln/Testen dienen und nie umgeschrieben werden. */

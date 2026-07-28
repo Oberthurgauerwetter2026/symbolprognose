@@ -14,11 +14,11 @@ export const Route = createFileRoute("/karten/warnungen")({
       { property: "og:title", content: "Wetterwarnungen Oberthurgau · Warnkarte" },
       { property: "og:description", content: getMap("warnungen").description },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://oberthurgauerwetter.lovable.app/karten/warnungen" },
+      { property: "og:url", content: "https://oberthurgauer-wetter.lovable.app/karten/warnungen" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
-      { rel: "canonical", href: "https://oberthurgauerwetter.lovable.app/karten/warnungen" },
+      { rel: "canonical", href: "https://oberthurgauer-wetter.lovable.app/karten/warnungen" },
     ],
   }),
 

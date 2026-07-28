@@ -5,7 +5,7 @@ import {
   buildRegionSnapshotSvg,
 } from "@/lib/snapshot.server";
 
-const PUBLISHED = "https://oberthurgauerwetter.lovable.app";
+const PUBLISHED = "https://oberthurgauer-wetter.lovable.app";
 
 /**
  * GET /api/public/snapshot/{map}.svg
