@@ -2,8 +2,8 @@
   "name": "Wetterwarnungen Oberthurgau",
   "short_name": "Warnungen",
   "description": "Aktuelle Wetterwarnungen und regionale Unwetterbenachrichtigungen für den Oberthurgau.",
-  "start_url": "/karten/warnungen",
-  "scope": "/",
+  "start_url": "https://warnkarte.oberthurgauerwetter.ch/karten/warnungen",
+  "scope": "https://warnkarte.oberthurgauerwetter.ch/",
   "display": "standalone",
   "background_color": "#f4f4f5",
   "theme_color": "#2561a1",
@@ -21,5 +21,6 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "id": "/karten/warnungen"
 }

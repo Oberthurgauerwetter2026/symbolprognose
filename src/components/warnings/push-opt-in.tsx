@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { BellOff, BellRing, Check, ChevronDown, Circle, Loader2 } from "lucide-react";
 import { REGIONS } from "@/lib/warnings-config";
+import { getAppUrl } from "@/lib/site-url";
 import { getPushPublicKey, savePushSubscription, removePushSubscription } from "@/lib/warnings.functions";
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
@@ -47,7 +48,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     } catch {
       setFramed(true);
     }
-    setPageUrl(window.location.href);
+    setPageUrl(getAppUrl("/karten/warnungen"));
     if (typeof Notification !== "undefined") setBlocked(Notification.permission === "denied");
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
       const sub = await reg?.pushManager.getSubscription();
