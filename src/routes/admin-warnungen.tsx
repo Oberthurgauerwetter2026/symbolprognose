@@ -290,7 +290,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         },
       });
       setForm(emptyForm());
-      setTouchedText(false);
+      setLastTpl(genTexts("gewitter", 1, ""));
       setMsg("Gespeichert.");
       await load();
     } catch (err) {
