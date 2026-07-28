@@ -81,7 +81,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Wetterwarnungen Oberthurgau · Symbolprognose" },
       { property: "og:description", content: "Aktuelle Wetterwarnungen und regionale Unwetterbenachrichtigungen für den Oberthurgau." },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://warnkarte.oberthurgauerwetter.ch/" },
+      { property: "og:url", content: "https://warnkarte-oberthurgau.lovable.app/" },
       { property: "og:site_name", content: "Oberthurgauer Wetter" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@OberthurgauWetter" },
