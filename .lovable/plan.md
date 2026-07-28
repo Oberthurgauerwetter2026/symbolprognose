@@ -1,52 +1,26 @@
-## 1. Kartenhintergrund identisch zu Radar/Wind
+## Ursache (verifiziert)
 
-`src/components/maps/warn-map.tsx` nutzt zwar dieselbe swisstopo-Kachel, aber einen reduzierten Masken-Stack (nur eine Aussenmaske, keine Schweiz-Maske/-Kontur, andere Deckkraft). Der Layer-Aufbau wird 1:1 vom Wind-/Radar-Layout übernommen:
+Im Admin-Formular (`src/routes/admin-warnungen.tsx`) blockiert das Flag `touchedText` die Textaktualisierung:
 
-- Kachel-Deckkraft 0.6 → 0.55
-- zusätzliche `OUTSIDE_CH_MASK` (Welt minus Schweiz/See) in `#3a4148`, Deckkraft 0.4
-- bestehende `OUTSIDE_MASK` (Welt minus Region) auf `#5a6670`, Deckkraft 0.18
-- See-Stil wie Radar (`#5ba8c8` / `#7ec8e3`, 0.25)
-- weisse Schweizer Landesgrenze, Thurgau-Kontur 0.45, zusätzliche Region-Aussenkontur (`#1f4d80`, weight 2)
-- gleicher Container-Hintergrund `#ebefeb`
+- `applyTemplate` (Zeilen 199–211) setzt Beschreibung/Auswirkungen nur, wenn `touchedText === false`.
+- `touchedText` wird bei jeder manuellen Änderung an Titel/Beschreibung/Auswirkungen auf `true` gesetzt — und zusätzlich beim Öffnen einer bestehenden Warnung zum Bearbeiten (Zeile 287).
 
-Dazu werden `switzerland`-Geometrie und die Masken-Helfer analog zur Windkarte in der Warnkarte aufgebaut.
+Sobald man also einmal im Text getippt oder eine bestehende Warnung geöffnet hat, ändert die Eingabe der Böenspitzen (bzw. mm/cm/°C) den Warntext nicht mehr.
 
-## 2. Neue Gefahren-Symbole
+## Änderungen
 
-In `src/components/warnings/hazard-icons.tsx` (Lucide-Stil, 24×24, currentColor) neu bzw. ersetzt:
+1. **Wert-Änderung erzeugt Text neu, solange der Text unverändert ist.**
+   Statt eines einfachen „einmal berührt = nie mehr“-Flags wird verglichen, ob der aktuelle Text noch exakt dem zuletzt generierten Vorlagentext entspricht. Ist er unverändert, wird er bei jeder Änderung von Gefahr, Stufe oder Mengenwerten neu erzeugt — auch beim Bearbeiten einer bestehenden Warnung, wenn deren Text noch der Vorlage entspricht.
 
-- **Gewitter**: ein einzelner, kräftiger Blitz (statt Wolke+Blitz)
-- **Schnee**: drei Schneeflocken (eine grosse, zwei kleine)
-- **Regen**: drei Regentropfen
-- **Wind**: exakt derselbe Windsack wie in der Lokalprognose (`WindsockIcon` aus `weather-widget.tsx` wird in die gemeinsame Icon-Datei ausgelagert und an beiden Stellen verwendet — Darstellung in der Lokalprognose bleibt unverändert)
-- **Strassenglätte**: modernere Variante — Fahrzeug in Schräglage mit zwei sauberen Schleuderspuren, weniger Detaillinien, klarere Silhouette
+2. **Sichtbarer Hinweis + Button „Text aus Vorlage neu erzeugen“.**
+   Wurde der Text manuell angepasst, bleibt er erhalten (kein Datenverlust), und über dem Beschreibungsfeld erscheint ein kleiner Hinweis mit einem Button, der Titel, Beschreibung und Auswirkungen mit den aktuellen Werten neu aus der Vorlage aufbaut.
 
-`src/lib/warnings-config.ts` referenziert die neuen Icons; Frost bleibt unverändert.
-
-## 3. Mengenangaben „von/bis“
-
-Im Admin-Formular (`src/routes/admin-warnungen.tsx`) wird das eine Wert-Feld durch zwei Felder („von“ / „bis“) ersetzt, mit Einheit aus der Gefahren-Definition (mm, cm, km/h, °C). Intern wird daraus ein Anzeigewert zusammengesetzt (`"20–40"`, oder nur `"40"` wenn nur ein Feld gefüllt ist) und wie bisher im bestehenden Feld gespeichert — keine Datenbankänderung nötig. Beim Bearbeiten wird ein gespeicherter Bereich wieder in die zwei Felder zerlegt.
-
-## 4. Gültigkeit einfacher einstellen
-
-Über den beiden Datum/Zeit-Feldern kommen Schnellwahl-Chips:
-
-- Beginn: „Jetzt“, „+1 h“, „+3 h“, „Morgen 06:00“
-- Dauer: „3 h“, „6 h“, „12 h“, „24 h“, „48 h“ (setzt „Gültig bis“ relativ zum Beginn)
-
-Darunter eine Klartext-Vorschau („Gültig: 28.07. 14:00 – 20:00 Uhr“). Die manuellen Felder bleiben als Feineinstellung erhalten; Zeiten rasten auf 15 Minuten ein.
-
-## 5. Standardisierte meteorologische Warntexte
-
-`TEMPLATES` in `src/lib/warnings-config.ts` wird für alle 6 Gefahren × 3 Stufen neu formuliert, im Stil MeteoSchweiz/SRF Meteo:
-
-- **Beschreibung**: sachliche Lagebeschreibung mit Kennwert-Bereich, z. B. „Verbreitet fällt Dauerregen mit Mengen von 40 bis 60 mm innerhalb von 24 Stunden.“
-- **Auswirkungen**: nüchterne Aufzählung der wichtigsten Folgen, keine Dramatisierung („Lokale Überflutungen tiefliegender Strassen und Unterführungen sind möglich.“)
-- **Verhalten**: kurze, neutrale Handlungsempfehlung
-- Durchgehend kurze Hauptsätze, keine Umgangssprache, keine Ausrufezeichen, keine wertenden Adjektive; „von/bis“-Werte werden über die bestehende `{v: …}`-Platzhalterlogik eingesetzt.
+3. **Bereichsdarstellung im Text prüfen.**
+   `combineValue` liefert bereits „20 bis 40“; in den Vorlagen steht „von {v} km/h“, was zu „von 20 bis 40 km/h“ wird — korrekt. Bei nur einem Wert bleibt „von 75 km/h“. Keine Änderung nötig, wird nur verifiziert.
 
 ## Technische Details
 
-- Betroffene Dateien: `src/components/maps/warn-map.tsx`, `src/components/warnings/hazard-icons.tsx`, `src/components/weather-widget.tsx` (nur Icon-Import), `src/lib/warnings-config.ts`, `src/routes/admin-warnungen.tsx`
-- Keine Migration, keine Änderung an Push-Versand oder Warn-API
-- Abschliessend Typecheck und optische Prüfung von `/karten/warnungen` und `/admin-warnungen`
+- Betroffene Datei: `src/routes/admin-warnungen.tsx`
+- `touchedText` wird durch einen Vergleich mit einem `lastTemplateRef` (zuletzt generierte Texte) ersetzt; `edit()` setzt kein pauschales „berührt“ mehr, sondern befüllt die Referenz aus der Vorlage der geladenen Warnung.
+- Keine Änderungen an Datenbank, Server-Funktionen oder Push-Versand.
+- Abschliessend Typecheck und Prüfung von `/admin-warnungen`.
