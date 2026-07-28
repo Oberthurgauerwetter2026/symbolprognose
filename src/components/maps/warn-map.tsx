@@ -137,9 +137,17 @@ const REGION_META = REGION_FC.features.map((f) => {
   return { id: slugifyRegion(name), name, feature: f, center: labelPoint(f) };
 });
 
-const OUTSIDE_MASK: FeatureCollection = (() => {
+function maskOf(sources: FeatureCollection[]): FeatureCollection {
   const holes: number[][][] = [];
-  for (const f of REGION_FC.features) holes.push(...ringsOf(f));
+  for (const fc of sources) {
+    for (const f of fc.features) {
+      const g = f.geometry;
+      if (!g) continue;
+      if (g.type === "Polygon" && g.coordinates[0]) holes.push(g.coordinates[0]);
+      else if (g.type === "MultiPolygon")
+        for (const p of g.coordinates) if (p[0]) holes.push(p[0]);
+    }
+  }
   const world: number[][] = [
     [-180, -85],
     [180, -85],
@@ -153,7 +161,20 @@ const OUTSIDE_MASK: FeatureCollection = (() => {
     geometry: { type: "Polygon", coordinates: [world, ...holes] },
   };
   return { type: "FeatureCollection", features: [feat] };
-})();
+}
+
+const OUTSIDE_MASK: FeatureCollection = maskOf([REGION_FC, LAKE]);
+const OUTSIDE_CH_MASK: FeatureCollection = maskOf([SWITZERLAND, LAKE]);
+
+const REGION_OUTLINE: FeatureCollection = {
+  type: "FeatureCollection",
+  features: REGION_FC.features.map((f) => ({
+    type: "Feature" as const,
+    properties: {},
+    geometry: f.geometry,
+  })),
+};
+
 
 const REGION_BOUNDS: L.LatLngBoundsExpression = (() => {
   const b = L.geoJSON(REGION_FC).getBounds();
