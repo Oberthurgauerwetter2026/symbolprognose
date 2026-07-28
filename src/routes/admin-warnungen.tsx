@@ -107,8 +107,27 @@ function WarnAdminPage() {
 function nowLocal(offsetHours = 0): string {
   const d = new Date(Date.now() + offsetHours * 3600_000);
   d.setMinutes(Math.round(d.getMinutes() / 15) * 15, 0, 0);
+  return toLocalInput(d);
+}
+
+function toLocalInput(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** „20“ + „40“ → „20 bis 40“; nur ein Wert → dieser Wert. */
+function combineValue(from: string, to: string): string {
+  const a = from.trim();
+  const b = to.trim();
+  if (a && b) return a === b ? a : `${a} bis ${b}`;
+  return a || b;
+}
+
+function splitValue(v: string | null | undefined): { from: string; to: string } {
+  const s = (v ?? "").trim();
+  const m = s.match(/^(.+?)\s*(?:bis|–|-|\.\.\.)\s*(.+)$/);
+  if (m) return { from: m[1].trim(), to: m[2].trim() };
+  return { from: s, to: "" };
 }
 
 interface FormState {
@@ -117,7 +136,8 @@ interface FormState {
   level: WarnLevel;
   validFrom: string;
   validTo: string;
-  value: string;
+  valueFrom: string;
+  valueTo: string;
   title: string;
   description: string;
   impact: string;
@@ -132,7 +152,8 @@ function emptyForm(): FormState {
     level: 1,
     validFrom: nowLocal(),
     validTo: nowLocal(6),
-    value: "",
+    valueFrom: "",
+    valueTo: "",
     title: warningTitle("gewitter", 1),
     description: fillTemplate(TEMPLATES.gewitter[1].description),
     impact: templateImpact(TEMPLATES.gewitter[1]),
@@ -141,6 +162,7 @@ function emptyForm(): FormState {
     active: true,
   };
 }
+
 
 function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout: () => void }) {
   const [items, setItems] = useState<WarningDTO[]>([]);
