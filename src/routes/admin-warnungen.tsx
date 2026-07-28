@@ -107,8 +107,27 @@ function WarnAdminPage() {
 function nowLocal(offsetHours = 0): string {
   const d = new Date(Date.now() + offsetHours * 3600_000);
   d.setMinutes(Math.round(d.getMinutes() / 15) * 15, 0, 0);
+  return toLocalInput(d);
+}
+
+function toLocalInput(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** „20“ + „40“ → „20 bis 40“; nur ein Wert → dieser Wert. */
+function combineValue(from: string, to: string): string {
+  const a = from.trim();
+  const b = to.trim();
+  if (a && b) return a === b ? a : `${a} bis ${b}`;
+  return a || b;
+}
+
+function splitValue(v: string | null | undefined): { from: string; to: string } {
+  const s = (v ?? "").trim();
+  const m = s.match(/^(.+?)\s*(?:bis|–|-|\.\.\.)\s*(.+)$/);
+  if (m) return { from: m[1].trim(), to: m[2].trim() };
+  return { from: s, to: "" };
 }
 
 interface FormState {
@@ -117,7 +136,8 @@ interface FormState {
   level: WarnLevel;
   validFrom: string;
   validTo: string;
-  value: string;
+  valueFrom: string;
+  valueTo: string;
   title: string;
   description: string;
   impact: string;
@@ -132,7 +152,8 @@ function emptyForm(): FormState {
     level: 1,
     validFrom: nowLocal(),
     validTo: nowLocal(6),
-    value: "",
+    valueFrom: "",
+    valueTo: "",
     title: warningTitle("gewitter", 1),
     description: fillTemplate(TEMPLATES.gewitter[1].description),
     impact: templateImpact(TEMPLATES.gewitter[1]),
@@ -141,6 +162,7 @@ function emptyForm(): FormState {
     active: true,
   };
 }
+
 
 function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout: () => void }) {
   const [items, setItems] = useState<WarningDTO[]>([]);
@@ -168,18 +190,51 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   }, [password]);
 
   /** Vorlage anwenden, solange die Texte nicht manuell verändert wurden. */
-  const applyTemplate = (hazard: HazardId, level: WarnLevel, value: string) => {
+  const applyTemplate = (
+    hazard: HazardId,
+    level: WarnLevel,
+    valueFrom: string,
+    valueTo: string,
+  ) => {
     const tpl = TEMPLATES[hazard][level];
+    const value = combineValue(valueFrom, valueTo);
     setForm((f) => ({
       ...f,
       hazard,
       level,
-      value,
+      valueFrom,
+      valueTo,
       title: touchedText ? f.title : warningTitle(hazard, level),
       description: touchedText ? f.description : fillTemplate(tpl.description, value),
       impact: touchedText ? f.impact : templateImpact(tpl),
     }));
   };
+
+  /** Beginn setzen und Ende relativ dazu halten. */
+  const setStart = (d: Date) => {
+    d.setMinutes(Math.round(d.getMinutes() / 15) * 15, 0, 0);
+    setForm((f) => {
+      const prevFrom = new Date(f.validFrom).getTime();
+      const prevTo = new Date(f.validTo).getTime();
+      const span = Number.isFinite(prevFrom) && Number.isFinite(prevTo) && prevTo > prevFrom
+        ? prevTo - prevFrom
+        : 6 * 3600_000;
+      return {
+        ...f,
+        validFrom: toLocalInput(d),
+        validTo: toLocalInput(new Date(d.getTime() + span)),
+      };
+    });
+  };
+
+  const setDuration = (hours: number) => {
+    setForm((f) => {
+      const from = new Date(f.validFrom);
+      if (Number.isNaN(from.getTime())) return f;
+      return { ...f, validTo: toLocalInput(new Date(from.getTime() + hours * 3600_000)) };
+    });
+  };
+
 
   const preview = useMemo(() => LEVELS[form.level], [form.level]);
 
@@ -207,7 +262,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           title: form.title,
           description: form.description,
           impact: form.impact,
-          value: form.value || null,
+          value: combineValue(form.valueFrom, form.valueTo) || null,
           regionIds: form.regionIds,
           active: form.active,
         },
@@ -236,7 +291,8 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       level: w.level as WarnLevel,
       validFrom: toLocal(w.validFrom),
       validTo: toLocal(w.validTo),
-      value: w.value ?? "",
+      valueFrom: splitValue(w.value).from,
+      valueTo: splitValue(w.value).to,
       title: w.title,
       description: w.description,
       impact: w.impact,
@@ -275,7 +331,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   <button
                     key={h.id}
                     type="button"
-                    onClick={() => applyTemplate(h.id, form.level, form.value)}
+                    onClick={() => applyTemplate(h.id, form.level, form.valueFrom, form.valueTo)}
                     className={
                       "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs " +
                       (on ? "border-foreground bg-foreground text-background" : "border-border")
@@ -296,7 +352,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                 <button
                   key={l}
                   type="button"
-                  onClick={() => applyTemplate(form.hazard, l, form.value)}
+                  onClick={() => applyTemplate(form.hazard, l, form.valueFrom, form.valueTo)}
                   className="rounded-md border px-3 py-1.5 text-xs font-medium"
                   style={
                     form.level === l
@@ -310,37 +366,103 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label className="text-xs font-medium">
-              Gültig von
-              <input
-                type="datetime-local"
-                required
-                value={form.validFrom}
-                onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-              />
-            </label>
-            <label className="text-xs font-medium">
-              Gültig bis
-              <input
-                type="datetime-local"
-                required
-                value={form.validTo}
-                onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-              />
-            </label>
-            <label className="text-xs font-medium">
-              {getHazard(form.hazard).paramLabel} ({getHazard(form.hazard).paramUnit})
-              <input
-                value={form.value}
-                placeholder={getHazard(form.hazard).paramPlaceholder}
-                onChange={(e) => applyTemplate(form.hazard, form.level, e.target.value)}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-              />
-            </label>
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-2 text-xs font-medium">Gültigkeit</p>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              <span className="self-center text-[11px] text-muted-foreground">Beginn:</span>
+              {[
+                { label: "Jetzt", h: 0 },
+                { label: "in 1 Std.", h: 1 },
+                { label: "in 3 Std.", h: 3 },
+                { label: "Morgen 06:00", h: -1 },
+              ].map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={() => {
+                    if (c.h >= 0) setStart(new Date(Date.now() + c.h * 3600_000));
+                    else {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 1);
+                      d.setHours(6, 0, 0, 0);
+                      setStart(d);
+                    }
+                  }}
+                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <span className="self-center text-[11px] text-muted-foreground">Dauer:</span>
+              {[3, 6, 12, 24, 48].map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setDuration(h)}
+                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                >
+                  {h} Std.
+                </button>
+              ))}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium">
+                Gültig von
+                <input
+                  type="datetime-local"
+                  required
+                  value={form.validFrom}
+                  onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-xs font-medium">
+                Gültig bis
+                <input
+                  type="datetime-local"
+                  required
+                  value={form.validTo}
+                  onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
+                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                />
+              </label>
+            </div>
           </div>
+
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-2 text-xs font-medium">
+              {getHazard(form.hazard).paramLabel} ({getHazard(form.hazard).paramUnit}) – optional
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium">
+                von
+                <input
+                  inputMode="decimal"
+                  value={form.valueFrom}
+                  placeholder={getHazard(form.hazard).paramPlaceholder}
+                  onChange={(e) =>
+                    applyTemplate(form.hazard, form.level, e.target.value, form.valueTo)
+                  }
+                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-xs font-medium">
+                bis
+                <input
+                  inputMode="decimal"
+                  value={form.valueTo}
+                  placeholder="optional"
+                  onChange={(e) =>
+                    applyTemplate(form.hazard, form.level, form.valueFrom, e.target.value)
+                  }
+                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                />
+              </label>
+            </div>
+          </div>
+
 
           <div>
             <p className="mb-1.5 text-xs font-medium">Betroffene Gemeinden</p>
