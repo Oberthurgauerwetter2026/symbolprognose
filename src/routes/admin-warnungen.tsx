@@ -343,6 +343,10 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           </button>
         </header>
 
+        <IngestSection password={password} />
+
+
+
         {/* Formular */}
         <form onSubmit={submit} className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm">
           <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
