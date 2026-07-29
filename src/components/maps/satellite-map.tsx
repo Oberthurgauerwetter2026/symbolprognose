@@ -104,18 +104,32 @@ function FlyToRegion({ regionId, fitBounds }: { regionId: SatelliteRegionId; fit
 
 function SwissOutline() {
   return (
-    <GeoJSON
-      data={SWITZERLAND}
-      style={{
-        color: BRAND,
-        weight: 1.5,
-        opacity: 0.9,
-        fill: false,
-        interactive: false,
-      }}
-    />
+    <>
+      {/* dunkler Halo, damit das Gelb auch über hellen Wolken lesbar bleibt */}
+      <GeoJSON
+        data={SWITZERLAND}
+        style={{
+          color: "#1f2937",
+          weight: 3.5,
+          opacity: 0.55,
+          fill: false,
+          interactive: false,
+        }}
+      />
+      <GeoJSON
+        data={SWITZERLAND}
+        style={{
+          color: BRAND,
+          weight: 1.8,
+          opacity: 1,
+          fill: false,
+          interactive: false,
+        }}
+      />
+    </>
   );
 }
+
 
 function LightningLayer({ strikes }: { strikes: LightningStrike[] }) {
   const map = useMap();
