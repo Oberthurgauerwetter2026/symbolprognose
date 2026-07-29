@@ -574,6 +574,39 @@ export const getRadarFrames = createServerFn({ method: "GET" })
 
   frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
 
+  // ---- Staleness der Messung explizit melden ----
+  // hasRealRadar sagt nur, dass das Manifest PNGs enthält. Sind alle Frames
+  // älter als das 6-h-Fenster, verschwindet die Messung sonst kommentarlos.
+  {
+    const measured = frames.filter((f) => f.source === "radar");
+    const manifestLatestMs = manifest
+      ? manifest.frames.reduce((m, f) => {
+          const t = f.precipUrl ? Date.parse(f.t) : NaN;
+          return Number.isFinite(t) && t > m ? t : m;
+        }, 0)
+      : 0;
+    const ageMin = manifestLatestMs
+      ? Math.round((now - manifestLatestMs) / 60000)
+      : null;
+
+    if (hasRealRadar && measured.length === 0) {
+      warnings.push(
+        ageMin != null
+          ? `MCH-Radarmessung veraltet — letztes Bild vor ${ageMin} min (Ingest läuft nicht)`
+          : "MCH-Radarmessung veraltet — keine aktuellen Bilder",
+      );
+    } else if (measured.length > 0) {
+      const latestMeasured = Date.parse(measured[measured.length - 1].t);
+      const measuredAge = Math.round((now - latestMeasured) / 60000);
+      if (measuredAge > 30) {
+        warnings.push(
+          `Messung seit ${measuredAge} min nicht aktualisiert`,
+        );
+      }
+    }
+  }
+
+
   if (frames.length === 0) {
     const warning =
       warnings.length > 0
@@ -619,8 +652,9 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     gridLon: lons,
     frames,
     generatedAt: new Date().toISOString(),
-    hasRealRadar,
-    hasHail,
+    hasRealRadar: frames.some((f) => f.source === "radar"),
+    hasHail: hasHail && frames.some((f) => f.source === "radar"),
+
     warning: warnings.length > 0 ? warnings.join("; ") : undefined,
   };
   return payload;
