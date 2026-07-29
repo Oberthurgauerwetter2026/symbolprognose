@@ -41,11 +41,18 @@ export const Route = createFileRoute("/api/public/radar/ingest-trigger")({
 
         const providedSecret = request.headers.get("x-trigger-secret") ?? "";
         if (!timingSafeEqual(providedSecret, secret)) {
+          // Ohne Secret-Inhalte: macht Fehlkonfigurationen des Cron-Workers
+          // (falsches Secret / falsche Ziel-URL) sofort in den Logs sichtbar.
+          console.warn(
+            "[radar] ingest-trigger 401 — x-trigger-secret stimmt nicht mit RADAR_TRIGGER_SECRET überein " +
+              `(header ${providedSecret ? "gesetzt" : "fehlt"}, host ${new URL(request.url).host})`,
+          );
           return Response.json(
             { ok: false, error: "Unauthorized" },
             { status: 401, headers: CORS_HEADERS },
           );
         }
+
 
         const result = await dispatchRadarIngest();
         if (result.ok) {
