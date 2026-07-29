@@ -652,8 +652,9 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     gridLon: lons,
     frames,
     generatedAt: new Date().toISOString(),
-    hasRealRadar,
-    hasHail,
+    hasRealRadar: frames.some((f) => f.source === "radar"),
+    hasHail: hasHail && frames.some((f) => f.source === "radar"),
+
     warning: warnings.length > 0 ? warnings.join("; ") : undefined,
   };
   return payload;
