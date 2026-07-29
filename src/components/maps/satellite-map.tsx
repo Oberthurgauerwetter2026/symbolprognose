@@ -31,7 +31,7 @@ import { FilmstripTimeline } from "./filmstrip-timeline";
 
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
-const BRAND = "#2561a1";
+const BRAND = "#facc15";
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
 // Supersampling: fragt beim GeoServer immer die doppelte Pixelauflösung
@@ -104,18 +104,32 @@ function FlyToRegion({ regionId, fitBounds }: { regionId: SatelliteRegionId; fit
 
 function SwissOutline() {
   return (
-    <GeoJSON
-      data={SWITZERLAND}
-      style={{
-        color: BRAND,
-        weight: 1.5,
-        opacity: 0.9,
-        fill: false,
-        interactive: false,
-      }}
-    />
+    <>
+      {/* dunkler Halo, damit das Gelb auch über hellen Wolken lesbar bleibt */}
+      <GeoJSON
+        data={SWITZERLAND}
+        style={{
+          color: "#1f2937",
+          weight: 3.5,
+          opacity: 0.55,
+          fill: false,
+          interactive: false,
+        }}
+      />
+      <GeoJSON
+        data={SWITZERLAND}
+        style={{
+          color: BRAND,
+          weight: 1.8,
+          opacity: 1,
+          fill: false,
+          interactive: false,
+        }}
+      />
+    </>
   );
 }
+
 
 function LightningLayer({ strikes }: { strikes: LightningStrike[] }) {
   const map = useMap();
@@ -514,7 +528,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
                   className={cn(
                     "whitespace-nowrap rounded-full px-3 h-8 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2",
                     active
-                      ? "text-white shadow-sm"
+                      ? "text-neutral-900 shadow-sm"
                       : "text-neutral-700 hover:bg-neutral-100",
                   )}
                   style={
@@ -660,7 +674,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
                   type="button"
                   onClick={() => setPlaying((p) => !p)}
                   disabled={!ready}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 sm:h-7 sm:w-7"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-neutral-900 shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 sm:h-7 sm:w-7"
                   style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
                   aria-label={playing ? "Pause" : "Play"}
                 >
@@ -731,7 +745,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
                             className={cn(
                               "rounded-full px-3 h-7 text-xs font-medium transition",
                               active
-                                ? "text-white"
+                                ? "text-neutral-900"
                                 : "border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50",
                             )}
                             style={active ? { background: BRAND } : undefined}
