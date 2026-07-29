@@ -25,6 +25,12 @@ import {
   deleteWarning,
   type WarningDTO,
 } from "@/lib/warnings.functions";
+import {
+  runIngestNow,
+  getIngestStatus,
+  type IngestTarget,
+  type IngestStatus,
+} from "@/lib/ingest-admin.functions";
 
 const STORAGE_KEY = "wx_warn_admin_pw";
 
@@ -698,5 +704,100 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         </section>
       </div>
     </div>
+  );
+}
+
+const INGEST_TARGETS: Array<{ id: IngestTarget; label: string }> = [
+  { id: "radar", label: "Radar-Messung (MeteoSchweiz)" },
+  { id: "openmeteo", label: "Prognose (ICON-CH1/CH2)" },
+  { id: "arome", label: "AROME-HD" },
+  { id: "mch", label: "MCH Lokalprognose" },
+  { id: "symbol", label: "Symbolprognose" },
+];
+
+/** Ingest-Status und manueller Start — unabhängig vom Cloudflare-Cron-Worker. */
+function IngestSection({ password }: { password: string }) {
+  const [status, setStatus] = useState<IngestStatus[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string>("");
+
+  const load = async () => {
+    try {
+      setStatus(await getIngestStatus());
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const run = async (target: IngestTarget) => {
+    setBusy(target);
+    setMsg("");
+    try {
+      const res = (await runIngestNow({ data: { password, target } })) as Record<string, unknown>;
+      if (res.ok) setMsg(`${target}: Ingest gestartet — Daten erscheinen in 2–5 Minuten.`);
+      else if (res.throttled)
+        setMsg(
+          `${target}: kürzlich bereits gestartet, bitte ${Math.ceil(
+            Number(res.retryInMs ?? 0) / 60000,
+          )} min warten.`,
+        );
+      else setMsg(`${target}: Fehler — ${String(res.error ?? "unbekannt")}`);
+    } catch (e) {
+      setMsg(`${target}: ${(e as Error).message}`);
+    } finally {
+      setBusy(null);
+      setTimeout(() => void load(), 3000);
+    }
+  };
+
+  return (
+    <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Datenquellen / Ingest
+      </h2>
+      {status && (
+        <ul className="space-y-1 text-xs">
+          {status.map((s) => {
+            const stale = s.ageMinutes == null || s.ageMinutes > 30;
+            return (
+              <li key={s.target} className="flex items-center gap-2">
+                <span
+                  className={`inline-block h-2 w-2 rounded-full ${stale ? "bg-red-500" : "bg-emerald-500"}`}
+                />
+                <span className="font-medium">
+                  {s.target === "radar" ? "Radar-Messung" : "Prognose"}
+                </span>
+                <span className="text-muted-foreground">
+                  {s.ageMinutes != null
+                    ? `aktualisiert vor ${s.ageMinutes} min`
+                    : (s.error ?? "unbekannt")}
+                  {s.latestFrame
+                    ? ` · letztes Bild ${new Date(s.latestFrame).toLocaleString("de-CH")}`
+                    : ""}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {INGEST_TARGETS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void run(t.id)}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+          >
+            {busy === t.id ? "Startet …" : t.label}
+          </button>
+        ))}
+      </div>
+      {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
+    </section>
   );
 }
