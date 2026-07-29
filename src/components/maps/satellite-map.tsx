@@ -31,7 +31,7 @@ import { FilmstripTimeline } from "./filmstrip-timeline";
 
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
-const BRAND = "#2561a1";
+const BRAND = "#facc15";
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
 // Supersampling: fragt beim GeoServer immer die doppelte Pixelauflösung
