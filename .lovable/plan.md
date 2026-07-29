@@ -1,26 +1,29 @@
-## Ursache (verifiziert)
+## Befund (verifiziert)
 
-Im Admin-Formular (`src/routes/admin-warnungen.tsx`) blockiert das Flag `touchedText` die Textaktualisierung:
+- Das Radar-Manifest in R2 (`radar/frames.json`) hat als letzten Mess-Frame **28.07.2026 13:25 UTC**, `generatedAt` 13:26 UTC — also rund 24 h alt.
+- Die Anzeige filtert Messframes auf die letzten 6 Stunden (`pastCutoff = now - 6h` in `src/lib/radar.functions.ts`). Alle vorhandenen Frames sind älter → es bleibt **keine Messung** übrig, nur die Prognose.
+- Serverlog zeigt die Ursache: der Cron-Worker-Aufruf
+  `POST /api/public/radar/ingest-trigger → 401`
+  Der Trigger wird also abgewiesen, der GitHub-Ingest läuft seither gar nicht mehr. Zeitlich passt das zur letzten Änderung an der Trigger-Absicherung.
+- Zusätzlich zeigt das Log, dass der Worker auf die **Preview-URL** (`project--…lovable.app`) zielt, nicht auf die Produktions-URL.
 
-- `applyTemplate` (Zeilen 199–211) setzt Beschreibung/Auswirkungen nur, wenn `touchedText === false`.
-- `touchedText` wird bei jeder manuellen Änderung an Titel/Beschreibung/Auswirkungen auf `true` gesetzt — und zusätzlich beim Öffnen einer bestehenden Warnung zum Bearbeiten (Zeile 287).
+## Plan
 
-Sobald man also einmal im Text getippt oder eine bestehende Warnung geöffnet hat, ändert die Eingabe der Böenspitzen (bzw. mm/cm/°C) den Warntext nicht mehr.
+1. **Trigger-Secret abgleichen (eigentliche Ursache)**
+   - Wert von `RADAR_TRIGGER_SECRET` in den Projekt-Secrets neu setzen bzw. neu generieren und exakt denselben Wert im Cloudflare-Cron-Worker (`RADAR_TRIGGER_SECRET`) hinterlegen. Den Worker-`TARGET_URL` auf die stabile Produktions-URL zeigen lassen.
+   - Danach den Ingest einmal manuell antriggern und prüfen, dass die Antwort 202 statt 401 ist.
 
-## Änderungen
+2. **Verifikation**
+   - `radar/frames.json` erneut abrufen: `generatedAt` muss aktuell sein und der jüngste Frame innerhalb der letzten ~15 min liegen.
+   - `/karten/radar` im Browser prüfen: Mess-Frames sichtbar, kein Hinweis „MCH-Radarmessungen temporär nicht verfügbar“.
 
-1. **Wert-Änderung erzeugt Text neu, solange der Text unverändert ist.**
-   Statt eines einfachen „einmal berührt = nie mehr“-Flags wird verglichen, ob der aktuelle Text noch exakt dem zuletzt generierten Vorlagentext entspricht. Ist er unverändert, wird er bei jeder Änderung von Gefahr, Stufe oder Mengenwerten neu erzeugt — auch beim Bearbeiten einer bestehenden Warnung, wenn deren Text noch der Vorlage entspricht.
+3. **Robustheit, damit der Ausfall nicht stumm bleibt**
+   - Im Radar-UI eine deutliche Statuszeile zeigen, wenn Messframes vorhanden, aber älter als ~30 min sind bzw. ganz fehlen („Messung seit X min nicht aktualisiert“) statt nur einer generischen Warnung.
+   - Der Trigger-Endpoint loggt bei 401 künftig einen expliziten Hinweis (ohne Secret-Inhalte), damit Fehlkonfigurationen sofort in den Logs auffallen.
 
-2. **Sichtbarer Hinweis + Button „Text aus Vorlage neu erzeugen“.**
-   Wurde der Text manuell angepasst, bleibt er erhalten (kein Datenverlust), und über dem Beschreibungsfeld erscheint ein kleiner Hinweis mit einem Button, der Titel, Beschreibung und Auswirkungen mit den aktuellen Werten neu aus der Vorlage aufbaut.
+### Technische Details
+- Betroffene Dateien: `src/routes/api/public/radar/ingest-trigger.ts` (Logging), `src/components/maps/radar-map.tsx` bzw. `src/lib/radar.functions.ts` (Staleness-Hinweis), `cron-worker/wrangler.toml` (Ziel-URL).
+- Es wird nichts an der Bildverarbeitung/Optik geändert; der Datenfluss selbst ist intakt, sobald der Trigger wieder greift.
 
-3. **Bereichsdarstellung im Text prüfen.**
-   `combineValue` liefert bereits „20 bis 40“; in den Vorlagen steht „von {v} km/h“, was zu „von 20 bis 40 km/h“ wird — korrekt. Bei nur einem Wert bleibt „von 75 km/h“. Keine Änderung nötig, wird nur verifiziert.
-
-## Technische Details
-
-- Betroffene Datei: `src/routes/admin-warnungen.tsx`
-- `touchedText` wird durch einen Vergleich mit einem `lastTemplateRef` (zuletzt generierte Texte) ersetzt; `edit()` setzt kein pauschales „berührt“ mehr, sondern befüllt die Referenz aus der Vorlage der geladenen Warnung.
-- Keine Änderungen an Datenbank, Server-Funktionen oder Push-Versand.
-- Abschliessend Typecheck und Prüfung von `/admin-warnungen`.
+### Was ich von dir brauche
+Das Cloudflare-Worker-Secret kann ich nicht selbst setzen — den neuen Wert musst du im Worker hinterlegen (`wrangler secret put RADAR_TRIGGER_SECRET`) bzw. mir bestätigen, welchen Wert ich projektseitig setzen soll.
