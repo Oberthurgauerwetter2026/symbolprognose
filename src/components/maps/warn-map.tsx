@@ -433,14 +433,16 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               onEachFeature={(feature, layer) => {
                 const name = String((feature.properties as { name?: string } | null)?.name ?? "");
                 const id = slugifyRegion(name);
+                const path = layer as L.Path;
+                const enter = () => path.setStyle(hoverRef.current(feature as Feature));
+                const leave = () => path.setStyle(styleRef.current(feature as Feature));
                 layer.on("click", () => setSelected((cur) => (cur === id ? null : id)));
-                layer.on("mouseover", () =>
-                  (layer as L.Path).setStyle({ weight: 2.4, color: "#1f2937" }),
-                );
-                layer.on("mouseout", () =>
-                  (layer as L.Path).setStyle(styleRef.current(feature as Feature)),
-                );
+                layer.on("mouseover", enter);
+                layer.on("mouseout", leave);
+                layer.on("touchstart" as any, enter);
+                layer.on("touchend" as any, leave);
               }}
+
             />
             <GeoJSON
               data={REGION_OUTLINE}
