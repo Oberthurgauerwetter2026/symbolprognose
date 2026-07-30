@@ -28,8 +28,11 @@ import {
 import {
   runIngestNow,
   getIngestStatus,
+  getAutoThunderStatus,
+  runAutoThunderNow,
   type IngestTarget,
   type IngestStatus,
+  type AutoThunderStatus,
 } from "@/lib/ingest-admin.functions";
 
 const STORAGE_KEY = "wx_warn_admin_pw";
