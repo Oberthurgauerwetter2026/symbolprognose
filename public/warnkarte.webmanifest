@@ -1,5 +1,5 @@
 {
-  "name": "Oberthurgauer Wetter",
+  "name": "Wetterwarnungen",
   "short_name": "Wetterwarnungen",
   "description": "Aktuelle Wetterwarnungen für alle Gemeinden im Oberthurgau – mit Push-Benachrichtigung.",
   "start_url": "/warnkarte",

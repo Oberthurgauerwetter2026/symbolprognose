@@ -22,6 +22,7 @@ export const Route = createFileRoute("/warnkarte")({
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "Wetterwarnungen" },
+      { name: "application-name", content: "Wetterwarnungen" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "theme-color", content: "#2561a1" },
     ],
