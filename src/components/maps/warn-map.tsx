@@ -393,10 +393,20 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
       <div
         className={cn(
           "grid gap-3",
-          bare ? "grid-cols-1 @lg:grid-cols-[1fr_280px]" : "@3xl:grid-cols-[1fr_320px]",
+          bare
+            ? "grid-cols-1 @lg:grid-cols-[minmax(0,1fr)_minmax(240px,300px)]"
+            : "@3xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]",
         )}
       >
-        <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-full lg:min-h-[700px]">
+        <div
+          className={cn(
+            "relative aspect-[4/3] min-h-[280px] w-full overflow-hidden rounded-2xl shadow-lg",
+            bare
+              ? "@md:aspect-auto @md:h-[clamp(360px,55vh,620px)] @lg:h-full"
+              : "sm:aspect-auto sm:h-[clamp(420px,60vh,760px)] @3xl:h-full",
+          )}
+        >
+
           <MapContainer
             center={[47.555, 9.3]}
             zoom={11}
@@ -525,15 +535,18 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         <aside
           className={cn(
             "space-y-3",
-            bare ? "@lg:flex @lg:h-auto @lg:min-h-[700px] @lg:flex-col" : "@3xl:flex @3xl:h-auto @3xl:min-h-[700px] @3xl:flex-col",
+            bare
+              ? "@lg:flex @lg:h-[clamp(360px,55vh,620px)] @lg:flex-col"
+              : "@3xl:flex @3xl:h-[clamp(420px,60vh,760px)] @3xl:flex-col",
           )}
         >
           <div
             className={cn(
-              "flex flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm",
-              bare ? "@lg:min-h-[700px]" : "@3xl:min-h-[700px]",
+              "flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm",
+              bare ? "@lg:flex-1" : "@3xl:flex-1",
             )}
           >
+
             <div className="flex items-start justify-between gap-2">
               <h2 className="text-lg font-semibold text-foreground">
                 {selected ? regionName(selected) : "Region Oberthurgau"}
@@ -555,9 +568,10 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <div
               className={cn(
                 "overflow-y-auto pr-1",
-                bare ? "@lg:max-h-[70vh]" : "@3xl:max-h-[70vh]",
+                bare ? "@lg:min-h-0 @lg:flex-1" : "@3xl:min-h-0 @3xl:flex-1",
               )}
             >
+
               {selectedWarnings.length === 0 ? (
                 <p className="mt-3 text-base leading-relaxed text-foreground">
                   Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
