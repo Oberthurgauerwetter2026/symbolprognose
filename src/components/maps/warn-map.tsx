@@ -537,8 +537,9 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
           className={cn(
             "space-y-3",
             bare
-              ? "@lg:flex @lg:h-[clamp(360px,55vh,620px)] @lg:flex-col"
+              ? "@lg:flex @lg:h-[clamp(420px,60vh,760px)] @lg:flex-col"
               : "@3xl:flex @3xl:h-[clamp(420px,60vh,760px)] @3xl:flex-col",
+
           )}
         >
           <div
