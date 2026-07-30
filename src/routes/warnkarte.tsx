@@ -71,12 +71,6 @@ function WarnkartePage() {
         </header>
 
         <WarnMap />
-
-        <footer className="mt-6 border-t border-border pt-3 text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-foreground">
-            Oberthurgauer Wetter – zur Hauptseite
-          </Link>
-        </footer>
       </div>
     </main>
   );
