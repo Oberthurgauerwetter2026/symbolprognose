@@ -1,18 +1,27 @@
 ## Ziel
 
-Das Strassenglätte-Symbol soll exakt dem Verkehrszeichen «Schleudergefahr» aus dem Screenshot entsprechen: ein Auto in leichter Schräg-/Frontansicht mit zwei geschwungenen S-Spuren darunter — ohne rotes Dreieck, damit es sich in Stil und Farbe (currentColor) in die übrigen Gefahrensymbole einfügt.
+Zwei Warnsymbole in `src/components/warnings/hazard-icons.tsx` neu zeichnen, damit sie auch klein (ca. 24–40 px) klar lesbar sind.
 
-## Umsetzung
+### 1. Strassenglätte (`SlipperyCarIcon`)
 
-Datei: `src/components/warnings/hazard-icons.tsx` → `SlipperyCarIcon`
+Aktuell verschmelzen die gefüllte Karosserie, die Räder und die drei Schleuderspuren bei kleiner Darstellung zu einem unleserlichen Klecks (siehe Screenshot).
 
-- Fahrzeug neu zeichnen als kompakte, gefüllte Silhouette in Schrägansicht (Dach/Kabine leicht versetzt, breite Karosserie, zwei sichtbare Räder unten links/rechts), analog zum Zeichen — statt der aktuellen reinen Umrisszeichnung von hinten.
-- Fahrzeug im oberen Drittel des 24×24-Viewbox platzieren (ca. y 4–13), damit unten Platz für die Spuren bleibt.
-- Zwei getrennte, deutlich geschwungene S-Kurven darunter (ca. y 15–21), leicht versetzt und unterschiedlich lang, mit runden Enden — nicht als durchgehende Wellenlinie, sondern als zwei erkennbare Schleuderspuren wie im Screenshot.
-- Strichstärken so wählen, dass das Symbol auch bei 16–20 px klar lesbar bleibt (Auto gefüllt, Spuren als Strich mit ~1.8).
+Neu, nah am Verkehrszeichen «Schleudergefahr»:
+- Auto als **kompakte, klar konturierte Silhouette** im oberen Bilddrittel, breiter und flacher, Räder als zwei ausgesparte/abgesetzte Blöcke statt kleiner Anhängsel.
+- Nur **zwei** Schleuderspuren statt drei, dafür deutlich grösser geschwungen (S-Kurven), mit klarem Abstand zum Fahrzeug, damit sie nicht mit der Karosserie verlaufen.
+- Mehr Weissraum zwischen Auto und Spuren; Linienstärke der Spuren auf gute Sichtbarkeit abgestimmt.
+- Formen so dimensionieren, dass die Silhouette auch bei 20 px als Auto erkennbar bleibt.
 
-Alle Verwendungsstellen (Banner, Info-Liste, Legende, Admin) beziehen das Symbol aus dieser Datei — es ist also nur diese eine Änderung nötig.
+### 2. Windsack (`WindsockIcon`)
 
-## Prüfung
+Nach Vorlage des zweiten Screenshots:
+- **Kräftiger, dicker Mast** links (abgerundet), deutlich stärker als bisher.
+- Sack als **gefüllte Silhouette** in Kegelform, die nach rechts schmaler wird, mit abgerundeter Spitze.
+- **Drei sichtbar getrennte Segmente** – erzeugt durch schmale Aussparungen/Trennlinien in Hintergrundfarbe bzw. als drei einzelne gefüllte Segmente mit Lücke, sodass die Streifen auch klein erkennbar bleiben.
+- Leichte Neigung nach unten-rechts wie in der Vorlage.
 
-Playwright-Screenshot der Warnkarte mit Zoom auf die Symbolleiste, Vergleich mit dem Referenzbild; bei Bedarf Feinjustierung von Proportionen und Abständen.
+### Technisch
+
+- Nur `src/components/warnings/hazard-icons.tsx` wird angepasst (SVG-Pfade von `SlipperyCarIcon` und `WindsockIcon`); Props/Exports/Namen bleiben unverändert, damit Warnkarte, Banner, Admin-Tool und Widgets ohne Änderung weiterlaufen.
+- Beide Icons bleiben `currentColor`-basiert (24×24 viewBox), damit Warnstufen-Farben weiter greifen.
+- Verifizierung per Playwright: Element-Screenshots der Symbole auf `/karten/warnungen` bei kleiner und grosser Darstellung, um die Lesbarkeit zu prüfen.
