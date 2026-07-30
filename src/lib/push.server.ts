@@ -71,14 +71,14 @@ export async function notifyWarning(warningId: string): Promise<number> {
     warning.title || warningTitle(warning.hazard as HazardId, Math.max(1, Math.min(3, warning.level)) as WarnLevel);
   const title = `${baseTitle} · Oberthurgauer Wetter`;
 
-  const body = `${warning.description} Betroffene Gemeinden: ${list}. Gültig: ${period}`;
+  const body = `${warning.description} Betroffene Gemeinden: ${list}. Gültig: ${period}. Details: oberthurgauerwetter.ch`;
 
   let sent = 0;
   for (const s of (subs ?? []) as SubRow[]) {
     const ok = await sendPush(s, {
       title,
       body,
-      url: "/karten/warnungen",
+      url: "https://oberthurgauerwetter.ch",
       tag: warning.id,
     });
     if (ok) sent++;

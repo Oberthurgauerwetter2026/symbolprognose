@@ -589,6 +589,17 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 })}
               </ul>
             )}
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3 text-sm text-muted-foreground">
+              <span>Weitere Details:</span>
+              <a
+                href="https://oberthurgauerwetter.ch"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-accent hover:underline"
+              >
+                oberthurgauerwetter.ch
+              </a>
+            </div>
           </div>
 
 
