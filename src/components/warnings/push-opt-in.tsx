@@ -165,8 +165,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   }
 
   return (
-    <div className="mt-2 space-y-3">
-      <p className="text-sm leading-relaxed text-foreground">
+    <div className="mt-1.5 space-y-2">
+      <p className="text-[13px] leading-relaxed text-foreground">
         Erhalte eine Meldung, sobald für deine Gemeinden eine Warnung ausgegeben wird.
       </p>
 
@@ -176,7 +176,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             type="button"
             aria-expanded={pickOpen}
             onClick={() => setPickOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-semibold text-foreground"
+            className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-sm font-semibold text-foreground"
           >
             <span>
               Gemeinden wählen ({regionIds.length} von {REGIONS.length})
@@ -186,7 +186,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             />
           </button>
           {pickOpen && (
-            <div className="space-y-2 border-t border-border p-2.5">
+            <div className="space-y-2 border-t border-border p-2">
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
