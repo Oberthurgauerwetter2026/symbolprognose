@@ -240,7 +240,12 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
     valueTo: string,
     force = false,
   ) => {
-    const t = genTexts(hazard, level, combineValue(valueFrom, valueTo));
+    const t = genTexts(
+      hazard,
+      level,
+      combineValue(valueFrom, valueTo),
+      hoursBetween(form.validFrom, form.validTo),
+    );
     const useTpl = force || !textIsManual;
     setLastTpl(t);
     setForm((f) => ({
@@ -254,6 +259,22 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       impact: useTpl ? t.impact : f.impact,
     }));
   };
+
+  /** Zeitbaustein im Text nachführen, wenn sich die Gültigkeit ändert. */
+  useEffect(() => {
+    if (textIsManual) return;
+    const t = genTexts(
+      form.hazard,
+      form.level,
+      combineValue(form.valueFrom, form.valueTo),
+      hoursBetween(form.validFrom, form.validTo),
+    );
+    if (t.description === form.description && t.title === form.title) return;
+    setLastTpl(t);
+    setForm((f) => ({ ...f, title: t.title, description: t.description, impact: t.impact }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.validFrom, form.validTo]);
+
 
 
   /** Beginn setzen und Ende relativ dazu halten. */
