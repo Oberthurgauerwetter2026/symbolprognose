@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
 import { WarnMap } from "@/components/maps/warn-map";
 import { getMap } from "@/lib/maps-config";
+import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/warnungen")({
   ssr: false,
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/karten/warnungen")({
     ],
     links: [
       { rel: "canonical", href: "https://oberthurgauer-wetter.lovable.app/karten/warnungen" },
+      APP_MANIFEST_LINK,
     ],
   }),
 
