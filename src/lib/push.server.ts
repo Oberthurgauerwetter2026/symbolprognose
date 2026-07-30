@@ -67,8 +67,10 @@ export async function notifyWarning(warningId: string): Promise<number> {
   const list = names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ");
   const period = formatRange(warning.valid_from, warning.valid_to);
 
-  const title =
+  const baseTitle =
     warning.title || warningTitle(warning.hazard as HazardId, Math.max(1, Math.min(3, warning.level)) as WarnLevel);
+  const title = `${baseTitle} · Oberthurgauer Wetter`;
+
   const body = `${warning.description} Betroffene Gemeinden: ${list}. Gültig: ${period}`;
 
   let sent = 0;
