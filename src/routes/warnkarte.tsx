@@ -21,7 +21,7 @@ export const Route = createFileRoute("/warnkarte")({
       { name: "twitter:card", content: "summary_large_image" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-title", content: "Warnkarte" },
+      { name: "apple-mobile-web-app-title", content: "Oberthurgauer Wetter" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "theme-color", content: "#2561a1" },
     ],
