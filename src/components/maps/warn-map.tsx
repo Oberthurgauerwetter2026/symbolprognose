@@ -368,7 +368,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                   : undefined
               }
             >
-              <Icon className="h-6 w-6 @sm:h-7 @sm:w-7" />
+              <Icon className="h-5 w-5 @sm:h-6 @sm:w-6" />
               <span className="hidden @sm:inline">{h.label}</span>
               {lvl > 0 && <span className="rounded bg-black/15 px-1.5 text-xs font-bold">{lvl}</span>}
             </button>
