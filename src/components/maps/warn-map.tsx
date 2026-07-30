@@ -518,8 +518,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         </div>
 
         {/* Info-Panel */}
-        <aside className="space-y-3">
-          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <aside className="space-y-3 @3xl:flex @3xl:h-[560px] @3xl:flex-col">
+          <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm @3xl:flex-1">
             <h2 className="text-lg font-semibold text-foreground">
               {selected ? regionName(selected) : "Region Oberthurgau"}
             </h2>
@@ -535,60 +535,62 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             {query.data?.warning && (
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
-            {selectedWarnings.length === 0 ? (
-              <p className="mt-3 text-base leading-relaxed text-foreground">
-                Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
-                besondere Gefahr.
-              </p>
-            ) : (
-              <ul className="mt-4 space-y-4">
-                {selectedWarnings.map((w) => {
-                  const h = getHazard(w.hazard as HazardId);
-                  const Icon = h.icon;
-                  const def = LEVELS[w.level as 1 | 2 | 3];
-                  const impactRaw = w.impact ?? "";
-                  const cut = impactRaw.indexOf("Empfohlenes Verhalten:");
-                  const impactText = cut >= 0 ? impactRaw.slice(0, cut).trim() : impactRaw.trim();
-                  const adviceText =
-                    cut >= 0 ? impactRaw.slice(cut + "Empfohlenes Verhalten:".length).trim() : "";
-                  return (
-                    <li key={w.id} className="overflow-hidden rounded-lg border border-border">
-                      <div
-                        className="flex items-center gap-2 px-3.5 py-2.5 text-base font-semibold"
-                        style={{ background: def.color, color: def.textOnColor }}
-                      >
-                        <Icon className="h-7 w-7 shrink-0" />
-                        {w.title || `${h.title} (Stufe ${w.level})`}
-                      </div>
-                      <div className="space-y-3.5 p-3.5">
-                        <p className="text-base font-medium text-muted-foreground">
-                          {formatRange(w.validFrom, w.validTo)}
-                        </p>
-                        <p className="text-base leading-relaxed text-foreground">{w.description}</p>
-                        {impactText && (
-                          <p className="text-base leading-relaxed text-foreground">
-                            <span className="font-semibold">Mögliche Auswirkungen: </span>
-                            {impactText}
+            <div className="overflow-y-auto pr-1 @3xl:flex-1 @3xl:min-h-0">
+              {selectedWarnings.length === 0 ? (
+                <p className="mt-3 text-base leading-relaxed text-foreground">
+                  Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
+                  besondere Gefahr.
+                </p>
+              ) : (
+                <ul className="mt-4 space-y-4">
+                  {selectedWarnings.map((w) => {
+                    const h = getHazard(w.hazard as HazardId);
+                    const Icon = h.icon;
+                    const def = LEVELS[w.level as 1 | 2 | 3];
+                    const impactRaw = w.impact ?? "";
+                    const cut = impactRaw.indexOf("Empfohlenes Verhalten:");
+                    const impactText = cut >= 0 ? impactRaw.slice(0, cut).trim() : impactRaw.trim();
+                    const adviceText =
+                      cut >= 0 ? impactRaw.slice(cut + "Empfohlenes Verhalten:".length).trim() : "";
+                    return (
+                      <li key={w.id} className="overflow-hidden rounded-lg border border-border">
+                        <div
+                          className="flex items-center gap-2 px-3.5 py-2.5 text-base font-semibold"
+                          style={{ background: def.color, color: def.textOnColor }}
+                        >
+                          <Icon className="h-7 w-7 shrink-0" />
+                          {w.title || `${h.title} (Stufe ${w.level})`}
+                        </div>
+                        <div className="space-y-3.5 p-3.5">
+                          <p className="text-base font-medium text-muted-foreground">
+                            {formatRange(w.validFrom, w.validTo)}
                           </p>
-                        )}
-                        {adviceText && (
-                          <p className="text-base leading-relaxed text-foreground">
-                            <span className="font-semibold">Empfohlenes Verhalten: </span>
-                            {adviceText}
+                          <p className="text-base leading-relaxed text-foreground">{w.description}</p>
+                          {impactText && (
+                            <p className="text-base leading-relaxed text-foreground">
+                              <span className="font-semibold">Mögliche Auswirkungen: </span>
+                              {impactText}
+                            </p>
+                          )}
+                          {adviceText && (
+                            <p className="text-base leading-relaxed text-foreground">
+                              <span className="font-semibold">Empfohlenes Verhalten: </span>
+                              {adviceText}
+                            </p>
+                          )}
+                          <p className="text-base leading-relaxed text-muted-foreground">
+                            {w.regionIds.length === REGIONS.length
+                              ? "Ganze Region"
+                              : w.regionIds.map((r) => regionName(r)).join(", ")}
+                            {w.source === "auto" ? " · automatisch (Radar)" : ""}
                           </p>
-                        )}
-                        <p className="text-base leading-relaxed text-muted-foreground">
-                          {w.regionIds.length === REGIONS.length
-                            ? "Ganze Region"
-                            : w.regionIds.map((r) => regionName(r)).join(", ")}
-                          {w.source === "auto" ? " · automatisch (Radar)" : ""}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
             <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3 text-sm text-muted-foreground">
               <span>Weitere Details:</span>
               <a
