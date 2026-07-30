@@ -1,32 +1,19 @@
-# Plan: "Warnungen verwalten" als eigenen Sidebar-Menüpunkt
+## Warnkarte: Symbole, Hover und Legende überarbeiten
 
-## Ziel
-Den Direktlink zur Warnungsverwaltung (`/admin-warnungen`) direkt in der App-Sidebar als prominenten, immer sichtbaren Menüpunkt platzieren, damit die URL nicht mehr auswendig gelernt werden muss.
+### 1. Hover-Schattierung der Regionen
+In `src/components/maps/warn-map.tsx` beim `mouseover` zusätzlich zur dickeren Kontur eine leichte Abdunklung setzen (z. B. `fillOpacity` +0.15 und dunklerer Rand); `mouseout` stellt den normalen Stil wieder her. Zusätzlich Touch-Unterstützung: auf Mobilgeräten wird beim Antippen die Region ohnehin selektiert – der ausgewählte Zustand bekommt ebenfalls die leichte Schattierung.
 
-## Aktueller Zustand
-- `src/components/app-sidebar.tsx` zeigt im Bereich „Werkzeuge“ nur die Punkte „Embed-Snippets“ und „Admin“.
-- Der Link zum Warnungen-Erfassen (`/admin-warnungen`) ist bisher nur über Direktaufruf oder über das Admin-Submenü (falls vorhanden) erreichbar.
+### 2. Neue/schönere Gefahren-Symbole (`src/components/warnings/hazard-icons.tsx`)
+- **Strassenglätte**: klassisches Verkehrszeichen-Motiv – Auto von hinten/seitlich mit zwei geschwungenen Schleuderspuren darunter, sauber gezeichnet im Lucide-Stil.
+- **Schneeflocken**: drei echte 6-strahlige Kristalle mit Seitenästen statt schlichter Sterne, unterschiedliche Grössen, versetzt angeordnet.
+- **Regentropfen**: drei plastischere Tropfen (klassische Tropfenform mit Spitze oben, gefüllt statt nur Kontur), diagonal versetzt.
+- **Blitz**: markanterer, gefüllter Zickzack-Blitz mit ausgewogener Silhouette.
 
-## Geplante Änderungen
+### 3. Symbolgrössen
+Icons in der Gefahren-Bannerleiste von `h-5 w-5` auf `h-7 w-7` (mobil `h-6 w-6`) vergrössern; ebenso die Symbole im Info-Panel/Warnkarten-Liste entsprechend anheben, damit alles konsistent grösser wirkt.
 
-### 1. Neuer Menüpunkt in `src/components/app-sidebar.tsx`
-- Unterhalb der bestehenden „Admin“-Zeile im Bereich „Werkzeuge“ einen neuen Punkt „Warnungen verwalten“ hinzufügen.
-- Link-Ziel: `/admin-warnungen`.
-- Icon: `BellRing` aus `lucide-react` (passend zur Warnungsthematik).
-- Aktiv-Zustand: `isActive("/admin-warnungen")`.
-- Tooltip: „Warnungen verwalten“.
+### 4. Legende
+Der Auslöser unten links wird zu einem runden Icon-Button mit nur „i“ (kein Text „Legende“) und geringerer Deckkraft (z. B. `bg-card/60`, beim Hover voll deckend). Das geöffnete Legenden-Panel bleibt unverändert funktional.
 
-### 2. Icon-Import ergänzen
-- Import in Zeile 2 um `BellRing` erweitern.
-
-### 3. Design-Abgleich
-- Gleiche Styling- und Struktur-Konventionen wie die bestehenden Menüpunkte verwenden (`SidebarMenuItem`, `SidebarMenuButton`, `Link`, `truncate`).
-- Keine neuen Farben, kein Hardcoding – bestehende shadcn/ui-Sidebar-Tokens nutzen.
-
-## Nicht im Scope
-- Keine Änderung an der Admin-Route `/admin` selbst.
-- Keine neue Route oder Logik für die Warnungsverwaltung (existiert bereits in `/admin-warnungen`).
-- Keine Backend- oder RLS-Änderungen.
-
-## Validierung
-- Nach der Änderung wird die Sidebar im Preview geprüft: Menüpunkt sichtbar, Link führt zu `/admin-warnungen`, aktiver Zustand funktioniert.
+### Technische Notizen
+Betroffene Dateien: `src/components/maps/warn-map.tsx`, `src/components/warnings/hazard-icons.tsx`. Die Icons werden auch in Banner/Widgets und im Admin-Tool genutzt – Änderungen wirken dort automatisch mit, die API der Komponenten bleibt gleich.
