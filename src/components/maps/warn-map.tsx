@@ -397,7 +397,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
           bare ? "grid-cols-1 @lg:grid-cols-[1fr_280px]" : "@3xl:grid-cols-[1fr_320px]",
         )}
       >
-        <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-[700px]">
+        <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-full lg:min-h-[700px]">
           <MapContainer
             center={[47.555, 9.3]}
             zoom={11}
