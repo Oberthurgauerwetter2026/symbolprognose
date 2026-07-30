@@ -1,14 +1,32 @@
+# Plan: "Warnungen verwalten" als eigenen Sidebar-Menüpunkt
+
 ## Ziel
-Im Satellitenbild wird das Markenblau (`#2561a1`) überall durch ein gut sichtbares Gelb ersetzt — Länder-/Schweiz-Umriss, Region-Chips, Play-Button, Slider-Akzent und Fokusringe.
+Den Direktlink zur Warnungsverwaltung (`/admin-warnungen`) direkt in der App-Sidebar als prominenten, immer sichtbaren Menüpunkt platzieren, damit die URL nicht mehr auswendig gelernt werden muss.
 
-## Umsetzung
-Datei: `src/components/maps/satellite-map.tsx`
+## Aktueller Zustand
+- `src/components/app-sidebar.tsx` zeigt im Bereich „Werkzeuge“ nur die Punkte „Embed-Snippets“ und „Admin“.
+- Der Link zum Warnungen-Erfassen (`/admin-warnungen`) ist bisher nur über Direktaufruf oder über das Admin-Submenü (falls vorhanden) erreichbar.
 
-1. Konstante `BRAND = "#2561a1"` → `ACCENT = "#facc15"` (kräftiges Gelb, hoher Kontrast auf Satellitenbildern bei Tag und Nacht). Umriss zusätzlich mit leichtem dunklem Halo/erhöhter Deckkraft, damit er über hellen Wolken sichtbar bleibt.
-2. Alle Verwendungsstellen (Umriss-Farbe, aktiver Region-Chip, Play/Pause-Button, Fokusringe, Timeline-Akzent) auf die neue Konstante umstellen.
-3. Lesbarkeit: Wo bisher weisser Text auf blauem Hintergrund stand (aktiver Chip, Play-Button), wird die Textfarbe auf dunkles Neutral umgestellt, da Weiss auf Gelb nicht lesbar ist.
+## Geplante Änderungen
 
-Nur diese Ansicht wird geändert — Radar, Wind und Warnkarte behalten das Blau.
+### 1. Neuer Menüpunkt in `src/components/app-sidebar.tsx`
+- Unterhalb der bestehenden „Admin“-Zeile im Bereich „Werkzeuge“ einen neuen Punkt „Warnungen verwalten“ hinzufügen.
+- Link-Ziel: `/admin-warnungen`.
+- Icon: `BellRing` aus `lucide-react` (passend zur Warnungsthematik).
+- Aktiv-Zustand: `isActive("/admin-warnungen")`.
+- Tooltip: „Warnungen verwalten“.
 
-## Prüfung
-Karte `/karten/satellit` per Browser-Screenshot in beiden Regionen (Schweiz & Alpen, Europa GeoColour) kontrollieren.
+### 2. Icon-Import ergänzen
+- Import in Zeile 2 um `BellRing` erweitern.
+
+### 3. Design-Abgleich
+- Gleiche Styling- und Struktur-Konventionen wie die bestehenden Menüpunkte verwenden (`SidebarMenuItem`, `SidebarMenuButton`, `Link`, `truncate`).
+- Keine neuen Farben, kein Hardcoding – bestehende shadcn/ui-Sidebar-Tokens nutzen.
+
+## Nicht im Scope
+- Keine Änderung an der Admin-Route `/admin` selbst.
+- Keine neue Route oder Logik für die Warnungsverwaltung (existiert bereits in `/admin-warnungen`).
+- Keine Backend- oder RLS-Änderungen.
+
+## Validierung
+- Nach der Änderung wird die Sidebar im Preview geprüft: Menüpunkt sichtbar, Link führt zu `/admin-warnungen`, aktiver Zustand funktioniert.
