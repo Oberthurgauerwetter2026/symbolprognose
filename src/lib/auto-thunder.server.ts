@@ -91,7 +91,7 @@ export interface AutoThunderResult {
   note?: string;
 }
 
-export async function runAutoThunder(): Promise<AutoThunderResult> {
+async function runAutoThunderCore(): Promise<AutoThunderResult> {
   const cache = await getOpenMeteoCache();
   const points = cache?.grid?.points ?? [];
   const locs = (cache?.phase1 ?? cache?.phaseB) as LocMinutely[] | undefined;
