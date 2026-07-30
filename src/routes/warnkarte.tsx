@@ -61,7 +61,7 @@ function WarnkartePage() {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="mx-auto w-full max-w-3xl px-4 py-5">
+      <div className="mx-auto w-full max-w-6xl px-4 py-5">
         <header className="mb-4">
           <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             Wetterwarnungen Oberthurgau
