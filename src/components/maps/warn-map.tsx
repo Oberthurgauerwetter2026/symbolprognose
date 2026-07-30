@@ -313,12 +313,13 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     const b = styleFor(feature);
     return {
       ...b,
-      color: "#1f2937",
-      weight: 2,
+      color: b.color ?? "#1f2937",
+      weight: Math.max(2, Number(b.weight ?? 1)),
       opacity: 1,
-      fillColor: darken(String(b.fillColor ?? "#94a3b8")),
+      fillColor: darken(String(b.fillColor ?? "#94a3b8"), 0.1),
       fillOpacity: Math.min(0.9, (b.fillOpacity ?? 0.3) + 0.1),
     };
+
   }
 
 
