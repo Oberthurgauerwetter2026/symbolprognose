@@ -551,7 +551,10 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
             <div
-              className="overflow-y-auto pr-1 max-h-[70vh]"
+              className={cn(
+                "overflow-y-auto pr-1",
+                bare ? "@lg:max-h-[70vh]" : "@3xl:max-h-[70vh]",
+              )}
             >
               {selectedWarnings.length === 0 ? (
                 <p className="mt-3 text-base leading-relaxed text-foreground">
