@@ -13,7 +13,6 @@ import thurgauData from "@/data/thurgau.json";
 import {
   HAZARDS,
   LEVELS,
-  REGIONS,
   getHazard,
   regionName,
   slugifyRegion,
