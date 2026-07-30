@@ -397,7 +397,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
           bare ? "grid-cols-1 @lg:grid-cols-[1fr_280px]" : "@3xl:grid-cols-[1fr_320px]",
         )}
       >
-        <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-[560px]">
+        <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-[700px]">
           <MapContainer
             center={[47.555, 9.3]}
             zoom={11}
@@ -526,7 +526,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         <aside
           className={cn(
             "space-y-3",
-            bare ? "@lg:flex @lg:h-[560px] @lg:flex-col" : "@3xl:flex @3xl:h-[560px] @3xl:flex-col",
+            bare ? "@lg:flex @lg:h-[700px] @lg:flex-col" : "@3xl:flex @3xl:h-[700px] @3xl:flex-col",
           )}
         >
           <div
@@ -626,9 +626,9 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
 
           {!bare && (
-            <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
-              <h3 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
-                <BellRing className="h-5 w-5" /> Warnungen abonnieren
+            <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm">
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                <BellRing className="h-4 w-4" /> Warnungen abonnieren
               </h3>
               <PushOptIn defaultRegionId={selected} />
             </div>
