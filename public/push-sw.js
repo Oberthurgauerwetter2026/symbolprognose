@@ -15,8 +15,8 @@ self.addEventListener("push", (event) => {
       body: payload.body || "",
       tag: payload.tag || "wetterwarnung",
       data: { url: payload.url || "/karten/warnungen" },
-      icon: "/favicon.ico",
-      badge: "/favicon.ico",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
     }),
   );
 });
