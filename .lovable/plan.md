@@ -1,21 +1,24 @@
-## Problem
+## Ziel
+Die Push-Benachrichtigung soll nicht mehr als „from Warnkarte“ erscheinen, sondern einheitlich unter dem Marken-Label der App verschickt werden.
 
-Das Icon auf dem iPhone öffnet weiterhin das komplette Wetterboard (Tabs Warnungen/Region/Lokal/Wind, Sidebar) statt der reinen Warnkarte.
+## Diagnose
+Die Zeichenkette „from Warnkarte“ wird vom Betriebssystem/Browser automatisch an die Push-Notification gehängt; sie ist kein vom Service Worker gesetzter Text. Der Browser nimmt dafür den `short_name` aus dem Web-Manifest der installierten PWA. Die Warnkarte hat derzeit ein eigenes Manifest (`public/warnkarte.webmanifest`) mit `short_name: "Warnkarte"`, deshalb erscheint dieser Name in der Push-Quelle.
 
-Ursache (geprüft):
-- `src/routes/__root.tsx` liefert im HTML fest `<link rel="manifest" href="/manifest.webmanifest">` — und dieses Manifest hat `start_url: /karten/warnungen`, `scope: /`.
-- Das Warnkarten-Manifest wird in `src/routes/warnkarte.tsx` erst nach dem Laden per JavaScript eingehängt. iOS liest beim „Zum Home-Bildschirm“ das Manifest, das im ausgelieferten HTML steht — also das falsche. Zusätzlich ist die Route auf `ssr: false` gesetzt, was den Zeitpunkt weiter verzögert.
+## Massnahmen
+1. **`public/warnkarte.webmanifest`**
+   - `short_name` von `"Warnkarte"` auf `"OT Wetter"` ändern (gleicher Kurzname wie Haupt-App-Manifest).
+   - `name` von `"Warnkarte Oberthurgau"` auf `"Oberthurgauer Wetter"` ändern.
+   - `start_url: "/warnkarte"` und `scope: "/warnkarte"` bleiben erhalten, damit iOS weiterhin nur die Warnkarte als App startet.
 
-## Lösung
+2. **`src/routes/warnkarte.tsx`**
+   - `<meta name="apple-mobile-web-app-title" content="Warnkarte" />` auf `"Oberthurgauer Wetter"` ändern, damit iOS das gleiche Label verwendet.
 
-1. **Manifest-Link aus `__root.tsx` entfernen** (nur noch Favicon/Apple-Touch-Icon dort bleiben).
-2. **Pro Seite das richtige Manifest deklarieren** – direkt im `head()` der Route, also im ausgelieferten HTML:
-   - `src/routes/warnkarte.tsx` → `/warnkarte.webmanifest`
-   - Hauptseiten (`index.tsx`, `karte.tsx`, `karten.*.tsx`, `admin*`) → `/manifest.webmanifest`
-3. **iOS-spezifische Metatags auf `/warnkarte`** ergänzen: `apple-mobile-web-app-capable=yes`, `apple-mobile-web-app-title=Warnkarte`, `apple-mobile-web-app-status-bar-style`, eigenes `apple-touch-icon`.
-4. **`ssr: false` auf `/warnkarte` aufheben** bzw. so anpassen, dass das `head()` serverseitig gerendert wird; der bestehende Client-Swap bleibt als Fallback.
-5. **Warnkarten-Manifest schärfen**: `scope`/`start_url` auf `/warnkarte`, eindeutige `id`, damit iOS/Android es als separate App behandeln.
+3. **Verifizierung**
+   - Build laufen lassen.
+   - `/warnkarte` mit `curl` prüfen: `apple-mobile-web-app-title` und der Manifest-Link müssen auf das aktualisierte Manifest zeigen.
+   - Manifest-Inhalt prüfen: `short_name` und `name` dürfen nicht mehr „Warnkarte“ enthalten.
 
-## Wichtig für dich
-
-Ein bereits hinzugefügtes Icon behält seine alten Manifest-Werte dauerhaft. Nach dem Publish bitte das alte Warnkarten-Icon vom Home-Bildschirm löschen, Safari-Tab neu öffnen (`oberthurgauer-wetter.lovable.app/warnkarte`) und erneut „Zum Home-Bildschirm“ wählen.
+## Nicht Teil des Plans
+- Keine Änderung am Service Worker (`public/push-sw.js`) – dort ist kein „from Warnkarte“ enthalten.
+- Keine Änderung an der Push-Payload in `src/lib/push.server.ts` – Titel/Text bleiben unverändert, da nur die vom Browser ergänzte Quelle angepasst werden muss.
+- Keine Änderung an den Push-Inhalten (Titel, Body, Icon) – die UI-Texte bleiben wie bisher.
