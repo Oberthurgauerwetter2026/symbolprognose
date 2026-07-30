@@ -1,32 +1,18 @@
-## Ziel
-Die Warnkarte soll sich flüssig an die verfügbare Breite/Höhe anpassen – auf Desktop, Tablet und Mobile – statt fixe Pixelhöhen (380px / 520px / 700px) zu verwenden.
+## Warum es anders aussieht
 
-## Aktueller Stand
-In `src/components/maps/warn-map.tsx`:
-- Kartencontainer (Zeile 399): `h-[380px] sm:h-[520px] lg:h-full lg:min-h-[700px]`
-- Info-Panel (Zeilen 528/534): feste `min-h-[700px]` in Desktop-/Embed-Modus
-- Warnliste (Zeile 558): `max-h-[70vh]`
+Im Embed (`bare`-Modus) rendert `src/components/maps/warn-map.tsx` den Abo-Bereich bewusst nicht mit (`{!bare && …}`). Stattdessen setzt die Route `src/routes/embed.warnungen.tsx` einen eigenen Kasten „Push-Benachrichtigungen aktivieren“ **unterhalb** des Grids über die volle Breite. Zusätzlich sind im Embed die rechte Spalte schmaler (240–300 px statt 260–320 px) und die Höhe kleiner (max. 620 px statt 760 px).
 
-Diese festen Werte führen dazu, dass die Karte auf kleinen Displays zu hoch/zu niedrig und auf grossen Monitoren nicht mitwächst.
+## Änderung: Embed an die App angleichen
 
-## Änderungen (nur `src/components/maps/warn-map.tsx`)
+1. **`src/components/maps/warn-map.tsx`**
+   - Den Abo-Block auch im `bare`-Modus in der rechten Spalte (`aside`) rendern, direkt unter dem Info-Panel – identisch zur App-Ansicht, inkl. `PushOptIn` mit `embedded`-Verhalten (Hinweis „In eigenem Tab öffnen“ bleibt).
+   - Spaltenbreite im Embed auf `minmax(260px,320px)` und Höhe auf `clamp(420px,60vh,760px)` setzen, also gleich wie in der App.
 
-1. **Karte mit Seitenverhältnis statt fixer Höhe**
-   - Mobil: `aspect-[4/3]` mit `min-h-[300px]`, so skaliert die Höhe mit der Breite.
-   - Ab Tablet/Desktop: Höhe über `clamp()` an den Viewport gekoppelt, z. B. `h-[clamp(420px,60vh,760px)]`, im zweispaltigen Layout weiterhin `lg:h-full` (Karte folgt der Panelhöhe).
+2. **`src/routes/embed.warnungen.tsx`**
+   - Den separaten Kasten unterhalb der Karte entfernen, da der Inhalt jetzt in der Spalte steht. Padding-Wrapper bleibt.
 
-2. **Info-Panel dynamisch**
-   - `min-h-[700px]` ersetzen durch dieselbe `clamp()`-Höhe, damit Karte und Panel gleich hoch bleiben und gemeinsam mitwachsen.
-   - Panel behält Flex-Struktur: Header fix, Warnliste `flex-1 overflow-y-auto`.
-
-3. **Warnliste**
-   - `max-h-[70vh]` entfällt zugunsten von `flex-1 min-h-0`, damit die Liste exakt den Restplatz füllt statt eine eigene Grenze zu setzen.
-
-4. **Spaltenumbruch feiner**
-   - Zweispaltiges Layout weiterhin über Container-Queries (`@lg` im Embed, `@3xl` in der App), Panelspalte auf `minmax(260px,320px)` flexibilisieren, damit sie bei mittleren Breiten nicht klemmt.
-
-5. **Embed-Modus**
-   - Da `/embed/warnungen` seine Höhe per postMessage meldet, bleibt die Höhe inhaltsgetrieben; die `clamp()`-Werte werden im `bare`-Modus etwas niedriger angesetzt, damit iframes nicht überlaufen.
+3. **`src/components/warnings/push-opt-in.tsx`**
+   - Nur prüfen, dass die kompakte Embed-Variante in der schmalen Spalte sauber umbricht; ggf. minimale Anpassung an Abständen.
 
 ## Verifikation
-TypeScript-Check plus Screenshots bei 375px, 768px, 1280px und 1728px Breite (App-Route und Embed-Route), um Karte und Panel auf gleiche Höhe und lesbare Warnmeldungen zu prüfen.
+TypeScript-Check und Screenshots von `/embed/warnungen` und `/karten/warnungen` bei 390 px, 768 px und 1440 px, um identische Spaltenbreiten, Höhen und Position des Abo-Bereichs zu bestätigen.
