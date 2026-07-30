@@ -61,20 +61,32 @@ function crystal(k: string) {
   );
 }
 
+/** Einfacher 6-Strahl-Stern für kleine Flocken. */
+function star(k: string) {
+  return (
+    <g key={k}>
+      <path d="M12 3v18" />
+      <path d="M4.2 7.5 19.8 16.5" />
+      <path d="M19.8 7.5 4.2 16.5" />
+    </g>
+  );
+}
+
 /** Drei Schneekristalle (eine grosse, zwei kleine). */
 export function SnowflakesIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...base} {...rest} className={className} width="1em" height="1em" strokeWidth={1.7}>
-      <g transform="translate(8.6 8.6) scale(0.66) translate(-12 -12)">{crystal("big")}</g>
-      <g transform="translate(18.4 7.6) scale(0.3) translate(-12 -12)" strokeWidth={3.4}>
-        {crystal("s1")}
+    <svg {...base} {...rest} className={className} width="1em" height="1em" strokeWidth={1.6}>
+      <g transform="translate(8.8 8.8) scale(0.68) translate(-12 -12)">{crystal("big")}</g>
+      <g transform="translate(18.6 7.4) scale(0.28) translate(-12 -12)" strokeWidth={4.6}>
+        {star("s1")}
       </g>
-      <g transform="translate(15.2 18.4) scale(0.34) translate(-12 -12)" strokeWidth={3}>
-        {crystal("s2")}
+      <g transform="translate(15.4 18.6) scale(0.32) translate(-12 -12)" strokeWidth={4.2}>
+        {star("s2")}
       </g>
     </svg>
   );
 }
+
 
 /** Windsack am Mast – identisch zur Lokalprognose. */
 export function WindsockIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
