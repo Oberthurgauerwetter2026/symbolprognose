@@ -359,7 +359,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               }}
               title={h.label}
               className={cn(
-                "flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition",
+                "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-medium transition",
                 on ? "border-foreground" : "border-transparent hover:bg-muted/60",
               )}
               style={
