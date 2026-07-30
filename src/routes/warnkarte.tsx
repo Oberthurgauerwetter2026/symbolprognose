@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { WarnMap } from "@/components/maps/warn-map";
 import { SITE_URL } from "@/lib/site-url";
 import { WARN_MANIFEST_LINK } from "@/lib/pwa-links";
@@ -71,12 +71,6 @@ function WarnkartePage() {
         </header>
 
         <WarnMap />
-
-        <footer className="mt-6 border-t border-border pt-3 text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-foreground">
-            Oberthurgauer Wetter – zur Hauptseite
-          </Link>
-        </footer>
       </div>
     </main>
   );
