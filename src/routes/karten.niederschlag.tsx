@@ -7,6 +7,7 @@ import { MapTabs } from "@/components/map-tabs";
 import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
 import { getMap } from "@/lib/maps-config";
 import { getRadarFrames } from "@/lib/radar.functions";
+import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/niederschlag")({
   ssr: false,
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/karten/niederschlag")({
       { title: "Niederschlagssummen Oberthurgau · 12 / 24 / 48 h" },
       { name: "description", content: getMap("niederschlag").description },
     ],
+    links: [APP_MANIFEST_LINK],
   }),
 });
 

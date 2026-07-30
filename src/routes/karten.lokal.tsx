@@ -4,6 +4,7 @@ import { z } from "zod";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
 import { WeatherWidget } from "@/components/weather-widget";
+import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 const searchSchema = z.object({
   day: fallback(z.number().int().min(0).max(6).optional(), undefined).optional(),
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/karten/lokal")({
           "5-Tage Lokalprognose im 3-Stunden-Takt mit MeteoSchweiz local_forecast (OGD) und DWD-MOSMIX-Erweiterung.",
       },
     ],
+    links: [APP_MANIFEST_LINK],
   }),
 });
 

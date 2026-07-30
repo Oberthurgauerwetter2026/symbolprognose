@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
 import { LazySatelliteMap } from "@/components/maps/lazy-maps";
 import { getMap } from "@/lib/maps-config";
+import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/satellit")({
   ssr: false,
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/karten/satellit")({
       { property: "og:title", content: "Satellitenbild Schweiz — Zeitraffer" },
       { property: "og:description", content: getMap("satellit").description },
     ],
+    links: [APP_MANIFEST_LINK],
   }),
 });
 

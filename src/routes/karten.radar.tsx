@@ -5,6 +5,7 @@ import { MapTabs } from "@/components/map-tabs";
 import { LazyRadarMap } from "@/components/maps/lazy-maps";
 import { getMap } from "@/lib/maps-config";
 import { getRadarFrames } from "@/lib/radar.functions";
+import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/radar")({
   ssr: false,
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/karten/radar")({
       { title: "Niederschlagsradar Oberthurgau · Niederschlags-Animation" },
       { name: "description", content: getMap("radar").description },
     ],
+    links: [APP_MANIFEST_LINK],
   }),
 });
 
