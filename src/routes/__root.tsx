@@ -104,10 +104,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "apple-touch-icon",
         href: "/icon-192.png",
       },
-      {
-        rel: "manifest",
-        href: "/manifest.webmanifest",
-      },
+      // Manifest wird pro Route gesetzt (src/lib/pwa-links.ts),
+      // damit /warnkarte ein eigenes Manifest ausliefert.
+
     ],
   }),
   shellComponent: RootShell,
