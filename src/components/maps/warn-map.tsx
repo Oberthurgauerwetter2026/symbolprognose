@@ -394,7 +394,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         className={cn(
           "grid gap-3",
           bare
-            ? "grid-cols-1 @lg:grid-cols-[minmax(0,1fr)_minmax(240px,300px)]"
+            ? "grid-cols-1 @lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]"
             : "@3xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]",
         )}
       >
@@ -402,10 +402,11 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
           className={cn(
             "relative aspect-[4/3] min-h-[280px] w-full overflow-hidden rounded-2xl shadow-lg",
             bare
-              ? "@md:aspect-auto @md:h-[clamp(360px,55vh,620px)] @lg:h-full"
+              ? "@md:aspect-auto @md:h-[clamp(420px,60vh,760px)] @lg:h-full"
               : "sm:aspect-auto sm:h-[clamp(420px,60vh,760px)] @3xl:h-full",
           )}
         >
+
 
           <MapContainer
             center={[47.555, 9.3]}
