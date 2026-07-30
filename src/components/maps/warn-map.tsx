@@ -535,15 +535,18 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         <aside
           className={cn(
             "space-y-3",
-            bare ? "@lg:flex @lg:h-auto @lg:min-h-[700px] @lg:flex-col" : "@3xl:flex @3xl:h-auto @3xl:min-h-[700px] @3xl:flex-col",
+            bare
+              ? "@lg:flex @lg:h-[clamp(360px,55vh,620px)] @lg:flex-col"
+              : "@3xl:flex @3xl:h-[clamp(420px,60vh,760px)] @3xl:flex-col",
           )}
         >
           <div
             className={cn(
-              "flex flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm",
-              bare ? "@lg:min-h-[700px]" : "@3xl:min-h-[700px]",
+              "flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm",
+              bare ? "@lg:flex-1" : "@3xl:flex-1",
             )}
           >
+
             <div className="flex items-start justify-between gap-2">
               <h2 className="text-lg font-semibold text-foreground">
                 {selected ? regionName(selected) : "Region Oberthurgau"}
