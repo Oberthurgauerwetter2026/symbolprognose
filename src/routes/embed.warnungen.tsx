@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { EmbedShell } from "@/components/embed-shell";
 import { WarnMap } from "@/components/maps/warn-map";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
-import { SITE_URL } from "@/lib/site-url";
 
 export const Route = createFileRoute("/embed/warnungen")({
   ssr: false,
