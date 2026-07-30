@@ -101,26 +101,40 @@ export function WindsockIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
 }
 
 /**
- * Strassenglätte – klassisches Verkehrszeichen «Schleudergefahr»:
- * Auto von hinten mit zwei geschwungenen Schleuderspuren darunter.
+ * Strassenglätte – Verkehrszeichen «Schleudergefahr»:
+ * gefüllte Auto-Silhouette in Schrägansicht mit Schleuderspuren darunter.
  */
 export function SlipperyCarIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...base} {...rest} className={className} width="1em" height="1em" strokeWidth={1.6}>
-      {/* Dach & Heckscheibe */}
-      <path d="M7.6 8.2 8.9 5.2A1.8 1.8 0 0 1 10.55 4.1h2.9c.72 0 1.37.43 1.65 1.1l1.3 3" />
-      {/* Karosserie */}
-      <path d="M5 13.4v-2.2c0-1.6 1.3-3 3-3h8c1.7 0 3 1.4 3 3v2.2a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" />
-      {/* Rückleuchten */}
-      <path d="M7.4 11.4h1.6" />
-      <path d="M15 11.4h1.6" />
+    <svg {...base} {...rest} className={className} width="1em" height="1em">
+      {/* Karosserie + Kabine als gefüllte Silhouette */}
+      <path
+        d="M4.5 12.6v-1.5c0-1.15.62-2.2 1.62-2.76l1.1-.62 1.5-2.36A2.3 2.3 0 0 1 10.66 4.2h3.9c.8 0 1.54.42 1.96 1.1l1.6 2.6 1.03.5c.83.4 1.35 1.24 1.35 2.16v2.04c0 .5-.4.9-.9.9H5.4a.9.9 0 0 1-.9-.9z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={1.1}
+        strokeLinejoin="round"
+      />
       {/* Räder */}
-      <path d="M7.6 14.4v1.1" />
-      <path d="M16.4 14.4v1.1" />
+      <path
+        d="M6.6 13.5h2.6v1.5a.7.7 0 0 1-.7.7H7.3a.7.7 0 0 1-.7-.7z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={0.9}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14.8 13.5h2.6v1.5a.7.7 0 0 1-.7.7h-1.2a.7.7 0 0 1-.7-.7z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={0.9}
+        strokeLinejoin="round"
+      />
       {/* Schleuderspuren */}
-      <path d="M3.4 21.4c1.6 0 1.9-2.4 3.5-2.4s1.9 2.4 3.5 2.4" />
-      <path d="M13.6 21.4c1.6 0 1.9-2.4 3.5-2.4s1.9 2.4 3.5 2.4" />
+      <path d="M3.4 21.5c2.5-.2 1.6-2.9 4.1-3.1" strokeWidth={1.6} />
+      <path d="M9.3 21.8c3-.2 2-3.4 5-3.6" strokeWidth={1.6} />
+      <path d="M16.2 21.5c2.5-.2 1.6-2.9 4.1-3.1" strokeWidth={1.6} />
     </svg>
-
   );
 }
+
