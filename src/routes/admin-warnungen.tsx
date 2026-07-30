@@ -395,6 +395,8 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
         <IngestSection password={password} />
 
+        <AutoThunderSection password={password} />
+
 
 
         {/* Formular */}
