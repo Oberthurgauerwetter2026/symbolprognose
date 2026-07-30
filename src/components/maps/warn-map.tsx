@@ -526,7 +526,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         <aside
           className={cn(
             "space-y-3",
-            bare ? "@lg:flex @lg:h-[700px] @lg:flex-col" : "@3xl:flex @3xl:h-[700px] @3xl:flex-col",
+            bare ? "@lg:flex @lg:h-auto @lg:min-h-[700px] @lg:flex-col" : "@3xl:flex @3xl:h-auto @3xl:min-h-[700px] @3xl:flex-col",
           )}
         >
           <div
