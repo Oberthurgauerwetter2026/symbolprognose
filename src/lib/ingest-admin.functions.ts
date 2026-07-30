@@ -107,3 +107,55 @@ export const getIngestStatus = createServerFn({ method: "GET" }).handler(
     return out;
   },
 );
+
+export interface AutoThunderStatus {
+  ranAt: string | null;
+  ageMinutes: number | null;
+  detected: number;
+  created: number;
+  closed: number;
+  note: string | null;
+}
+
+/** Status des letzten automatischen Gewitter-Laufs (Cron alle 15 Minuten). */
+export const getAutoThunderStatus = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AutoThunderStatus> => {
+    const { adminClient } = await import("@/lib/warnings.server");
+    const sb = await adminClient();
+    const { data } = await sb
+      .from("job_runs")
+      .select("ran_at, detected, created, closed, note")
+      .eq("job", "auto-thunder")
+      .maybeSingle();
+    const row = data as
+      | { ran_at: string; detected: number; created: number; closed: number; note: string | null }
+      | null;
+    if (!row) {
+      return { ranAt: null, ageMinutes: null, detected: 0, created: 0, closed: 0, note: null };
+    }
+    const ms = Date.parse(row.ran_at);
+    return {
+      ranAt: row.ran_at,
+      ageMinutes: Number.isFinite(ms) ? Math.round((Date.now() - ms) / 60000) : null,
+      detected: row.detected,
+      created: row.created,
+      closed: row.closed,
+      note: row.note,
+    };
+  },
+);
+
+/** Gewitter-Autowarnung sofort prüfen (Admin-Passwort statt Cron-Secret). */
+export const runAutoThunderNow = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string }) => d)
+  .handler(async ({ data }) => {
+    const { assertAdmin } = await import("@/lib/warnings.server");
+    assertAdmin(data.password);
+    const { runAutoThunder } = await import("@/lib/auto-thunder.server");
+    try {
+      const res = await runAutoThunder();
+      return { ok: true as const, ...res };
+    } catch (err) {
+      return { ok: false as const, error: err instanceof Error ? err.message : "unbekannt" };
+    }
+  });
