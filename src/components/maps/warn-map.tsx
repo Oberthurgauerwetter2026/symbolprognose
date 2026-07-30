@@ -374,7 +374,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             </button>
           );
         })}
-        <div className="ml-auto flex shrink-0 items-center gap-2 pr-1 text-sm text-muted-foreground">
+        <div className="ml-auto flex shrink-0 items-center gap-2 pr-1 text-[13px] text-muted-foreground">
           {query.isFetching && <Loader2 className="h-4 w-4 animate-spin" />}
           {maxLevel === 0 ? (
             <span className="flex items-center gap-1.5 font-semibold text-foreground">
