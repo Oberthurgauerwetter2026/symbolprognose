@@ -163,18 +163,24 @@ interface FormState {
   active: boolean;
 }
 
-/** Vorlagentexte für eine Kombination aus Gefahr, Stufe und Messwert. */
-function genTexts(hazard: HazardId, level: WarnLevel, value: string) {
+/** Vorlagentexte für Gefahr, Stufe, Messwert und Gültigkeitsdauer. */
+function genTexts(
+  hazard: HazardId,
+  level: WarnLevel,
+  value: string,
+  durationHours?: number | null,
+) {
   const tpl = TEMPLATES[hazard][level];
   return {
     title: warningTitle(hazard, level),
-    description: fillTemplate(tpl.description, value),
+    description: fillTemplate(tpl.description, value, durationHours),
     impact: templateImpact(tpl),
   };
 }
 
 function emptyForm(): FormState {
-  const t = genTexts("gewitter", 1, "");
+  const t = genTexts("gewitter", 1, "", 6);
+
   return {
     id: null,
     hazard: "gewitter",
