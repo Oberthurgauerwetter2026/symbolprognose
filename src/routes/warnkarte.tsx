@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { WarnMap } from "@/components/maps/warn-map";
+import { SITE_URL } from "@/lib/site-url";
 
 const DESC =
   "Aktuelle Wetterwarnungen für alle Gemeinden im Oberthurgau – mit Push-Benachrichtigung für die eigene Region.";
@@ -14,12 +16,21 @@ export const Route = createFileRoute("/warnkarte")({
       { property: "og:title", content: "Warnkarte Oberthurgau · Benachrichtigungen abonnieren" },
       { property: "og:description", content: DESC },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: `${SITE_URL}/warnkarte` },
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    links: [{ rel: "canonical", href: `${SITE_URL}/warnkarte` }],
   }),
 });
 
 function WarnkartePage() {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.origin !== SITE_URL) {
+      window.location.replace(`${SITE_URL}/warnkarte`);
+    }
+  }, []);
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto w-full max-w-3xl px-4 py-5">
