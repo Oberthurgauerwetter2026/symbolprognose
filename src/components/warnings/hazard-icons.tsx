@@ -13,49 +13,64 @@ const base: SVGProps<SVGSVGElement> = {
   strokeLinejoin: "round",
 };
 
-/** Einzelner Blitz – Gewitter. */
+/** Einzelner Blitz – Gewitter (gefüllte, markante Silhouette). */
 export function BoltIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} {...rest} className={className} width="1em" height="1em">
-      <path d="M13.5 2 5 13.5h5.5L9.5 22 19 10.2h-6l.5-8.2z" />
+      <path
+        d="M14.4 1.8 5.6 13.1a.6.6 0 0 0 .48.97h4.1l-1.6 7.4a.45.45 0 0 0 .8.36l8.9-11.4a.6.6 0 0 0-.47-.97h-4.2l1.6-7.3a.45.45 0 0 0-.81-.36z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={1.2}
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
-/** Drei Regentropfen. */
+/** Drei plastische Regentropfen. */
 export function RainDropsIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
+  const drop = (cx: number, cy: number, s: number) =>
+    `M ${cx} ${cy - 4.6 * s}
+     C ${cx + 1.1 * s} ${cy - 2.4 * s} ${cx + 3.1 * s} ${cy - 0.9 * s} ${cx + 3.1 * s} ${cy + 0.7 * s}
+     a ${3.1 * s} ${3.1 * s} 0 0 1 ${-6.2 * s} 0
+     c 0 ${-1.6 * s} ${2 * s} ${-3.1 * s} ${3.1 * s} ${-5.3 * s} z`;
   return (
     <svg {...base} {...rest} className={className} width="1em" height="1em">
-      <path d="M6.5 3.5c1.9 2.4 2.9 4.1 2.9 5.3a2.9 2.9 0 1 1-5.8 0c0-1.2 1-2.9 2.9-5.3z" />
-      <path d="M17.5 3.5c1.9 2.4 2.9 4.1 2.9 5.3a2.9 2.9 0 1 1-5.8 0c0-1.2 1-2.9 2.9-5.3z" />
-      <path d="M12 12.5c1.9 2.4 2.9 4.1 2.9 5.3a2.9 2.9 0 1 1-5.8 0c0-1.2 1-2.9 2.9-5.3z" />
+      <path d={drop(6.6, 7.4, 1)} fill="currentColor" stroke="currentColor" strokeWidth={1} />
+      <path d={drop(17.4, 7.4, 1)} fill="currentColor" stroke="currentColor" strokeWidth={1} />
+      <path d={drop(12, 16.6, 1)} fill="currentColor" stroke="currentColor" strokeWidth={1} />
     </svg>
   );
 }
 
-/** Drei Schneeflocken (eine grosse, zwei kleine). */
+/** Sechsstrahliger Kristall mit Seitenästen. */
+function crystal(k: string) {
+  return (
+    <g key={k}>
+      <path d="M12 2.6v18.8" />
+      <path d="M3.86 7.3 20.14 16.7" />
+      <path d="M20.14 7.3 3.86 16.7" />
+      <path d="M9.4 5.1 12 7.1l2.6-2" />
+      <path d="M9.4 18.9 12 16.9l2.6 2" />
+      <path d="M4.5 11.2 4.1 8.2l2.9-.9" />
+      <path d="M19.5 12.8l.4 3-2.9.9" />
+      <path d="M19.5 11.2l.4-3-2.9-.9" />
+      <path d="M4.5 12.8l-.4 3 2.9.9" />
+    </g>
+  );
+}
+
+/** Drei Schneekristalle (eine grosse, zwei kleine). */
 export function SnowflakesIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...base} {...rest} className={className} width="1em" height="1em">
-      {/* grosse Flocke */}
-      <g transform="translate(8.2 8.2) scale(0.62) translate(-12 -12)">
-        <path d="M12 2v20" />
-        <path d="M3.5 7l17 10" />
-        <path d="M20.5 7l-17 10" />
-        <path d="M9 4.2 12 6.6l3-2.4" />
-        <path d="M9 19.8 12 17.4l3 2.4" />
+    <svg {...base} {...rest} className={className} width="1em" height="1em" strokeWidth={1.7}>
+      <g transform="translate(8.6 8.6) scale(0.66) translate(-12 -12)">{crystal("big")}</g>
+      <g transform="translate(18.4 7.6) scale(0.3) translate(-12 -12)" strokeWidth={3.4}>
+        {crystal("s1")}
       </g>
-      {/* kleine Flocke rechts */}
-      <g transform="translate(18 8) scale(0.3) translate(-12 -12)">
-        <path d="M12 2v20" />
-        <path d="M3.5 7l17 10" />
-        <path d="M20.5 7l-17 10" />
-      </g>
-      {/* kleine Flocke unten */}
-      <g transform="translate(14 18.2) scale(0.34) translate(-12 -12)">
-        <path d="M12 2v20" />
-        <path d="M3.5 7l17 10" />
-        <path d="M20.5 7l-17 10" />
+      <g transform="translate(15.2 18.4) scale(0.34) translate(-12 -12)" strokeWidth={3}>
+        {crystal("s2")}
       </g>
     </svg>
   );
@@ -73,18 +88,25 @@ export function WindsockIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Modernes Auto in Schräglage mit Schleuderspuren – Strassenglätte. */
+/**
+ * Strassenglätte – klassisches Verkehrszeichen «Schleudergefahr»:
+ * Auto von hinten mit zwei geschwungenen Schleuderspuren darunter.
+ */
 export function SlipperyCarIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...base} {...rest} className={className} width="1em" height="1em">
-      <g transform="rotate(-14 12 9.5)">
-        <path d="M4 12.5h16" />
-        <path d="M5.6 12.5 7.2 8.4A2 2 0 0 1 9.1 7.1h5.8a2 2 0 0 1 1.9 1.3l1.6 4.1" />
-        <circle cx="8.2" cy="14.6" r="1.5" />
-        <circle cx="15.8" cy="14.6" r="1.5" />
-      </g>
-      <path d="M3.5 20.5c1.7 0 1.7-1.7 3.4-1.7s1.7 1.7 3.4 1.7" />
-      <path d="M13.7 20.5c1.7 0 1.7-1.7 3.4-1.7s1.7 1.7 3.4 1.7" />
+    <svg {...base} {...rest} className={className} width="1em" height="1em" strokeWidth={1.7}>
+      {/* Karosserie von hinten */}
+      <path d="M5.2 13.6v-1.5c0-.5.15-1 .43-1.42l1.6-2.4A2.2 2.2 0 0 1 9.06 7.3h5.88c.73 0 1.42.37 1.83.98l1.6 2.4c.28.42.43.92.43 1.42v1.5" />
+      <path d="M4.6 13.6h14.8" />
+      <path d="M6.9 10.4h10.2" />
+      {/* Heckscheibe + Räder */}
+      <path d="M9.2 8.4v2" />
+      <path d="M14.8 8.4v2" />
+      <path d="M6.6 13.6v1.5" />
+      <path d="M17.4 13.6v1.5" />
+      {/* Schleuderspuren */}
+      <path d="M4 21.2c1.9 0 1.9-2.1 3.8-2.1s1.9 2.1 3.8 2.1" />
+      <path d="M12.4 21.2c1.9 0 1.9-2.1 3.8-2.1s1.9 2.1 3.8 2.1" />
     </svg>
   );
 }
