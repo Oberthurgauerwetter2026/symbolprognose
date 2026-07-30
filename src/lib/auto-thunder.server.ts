@@ -163,7 +163,7 @@ export async function runAutoThunder(): Promise<AutoThunderResult> {
     const tpl = TEMPLATES.gewitter[level];
     const base = fillTemplate(tpl.description);
     const motionText = motion
-      ? ` Die Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
+      ? ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
       : "";
     const row = {
       hazard: "gewitter",
@@ -171,7 +171,8 @@ export async function runAutoThunder(): Promise<AutoThunderResult> {
       valid_from: validFrom,
       valid_to: validTo,
       title: warningTitle("gewitter", level),
-      description: `${base} Radar und Nowcast zeigen Spitzenintensitäten um ${Math.round(info.max)} mm/h.${motionText}`,
+      description: `${base} Erwartete Spitzenintensitäten ${Math.round(info.max)} mm/h.${motionText}`,
+
       impact: templateImpact(tpl),
       params: { value: String(Math.round(info.max)), auto: true },
       active: true,
