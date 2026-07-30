@@ -234,6 +234,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   const geoRef = useRef<L.GeoJSON | null>(null);
   /** Immer aktuelle Stilfunktion für die Leaflet-Handler (sonst veralteter Closure-Stand). */
   const styleRef = useRef<(f: Feature) => L.PathOptions>(() => ({}));
+  const hoverRef = useRef<(f: Feature) => L.PathOptions>(() => ({}));
+
 
   const query = useQuery({
     queryKey: ["warnings"],
@@ -289,12 +291,40 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
       color: isSel ? "#1f2937" : "#4b5563",
       weight: isSel ? 2.4 : 1,
       opacity: isSel ? 1 : 0.75,
-      fillColor: def.color,
-      fillOpacity: def.fillOpacity,
+      fillColor: isSel ? "#111827" : def.color,
+      fillOpacity: isSel ? Math.min(0.95, def.fillOpacity + 0.14) : def.fillOpacity,
     };
   }
 
+  /** Farbe leicht Richtung Schwarz mischen. */
+  function darken(hex: string, amount = 0.18): string {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return hex;
+    const n = parseInt(m[1], 16);
+    const r = Math.round(((n >> 16) & 255) * (1 - amount));
+    const g = Math.round(((n >> 8) & 255) * (1 - amount));
+    const b = Math.round((n & 255) * (1 - amount));
+    return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+  }
+
+  /** Leichte Abdunklung beim Überfahren/Antippen – Warnfarbe bleibt erhalten. */
+  function hoverStyleFor(feature: Feature): L.PathOptions {
+    const b = styleFor(feature);
+    return {
+      ...b,
+      color: "#1f2937",
+      weight: 2,
+      opacity: 1,
+      fillColor: darken(String(b.fillColor ?? "#94a3b8")),
+      fillOpacity: Math.min(0.9, (b.fillOpacity ?? 0.3) + 0.1),
+    };
+  }
+
+
+
   styleRef.current = styleFor;
+  hoverRef.current = hoverStyleFor;
+
 
   return (
     <div className={cn("@container space-y-3", className)}>
@@ -336,7 +366,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                   : undefined
               }
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-6 w-6 @sm:h-7 @sm:w-7" />
               <span className="hidden @sm:inline">{h.label}</span>
               {lvl > 0 && <span className="rounded bg-black/15 px-1.5 text-xs font-bold">{lvl}</span>}
             </button>
@@ -415,14 +445,16 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               onEachFeature={(feature, layer) => {
                 const name = String((feature.properties as { name?: string } | null)?.name ?? "");
                 const id = slugifyRegion(name);
+                const path = layer as L.Path;
+                const enter = () => path.setStyle(hoverRef.current(feature as Feature));
+                const leave = () => path.setStyle(styleRef.current(feature as Feature));
                 layer.on("click", () => setSelected((cur) => (cur === id ? null : id)));
-                layer.on("mouseover", () =>
-                  (layer as L.Path).setStyle({ weight: 2.4, color: "#1f2937" }),
-                );
-                layer.on("mouseout", () =>
-                  (layer as L.Path).setStyle(styleRef.current(feature as Feature)),
-                );
+                layer.on("mouseover", enter);
+                layer.on("mouseout", leave);
+                layer.on("touchstart" as any, enter);
+                layer.on("touchend" as any, leave);
               }}
+
             />
             <GeoJSON
               data={REGION_OUTLINE}
@@ -473,11 +505,14 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <button
               type="button"
               onClick={() => setLegendOpen(true)}
-              className="absolute bottom-3 left-3 z-[400] flex items-center gap-1.5 rounded-lg bg-card/95 px-3 py-2 text-xs font-semibold text-foreground shadow-lg hover:bg-card"
+              aria-label="Legende anzeigen"
+              title="Legende"
+              className="absolute bottom-3 left-3 z-[400] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
             >
-              <Info className="h-4 w-4" /> Legende
+              <Info className="h-4 w-4" />
             </button>
           )}
+
         </div>
 
         {/* Info-Panel */}
@@ -520,7 +555,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                         className="flex items-center gap-2 px-3.5 py-2.5 text-base font-semibold"
                         style={{ background: def.color, color: def.textOnColor }}
                       >
-                        <Icon className="h-5 w-5 shrink-0" />
+                        <Icon className="h-7 w-7 shrink-0" />
                         {w.title || `${h.title} (Stufe ${w.level})`}
                       </div>
                       <div className="space-y-3.5 p-3.5">
