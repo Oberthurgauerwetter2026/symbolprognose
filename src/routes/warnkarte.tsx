@@ -8,6 +8,7 @@ const DESC =
   "Aktuelle Wetterwarnungen für alle Gemeinden im Oberthurgau – mit Push-Benachrichtigung für die eigene Region.";
 
 export const Route = createFileRoute("/warnkarte")({
+  ssr: false,
   component: WarnkartePage,
   head: () => ({
     meta: [
