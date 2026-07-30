@@ -1,35 +1,37 @@
-Ziel: Im Embed-Widget `/embed/warnungen` soll das Warn-Info-Panel bei genügend Breite rechts von der Karte stehen; auf schmalen Viewports (Mobil) soll es sich wie bisher unter der Karte stapeln.
+## Beobachtung
 
-Aktueller Zustand (geprüft):
-- `src/routes/embed.warnungen.tsx` rendert `<WarnMap bare />`.
-- In `src/components/maps/warn-map.tsx` Zeile 394 entscheidet der `bare`-Prop über das Layout: `bare ? "grid-cols-1" : "@3xl:grid-cols-[1fr_320px]"`. Im Embed wird also immer nur eine Spalte verwendet und das Panel liegt unter der Karte.
-- `src/components/embed-shell.tsx` setzt `@container` auf dem Wrapper, sodass Container-Queries im `WarnMap`-Grid funktionieren.
-- Die Iframe-Höhe für Warnungen ist in `src/routes/embed-info.tsx` auf 760 px voreingestellt.
-- Das Panel wurde in der letzten Änderung bereits scrollbar gemacht (`overflow-y-auto` + flex-Layout).
+Aktuell ist das Warninfo-Panel in `warn-map.tsx` auf `h-[700px]` begrenzt und der Warnkarten-Text scrollt im rechten Bereich, wenn er länger ist (z. B. „Mögliche Auswirkungen …“). Das „Warnungen abonnieren“-Panel nimmt zusätzlichen Platz ein. Der Hinweistext (z. B. im Embed-Modus) ist immer sichtbar.
 
-Geplante Änderungen:
+## Ziel
 
-1. Responsives Grid im `WarnMap`-Embed-Modus
-   - `grid-cols-1` als Basis beibehalten (Mobile-first).
-   - Ab einer passenden Container-Breite (z. B. `@md` oder `@lg`, genauer Wert nach visuellem Test) auf `grid-cols-[1fr_260px]` oder `grid-cols-[1fr_280px]` umschalten, damit das Panel rechts neben der Karte erscheint.
-   - Das `bare`-Layout darf dabei nicht mit dem nicht-baren Layout (`@3xl`) kollidieren; die neue Regel gilt nur für `bare`.
+1. Die Warnmeldung soll vollständig lesbar sein (ohne inneres Scrollen).
+2. Das „Warnungen abonnieren“-Panel soll noch kompakter werden.
+3. Der Hinweistext soll erst nach Tippen/Klicken eingeblendet werden.
 
-2. Panel-Höhe an das Embed-Layout koppeln
-   - Damit das rechte Panel nicht höher als die Karte wird und trotzdem scrollbar bleibt, muss die maximale Höhe des Info-Panels auf Desktop auch im Embed-Modus greifen (z. B. `@md:flex @md:h-[560px] @md:flex-col` statt nur `@3xl`).
-   - Der bisherige `@3xl`-Breakpunkt wird für die normale App beibehalten.
+## Plan
 
-3. Iframe-Höhe prüfen / anpassen
-   - Falls das Seiteneinander-Layout bei 760 px Höhe zu breit oder zu hoch wirkt, wird die empfohlene Embed-Höhe in `embed-info.tsx` leicht angepasst (z. B. 640–720 px). Erst nach Sichtprüfung entscheiden.
+1. **Layout & Größe prüfen**
+   - Screenshot der aktuellen `/karten/warnungen` und des Embed-Views machen, um zu messen, wie viel Platz das Warninfo-Panel wirklich hat.
 
-4. Verifikation
-   - Desktop-Viewport (≥ ca. 768 px Iframe-Breite): Panel rechts neben Karte, Scrollbar funktioniert bei mehreren Warnungen.
-   - Mobile-Viewport (≤ ca. 480 px Iframe-Breite): Panel unter der Karte gestapelt, keine Überlappungen, Karte tippbar.
-   - Build-Check und TypeScript-Check erfolgreich.
+2. **Warninfo-Panel anpassen**
+   - In `src/components/maps/warn-map.tsx` die feste Höhe des Info-Bereichs erhöhen oder auf `min-h`/`h-auto` umstellen, sodass eine einzelne Warnung komplett sichtbar ist.
+   - Inneres `overflow-y-auto` der Warnliste nur aktivieren, wenn der Inhalt tatsächlich größer ist als der verfügbare Bereich (z. B. bei mehreren Meldungen). Bei einer einzelnen Meldung soll die Karte nicht innerhalb des Panels scrollen.
+   - Abstände im Warninfo-Bereich leicht reduzieren, damit mehr Text sichtbar wird.
 
-Technische Details:
-- Datei: `src/components/maps/warn-map.tsx` (Grid-Logik und Panel-Wrapper).
-- Optional: `src/routes/embed-info.tsx` (Höhe des Snippets).
-- Tailwind v4 Container-Queries (`@md:`, `@lg:`) werden verwendet, da der Embed-Wrapper `@container` bereitstellt.
-- Keine neuen Abhängigkeiten, keine Backend- oder Datenbank-Änderungen.
+3. **Abonnieren-Panel komprimieren**
+   - In `src/components/warnings/push-opt-in.tsx` Padding, Titelgröße und Zeilenabstand im Abonnement-Bereich verkleinern.
+   - Den „Benachrichtigungen im eingebetteten Fenster“-Hinweis auf eine einzeilige Zeile mit Info-Icon reduzieren und den ausführlichen Text erst auf Tippen/Klicken einblenden.
+   - Auch im nicht-eingebetteten Modus den Hilfetext „Wie funktioniert das?“ als klappbaren Link belassen, aber den Standardtext knapper halten.
 
-Du kannst die Ansicht selbst mit dem Geräte-Button über der Vorschau auf Desktop/Tablet wechseln.
+4. **Embed-Route anpassen**
+   - In `src/routes/embed.warnungen.tsx` das untere „Push-Benachrichtigungen aktivieren“-Segment kompakter gestalten (kleineres Padding, kürzere Texte).
+
+5. **Verifizierung**
+   - Build laufen lassen.
+   - In der Preview prüfen: Warnmeldung ist vollständig sichtbar, Abonnieren-Panel ist kleiner, Hinweistext klappt auf.
+
+## Betroffene Dateien
+
+- `src/components/maps/warn-map.tsx`
+- `src/components/warnings/push-opt-in.tsx`
+- `src/routes/embed.warnungen.tsx`

@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { BellOff, BellRing, Check, ChevronDown, Circle, Loader2 } from "lucide-react";
+import { BellOff, BellRing, Check, ChevronDown, Circle, Info, Loader2 } from "lucide-react";
 import { REGIONS } from "@/lib/warnings-config";
 import { SITE_URL } from "@/lib/site-url";
 import { getPushPublicKey, savePushSubscription, removePushSubscription } from "@/lib/warnings.functions";
@@ -33,6 +33,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [msg, setMsg] = useState<string | null>(null);
   const [msgKind, setMsgKind] = useState<"ok" | "error">("ok");
   const [howOpen, setHowOpen] = useState(false);
+  const [hintOpen, setHintOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>([]);
   const [blocked, setBlocked] = useState(false);
@@ -143,20 +144,37 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
 
   if (framed) {
     return (
-      <div className="mt-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-        <p className="font-semibold">Benachrichtigungen im eingebetteten Fenster</p>
-        <p className="mt-1 leading-relaxed text-muted-foreground">
-          In einem eingebetteten Vorschaufenster erlauben Browser keine Push-Berechtigungen.
-          Öffne die Warnkarte in einem eigenen Browser-Tab, um Benachrichtigungen zu aktivieren.
-        </p>
+      <div className="mt-2 rounded-lg border border-border bg-muted/50 p-2">
+        <button
+          type="button"
+          onClick={() => setHintOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+            <Info className="h-4 w-4" />
+            Push im Vorschaufenster nicht möglich
+          </span>
+          <ChevronDown
+            className={
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform " +
+              (hintOpen ? "rotate-180" : "")
+            }
+          />
+        </button>
+        {hintOpen && (
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            In einem eingebetteten Vorschaufenster erlauben Browser keine Push-Berechtigungen. Öffne
+            die Warnkarte in einem eigenen Browser-Tab, um Benachrichtigungen zu aktivieren.
+          </p>
+        )}
         {pageUrl && (
           <a
             href={pageUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90"
+            className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90"
           >
-            <BellRing className="h-4 w-4" />
+            <BellRing className="h-3.5 w-3.5" />
             In eigenem Tab öffnen
           </a>
         )}
@@ -165,8 +183,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   }
 
   return (
-    <div className="mt-1.5 space-y-2">
-      <p className="text-[13px] leading-relaxed text-foreground">
+    <div className="mt-1 space-y-1.5">
+      <p className="text-xs leading-snug text-foreground">
         Erhalte eine Meldung, sobald für deine Gemeinden eine Warnung ausgegeben wird.
       </p>
 
@@ -176,7 +194,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             type="button"
             aria-expanded={pickOpen}
             onClick={() => setPickOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-sm font-semibold text-foreground"
+            className="flex w-full items-center justify-between gap-2 px-2 py-1 text-left text-xs font-semibold text-foreground"
           >
             <span>
               Gemeinden wählen ({regionIds.length} von {REGIONS.length})
@@ -186,19 +204,19 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             />
           </button>
           {pickOpen && (
-            <div className="space-y-2 border-t border-border p-2">
+            <div className="space-y-1.5 border-t border-border p-1.5">
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setRegionIds(REGIONS.map((r) => r.id))}
-                  className="rounded border border-border px-2 py-1 text-[13px] font-medium hover:bg-muted"
+                  className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-muted"
                 >
                   Alle
                 </button>
                 <button
                   type="button"
                   onClick={() => setRegionIds([])}
-                  className="rounded border border-border px-2 py-1 text-[13px] font-medium hover:bg-muted"
+                  className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-muted"
                 >
                   Keine
                 </button>
@@ -214,7 +232,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
                         aria-pressed={on}
                         onClick={() => toggleRegion(r.id)}
                         className={
-                          "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[13px] font-medium transition-colors " +
+                          "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-medium transition-colors " +
                           (on
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border bg-background text-foreground hover:bg-muted")
@@ -232,7 +250,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
                 </div>
               </div>
               {none && (
-                <p className="text-[13px] font-medium text-destructive">
+                <p className="text-xs font-medium text-destructive">
                   Bitte mindestens eine Gemeinde ankreuzen.
                 </p>
               )}
@@ -242,14 +260,14 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
       )}
 
       {!subscribed && blocked && (
-        <p className="rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-[13px] leading-relaxed text-foreground">
+        <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs leading-snug text-foreground">
           Hinweis: Benachrichtigungen sind für diese Seite im Browser blockiert – bitte über das
           Schloss-Symbol in der Adressleiste wieder erlauben.
         </p>
       )}
 
       {subscribed && (
-        <p className="rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-[13px] text-foreground">
+        <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs text-foreground">
           Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden.
         </p>
       )}
@@ -258,7 +276,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         type="button"
         disabled={busy || (!subscribed && none)}
         onClick={subscribed ? unsubscribe : subscribe}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -271,7 +289,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
       </button>
 
       {msg && (
-        <p className={"text-sm " + (msgKind === "error" ? "text-destructive" : "text-foreground")}>
+        <p className={"text-xs " + (msgKind === "error" ? "text-destructive" : "text-foreground")}>
           {msg}
         </p>
       )}
@@ -280,17 +298,17 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         <button
           type="button"
           onClick={() => setHowOpen((v) => !v)}
-          className="text-[13px] font-medium text-muted-foreground underline underline-offset-2"
+          className="text-xs font-medium text-muted-foreground underline underline-offset-2"
         >
           Wie funktioniert das?
         </button>
         {howOpen && (
-          <div className="mt-1.5 space-y-1.5">
-            <p className="rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-[13px] font-medium leading-relaxed text-foreground">
+          <div className="mt-1 space-y-1">
+            <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs font-medium leading-relaxed text-foreground">
               iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert und
               von dort geöffnet werden – sonst erlaubt iOS gar keine Push-Meldungen.
             </p>
-            <ol className="list-decimal space-y-1 pl-5 text-[13px] leading-relaxed text-muted-foreground">
+            <ol className="list-decimal space-y-0.5 pl-5 text-xs leading-relaxed text-muted-foreground">
               <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
               <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis, dort „Erlauben“ wählen.</li>
               <li>

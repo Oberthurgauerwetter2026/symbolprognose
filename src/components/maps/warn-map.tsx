@@ -397,7 +397,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
           bare ? "grid-cols-1 @lg:grid-cols-[1fr_280px]" : "@3xl:grid-cols-[1fr_320px]",
         )}
       >
-        <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-[700px]">
+        <div className="relative h-[380px] overflow-hidden rounded-2xl shadow-lg sm:h-[520px] lg:h-full lg:min-h-[700px]">
           <MapContainer
             center={[47.555, 9.3]}
             zoom={11}
@@ -526,13 +526,13 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         <aside
           className={cn(
             "space-y-3",
-            bare ? "@lg:flex @lg:h-[700px] @lg:flex-col" : "@3xl:flex @3xl:h-[700px] @3xl:flex-col",
+            bare ? "@lg:flex @lg:h-auto @lg:min-h-[700px] @lg:flex-col" : "@3xl:flex @3xl:h-auto @3xl:min-h-[700px] @3xl:flex-col",
           )}
         >
           <div
             className={cn(
               "flex flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm",
-              bare ? "@lg:flex-1 @lg:min-h-0" : "@3xl:flex-1 @3xl:min-h-0",
+              bare ? "@lg:min-h-[700px]" : "@3xl:min-h-[700px]",
             )}
           >
             <h2 className="text-lg font-semibold text-foreground">
@@ -553,7 +553,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <div
               className={cn(
                 "overflow-y-auto pr-1",
-                bare ? "@lg:flex-1 @lg:min-h-0" : "@3xl:flex-1 @3xl:min-h-0",
+                bare ? "@lg:max-h-[70vh]" : "@3xl:max-h-[70vh]",
               )}
             >
               {selectedWarnings.length === 0 ? (
@@ -575,13 +575,13 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                     return (
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                         <div
-                          className="flex items-center gap-2 px-3.5 py-2.5 text-base font-semibold"
+                          className="flex items-center gap-2 px-3 py-2 text-base font-semibold"
                           style={{ background: def.color, color: def.textOnColor }}
                         >
-                          <Icon className="h-7 w-7 shrink-0" />
+                          <Icon className="h-6 w-6 shrink-0" />
                           {w.title || `${h.title} (Stufe ${w.level})`}
                         </div>
-                        <div className="space-y-3.5 p-3.5">
+                        <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">
                             {formatRange(w.validFrom, w.validTo)}
                           </p>
@@ -626,9 +626,9 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
 
           {!bare && (
-            <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm">
-              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                <BellRing className="h-4 w-4" /> Warnungen abonnieren
+            <div className="rounded-xl border border-border bg-card p-2 shadow-sm">
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <BellRing className="h-3.5 w-3.5" /> Warnungen abonnieren
               </h3>
               <PushOptIn defaultRegionId={selected} />
             </div>
