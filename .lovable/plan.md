@@ -1,27 +1,43 @@
 ## Ziel
 
-Zwei Warnsymbole in `src/components/warnings/hazard-icons.tsx` neu zeichnen, damit sie auch klein (ca. 24–40 px) klar lesbar sind.
+Die Warn-Beschreibungen (`description` in `TEMPLATES`, `src/lib/warnings-config.ts`) werden auf kurze, sachliche Wetterdienst-Formulierungen umgestellt – ein knapper Satz statt Fliesstext. Auswirkungen (`impact`) und Verhaltenshinweis (`advice`) bleiben inhaltlich wie bisher, da sie separate Felder sind.
 
-### 1. Strassenglätte (`SlipperyCarIcon`)
+## Neue Beschreibungen (Stufe 1 / 2 / 3)
 
-Aktuell verschmelzen die gefüllte Karosserie, die Räder und die drei Schleuderspuren bei kleiner Darstellung zu einem unleserlichen Klecks (siehe Screenshot).
+**Regen**
+1. Mässiger Dauerregen{, Mengen 30 mm}.
+2. Kräftiger Dauerregen{, Mengen 60 mm}.
+3. Sehr ergiebiger Dauerregen{, Mengen 100 mm}.
 
-Neu, nah am Verkehrszeichen «Schleudergefahr»:
-- Auto als **kompakte, klar konturierte Silhouette** im oberen Bilddrittel, breiter und flacher, Räder als zwei ausgesparte/abgesetzte Blöcke statt kleiner Anhängsel.
-- Nur **zwei** Schleuderspuren statt drei, dafür deutlich grösser geschwungen (S-Kurven), mit klarem Abstand zum Fahrzeug, damit sie nicht mit der Karosserie verlaufen.
-- Mehr Weissraum zwischen Auto und Spuren; Linienstärke der Spuren auf gute Sichtbarkeit abgestimmt.
-- Formen so dimensionieren, dass die Silhouette auch bei 20 px als Auto erkennbar bleibt.
+**Schnee**
+1. Mässiger Schneefall{, Neuschnee 5 cm}.
+2. Kräftiger Schneefall{, Neuschnee 15 cm}.
+3. Intensiver Schneefall mit Verwehungen{, Neuschnee 40 cm}.
 
-### 2. Windsack (`WindsockIcon`)
+**Wind**
+1. Kräftige Windböen{ bis 65 km/h}, in exponierten Lagen stärker.
+2. Starke bis stürmische Windböen{ bis 90 km/h}.
+3. Schwere Sturm- bis Orkanböen{ bis 120 km/h}.
 
-Nach Vorlage des zweiten Screenshots:
-- **Kräftiger, dicker Mast** links (abgerundet), deutlich stärker als bisher.
-- Sack als **gefüllte Silhouette** in Kegelform, die nach rechts schmaler wird, mit abgerundeter Spitze.
-- **Drei sichtbar getrennte Segmente** – erzeugt durch schmale Aussparungen/Trennlinien in Hintergrundfarbe bzw. als drei einzelne gefüllte Segmente mit Lücke, sodass die Streifen auch klein erkennbar bleiben.
-- Leichte Neigung nach unten-rechts wie in der Vorlage.
+**Gewitter**
+1. Örtlich Gewitter mit kurzem Starkregen{ und Böen bis 65 km/h}.
+2. Kräftige Gewitter mit Starkregen, Hagel{ und Sturmböen bis 90 km/h}.
+3. Schwere Gewitter mit heftigem Starkregen, grossem Hagel{ und Böen bis 120 km/h}.
 
-### Technisch
+**Strassenglätte**
+1. Örtlich Glätte durch gefrierende Nässe, vor allem auf Brücken und in Senken{, um -2 °C}.
+2. Verbreitet Glatteis{, um -5 °C}.
+3. Grossflächige Vereisung von Strassen und Wegen{, um -8 °C}.
 
-- Nur `src/components/warnings/hazard-icons.tsx` wird angepasst (SVG-Pfade von `SlipperyCarIcon` und `WindsockIcon`); Props/Exports/Namen bleiben unverändert, damit Warnkarte, Banner, Admin-Tool und Widgets ohne Änderung weiterlaufen.
-- Beide Icons bleiben `currentColor`-basiert (24×24 viewBox), damit Warnstufen-Farben weiter greifen.
-- Verifizierung per Playwright: Element-Screenshots der Symbole auf `/karten/warnungen` bei kleiner und grosser Darstellung, um die Lesbarkeit zu prüfen.
+**Frost**
+1. Leichter Frost{, Tiefstwerte -2 °C}.
+2. Mässiger Frost{, Tiefstwerte -6 °C}, örtlich Reifglätte.
+3. Strenger Frost{, Tiefstwerte -12 °C} über mehrere Stunden.
+
+Die `{v: …}`-Platzhalterlogik bleibt unverändert: der Messwert-Baustein erscheint nur, wenn im Admin-Tool ein Wert bzw. eine von/bis-Spanne eingetragen ist.
+
+## Technisch
+
+- Änderung ausschliesslich an den `description`-Strings in `TEMPLATES` (`src/lib/warnings-config.ts`); Struktur, Typen und Feldnamen bleiben gleich.
+- Titel-Generierung, `genTexts`, die `lastTpl`-Logik im Admin-Tool und bestehende, bereits veröffentlichte Warnungen bleiben unberührt. Manuell überschriebene Texte werden weiterhin nicht automatisch ersetzt.
+- Kurzprüfung im Admin-Tool (`/admin-warnungen`): Gefahr/Stufe durchschalten und die generierten Beschreibungen sowie die Anzeige in Karte/Banner gegenlesen.
