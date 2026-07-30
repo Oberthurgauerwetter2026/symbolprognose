@@ -203,23 +203,20 @@ export interface Template {
 export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
   gewitter: {
     1: {
-      description:
-        "Örtlich treten Gewitter mit kurzzeitig kräftigem Regen und Windböen{v: von {v} km/h} auf. Die Zellen sind kleinräumig und ziehen rasch durch.",
+      description: "Örtlich Gewitter mit kurzem Starkregen{v: und Böen bis {v} km/h}.",
       impact:
         "Kurzzeitig eingeschränkte Sicht und nasse Fahrbahnen. Vereinzelt kleiner Astbruch möglich.",
       advice: "Lose Gegenstände sichern. Fahrweise den Verhältnissen anpassen.",
     },
     2: {
-      description:
-        "Verbreitet ziehen kräftige Gewitter mit Starkregen, Hagel und Sturmböen{v: von {v} km/h} durch. Lokal sind hohe Niederschlagsintensitäten möglich.",
+      description: "Kräftige Gewitter mit Starkregen und Hagel{v:, Sturmböen bis {v} km/h}.",
       impact:
         "Lokale Überflutungen von Strassen und Unterführungen sind möglich. Astbruch, Behinderungen im Verkehr sowie Hagelschäden an Kulturen und Fahrzeugen sind zu erwarten.",
       advice:
         "Aufenthalt im Freien vermeiden. Fahrzeuge nach Möglichkeit gedeckt abstellen. Abläufe freihalten.",
     },
     3: {
-      description:
-        "Es treten schwere Gewitter mit heftigem Starkregen, grossem Hagel und schweren Sturmböen{v: von {v} km/h} auf. Die Entwicklung verläuft kleinräumig sehr unterschiedlich.",
+      description: "Schwere Gewitter mit heftigem Starkregen und grossem Hagel{v:, Böen bis {v} km/h}.",
       impact:
         "Überflutungen, Sachschäden an Gebäuden und Fahrzeugen sowie umstürzende Bäume sind möglich. Unterbrüche bei Strom und Verkehr sind zu erwarten.",
       advice:
@@ -228,23 +225,20 @@ export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
   },
   regen: {
     1: {
-      description:
-        "Es fällt anhaltender, zeitweise kräftiger Regen{v: mit Mengen von {v} mm} innerhalb des Warnzeitraums.",
+      description: "Mässiger Dauerregen{v:, Mengen {v} mm}.",
       impact:
         "Nasse Fahrbahnen und örtlich Aquaplaning. Die Pegel kleiner Gewässer steigen leicht an.",
       advice: "Geschwindigkeit reduzieren. Abläufe und Schächte freihalten.",
     },
     2: {
-      description:
-        "Verbreitet fällt ergiebiger Dauerregen{v: mit Mengen von {v} mm} innerhalb des Warnzeitraums.",
+      description: "Kräftiger Dauerregen{v:, Mengen {v} mm}.",
       impact:
         "Kleinere Gewässer können über die Ufer treten. Überflutungen von Kellern, Unterführungen und tiefliegenden Strassen sowie örtlich Hangrutsche sind möglich.",
       advice:
         "Gefährdete Räume räumen. Uferbereiche meiden. Fahrten in überflutungsgefährdete Gebiete verschieben.",
     },
     3: {
-      description:
-        "Es fällt sehr ergiebiger Dauerregen{v: mit Mengen von {v} mm}. Die Böden sind weitgehend gesättigt.",
+      description: "Sehr ergiebiger Dauerregen{v:, Mengen {v} mm}.",
       impact:
         "Grossflächige Überschwemmungen, Hochwasser an Bächen und Flüssen sowie Hangrutsche sind zu erwarten. Verkehrsachsen können längere Zeit unterbrochen sein.",
       advice:
@@ -253,21 +247,19 @@ export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
   },
   schnee: {
     1: {
-      description:
-        "Zeitweise fällt Schnee bis in tiefe Lagen{v: mit Neuschneemengen von {v} cm}.",
+      description: "Mässiger Schneefall{v:, Neuschnee {v} cm}.",
       impact: "Stellenweise schneebedeckte und rutschige Strassen. Leichte Verzögerungen im Verkehr.",
       advice: "Wintergerechte Ausrüstung verwenden. Mehr Zeit für Fahrten einplanen.",
     },
     2: {
-      description: "Es fällt kräftiger Schneefall{v: mit Neuschneemengen von {v} cm}.",
+      description: "Kräftiger Schneefall{v:, Neuschnee {v} cm}.",
       impact:
         "Behinderungen im Strassen- und Bahnverkehr sind zu erwarten. Schneebruch an Bäumen und blockierte Nebenstrassen sind möglich.",
       advice:
         "Fahrten nach Möglichkeit verschieben. Öffentliche Verkehrsmittel nutzen. Nicht unter schneebeladenen Bäumen parkieren.",
     },
     3: {
-      description:
-        "Es fällt intensiver Schneefall{v: mit Neuschneemengen von {v} cm}, örtlich mit Schneeverwehungen.",
+      description: "Intensiver Schneefall mit Verwehungen{v:, Neuschnee {v} cm}.",
       impact:
         "Verkehrswege können unpassierbar werden. Stromausfälle durch Schneebruch und Ausfälle im öffentlichen Verkehr sind möglich.",
       advice:
@@ -276,21 +268,19 @@ export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
   },
   glaette: {
     1: {
-      description:
-        "Örtlich bildet sich Glätte durch gefrierende Nässe{v: bei Temperaturen von {v} °C}, vor allem auf Brücken und in Senken.",
+      description: "Örtlich Glätte durch gefrierende Nässe, vor allem auf Brücken und in Senken{v:, um {v} °C}.",
       impact: "Rutschgefahr auf Trottoirs, Gehwegen und Nebenstrassen.",
       advice: "Rutschfestes Schuhwerk tragen. Fahrweise und Bremswege anpassen.",
     },
     2: {
-      description: "Verbreitet bildet sich Glatteis{v: bei Temperaturen von {v} °C}.",
+      description: "Verbreitet Glatteis{v:, um {v} °C}.",
       impact:
         "Erhöhte Unfallgefahr im Strassenverkehr und Sturzgefahr für Fussgängerinnen und Fussgänger. Verspätungen im öffentlichen Verkehr sind zu erwarten.",
       advice:
         "Fahrten nach Möglichkeit verschieben. Gehwege salzen oder splitten. Vorsichtig gehen.",
     },
     3: {
-      description:
-        "Es herrscht flächendeckendes Glatteis{v: bei Temperaturen von {v} °C}. Strassen und Wege sind grossflächig vereist.",
+      description: "Grossflächige Vereisung von Strassen und Wegen{v:, um {v} °C}.",
       impact:
         "Der Verkehr kann weitgehend zum Erliegen kommen. Schwere Stürze und Unfälle sind möglich.",
       advice: "Das Haus nach Möglichkeit nicht verlassen. Auf Fahrten verzichten.",
@@ -298,20 +288,19 @@ export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
   },
   wind: {
     1: {
-      description:
-        "Es treten kräftige Windböen{v: von {v} km/h} auf, in exponierten Lagen etwas stärker.",
+      description: "Kräftige Windböen{v: bis {v} km/h}, in exponierten Lagen stärker.",
       impact: "Lose Gegenstände können verweht werden. Auf dem See ist mit Wellengang zu rechnen.",
       advice: "Gartenmöbel und Sonnenschirme sichern. Auf dem Wasser Vorsicht walten lassen.",
     },
     2: {
-      description: "Es treten Sturmböen{v: von {v} km/h} auf.",
+      description: "Starke bis stürmische Windböen{v: bis {v} km/h}.",
       impact:
         "Astbruch und umgestürzte Bauelemente sind möglich. Auf exponierten Strecken ist mit Verkehrsbehinderungen zu rechnen, auf dem See mit hohem Wellengang.",
       advice:
         "Wald und Alleen meiden. Lose Gegenstände sichern. Auf Bootsfahrten verzichten. Auf Brücken vorsichtig fahren.",
     },
     3: {
-      description: "Es treten schwere Sturm- bis Orkanböen{v: von {v} km/h} auf.",
+      description: "Schwere Sturm- bis Orkanböen{v: bis {v} km/h}.",
       impact:
         "Umstürzende Bäume, Dachschäden, Verkehrsunterbrüche und Stromausfälle sind zu erwarten. Für Personen im Freien besteht erhebliche Gefahr.",
       advice:
@@ -320,19 +309,18 @@ export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
   },
   frost: {
     1: {
-      description: "Es tritt leichter Frost{v: mit Tiefstwerten von {v} °C} auf.",
+      description: "Leichter Frost{v:, Tiefstwerte {v} °C}.",
       impact: "Empfindliche Pflanzen und ungeschützte Leitungen können Schaden nehmen.",
       advice: "Kübelpflanzen einräumen oder abdecken. Aussenwasserhähne entleeren.",
     },
     2: {
-      description: "Es tritt mässiger Frost{v: mit Tiefstwerten von {v} °C} auf.",
+      description: "Mässiger Frost{v:, Tiefstwerte {v} °C}, örtlich Reifglätte.",
       impact: "Kulturen im Freien sind gefährdet. Auf Strassen bildet sich Reifglätte.",
       advice:
         "Frostschutzmassnahmen in Landwirtschaft und Garten treffen. Am Morgen mit Glätte rechnen.",
     },
     3: {
-      description:
-        "Es tritt strenger Frost{v: mit Tiefstwerten von {v} °C} über mehrere Stunden auf.",
+      description: "Strenger Frost{v:, Tiefstwerte {v} °C} über mehrere Stunden.",
       impact:
         "Schäden an Kulturen und Wasserleitungen sind möglich. Für ungeschützte Personen besteht eine gesundheitliche Gefährdung.",
       advice:
