@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
 import { WindMap } from "@/components/maps/wind-map";
 import { getMap } from "@/lib/maps-config";
+import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/wind")({
   ssr: false,
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/karten/wind")({
       { property: "og:title", content: "Windprognose Oberthurgau · Animation" },
       { property: "og:description", content: getMap("wind").description },
     ],
+    links: [APP_MANIFEST_LINK],
   }),
 });
 

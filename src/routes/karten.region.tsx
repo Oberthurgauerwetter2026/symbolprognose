@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
 import { LazyRegionMap } from "@/components/maps/lazy-maps";
+import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/region")({
   ssr: false,
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/karten/region")({
           "Interaktive Karte mit aktueller Symbolprognose an vier Standorten der Region Oberthurgau.",
       },
     ],
+    links: [APP_MANIFEST_LINK],
   }),
 });
 

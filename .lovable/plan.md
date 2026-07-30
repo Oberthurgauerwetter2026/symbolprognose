@@ -1,17 +1,21 @@
-## 1. Lovable-Badge unten rechts
+## Problem
 
-Das Badge wird bei veröffentlichten Deployments automatisch eingeblendet und ist keine Code-Datei im Projekt. Es lässt sich über die Publish-Einstellungen ausblenden (erfordert Pro-Plan oder höher). Beim Umsetzen rufe ich `set_badge_visibility` mit `hide_badge: true` auf; falls der Plan das nicht erlaubt, melde ich das zurück.
+Das Icon auf dem iPhone öffnet weiterhin das komplette Wetterboard (Tabs Warnungen/Region/Lokal/Wind, Sidebar) statt der reinen Warnkarte.
 
-## 2. Push-Titel
+Ursache (geprüft):
+- `src/routes/__root.tsx` liefert im HTML fest `<link rel="manifest" href="/manifest.webmanifest">` — und dieses Manifest hat `start_url: /karten/warnungen`, `scope: /`.
+- Das Warnkarten-Manifest wird in `src/routes/warnkarte.tsx` erst nach dem Laden per JavaScript eingehängt. iOS liest beim „Zum Home-Bildschirm“ das Manifest, das im ausgelieferten HTML steht — also das falsche. Zusätzlich ist die Route auf `ssr: false` gesetzt, was den Zeitpunkt weiter verzögert.
 
-`src/lib/push.server.ts`: Titel wird auf das Format
-`Gewitterwarnung (Stufe 1) · Oberthurgauer Wetter` gesetzt — also bestehender Warntitel plus Marke als Suffix. Der Body bleibt unverändert (Beschreibung, betroffene Gemeinden, Gültigkeit).
+## Lösung
 
-## 3. Banner mit Symbolen kleiner
+1. **Manifest-Link aus `__root.tsx` entfernen** (nur noch Favicon/Apple-Touch-Icon dort bleiben).
+2. **Pro Seite das richtige Manifest deklarieren** – direkt im `head()` der Route, also im ausgelieferten HTML:
+   - `src/routes/warnkarte.tsx` → `/warnkarte.webmanifest`
+   - Hauptseiten (`index.tsx`, `karte.tsx`, `karten.*.tsx`, `admin*`) → `/manifest.webmanifest`
+3. **iOS-spezifische Metatags auf `/warnkarte`** ergänzen: `apple-mobile-web-app-capable=yes`, `apple-mobile-web-app-title=Warnkarte`, `apple-mobile-web-app-status-bar-style`, eigenes `apple-touch-icon`.
+4. **`ssr: false` auf `/warnkarte` aufheben** bzw. so anpassen, dass das `head()` serverseitig gerendert wird; der bestehende Client-Swap bleibt als Fallback.
+5. **Warnkarten-Manifest schärfen**: `scope`/`start_url` auf `/warnkarte`, eindeutige `id`, damit iOS/Android es als separate App behandeln.
 
-`src/components/maps/warn-map.tsx`, Gefahren-Banner:
-- Container-Padding von `p-2.5` auf `p-1.5`, Abstand `gap-2` → `gap-1.5`.
-- „Alle"-Button: `px-3.5 py-2.5 text-sm` → `px-3 py-1.5 text-[13px]`.
-- Gefahren-Buttons: `px-3 py-2.5 text-sm` → `px-2.5 py-1.5 text-[13px]`.
-- Icons: `h-6 w-6 @sm:h-7 @sm:w-7` → `h-5 w-5 @sm:h-6 @sm:w-6`.
-- Status rechts: Text auf `text-[13px]`.
+## Wichtig für dich
+
+Ein bereits hinzugefügtes Icon behält seine alten Manifest-Werte dauerhaft. Nach dem Publish bitte das alte Warnkarten-Icon vom Home-Bildschirm löschen, Safari-Tab neu öffnen (`oberthurgauer-wetter.lovable.app/warnkarte`) und erneut „Zum Home-Bildschirm“ wählen.

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MAPS } from "@/lib/maps-config";
+import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/")({
           "Karten-Board für Region, Lokalprognose, Wind, Radar und Niederschlagssummen. Jede Karte einzeln in WordPress einbettbar.",
       },
     ],
+    links: [APP_MANIFEST_LINK],
   }),
 });
 
