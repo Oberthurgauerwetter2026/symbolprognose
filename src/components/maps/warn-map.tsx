@@ -395,7 +395,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
           "grid gap-3",
           bare
             ? "grid-cols-1 @lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]"
-            : "@3xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]",
+            : "@lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]",
         )}
       >
         <div
@@ -403,7 +403,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             "relative aspect-[4/3] min-h-[280px] w-full overflow-hidden rounded-2xl shadow-lg",
             bare
               ? "@md:aspect-auto @md:h-[clamp(420px,60vh,760px)] @lg:h-full"
-              : "sm:aspect-auto sm:h-[clamp(420px,60vh,760px)] @3xl:h-full",
+              : "sm:aspect-auto sm:h-[clamp(420px,60vh,760px)] @lg:h-full",
           )}
         >
 
@@ -538,14 +538,14 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             "space-y-3",
             bare
               ? "@lg:flex @lg:h-[clamp(420px,60vh,760px)] @lg:flex-col"
-              : "@3xl:flex @3xl:h-[clamp(420px,60vh,760px)] @3xl:flex-col",
+              : "@lg:flex @lg:h-[clamp(420px,60vh,760px)] @lg:flex-col",
 
           )}
         >
           <div
             className={cn(
               "flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm",
-              bare ? "@lg:flex-1" : "@3xl:flex-1",
+              bare ? "@lg:flex-1" : "@lg:flex-1",
             )}
           >
 
@@ -570,7 +570,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <div
               className={cn(
                 "overflow-y-auto pr-1",
-                bare ? "@lg:min-h-0 @lg:flex-1" : "@3xl:min-h-0 @3xl:flex-1",
+                bare ? "@lg:min-h-0 @lg:flex-1" : "@lg:min-h-0 @lg:flex-1",
               )}
             >
 
