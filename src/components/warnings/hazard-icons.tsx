@@ -93,31 +93,22 @@ export function WindsockIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} {...rest} className={className} width="1em" height="1em">
       {/* Mast */}
-      <path d="M4.6 4.2v16.6" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" />
+      <path d="M4.4 3.6v17" stroke="currentColor" strokeWidth={2.8} strokeLinecap="round" />
       {/* Segment 1 (gross, am Mast) */}
       <path
-        d="M5.6 5.4 10.1 6.3v6.1L5.6 13.1z"
+        d="M6 5.1c0-.5.4-.85.9-.76l3.3.62v9.1l-3.3.62c-.5.09-.9-.26-.9-.76z"
         fill="currentColor"
-        stroke="currentColor"
-        strokeWidth={1.1}
-        strokeLinejoin="round"
+        stroke="none"
       />
       {/* Segment 2 */}
-      <path
-        d="M11.1 6.5 15.2 7.4v4.4l-4.1.5z"
-        fill="currentColor"
-        stroke="currentColor"
-        strokeWidth={1.1}
-        strokeLinejoin="round"
-      />
+      <path d="M11.6 5.25 15 5.9v6.8l-3.4.65z" fill="currentColor" stroke="none" />
       {/* Segment 3 (Spitze, abgerundet) */}
       <path
-        d="M16.2 7.7 18.6 8.2a1.7 1.7 0 0 1 0 3.3l-2.4.4z"
+        d="M16.4 6.2 18.5 6.6a2.7 2.7 0 0 1 0 5.4l-2.1.4z"
         fill="currentColor"
-        stroke="currentColor"
-        strokeWidth={1.1}
-        strokeLinejoin="round"
+        stroke="none"
       />
+
     </svg>
   );
 }
