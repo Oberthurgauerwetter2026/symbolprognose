@@ -1,43 +1,34 @@
 ## Ziel
 
-Die Warn-Beschreibungen (`description` in `TEMPLATES`, `src/lib/warnings-config.ts`) werden auf kurze, sachliche Wetterdienst-Formulierungen umgestellt – ein knapper Satz statt Fliesstext. Auswirkungen (`impact`) und Verhaltenshinweis (`advice`) bleiben inhaltlich wie bisher, da sie separate Felder sind.
+Beschreibungen im Stil von MeteoSchweiz/SRF Meteo: ein kurzer Ereignissatz, danach ein Mengensatz mit Spanne und Zeitraum. Auswirkungen kurz und sachlich, ohne Dramatisierung, durchgehend Schweizer Hochdeutsch (ss statt ß).
+
+Beispiel: «Kräftiger Regen. Erwartete Mengen 30 bis 50 mm in 12 Stunden.»
+
+## Textaufbau
+
+- Satz 1: Ereignis + Intensität (Stufe 1/2/3), ohne Messwert.
+- Satz 2 (nur wenn Werte erfasst): «Erwartete Mengen 30 bis 50 mm in 12 Stunden.» / «Erwartete Böenspitzen 70 bis 90 km/h.» / «Erwartete Neuschneemengen 10 bis 20 cm in 12 Stunden.» / «Temperaturen um -5 °C.»
+- Nur ein Wert erfasst: «Erwartete Mengen bis 50 mm in 12 Stunden.»
+- Kein Wert erfasst: Satz 2 entfällt komplett.
+- Die Stundenangabe wird automatisch aus «Gültig von/bis» berechnet (auf volle Stunden gerundet; über 48 h in Tagen). Bei Wind/Gewitter/Frost/Glätte wird keine Stundenangabe angehängt, dort ist der Spitzenwert massgebend.
 
 ## Neue Beschreibungen (Stufe 1 / 2 / 3)
 
-**Regen**
-1. Mässiger Dauerregen{, Mengen 30 mm}.
-2. Kräftiger Dauerregen{, Mengen 60 mm}.
-3. Sehr ergiebiger Dauerregen{, Mengen 100 mm}.
+Regen: Mässiger Regen. / Kräftiger Regen. / Sehr ergiebiger Dauerregen.
+Schnee: Mässiger Schneefall. / Kräftiger Schneefall. / Intensiver Schneefall, teils mit Verwehungen.
+Wind: Kräftige Windböen. / Starke bis stürmische Windböen. / Sturm- bis Orkanböen.
+Gewitter: Örtlich Gewitter. / Kräftige Gewitter mit Starkregen und Hagel. / Schwere Gewitter mit Starkregen, Hagel und Sturmböen.
+Glätte: Örtlich Glätte durch gefrierende Nässe, vor allem auf Brücken und in Senken. / Verbreitet Glatteis. / Grossflächige Vereisung von Strassen und Wegen.
+Frost: Leichter Frost. / Mässiger Frost, örtlich Reifglätte. / Strenger Frost.
 
-**Schnee**
-1. Mässiger Schneefall{, Neuschnee 5 cm}.
-2. Kräftiger Schneefall{, Neuschnee 15 cm}.
-3. Intensiver Schneefall mit Verwehungen{, Neuschnee 40 cm}.
+## Auswirkungen und Verhalten
 
-**Wind**
-1. Kräftige Windböen{ bis 65 km/h}, in exponierten Lagen stärker.
-2. Starke bis stürmische Windböen{ bis 90 km/h}.
-3. Schwere Sturm- bis Orkanböen{ bis 120 km/h}.
-
-**Gewitter**
-1. Örtlich Gewitter mit kurzem Starkregen{ und Böen bis 65 km/h}.
-2. Kräftige Gewitter mit Starkregen, Hagel{ und Sturmböen bis 90 km/h}.
-3. Schwere Gewitter mit heftigem Starkregen, grossem Hagel{ und Böen bis 120 km/h}.
-
-**Strassenglätte**
-1. Örtlich Glätte durch gefrierende Nässe, vor allem auf Brücken und in Senken{, um -2 °C}.
-2. Verbreitet Glatteis{, um -5 °C}.
-3. Grossflächige Vereisung von Strassen und Wegen{, um -8 °C}.
-
-**Frost**
-1. Leichter Frost{, Tiefstwerte -2 °C}.
-2. Mässiger Frost{, Tiefstwerte -6 °C}, örtlich Reifglätte.
-3. Strenger Frost{, Tiefstwerte -12 °C} über mehrere Stunden.
-
-Die `{v: …}`-Platzhalterlogik bleibt unverändert: der Messwert-Baustein erscheint nur, wenn im Admin-Tool ein Wert bzw. eine von/bis-Spanne eingetragen ist.
+Auswirkungen auf ein bis zwei knappe Sätze kürzen und an die Gefahrenstufe angleichen (Stufe 1 = geringe Behinderungen, Stufe 2 = lokale Schäden/Behinderungen, Stufe 3 = verbreitete Schäden). Formulierungen wie «erhebliche Gefahr», «Notgepäck bereithalten», «Gebäude nicht verlassen» werden auf sachliche Varianten zurückgenommen. Verhaltenshinweise bleiben ein bis zwei Sätze.
 
 ## Technisch
 
-- Änderung ausschliesslich an den `description`-Strings in `TEMPLATES` (`src/lib/warnings-config.ts`); Struktur, Typen und Feldnamen bleiben gleich.
-- Titel-Generierung, `genTexts`, die `lastTpl`-Logik im Admin-Tool und bestehende, bereits veröffentlichte Warnungen bleiben unberührt. Manuell überschriebene Texte werden weiterhin nicht automatisch ersetzt.
-- Kurzprüfung im Admin-Tool (`/admin-warnungen`): Gefahr/Stufe durchschalten und die generierten Beschreibungen sowie die Anzeige in Karte/Banner gegenlesen.
+- `src/lib/warnings-config.ts`: `TEMPLATES` neu formuliert; Beschreibungssatz 2 als Platzhalterblock, ergänzt um einen optionalen Zeitbaustein (z. B. `{h: in {h} Stunden}`), plus separate Behandlung «von–bis» vs. Einzelwert.
+- `fillTemplate` erhält einen optionalen Dauer-Parameter (Stunden) und ersetzt/entfernt den `{h: …}`-Block analog zur bestehenden `{v: …}`-Logik. Bestehende Aufrufe ohne Dauer verhalten sich unverändert.
+- `src/routes/admin-warnungen.tsx`: `genTexts` erhält zusätzlich die aus `validFrom`/`validTo` berechnete Dauer; Textsynchronisation (`lastTpl` / manuell überschrieben) bleibt unverändert, wird aber auch bei Änderung des Zeitraums neu ausgelöst.
+- Anzeige in Karte, Banner und Push nutzt die gespeicherten Texte und bleibt unverändert; bereits veröffentlichte Warnungen werden nicht rückwirkend geändert.
+- Prüfung im Admin-Tool: Gefahr, Stufe, Werte und Zeitraum durchschalten und die generierten Texte gegenlesen.
