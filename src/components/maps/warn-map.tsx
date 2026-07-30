@@ -523,8 +523,18 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         </div>
 
         {/* Info-Panel */}
-        <aside className="space-y-3 @3xl:flex @3xl:h-[560px] @3xl:flex-col">
-          <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm @3xl:flex-1">
+        <aside
+          className={cn(
+            "space-y-3",
+            bare ? "@lg:flex @lg:h-[560px] @lg:flex-col" : "@3xl:flex @3xl:h-[560px] @3xl:flex-col",
+          )}
+        >
+          <div
+            className={cn(
+              "flex flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm",
+              bare ? "@lg:flex-1 @lg:min-h-0" : "@3xl:flex-1 @3xl:min-h-0",
+            )}
+          >
             <h2 className="text-lg font-semibold text-foreground">
               {selected ? regionName(selected) : "Region Oberthurgau"}
             </h2>
@@ -540,7 +550,12 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             {query.data?.warning && (
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
-            <div className="overflow-y-auto pr-1 @3xl:flex-1 @3xl:min-h-0">
+            <div
+              className={cn(
+                "overflow-y-auto pr-1",
+                bare ? "@lg:flex-1 @lg:min-h-0" : "@3xl:flex-1 @3xl:min-h-0",
+              )}
+            >
               {selectedWarnings.length === 0 ? (
                 <p className="mt-3 text-base leading-relaxed text-foreground">
                   Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
