@@ -532,7 +532,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
           <div
             className={cn(
               "flex flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm",
-              bare ? "@lg:flex-1 @lg:min-h-0" : "@3xl:flex-1 @3xl:min-h-0",
+              bare ? "@lg:min-h-[700px]" : "@3xl:min-h-[700px]",
             )}
           >
             <h2 className="text-lg font-semibold text-foreground">
