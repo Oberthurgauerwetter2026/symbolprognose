@@ -331,7 +331,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   return (
     <div className={cn("@container space-y-3", className)}>
       {/* Banner mit Gefahrenarten */}
-      <div className="flex flex-nowrap items-center gap-2 overflow-x-auto rounded-xl border border-border bg-card p-2.5 shadow-sm sm:flex-wrap sm:overflow-visible">
+      <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-sm sm:flex-wrap sm:overflow-visible">
         <button
           type="button"
           onClick={() => {
