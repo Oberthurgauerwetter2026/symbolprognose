@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { WarnMap } from "@/components/maps/warn-map";
 import { SITE_URL } from "@/lib/site-url";
 import { WARN_MANIFEST_LINK } from "@/lib/pwa-links";
