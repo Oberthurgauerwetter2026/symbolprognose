@@ -1,18 +1,17 @@
-## Warum es anders aussieht
+## Ursache
 
-Im Embed (`bare`-Modus) rendert `src/components/maps/warn-map.tsx` den Abo-Bereich bewusst nicht mit (`{!bare && …}`). Stattdessen setzt die Route `src/routes/embed.warnungen.tsx` einen eigenen Kasten „Push-Benachrichtigungen aktivieren“ **unterhalb** des Grids über die volle Breite. Zusätzlich sind im Embed die rechte Spalte schmaler (240–300 px statt 260–320 px) und die Höhe kleiner (max. 620 px statt 760 px).
+`WarnMap` schaltet auf zwei Spalten erst ab Container-Breite `@3xl` (768 px) um (`src/components/maps/warn-map.tsx`, Zeile 398). Die Standalone-Seite `src/routes/warnkarte.tsx` rendert die Karte in einem Wrapper mit `max-w-3xl px-4`, also nur ca. 736 px nutzbare Containerbreite – knapp unter der Schwelle. Deshalb bleibt dort alles gestapelt, während Embed (`bare`) schon ab `@lg` umbricht.
 
-## Änderung: Embed an die App angleichen
+## Änderung
 
-1. **`src/components/maps/warn-map.tsx`**
-   - Den Abo-Block auch im `bare`-Modus in der rechten Spalte (`aside`) rendern, direkt unter dem Info-Panel – identisch zur App-Ansicht, inkl. `PushOptIn` mit `embedded`-Verhalten (Hinweis „In eigenem Tab öffnen“ bleibt).
-   - Spaltenbreite im Embed auf `minmax(260px,320px)` und Höhe auf `clamp(420px,60vh,760px)` setzen, also gleich wie in der App.
+1. **`src/routes/warnkarte.tsx`**
+   - Wrapper von `max-w-3xl` auf `max-w-6xl` erhöhen, damit auf Desktop genug Breite für Karte + Infopanel vorhanden ist (gleich wie `/karten/warnungen`).
 
-2. **`src/routes/embed.warnungen.tsx`**
-   - Den separaten Kasten unterhalb der Karte entfernen, da der Inhalt jetzt in der Spalte steht. Padding-Wrapper bleibt.
+2. **`src/components/maps/warn-map.tsx`**
+   - Den Zwei-Spalten-Breakpoint der App-Ansicht von `@3xl` auf `@lg` senken, damit Karte und Panel identisch zum Embed-Modus umbrechen. Betrifft die Klassen in Zeile 398, 548 und 573 (jeweils `@3xl:` → `@lg:`); damit sind bare- und App-Variante deckungsgleich.
 
-3. **`src/components/warnings/push-opt-in.tsx`**
-   - Nur prüfen, dass die kompakte Embed-Variante in der schmalen Spalte sauber umbricht; ggf. minimale Anpassung an Abständen.
+Mobil bleibt alles unverändert gestapelt (`grid-cols-1`).
 
 ## Verifikation
-TypeScript-Check und Screenshots von `/embed/warnungen` und `/karten/warnungen` bei 390 px, 768 px und 1440 px, um identische Spaltenbreiten, Höhen und Position des Abo-Bereichs zu bestätigen.
+
+TypeScript-Check plus Playwright-Screenshots von `/warnkarte` bei 390 px, 768 px, 1440 px – Panel muss ab Desktop rechts neben der Karte stehen, mobil darunter.
