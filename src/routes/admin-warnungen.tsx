@@ -206,7 +206,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   /** Zuletzt automatisch erzeugte Texte – zum Erkennen manueller Änderungen. */
-  const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, ""));
+  const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, "", 6));
 
   const load = async () => {
     setLoading(true);
