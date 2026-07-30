@@ -106,19 +106,21 @@ export function WindsockIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
  */
 export function SlipperyCarIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...base} {...rest} className={className} width="1em" height="1em" strokeWidth={1.7}>
-      {/* Karosserie von hinten */}
-      <path d="M5.2 13.6v-1.5c0-.5.15-1 .43-1.42l1.6-2.4A2.2 2.2 0 0 1 9.06 7.3h5.88c.73 0 1.42.37 1.83.98l1.6 2.4c.28.42.43.92.43 1.42v1.5" />
-      <path d="M4.6 13.6h14.8" />
-      <path d="M6.9 10.4h10.2" />
-      {/* Heckscheibe + Räder */}
-      <path d="M9.2 8.4v2" />
-      <path d="M14.8 8.4v2" />
-      <path d="M6.6 13.6v1.5" />
-      <path d="M17.4 13.6v1.5" />
+    <svg {...base} {...rest} className={className} width="1em" height="1em" strokeWidth={1.6}>
+      {/* Dach & Heckscheibe */}
+      <path d="M7.6 8.2 8.9 5.2A1.8 1.8 0 0 1 10.55 4.1h2.9c.72 0 1.37.43 1.65 1.1l1.3 3" />
+      {/* Karosserie */}
+      <path d="M5 13.4v-2.2c0-1.6 1.3-3 3-3h8c1.7 0 3 1.4 3 3v2.2a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" />
+      {/* Rückleuchten */}
+      <path d="M7.4 11.4h1.6" />
+      <path d="M15 11.4h1.6" />
+      {/* Räder */}
+      <path d="M7.6 14.4v1.1" />
+      <path d="M16.4 14.4v1.1" />
       {/* Schleuderspuren */}
-      <path d="M4 21.2c1.9 0 1.9-2.1 3.8-2.1s1.9 2.1 3.8 2.1" />
-      <path d="M12.4 21.2c1.9 0 1.9-2.1 3.8-2.1s1.9 2.1 3.8 2.1" />
+      <path d="M3.4 21.4c1.6 0 1.9-2.4 3.5-2.4s1.9 2.4 3.5 2.4" />
+      <path d="M13.6 21.4c1.6 0 1.9-2.4 3.5-2.4s1.9 2.4 3.5 2.4" />
     </svg>
+
   );
 }
