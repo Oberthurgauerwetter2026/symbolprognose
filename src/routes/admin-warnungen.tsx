@@ -847,3 +847,77 @@ function IngestSection({ password }: { password: string }) {
     </section>
   );
 }
+
+/** Status und manueller Start der automatischen Gewitterwarnung. */
+function AutoThunderSection({ password }: { password: string }) {
+  const [status, setStatus] = useState<AutoThunderStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = async () => {
+    try {
+      setStatus(await getAutoThunderStatus());
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const check = async () => {
+    setBusy(true);
+    setMsg("");
+    try {
+      const res = (await runAutoThunderNow({ data: { password } })) as Record<string, unknown>;
+      if (res.ok) {
+        setMsg(
+          `Prüfung erledigt — ${Number(res.detected ?? 0)} Gemeinde(n) mit Gewitterzellen, ` +
+            `${Number(res.created ?? 0)} neu, ${Number(res.closed ?? 0)} beendet.` +
+            (res.note ? ` Hinweis: ${String(res.note)}` : ""),
+        );
+      } else {
+        setMsg(`Fehler — ${String(res.error ?? "unbekannt")}`);
+      }
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+      void load();
+    }
+  };
+
+  const age = status?.ageMinutes ?? null;
+  const dot = age == null ? "bg-red-500" : age <= 30 ? "bg-emerald-500" : age <= 120 ? "bg-amber-500" : "bg-red-500";
+
+  return (
+    <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Gewitter-Autowarnung
+      </h2>
+      <div className="flex items-center gap-2 text-xs">
+        <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+        <span className="text-muted-foreground">
+          {status?.ranAt
+            ? `letzter Lauf vor ${age} min (${new Date(status.ranAt).toLocaleString("de-CH")}) · ` +
+              `${status.detected} erkannt · ${status.created} erstellt · ${status.closed} beendet` +
+              (status.note ? ` · ${status.note}` : "")
+            : "noch kein Lauf protokolliert"}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Automatik läuft alle 15 Minuten und warnt ab 8 mm/h (Stufe 1), 15 mm/h (Stufe 2) und 30 mm/h (Stufe 3).
+      </p>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void check()}
+        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+      >
+        {busy ? "Prüft …" : "Jetzt prüfen"}
+      </button>
+      {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
+    </section>
+  );
+}
