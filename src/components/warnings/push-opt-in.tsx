@@ -165,8 +165,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   }
 
   return (
-    <div className="mt-2 space-y-3">
-      <p className="text-sm leading-relaxed text-foreground">
+    <div className="mt-1.5 space-y-2">
+      <p className="text-[13px] leading-relaxed text-foreground">
         Erhalte eine Meldung, sobald für deine Gemeinden eine Warnung ausgegeben wird.
       </p>
 
@@ -176,7 +176,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             type="button"
             aria-expanded={pickOpen}
             onClick={() => setPickOpen((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-semibold text-foreground"
+            className="flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-sm font-semibold text-foreground"
           >
             <span>
               Gemeinden wählen ({regionIds.length} von {REGIONS.length})
@@ -186,7 +186,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             />
           </button>
           {pickOpen && (
-            <div className="space-y-2 border-t border-border p-2.5">
+            <div className="space-y-2 border-t border-border p-2">
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -214,7 +214,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
                         aria-pressed={on}
                         onClick={() => toggleRegion(r.id)}
                         className={
-                          "inline-flex items-center gap-1 rounded border px-2 py-1 text-[13px] font-medium transition-colors " +
+                          "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[13px] font-medium transition-colors " +
                           (on
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border bg-background text-foreground hover:bg-muted")
@@ -242,14 +242,14 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
       )}
 
       {!subscribed && blocked && (
-        <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-[13px] leading-relaxed text-foreground">
+        <p className="rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-[13px] leading-relaxed text-foreground">
           Hinweis: Benachrichtigungen sind für diese Seite im Browser blockiert – bitte über das
           Schloss-Symbol in der Adressleiste wieder erlauben.
         </p>
       )}
 
       {subscribed && (
-        <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
+        <p className="rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-[13px] text-foreground">
           Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden.
         </p>
       )}
@@ -258,7 +258,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         type="button"
         disabled={busy || (!subscribed && none)}
         onClick={subscribed ? unsubscribe : subscribe}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -285,8 +285,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
           Wie funktioniert das?
         </button>
         {howOpen && (
-          <div className="mt-2 space-y-2">
-            <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-[13px] font-medium leading-relaxed text-foreground">
+          <div className="mt-1.5 space-y-1.5">
+            <p className="rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-[13px] font-medium leading-relaxed text-foreground">
               iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert und
               von dort geöffnet werden – sonst erlaubt iOS gar keine Push-Meldungen.
             </p>
