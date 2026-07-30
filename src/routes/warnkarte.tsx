@@ -31,6 +31,18 @@ function WarnkartePage() {
     }
   }, []);
 
+  // Eigenes Manifest: Home-Bildschirm-Icon startet nur die Warnkarte
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (!link) return;
+    const prev = link.href;
+    link.href = "/warnkarte.webmanifest";
+    return () => {
+      link.href = prev;
+    };
+  }, []);
+
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto w-full max-w-3xl px-4 py-5">
