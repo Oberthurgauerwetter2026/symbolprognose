@@ -535,18 +535,21 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               bare ? "@lg:min-h-[700px]" : "@3xl:min-h-[700px]",
             )}
           >
-            <h2 className="text-lg font-semibold text-foreground">
-              {selected ? regionName(selected) : "Region Oberthurgau"}
-            </h2>
-            {selected && (
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="mt-1 text-base text-muted-foreground underline"
-              >
-                Auswahl aufheben
-              </button>
-            )}
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="text-lg font-semibold text-foreground">
+                {selected ? regionName(selected) : "Region Oberthurgau"}
+              </h2>
+              {selected && (
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  aria-label="Auswahl schliessen"
+                  className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
             {query.data?.warning && (
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
