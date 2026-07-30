@@ -88,53 +88,63 @@ export function SnowflakesIcon({ className, ...rest }: SVGProps<SVGSVGElement>) 
 }
 
 
-/** Windsack am Mast – identisch zur Lokalprognose. */
+/** Windsack am Mast – kräftiger Mast, gefüllter Kegel mit drei Segmenten. */
 export function WindsockIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} {...rest} className={className} width="1em" height="1em">
-      <line x1="4" y1="3" x2="4" y2="21" />
-      <path d="M4 6 L20 8 L17 13 L4 14 Z" />
-      <line x1="9" y1="6.6" x2="9" y2="13.7" />
-      <line x1="14" y1="7.3" x2="14" y2="13.4" />
+      {/* Mast */}
+      <path d="M4.6 4.2v16.6" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" />
+      {/* Segment 1 (gross, am Mast) */}
+      <path
+        d="M5.6 5.4 10.1 6.3v6.1L5.6 13.1z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={1.1}
+        strokeLinejoin="round"
+      />
+      {/* Segment 2 */}
+      <path
+        d="M11.1 6.5 15.2 7.4v4.4l-4.1.5z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={1.1}
+        strokeLinejoin="round"
+      />
+      {/* Segment 3 (Spitze, abgerundet) */}
+      <path
+        d="M16.2 7.7 18.6 8.2a1.7 1.7 0 0 1 0 3.3l-2.4.4z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={1.1}
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 /**
  * Strassenglätte – Verkehrszeichen «Schleudergefahr»:
- * gefüllte Auto-Silhouette in Schrägansicht mit Schleuderspuren darunter.
+ * flache Auto-Silhouette oben, zwei grosse S-Schleuderspuren darunter.
  */
 export function SlipperyCarIcon({ className, ...rest }: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} {...rest} className={className} width="1em" height="1em">
-      {/* Karosserie + Kabine als gefüllte Silhouette */}
+      {/* Karosserie + Kabine, flach und breit */}
       <path
-        d="M4.5 12.6v-1.5c0-1.15.62-2.2 1.62-2.76l1.1-.62 1.5-2.36A2.3 2.3 0 0 1 10.66 4.2h3.9c.8 0 1.54.42 1.96 1.1l1.6 2.6 1.03.5c.83.4 1.35 1.24 1.35 2.16v2.04c0 .5-.4.9-.9.9H5.4a.9.9 0 0 1-.9-.9z"
+        d="M2.6 11.6v-1.1c0-.95.55-1.8 1.42-2.18l1.5-.66 1.72-2.1A2.4 2.4 0 0 1 9.06 4.7h4.6c.66 0 1.29.27 1.74.75l2.1 2.2 2.28.72c.9.28 1.52 1.12 1.52 2.07v1.16c0 .5-.4.9-.9.9H3.5a.9.9 0 0 1-.9-.9z"
         fill="currentColor"
         stroke="currentColor"
-        strokeWidth={1.1}
+        strokeWidth={1}
         strokeLinejoin="round"
       />
       {/* Räder */}
-      <path
-        d="M6.6 13.5h2.6v1.5a.7.7 0 0 1-.7.7H7.3a.7.7 0 0 1-.7-.7z"
-        fill="currentColor"
-        stroke="currentColor"
-        strokeWidth={0.9}
-        strokeLinejoin="round"
-      />
-      <path
-        d="M14.8 13.5h2.6v1.5a.7.7 0 0 1-.7.7h-1.2a.7.7 0 0 1-.7-.7z"
-        fill="currentColor"
-        stroke="currentColor"
-        strokeWidth={0.9}
-        strokeLinejoin="round"
-      />
-      {/* Schleuderspuren */}
-      <path d="M3.4 21.5c2.5-.2 1.6-2.9 4.1-3.1" strokeWidth={1.6} />
-      <path d="M9.3 21.8c3-.2 2-3.4 5-3.6" strokeWidth={1.6} />
-      <path d="M16.2 21.5c2.5-.2 1.6-2.9 4.1-3.1" strokeWidth={1.6} />
+      <rect x="5.1" y="12.5" width="3.4" height="1.7" rx="0.7" fill="currentColor" stroke="none" />
+      <rect x="15.5" y="12.5" width="3.4" height="1.7" rx="0.7" fill="currentColor" stroke="none" />
+      {/* Zwei grosse Schleuderspuren */}
+      <path d="M2.9 21.6c3.4-.3 2.2-4 5.6-4.3" strokeWidth={1.9} />
+      <path d="M13.1 21.6c3.4-.3 2.2-4 5.6-4.3" strokeWidth={1.9} />
     </svg>
   );
 }
+
 
