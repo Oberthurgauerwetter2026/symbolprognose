@@ -288,12 +288,13 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     const def = LEVELS[(lvl as 0 | 1 | 2 | 3) ?? 0];
     const isSel = selected === id;
     return {
-      color: isSel ? "#1f2937" : "#4b5563",
-      weight: isSel ? 2.4 : 1,
+      color: isSel ? "#2561a1" : "#4b5563",
+      weight: isSel ? 3 : 1,
       opacity: isSel ? 1 : 0.75,
-      fillColor: isSel ? "#111827" : def.color,
-      fillOpacity: isSel ? Math.min(0.95, def.fillOpacity + 0.14) : def.fillOpacity,
+      fillColor: def.color,
+      fillOpacity: isSel ? Math.min(0.85, def.fillOpacity + 0.08) : def.fillOpacity,
     };
+
   }
 
   /** Farbe leicht Richtung Schwarz mischen. */
