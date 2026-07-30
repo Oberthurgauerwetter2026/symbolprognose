@@ -2,12 +2,12 @@ import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { WarnMap } from "@/components/maps/warn-map";
 import { SITE_URL } from "@/lib/site-url";
+import { WARN_MANIFEST_LINK } from "@/lib/pwa-links";
 
 const DESC =
   "Aktuelle Wetterwarnungen für alle Gemeinden im Oberthurgau – mit Push-Benachrichtigung für die eigene Region.";
 
 export const Route = createFileRoute("/warnkarte")({
-  ssr: false,
   component: WarnkartePage,
   head: () => ({
     meta: [
@@ -18,8 +18,17 @@ export const Route = createFileRoute("/warnkarte")({
       { property: "og:type", content: "website" },
       { property: "og:url", content: `${SITE_URL}/warnkarte` },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "Warnkarte" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "theme-color", content: "#2561a1" },
     ],
-    links: [{ rel: "canonical", href: `${SITE_URL}/warnkarte` }],
+    links: [
+      { rel: "canonical", href: `${SITE_URL}/warnkarte` },
+      WARN_MANIFEST_LINK,
+      { rel: "apple-touch-icon", href: "/icon-192.png" },
+    ],
   }),
 });
 
@@ -31,16 +40,22 @@ function WarnkartePage() {
     }
   }, []);
 
-  // Eigenes Manifest: Home-Bildschirm-Icon startet nur die Warnkarte
+  // Fallback: falls doch ein anderes Manifest im DOM hängt, hier korrigieren.
   useEffect(() => {
-    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-    if (!link) return;
-    const prev = link.href;
-    link.href = "/warnkarte.webmanifest";
-    return () => {
-      link.href = prev;
-    };
+    const links = Array.from(
+      document.querySelectorAll<HTMLLinkElement>('link[rel="manifest"]'),
+    );
+    for (const l of links) {
+      if (!l.href.endsWith("/warnkarte.webmanifest")) l.remove();
+    }
+    if (!document.querySelector('link[rel="manifest"]')) {
+      const l = document.createElement("link");
+      l.rel = "manifest";
+      l.href = "/warnkarte.webmanifest";
+      document.head.appendChild(l);
+    }
   }, []);
+
 
 
   return (
