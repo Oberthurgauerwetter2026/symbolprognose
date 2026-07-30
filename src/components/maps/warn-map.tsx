@@ -309,6 +309,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
 
   styleRef.current = styleFor;
+  hoverRef.current = hoverStyleFor;
+
 
   return (
     <div className={cn("@container space-y-3", className)}>
