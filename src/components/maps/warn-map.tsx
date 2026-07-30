@@ -493,11 +493,14 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <button
               type="button"
               onClick={() => setLegendOpen(true)}
-              className="absolute bottom-3 left-3 z-[400] flex items-center gap-1.5 rounded-lg bg-card/95 px-3 py-2 text-xs font-semibold text-foreground shadow-lg hover:bg-card"
+              aria-label="Legende anzeigen"
+              title="Legende"
+              className="absolute bottom-3 left-3 z-[400] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
             >
-              <Info className="h-4 w-4" /> Legende
+              <Info className="h-4 w-4" />
             </button>
           )}
+
         </div>
 
         {/* Info-Panel */}
