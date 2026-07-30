@@ -234,6 +234,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   const geoRef = useRef<L.GeoJSON | null>(null);
   /** Immer aktuelle Stilfunktion für die Leaflet-Handler (sonst veralteter Closure-Stand). */
   const styleRef = useRef<(f: Feature) => L.PathOptions>(() => ({}));
+  const hoverRef = useRef<(f: Feature) => L.PathOptions>(() => ({}));
+
 
   const query = useQuery({
     queryKey: ["warnings"],
