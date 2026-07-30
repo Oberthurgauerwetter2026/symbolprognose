@@ -33,6 +33,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [msg, setMsg] = useState<string | null>(null);
   const [msgKind, setMsgKind] = useState<"ok" | "error">("ok");
   const [howOpen, setHowOpen] = useState(false);
+  const [hintOpen, setHintOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>([]);
   const [blocked, setBlocked] = useState(false);
