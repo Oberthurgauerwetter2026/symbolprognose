@@ -144,20 +144,37 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
 
   if (framed) {
     return (
-      <div className="mt-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-        <p className="font-semibold">Benachrichtigungen im eingebetteten Fenster</p>
-        <p className="mt-1 leading-relaxed text-muted-foreground">
-          In einem eingebetteten Vorschaufenster erlauben Browser keine Push-Berechtigungen.
-          Öffne die Warnkarte in einem eigenen Browser-Tab, um Benachrichtigungen zu aktivieren.
-        </p>
+      <div className="mt-2 rounded-lg border border-border bg-muted/50 p-2">
+        <button
+          type="button"
+          onClick={() => setHintOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+            <Info className="h-4 w-4" />
+            Push im Vorschaufenster nicht möglich
+          </span>
+          <ChevronDown
+            className={
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform " +
+              (hintOpen ? "rotate-180" : "")
+            }
+          />
+        </button>
+        {hintOpen && (
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            In einem eingebetteten Vorschaufenster erlauben Browser keine Push-Berechtigungen. Öffne
+            die Warnkarte in einem eigenen Browser-Tab, um Benachrichtigungen zu aktivieren.
+          </p>
+        )}
         {pageUrl && (
           <a
             href={pageUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-sm font-semibold text-background hover:bg-foreground/90"
+            className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90"
           >
-            <BellRing className="h-4 w-4" />
+            <BellRing className="h-3.5 w-3.5" />
             In eigenem Tab öffnen
           </a>
         )}
