@@ -196,135 +196,120 @@ export interface Template {
 }
 
 /**
- * Standardisierte Warntexte im Stil eines offiziellen Wetterdienstes:
- * Ereignis mit Kennwert (Was) – Auswirkungen – empfohlenes Verhalten.
- * `{v}` wird durch den optionalen Messwert ersetzt.
+ * Standardisierte Warntexte im Stil von MeteoSchweiz / SRF Meteo:
+ * kurzer Ereignissatz, danach optional ein Mengensatz mit Spanne und Zeitraum.
+ * `{v: …}` erscheint nur mit erfasstem Messwert, `{h: …}` nur mit bekannter Dauer.
  */
 export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
   gewitter: {
     1: {
-      description: "Örtlich Gewitter mit kurzem Starkregen{v: und Böen bis {v} km/h}.",
-      impact:
-        "Kurzzeitig eingeschränkte Sicht und nasse Fahrbahnen. Vereinzelt kleiner Astbruch möglich.",
-      advice: "Lose Gegenstände sichern. Fahrweise den Verhältnissen anpassen.",
+      description: "Örtlich Gewitter.{v: Erwartete Böenspitzen {v} km/h.}",
+      impact: "Kurzzeitig Starkregen, nasse Fahrbahnen und eingeschränkte Sicht.",
+      advice: "Lose Gegenstände sichern. Fahrweise anpassen.",
     },
     2: {
-      description: "Kräftige Gewitter mit Starkregen und Hagel{v:, Sturmböen bis {v} km/h}.",
-      impact:
-        "Lokale Überflutungen von Strassen und Unterführungen sind möglich. Astbruch, Behinderungen im Verkehr sowie Hagelschäden an Kulturen und Fahrzeugen sind zu erwarten.",
-      advice:
-        "Aufenthalt im Freien vermeiden. Fahrzeuge nach Möglichkeit gedeckt abstellen. Abläufe freihalten.",
+      description: "Kräftige Gewitter mit Starkregen und Hagel.{v: Erwartete Böenspitzen {v} km/h.}",
+      impact: "Lokale Überflutungen, Astbruch und Hagelschäden möglich.",
+      advice: "Aufenthalt im Freien meiden. Fahrzeuge nach Möglichkeit gedeckt abstellen.",
     },
     3: {
-      description: "Schwere Gewitter mit heftigem Starkregen und grossem Hagel{v:, Böen bis {v} km/h}.",
+      description:
+        "Schwere Gewitter mit Starkregen, Hagel und Sturmböen.{v: Erwartete Böenspitzen {v} km/h.}",
       impact:
-        "Überflutungen, Sachschäden an Gebäuden und Fahrzeugen sowie umstürzende Bäume sind möglich. Unterbrüche bei Strom und Verkehr sind zu erwarten.",
-      advice:
-        "Gebäude nicht verlassen. Fenster und Türen schliessen. Informationen der Behörden beachten.",
+        "Überflutungen, Hagelschäden und umstürzende Bäume möglich. Örtlich Unterbrüche bei Strom und Verkehr.",
+      advice: "Im Gebäude bleiben. Fenster und Türen schliessen.",
     },
   },
   regen: {
     1: {
-      description: "Mässiger Dauerregen{v:, Mengen {v} mm}.",
-      impact:
-        "Nasse Fahrbahnen und örtlich Aquaplaning. Die Pegel kleiner Gewässer steigen leicht an.",
-      advice: "Geschwindigkeit reduzieren. Abläufe und Schächte freihalten.",
+      description: "Mässiger Regen.{v: Erwartete Mengen {v} mm{h: in {h}}.}",
+      impact: "Nasse Fahrbahnen, örtlich stehendes Wasser.",
+      advice: "Geschwindigkeit anpassen. Abläufe freihalten.",
     },
     2: {
-      description: "Kräftiger Dauerregen{v:, Mengen {v} mm}.",
+      description: "Kräftiger Regen.{v: Erwartete Mengen {v} mm{h: in {h}}.}",
       impact:
-        "Kleinere Gewässer können über die Ufer treten. Überflutungen von Kellern, Unterführungen und tiefliegenden Strassen sowie örtlich Hangrutsche sind möglich.",
-      advice:
-        "Gefährdete Räume räumen. Uferbereiche meiden. Fahrten in überflutungsgefährdete Gebiete verschieben.",
+        "Örtlich Überflutungen von Unterführungen und Kellern. Kleinere Gewässer können anschwellen.",
+      advice: "Uferbereiche meiden. Gefährdete Räume sichern.",
     },
     3: {
-      description: "Sehr ergiebiger Dauerregen{v:, Mengen {v} mm}.",
+      description: "Sehr ergiebiger Dauerregen.{v: Erwartete Mengen {v} mm{h: in {h}}.}",
       impact:
-        "Grossflächige Überschwemmungen, Hochwasser an Bächen und Flüssen sowie Hangrutsche sind zu erwarten. Verkehrsachsen können längere Zeit unterbrochen sein.",
-      advice:
-        "Uferbereiche und Hanglagen meiden. Anweisungen der Einsatzkräfte befolgen. Notgepäck bereithalten.",
+        "Überschwemmungen und Hochwasser an Bächen und Flüssen möglich. Örtlich Hangrutsche und Verkehrsbehinderungen.",
+      advice: "Uferbereiche und Hanglagen meiden. Anweisungen der Einsatzkräfte befolgen.",
     },
   },
   schnee: {
     1: {
-      description: "Mässiger Schneefall{v:, Neuschnee {v} cm}.",
-      impact: "Stellenweise schneebedeckte und rutschige Strassen. Leichte Verzögerungen im Verkehr.",
+      description: "Mässiger Schneefall.{v: Erwarteter Neuschnee {v} cm{h: in {h}}.}",
+      impact: "Stellenweise schneebedeckte Strassen, leichte Verzögerungen im Verkehr.",
       advice: "Wintergerechte Ausrüstung verwenden. Mehr Zeit für Fahrten einplanen.",
     },
     2: {
-      description: "Kräftiger Schneefall{v:, Neuschnee {v} cm}.",
-      impact:
-        "Behinderungen im Strassen- und Bahnverkehr sind zu erwarten. Schneebruch an Bäumen und blockierte Nebenstrassen sind möglich.",
-      advice:
-        "Fahrten nach Möglichkeit verschieben. Öffentliche Verkehrsmittel nutzen. Nicht unter schneebeladenen Bäumen parkieren.",
+      description: "Kräftiger Schneefall.{v: Erwarteter Neuschnee {v} cm{h: in {h}}.}",
+      impact: "Behinderungen im Strassen- und Bahnverkehr. Örtlich Schneebruch an Bäumen.",
+      advice: "Fahrten nach Möglichkeit verschieben. Nicht unter schneebeladenen Bäumen parkieren.",
     },
     3: {
-      description: "Intensiver Schneefall mit Verwehungen{v:, Neuschnee {v} cm}.",
+      description:
+        "Intensiver Schneefall, teils mit Verwehungen.{v: Erwarteter Neuschnee {v} cm{h: in {h}}.}",
       impact:
-        "Verkehrswege können unpassierbar werden. Stromausfälle durch Schneebruch und Ausfälle im öffentlichen Verkehr sind möglich.",
-      advice:
-        "Auf nicht zwingende Fahrten verzichten. Vorräte und Notbeleuchtung bereithalten. Dächer und Zufahrten im Auge behalten.",
+        "Verbreitet Verkehrsbehinderungen, einzelne Strassen unpassierbar. Schneebruch und Stromausfälle möglich.",
+      advice: "Auf nicht nötige Fahrten verzichten. Vorräte und Notbeleuchtung bereithalten.",
     },
   },
   glaette: {
     1: {
-      description: "Örtlich Glätte durch gefrierende Nässe, vor allem auf Brücken und in Senken{v:, um {v} °C}.",
+      description:
+        "Örtlich Glätte durch gefrierende Nässe, vor allem auf Brücken und in Senken.{v: Erwartete Temperaturen {v} °C.}",
       impact: "Rutschgefahr auf Trottoirs, Gehwegen und Nebenstrassen.",
-      advice: "Rutschfestes Schuhwerk tragen. Fahrweise und Bremswege anpassen.",
+      advice: "Rutschfestes Schuhwerk tragen. Bremswege anpassen.",
     },
     2: {
-      description: "Verbreitet Glatteis{v:, um {v} °C}.",
-      impact:
-        "Erhöhte Unfallgefahr im Strassenverkehr und Sturzgefahr für Fussgängerinnen und Fussgänger. Verspätungen im öffentlichen Verkehr sind zu erwarten.",
-      advice:
-        "Fahrten nach Möglichkeit verschieben. Gehwege salzen oder splitten. Vorsichtig gehen.",
+      description: "Verbreitet Glatteis.{v: Erwartete Temperaturen {v} °C.}",
+      impact: "Erhöhte Unfall- und Sturzgefahr, Verspätungen im öffentlichen Verkehr.",
+      advice: "Fahrten nach Möglichkeit verschieben. Gehwege salzen oder splitten.",
     },
     3: {
-      description: "Grossflächige Vereisung von Strassen und Wegen{v:, um {v} °C}.",
-      impact:
-        "Der Verkehr kann weitgehend zum Erliegen kommen. Schwere Stürze und Unfälle sind möglich.",
-      advice: "Das Haus nach Möglichkeit nicht verlassen. Auf Fahrten verzichten.",
+      description:
+        "Grossflächige Vereisung von Strassen und Wegen.{v: Erwartete Temperaturen {v} °C.}",
+      impact: "Verbreitet Unfälle und Stürze möglich, Verkehr stark behindert.",
+      advice: "Auf Fahrten und Wege im Freien nach Möglichkeit verzichten.",
     },
   },
   wind: {
     1: {
-      description: "Kräftige Windböen{v: bis {v} km/h}, in exponierten Lagen stärker.",
-      impact: "Lose Gegenstände können verweht werden. Auf dem See ist mit Wellengang zu rechnen.",
-      advice: "Gartenmöbel und Sonnenschirme sichern. Auf dem Wasser Vorsicht walten lassen.",
+      description: "Kräftige Windböen.{v: Erwartete Böenspitzen {v} km/h.}",
+      impact: "Lose Gegenstände können verweht werden. Auf dem See Wellengang.",
+      advice: "Gartenmöbel und Sonnenschirme sichern. Auf dem Wasser vorsichtig sein.",
     },
     2: {
-      description: "Starke bis stürmische Windböen{v: bis {v} km/h}.",
+      description: "Starke bis stürmische Windböen.{v: Erwartete Böenspitzen {v} km/h.}",
       impact:
-        "Astbruch und umgestürzte Bauelemente sind möglich. Auf exponierten Strecken ist mit Verkehrsbehinderungen zu rechnen, auf dem See mit hohem Wellengang.",
-      advice:
-        "Wald und Alleen meiden. Lose Gegenstände sichern. Auf Bootsfahrten verzichten. Auf Brücken vorsichtig fahren.",
+        "Örtlich Astbruch und Behinderungen auf exponierten Strecken. Auf dem See hoher Wellengang.",
+      advice: "Wald und Alleen meiden. Lose Gegenstände sichern.",
     },
     3: {
-      description: "Schwere Sturm- bis Orkanböen{v: bis {v} km/h}.",
-      impact:
-        "Umstürzende Bäume, Dachschäden, Verkehrsunterbrüche und Stromausfälle sind zu erwarten. Für Personen im Freien besteht erhebliche Gefahr.",
-      advice:
-        "Im Gebäude bleiben. Fenster und Läden schliessen. Wald und Uferbereiche meiden.",
+      description: "Sturm- bis Orkanböen.{v: Erwartete Böenspitzen {v} km/h.}",
+      impact: "Umstürzende Bäume, Dachschäden und Verkehrsunterbrüche möglich.",
+      advice: "Aufenthalt im Freien meiden. Fenster und Läden schliessen.",
     },
   },
   frost: {
     1: {
-      description: "Leichter Frost{v:, Tiefstwerte {v} °C}.",
+      description: "Leichter Frost.{v: Erwartete Tiefstwerte {v} °C.}",
       impact: "Empfindliche Pflanzen und ungeschützte Leitungen können Schaden nehmen.",
       advice: "Kübelpflanzen einräumen oder abdecken. Aussenwasserhähne entleeren.",
     },
     2: {
-      description: "Mässiger Frost{v:, Tiefstwerte {v} °C}, örtlich Reifglätte.",
-      impact: "Kulturen im Freien sind gefährdet. Auf Strassen bildet sich Reifglätte.",
-      advice:
-        "Frostschutzmassnahmen in Landwirtschaft und Garten treffen. Am Morgen mit Glätte rechnen.",
+      description: "Mässiger Frost, örtlich Reifglätte.{v: Erwartete Tiefstwerte {v} °C.}",
+      impact: "Kulturen im Freien gefährdet, am Morgen Reifglätte auf Strassen.",
+      advice: "Frostschutzmassnahmen treffen. Am Morgen mit Glätte rechnen.",
     },
     3: {
-      description: "Strenger Frost{v:, Tiefstwerte {v} °C} über mehrere Stunden.",
-      impact:
-        "Schäden an Kulturen und Wasserleitungen sind möglich. Für ungeschützte Personen besteht eine gesundheitliche Gefährdung.",
-      advice:
-        "Leitungen isolieren. Tiere schützen. Aufenthalt im Freien verkürzen und warm kleiden.",
+      description: "Strenger Frost.{v: Erwartete Tiefstwerte {v} °C.}",
+      impact: "Schäden an Kulturen und Wasserleitungen möglich.",
+      advice: "Leitungen isolieren. Tiere schützen. Warm kleiden.",
     },
   },
 };
@@ -335,17 +320,70 @@ export function templateImpact(tpl: Template): string {
   return `${tpl.impact} Empfohlenes Verhalten: ${tpl.advice}`;
 }
 
-/** Ersetzt `{v: …{v}…}`-Blöcke: mit Wert eingesetzt, ohne Wert entfernt. */
-export function fillTemplate(text: string, value?: string | null): string {
+/** „12 Stunden“, „1 Stunde“ oder „3 Tagen“ – für den `{h}`-Baustein. */
+export function formatDurationLabel(hours: number | null | undefined): string {
+  if (!hours || !Number.isFinite(hours) || hours <= 0) return "";
+  const h = Math.round(hours);
+  if (h <= 0) return "";
+  if (h > 48) {
+    const d = Math.round(h / 24);
+    return d === 1 ? "einem Tag" : `${d} Tagen`;
+  }
+  return h === 1 ? "1 Stunde" : `${h} Stunden`;
+}
+
+/** Ersetzt verschachtelte `{v: …}`- und `{h: …}`-Blöcke inkl. `{v}`/`{h}`-Tokens. */
+function renderBlocks(text: string, vals: Record<string, string>): string {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const open = text.indexOf("{", i);
+    if (open === -1) {
+      out += text.slice(i);
+      break;
+    }
+    out += text.slice(i, open);
+    const rest = text.slice(open);
+    const token = /^\{(v|h)\}/.exec(rest);
+    if (token) {
+      out += vals[token[1]] ?? "";
+      i = open + token[0].length;
+      continue;
+    }
+    const block = /^\{(v|h):/.exec(rest);
+    if (!block) {
+      out += "{";
+      i = open + 1;
+      continue;
+    }
+    let depth = 1;
+    let j = open + block[0].length;
+    while (j < text.length && depth > 0) {
+      if (text[j] === "{") depth++;
+      else if (text[j] === "}") depth--;
+      j++;
+    }
+    const inner = text.slice(open + block[0].length, depth === 0 ? j - 1 : j);
+    out += vals[block[1]] ? renderBlocks(inner, vals) : "";
+    i = j;
+  }
+  return out;
+}
+
+/** Vorlage mit Messwert und (optional) Dauer füllen. */
+export function fillTemplate(
+  text: string,
+  value?: string | null,
+  durationHours?: number | null,
+): string {
   const v = (value ?? "").trim();
-  return text
-    .replace(/\{v:([^{}]*(?:\{v\}[^{}]*)*)\}/g, (_m, inner: string) =>
-      v ? inner.replace(/\{v\}/g, v) : "",
-    )
+  const h = formatDurationLabel(durationHours);
+  return renderBlocks(text, { v, h })
     .replace(/\s{2,}/g, " ")
     .replace(/\s+\./g, ".")
     .trim();
 }
+
 
 export function warningTitle(hazard: HazardId, level: WarnLevel): string {
   return `${getHazard(hazard).title} (Stufe ${level})`;
