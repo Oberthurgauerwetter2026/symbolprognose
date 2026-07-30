@@ -126,15 +126,27 @@ function combineValue(from: string, to: string): string {
   const a = from.trim();
   const b = to.trim();
   if (a && b) return a === b ? a : `${a} bis ${b}`;
-  return a || b;
+  if (b) return `bis ${b}`;
+  return a;
 }
 
 function splitValue(v: string | null | undefined): { from: string; to: string } {
   const s = (v ?? "").trim();
+  const only = s.match(/^bis\s+(.+)$/i);
+  if (only) return { from: "", to: only[1].trim() };
   const m = s.match(/^(.+?)\s*(?:bis|–|-|\.\.\.)\s*(.+)$/);
   if (m) return { from: m[1].trim(), to: m[2].trim() };
   return { from: s, to: "" };
 }
+
+/** Dauer der Gültigkeit in Stunden (für den Zeitbaustein im Text). */
+function hoursBetween(from: string, to: string): number | null {
+  const a = new Date(from).getTime();
+  const b = new Date(to).getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
+  return (b - a) / 3600_000;
+}
+
 
 interface FormState {
   id: string | null;
