@@ -1,19 +1,12 @@
-## Ziel
-Der Installationsname der Warnkarte-App (Home-Bildschirm / Android) soll von „OT Wetter“ auf „Wetterwarnungen“ geändert werden. Das Haupt-App-Manifest bleibt unverändert.
+Entferne den Footer-Link "Oberthurgauer Wetter – zur Hauptseite" auf der Standalone-Warnkarte (`/warnkarte`), damit die PWA-Seite keine Abzweigung zur Hauptseite mehr zeigt.
 
-## Änderungen
-1. **public/warnkarte.webmanifest**
-   - `short_name`: `"OT Wetter"` → `"Wetterwarnungen"`
-   - `name` bleibt „Oberthurgauer Wetter“, da der Benutzer explizit nur den kurzen Installationsvorschlag anpassen wollte.
+## Änderung
+- Datei: `src/routes/warnkarte.tsx`
+- Entferne das `<footer>`-Element mit dem Link zur Hauptseite.
+- Entferne den ungenutzten `Link`-Import aus `@tanstack/react-router`, falls danach keine weiteren `Link`-Verwendungen in der Datei vorhanden sind.
 
-2. **src/routes/warnkarte.tsx**
-   - `apple-mobile-web-app-title`: `"Oberthurgauer Wetter"` → `"Wetterwarnungen"`
-   - Damit stimmt der iOS-Home-Screen-Name mit dem Android/Manifest-Kurznamen überein.
+## Warum
+Der Footer-Link stört das Standalone-Erlebnis der Warnkarte als PWA/Home-Screen-App. Die Seite soll ausschliesslich die Warnkarte und das Abo-Panel zeigen, ohne Abzweigung zur Hauptseite.
 
-## Nicht geändert
-- `public/manifest.webmanifest` (Haupt-App) behält „OT Wetter“.
-- Icons, Theme-Farben, Scope und Start-URL bleiben gleich.
-
-## Validierung
-- Webmanifest JSON-Syntax prüfen.
-- Route in der Vorschau kurz öffnen, um sicherzustellen, dass der Meta-Tag korrekt gesetzt ist.
+## Keine weiteren Anpassungen
+Alle anderen Metadaten, Manifest-Logik und die `WarnMap`-Komponente bleiben unverändert.
