@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      job_runs: {
+        Row: {
+          closed: number
+          created: number
+          detected: number
+          job: string
+          note: string | null
+          ran_at: string
+        }
+        Insert: {
+          closed?: number
+          created?: number
+          detected?: number
+          job: string
+          note?: string | null
+          ran_at?: string
+        }
+        Update: {
+          closed?: number
+          created?: number
+          detected?: number
+          job?: string
+          note?: string | null
+          ran_at?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth: string

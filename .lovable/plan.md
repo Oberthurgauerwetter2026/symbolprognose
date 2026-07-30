@@ -1,21 +1,30 @@
-## Ziel
+## Stand (geprüft)
 
-Die automatisch erzeugten Gewitterwarnungen (`runAutoThunder`) verwenden denselben knappen Textstil wie die manuellen Vorlagen: kurzer Ereignissatz, danach ein Messwertsatz, danach optional die Zugbahn.
+- Der Endpunkt `/api/public/warnings/auto-thunder` ist auf der veröffentlichten Seite **live** (Antwort 401 bei falschem Secret = Route existiert und ist abgesichert).
+- Der Cron-Worker ist im Code so konfiguriert, dass er die Auto-Gewitterprüfung **alle 15 Minuten** auslöst (`WARN_TARGET_URL` gesetzt).
+- Erkennung basiert auf den ICON-CH1-Viertelstundenwerten (dasselbe Feld wie die Radar-Prognose), Vorschau 3 Stunden, Schwellen 8 / 15 / 30 mm/h für Stufe 1 / 2 / 3.
+- In der Datenbank existiert aktuell **keine einzige Warnung** (Tabelle leer). Das kann schlicht heissen: seit Aktivierung gab es kein Gewitter, das die Schwelle erreicht hat. Es kann aber auch heissen, dass der Cron-Lauf ins Leere läuft (Worker-Version veraltet oder Secret-Mismatch, wie zuvor beim Radar). Das ist **nicht verifiziert** – deshalb steht die Prüfung an erster Stelle.
 
-## Neuer Textaufbau
+Kurzantwort: technisch ja, aktiv – aber ob der Cron tatsächlich durchkommt, ist noch nicht bewiesen.
 
-Bisher: «Örtlich Gewitter. Radar und Nowcast zeigen Spitzenintensitäten um 22 mm/h. Die Zellen ziehen mit rund 35 km/h aus Südwesten heran.»
+## Vorgehen
 
-Neu: «Kräftige Gewitter mit Starkregen und Hagel. Erwartete Spitzenintensitäten 22 mm/h. Zellen ziehen mit rund 35 km/h aus Südwesten heran.»
+1. **Verifizieren, ob der Lauf wirklich stattfindet**
+   - Auto-Thunder einmal manuell mit gültigem Secret auslösen und die Antwort auswerten (`detected`, `created`, `closed`, `note`).
+   - Falls `note: "Nowcast-Daten nicht verfügbar"` kommt: Open-Meteo-Cache-Ingest ist die Ursache, nicht die Gewitterlogik.
+   - Status-Endpunkt des Cron-Workers abfragen (`lastWarn`), um zu sehen, wann der letzte automatische Trigger lief und mit welchem HTTP-Status.
 
-- Satz 1 stammt unverändert aus `TEMPLATES.gewitter[level].description` (ohne Messwert-Baustein, da dieser bei Gewitter Böenspitzen meint).
-- Satz 2 ist der Intensitätssatz aus dem Nowcast: «Erwartete Spitzenintensitäten X mm/h.»
-- Satz 3 nur, wenn eine Verlagerung erkannt wurde: «Zellen ziehen mit rund X km/h aus Südwesten heran.»
-- Auswirkungen und Verhaltenshinweis bleiben `templateImpact(tpl)` und damit identisch zu den manuellen Warnungen (bereits gekürzt).
+2. **Sichtbarkeit im Admin-Tool** (`/admin-warnungen`)
+   - In der bestehenden Sektion «Datenquellen / Ingest» eine Zeile «Gewitter-Autowarnung» ergänzen: letzter Lauf, Anzahl erkannter Zellen, letzte Meldung, Ampel (grün < 30 Min, gelb < 2 h, rot älter).
+   - Button «Jetzt prüfen», der den Lauf sofort auslöst und das Ergebnis anzeigt.
+   - Dafür wird der letzte Lauf serverseitig protokolliert (Zeitpunkt, detected/created/closed, note), damit der Status auch ohne manuellen Klick stimmt.
 
-## Technisch
+3. **Was beim nächsten echten Gewitter passiert**
+   - Erreicht eine Zelle in einer Gemeinde ≥ 8 mm/h, entsteht innert max. 15 Minuten automatisch eine Warnung (Quelle «automatisch») mit Titel, Kurztext im neuen Vorlagenstil, Spitzenintensität und Zugbahn.
+   - Sie erscheint sofort auf Warnkarte, Banner, in den Widgets und geht als Push raus; sie wird automatisch beendet, sobald die Intensität wegfällt.
 
-- `src/lib/auto-thunder.server.ts`: nur der Aufbau des `description`-Strings wird angepasst; Schwellen, Zeitfenster, Regionszuordnung, `auto_key`, Push und Aufräumlogik bleiben unverändert.
-- `params.value` bleibt der gerundete mm/h-Wert, damit der Wert im Admin-Tool beim Bearbeiten weiterhin erscheint.
-- Bestehende aktive Auto-Warnungen werden beim nächsten 5-Minuten-Lauf automatisch mit dem neuen Text aktualisiert.
-- Kurzprüfung: Typecheck und Gegenlesen der erzeugten Sätze für Stufe 1/2/3 mit und ohne erkannte Zugbahn.
+## Technische Details
+
+- Protokoll des letzten Auto-Laufs in einer kleinen Tabelle bzw. als Zeile in der bestehenden Ingest-Status-Quelle, gelesen über eine Server-Funktion analog `getIngestStatus`.
+- Manueller Auslöser über eine authentifizierte Server-Funktion (analog `runIngestNow`), nicht über das öffentliche Cron-Secret im Browser.
+- Keine Änderung an Schwellen oder Warntexten in diesem Schritt.

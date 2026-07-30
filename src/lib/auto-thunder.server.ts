@@ -91,7 +91,7 @@ export interface AutoThunderResult {
   note?: string;
 }
 
-export async function runAutoThunder(): Promise<AutoThunderResult> {
+async function runAutoThunderCore(): Promise<AutoThunderResult> {
   const cache = await getOpenMeteoCache();
   const points = cache?.grid?.points ?? [];
   const locs = (cache?.phase1 ?? cache?.phaseB) as LocMinutely[] | undefined;
@@ -205,6 +205,42 @@ export async function runAutoThunder(): Promise<AutoThunderResult> {
 
   const closed = await closeStale(Array.from(perRegion.keys()));
   return { detected: perRegion.size, created, closed, motion };
+}
+
+/** Letzten Lauf protokollieren, damit der Admin den Status sieht. */
+async function recordRun(r: AutoThunderResult, error?: string): Promise<void> {
+  try {
+    const sb = await adminClient();
+    await sb.from("job_runs").upsert(
+      {
+        job: "auto-thunder",
+        ran_at: new Date().toISOString(),
+        detected: r.detected,
+        created: r.created,
+        closed: r.closed,
+        note: error ?? r.note ?? null,
+      },
+      { onConflict: "job" },
+    );
+  } catch {
+    // Protokoll ist optional — Lauf nie daran scheitern lassen.
+  }
+}
+
+/**
+ * Öffentlicher Einstiegspunkt: führt die Erkennung aus und protokolliert
+ * den Lauf (auch im Fehlerfall) in `public.job_runs`.
+ */
+export async function runAutoThunder(): Promise<AutoThunderResult> {
+  try {
+    const res = await runAutoThunderCore();
+    await recordRun(res);
+    return res;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unbekannter Fehler";
+    await recordRun({ detected: 0, created: 0, closed: 0 }, `Fehler: ${msg}`);
+    throw err;
+  }
 }
 
 /** Automatische Warnungen deaktivieren, die nicht mehr erkannt werden oder abgelaufen sind. */
