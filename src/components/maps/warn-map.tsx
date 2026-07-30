@@ -296,18 +296,30 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     };
   }
 
-  /** Leichte Abdunklung beim Überfahren/Antippen. */
+  /** Farbe leicht Richtung Schwarz mischen. */
+  function darken(hex: string, amount = 0.18): string {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return hex;
+    const n = parseInt(m[1], 16);
+    const r = Math.round(((n >> 16) & 255) * (1 - amount));
+    const g = Math.round(((n >> 8) & 255) * (1 - amount));
+    const b = Math.round((n & 255) * (1 - amount));
+    return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+  }
+
+  /** Leichte Abdunklung beim Überfahren/Antippen – Warnfarbe bleibt erhalten. */
   function hoverStyleFor(feature: Feature): L.PathOptions {
     const b = styleFor(feature);
     return {
       ...b,
       color: "#1f2937",
-      weight: 2.4,
+      weight: 2,
       opacity: 1,
-      fillColor: "#111827",
-      fillOpacity: Math.min(0.95, (b.fillOpacity ?? 0.3) + 0.16),
+      fillColor: darken(String(b.fillColor ?? "#94a3b8")),
+      fillOpacity: Math.min(0.9, (b.fillOpacity ?? 0.3) + 0.1),
     };
   }
+
 
 
   styleRef.current = styleFor;
