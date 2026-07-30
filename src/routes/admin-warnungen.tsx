@@ -126,15 +126,27 @@ function combineValue(from: string, to: string): string {
   const a = from.trim();
   const b = to.trim();
   if (a && b) return a === b ? a : `${a} bis ${b}`;
-  return a || b;
+  if (b) return `bis ${b}`;
+  return a;
 }
 
 function splitValue(v: string | null | undefined): { from: string; to: string } {
   const s = (v ?? "").trim();
+  const only = s.match(/^bis\s+(.+)$/i);
+  if (only) return { from: "", to: only[1].trim() };
   const m = s.match(/^(.+?)\s*(?:bis|–|-|\.\.\.)\s*(.+)$/);
   if (m) return { from: m[1].trim(), to: m[2].trim() };
   return { from: s, to: "" };
 }
+
+/** Dauer der Gültigkeit in Stunden (für den Zeitbaustein im Text). */
+function hoursBetween(from: string, to: string): number | null {
+  const a = new Date(from).getTime();
+  const b = new Date(to).getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return null;
+  return (b - a) / 3600_000;
+}
+
 
 interface FormState {
   id: string | null;
@@ -151,18 +163,24 @@ interface FormState {
   active: boolean;
 }
 
-/** Vorlagentexte für eine Kombination aus Gefahr, Stufe und Messwert. */
-function genTexts(hazard: HazardId, level: WarnLevel, value: string) {
+/** Vorlagentexte für Gefahr, Stufe, Messwert und Gültigkeitsdauer. */
+function genTexts(
+  hazard: HazardId,
+  level: WarnLevel,
+  value: string,
+  durationHours?: number | null,
+) {
   const tpl = TEMPLATES[hazard][level];
   return {
     title: warningTitle(hazard, level),
-    description: fillTemplate(tpl.description, value),
+    description: fillTemplate(tpl.description, value, durationHours),
     impact: templateImpact(tpl),
   };
 }
 
 function emptyForm(): FormState {
-  const t = genTexts("gewitter", 1, "");
+  const t = genTexts("gewitter", 1, "", 6);
+
   return {
     id: null,
     hazard: "gewitter",
@@ -188,7 +206,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   /** Zuletzt automatisch erzeugte Texte – zum Erkennen manueller Änderungen. */
-  const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, ""));
+  const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, "", 6));
 
   const load = async () => {
     setLoading(true);
@@ -222,7 +240,12 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
     valueTo: string,
     force = false,
   ) => {
-    const t = genTexts(hazard, level, combineValue(valueFrom, valueTo));
+    const t = genTexts(
+      hazard,
+      level,
+      combineValue(valueFrom, valueTo),
+      hoursBetween(form.validFrom, form.validTo),
+    );
     const useTpl = force || !textIsManual;
     setLastTpl(t);
     setForm((f) => ({
@@ -236,6 +259,22 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       impact: useTpl ? t.impact : f.impact,
     }));
   };
+
+  /** Zeitbaustein im Text nachführen, wenn sich die Gültigkeit ändert. */
+  useEffect(() => {
+    if (textIsManual) return;
+    const t = genTexts(
+      form.hazard,
+      form.level,
+      combineValue(form.valueFrom, form.valueTo),
+      hoursBetween(form.validFrom, form.validTo),
+    );
+    if (t.description === form.description && t.title === form.title) return;
+    setLastTpl(t);
+    setForm((f) => ({ ...f, title: t.title, description: t.description, impact: t.impact }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.validFrom, form.validTo]);
+
 
 
   /** Beginn setzen und Ende relativ dazu halten. */
@@ -296,7 +335,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         },
       });
       setForm(emptyForm());
-      setLastTpl(genTexts("gewitter", 1, ""));
+      setLastTpl(genTexts("gewitter", 1, "", 6));
       setMsg("Gespeichert.");
       await load();
     } catch (err) {
@@ -317,8 +356,10 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         w.hazard as HazardId,
         w.level as WarnLevel,
         combineValue(splitValue(w.value).from, splitValue(w.value).to),
+        hoursBetween(toLocal(w.validFrom), toLocal(w.validTo)),
       ),
     );
+
     setForm({
       id: w.id,
       hazard: w.hazard as HazardId,
