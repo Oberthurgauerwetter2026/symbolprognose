@@ -572,13 +572,13 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                     return (
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                         <div
-                          className="flex items-center gap-2 px-3.5 py-2.5 text-base font-semibold"
+                          className="flex items-center gap-2 px-3 py-2 text-base font-semibold"
                           style={{ background: def.color, color: def.textOnColor }}
                         >
-                          <Icon className="h-7 w-7 shrink-0" />
+                          <Icon className="h-6 w-6 shrink-0" />
                           {w.title || `${h.title} (Stufe ${w.level})`}
                         </div>
-                        <div className="space-y-3.5 p-3.5">
+                        <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">
                             {formatRange(w.validFrom, w.validTo)}
                           </p>
