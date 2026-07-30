@@ -48,7 +48,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     } catch {
       setFramed(true);
     }
-    setPageUrl(getAppUrl("/karten/warnungen"));
+    setPageUrl(getAppUrl("/warnkarte"));
     if (typeof Notification !== "undefined") setBlocked(Notification.permission === "denied");
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
       const sub = await reg?.pushManager.getSubscription();

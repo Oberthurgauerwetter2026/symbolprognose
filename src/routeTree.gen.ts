@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WarnkarteRouteImport } from './routes/warnkarte'
 import { Route as KarteRouteImport } from './routes/karte'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
 import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
@@ -42,6 +43,11 @@ import { Route as ApiPublicEmbedRegionLokalStaticRouteImport } from './routes/ap
 import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 import { Route as ApiPublicAromeIngestTriggerRouteImport } from './routes/api/public/arome/ingest-trigger'
 
+const WarnkarteRoute = WarnkarteRouteImport.update({
+  id: '/warnkarte',
+  path: '/warnkarte',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KarteRoute = KarteRouteImport.update({
   id: '/karte',
   path: '/karte',
@@ -216,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
+  '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/radar': typeof EmbedRadarRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByTo {
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
+  '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/radar': typeof EmbedRadarRoute
@@ -285,6 +293,7 @@ export interface FileRoutesById {
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
+  '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/radar': typeof EmbedRadarRoute
@@ -321,6 +330,7 @@ export interface FileRouteTypes {
     | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
+    | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/radar'
@@ -355,6 +365,7 @@ export interface FileRouteTypes {
     | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
+    | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/radar'
@@ -389,6 +400,7 @@ export interface FileRouteTypes {
     | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
+    | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/radar'
@@ -424,6 +436,7 @@ export interface RootRouteChildren {
   AdminWarnungenRoute: typeof AdminWarnungenRoute
   EmbedInfoRoute: typeof EmbedInfoRoute
   KarteRoute: typeof KarteRoute
+  WarnkarteRoute: typeof WarnkarteRoute
   EmbedAllRoute: typeof EmbedAllRoute
   EmbedLokalRoute: typeof EmbedLokalRoute
   EmbedRadarRoute: typeof EmbedRadarRoute
@@ -455,6 +468,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/warnkarte': {
+      id: '/warnkarte'
+      path: '/warnkarte'
+      fullPath: '/warnkarte'
+      preLoaderRoute: typeof WarnkarteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/karte': {
       id: '/karte'
       path: '/karte'
@@ -688,6 +708,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminWarnungenRoute: AdminWarnungenRoute,
   EmbedInfoRoute: EmbedInfoRoute,
   KarteRoute: KarteRoute,
+  WarnkarteRoute: WarnkarteRoute,
   EmbedAllRoute: EmbedAllRoute,
   EmbedLokalRoute: EmbedLokalRoute,
   EmbedRadarRoute: EmbedRadarRoute,
@@ -719,3 +740,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

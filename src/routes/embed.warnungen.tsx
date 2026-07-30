@@ -19,7 +19,7 @@ export const Route = createFileRoute("/embed/warnungen")({
             Für Wetterwarnungen per Push bitte die Warnkarte in einem eigenen Tab öffnen:
           </p>
           <a
-            href={`${SITE_URL}/karten/warnungen`}
+            href={`${SITE_URL}/warnkarte`}
             target="_blank"
             rel="noreferrer"
             className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-strong"
