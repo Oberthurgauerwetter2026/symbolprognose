@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Code2, Settings } from "lucide-react";
+import { LayoutDashboard, Code2, Settings, BellRing } from "lucide-react";
 
 import {
   Sidebar,
@@ -100,6 +100,14 @@ export function AppSidebar() {
                   <Link to="/admin" className="flex items-center gap-2">
                     <Settings className="h-4 w-4" />
                     <span>Admin</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/admin-warnungen")} tooltip="Warnungen verwalten">
+                  <Link to="/admin-warnungen" className="flex items-center gap-2">
+                    <BellRing className="h-4 w-4" />
+                    <span>Warnungen verwalten</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
