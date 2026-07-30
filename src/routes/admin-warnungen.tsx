@@ -335,7 +335,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         },
       });
       setForm(emptyForm());
-      setLastTpl(genTexts("gewitter", 1, ""));
+      setLastTpl(genTexts("gewitter", 1, "", 6));
       setMsg("Gespeichert.");
       await load();
     } catch (err) {
@@ -356,8 +356,10 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         w.hazard as HazardId,
         w.level as WarnLevel,
         combineValue(splitValue(w.value).from, splitValue(w.value).to),
+        hoursBetween(toLocal(w.validFrom), toLocal(w.validTo)),
       ),
     );
+
     setForm({
       id: w.id,
       hazard: w.hazard as HazardId,
