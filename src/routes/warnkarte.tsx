@@ -4,7 +4,7 @@ import { WarnMap } from "@/components/maps/warn-map";
 import { SITE_URL } from "@/lib/site-url";
 import { WARN_MANIFEST_LINK } from "@/lib/pwa-links";
 
-const DESC =
+export const DESC =
   "Aktuelle Wetterwarnungen für alle Gemeinden im Oberthurgau – mit Push-Benachrichtigung für die eigene Region.";
 
 export const Route = createFileRoute("/warnkarte")({
