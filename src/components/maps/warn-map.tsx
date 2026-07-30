@@ -568,9 +568,10 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             <div
               className={cn(
                 "overflow-y-auto pr-1",
-                bare ? "@lg:max-h-[70vh]" : "@3xl:max-h-[70vh]",
+                bare ? "@lg:min-h-0 @lg:flex-1" : "@3xl:min-h-0 @3xl:flex-1",
               )}
             >
+
               {selectedWarnings.length === 0 ? (
                 <p className="mt-3 text-base leading-relaxed text-foreground">
                   Zurzeit keine Warnungen{selected ? " für diese Gemeinde" : ""}. Es besteht keine
