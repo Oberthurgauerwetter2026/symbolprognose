@@ -289,10 +289,24 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
       color: isSel ? "#1f2937" : "#4b5563",
       weight: isSel ? 2.4 : 1,
       opacity: isSel ? 1 : 0.75,
-      fillColor: def.color,
-      fillOpacity: def.fillOpacity,
+      fillColor: isSel ? "#111827" : def.color,
+      fillOpacity: isSel ? Math.min(0.95, def.fillOpacity + 0.14) : def.fillOpacity,
     };
   }
+
+  /** Leichte Abdunklung beim Überfahren/Antippen. */
+  function hoverStyleFor(feature: Feature): L.PathOptions {
+    const b = styleFor(feature);
+    return {
+      ...b,
+      color: "#1f2937",
+      weight: 2.4,
+      opacity: 1,
+      fillColor: "#111827",
+      fillOpacity: Math.min(0.95, (b.fillOpacity ?? 0.3) + 0.16),
+    };
+  }
+
 
   styleRef.current = styleFor;
 
