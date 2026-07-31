@@ -653,14 +653,23 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
     return out;
   }, [activeWarnings]);
 
-  // Höchste aktive Warnstufe in der Region (für das Warnband über der Karte).
-  const maxWarnLevel = useMemo(() => {
-    let max = 0;
-    for (const w of Object.values(spotWarnings)) {
-      if (w) max = Math.max(max, Math.min(3, Math.max(1, w.level)));
+  // Höchste Stufe in der Region – getrennt für echte Warnungen und Vorinformationen.
+  const { maxWarnLevel, maxAdvisoryLevel } = useMemo(() => {
+    let warn = 0;
+    let adv = 0;
+    for (const id of new Set(SPOTS.map((s) => regionIdForPoint(s.lat, s.lon)))) {
+      for (const w of warningsForRegion(activeWarnings, id)) {
+        const lvl = Math.min(3, Math.max(1, w.level));
+        if (w.advisory) adv = Math.max(adv, lvl);
+        else warn = Math.max(warn, lvl);
+      }
     }
-    return max as 0 | WarnLevel;
-  }, [spotWarnings]);
+    return {
+      maxWarnLevel: warn as 0 | WarnLevel,
+      maxAdvisoryLevel: adv as 0 | WarnLevel,
+    };
+  }, [activeWarnings]);
+
 
 
 
