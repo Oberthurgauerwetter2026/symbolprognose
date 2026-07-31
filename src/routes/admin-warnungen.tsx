@@ -609,7 +609,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
           <div className="grid gap-4 sm:grid-cols-2">
             {textIsManual && (
-              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs sm:col-span-2">
+              <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm sm:col-span-2">
                 <span className="text-muted-foreground">
                   Texte wurden manuell angepasst – sie folgen den Mengenangaben nicht mehr
                   automatisch.
@@ -619,66 +619,81 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   onClick={() =>
                     applyTemplate(form.hazard, form.level, form.valueFrom, form.valueTo, true)
                   }
-                  className="rounded-md border border-input bg-background px-2 py-1 font-medium"
+                  className="rounded-md border border-input bg-background px-3 py-1.5 font-medium"
                 >
                   Text aus Vorlage neu erzeugen
                 </button>
               </div>
             )}
-            <label className="text-xs font-medium sm:col-span-2">
+            <label className="text-sm font-semibold sm:col-span-2">
               Titel
               <input
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
               />
             </label>
-            <label className="text-xs font-medium">
+            <label className="text-sm font-semibold">
               Beschreibung
               <textarea
-                rows={4}
+                rows={5}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
               />
             </label>
-            <label className="text-xs font-medium">
+            <label className="text-sm font-semibold">
               Mögliche Auswirkungen
               <textarea
-                rows={4}
+                rows={5}
                 value={form.impact}
                 onChange={(e) => setForm((f) => ({ ...f, impact: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
               />
             </label>
           </div>
 
 
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2.5 text-base">
               <input
                 type="checkbox"
+                className="h-5 w-5"
                 checked={form.active}
                 onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
               />
-              Sofort aktiv (löst Push-Benachrichtigung aus)
+              Sofort aktiv {form.advisory ? "(ohne Push)" : "(löst Push-Benachrichtigung aus)"}
             </label>
-            <label className="flex items-center gap-2 text-xs">
+            <label className="flex items-center gap-2.5 text-base">
               <input
                 type="checkbox"
+                className="h-5 w-5"
                 checked={form.advisory}
-                onChange={(e) => setForm((f) => ({ ...f, advisory: e.target.checked }))}
+                onChange={(e) =>
+                  applyTemplate(
+                    form.hazard,
+                    form.level,
+                    form.valueFrom,
+                    form.valueTo,
+                    false,
+                    e.target.checked,
+                  )
+                }
               />
               Vorinformation (schraffiert, ohne Push)
             </label>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              className="flex items-center gap-2 rounded-md px-5 py-2.5 text-base font-semibold disabled:opacity-60"
               style={{ background: preview.color, color: preview.textOnColor }}
             >
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {form.id ? "Änderungen speichern" : "Warnung veröffentlichen"}
+              {saving && <Loader2 className="h-5 w-5 animate-spin" />}
+              {form.id
+                ? "Änderungen speichern"
+                : form.advisory
+                  ? "Vorinformation veröffentlichen"
+                  : "Warnung veröffentlichen"}
             </button>
             {form.id && (
               <button
@@ -687,12 +702,12 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   setForm(emptyForm());
                   setLastTpl(genTexts("gewitter", 1, ""));
                 }}
-                className="text-xs underline"
+                className="text-sm underline"
               >
                 Abbrechen
               </button>
             )}
-            {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+            {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
           </div>
         </form>
 
