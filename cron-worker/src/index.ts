@@ -154,8 +154,8 @@ export default {
       const includeOpenmeteo = minute % 30 === 0;
       const includeArome = minute === 0;
       const includeMch = minute === 0;
-      // Gewitter-Autowarnung alle 15 Minuten.
-      const includeWarn = minute % 15 === 0;
+      // Gewitter-Autowarnung bei jedem 5-Minuten-Lauf.
+      const includeWarn = true;
       ctx.waitUntil(
         triggerFiveMin(env, { includeOpenmeteo, includeArome, includeMch, includeWarn }),
       );
