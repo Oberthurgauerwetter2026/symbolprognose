@@ -173,11 +173,13 @@ function genTexts(
   level: WarnLevel,
   value: string,
   durationHours?: number | null,
+  advisory = false,
 ) {
   const tpl = TEMPLATES[hazard][level];
+  const description = fillTemplate(tpl.description, value, durationHours);
   return {
-    title: warningTitle(hazard, level),
-    description: fillTemplate(tpl.description, value, durationHours),
+    title: warningTitle(hazard, level, advisory),
+    description: advisory ? `Vorinformation: ${description}` : description,
     impact: templateImpact(tpl),
   };
 }
