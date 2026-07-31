@@ -18,8 +18,11 @@ import { getOpenMeteoCache } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 const LOOKAHEAD_MS = 3 * 3600_000;
+/** Vorlaufzeit: Warnung erscheint erst 30 min vor erwartetem Eintreffen. */
+const LEAD_MS = 30 * 60_000;
 /** mm/h-Schwellen für Stufe 1/2/3 (konvektive Intensität). */
 const THRESHOLDS: [number, number, number] = [8, 15, 30];
+
 
 type LocMinutely = {
   minutely_15?: { time: string[]; precipitation: (number | null)[] };
