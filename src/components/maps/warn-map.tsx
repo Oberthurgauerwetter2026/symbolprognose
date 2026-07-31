@@ -245,15 +245,28 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
   const warnings: WarningDTO[] = query.data?.warnings ?? [];
 
-  /** Höchste Stufe je Gemeinde für die aktuelle Auswahl. */
+  /** Höchste Stufe je Gemeinde für die aktuelle Auswahl (echte Warnungen). */
   const levelByRegion = useMemo(() => {
     const map = new Map<string, number>();
     for (const w of warnings) {
       if (hazard !== "alle" && w.hazard !== hazard) continue;
+      if (w.advisory) continue;
       for (const r of w.regionIds) map.set(r, Math.max(map.get(r) ?? 0, w.level));
     }
     return map;
   }, [warnings, hazard]);
+
+  /** Höchste Stufe je Gemeinde aus Vorinformationen (schraffiert). */
+  const advisoryByRegion = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const w of warnings) {
+      if (hazard !== "alle" && w.hazard !== hazard) continue;
+      if (!w.advisory) continue;
+      for (const r of w.regionIds) map.set(r, Math.max(map.get(r) ?? 0, w.level));
+    }
+    return map;
+  }, [warnings, hazard]);
+
 
   /** Höchste Stufe je Gefahrenart (für das Banner). */
   const levelByHazard = useMemo(() => {
