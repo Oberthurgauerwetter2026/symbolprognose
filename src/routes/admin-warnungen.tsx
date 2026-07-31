@@ -246,12 +246,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
     valueFrom: string,
     valueTo: string,
     force = false,
+    advisory = form.advisory,
   ) => {
     const t = genTexts(
       hazard,
       level,
       combineValue(valueFrom, valueTo),
       hoursBetween(form.validFrom, form.validTo),
+      advisory,
     );
     const useTpl = force || !textIsManual;
     setLastTpl(t);
@@ -261,6 +263,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       level,
       valueFrom,
       valueTo,
+      advisory,
       title: useTpl ? t.title : f.title,
       description: useTpl ? t.description : f.description,
       impact: useTpl ? t.impact : f.impact,
@@ -275,6 +278,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       form.level,
       combineValue(form.valueFrom, form.valueTo),
       hoursBetween(form.validFrom, form.validTo),
+      form.advisory,
     );
     if (t.description === form.description && t.title === form.title) return;
     setLastTpl(t);
