@@ -199,6 +199,7 @@ function emptyForm(): FormState {
 
     regionIds: [],
     active: true,
+    advisory: false,
   };
 }
 
