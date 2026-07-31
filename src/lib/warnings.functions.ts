@@ -64,6 +64,7 @@ export interface SaveWarningInput {
   value?: string | null;
   regionIds: string[];
   active: boolean;
+  advisory?: boolean;
 }
 
 export const saveWarning = createServerFn({ method: "POST" })
