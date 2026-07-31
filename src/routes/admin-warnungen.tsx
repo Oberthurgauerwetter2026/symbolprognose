@@ -718,6 +718,9 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                       {w.source === "auto" && (
                         <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">automatisch</span>
                       )}
+                      {w.advisory && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Vorinformation</span>
+                      )}
                       <div className="ml-auto flex items-center gap-2">
                         <button
                           type="button"
