@@ -14,7 +14,7 @@
 import type { Feature, FeatureCollection } from "geojson";
 import regionData from "@/data/region.json";
 import { slugifyRegion, TEMPLATES, templateImpact, fillTemplate, warningTitle } from "@/lib/warnings-config";
-import { getOpenMeteoCache } from "@/lib/openmeteo-cache.server";
+import { getOpenMeteoCache, getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 const LOOKAHEAD_MS = 3 * 3600_000;
@@ -65,14 +65,47 @@ const REGION_POLYS = REGION_FC.features.map((f) => {
   return { id: slugifyRegion(name), name, rs, bbox: { minLat, maxLat, minLon, maxLon } };
 });
 
+/** Maximaler Abstand für die Nächste-Gemeinde-Zuordnung (km). */
+const NEAREST_KM = 3;
+
+function distKm(lat: number, lon: number, ring: number[][]): number {
+  let best = Infinity;
+  for (const [x, y] of ring) {
+    const dy = (y - lat) * 111.32;
+    const dx = (x - lon) * 111.32 * Math.cos(lat * (Math.PI / 180));
+    best = Math.min(best, Math.hypot(dx, dy));
+  }
+  return best;
+}
+
+/**
+ * Gemeinde eines Gitterpunkts. Liegt der Punkt in keinem Polygon (das
+ * Prognosegitter ist grob, ~5–7 km), wird die nächstgelegene Gemeinde
+ * innerhalb von `NEAREST_KM` zugeordnet, damit Zellen am Gemeinderand
+ * nicht verloren gehen.
+ */
 function regionOf(lat: number, lon: number): string | null {
   for (const r of REGION_POLYS) {
     if (lat < r.bbox.minLat - 0.01 || lat > r.bbox.maxLat + 0.01) continue;
     if (lon < r.bbox.minLon - 0.015 || lon > r.bbox.maxLon + 0.015) continue;
     for (const ring of r.rs) if (inRing(lon, lat, ring)) return r.id;
   }
-  return null;
+  let bestId: string | null = null;
+  let bestKm = NEAREST_KM;
+  for (const r of REGION_POLYS) {
+    if (lat < r.bbox.minLat - 0.06 || lat > r.bbox.maxLat + 0.06) continue;
+    if (lon < r.bbox.minLon - 0.09 || lon > r.bbox.maxLon + 0.09) continue;
+    for (const ring of r.rs) {
+      const d = distKm(lat, lon, ring);
+      if (d < bestKm) {
+        bestKm = d;
+        bestId = r.id;
+      }
+    }
+  }
+  return bestId;
 }
+
 
 function compass(deg: number): string {
   const dirs = ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"];
@@ -95,15 +128,30 @@ export interface AutoThunderResult {
 }
 
 async function runAutoThunderCore(): Promise<AutoThunderResult> {
-  const cache = await getOpenMeteoCache();
+  const [cache, regionMax] = await Promise.all([getOpenMeteoCache(), getRadarRegionMax()]);
   const points = cache?.grid?.points ?? [];
   const locs = (cache?.phase1 ?? cache?.phaseB) as LocMinutely[] | undefined;
-  if (!locs || locs.length !== points.length || points.length === 0) {
-    return { detected: 0, created: 0, closed: await closeStale(), note: "Nowcast-Daten nicht verfügbar" };
+  const hasForecast = !!locs && locs.length === points.length && points.length > 0;
+
+  /** Gemessene Werte des neuesten Radarbilds (max. 30 min alt). */
+  const measuredAgeMin = regionMax?.t
+    ? (Date.now() - new Date(regionMax.t).getTime()) / 60_000
+    : Infinity;
+  const measured = measuredAgeMin <= 30 ? (regionMax?.regions ?? []) : [];
+
+  if (!hasForecast && measured.length === 0) {
+    return {
+      detected: 0,
+      created: 0,
+      closed: await closeStale(),
+      note: "Nowcast- und Messdaten nicht verfügbar",
+    };
   }
 
-  const times = locs.find((l) => l.minutely_15?.time?.length)?.minutely_15?.time ?? [];
-  if (!times.length) {
+  const times = hasForecast
+    ? (locs!.find((l) => l.minutely_15?.time?.length)?.minutely_15?.time ?? [])
+    : [];
+  if (hasForecast && !times.length && measured.length === 0) {
     return { detected: 0, created: 0, closed: await closeStale(), note: "Keine Viertelstundenwerte" };
   }
 
@@ -113,16 +161,44 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     .filter((s) => s.ms >= now - 15 * 60_000 && s.ms <= now + LOOKAHEAD_MS);
 
   /** Pro Gemeinde: maximale Intensität + Zeitfenster. */
-  const perRegion = new Map<string, { max: number; firstMs: number; lastMs: number }>();
+  const perRegion = new Map<
+    string,
+    { max: number; firstMs: number; lastMs: number; measured: number }
+  >();
   /** Schwerpunkte je Slot zur Verlagerungsschätzung. */
   const centroids: { ms: number; lat: number; lon: number; w: number }[] = [];
 
+  const bump = (rid: string, mmh: number, ms: number, isMeasured: boolean) => {
+    const cur = perRegion.get(rid);
+    if (!cur) {
+      perRegion.set(rid, {
+        max: mmh,
+        firstMs: ms,
+        lastMs: ms,
+        measured: isMeasured ? mmh : 0,
+      });
+      return;
+    }
+    cur.max = Math.max(cur.max, mmh);
+    cur.firstMs = Math.min(cur.firstMs, ms);
+    cur.lastMs = Math.max(cur.lastMs, ms);
+    if (isMeasured) cur.measured = Math.max(cur.measured, mmh);
+  };
+
+  // 1) Messung: Zelle ist bereits da → gilt sofort.
+  for (const r of measured) {
+    const mmh = typeof r.mmh === "number" ? r.mmh : 0;
+    if (mmh < THRESHOLDS[0]) continue;
+    bump(r.id, mmh, now, true);
+  }
+
+  // 2) Prognose: nächste Stunden.
   for (const slot of slots) {
     let sw = 0;
     let sLat = 0;
     let sLon = 0;
     for (let p = 0; p < points.length; p++) {
-      const v = locs[p]?.minutely_15?.precipitation?.[slot.i];
+      const v = locs![p]?.minutely_15?.precipitation?.[slot.i];
       const mmh = typeof v === "number" ? v * 4 : 0; // 15-min-Summe → mm/h
       if (mmh < THRESHOLDS[0]) continue;
       sw += mmh;
@@ -130,16 +206,11 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       sLon += points[p].lon * mmh;
       const rid = regionOf(points[p].lat, points[p].lon);
       if (!rid) continue;
-      const cur = perRegion.get(rid);
-      if (!cur) perRegion.set(rid, { max: mmh, firstMs: slot.ms, lastMs: slot.ms });
-      else {
-        cur.max = Math.max(cur.max, mmh);
-        cur.firstMs = Math.min(cur.firstMs, slot.ms);
-        cur.lastMs = Math.max(cur.lastMs, slot.ms);
-      }
+      bump(rid, mmh, slot.ms, false);
     }
     if (sw > 0) centroids.push({ ms: slot.ms, lat: sLat / sw, lon: sLon / sw, w: sw });
   }
+
 
   let motion: AutoThunderResult["motion"];
   if (centroids.length >= 2) {
@@ -163,12 +234,14 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   for (const [regionId, info] of perRegion) {
     const level = levelFor(info.max);
     if (!level) continue;
-    // Erst 30 min vor erwartetem Eintreffen warnen.
-    if (info.firstMs > now + LEAD_MS) continue;
+    const isMeasured = info.measured >= THRESHOLDS[0];
+    // Prognosewerte erst 30 min vor erwartetem Eintreffen warnen; gemessene
+    // Zellen gelten sofort.
+    if (!isMeasured && info.firstMs > now + LEAD_MS) continue;
     warnedRegions.push(regionId);
     const validTo = new Date(Math.max(info.lastMs + 30 * 60_000, now + 45 * 60_000)).toISOString();
     const validFrom = new Date(
-      Math.min(Math.max(now, info.firstMs - LEAD_MS), info.firstMs),
+      isMeasured ? now : Math.min(Math.max(now, info.firstMs - LEAD_MS), info.firstMs),
     ).toISOString();
     const tpl = TEMPLATES.gewitter[level];
 
@@ -176,16 +249,20 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     const motionText = motion
       ? ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
       : "";
+    const intensityText = isMeasured
+      ? `Aktuell gemessene Spitzenintensität ${Math.round(info.measured)} mm/h.`
+      : `Erwartete Spitzenintensitäten ${Math.round(info.max)} mm/h.`;
     const row = {
       hazard: "gewitter",
       level,
       valid_from: validFrom,
       valid_to: validTo,
       title: warningTitle("gewitter", level),
-      description: `${base} Erwartete Spitzenintensitäten ${Math.round(info.max)} mm/h.${motionText}`,
+      description: `${base} ${intensityText}${motionText}`,
 
       impact: templateImpact(tpl),
-      params: { value: String(Math.round(info.max)), auto: true },
+      params: { value: String(Math.round(info.max)), auto: true, measured: isMeasured },
+
       active: true,
       source: "auto",
       auto_key: `auto-gewitter-${regionId}`,

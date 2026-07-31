@@ -167,3 +167,40 @@ export async function getOpenMeteoCache(): Promise<OpenMeteoCachePayload | null>
   if (symbolCache) symbolMemo = { at: Date.now(), data: symbolCache };
   return merged;
 }
+
+/** Gemessene Region-Kennzahlen aus dem Radar-Ingest (`radar/region-max.json`). */
+export interface RadarRegionMaxPayload {
+  /** Zeitstempel des zugrunde liegenden Radarbilds. */
+  t: string;
+  generatedAt?: string;
+  version?: string;
+  regions: { id: string; name?: string; mmh: number; poh?: number }[];
+}
+
+let regionMaxMemo: { at: number; data: RadarRegionMaxPayload } | null = null;
+
+/**
+ * Lädt die je Gemeinde gemessene Spitzenintensität des neuesten Radarbilds.
+ * Basis der Sofort-Erkennung realer Gewitterzellen (ohne Modell-Vorlauf).
+ */
+export async function getRadarRegionMax(): Promise<RadarRegionMaxPayload | null> {
+  if (regionMaxMemo && Date.now() - regionMaxMemo.at < 60_000) return regionMaxMemo.data;
+  const base = r2BaseUrl();
+  if (!base) return null;
+  try {
+    const res = await fetch(`${base}/radar/region-max.json`, {
+      cf: { cacheTtl: 30, cacheEverything: true } as unknown as undefined,
+    } as RequestInit);
+    if (!res.ok) {
+      console.warn(`[radar-region-max] ${res.status}`);
+      return null;
+    }
+    const data = (await res.json()) as RadarRegionMaxPayload;
+    if (!Array.isArray(data?.regions)) return null;
+    regionMaxMemo = { at: Date.now(), data };
+    return data;
+  } catch (e) {
+    console.warn(`[radar-region-max] fetch error: ${(e as Error).message}`);
+    return null;
+  }
+}
