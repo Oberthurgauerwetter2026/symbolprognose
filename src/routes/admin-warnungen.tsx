@@ -369,6 +369,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         w.level as WarnLevel,
         combineValue(splitValue(w.value).from, splitValue(w.value).to),
         hoursBetween(toLocal(w.validFrom), toLocal(w.validTo)),
+        w.advisory,
       ),
     );
 
