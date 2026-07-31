@@ -128,15 +128,30 @@ export interface AutoThunderResult {
 }
 
 async function runAutoThunderCore(): Promise<AutoThunderResult> {
-  const cache = await getOpenMeteoCache();
+  const [cache, regionMax] = await Promise.all([getOpenMeteoCache(), getRadarRegionMax()]);
   const points = cache?.grid?.points ?? [];
   const locs = (cache?.phase1 ?? cache?.phaseB) as LocMinutely[] | undefined;
-  if (!locs || locs.length !== points.length || points.length === 0) {
-    return { detected: 0, created: 0, closed: await closeStale(), note: "Nowcast-Daten nicht verfügbar" };
+  const hasForecast = !!locs && locs.length === points.length && points.length > 0;
+
+  /** Gemessene Werte des neuesten Radarbilds (max. 30 min alt). */
+  const measuredAgeMin = regionMax?.t
+    ? (Date.now() - new Date(regionMax.t).getTime()) / 60_000
+    : Infinity;
+  const measured = measuredAgeMin <= 30 ? (regionMax?.regions ?? []) : [];
+
+  if (!hasForecast && measured.length === 0) {
+    return {
+      detected: 0,
+      created: 0,
+      closed: await closeStale(),
+      note: "Nowcast- und Messdaten nicht verfügbar",
+    };
   }
 
-  const times = locs.find((l) => l.minutely_15?.time?.length)?.minutely_15?.time ?? [];
-  if (!times.length) {
+  const times = hasForecast
+    ? (locs!.find((l) => l.minutely_15?.time?.length)?.minutely_15?.time ?? [])
+    : [];
+  if (hasForecast && !times.length && measured.length === 0) {
     return { detected: 0, created: 0, closed: await closeStale(), note: "Keine Viertelstundenwerte" };
   }
 
@@ -146,16 +161,44 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     .filter((s) => s.ms >= now - 15 * 60_000 && s.ms <= now + LOOKAHEAD_MS);
 
   /** Pro Gemeinde: maximale Intensität + Zeitfenster. */
-  const perRegion = new Map<string, { max: number; firstMs: number; lastMs: number }>();
+  const perRegion = new Map<
+    string,
+    { max: number; firstMs: number; lastMs: number; measured: number }
+  >();
   /** Schwerpunkte je Slot zur Verlagerungsschätzung. */
   const centroids: { ms: number; lat: number; lon: number; w: number }[] = [];
 
+  const bump = (rid: string, mmh: number, ms: number, isMeasured: boolean) => {
+    const cur = perRegion.get(rid);
+    if (!cur) {
+      perRegion.set(rid, {
+        max: mmh,
+        firstMs: ms,
+        lastMs: ms,
+        measured: isMeasured ? mmh : 0,
+      });
+      return;
+    }
+    cur.max = Math.max(cur.max, mmh);
+    cur.firstMs = Math.min(cur.firstMs, ms);
+    cur.lastMs = Math.max(cur.lastMs, ms);
+    if (isMeasured) cur.measured = Math.max(cur.measured, mmh);
+  };
+
+  // 1) Messung: Zelle ist bereits da → gilt sofort.
+  for (const r of measured) {
+    const mmh = typeof r.mmh === "number" ? r.mmh : 0;
+    if (mmh < THRESHOLDS[0]) continue;
+    bump(r.id, mmh, now, true);
+  }
+
+  // 2) Prognose: nächste Stunden.
   for (const slot of slots) {
     let sw = 0;
     let sLat = 0;
     let sLon = 0;
     for (let p = 0; p < points.length; p++) {
-      const v = locs[p]?.minutely_15?.precipitation?.[slot.i];
+      const v = locs![p]?.minutely_15?.precipitation?.[slot.i];
       const mmh = typeof v === "number" ? v * 4 : 0; // 15-min-Summe → mm/h
       if (mmh < THRESHOLDS[0]) continue;
       sw += mmh;
@@ -163,16 +206,11 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       sLon += points[p].lon * mmh;
       const rid = regionOf(points[p].lat, points[p].lon);
       if (!rid) continue;
-      const cur = perRegion.get(rid);
-      if (!cur) perRegion.set(rid, { max: mmh, firstMs: slot.ms, lastMs: slot.ms });
-      else {
-        cur.max = Math.max(cur.max, mmh);
-        cur.firstMs = Math.min(cur.firstMs, slot.ms);
-        cur.lastMs = Math.max(cur.lastMs, slot.ms);
-      }
+      bump(rid, mmh, slot.ms, false);
     }
     if (sw > 0) centroids.push({ ms: slot.ms, lat: sLat / sw, lon: sLon / sw, w: sw });
   }
+
 
   let motion: AutoThunderResult["motion"];
   if (centroids.length >= 2) {
