@@ -292,13 +292,24 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     if (!layer) return;
     layer.setStyle((feature) => styleFor(feature as Feature));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [levelByRegion, selected]);
+  }, [levelByRegion, advisoryByRegion, selected]);
 
   function styleFor(feature: Feature): L.PathOptions {
     const id = slugifyRegion(String((feature.properties as { name?: string } | null)?.name ?? ""));
     const lvl = levelByRegion.get(id) ?? 0;
+    const adv = lvl > 0 ? 0 : (advisoryByRegion.get(id) ?? 0);
     const def = LEVELS[(lvl as 0 | 1 | 2 | 3) ?? 0];
     const isSel = selected === id;
+    if (adv > 0) {
+      // Vorinformation: schraffiert in der Stufenfarbe.
+      return {
+        color: isSel ? "#2561a1" : "#4b5563",
+        weight: isSel ? 3 : 1,
+        opacity: isSel ? 1 : 0.75,
+        fillColor: `url(#warn-hatch-${adv})`,
+        fillOpacity: 1,
+      };
+    }
     return {
       color: isSel ? "#2561a1" : "#4b5563",
       weight: isSel ? 3 : 1,
@@ -308,6 +319,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     };
 
   }
+
 
   /** Farbe leicht Richtung Schwarz mischen. */
   function darken(hex: string, amount = 0.18): string {
