@@ -617,6 +617,163 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     return key
 
 
+# ---------------------------------------------------------------------------
+# Region-Kennzahlen (Messung) für die automatische Gewitterwarnung
+# ---------------------------------------------------------------------------
+
+REGION_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "data", "region.json")
+# Toleranz um jede Gemeinde (Zellen am Rand sollen zählen): ~3 km.
+REGION_PAD_PX = 3
+
+
+def _slugify_region(name: str) -> str:
+    s = name.lower()
+    for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss")):
+        s = s.replace(a, b)
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
+
+
+def _rings(geom: dict) -> list[list[list[float]]]:
+    t = geom.get("type")
+    if t == "Polygon":
+        return [geom["coordinates"][0]]
+    if t == "MultiPolygon":
+        return [p[0] for p in geom["coordinates"]]
+    return []
+
+
+def _dilate(mask: np.ndarray, px: int) -> np.ndarray:
+    out = mask.copy()
+    for _ in range(px):
+        shifted = out.copy()
+        shifted[1:, :] |= out[:-1, :]
+        shifted[:-1, :] |= out[1:, :]
+        shifted[:, 1:] |= out[:, :-1]
+        shifted[:, :-1] |= out[:, 1:]
+        out = shifted
+    return out
+
+
+_REGION_MASKS: list[tuple[str, str, np.ndarray]] | None = None
+
+
+def region_masks() -> list[tuple[str, str, np.ndarray]]:
+    """(id, name, boolean mask auf dem OUT_H×OUT_W-Gitter) je Gemeinde."""
+    global _REGION_MASKS
+    if _REGION_MASKS is not None:
+        return _REGION_MASKS
+    from PIL import ImageDraw
+
+    with open(REGION_JSON, "r", encoding="utf-8") as fh:
+        fc = json.load(fh)
+
+    def to_px(lon: float, lat: float) -> tuple[float, float]:
+        x = (lon - BBOX_WGS["minLon"]) / (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) * (OUT_W - 1)
+        y = (BBOX_WGS["maxLat"] - lat) / (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) * (OUT_H - 1)
+        return x, y
+
+    out: list[tuple[str, str, np.ndarray]] = []
+    for feat in fc.get("features", []):
+        name = str((feat.get("properties") or {}).get("name") or "")
+        if not name:
+            continue
+        img = Image.new("1", (OUT_W, OUT_H), 0)
+        drw = ImageDraw.Draw(img)
+        drew = False
+        for ring in _rings(feat.get("geometry") or {}):
+            pts = [to_px(float(c[0]), float(c[1])) for c in ring]
+            if len(pts) >= 3:
+                drw.polygon(pts, fill=1)
+                drew = True
+        if not drew:
+            continue
+        mask = _dilate(np.array(img, dtype=bool), REGION_PAD_PX)
+        out.append((_slugify_region(name), name, mask))
+    _REGION_MASKS = out
+    print(f"region masks: {len(out)} regions", flush=True)
+    return out
+
+
+def _newest_asset(product: str, since: datetime) -> AssetRef | None:
+    try:
+        assets = list_recent_assets(product, since)
+    except Exception as exc:
+        print(f"region-max: STAC error for {product}: {exc!r}", flush=True)
+        return None
+    return assets[-1] if assets else None
+
+
+def write_region_max(s3, since: datetime) -> None:
+    """Schreibt `radar/region-max.json`: je Gemeinde die aktuell gemessene
+    Spitzenintensität (mm/h) und Hagelwahrscheinlichkeit (%).
+
+    Grundlage ist der jeweils neueste RZC-/POH-Frame. Die Datei wird von der
+    automatischen Gewitterwarnung gelesen, damit reale Zellen sofort (ohne
+    Modell-Vorlauf) eine Warnung auslösen.
+    """
+    fields: dict[str, np.ndarray] = {}
+    ts_iso: str | None = None
+    for product in ("precip", "hail"):
+        a = _newest_asset(product, since)
+        if not a:
+            continue
+        try:
+            r = http_get(a.href, timeout=60)
+            r.raise_for_status()
+            values, meta = read_h5_grid(r.content)
+            img_ts = meta.get("image_time")
+            if isinstance(img_ts, datetime):
+                a.ts = img_ts
+            converted, _ = _to_mmh(values, meta, product)
+            fields[product] = sample_to_bbox(converted, meta)
+            if product == "precip":
+                ts_iso = a.ts.strftime("%Y-%m-%dT%H:%M:00Z")
+        except Exception as exc:
+            print(f"region-max: {product} failed ({exc!r})", flush=True)
+
+    if "precip" not in fields:
+        print("region-max: no precip field — skipping", flush=True)
+        return
+
+    precip = np.nan_to_num(fields["precip"], nan=0.0)
+    hail = np.nan_to_num(fields.get("hail", np.zeros_like(precip)), nan=0.0)
+
+    regions: list[dict] = []
+    for rid, name, mask in region_masks():
+        if not mask.any():
+            continue
+        regions.append(
+            {
+                "id": rid,
+                "name": name,
+                "mmh": round(float(precip[mask].max()), 1),
+                "poh": round(float(hail[mask].max()), 0) if hail.shape == mask.shape else 0.0,
+            }
+        )
+
+    body = {
+        "t": ts_iso or datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:00Z"),
+        "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "version": RADAR_INGEST_VERSION,
+        "regions": regions,
+    }
+    s3.put_object(
+        Bucket=BUCKET,
+        Key="radar/region-max.json",
+        Body=json.dumps(body).encode("utf-8"),
+        ContentType="application/json",
+        CacheControl="public, max-age=30",
+    )
+    top = sorted(regions, key=lambda r: -r["mmh"])[:3]
+    print(
+        "region-max: "
+        + ", ".join(f"{r['name']}={r['mmh']}mm/h" for r in top)
+        + f" (t={body['t']})",
+        flush=True,
+    )
+
+
 def cleanup(s3, keep_since: datetime) -> None:
     """Delete radar/*.png objects older than `keep_since`."""
     paginator = s3.get_paginator("list_objects_v2")
