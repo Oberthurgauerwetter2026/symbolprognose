@@ -73,7 +73,7 @@ export const Route = createFileRoute("/api/public/radar/proxy")({
             // try next
           }
         }
-        return bad(502, "upstream fetch failed");
+        return emptyPng();
       },
     },
   },
