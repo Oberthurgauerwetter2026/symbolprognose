@@ -12,6 +12,8 @@ export interface WarningDTO {
   value: string | null;
   active: boolean;
   source: string;
+  /** Vorinformation: wird schraffiert dargestellt, kein Push. */
+  advisory: boolean;
   regionIds: string[];
 }
 
