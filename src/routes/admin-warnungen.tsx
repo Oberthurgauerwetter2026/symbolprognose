@@ -392,17 +392,18 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   };
 
   return (
-    <div className="min-h-screen bg-muted px-4 py-8">
-      <div className="mx-auto max-w-5xl space-y-8">
+    <div className="min-h-screen bg-muted px-4 py-8 text-base">
+      <div className="mx-auto max-w-7xl space-y-8">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Wetterwarnungen</h1>
-            <p className="text-sm text-muted-foreground">Warnungen für die Gemeinden im Oberthurgau erfassen.</p>
+            <h1 className="text-3xl font-semibold tracking-tight">Wetterwarnungen</h1>
+            <p className="text-base text-muted-foreground">Warnungen für die Gemeinden im Oberthurgau erfassen.</p>
           </div>
-          <button type="button" onClick={onLogout} className="text-xs text-muted-foreground underline">
+          <button type="button" onClick={onLogout} className="text-sm text-muted-foreground underline">
             Abmelden
           </button>
         </header>
+
 
         <IngestSection password={password} />
 
