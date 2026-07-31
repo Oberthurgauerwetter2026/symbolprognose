@@ -67,9 +67,11 @@ export async function notifyWarning(warningId: string): Promise<number> {
   const list = names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ");
   const period = formatRange(warning.valid_from, warning.valid_to);
 
-  const baseTitle =
+  // iOS zeigt unter dem Titel automatisch den App-Namen ("from …") an –
+  // daher hier keinen Absender mehr anhängen.
+  const title =
     warning.title || warningTitle(warning.hazard as HazardId, Math.max(1, Math.min(3, warning.level)) as WarnLevel);
-  const title = `${baseTitle} · Oberthurgauer Wetter`;
+
 
   const body = `${warning.description} Betroffene Gemeinden: ${list}. Gültig: ${period}. Details: oberthurgauerwetter.ch`;
 
