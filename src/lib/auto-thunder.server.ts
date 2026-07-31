@@ -234,12 +234,14 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   for (const [regionId, info] of perRegion) {
     const level = levelFor(info.max);
     if (!level) continue;
-    // Erst 30 min vor erwartetem Eintreffen warnen.
-    if (info.firstMs > now + LEAD_MS) continue;
+    const isMeasured = info.measured >= THRESHOLDS[0];
+    // Prognosewerte erst 30 min vor erwartetem Eintreffen warnen; gemessene
+    // Zellen gelten sofort.
+    if (!isMeasured && info.firstMs > now + LEAD_MS) continue;
     warnedRegions.push(regionId);
     const validTo = new Date(Math.max(info.lastMs + 30 * 60_000, now + 45 * 60_000)).toISOString();
     const validFrom = new Date(
-      Math.min(Math.max(now, info.firstMs - LEAD_MS), info.firstMs),
+      isMeasured ? now : Math.min(Math.max(now, info.firstMs - LEAD_MS), info.firstMs),
     ).toISOString();
     const tpl = TEMPLATES.gewitter[level];
 
@@ -247,16 +249,20 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     const motionText = motion
       ? ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
       : "";
+    const intensityText = isMeasured
+      ? `Aktuell gemessene Spitzenintensität ${Math.round(info.measured)} mm/h.`
+      : `Erwartete Spitzenintensitäten ${Math.round(info.max)} mm/h.`;
     const row = {
       hazard: "gewitter",
       level,
       valid_from: validFrom,
       valid_to: validTo,
       title: warningTitle("gewitter", level),
-      description: `${base} Erwartete Spitzenintensitäten ${Math.round(info.max)} mm/h.${motionText}`,
+      description: `${base} ${intensityText}${motionText}`,
 
       impact: templateImpact(tpl),
-      params: { value: String(Math.round(info.max)), auto: true },
+      params: { value: String(Math.round(info.max)), auto: true, measured: isMeasured },
+
       active: true,
       source: "auto",
       auto_key: `auto-gewitter-${regionId}`,
