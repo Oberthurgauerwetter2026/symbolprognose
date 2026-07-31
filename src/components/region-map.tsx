@@ -747,9 +747,50 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
       });
   };
 
+  const warnBanner =
+    maxWarnLevel > 0
+      ? (() => {
+          const def = LEVELS[maxWarnLevel];
+          const inner = (
+            <>
+              <span
+                className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[11px] font-black leading-none"
+                style={{ background: def.textOnColor, color: def.color }}
+                aria-hidden="true"
+              >
+                !
+              </span>
+              <span>Warnungen aktiv</span>
+            </>
+          );
+          const cls = cn(
+            "flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs font-semibold tracking-wide sm:text-sm",
+            fill ? "w-full" : "rounded-lg sm:rounded-xl",
+          );
+          const style = { background: def.color, color: def.textOnColor };
+          return bare ? (
+            <a
+              href={`${SITE_URL}/warnkarte`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cls}
+              style={style}
+            >
+              {inner}
+            </a>
+          ) : (
+            <Link to="/karten/warnungen" className={cls} style={style}>
+              {inner}
+            </Link>
+          );
+        })()
+      : null;
+
   return (
     <div className={cn("@container", fill ? "flex h-full w-full flex-col" : "space-y-4")}>
+      {warnBanner}
       {/* Karte */}
+
       <div
         className={cn(
           "relative overflow-hidden shadow-lg",
