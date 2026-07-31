@@ -157,13 +157,21 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
 
   const sb = await adminClient();
   let created = 0;
+  /** Regionen, für die tatsächlich eine Warnung gilt (Vorlauf erreicht). */
+  const warnedRegions: string[] = [];
 
   for (const [regionId, info] of perRegion) {
     const level = levelFor(info.max);
     if (!level) continue;
+    // Erst 30 min vor erwartetem Eintreffen warnen.
+    if (info.firstMs > now + LEAD_MS) continue;
+    warnedRegions.push(regionId);
     const validTo = new Date(Math.max(info.lastMs + 30 * 60_000, now + 45 * 60_000)).toISOString();
-    const validFrom = new Date(Math.min(info.firstMs, now)).toISOString();
+    const validFrom = new Date(
+      Math.min(Math.max(now, info.firstMs - LEAD_MS), info.firstMs),
+    ).toISOString();
     const tpl = TEMPLATES.gewitter[level];
+
     const base = fillTemplate(tpl.description);
     const motionText = motion
       ? ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
