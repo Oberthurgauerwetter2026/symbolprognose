@@ -101,7 +101,8 @@ export const saveWarning = createServerFn({ method: "POST" })
     }
     await setWarningRegions(id!, data.regionIds);
 
-    if (data.active) {
+    // Vorinformationen sind rein visuell – kein Push.
+    if (data.active && !data.advisory) {
       const { notifyWarning } = await import("@/lib/push.server");
       await notifyWarning(id!).catch(() => undefined);
     }
