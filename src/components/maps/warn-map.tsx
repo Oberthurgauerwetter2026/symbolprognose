@@ -567,6 +567,15 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                     </span>
                   </div>
                 ))}
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block h-3 w-5 shrink-0 rounded-sm"
+                    style={{
+                      background: `repeating-linear-gradient(45deg, ${LEVELS[1].color} 0 3px, transparent 3px 6px)`,
+                    }}
+                  />
+                  <span className="text-muted-foreground">schraffiert = Vorinformation</span>
+                </div>
               </div>
             </div>
           ) : (
