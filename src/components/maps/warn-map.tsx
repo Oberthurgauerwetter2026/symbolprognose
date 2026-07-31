@@ -431,6 +431,32 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               : "sm:aspect-auto sm:h-[clamp(420px,60vh,760px)] @lg:h-full",
           )}
         >
+          {/* Schraffur-Muster für Vorinformationen (referenziert via fill="url(#…)") */}
+          <svg width="0" height="0" aria-hidden="true" className="absolute">
+            <defs>
+              {[1, 2, 3].map((l) => (
+                <pattern
+                  key={l}
+                  id={`warn-hatch-${l}`}
+                  width="8"
+                  height="8"
+                  patternTransform="rotate(45)"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <rect width="8" height="8" fill={LEVELS[l as 1 | 2 | 3].color} opacity="0.18" />
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="8"
+                    stroke={LEVELS[l as 1 | 2 | 3].color}
+                    strokeWidth="4"
+                    opacity="0.95"
+                  />
+                </pattern>
+              ))}
+            </defs>
+          </svg>
 
 
           <MapContainer
