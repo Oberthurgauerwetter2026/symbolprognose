@@ -412,14 +412,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
 
         {/* Formular */}
-        <form onSubmit={submit} className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            <Plus className="h-4 w-4" /> {form.id ? "Warnung bearbeiten" : "Neue Warnung"}
+        <form onSubmit={submit} className="space-y-6 rounded-lg border border-border bg-card p-6 shadow-sm">
+          <h2 className="flex items-center gap-2 text-base font-semibold uppercase tracking-wider text-muted-foreground">
+            <Plus className="h-5 w-5" /> {form.id ? "Warnung bearbeiten" : "Neue Warnung"}
           </h2>
 
           <div>
-            <p className="mb-1.5 text-xs font-medium">Gefahrenart</p>
-            <div className="flex flex-wrap gap-1.5">
+            <p className="mb-2 text-sm font-semibold">Gefahrenart</p>
+            <div className="flex flex-wrap gap-2">
               {HAZARDS.map((h) => {
                 const Icon = h.icon;
                 const on = form.hazard === h.id;
@@ -429,11 +429,11 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                     type="button"
                     onClick={() => applyTemplate(h.id, form.level, form.valueFrom, form.valueTo)}
                     className={
-                      "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs " +
+                      "flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-base " +
                       (on ? "border-foreground bg-foreground text-background" : "border-border")
                     }
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-5 w-5" />
                     {h.label}
                   </button>
                 );
@@ -442,14 +442,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           </div>
 
           <div>
-            <p className="mb-1.5 text-xs font-medium">Warnstufe</p>
-            <div className="flex flex-wrap gap-1.5">
+            <p className="mb-2 text-sm font-semibold">Warnstufe</p>
+            <div className="flex flex-wrap gap-2">
               {([1, 2, 3] as WarnLevel[]).map((l) => (
                 <button
                   key={l}
                   type="button"
                   onClick={() => applyTemplate(form.hazard, l, form.valueFrom, form.valueTo)}
-                  className="rounded-md border px-3 py-1.5 text-xs font-medium"
+                  className="rounded-md border px-4 py-2.5 text-base font-medium"
                   style={
                     form.level === l
                       ? { background: LEVELS[l].color, color: LEVELS[l].textOnColor, borderColor: LEVELS[l].color }
@@ -462,10 +462,10 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             </div>
           </div>
 
-          <div className="rounded-lg border border-border p-3">
-            <p className="mb-2 text-xs font-medium">Gültigkeit</p>
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              <span className="self-center text-[11px] text-muted-foreground">Beginn:</span>
+          <div className="rounded-lg border border-border p-4">
+            <p className="mb-3 text-sm font-semibold">Gültigkeit</p>
+            <div className="mb-3 flex flex-wrap gap-2">
+              <span className="self-center text-sm text-muted-foreground">Beginn:</span>
               {[
                 { label: "Jetzt", h: 0 },
                 { label: "in 1 Std.", h: 1 },
@@ -484,55 +484,55 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                       setStart(d);
                     }
                   }}
-                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 >
                   {c.label}
                 </button>
               ))}
             </div>
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              <span className="self-center text-[11px] text-muted-foreground">Dauer:</span>
+            <div className="mb-4 flex flex-wrap gap-2">
+              <span className="self-center text-sm text-muted-foreground">Dauer:</span>
               {[3, 6, 12, 24, 48].map((h) => (
                 <button
                   key={h}
                   type="button"
                   onClick={() => setDuration(h)}
-                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 >
                   {h} Std.
                 </button>
               ))}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-medium">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-semibold">
                 Gültig von
                 <input
                   type="datetime-local"
                   required
                   value={form.validFrom}
                   onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
-              <label className="text-xs font-medium">
+              <label className="text-sm font-semibold">
                 Gültig bis
                 <input
                   type="datetime-local"
                   required
                   value={form.validTo}
                   onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
             </div>
           </div>
 
-          <div className="rounded-lg border border-border p-3">
-            <p className="mb-2 text-xs font-medium">
+          <div className="rounded-lg border border-border p-4">
+            <p className="mb-3 text-sm font-semibold">
               {getHazard(form.hazard).paramLabel} ({getHazard(form.hazard).paramUnit}) – optional
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-medium">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-semibold">
                 von
                 <input
                   inputMode="decimal"
@@ -541,10 +541,10 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   onChange={(e) =>
                     applyTemplate(form.hazard, form.level, e.target.value, form.valueTo)
                   }
-                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
-              <label className="text-xs font-medium">
+              <label className="text-sm font-semibold">
                 bis
                 <input
                   inputMode="decimal"
@@ -553,7 +553,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   onChange={(e) =>
                     applyTemplate(form.hazard, form.level, form.valueFrom, e.target.value)
                   }
-                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
             </div>
@@ -561,14 +561,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
 
           <div>
-            <p className="mb-1.5 text-xs font-medium">Betroffene Gemeinden</p>
-            <div className="mb-2 flex flex-wrap gap-1.5">
+            <p className="mb-2 text-sm font-semibold">Betroffene Gemeinden</p>
+            <div className="mb-3 flex flex-wrap gap-2">
               {REGION_GROUPS.map((g) => (
                 <button
                   key={g.id}
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, regionIds: g.regionIds }))}
-                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 >
                   {g.label}
                 </button>
@@ -576,12 +576,12 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               <button
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, regionIds: [] }))}
-                className="rounded-md border border-border px-2 py-1 text-[11px]"
+                className="rounded-md border border-border px-3 py-2 text-sm"
               >
                 Keine
               </button>
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {REGIONS.map((r) => {
                 const on = form.regionIds.includes(r.id);
                 return (
@@ -595,7 +595,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                       }))
                     }
                     className={
-                      "rounded px-2 py-1 text-[11px] " +
+                      "rounded px-3 py-2 text-sm " +
                       (on ? "bg-foreground text-background" : "bg-muted text-muted-foreground")
                     }
                   >
@@ -605,6 +605,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               })}
             </div>
           </div>
+
 
           <div className="grid gap-4 sm:grid-cols-2">
             {textIsManual && (
