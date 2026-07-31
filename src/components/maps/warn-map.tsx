@@ -701,7 +701,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                     return (
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                         <div
-                          className="flex items-center gap-2 px-3 py-2 text-base font-semibold"
+                          className="flex flex-wrap items-center gap-2 px-3 py-2 text-base font-semibold"
                           style={
                             w.advisory
                               ? {
@@ -713,14 +713,18 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                           }
                         >
                           <Icon className="h-6 w-6 shrink-0" />
-                          {w.title ||
-                            `${w.advisory ? "Vorinformation " + h.label : h.title} (Stufe ${w.level})`}
-                          {w.advisory && (
-                            <span className="ml-auto shrink-0 rounded border border-current px-1.5 py-0.5 text-xs font-semibold">
-                              Vorinformation
-                            </span>
-                          )}
+                          <span className="min-w-0 flex-1 break-words">
+                            {w.title ||
+                              `${w.advisory ? "Vorinformation " + h.label : h.title} (Stufe ${w.level})`}
+                          </span>
+                          {w.advisory &&
+                            !(w.title || "").toLowerCase().startsWith("vorinformation") && (
+                              <span className="shrink-0 whitespace-nowrap rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
+                                Vorinformation
+                              </span>
+                            )}
                         </div>
+
                         <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">
                             {formatRange(w.validFrom, w.validTo)}
