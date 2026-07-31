@@ -64,7 +64,7 @@ import { cn } from "@/lib/utils";
 
 import { SPOTS, type Spot } from "@/data/spots";
 import { useActiveWarnings } from "@/hooks/use-warnings";
-import { regionIdForPoint, topWarningFor } from "@/lib/warnings-lookup";
+import { regionIdForPoint, topWarningFor, warningsForRegion } from "@/lib/warnings-lookup";
 import { getHazard, LEVELS, type HazardId, type WarnLevel } from "@/lib/warnings-config";
 import type { WarningDTO } from "@/lib/warnings.functions";
 import { SITE_URL } from "@/lib/site-url";
