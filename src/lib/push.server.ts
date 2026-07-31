@@ -24,7 +24,8 @@ function vapid() {
 
 export async function sendPush(
   sub: SubRow,
-  payload: { title: string; body: string; url: string; tag?: string },
+  payload: { title: string; body: string; url: string; tag?: string; icon?: string },
+
 ): Promise<boolean> {
   const keys = vapid();
   if (!keys.publicKey || !keys.privateKey) return false;
@@ -67,11 +68,26 @@ export async function notifyWarning(warningId: string): Promise<number> {
   const list = names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ");
   const period = formatRange(warning.valid_from, warning.valid_to);
 
-  // iOS zeigt unter dem Titel automatisch den App-Namen ("from …") an –
-  // daher hier keinen Absender mehr anhängen.
-  const title =
-    warning.title || warningTitle(warning.hazard as HazardId, Math.max(1, Math.min(3, warning.level)) as WarnLevel);
+  const level = Math.max(1, Math.min(3, warning.level)) as WarnLevel;
+  const hazardId = warning.hazard as HazardId;
 
+  // iOS zeigt unter dem Titel automatisch den App-Namen ("from …") an –
+  // daher hier keinen Absender mehr anhängen. Das Emoji vor dem Titel ist
+  // auch auf iOS sichtbar, wo das Symbolbild vom System ersetzt wird.
+  const emoji: Record<string, string> = {
+    gewitter: "⚡️",
+    regen: "🌧️",
+    schnee: "❄️",
+    glaette: "🧊",
+    wind: "💨",
+    frost: "🌡️",
+  };
+  const baseTitle = warning.title || warningTitle(hazardId, level);
+  const title = `${emoji[hazardId] ? `${emoji[hazardId]} ` : ""}${baseTitle}`;
+
+  const { SITE_URL } = await import("@/lib/site-url");
+  const known = ["gewitter", "regen", "schnee", "glaette", "wind", "frost"].includes(hazardId);
+  const icon = known ? `${SITE_URL}/warn-icons/${hazardId}-${level}.png` : undefined;
 
   const body = `${warning.description} Betroffene Gemeinden: ${list}. Gültig: ${period}. Details: oberthurgauerwetter.ch`;
 
@@ -82,8 +98,10 @@ export async function notifyWarning(warningId: string): Promise<number> {
       body,
       url: "https://oberthurgauerwetter.ch",
       tag: warning.id,
+      icon,
     });
     if (ok) sent++;
   }
+
   return sent;
 }

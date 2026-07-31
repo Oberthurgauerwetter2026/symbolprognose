@@ -4,7 +4,7 @@
 
 Push-Meldungen zeigen künftig nicht das App-Logo, sondern das Gefahrensymbol (Blitz, Regentropfen, Schneeflocken, Strassenglätte, Windsack, Frost) auf der Fläche der jeweiligen Warnstufe (gelb / orange / rot).
 
-Wichtig zur Erwartungshaltung: Auf Android/Chrome und Desktop wird dieses Symbol angezeigt. iOS/iPadOS ersetzt das Symbol einer Web-Push-Meldung immer durch das Home-Bildschirm-Icon der App — dort bleibt es daher beim bestehenden Logo. Das ist eine Vorgabe von Apple und lässt sich nicht umgehen.
+Wichtig zur Erwartungshaltung: Auf Android/Chrome und Desktop wird dieses Symbol angezeigt. iOS/iPadOS ersetzt das Symbol einer Web-Push-Meldung immer durch das Home-Bildschirm-Icon der App — dort bleibt es daher beim bestehenden Logo. Das ist eine Vorgabe von Apple und lässt sich nicht umgehen. Und im Textfeld drinnen?
 
 ## Umsetzung
 
@@ -15,6 +15,6 @@ Wichtig zur Erwartungshaltung: Auf Android/Chrome und Desktop wird dieses Symbol
 ## Technische Details
 
 - Einmaliges Generierungsskript im Sandbox-Lauf: Icon-Komponenten via `renderToStaticMarkup` zu SVG rendern (Stufenhintergrund als `<rect rx>`, Symbol skaliert/zentriert, `currentColor` → `LEVELS[l].textOnColor`), dann mit `sharp` nach PNG rastern und in `public/warn-icons/` ablegen. Das Skript bleibt nicht im Projekt; die PNGs werden eingecheckt.
-- `src/lib/push.server.ts`: Payload-Typ um `icon?: string` erweitern; beim Versand `icon: \`${SITE_URL}/warn-icons/${warning.hazard}-${level}.png\`` setzen (nur wenn Gefahr in der Liste bekannt ist).
+- `src/lib/push.server.ts`: Payload-Typ um `icon?: string` erweitern; beim Versand `icon: \`${SITE_URL}/warn-icons/${warning.hazard}-${level}.png` setzen (nur wenn Gefahr in der Liste bekannt ist).
 - `public/push-sw.js`: `icon: payload.icon || "/icon-192.png"`, `badge` unverändert.
 - Keine Datenbank- oder Schema-Änderungen.
