@@ -716,72 +716,111 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
         {/* Liste */}
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-base font-semibold uppercase tracking-wider text-muted-foreground">
             Erfasste Warnungen
           </h2>
+          {rowErr && <p className="text-sm text-destructive">{rowErr}</p>}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Lade…</p>
+            <p className="text-base text-muted-foreground">Lade…</p>
           ) : items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Noch keine Warnungen erfasst.</p>
+            <p className="text-base text-muted-foreground">Noch keine Warnungen erfasst.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {items.map((w) => {
                 const h = getHazard(w.hazard as HazardId);
                 const Icon = h.icon;
                 const def = LEVELS[w.level as WarnLevel];
                 const expired = new Date(w.validTo).getTime() < Date.now();
+                const busyRow = rowBusy === w.id;
+                const act = async (fn: () => Promise<unknown>) => {
+                  setRowBusy(w.id);
+                  setRowErr(null);
+                  try {
+                    await fn();
+                    await load();
+                  } catch (e) {
+                    setRowErr(e instanceof Error ? e.message : "Aktion fehlgeschlagen");
+                  } finally {
+                    setRowBusy(null);
+                  }
+                };
                 return (
-                  <li key={w.id} className="rounded-lg border border-border bg-card p-3 shadow-sm">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <li
+                    key={w.id}
+                    className={
+                      "rounded-lg border border-border bg-card p-4 shadow-sm " +
+                      (busyRow ? "opacity-60" : "")
+                    }
+                  >
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <span
-                        className="flex items-center gap-1.5 rounded px-2 py-1 text-xs font-semibold"
+                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-sm font-semibold"
                         style={{ background: def.color, color: def.textOnColor }}
                       >
-                        <Icon className="h-3.5 w-3.5" /> {w.title || warningTitle(w.hazard as HazardId, w.level as WarnLevel)}
+                        <Icon className="h-4 w-4" />{" "}
+                        {w.title || warningTitle(w.hazard as HazardId, w.level as WarnLevel, w.advisory)}
                       </span>
-                      <span className="text-xs text-muted-foreground">{formatRange(w.validFrom, w.validTo)}</span>
-                      {!w.active && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">inaktiv</span>}
-                      {expired && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">abgelaufen</span>}
+                      <span className="text-sm text-muted-foreground">{formatRange(w.validFrom, w.validTo)}</span>
+                      {!w.active && <span className="rounded bg-muted px-2 py-1 text-xs">inaktiv</span>}
+                      {expired && <span className="rounded bg-muted px-2 py-1 text-xs">abgelaufen</span>}
                       {w.source === "auto" && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">automatisch</span>
+                        <span className="rounded bg-muted px-2 py-1 text-xs">automatisch</span>
                       )}
                       {w.advisory && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Vorinformation</span>
+                        <span className="rounded bg-muted px-2 py-1 text-xs font-medium">Vorinformation</span>
                       )}
-                      <div className="ml-auto flex items-center gap-2">
+                      <div className="ml-auto flex items-center gap-3">
+                        {busyRow && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                         <button
                           type="button"
+                          disabled={busyRow}
                           onClick={() => edit(w)}
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
                         >
-                          <Pencil className="h-3.5 w-3.5" /> Bearbeiten
+                          <Pencil className="h-4 w-4" /> Bearbeiten
                         </button>
                         <button
                           type="button"
-                          onClick={async () => {
-                            await setWarningActive({ data: { password, id: w.id, active: !w.active } });
-                            await load();
-                          }}
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                          disabled={busyRow}
+                          onClick={() =>
+                            act(() =>
+                              setWarningAdvisory({
+                                data: { password, id: w.id, advisory: !w.advisory },
+                              }),
+                            )
+                          }
+                          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
                         >
-                          {w.active ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          {w.advisory ? "→ Warnung" : "→ Vorinformation"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyRow}
+                          onClick={() =>
+                            act(() =>
+                              setWarningActive({ data: { password, id: w.id, active: !w.active } }),
+                            )
+                          }
+                          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        >
+                          {w.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           {w.active ? "Deaktivieren" : "Aktivieren"}
                         </button>
                         <button
                           type="button"
-                          onClick={async () => {
+                          disabled={busyRow}
+                          onClick={() => {
                             if (!confirm("Warnung löschen?")) return;
-                            await deleteWarning({ data: { password, id: w.id } });
-                            await load();
+                            void act(() => deleteWarning({ data: { password, id: w.id } }));
                           }}
-                          className="flex items-center gap-1 text-xs text-destructive"
+                          className="flex items-center gap-1.5 text-sm text-destructive disabled:opacity-50"
                         >
-                          <Trash2 className="h-3.5 w-3.5" /> Löschen
+                          <Trash2 className="h-4 w-4" /> Löschen
                         </button>
                       </div>
                     </div>
-                    <p className="mt-1.5 text-xs text-foreground">{w.description}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    <p className="mt-2 text-base text-foreground">{w.description}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {w.regionIds.map((r) => regionName(r)).join(", ")}
                     </p>
                   </li>
