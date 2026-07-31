@@ -793,7 +793,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                 backgroundColor: rgba(def.color, 0.14),
                 backgroundImage: `repeating-linear-gradient(45deg, ${rgba(def.color, 0.55)} 0 3px, transparent 3px 7px)`,
                 backgroundRepeat: "no-repeat",
-                backgroundSize: "72px 100%",
+                backgroundSize: "34px 100%",
                 backgroundPosition: "left center",
                 color: def.color,
                 boxShadow: `inset 4px 0 0 ${def.color}`,
