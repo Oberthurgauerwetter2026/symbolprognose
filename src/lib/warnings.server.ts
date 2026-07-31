@@ -17,6 +17,7 @@ export interface WarningRow {
   params: Record<string, unknown>;
   active: boolean;
   source: string;
+  advisory: boolean;
   auto_key: string | null;
   created_at: string;
   updated_at: string;
