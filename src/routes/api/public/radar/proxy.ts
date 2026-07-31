@@ -53,7 +53,7 @@ export const Route = createFileRoute("/api/public/radar/proxy")({
           ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, path),
           ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, path),
         ].filter((u, i, a) => a.indexOf(u) === i);
-        if (candidates.length === 0) return bad(503, "no R2 source configured");
+        if (candidates.length === 0) return emptyPng();
 
         for (const target of candidates) {
           try {
