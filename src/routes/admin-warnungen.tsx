@@ -22,6 +22,7 @@ import {
   checkAdminLogin,
   saveWarning,
   setWarningActive,
+  setWarningAdvisory,
   deleteWarning,
   type WarningDTO,
 } from "@/lib/warnings.functions";
