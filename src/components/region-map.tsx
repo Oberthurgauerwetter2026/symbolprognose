@@ -757,9 +757,10 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   };
 
   const warnBanner =
-    maxWarnLevel > 0
+    maxWarnLevel > 0 || maxAdvisoryLevel > 0
       ? (() => {
-          const def = LEVELS[maxWarnLevel];
+          const isAdvisory = maxWarnLevel === 0;
+          const def = LEVELS[isAdvisory ? maxAdvisoryLevel : maxWarnLevel];
           const inner = (
             <>
               <span
@@ -769,14 +770,20 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               >
                 !
               </span>
-              <span>Warnungen aktiv</span>
+              <span>{isAdvisory ? "Vorinformation" : "Warnungen aktiv"}</span>
             </>
           );
           const cls = cn(
             "flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs font-semibold tracking-wide sm:text-sm",
             fill ? "w-full" : "rounded-lg sm:rounded-xl",
           );
-          const style = { background: def.color, color: def.textOnColor };
+          const style = isAdvisory
+            ? {
+                background: `repeating-linear-gradient(45deg, ${def.color} 0 8px, ${def.textOnColor} 8px 16px)`,
+                color: def.color,
+                textShadow: `0 0 4px ${def.textOnColor}, 0 0 4px ${def.textOnColor}`,
+              }
+            : { background: def.color, color: def.textOnColor };
           return bare ? (
             <a
               href={`${SITE_URL}/warnkarte`}
@@ -794,6 +801,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           );
         })()
       : null;
+
 
   return (
     <div className={cn("@container", fill ? "flex h-full w-full flex-col" : "space-y-4")}>
