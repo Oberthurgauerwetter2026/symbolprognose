@@ -988,7 +988,7 @@ function AutoThunderSection({ password }: { password: string }) {
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Automatik läuft alle 15 Minuten und warnt ab 8 mm/h (Stufe 1), 15 mm/h (Stufe 2) und 30 mm/h (Stufe 3).
+        Automatik läuft alle 5 Minuten und warnt ab 8 mm/h (Stufe 1), 15 mm/h (Stufe 2) und 30 mm/h (Stufe 3).
       </p>
       <button
         type="button"
