@@ -706,10 +706,24 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                         <div
                           className="flex items-center gap-2 px-3 py-2 text-base font-semibold"
-                          style={{ background: def.color, color: def.textOnColor }}
+                          style={
+                            w.advisory
+                              ? {
+                                  background: `color-mix(in srgb, ${def.color} 22%, transparent)`,
+                                  color: "inherit",
+                                  boxShadow: `inset 4px 0 0 ${def.color}`,
+                                }
+                              : { background: def.color, color: def.textOnColor }
+                          }
                         >
                           <Icon className="h-6 w-6 shrink-0" />
-                          {w.title || `${h.title} (Stufe ${w.level})`}
+                          {w.title ||
+                            `${w.advisory ? "Vorinformation " + h.label : h.title} (Stufe ${w.level})`}
+                          {w.advisory && (
+                            <span className="ml-auto shrink-0 rounded border border-current px-1.5 py-0.5 text-xs font-semibold">
+                              Vorinformation
+                            </span>
+                          )}
                         </div>
                         <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">
