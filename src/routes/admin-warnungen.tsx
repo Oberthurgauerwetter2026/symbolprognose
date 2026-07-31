@@ -654,6 +654,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               />
               Sofort aktiv (löst Push-Benachrichtigung aus)
             </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={form.advisory}
+                onChange={(e) => setForm((f) => ({ ...f, advisory: e.target.checked }))}
+              />
+              Vorinformation (schraffiert, ohne Push)
+            </label>
             <button
               type="submit"
               disabled={saving}
