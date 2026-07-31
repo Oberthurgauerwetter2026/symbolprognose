@@ -795,7 +795,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
                 backgroundRepeat: "no-repeat",
                 backgroundSize: "34px 100%",
                 backgroundPosition: "left center",
-                color: def.color,
+                color: "var(--foreground)",
                 boxShadow: `inset 4px 0 0 ${def.color}`,
               }
             : { background: def.color, color: def.textOnColor };
