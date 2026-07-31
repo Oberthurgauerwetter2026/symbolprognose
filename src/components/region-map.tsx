@@ -67,6 +67,8 @@ import { useActiveWarnings } from "@/hooks/use-warnings";
 import { regionIdForPoint, topWarningFor } from "@/lib/warnings-lookup";
 import { getHazard, LEVELS, type HazardId, type WarnLevel } from "@/lib/warnings-config";
 import type { WarningDTO } from "@/lib/warnings.functions";
+import { SITE_URL } from "@/lib/site-url";
+
 
 
 const BRAND = "#2561a1";
