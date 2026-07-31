@@ -378,6 +378,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       impact: w.impact,
       regionIds: w.regionIds,
       active: w.active,
+      advisory: w.advisory,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
