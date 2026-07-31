@@ -752,11 +752,39 @@ def write_region_max(s3, since: datetime) -> None:
             }
         )
 
+    # Schwerpunkt des Messfeldes (nur konvektive Zellen ≥ 8 mm/h) in Grad.
+    centroid: dict | None = None
+    w = np.where(precip >= 8.0, precip, 0.0)
+    total = float(w.sum())
+    if total > 0:
+        ys, xs = np.nonzero(w)
+        ww = w[ys, xs]
+        px = float((xs * ww).sum() / total)
+        py = float((ys * ww).sum() / total)
+        lon = BBOX_WGS["minLon"] + px / (OUT_W - 1) * (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"])
+        lat = BBOX_WGS["maxLat"] - py / (OUT_H - 1) * (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"])
+        centroid = {"lat": round(lat, 4), "lon": round(lon, 4)}
+
+    ts = ts_iso or datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:00Z")
+
+    # Vorgängerframe für die Verlagerungsschätzung mitführen.
+    prev: dict | None = None
+    try:
+        old = json.loads(
+            s3.get_object(Bucket=BUCKET, Key="radar/region-max.json")["Body"].read().decode("utf-8")
+        )
+        if old.get("centroid") and old.get("t") and old.get("t") != ts:
+            prev = {"t": old["t"], "centroid": old["centroid"]}
+    except Exception:
+        prev = None
+
     body = {
-        "t": ts_iso or datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:00Z"),
+        "t": ts,
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": RADAR_INGEST_VERSION,
         "regions": regions,
+        "centroid": centroid,
+        "prev": prev,
     }
     s3.put_object(
         Bucket=BUCKET,
@@ -765,6 +793,7 @@ def write_region_max(s3, since: datetime) -> None:
         ContentType="application/json",
         CacheControl="public, max-age=30",
     )
+
     top = sorted(regions, key=lambda r: -r["mmh"])[:3]
     print(
         "region-max: "
