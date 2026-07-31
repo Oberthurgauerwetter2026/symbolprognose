@@ -164,6 +164,7 @@ interface FormState {
   impact: string;
   regionIds: string[];
   active: boolean;
+  advisory: boolean;
 }
 
 /** Vorlagentexte für Gefahr, Stufe, Messwert und Gültigkeitsdauer. */
