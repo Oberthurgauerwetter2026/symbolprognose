@@ -602,8 +602,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                         <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">
                             {formatRange(w.validFrom, w.validTo)}
-                            {w.source === "auto" ? " · automatisch (Radar)" : ""}
                           </p>
+
                           <p className="text-base leading-relaxed text-foreground">{w.description}</p>
                           {impactText && (
                             <p className="text-base leading-relaxed text-foreground">
