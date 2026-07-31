@@ -12,6 +12,8 @@ export interface WarningDTO {
   value: string | null;
   active: boolean;
   source: string;
+  /** Vorinformation: wird schraffiert dargestellt, kein Push. */
+  advisory: boolean;
   regionIds: string[];
 }
 
@@ -62,6 +64,7 @@ export interface SaveWarningInput {
   value?: string | null;
   regionIds: string[];
   active: boolean;
+  advisory?: boolean;
 }
 
 export const saveWarning = createServerFn({ method: "POST" })
@@ -83,6 +86,7 @@ export const saveWarning = createServerFn({ method: "POST" })
       impact: data.impact.slice(0, 2000),
       params: data.value ? { value: String(data.value).slice(0, 40) } : {},
       active: data.active,
+      advisory: data.advisory ?? false,
       source: "manual",
     };
 
@@ -97,7 +101,8 @@ export const saveWarning = createServerFn({ method: "POST" })
     }
     await setWarningRegions(id!, data.regionIds);
 
-    if (data.active) {
+    // Vorinformationen sind rein visuell – kein Push.
+    if (data.active && !data.advisory) {
       const { notifyWarning } = await import("@/lib/push.server");
       await notifyWarning(id!).catch(() => undefined);
     }

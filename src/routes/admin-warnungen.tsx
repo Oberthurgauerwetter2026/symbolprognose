@@ -164,6 +164,7 @@ interface FormState {
   impact: string;
   regionIds: string[];
   active: boolean;
+  advisory: boolean;
 }
 
 /** Vorlagentexte für Gefahr, Stufe, Messwert und Gültigkeitsdauer. */
@@ -198,6 +199,7 @@ function emptyForm(): FormState {
 
     regionIds: [],
     active: true,
+    advisory: false,
   };
 }
 
@@ -335,6 +337,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           value: combineValue(form.valueFrom, form.valueTo) || null,
           regionIds: form.regionIds,
           active: form.active,
+          advisory: form.advisory,
         },
       });
       setForm(emptyForm());
@@ -376,6 +379,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       impact: w.impact,
       regionIds: w.regionIds,
       active: w.active,
+      advisory: w.advisory,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -650,6 +654,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               />
               Sofort aktiv (löst Push-Benachrichtigung aus)
             </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={form.advisory}
+                onChange={(e) => setForm((f) => ({ ...f, advisory: e.target.checked }))}
+              />
+              Vorinformation (schraffiert, ohne Push)
+            </label>
             <button
               type="submit"
               disabled={saving}
@@ -705,6 +717,9 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                       {expired && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">abgelaufen</span>}
                       {w.source === "auto" && (
                         <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">automatisch</span>
+                      )}
+                      {w.advisory && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Vorinformation</span>
                       )}
                       <div className="ml-auto flex items-center gap-2">
                         <button

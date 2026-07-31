@@ -64,7 +64,7 @@ import { cn } from "@/lib/utils";
 
 import { SPOTS, type Spot } from "@/data/spots";
 import { useActiveWarnings } from "@/hooks/use-warnings";
-import { regionIdForPoint, topWarningFor } from "@/lib/warnings-lookup";
+import { regionIdForPoint, topWarningFor, warningsForRegion } from "@/lib/warnings-lookup";
 import { getHazard, LEVELS, type HazardId, type WarnLevel } from "@/lib/warnings-config";
 import type { WarningDTO } from "@/lib/warnings.functions";
 import { SITE_URL } from "@/lib/site-url";
@@ -653,14 +653,23 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
     return out;
   }, [activeWarnings]);
 
-  // Höchste aktive Warnstufe in der Region (für das Warnband über der Karte).
-  const maxWarnLevel = useMemo(() => {
-    let max = 0;
-    for (const w of Object.values(spotWarnings)) {
-      if (w) max = Math.max(max, Math.min(3, Math.max(1, w.level)));
+  // Höchste Stufe in der Region – getrennt für echte Warnungen und Vorinformationen.
+  const { maxWarnLevel, maxAdvisoryLevel } = useMemo(() => {
+    let warn = 0;
+    let adv = 0;
+    for (const id of new Set(SPOTS.map((s) => regionIdForPoint(s.lat, s.lon)))) {
+      for (const w of warningsForRegion(activeWarnings, id)) {
+        const lvl = Math.min(3, Math.max(1, w.level));
+        if (w.advisory) adv = Math.max(adv, lvl);
+        else warn = Math.max(warn, lvl);
+      }
     }
-    return max as 0 | WarnLevel;
-  }, [spotWarnings]);
+    return {
+      maxWarnLevel: warn as 0 | WarnLevel,
+      maxAdvisoryLevel: adv as 0 | WarnLevel,
+    };
+  }, [activeWarnings]);
+
 
 
 
@@ -748,9 +757,10 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   };
 
   const warnBanner =
-    maxWarnLevel > 0
+    maxWarnLevel > 0 || maxAdvisoryLevel > 0
       ? (() => {
-          const def = LEVELS[maxWarnLevel];
+          const isAdvisory = maxWarnLevel === 0;
+          const def = LEVELS[isAdvisory ? maxAdvisoryLevel : maxWarnLevel];
           const inner = (
             <>
               <span
@@ -760,14 +770,20 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               >
                 !
               </span>
-              <span>Warnungen aktiv</span>
+              <span>{isAdvisory ? "Vorinformation" : "Warnungen aktiv"}</span>
             </>
           );
           const cls = cn(
             "flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs font-semibold tracking-wide sm:text-sm",
             fill ? "w-full" : "rounded-lg sm:rounded-xl",
           );
-          const style = { background: def.color, color: def.textOnColor };
+          const style = isAdvisory
+            ? {
+                background: `repeating-linear-gradient(45deg, ${def.color} 0 8px, ${def.textOnColor} 8px 16px)`,
+                color: def.color,
+                textShadow: `0 0 4px ${def.textOnColor}, 0 0 4px ${def.textOnColor}`,
+              }
+            : { background: def.color, color: def.textOnColor };
           return bare ? (
             <a
               href={`${SITE_URL}/warnkarte`}
@@ -785,6 +801,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           );
         })()
       : null;
+
 
   return (
     <div className={cn("@container", fill ? "flex h-full w-full flex-col" : "space-y-4")}>

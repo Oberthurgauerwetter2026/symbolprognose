@@ -97,6 +97,7 @@ export type Database = {
       warnings: {
         Row: {
           active: boolean
+          advisory: boolean
           auto_key: string | null
           created_at: string
           description: string
@@ -113,6 +114,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          advisory?: boolean
           auto_key?: string | null
           created_at?: string
           description?: string
@@ -129,6 +131,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          advisory?: boolean
           auto_key?: string | null
           created_at?: string
           description?: string

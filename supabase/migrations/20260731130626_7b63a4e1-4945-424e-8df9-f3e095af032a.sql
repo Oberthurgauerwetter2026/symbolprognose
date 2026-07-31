@@ -1,0 +1,1 @@
+ALTER TABLE public.warnings ADD COLUMN IF NOT EXISTS advisory boolean NOT NULL DEFAULT false;

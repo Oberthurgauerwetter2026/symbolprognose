@@ -245,15 +245,28 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
   const warnings: WarningDTO[] = query.data?.warnings ?? [];
 
-  /** Höchste Stufe je Gemeinde für die aktuelle Auswahl. */
+  /** Höchste Stufe je Gemeinde für die aktuelle Auswahl (echte Warnungen). */
   const levelByRegion = useMemo(() => {
     const map = new Map<string, number>();
     for (const w of warnings) {
       if (hazard !== "alle" && w.hazard !== hazard) continue;
+      if (w.advisory) continue;
       for (const r of w.regionIds) map.set(r, Math.max(map.get(r) ?? 0, w.level));
     }
     return map;
   }, [warnings, hazard]);
+
+  /** Höchste Stufe je Gemeinde aus Vorinformationen (schraffiert). */
+  const advisoryByRegion = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const w of warnings) {
+      if (hazard !== "alle" && w.hazard !== hazard) continue;
+      if (!w.advisory) continue;
+      for (const r of w.regionIds) map.set(r, Math.max(map.get(r) ?? 0, w.level));
+    }
+    return map;
+  }, [warnings, hazard]);
+
 
   /** Höchste Stufe je Gefahrenart (für das Banner). */
   const levelByHazard = useMemo(() => {
@@ -279,13 +292,24 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     if (!layer) return;
     layer.setStyle((feature) => styleFor(feature as Feature));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [levelByRegion, selected]);
+  }, [levelByRegion, advisoryByRegion, selected]);
 
   function styleFor(feature: Feature): L.PathOptions {
     const id = slugifyRegion(String((feature.properties as { name?: string } | null)?.name ?? ""));
     const lvl = levelByRegion.get(id) ?? 0;
+    const adv = lvl > 0 ? 0 : (advisoryByRegion.get(id) ?? 0);
     const def = LEVELS[(lvl as 0 | 1 | 2 | 3) ?? 0];
     const isSel = selected === id;
+    if (adv > 0) {
+      // Vorinformation: schraffiert in der Stufenfarbe.
+      return {
+        color: isSel ? "#2561a1" : "#4b5563",
+        weight: isSel ? 3 : 1,
+        opacity: isSel ? 1 : 0.75,
+        fillColor: `url(#warn-hatch-${adv})`,
+        fillOpacity: 1,
+      };
+    }
     return {
       color: isSel ? "#2561a1" : "#4b5563",
       weight: isSel ? 3 : 1,
@@ -295,6 +319,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     };
 
   }
+
 
   /** Farbe leicht Richtung Schwarz mischen. */
   function darken(hex: string, amount = 0.18): string {
@@ -406,6 +431,32 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               : "sm:aspect-auto sm:h-[clamp(420px,60vh,760px)] @lg:h-full",
           )}
         >
+          {/* Schraffur-Muster für Vorinformationen (referenziert via fill="url(#…)") */}
+          <svg width="0" height="0" aria-hidden="true" className="absolute">
+            <defs>
+              {[1, 2, 3].map((l) => (
+                <pattern
+                  key={l}
+                  id={`warn-hatch-${l}`}
+                  width="8"
+                  height="8"
+                  patternTransform="rotate(45)"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <rect width="8" height="8" fill={LEVELS[l as 1 | 2 | 3].color} opacity="0.18" />
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="8"
+                    stroke={LEVELS[l as 1 | 2 | 3].color}
+                    strokeWidth="4"
+                    opacity="0.95"
+                  />
+                </pattern>
+              ))}
+            </defs>
+          </svg>
 
 
           <MapContainer
@@ -516,6 +567,15 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                     </span>
                   </div>
                 ))}
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block h-3 w-5 shrink-0 rounded-sm"
+                    style={{
+                      background: `repeating-linear-gradient(45deg, ${LEVELS[1].color} 0 3px, transparent 3px 6px)`,
+                    }}
+                  />
+                  <span className="text-muted-foreground">schraffiert = Vorinformation</span>
+                </div>
               </div>
             </div>
           ) : (
