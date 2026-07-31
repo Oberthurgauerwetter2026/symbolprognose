@@ -24,7 +24,8 @@ function vapid() {
 
 export async function sendPush(
   sub: SubRow,
-  payload: { title: string; body: string; url: string; tag?: string },
+  payload: { title: string; body: string; url: string; tag?: string; icon?: string },
+
 ): Promise<boolean> {
   const keys = vapid();
   if (!keys.publicKey || !keys.privateKey) return false;
