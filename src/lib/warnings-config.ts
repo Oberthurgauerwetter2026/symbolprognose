@@ -385,7 +385,8 @@ export function fillTemplate(
 }
 
 
-export function warningTitle(hazard: HazardId, level: WarnLevel): string {
+export function warningTitle(hazard: HazardId, level: WarnLevel, advisory = false): string {
+  if (advisory) return `Vorinformation ${getHazard(hazard).label} (Stufe ${level})`;
   return `${getHazard(hazard).title} (Stufe ${level})`;
 }
 

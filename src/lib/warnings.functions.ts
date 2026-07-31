@@ -120,6 +120,27 @@ export const setWarningActive = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Vorinformation ein-/ausschalten. Beim Wechsel zur echten Warnung folgt ein Push. */
+export const setWarningAdvisory = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; id: string; advisory: boolean }) => d)
+  .handler(async ({ data }) => {
+    const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
+    assertAdmin(data.password);
+    const sb = await adminClient();
+    const { data: row, error } = await sb
+      .from("warnings")
+      .update({ advisory: data.advisory })
+      .eq("id", data.id)
+      .select("id, active")
+      .single();
+    if (error) throw new Error(error.message);
+    if (!data.advisory && (row as { active: boolean } | null)?.active) {
+      const { notifyWarning } = await import("@/lib/push.server");
+      await notifyWarning(data.id).catch(() => undefined);
+    }
+    return { ok: true };
+  });
+
 export const deleteWarning = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string; id: string }) => d)
   .handler(async ({ data }) => {

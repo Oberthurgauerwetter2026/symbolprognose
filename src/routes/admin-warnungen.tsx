@@ -22,6 +22,7 @@ import {
   checkAdminLogin,
   saveWarning,
   setWarningActive,
+  setWarningAdvisory,
   deleteWarning,
   type WarningDTO,
 } from "@/lib/warnings.functions";
@@ -173,11 +174,13 @@ function genTexts(
   level: WarnLevel,
   value: string,
   durationHours?: number | null,
+  advisory = false,
 ) {
   const tpl = TEMPLATES[hazard][level];
+  const description = fillTemplate(tpl.description, value, durationHours);
   return {
-    title: warningTitle(hazard, level),
-    description: fillTemplate(tpl.description, value, durationHours),
+    title: warningTitle(hazard, level, advisory),
+    description: advisory ? `Vorinformation: ${description}` : description,
     impact: templateImpact(tpl),
   };
 }
@@ -210,6 +213,8 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [rowErr, setRowErr] = useState<string | null>(null);
   /** Zuletzt automatisch erzeugte Texte – zum Erkennen manueller Änderungen. */
   const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, "", 6));
 
@@ -244,12 +249,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
     valueFrom: string,
     valueTo: string,
     force = false,
+    advisory = form.advisory,
   ) => {
     const t = genTexts(
       hazard,
       level,
       combineValue(valueFrom, valueTo),
       hoursBetween(form.validFrom, form.validTo),
+      advisory,
     );
     const useTpl = force || !textIsManual;
     setLastTpl(t);
@@ -259,6 +266,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       level,
       valueFrom,
       valueTo,
+      advisory,
       title: useTpl ? t.title : f.title,
       description: useTpl ? t.description : f.description,
       impact: useTpl ? t.impact : f.impact,
@@ -273,6 +281,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       form.level,
       combineValue(form.valueFrom, form.valueTo),
       hoursBetween(form.validFrom, form.validTo),
+      form.advisory,
     );
     if (t.description === form.description && t.title === form.title) return;
     setLastTpl(t);
@@ -363,6 +372,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         w.level as WarnLevel,
         combineValue(splitValue(w.value).from, splitValue(w.value).to),
         hoursBetween(toLocal(w.validFrom), toLocal(w.validTo)),
+        w.advisory,
       ),
     );
 
@@ -385,17 +395,18 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   };
 
   return (
-    <div className="min-h-screen bg-muted px-4 py-8">
-      <div className="mx-auto max-w-5xl space-y-8">
+    <div className="min-h-screen bg-muted px-4 py-8 text-base">
+      <div className="mx-auto max-w-7xl space-y-8">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Wetterwarnungen</h1>
-            <p className="text-sm text-muted-foreground">Warnungen für die Gemeinden im Oberthurgau erfassen.</p>
+            <h1 className="text-3xl font-semibold tracking-tight">Wetterwarnungen</h1>
+            <p className="text-base text-muted-foreground">Warnungen für die Gemeinden im Oberthurgau erfassen.</p>
           </div>
-          <button type="button" onClick={onLogout} className="text-xs text-muted-foreground underline">
+          <button type="button" onClick={onLogout} className="text-sm text-muted-foreground underline">
             Abmelden
           </button>
         </header>
+
 
         <IngestSection password={password} />
 
@@ -404,14 +415,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
 
         {/* Formular */}
-        <form onSubmit={submit} className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            <Plus className="h-4 w-4" /> {form.id ? "Warnung bearbeiten" : "Neue Warnung"}
+        <form onSubmit={submit} className="space-y-6 rounded-lg border border-border bg-card p-6 shadow-sm">
+          <h2 className="flex items-center gap-2 text-base font-semibold uppercase tracking-wider text-muted-foreground">
+            <Plus className="h-5 w-5" /> {form.id ? "Warnung bearbeiten" : "Neue Warnung"}
           </h2>
 
           <div>
-            <p className="mb-1.5 text-xs font-medium">Gefahrenart</p>
-            <div className="flex flex-wrap gap-1.5">
+            <p className="mb-2 text-sm font-semibold">Gefahrenart</p>
+            <div className="flex flex-wrap gap-2">
               {HAZARDS.map((h) => {
                 const Icon = h.icon;
                 const on = form.hazard === h.id;
@@ -421,11 +432,11 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                     type="button"
                     onClick={() => applyTemplate(h.id, form.level, form.valueFrom, form.valueTo)}
                     className={
-                      "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs " +
+                      "flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-base " +
                       (on ? "border-foreground bg-foreground text-background" : "border-border")
                     }
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-5 w-5" />
                     {h.label}
                   </button>
                 );
@@ -434,14 +445,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           </div>
 
           <div>
-            <p className="mb-1.5 text-xs font-medium">Warnstufe</p>
-            <div className="flex flex-wrap gap-1.5">
+            <p className="mb-2 text-sm font-semibold">Warnstufe</p>
+            <div className="flex flex-wrap gap-2">
               {([1, 2, 3] as WarnLevel[]).map((l) => (
                 <button
                   key={l}
                   type="button"
                   onClick={() => applyTemplate(form.hazard, l, form.valueFrom, form.valueTo)}
-                  className="rounded-md border px-3 py-1.5 text-xs font-medium"
+                  className="rounded-md border px-4 py-2.5 text-base font-medium"
                   style={
                     form.level === l
                       ? { background: LEVELS[l].color, color: LEVELS[l].textOnColor, borderColor: LEVELS[l].color }
@@ -454,10 +465,10 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             </div>
           </div>
 
-          <div className="rounded-lg border border-border p-3">
-            <p className="mb-2 text-xs font-medium">Gültigkeit</p>
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              <span className="self-center text-[11px] text-muted-foreground">Beginn:</span>
+          <div className="rounded-lg border border-border p-4">
+            <p className="mb-3 text-sm font-semibold">Gültigkeit</p>
+            <div className="mb-3 flex flex-wrap gap-2">
+              <span className="self-center text-sm text-muted-foreground">Beginn:</span>
               {[
                 { label: "Jetzt", h: 0 },
                 { label: "in 1 Std.", h: 1 },
@@ -476,55 +487,55 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                       setStart(d);
                     }
                   }}
-                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 >
                   {c.label}
                 </button>
               ))}
             </div>
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              <span className="self-center text-[11px] text-muted-foreground">Dauer:</span>
+            <div className="mb-4 flex flex-wrap gap-2">
+              <span className="self-center text-sm text-muted-foreground">Dauer:</span>
               {[3, 6, 12, 24, 48].map((h) => (
                 <button
                   key={h}
                   type="button"
                   onClick={() => setDuration(h)}
-                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 >
                   {h} Std.
                 </button>
               ))}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-medium">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-semibold">
                 Gültig von
                 <input
                   type="datetime-local"
                   required
                   value={form.validFrom}
                   onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
-              <label className="text-xs font-medium">
+              <label className="text-sm font-semibold">
                 Gültig bis
                 <input
                   type="datetime-local"
                   required
                   value={form.validTo}
                   onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
-                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
             </div>
           </div>
 
-          <div className="rounded-lg border border-border p-3">
-            <p className="mb-2 text-xs font-medium">
+          <div className="rounded-lg border border-border p-4">
+            <p className="mb-3 text-sm font-semibold">
               {getHazard(form.hazard).paramLabel} ({getHazard(form.hazard).paramUnit}) – optional
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-medium">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-semibold">
                 von
                 <input
                   inputMode="decimal"
@@ -533,10 +544,10 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   onChange={(e) =>
                     applyTemplate(form.hazard, form.level, e.target.value, form.valueTo)
                   }
-                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
-              <label className="text-xs font-medium">
+              <label className="text-sm font-semibold">
                 bis
                 <input
                   inputMode="decimal"
@@ -545,7 +556,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   onChange={(e) =>
                     applyTemplate(form.hazard, form.level, form.valueFrom, e.target.value)
                   }
-                  className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
             </div>
@@ -553,14 +564,14 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
 
           <div>
-            <p className="mb-1.5 text-xs font-medium">Betroffene Gemeinden</p>
-            <div className="mb-2 flex flex-wrap gap-1.5">
+            <p className="mb-2 text-sm font-semibold">Betroffene Gemeinden</p>
+            <div className="mb-3 flex flex-wrap gap-2">
               {REGION_GROUPS.map((g) => (
                 <button
                   key={g.id}
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, regionIds: g.regionIds }))}
-                  className="rounded-md border border-border px-2 py-1 text-[11px]"
+                  className="rounded-md border border-border px-3 py-2 text-sm"
                 >
                   {g.label}
                 </button>
@@ -568,12 +579,12 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               <button
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, regionIds: [] }))}
-                className="rounded-md border border-border px-2 py-1 text-[11px]"
+                className="rounded-md border border-border px-3 py-2 text-sm"
               >
                 Keine
               </button>
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {REGIONS.map((r) => {
                 const on = form.regionIds.includes(r.id);
                 return (
@@ -587,7 +598,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                       }))
                     }
                     className={
-                      "rounded px-2 py-1 text-[11px] " +
+                      "rounded px-3 py-2 text-sm " +
                       (on ? "bg-foreground text-background" : "bg-muted text-muted-foreground")
                     }
                   >
@@ -598,9 +609,10 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             </div>
           </div>
 
+
           <div className="grid gap-4 sm:grid-cols-2">
             {textIsManual && (
-              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs sm:col-span-2">
+              <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm sm:col-span-2">
                 <span className="text-muted-foreground">
                   Texte wurden manuell angepasst – sie folgen den Mengenangaben nicht mehr
                   automatisch.
@@ -610,66 +622,81 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   onClick={() =>
                     applyTemplate(form.hazard, form.level, form.valueFrom, form.valueTo, true)
                   }
-                  className="rounded-md border border-input bg-background px-2 py-1 font-medium"
+                  className="rounded-md border border-input bg-background px-3 py-1.5 font-medium"
                 >
                   Text aus Vorlage neu erzeugen
                 </button>
               </div>
             )}
-            <label className="text-xs font-medium sm:col-span-2">
+            <label className="text-sm font-semibold sm:col-span-2">
               Titel
               <input
                 value={form.title}
                 onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
               />
             </label>
-            <label className="text-xs font-medium">
+            <label className="text-sm font-semibold">
               Beschreibung
               <textarea
-                rows={4}
+                rows={5}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
               />
             </label>
-            <label className="text-xs font-medium">
+            <label className="text-sm font-semibold">
               Mögliche Auswirkungen
               <textarea
-                rows={4}
+                rows={5}
                 value={form.impact}
                 onChange={(e) => setForm((f) => ({ ...f, impact: e.target.value }))}
-                className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
               />
             </label>
           </div>
 
 
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2.5 text-base">
               <input
                 type="checkbox"
+                className="h-5 w-5"
                 checked={form.active}
                 onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
               />
-              Sofort aktiv (löst Push-Benachrichtigung aus)
+              Sofort aktiv {form.advisory ? "(ohne Push)" : "(löst Push-Benachrichtigung aus)"}
             </label>
-            <label className="flex items-center gap-2 text-xs">
+            <label className="flex items-center gap-2.5 text-base">
               <input
                 type="checkbox"
+                className="h-5 w-5"
                 checked={form.advisory}
-                onChange={(e) => setForm((f) => ({ ...f, advisory: e.target.checked }))}
+                onChange={(e) =>
+                  applyTemplate(
+                    form.hazard,
+                    form.level,
+                    form.valueFrom,
+                    form.valueTo,
+                    false,
+                    e.target.checked,
+                  )
+                }
               />
               Vorinformation (schraffiert, ohne Push)
             </label>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              className="flex items-center gap-2 rounded-md px-5 py-2.5 text-base font-semibold disabled:opacity-60"
               style={{ background: preview.color, color: preview.textOnColor }}
             >
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {form.id ? "Änderungen speichern" : "Warnung veröffentlichen"}
+              {saving && <Loader2 className="h-5 w-5 animate-spin" />}
+              {form.id
+                ? "Änderungen speichern"
+                : form.advisory
+                  ? "Vorinformation veröffentlichen"
+                  : "Warnung veröffentlichen"}
             </button>
             {form.id && (
               <button
@@ -678,83 +705,122 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   setForm(emptyForm());
                   setLastTpl(genTexts("gewitter", 1, ""));
                 }}
-                className="text-xs underline"
+                className="text-sm underline"
               >
                 Abbrechen
               </button>
             )}
-            {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+            {msg && <span className="text-sm text-muted-foreground">{msg}</span>}
           </div>
         </form>
 
         {/* Liste */}
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="text-base font-semibold uppercase tracking-wider text-muted-foreground">
             Erfasste Warnungen
           </h2>
+          {rowErr && <p className="text-sm text-destructive">{rowErr}</p>}
           {loading ? (
-            <p className="text-sm text-muted-foreground">Lade…</p>
+            <p className="text-base text-muted-foreground">Lade…</p>
           ) : items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Noch keine Warnungen erfasst.</p>
+            <p className="text-base text-muted-foreground">Noch keine Warnungen erfasst.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {items.map((w) => {
                 const h = getHazard(w.hazard as HazardId);
                 const Icon = h.icon;
                 const def = LEVELS[w.level as WarnLevel];
                 const expired = new Date(w.validTo).getTime() < Date.now();
+                const busyRow = rowBusy === w.id;
+                const act = async (fn: () => Promise<unknown>) => {
+                  setRowBusy(w.id);
+                  setRowErr(null);
+                  try {
+                    await fn();
+                    await load();
+                  } catch (e) {
+                    setRowErr(e instanceof Error ? e.message : "Aktion fehlgeschlagen");
+                  } finally {
+                    setRowBusy(null);
+                  }
+                };
                 return (
-                  <li key={w.id} className="rounded-lg border border-border bg-card p-3 shadow-sm">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <li
+                    key={w.id}
+                    className={
+                      "rounded-lg border border-border bg-card p-4 shadow-sm " +
+                      (busyRow ? "opacity-60" : "")
+                    }
+                  >
+                    <div className="flex flex-wrap items-center gap-2.5">
                       <span
-                        className="flex items-center gap-1.5 rounded px-2 py-1 text-xs font-semibold"
+                        className="flex items-center gap-2 rounded px-2.5 py-1.5 text-sm font-semibold"
                         style={{ background: def.color, color: def.textOnColor }}
                       >
-                        <Icon className="h-3.5 w-3.5" /> {w.title || warningTitle(w.hazard as HazardId, w.level as WarnLevel)}
+                        <Icon className="h-4 w-4" />{" "}
+                        {w.title || warningTitle(w.hazard as HazardId, w.level as WarnLevel, w.advisory)}
                       </span>
-                      <span className="text-xs text-muted-foreground">{formatRange(w.validFrom, w.validTo)}</span>
-                      {!w.active && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">inaktiv</span>}
-                      {expired && <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">abgelaufen</span>}
+                      <span className="text-sm text-muted-foreground">{formatRange(w.validFrom, w.validTo)}</span>
+                      {!w.active && <span className="rounded bg-muted px-2 py-1 text-xs">inaktiv</span>}
+                      {expired && <span className="rounded bg-muted px-2 py-1 text-xs">abgelaufen</span>}
                       {w.source === "auto" && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">automatisch</span>
+                        <span className="rounded bg-muted px-2 py-1 text-xs">automatisch</span>
                       )}
                       {w.advisory && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">Vorinformation</span>
+                        <span className="rounded bg-muted px-2 py-1 text-xs font-medium">Vorinformation</span>
                       )}
-                      <div className="ml-auto flex items-center gap-2">
+                      <div className="ml-auto flex items-center gap-3">
+                        {busyRow && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                         <button
                           type="button"
+                          disabled={busyRow}
                           onClick={() => edit(w)}
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
                         >
-                          <Pencil className="h-3.5 w-3.5" /> Bearbeiten
+                          <Pencil className="h-4 w-4" /> Bearbeiten
                         </button>
                         <button
                           type="button"
-                          onClick={async () => {
-                            await setWarningActive({ data: { password, id: w.id, active: !w.active } });
-                            await load();
-                          }}
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                          disabled={busyRow}
+                          onClick={() =>
+                            act(() =>
+                              setWarningAdvisory({
+                                data: { password, id: w.id, advisory: !w.advisory },
+                              }),
+                            )
+                          }
+                          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
                         >
-                          {w.active ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          {w.advisory ? "→ Warnung" : "→ Vorinformation"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyRow}
+                          onClick={() =>
+                            act(() =>
+                              setWarningActive({ data: { password, id: w.id, active: !w.active } }),
+                            )
+                          }
+                          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        >
+                          {w.active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           {w.active ? "Deaktivieren" : "Aktivieren"}
                         </button>
                         <button
                           type="button"
-                          onClick={async () => {
+                          disabled={busyRow}
+                          onClick={() => {
                             if (!confirm("Warnung löschen?")) return;
-                            await deleteWarning({ data: { password, id: w.id } });
-                            await load();
+                            void act(() => deleteWarning({ data: { password, id: w.id } }));
                           }}
-                          className="flex items-center gap-1 text-xs text-destructive"
+                          className="flex items-center gap-1.5 text-sm text-destructive disabled:opacity-50"
                         >
-                          <Trash2 className="h-3.5 w-3.5" /> Löschen
+                          <Trash2 className="h-4 w-4" /> Löschen
                         </button>
                       </div>
                     </div>
-                    <p className="mt-1.5 text-xs text-foreground">{w.description}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    <p className="mt-2 text-base text-foreground">{w.description}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {w.regionIds.map((r) => regionName(r)).join(", ")}
                     </p>
                   </li>

@@ -268,10 +268,23 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   }, [warnings, hazard]);
 
 
-  /** Höchste Stufe je Gefahrenart (für das Banner). */
+  /** Höchste Stufe je Gefahrenart (nur echte Warnungen, für die Chips). */
   const levelByHazard = useMemo(() => {
     const map = new Map<string, number>();
-    for (const w of warnings) map.set(w.hazard, Math.max(map.get(w.hazard) ?? 0, w.level));
+    for (const w of warnings) {
+      if (w.advisory) continue;
+      map.set(w.hazard, Math.max(map.get(w.hazard) ?? 0, w.level));
+    }
+    return map;
+  }, [warnings]);
+
+  /** Höchste Stufe je Gefahrenart aus Vorinformationen. */
+  const advisoryByHazard = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const w of warnings) {
+      if (!w.advisory) continue;
+      map.set(w.hazard, Math.max(map.get(w.hazard) ?? 0, w.level));
+    }
     return map;
   }, [warnings]);
 
@@ -373,6 +386,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         </button>
         {HAZARDS.map((h) => {
           const lvl = levelByHazard.get(h.id) ?? 0;
+          const adv = lvl > 0 ? 0 : (advisoryByHazard.get(h.id) ?? 0);
           const Icon = h.icon;
           const on = hazard === h.id;
           return (
@@ -383,7 +397,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 setHazard(h.id);
                 setSelected(null);
               }}
-              title={h.label}
+              title={adv > 0 ? `${h.label} – Vorinformation` : h.label}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-medium transition",
                 on ? "border-foreground" : "border-transparent hover:bg-muted/60",
@@ -391,12 +405,20 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               style={
                 lvl > 0
                   ? { background: LEVELS[lvl as 1 | 2 | 3].color, color: LEVELS[lvl as 1 | 2 | 3].textOnColor }
-                  : undefined
+                  : adv > 0
+                    ? {
+                        borderColor: LEVELS[adv as 1 | 2 | 3].color,
+                        color: LEVELS[adv as 1 | 2 | 3].color,
+                      }
+                    : undefined
               }
             >
               <Icon className="h-5 w-5 @sm:h-6 @sm:w-6" />
               <span className="hidden @sm:inline">{h.label}</span>
               {lvl > 0 && <span className="rounded bg-black/15 px-1.5 text-xs font-bold">{lvl}</span>}
+              {lvl === 0 && adv > 0 && (
+                <span className="rounded border border-current px-1.5 text-xs font-bold">{adv}</span>
+              )}
             </button>
           );
         })}
@@ -684,10 +706,24 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
                         <div
                           className="flex items-center gap-2 px-3 py-2 text-base font-semibold"
-                          style={{ background: def.color, color: def.textOnColor }}
+                          style={
+                            w.advisory
+                              ? {
+                                  background: `color-mix(in srgb, ${def.color} 22%, transparent)`,
+                                  color: "inherit",
+                                  boxShadow: `inset 4px 0 0 ${def.color}`,
+                                }
+                              : { background: def.color, color: def.textOnColor }
+                          }
                         >
                           <Icon className="h-6 w-6 shrink-0" />
-                          {w.title || `${h.title} (Stufe ${w.level})`}
+                          {w.title ||
+                            `${w.advisory ? "Vorinformation " + h.label : h.title} (Stufe ${w.level})`}
+                          {w.advisory && (
+                            <span className="ml-auto shrink-0 rounded border border-current px-1.5 py-0.5 text-xs font-semibold">
+                              Vorinformation
+                            </span>
+                          )}
                         </div>
                         <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">
