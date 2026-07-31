@@ -65,14 +65,47 @@ const REGION_POLYS = REGION_FC.features.map((f) => {
   return { id: slugifyRegion(name), name, rs, bbox: { minLat, maxLat, minLon, maxLon } };
 });
 
+/** Maximaler Abstand für die Nächste-Gemeinde-Zuordnung (km). */
+const NEAREST_KM = 3;
+
+function distKm(lat: number, lon: number, ring: number[][]): number {
+  let best = Infinity;
+  for (const [x, y] of ring) {
+    const dy = (y - lat) * 111.32;
+    const dx = (x - lon) * 111.32 * Math.cos(lat * (Math.PI / 180));
+    best = Math.min(best, Math.hypot(dx, dy));
+  }
+  return best;
+}
+
+/**
+ * Gemeinde eines Gitterpunkts. Liegt der Punkt in keinem Polygon (das
+ * Prognosegitter ist grob, ~5–7 km), wird die nächstgelegene Gemeinde
+ * innerhalb von `NEAREST_KM` zugeordnet, damit Zellen am Gemeinderand
+ * nicht verloren gehen.
+ */
 function regionOf(lat: number, lon: number): string | null {
   for (const r of REGION_POLYS) {
     if (lat < r.bbox.minLat - 0.01 || lat > r.bbox.maxLat + 0.01) continue;
     if (lon < r.bbox.minLon - 0.015 || lon > r.bbox.maxLon + 0.015) continue;
     for (const ring of r.rs) if (inRing(lon, lat, ring)) return r.id;
   }
-  return null;
+  let bestId: string | null = null;
+  let bestKm = NEAREST_KM;
+  for (const r of REGION_POLYS) {
+    if (lat < r.bbox.minLat - 0.06 || lat > r.bbox.maxLat + 0.06) continue;
+    if (lon < r.bbox.minLon - 0.09 || lon > r.bbox.maxLon + 0.09) continue;
+    for (const ring of r.rs) {
+      const d = distKm(lat, lon, ring);
+      if (d < bestKm) {
+        bestKm = d;
+        bestId = r.id;
+      }
+    }
+  }
+  return bestId;
 }
+
 
 function compass(deg: number): string {
   const dirs = ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"];
