@@ -761,11 +761,21 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
       ? (() => {
           const isAdvisory = maxWarnLevel === 0;
           const def = LEVELS[isAdvisory ? maxAdvisoryLevel : maxWarnLevel];
+          const rgba = (hex: string, a: number) => {
+            const h = hex.replace("#", "");
+            const f = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+            const n = parseInt(f, 16);
+            return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+          };
           const inner = (
             <>
               <span
                 className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[11px] font-black leading-none"
-                style={{ background: def.textOnColor, color: def.color }}
+                style={
+                  isAdvisory
+                    ? { background: def.color, color: def.textOnColor }
+                    : { background: def.textOnColor, color: def.color }
+                }
                 aria-hidden="true"
               >
                 !
@@ -779,11 +789,17 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
           );
           const style = isAdvisory
             ? {
-                background: `repeating-linear-gradient(45deg, ${def.color} 0 8px, ${def.textOnColor} 8px 16px)`,
+                // Dezente Schraffur nur als schmaler Streifen links, Text liegt auf ruhigem Grund.
+                backgroundColor: rgba(def.color, 0.14),
+                backgroundImage: `repeating-linear-gradient(45deg, ${rgba(def.color, 0.55)} 0 3px, transparent 3px 7px)`,
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "34px 100%",
+                backgroundPosition: "left center",
                 color: def.color,
-                textShadow: `0 0 4px ${def.textOnColor}, 0 0 4px ${def.textOnColor}`,
+                boxShadow: `inset 4px 0 0 ${def.color}`,
               }
             : { background: def.color, color: def.textOnColor };
+
           return bare ? (
             <a
               href={`${SITE_URL}/warnkarte`}
