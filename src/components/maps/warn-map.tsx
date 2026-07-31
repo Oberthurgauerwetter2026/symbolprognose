@@ -268,10 +268,23 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   }, [warnings, hazard]);
 
 
-  /** Höchste Stufe je Gefahrenart (für das Banner). */
+  /** Höchste Stufe je Gefahrenart (nur echte Warnungen, für die Chips). */
   const levelByHazard = useMemo(() => {
     const map = new Map<string, number>();
-    for (const w of warnings) map.set(w.hazard, Math.max(map.get(w.hazard) ?? 0, w.level));
+    for (const w of warnings) {
+      if (w.advisory) continue;
+      map.set(w.hazard, Math.max(map.get(w.hazard) ?? 0, w.level));
+    }
+    return map;
+  }, [warnings]);
+
+  /** Höchste Stufe je Gefahrenart aus Vorinformationen. */
+  const advisoryByHazard = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const w of warnings) {
+      if (!w.advisory) continue;
+      map.set(w.hazard, Math.max(map.get(w.hazard) ?? 0, w.level));
+    }
     return map;
   }, [warnings]);
 
