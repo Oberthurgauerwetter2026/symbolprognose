@@ -117,7 +117,7 @@ export interface AutoThunderStatus {
   note: string | null;
 }
 
-/** Status des letzten automatischen Gewitter-Laufs (Cron alle 15 Minuten). */
+/** Status des letzten automatischen Gewitter-Laufs (Cron alle 5 Minuten). */
 export const getAutoThunderStatus = createServerFn({ method: "GET" }).handler(
   async (): Promise<AutoThunderStatus> => {
     const { adminClient } = await import("@/lib/warnings.server");
