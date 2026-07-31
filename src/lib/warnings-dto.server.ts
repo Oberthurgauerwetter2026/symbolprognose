@@ -20,6 +20,7 @@ export function toDTO(r: WarningWithRegions): WarningDTO {
     value: value == null ? null : String(value),
     active: r.active,
     source: r.source,
+    advisory: r.advisory ?? false,
     regionIds: r.regionIds,
   };
 }
