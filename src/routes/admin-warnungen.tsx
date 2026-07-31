@@ -337,6 +337,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           value: combineValue(form.valueFrom, form.valueTo) || null,
           regionIds: form.regionIds,
           active: form.active,
+          advisory: form.advisory,
         },
       });
       setForm(emptyForm());
