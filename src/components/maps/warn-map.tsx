@@ -386,6 +386,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         </button>
         {HAZARDS.map((h) => {
           const lvl = levelByHazard.get(h.id) ?? 0;
+          const adv = lvl > 0 ? 0 : (advisoryByHazard.get(h.id) ?? 0);
           const Icon = h.icon;
           const on = hazard === h.id;
           return (
@@ -396,7 +397,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 setHazard(h.id);
                 setSelected(null);
               }}
-              title={h.label}
+              title={adv > 0 ? `${h.label} – Vorinformation` : h.label}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-medium transition",
                 on ? "border-foreground" : "border-transparent hover:bg-muted/60",
@@ -404,12 +405,20 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               style={
                 lvl > 0
                   ? { background: LEVELS[lvl as 1 | 2 | 3].color, color: LEVELS[lvl as 1 | 2 | 3].textOnColor }
-                  : undefined
+                  : adv > 0
+                    ? {
+                        borderColor: LEVELS[adv as 1 | 2 | 3].color,
+                        color: LEVELS[adv as 1 | 2 | 3].color,
+                      }
+                    : undefined
               }
             >
               <Icon className="h-5 w-5 @sm:h-6 @sm:w-6" />
               <span className="hidden @sm:inline">{h.label}</span>
               {lvl > 0 && <span className="rounded bg-black/15 px-1.5 text-xs font-bold">{lvl}</span>}
+              {lvl === 0 && adv > 0 && (
+                <span className="rounded border border-current px-1.5 text-xs font-bold">{adv}</span>
+              )}
             </button>
           );
         })}
