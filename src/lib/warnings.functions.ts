@@ -86,6 +86,7 @@ export const saveWarning = createServerFn({ method: "POST" })
       impact: data.impact.slice(0, 2000),
       params: data.value ? { value: String(data.value).slice(0, 40) } : {},
       active: data.active,
+      advisory: data.advisory ?? false,
       source: "manual",
     };
 
