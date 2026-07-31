@@ -214,8 +214,9 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     }
   }
 
-  const closed = await closeStale(Array.from(perRegion.keys()));
-  return { detected: perRegion.size, created, closed, motion };
+  const closed = await closeStale(warnedRegions);
+  return { detected: warnedRegions.length, created, closed, motion };
+
 }
 
 /** Letzten Lauf protokollieren, damit der Admin den Status sieht. */
