@@ -952,6 +952,11 @@ def main() -> int:
 
     cleanup(s3, now - timedelta(hours=RETENTION))
     write_manifest(s3)
+    try:
+        write_region_max(s3, now - timedelta(hours=2))
+    except Exception as exc:
+        print(f"region-max: failed ({exc!r})", flush=True)
+
     print(f"done: processed {processed} new frames", flush=True)
     return 0
 
