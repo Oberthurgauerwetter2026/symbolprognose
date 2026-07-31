@@ -175,6 +175,11 @@ export interface RadarRegionMaxPayload {
   generatedAt?: string;
   version?: string;
   regions: { id: string; name?: string; mmh: number; poh?: number }[];
+  /** Schwerpunkt der gemessenen Zellen (Grad). */
+  centroid?: { lat: number; lon: number } | null;
+  /** Vorgängerframe für die Verlagerungsschätzung. */
+  prev?: { t: string; centroid: { lat: number; lon: number } } | null;
+
 }
 
 let regionMaxMemo: { at: number; data: RadarRegionMaxPayload } | null = null;
