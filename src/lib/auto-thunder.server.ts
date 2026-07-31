@@ -14,7 +14,7 @@
 import type { Feature, FeatureCollection } from "geojson";
 import regionData from "@/data/region.json";
 import { slugifyRegion, TEMPLATES, templateImpact, fillTemplate, warningTitle } from "@/lib/warnings-config";
-import { getOpenMeteoCache } from "@/lib/openmeteo-cache.server";
+import { getOpenMeteoCache, getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 const LOOKAHEAD_MS = 3 * 3600_000;
