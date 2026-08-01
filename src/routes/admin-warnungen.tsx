@@ -217,6 +217,17 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   /** Erhöht sich nach jedem Laden — erzwingt eine frische Kartenvorschau. */
   const [previewKey, setPreviewKey] = useState(0);
 
+  /** Laufende Warnungen (aktiv und noch gültig) vs. Archiv. */
+  const current = useMemo(
+    () => items.filter((w) => w.active && new Date(w.validTo).getTime() >= Date.now()),
+    [items],
+  );
+  const archived = useMemo(
+    () => items.filter((w) => !w.active || new Date(w.validTo).getTime() < Date.now()),
+    [items],
+  );
+
+
   const load = async () => {
     setLoading(true);
     try {
