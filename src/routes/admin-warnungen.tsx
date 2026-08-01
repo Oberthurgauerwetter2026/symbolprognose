@@ -480,6 +480,184 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             </div>
           </div>
 
+          {(() => {
+            const th = THRESHOLDS[form.hazard];
+            const hrs = hoursBetween(form.validFrom, form.validTo);
+            const row = thresholdRowFor(form.hazard, hrs);
+            const sug = suggestLevel(form.hazard, form.valueTo || form.valueFrom, hrs);
+            return (
+              <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+                <p className="mb-2 font-semibold">
+                  Schwellen
+                  {row?.hours ? ` · ${row.hours} Std.` : ""}
+                </p>
+                {row ? (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {([1, 2, 3] as WarnLevel[]).map((l) => (
+                      <span
+                        key={l}
+                        className="rounded px-2 py-1 text-xs font-semibold"
+                        style={{ background: LEVELS[l].color, color: LEVELS[l].textOnColor }}
+                      >
+                        Stufe {l}: ab {row.limits[l - 1]} {th.unit}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+                  {th.notes.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                  {th.ownSetting ? <li className="italic">{th.ownSetting}</li> : null}
+                </ul>
+                {sug !== null ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-muted-foreground">
+                      {sug === 0
+                        ? "Messwert unter Stufe 1 – keine Warnung nötig."
+                        : `Empfehlung aus Messwert: Stufe ${sug}.`}
+                    </span>
+                    {sug !== 0 && sug !== form.level ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          applyTemplate(form.hazard, sug as WarnLevel, form.valueFrom, form.valueTo)
+                        }
+                        className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold"
+                      >
+                        Stufe {sug} übernehmen
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {textIsManual && (
+              <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm sm:col-span-2">
+                <span className="text-muted-foreground">
+                  Texte wurden manuell angepasst – sie folgen den Mengenangaben nicht mehr
+                  automatisch.
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    applyTemplate(form.hazard, form.level, form.valueFrom, form.valueTo, true)
+                  }
+                  className="rounded-md border border-input bg-background px-3 py-1.5 font-medium"
+                >
+                  Text aus Vorlage neu erzeugen
+                </button>
+              </div>
+            )}
+            <label className="text-sm font-semibold sm:col-span-2">
+              Titel
+              <input
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Beschreibung
+              <textarea
+                rows={5}
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Mögliche Auswirkungen
+              <textarea
+                rows={5}
+                value={form.impact}
+                onChange={(e) => setForm((f) => ({ ...f, impact: e.target.value }))}
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+              />
+            </label>
+          </div>
+
+          <div className="rounded-lg border border-border p-4">
+            <p className="mb-3 text-sm font-semibold">
+              {getHazard(form.hazard).paramLabel} ({getHazard(form.hazard).paramUnit}) – optional
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-semibold">
+                von
+                <input
+                  inputMode="decimal"
+                  value={form.valueFrom}
+                  placeholder={getHazard(form.hazard).paramPlaceholder}
+                  onChange={(e) =>
+                    applyTemplate(form.hazard, form.level, e.target.value, form.valueTo)
+                  }
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                />
+              </label>
+              <label className="text-sm font-semibold">
+                bis
+                <input
+                  inputMode="decimal"
+                  value={form.valueTo}
+                  placeholder="optional"
+                  onChange={(e) =>
+                    applyTemplate(form.hazard, form.level, form.valueFrom, e.target.value)
+                  }
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-semibold">Betroffene Gemeinden</p>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {REGION_GROUPS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, regionIds: g.regionIds }))}
+                  className="rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  {g.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, regionIds: [] }))}
+                className="rounded-md border border-border px-3 py-2 text-sm"
+              >
+                Keine
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {REGIONS.map((r) => {
+                const on = form.regionIds.includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        regionIds: on ? f.regionIds.filter((x) => x !== r.id) : [...f.regionIds, r.id],
+                      }))
+                    }
+                    className={
+                      "rounded px-3 py-2 text-sm " +
+                      (on ? "bg-foreground text-background" : "bg-muted text-muted-foreground")
+                    }
+                  >
+                    {r.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="rounded-lg border border-border p-4">
             <p className="mb-3 text-sm font-semibold">Gültigkeit</p>
             <div className="mb-3 flex flex-wrap gap-2">
@@ -545,185 +723,6 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             </div>
           </div>
 
-          <div className="rounded-lg border border-border p-4">
-            <p className="mb-3 text-sm font-semibold">
-              {getHazard(form.hazard).paramLabel} ({getHazard(form.hazard).paramUnit}) – optional
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm font-semibold">
-                von
-                <input
-                  inputMode="decimal"
-                  value={form.valueFrom}
-                  placeholder={getHazard(form.hazard).paramPlaceholder}
-                  onChange={(e) =>
-                    applyTemplate(form.hazard, form.level, e.target.value, form.valueTo)
-                  }
-                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
-                />
-              </label>
-              <label className="text-sm font-semibold">
-                bis
-                <input
-                  inputMode="decimal"
-                  value={form.valueTo}
-                  placeholder="optional"
-                  onChange={(e) =>
-                    applyTemplate(form.hazard, form.level, form.valueFrom, e.target.value)
-                  }
-                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
-                />
-              </label>
-            </div>
-
-            {(() => {
-              const th = THRESHOLDS[form.hazard];
-              const hrs = hoursBetween(form.validFrom, form.validTo);
-              const row = thresholdRowFor(form.hazard, hrs);
-              const sug = suggestLevel(form.hazard, form.valueTo || form.valueFrom, hrs);
-              return (
-                <div className="mt-4 rounded-md border border-border bg-muted/40 p-3 text-sm">
-                  <p className="mb-2 font-semibold">
-                    Schwellen MeteoSchweiz
-                    {row?.hours ? ` · ${row.hours} Std.` : ""}
-                  </p>
-                  {row ? (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {([1, 2, 3] as WarnLevel[]).map((l) => (
-                        <span
-                          key={l}
-                          className="rounded px-2 py-1 text-xs font-semibold"
-                          style={{ background: LEVELS[l].color, color: LEVELS[l].textOnColor }}
-                        >
-                          Stufe {l}: ab {row.limits[l - 1]} {th.unit}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
-                    {th.notes.map((n) => (
-                      <li key={n}>{n}</li>
-                    ))}
-                    {th.ownSetting ? <li className="italic">{th.ownSetting}</li> : null}
-                  </ul>
-                  {sug !== null ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="text-muted-foreground">
-                        {sug === 0
-                          ? "Messwert unter Stufe 1 – keine Warnung nötig."
-                          : `Empfehlung aus Messwert: Stufe ${sug}.`}
-                      </span>
-                      {sug !== 0 && sug !== form.level ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            applyTemplate(form.hazard, sug as WarnLevel, form.valueFrom, form.valueTo)
-                          }
-                          className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold"
-                        >
-                          Stufe {sug} übernehmen
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })()}
-          </div>
-
-
-          <div>
-            <p className="mb-2 text-sm font-semibold">Betroffene Gemeinden</p>
-            <div className="mb-3 flex flex-wrap gap-2">
-              {REGION_GROUPS.map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, regionIds: g.regionIds }))}
-                  className="rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  {g.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, regionIds: [] }))}
-                className="rounded-md border border-border px-3 py-2 text-sm"
-              >
-                Keine
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {REGIONS.map((r) => {
-                const on = form.regionIds.includes(r.id);
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        regionIds: on ? f.regionIds.filter((x) => x !== r.id) : [...f.regionIds, r.id],
-                      }))
-                    }
-                    className={
-                      "rounded px-3 py-2 text-sm " +
-                      (on ? "bg-foreground text-background" : "bg-muted text-muted-foreground")
-                    }
-                  >
-                    {r.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {textIsManual && (
-              <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm sm:col-span-2">
-                <span className="text-muted-foreground">
-                  Texte wurden manuell angepasst – sie folgen den Mengenangaben nicht mehr
-                  automatisch.
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    applyTemplate(form.hazard, form.level, form.valueFrom, form.valueTo, true)
-                  }
-                  className="rounded-md border border-input bg-background px-3 py-1.5 font-medium"
-                >
-                  Text aus Vorlage neu erzeugen
-                </button>
-              </div>
-            )}
-            <label className="text-sm font-semibold sm:col-span-2">
-              Titel
-              <input
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
-              />
-            </label>
-            <label className="text-sm font-semibold">
-              Beschreibung
-              <textarea
-                rows={5}
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
-              />
-            </label>
-            <label className="text-sm font-semibold">
-              Mögliche Auswirkungen
-              <textarea
-                rows={5}
-                value={form.impact}
-                onChange={(e) => setForm((f) => ({ ...f, impact: e.target.value }))}
-                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
-              />
-            </label>
-          </div>
 
 
           <div className="flex flex-wrap items-center gap-4">
