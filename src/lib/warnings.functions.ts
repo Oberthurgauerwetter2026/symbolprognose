@@ -142,6 +142,23 @@ export const setWarningAdvisory = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Alle beendeten/abgelaufenen Warnungen endgültig löschen. */
+export const deleteArchivedWarnings = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string }) => d)
+  .handler(async ({ data }) => {
+    const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
+    assertAdmin(data.password);
+    const sb = await adminClient();
+    const nowIso = new Date().toISOString();
+    const { data: rows, error } = await sb
+      .from("warnings")
+      .delete()
+      .or(`active.eq.false,valid_to.lt.${nowIso}`)
+      .select("id");
+    if (error) throw new Error(error.message);
+    return { deleted: (rows ?? []).length };
+  });
+
 export const deleteWarning = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string; id: string }) => d)
   .handler(async ({ data }) => {
