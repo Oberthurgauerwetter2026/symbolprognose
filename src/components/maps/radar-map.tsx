@@ -2107,9 +2107,7 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      const ni = Math.max(0, stripIdx - 1);
-                      const target = playStepIndices[ni];
-                      if (typeof target === "number") setTimelineToIndex(target);
+                      setTimelineToMs(timelineSteps[Math.max(0, stripIdx - 1)]);
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Vorheriger Frame"
@@ -2122,8 +2120,7 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      const target = playStepIndices[stripNowIdx];
-                      if (typeof target === "number") setTimelineToIndex(target);
+                      setTimelineToMs(timelineSteps[stripNowIdx]);
                     }}
                     disabled={stripIdx === stripNowIdx}
                     className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"
@@ -2137,35 +2134,21 @@ export function RadarMap({
                   {/* Track */}
                   <div className="min-w-0 flex-1">
                     <FilmstripTimeline
-                      frames={stripFrames.map((f) => ({ ms: Date.parse(f.t) }))}
+                      frames={timelineSteps.map((ms) => ({ ms }))}
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      visualMs={scrubVisualMs ?? playVisualMs ?? renderMs}
-                      color={(() => {
-                        const f = stripFrames[stripIdx] ?? null;
-                        return timelineColorFor(f);
-                      })()}
+                      visualMs={stripMs}
+                      color={timelineColorForMs(stripMs ?? timelineSteps[stripIdx] ?? Date.now())}
                       bandMode="measurement-forecast"
                       ariaLabel="Radar-Zeit"
-                      formatBubble={(d) => {
-                        // Frame anhand der Bubble-Zeit bestimmen (nächster in stripFrames).
-                        const target = d.getTime();
-                        let best: RadarFrame | null = null;
-                        let bestDt = Infinity;
-                        for (const f of stripFrames) {
-                          const dt = Math.abs(Date.parse(f.t) - target);
-                          if (dt < bestDt) { bestDt = dt; best = f; }
-                        }
-                        return fmtBubble(d, best);
-                      }}
+                      formatBubble={(d) => fmtBubble(d, d.getTime() <= Date.now())}
                       onScrubMs={(ms) => {
                         setScrubVisualMs(ms);
                         if (ms !== null) setRenderMs(ms);
                       }}
                       onChange={(i: number) => {
-                        const target = playStepIndices[i];
-                        if (typeof target === "number") setTimelineToIndex(target);
+                        setTimelineToMs(timelineSteps[i]);
                         setPlaying(false);
                       }}
                     />
@@ -2177,10 +2160,11 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      const ni = Math.min(playStepIndices.length - 1, stripIdx + 1);
-                      const target = playStepIndices[ni];
-                      if (typeof target === "number") setTimelineToIndex(target);
+                      setTimelineToMs(
+                        timelineSteps[Math.min(timelineSteps.length - 1, stripIdx + 1)],
+                      );
                     }}
+
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Nächster Frame"
                   >
