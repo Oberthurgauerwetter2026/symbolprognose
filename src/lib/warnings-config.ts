@@ -402,3 +402,132 @@ export function formatRange(from: string, to: string): string {
   return `${d(f)} – ${d(t)} Uhr`;
 }
 
+/* ------------------------ Offizielle Warnschwellen ------------------------ */
+
+/**
+ * Warnschwellen nach MeteoSchweiz «Beschreibung zu den Gefahrenstufen»
+ * (meteoschweiz.admin.ch → Wetter → Gefahren → Erläuterungen der Gefahrenstufen).
+ *
+ * MeteoSchweiz nutzt 5 Stufen. Zuordnung auf unsere 3 Warnstufen:
+ *   unsere Stufe 1 = MCH 2 (gelb, mässig)
+ *   unsere Stufe 2 = MCH 3 (orange, erheblich)
+ *   unsere Stufe 3 = MCH 4/5 (rot, gross bis sehr gross)
+ *
+ * Alle Werte gelten für die Region Oberthurgau: Alpennordseite,
+ * Niederungen unter 800 m. Werte für Berge/Alpensüdseite entfallen.
+ */
+export interface ThresholdRow {
+  /** Bezugsdauer in Stunden (null = dauerunabhängig, z. B. Böenspitzen). */
+  hours: number | null;
+  /** Schwellen für Stufe 1 / 2 / 3 (Messwert erreicht oder übersteigt). */
+  limits: [number, number, number];
+}
+
+export interface HazardThresholds {
+  /** Einheit des Messwerts. */
+  unit: string;
+  /** Nach Bezugsdauer gestaffelte Schwellen (leer = nur qualitative Kriterien). */
+  rows: ThresholdRow[];
+  /** Kurzbeschrieb der offiziellen Kriterien für das Admin-Tool. */
+  notes: string[];
+  /** Kriterien, die MeteoSchweiz nicht als Zahl publiziert. */
+  ownSetting?: string;
+}
+
+export const THRESHOLDS: Record<HazardId, HazardThresholds> = {
+  gewitter: {
+    unit: "km/h",
+    rows: [{ hours: null, limits: [70, 90, 120] }],
+    notes: [
+      "Offiziell nur MCH 3/4: Böen 90–120 km/h (Stufe 2), über 120 km/h (Stufe 3).",
+      "Alternativ Hagel 2–4 cm (Stufe 2) bzw. über 4 cm (Stufe 3).",
+      "Alternativ Regen 30–50 mm/h (Stufe 2) bzw. über 50 mm/h (Stufe 3).",
+      "Ein erfülltes Kriterium genügt.",
+    ],
+    ownSetting: "Stufe 1 (Böen ab 70 km/h bzw. Regen ab 15 mm/h) ist eine eigene Setzung – MeteoSchweiz definiert dafür keine Stufe. Für Blitzraten gibt es keine offizielle Schwelle.",
+  },
+  regen: {
+    unit: "mm",
+    rows: [
+      { hours: 12, limits: [20, 35, 60] },
+      { hours: 24, limits: [30, 50, 80] },
+      { hours: 48, limits: [50, 80, 110] },
+      { hours: 72, limits: [60, 100, 130] },
+    ],
+    notes: ["Dauerregen Alpennordseite. Stufe 3 entspricht MCH 4; MCH 5 ab 100/120/150/170 mm."],
+    ownSetting: "Für 1–6 Stunden publiziert MeteoSchweiz keine Regenschwellen – kurzzeitiger Starkregen läuft über die Gewitterkriterien (30/50 mm/h).",
+  },
+  wind: {
+    unit: "km/h",
+    rows: [{ hours: null, limits: [70, 90, 110] }],
+    notes: [
+      "Flachland/Jura unter 1000 m. MCH 5 ab 140 km/h.",
+      "In Gewitterlagen gibt MeteoSchweiz keine separate Windwarnung aus.",
+    ],
+  },
+  schnee: {
+    unit: "cm",
+    rows: [
+      { hours: 12, limits: [5, 10, 20] },
+      { hours: 24, limits: [10, 15, 30] },
+      { hours: 72, limits: [30, 50, 70] },
+    ],
+    notes: ["Niederungen Deutschschweiz unter 800 m. MCH 5 ab 35/50/90 cm."],
+  },
+  glaette: {
+    unit: "°C",
+    rows: [],
+    notes: [
+      "Glatteis (gefrierender Regen) unter 2 mm bei T unter 0 °C: Stufe 1.",
+      "Glatteis verbreitet über 2 mm bei T unter 0 °C: Stufe 2.",
+      "Anhaltendes Glatteis über mehrere Stunden: Stufe 3.",
+      "Eis-, Schnee- und Reifglätte: immer nur Stufe 1.",
+      "Nur für Lagen unter 800 m – im Oberthurgau überall gültig.",
+    ],
+  },
+  frost: {
+    unit: "°C",
+    rows: [],
+    notes: [
+      "Offiziell nur Bodenfrost (5 cm über Boden), 15. März bis 31. Oktober, unter 600 m.",
+      "Mässiger Bodenfrost 0 bis −4 °C, starker Bodenfrost unter −4 °C – beides MCH-Stufe 2 (unsere Stufe 1).",
+    ],
+    ownSetting: "Winterfrost ist keine offizielle MeteoSchweiz-Warnung; Stufen 2 und 3 sind hier eine eigene Setzung der Redaktion.",
+  },
+};
+
+/** Offizielle mm/h-Schwellen für Gewitterregen (Radar-Autowarnung). */
+export const THUNDER_RAIN_MMH: [number, number, number] = [15, 30, 50];
+
+/** Passende Schwellenzeile zu einer Warndauer (nächstliegende Bezugsdauer). */
+export function thresholdRowFor(hazard: HazardId, hours?: number | null): ThresholdRow | null {
+  const rows = THRESHOLDS[hazard].rows;
+  if (!rows.length) return null;
+  const fixed = rows.find((r) => r.hours === null);
+  if (fixed) return fixed;
+  if (!hours || !Number.isFinite(hours)) return rows[0];
+  return rows.reduce((best, r) =>
+    Math.abs((r.hours ?? 0) - hours) < Math.abs((best.hours ?? 0) - hours) ? r : best,
+  );
+}
+
+/**
+ * Empfohlene Warnstufe aus einem Messwert. Bei Temperaturen (Glätte/Frost)
+ * gibt es keine numerische Empfehlung – dann `null`.
+ */
+export function suggestLevel(
+  hazard: HazardId,
+  value: string | number | null | undefined,
+  hours?: number | null,
+): WarnLevel | 0 | null {
+  const row = thresholdRowFor(hazard, hours);
+  if (!row) return null;
+  const v = typeof value === "number" ? value : Number.parseFloat(String(value ?? "").replace(",", "."));
+  if (!Number.isFinite(v)) return null;
+  if (v >= row.limits[2]) return 3;
+  if (v >= row.limits[1]) return 2;
+  if (v >= row.limits[0]) return 1;
+  return 0;
+}
+
+
