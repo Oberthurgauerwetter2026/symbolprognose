@@ -176,6 +176,9 @@ export async function runAutoThunder(): Promise<AutoThunderResult> {
 /** Automatische Warnungen deaktivieren, die nicht mehr erkannt werden oder abgelaufen sind. */
 async function closeStale(activeRegionIds: string[] = []): Promise<number> {
   const sb = await adminClient();
+  // Zuerst alle abgelaufenen Warnungen (auch manuell erfasste) beenden.
+  const { deactivateExpired } = await import("@/lib/warnings.server");
+  let closed = await deactivateExpired();
   const keep = activeRegionIds.map((r) => `auto-gewitter-${r}`);
   const { data } = await sb
     .from("warnings")
