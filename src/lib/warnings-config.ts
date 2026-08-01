@@ -4,15 +4,16 @@
  * Client- und serverseitig verwendbar (keine Node-/Browser-APIs).
  */
 
-import { ThermometerSnowflake } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import {
   BoltIcon,
+  FrostIcon,
   RainDropsIcon,
   SnowflakesIcon,
   SlipperyCarIcon,
   WindsockIcon,
 } from "@/components/warnings/hazard-icons";
+
 import type { FeatureCollection } from "geojson";
 import regionData from "@/data/region.json";
 
@@ -84,7 +85,7 @@ export const HAZARDS: HazardDef[] = [
     id: "frost",
     label: "Frost",
     title: "Frostwarnung",
-    icon: ThermometerSnowflake,
+    icon: FrostIcon,
     paramLabel: "Tiefsttemperatur",
     paramUnit: "°C",
     paramPlaceholder: "z. B. -4",
