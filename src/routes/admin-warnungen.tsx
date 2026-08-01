@@ -27,14 +27,11 @@ import {
   type WarningDTO,
 } from "@/lib/warnings.functions";
 import {
-  runIngestNow,
-  getIngestStatus,
   getAutoThunderStatus,
   runAutoThunderNow,
-  type IngestTarget,
-  type IngestStatus,
   type AutoThunderStatus,
 } from "@/lib/ingest-admin.functions";
+import { WarnMap } from "@/components/maps/warn-map";
 
 const STORAGE_KEY = "wx_warn_admin_pw";
 
