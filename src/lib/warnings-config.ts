@@ -419,8 +419,14 @@ export function formatRange(from: string, to: string): string {
 export interface ThresholdRow {
   /** Bezugsdauer in Stunden (null = dauerunabhängig, z. B. Böenspitzen). */
   hours: number | null;
+  /** Beschriftung des Bezugszeitraums, z. B. „in 12 Std.“ oder „Böenspitze“. */
+  periodLabel: string;
   /** Schwellen für Stufe 1 / 2 / 3 (Messwert erreicht oder übersteigt). */
   limits: [number, number, number];
+  /** Einheit, falls sie von der Standardeinheit der Gefahrenart abweicht. */
+  unit?: string;
+  /** Eigene Setzung (nicht offiziell publiziert). */
+  own?: boolean;
 }
 
 export interface HazardThresholds {
@@ -428,6 +434,8 @@ export interface HazardThresholds {
   unit: string;
   /** Nach Bezugsdauer gestaffelte Schwellen (leer = nur qualitative Kriterien). */
   rows: ThresholdRow[];
+  /** Bezugszeitraum bei rein qualitativen Kriterien. */
+  periodNote?: string;
   /** Kurzbeschrieb der offiziellen Kriterien für das Admin-Tool. */
   notes: string[];
   /** Kriterien, die MeteoSchweiz nicht als Zahl publiziert. */
@@ -437,46 +445,59 @@ export interface HazardThresholds {
 export const THRESHOLDS: Record<HazardId, HazardThresholds> = {
   gewitter: {
     unit: "km/h",
-    rows: [{ hours: null, limits: [70, 90, 120] }],
+    rows: [
+      { hours: null, periodLabel: "Böenspitze (Momentanwert)", limits: [70, 90, 120] },
+      { hours: 1, periodLabel: "Regen pro Stunde", limits: [15, 30, 50], unit: "mm/h" },
+    ],
     notes: [
       "Offiziell nur MCH 3/4: Böen 90–120 km/h (Stufe 2), über 120 km/h (Stufe 3).",
-      "Alternativ Hagel 2–4 cm (Stufe 2) bzw. über 4 cm (Stufe 3).",
+      "Alternativ Hagelkorn 2–4 cm (Stufe 2) bzw. über 4 cm (Stufe 3) – Spitzenwert, kein Zeitraum.",
       "Alternativ Regen 30–50 mm/h (Stufe 2) bzw. über 50 mm/h (Stufe 3).",
       "Ein erfülltes Kriterium genügt.",
     ],
-    ownSetting: "Stufe 1 (Böen ab 70 km/h bzw. Regen ab 15 mm/h) ist eine eigene Setzung – MeteoSchweiz definiert dafür keine Stufe. Für Blitzraten gibt es keine offizielle Schwelle.",
+    ownSetting:
+      "Stufe 1 (Böen ab 70 km/h bzw. Regen ab 15 mm/h) ist eine eigene Setzung – MeteoSchweiz definiert dafür keine Stufe. Für Blitzraten gibt es keine offizielle Schwelle.",
   },
   regen: {
     unit: "mm",
     rows: [
-      { hours: 12, limits: [20, 35, 60] },
-      { hours: 24, limits: [30, 50, 80] },
-      { hours: 48, limits: [50, 80, 110] },
-      { hours: 72, limits: [60, 100, 130] },
+      { hours: 1, periodLabel: "in 1 Std.", limits: [15, 30, 50], own: true },
+      { hours: 12, periodLabel: "in 12 Std.", limits: [20, 35, 60] },
+      { hours: 24, periodLabel: "in 24 Std.", limits: [30, 50, 80] },
+      { hours: 48, periodLabel: "in 48 Std.", limits: [50, 80, 110] },
+      { hours: 72, periodLabel: "in 72 Std.", limits: [60, 100, 130] },
     ],
-    notes: ["Dauerregen Alpennordseite. Stufe 3 entspricht MCH 4; MCH 5 ab 100/120/150/170 mm."],
-    ownSetting: "Für 1–6 Stunden publiziert MeteoSchweiz keine Regenschwellen – kurzzeitiger Starkregen läuft über die Gewitterkriterien (30/50 mm/h).",
+    notes: [
+      "Summenwerte über den jeweiligen Zeitraum, Dauerregen Alpennordseite.",
+      "Stufe 3 entspricht MCH 4; MCH 5 ab 100/120/150/170 mm (12/24/48/72 Std.).",
+    ],
+    ownSetting:
+      "Die 1-Stunden-Zeile ist eine eigene Setzung, abgeleitet aus den Gewitterkriterien (15/30/50 mm/h) – MeteoSchweiz publiziert für 1–6 Std. keine Regenschwellen.",
   },
   wind: {
     unit: "km/h",
-    rows: [{ hours: null, limits: [70, 90, 110] }],
+    rows: [{ hours: null, periodLabel: "Böenspitze (Momentanwert)", limits: [70, 90, 110] }],
     notes: [
-      "Flachland/Jura unter 1000 m. MCH 5 ab 140 km/h.",
+      "Böenspitze, keine Summe über einen Zeitraum. Flachland/Jura unter 1000 m, MCH 5 ab 140 km/h.",
       "In Gewitterlagen gibt MeteoSchweiz keine separate Windwarnung aus.",
     ],
   },
   schnee: {
     unit: "cm",
     rows: [
-      { hours: 12, limits: [5, 10, 20] },
-      { hours: 24, limits: [10, 15, 30] },
-      { hours: 72, limits: [30, 50, 70] },
+      { hours: 12, periodLabel: "in 12 Std.", limits: [5, 10, 20] },
+      { hours: 24, periodLabel: "in 24 Std.", limits: [10, 15, 30] },
+      { hours: 72, periodLabel: "in 72 Std.", limits: [30, 50, 70] },
     ],
-    notes: ["Niederungen Deutschschweiz unter 800 m. MCH 5 ab 35/50/90 cm."],
+    notes: [
+      "Neuschneesummen über den jeweiligen Zeitraum, Niederungen Deutschschweiz unter 800 m.",
+      "MCH 5 ab 35/50/90 cm (12/24/72 Std.).",
+    ],
   },
   glaette: {
     unit: "°C",
     rows: [],
+    periodNote: "Bezug: Glatteismenge innerhalb 6 Std. plus Andauer der Glätte.",
     notes: [
       "Glatteis (gefrierender Regen) unter 2 mm bei T unter 0 °C: Stufe 1.",
       "Glatteis verbreitet über 2 mm bei T unter 0 °C: Stufe 2.",
@@ -488,13 +509,16 @@ export const THRESHOLDS: Record<HazardId, HazardThresholds> = {
   frost: {
     unit: "°C",
     rows: [],
+    periodNote: "Bezug: Nacht-Minimum (Temperatur 5 cm über Boden).",
     notes: [
       "Offiziell nur Bodenfrost (5 cm über Boden), 15. März bis 31. Oktober, unter 600 m.",
       "Mässiger Bodenfrost 0 bis −4 °C, starker Bodenfrost unter −4 °C – beides MCH-Stufe 2 (unsere Stufe 1).",
     ],
-    ownSetting: "Winterfrost ist keine offizielle MeteoSchweiz-Warnung; Stufen 2 und 3 sind hier eine eigene Setzung der Redaktion.",
+    ownSetting:
+      "Winterfrost ist keine offizielle MeteoSchweiz-Warnung; Stufen 2 und 3 sind hier eine eigene Setzung der Redaktion.",
   },
 };
+
 
 /** Offizielle mm/h-Schwellen für Gewitterregen (Radar-Autowarnung). */
 export const THUNDER_RAIN_MMH: [number, number, number] = [15, 30, 50];
