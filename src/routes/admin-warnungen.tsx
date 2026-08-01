@@ -214,12 +214,15 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   const [rowErr, setRowErr] = useState<string | null>(null);
   /** Zuletzt automatisch erzeugte Texte – zum Erkennen manueller Änderungen. */
   const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, "", 6));
+  /** Erhöht sich nach jedem Laden — erzwingt eine frische Kartenvorschau. */
+  const [previewKey, setPreviewKey] = useState(0);
 
   const load = async () => {
     setLoading(true);
     try {
       const res = await adminListWarnings({ data: { password } });
       setItems(res.warnings);
+      setPreviewKey((k) => k + 1);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Laden fehlgeschlagen");
     } finally {
