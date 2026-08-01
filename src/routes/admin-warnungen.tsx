@@ -575,6 +575,60 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                 />
               </label>
             </div>
+
+            {(() => {
+              const th = THRESHOLDS[form.hazard];
+              const hrs = hoursBetween(form.validFrom, form.validTo);
+              const row = thresholdRowFor(form.hazard, hrs);
+              const sug = suggestLevel(form.hazard, form.valueTo || form.valueFrom, hrs);
+              return (
+                <div className="mt-4 rounded-md border border-border bg-muted/40 p-3 text-sm">
+                  <p className="mb-2 font-semibold">
+                    Schwellen MeteoSchweiz
+                    {row?.hours ? ` · ${row.hours} Std.` : ""}
+                  </p>
+                  {row ? (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {([1, 2, 3] as WarnLevel[]).map((l) => (
+                        <span
+                          key={l}
+                          className="rounded px-2 py-1 text-xs font-semibold"
+                          style={{ background: LEVELS[l].color, color: LEVELS[l].textOnColor }}
+                        >
+                          Stufe {l}: ab {row.limits[l - 1]} {th.unit}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+                    {th.notes.map((n) => (
+                      <li key={n}>{n}</li>
+                    ))}
+                    {th.ownSetting ? <li className="italic">{th.ownSetting}</li> : null}
+                  </ul>
+                  {sug !== null ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="text-muted-foreground">
+                        {sug === 0
+                          ? "Messwert unter Stufe 1 – keine Warnung nötig."
+                          : `Empfehlung aus Messwert: Stufe ${sug}.`}
+                      </span>
+                      {sug !== 0 && sug !== form.level ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            applyTemplate(form.hazard, sug as WarnLevel, form.valueFrom, form.valueTo)
+                          }
+                          className="rounded-md border border-border px-2.5 py-1 text-xs font-semibold"
+                        >
+                          Stufe {sug} übernehmen
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
           </div>
 
 
