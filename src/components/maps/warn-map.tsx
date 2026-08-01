@@ -408,7 +408,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 shown > 0
                   ? {
                       background: isAdvisory
-                        ? `repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 3px, transparent 3px 6px), ${LEVELS[shown as 1 | 2 | 3].color}`
+                        ? `repeating-linear-gradient(45deg, rgba(255,255,255,0.28) 0 3px, transparent 3px 6px), ${LEVELS[shown as 1 | 2 | 3].color}`
                         : LEVELS[shown as 1 | 2 | 3].color,
                       color: LEVELS[shown as 1 | 2 | 3].textOnColor,
                     }
