@@ -388,6 +388,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
           const lvl = levelByHazard.get(h.id) ?? 0;
           const adv = advisoryByHazard.get(h.id) ?? 0;
           const shown = Math.max(lvl, adv) as 0 | 1 | 2 | 3;
+          const isAdvisory = lvl === 0 && adv > 0;
           const Icon = h.icon;
           const on = hazard === h.id;
           return (
@@ -398,7 +399,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 setHazard(h.id);
                 setSelected(null);
               }}
-              title={lvl === 0 && adv > 0 ? `${h.label} – Vorinformation` : h.label}
+              title={isAdvisory ? `${h.label} – Vorinformation` : h.label}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] font-medium transition",
                 on ? "border-foreground" : "border-transparent hover:bg-muted/60",
@@ -406,7 +407,9 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               style={
                 shown > 0
                   ? {
-                      background: LEVELS[shown as 1 | 2 | 3].color,
+                      background: isAdvisory
+                        ? `repeating-linear-gradient(45deg, rgba(0,0,0,0.18) 0 3px, transparent 3px 6px), ${LEVELS[shown as 1 | 2 | 3].color}`
+                        : LEVELS[shown as 1 | 2 | 3].color,
                       color: LEVELS[shown as 1 | 2 | 3].textOnColor,
                     }
                   : undefined
