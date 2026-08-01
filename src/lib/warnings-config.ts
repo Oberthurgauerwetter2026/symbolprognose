@@ -85,7 +85,7 @@ export const HAZARDS: HazardDef[] = [
     id: "frost",
     label: "Frost",
     title: "Frostwarnung",
-    icon: ThermometerSnowflake,
+    icon: FrostIcon,
     paramLabel: "Tiefsttemperatur",
     paramUnit: "°C",
     paramPlaceholder: "z. B. -4",
