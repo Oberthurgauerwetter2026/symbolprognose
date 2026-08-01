@@ -75,13 +75,14 @@ export async function notifyWarning(warningId: string): Promise<number> {
   // daher hier keinen Absender mehr anhängen. Das Emoji vor dem Titel ist
   // auch auf iOS sichtbar, wo das Symbolbild vom System ersetzt wird.
   const emoji: Record<string, string> = {
-    gewitter: "⚡️",
-    regen: "🌧️",
+    gewitter: "⚡",
+    regen: "💧",
+    wind: "🎏",
     schnee: "❄️",
-    glaette: "🧊",
-    wind: "💨",
+    glaette: "🛞",
     frost: "🌡️",
   };
+  const levelDot: Record<WarnLevel, string> = { 1: "🟡", 2: "🟠", 3: "🔴" };
   const baseTitle = warning.title || warningTitle(hazardId, level);
   // Ortsangabe im Titel: bis zu zwei Gemeinden, danach gekürzt.
   const place =
@@ -90,7 +91,9 @@ export async function notifyWarning(warningId: string): Promise<number> {
       : names.length <= 2
         ? names.join(", ")
         : `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
-  const title = `${emoji[hazardId] ? `${emoji[hazardId]} ` : ""}${baseTitle}${place ? ` für ${place}` : ""}`;
+  const prefix = `${emoji[hazardId] ? `${emoji[hazardId]} ` : ""}${levelDot[level]} `;
+  const title = `${prefix}${baseTitle}${place ? ` für ${place}` : ""}`;
+
 
   const { SITE_URL } = await import("@/lib/site-url");
   const known = ["gewitter", "regen", "schnee", "glaette", "wind", "frost"].includes(hazardId);
