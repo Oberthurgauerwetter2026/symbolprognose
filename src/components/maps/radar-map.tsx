@@ -1646,19 +1646,18 @@ export function RadarMap({
     else if (renderMs > lastMs) setRenderMs(lastMs);
   }, [frames, renderMs]);
 
-  // Play-Schritt-Indizes zielzeitgesteuert:
-  //   Messung (t <= now) : 5-min-Raster
-  //   Prognose           : durchgehend 15-min-Raster bis zum Ende
-  // Pro Zielzeit wird der nächstgelegene Frame innerhalb einer Toleranz
-  // (= 0.5 × Schrittgrösse) gewählt. Hat eine Phase nur grobere Daten,
-  // werden Zielzeiten ohne passenden Frame übersprungen statt denselben
-  // Frame mehrfach aufzunehmen.
-  const playStepIndices = useMemo(() => {
+  // Durchgehendes 5-min-Zeitraster über Messung UND Prognose.
+  // Messzeitpunkte werden auf den nächstgelegenen echten Radarframe gesnappt
+  // (Toleranz 2.5 min); Prognosezeitpunkte bleiben virtuell und werden beim
+  // Rendern aus den beiden umliegenden Prognosebildern interpoliert.
+  const timelineSteps = useMemo(() => {
     if (frames.length === 0) return [] as number[];
     const times = frames.map((f) => Date.parse(f.t));
     const firstMs = times[0];
     const lastMs = times[times.length - 1];
     const nowMs = Date.now();
+    const STEP5 = 5 * 60_000;
+    const TOL = STEP5 / 2;
 
     // Nächsten Frame zu targetMs per binärer Suche; null wenn ausserhalb Toleranz.
     const pickNearest = (targetMs: number, tolMs: number): number | null => {
@@ -1684,28 +1683,24 @@ export function RadarMap({
     };
 
     const out: number[] = [];
-    let lastPicked = -1;
-    const pushTarget = (targetMs: number, stepMs: number) => {
-      const idx = pickNearest(targetMs, stepMs * 0.5);
-      if (idx === null || idx === lastPicked) return;
-      out.push(idx);
-      lastPicked = idx;
+    const push = (ms: number) => {
+      if (ms < firstMs || ms > lastMs) return;
+      if (out.length > 0 && out[out.length - 1] === ms) return;
+      out.push(ms);
     };
 
-    // Phase Messung: 5-min-Raster bis nowMs.
-    const STEP5 = 5 * 60_000;
-    const startMeas = Math.ceil(firstMs / STEP5) * STEP5;
-    const endMeas = Math.floor(nowMs / STEP5) * STEP5;
-    for (let t = startMeas; t <= endMeas; t += STEP5) {
-      pushTarget(t, STEP5);
+    const startMs = Math.ceil(firstMs / STEP5) * STEP5;
+    for (let t = startMs; t <= lastMs; t += STEP5) {
+      if (t <= nowMs) {
+        // Messung: nur Zeitpunkte mit echtem Frame, auf dessen Zeit gesnappt.
+        const i = pickNearest(t, TOL);
+        if (i !== null) push(times[i]);
+      } else {
+        // Prognose: durchgehendes Raster, Zwischenwerte interpoliert.
+        push(t);
+      }
     }
-
-    // Phase Prognose: 15-min-Raster bis zum letzten verfügbaren Frame.
-    const STEP15 = 15 * 60_000;
-    const startFc15 = Math.ceil((nowMs + 1) / STEP15) * STEP15;
-    for (let t = startFc15; t <= lastMs; t += STEP15) {
-      pushTarget(t, STEP15);
-    }
+    if (out.length === 0) out.push(firstMs);
     return out;
   }, [frames]);
 
@@ -1719,26 +1714,29 @@ export function RadarMap({
     renderMsRef.current = renderMs;
   }, [renderMs]);
 
-  const stepCursorForIndex = (cur: number | null): number => {
-    if (playStepIndices.length === 0 || cur === null) return 0;
-    const exact = playStepIndices.indexOf(cur);
-    if (exact >= 0) return exact;
-    let cursor = 0;
-    for (let i = 0; i < playStepIndices.length; i++) {
-      if (playStepIndices[i] <= cur) cursor = i;
-      else break;
+  // Cursor im 5-min-Raster für eine gegebene Zeit (nächstgelegener Schritt).
+  const cursorForMs = (ms: number | null): number => {
+    if (timelineSteps.length === 0 || ms === null) return 0;
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < timelineSteps.length; i++) {
+      const dt = Math.abs(timelineSteps[i] - ms);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
+      }
     }
-    return cursor;
+    return best;
   };
 
-  const setTimelineToIndex = (target: number | null) => {
-    if (target === null || !frames[target]) return;
-    const targetMs = Date.parse(frames[target].t);
-    setIdx(target);
+  const setTimelineToMs = (targetMs: number | null | undefined) => {
+    if (typeof targetMs !== "number" || Number.isNaN(targetMs)) return;
+    setIdx(nearestFrameIndexForMs(frames, targetMs));
     setRenderMs(targetMs);
     setPlayVisualMs(null);
     setScrubVisualMs(null);
   };
+
 
   // Play-Loop: kontinuierliche Zeitachse. Kein Quellen-Sonderfall am Seam;
   // Play und Scrub werden später über denselben Timeline-Sampler gerendert.
