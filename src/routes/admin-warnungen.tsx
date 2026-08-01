@@ -14,6 +14,9 @@ import {
   regionName,
   warningTitle,
   formatRange,
+  THRESHOLDS,
+  thresholdRowFor,
+  suggestLevel,
   type HazardId,
   type WarnLevel,
 } from "@/lib/warnings-config";
