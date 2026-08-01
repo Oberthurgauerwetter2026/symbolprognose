@@ -1742,7 +1742,7 @@ export function RadarMap({
   // Play und Scrub werden später über denselben Timeline-Sampler gerendert.
   const playTimeRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!playing || playStepIndices.length === 0 || frames.length === 0) {
+    if (!playing || timelineSteps.length === 0 || frames.length === 0) {
       playTimeRef.current = null;
       setPlayVisualMs(null);
       return;
@@ -1752,13 +1752,13 @@ export function RadarMap({
     const REF_GAP_MS = 15 * 60_000;
     let raf = 0;
     let last = performance.now();
-    const firstIdx = playStepIndices[0];
-    const lastIdx = playStepIndices[playStepIndices.length - 1];
-    const startIdx = playStepIndices[stepCursorForIndex(idxRef.current)] ?? firstIdx;
-    const firstMs = Date.parse(frames[firstIdx]?.t ?? frames[0].t);
-    const lastMs = Date.parse(frames[lastIdx]?.t ?? frames[frames.length - 1].t);
-    const idxMs = Date.parse(frames[startIdx]?.t ?? frames[idxRef.current ?? 0]?.t ?? frames[0].t);
+    const firstMs = timelineSteps[0];
+    const lastMs = timelineSteps[timelineSteps.length - 1];
+    const idxMs =
+      timelineSteps[cursorForMs(renderMsRef.current)] ??
+      Date.parse(frames[idxRef.current ?? 0]?.t ?? frames[0].t);
     const startMs = Math.max(firstMs, Math.min(lastMs, scrubVisualMs ?? renderMsRef.current ?? idxMs));
+
     playTimeRef.current = startMs;
     setPlayVisualMs(startMs);
     setRenderMs(startMs);
