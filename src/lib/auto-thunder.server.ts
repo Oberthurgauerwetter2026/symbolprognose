@@ -10,12 +10,23 @@
  * Server-only.
  */
 
-import { TEMPLATES, templateImpact, fillTemplate, warningTitle } from "@/lib/warnings-config";
+import {
+  TEMPLATES,
+  templateImpact,
+  fillTemplate,
+  warningTitle,
+  THUNDER_RAIN_MMH,
+} from "@/lib/warnings-config";
 import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
-/** mm/h-Schwellen für Stufe 1/2/3 (konvektive Intensität). */
-const THRESHOLDS: [number, number, number] = [8, 15, 30];
+/**
+ * mm/h-Schwellen für Stufe 1/2/3. Stufe 2/3 entsprechen den offiziellen
+ * MeteoSchweiz-Gewitterkriterien (30–50 mm/h bzw. über 50 mm/h),
+ * Stufe 1 (15 mm/h) ist eine eigene Vorstufe.
+ */
+const THRESHOLDS: [number, number, number] = THUNDER_RAIN_MMH;
+
 /** Maximales Alter der Messung, damit sie noch warnt (min). */
 const MAX_AGE_MIN = 30;
 
