@@ -186,7 +186,7 @@ async function closeStale(activeRegionIds: string[] = []): Promise<number> {
     .eq("source", "auto")
     .eq("active", true);
   const rows = (data ?? []) as { id: string; auto_key: string | null; valid_to: string }[];
-  let closed = 0;
+  
   for (const r of rows) {
     const expired = new Date(r.valid_to).getTime() < Date.now();
     const gone = r.auto_key ? !keep.includes(r.auto_key) : true;
