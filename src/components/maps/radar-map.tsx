@@ -1766,7 +1766,7 @@ export function RadarMap({
     setRenderMs(startMs);
 
     let lastFlush = performance.now();
-    const FLUSH_MS = 140;
+    const FLUSH_MS = 60;
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
