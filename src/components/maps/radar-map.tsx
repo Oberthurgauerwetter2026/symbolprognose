@@ -1547,9 +1547,10 @@ function useNowFrameIndex(frames: RadarFrame[]): number {
 }
 
 
-function timelineColorFor(frame: RadarFrame | null): string {
-  return frame?.source === "radar" ? MEASUREMENT_COLOR : FORECAST_COLOR;
+function timelineColorForMs(ms: number): string {
+  return ms <= Date.now() ? MEASUREMENT_COLOR : FORECAST_COLOR;
 }
+
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
 
@@ -1570,13 +1571,14 @@ function fmtUpdatedAt(iso: string): string {
 
 
 
-function fmtBubble(d: Date, frame: RadarFrame | null): string {
+function fmtBubble(d: Date, measured: boolean): string {
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  const kind = frame?.source === "radar" ? "Messung" : "Prognose";
+  const kind = measured ? "Messung" : "Prognose";
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
+
 
 // FilmstripTimeline lebt jetzt in ./filmstrip-timeline und wird von allen
 // Karten (Radar, Satellit, Wind) geteilt.
@@ -1646,19 +1648,18 @@ export function RadarMap({
     else if (renderMs > lastMs) setRenderMs(lastMs);
   }, [frames, renderMs]);
 
-  // Play-Schritt-Indizes zielzeitgesteuert:
-  //   Messung (t <= now) : 5-min-Raster
-  //   Prognose           : durchgehend 15-min-Raster bis zum Ende
-  // Pro Zielzeit wird der nächstgelegene Frame innerhalb einer Toleranz
-  // (= 0.5 × Schrittgrösse) gewählt. Hat eine Phase nur grobere Daten,
-  // werden Zielzeiten ohne passenden Frame übersprungen statt denselben
-  // Frame mehrfach aufzunehmen.
-  const playStepIndices = useMemo(() => {
+  // Durchgehendes 5-min-Zeitraster über Messung UND Prognose.
+  // Messzeitpunkte werden auf den nächstgelegenen echten Radarframe gesnappt
+  // (Toleranz 2.5 min); Prognosezeitpunkte bleiben virtuell und werden beim
+  // Rendern aus den beiden umliegenden Prognosebildern interpoliert.
+  const timelineSteps = useMemo(() => {
     if (frames.length === 0) return [] as number[];
     const times = frames.map((f) => Date.parse(f.t));
     const firstMs = times[0];
     const lastMs = times[times.length - 1];
     const nowMs = Date.now();
+    const STEP5 = 5 * 60_000;
+    const TOL = STEP5 / 2;
 
     // Nächsten Frame zu targetMs per binärer Suche; null wenn ausserhalb Toleranz.
     const pickNearest = (targetMs: number, tolMs: number): number | null => {
@@ -1684,28 +1685,24 @@ export function RadarMap({
     };
 
     const out: number[] = [];
-    let lastPicked = -1;
-    const pushTarget = (targetMs: number, stepMs: number) => {
-      const idx = pickNearest(targetMs, stepMs * 0.5);
-      if (idx === null || idx === lastPicked) return;
-      out.push(idx);
-      lastPicked = idx;
+    const push = (ms: number) => {
+      if (ms < firstMs || ms > lastMs) return;
+      if (out.length > 0 && out[out.length - 1] === ms) return;
+      out.push(ms);
     };
 
-    // Phase Messung: 5-min-Raster bis nowMs.
-    const STEP5 = 5 * 60_000;
-    const startMeas = Math.ceil(firstMs / STEP5) * STEP5;
-    const endMeas = Math.floor(nowMs / STEP5) * STEP5;
-    for (let t = startMeas; t <= endMeas; t += STEP5) {
-      pushTarget(t, STEP5);
+    const startMs = Math.ceil(firstMs / STEP5) * STEP5;
+    for (let t = startMs; t <= lastMs; t += STEP5) {
+      if (t <= nowMs) {
+        // Messung: nur Zeitpunkte mit echtem Frame, auf dessen Zeit gesnappt.
+        const i = pickNearest(t, TOL);
+        if (i !== null) push(times[i]);
+      } else {
+        // Prognose: durchgehendes Raster, Zwischenwerte interpoliert.
+        push(t);
+      }
     }
-
-    // Phase Prognose: 15-min-Raster bis zum letzten verfügbaren Frame.
-    const STEP15 = 15 * 60_000;
-    const startFc15 = Math.ceil((nowMs + 1) / STEP15) * STEP15;
-    for (let t = startFc15; t <= lastMs; t += STEP15) {
-      pushTarget(t, STEP15);
-    }
+    if (out.length === 0) out.push(firstMs);
     return out;
   }, [frames]);
 
@@ -1719,32 +1716,35 @@ export function RadarMap({
     renderMsRef.current = renderMs;
   }, [renderMs]);
 
-  const stepCursorForIndex = (cur: number | null): number => {
-    if (playStepIndices.length === 0 || cur === null) return 0;
-    const exact = playStepIndices.indexOf(cur);
-    if (exact >= 0) return exact;
-    let cursor = 0;
-    for (let i = 0; i < playStepIndices.length; i++) {
-      if (playStepIndices[i] <= cur) cursor = i;
-      else break;
+  // Cursor im 5-min-Raster für eine gegebene Zeit (nächstgelegener Schritt).
+  const cursorForMs = (ms: number | null): number => {
+    if (timelineSteps.length === 0 || ms === null) return 0;
+    let best = 0;
+    let bestDt = Infinity;
+    for (let i = 0; i < timelineSteps.length; i++) {
+      const dt = Math.abs(timelineSteps[i] - ms);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = i;
+      }
     }
-    return cursor;
+    return best;
   };
 
-  const setTimelineToIndex = (target: number | null) => {
-    if (target === null || !frames[target]) return;
-    const targetMs = Date.parse(frames[target].t);
-    setIdx(target);
+  const setTimelineToMs = (targetMs: number | null | undefined) => {
+    if (typeof targetMs !== "number" || Number.isNaN(targetMs)) return;
+    setIdx(nearestFrameIndexForMs(frames, targetMs));
     setRenderMs(targetMs);
     setPlayVisualMs(null);
     setScrubVisualMs(null);
   };
 
+
   // Play-Loop: kontinuierliche Zeitachse. Kein Quellen-Sonderfall am Seam;
   // Play und Scrub werden später über denselben Timeline-Sampler gerendert.
   const playTimeRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!playing || playStepIndices.length === 0 || frames.length === 0) {
+    if (!playing || timelineSteps.length === 0 || frames.length === 0) {
       playTimeRef.current = null;
       setPlayVisualMs(null);
       return;
@@ -1754,19 +1754,19 @@ export function RadarMap({
     const REF_GAP_MS = 15 * 60_000;
     let raf = 0;
     let last = performance.now();
-    const firstIdx = playStepIndices[0];
-    const lastIdx = playStepIndices[playStepIndices.length - 1];
-    const startIdx = playStepIndices[stepCursorForIndex(idxRef.current)] ?? firstIdx;
-    const firstMs = Date.parse(frames[firstIdx]?.t ?? frames[0].t);
-    const lastMs = Date.parse(frames[lastIdx]?.t ?? frames[frames.length - 1].t);
-    const idxMs = Date.parse(frames[startIdx]?.t ?? frames[idxRef.current ?? 0]?.t ?? frames[0].t);
+    const firstMs = timelineSteps[0];
+    const lastMs = timelineSteps[timelineSteps.length - 1];
+    const idxMs =
+      timelineSteps[cursorForMs(renderMsRef.current)] ??
+      Date.parse(frames[idxRef.current ?? 0]?.t ?? frames[0].t);
     const startMs = Math.max(firstMs, Math.min(lastMs, scrubVisualMs ?? renderMsRef.current ?? idxMs));
+
     playTimeRef.current = startMs;
     setPlayVisualMs(startMs);
     setRenderMs(startMs);
 
     let lastFlush = performance.now();
-    const FLUSH_MS = 140;
+    const FLUSH_MS = 60;
     const tick = (now: number) => {
       const dt = now - last;
       last = now;
@@ -1785,9 +1785,9 @@ export function RadarMap({
       playTimeRef.current = nextMs;
       renderMsRef.current = nextMs;
       // React-State nur gedrosselt anfassen: Overlays lesen aus Props, die
-      // sich pro Tick sonst ändern und teure Redraws auslösen würden. Die
-      // Karte selbst bewegt sich zwischen 15-min-Rasterframes optisch nicht,
-      // daher reicht ~7Hz Update-Frequenz für Bubble/Label/Idx.
+      // sich pro Tick sonst ändern und teure Redraws auslösen würden. Im
+      // Prognoseteil verändert sich das Bild nun kontinuierlich, daher ein
+      // etwas dichterer Flush (~16 Hz) für Bubble/Label/Idx.
       if (now - lastFlush >= FLUSH_MS) {
         lastFlush = now;
         setPlayVisualMs(nextMs);
@@ -1807,39 +1807,27 @@ export function RadarMap({
       setPlayVisualMs(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, speed, playStepIndices, frames]);
+  }, [playing, speed, timelineSteps, frames]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
   // Der sichtbare Zustand wird unten über `timelineStateForMs` kontinuierlich
   // zwischen den benachbarten Frames gerendert.
 
 
-  // Reduzierte Frame-Liste für den Filmstrip — gleiche Cadence wie Play
-  // (5 min Messung / durchgehend 15 min Prognose).
-  const stripFrames = useMemo(
-    () => playStepIndices.map((i) => frames[i]).filter(Boolean) as RadarFrame[],
-    [playStepIndices, frames],
-  );
   // Alle Radar-PNG-URLs (Messung + Prognose) für Pre-Decode (Scrub ohne Stocker).
   const radarUrls = useMemo(
     () => frames.filter((f) => !!f.precipUrl).map((f) => f.precipUrl as string),
     [frames],
   );
 
-  const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
-  const stripNowIdx = useMemo(() => {
-    if (playStepIndices.length === 0) return 0;
-    let best = 0;
-    let bestDt = Infinity;
-    for (let i = 0; i < playStepIndices.length; i++) {
-      const dt = Math.abs(playStepIndices[i] - nowIdx);
-      if (dt < bestDt) {
-        bestDt = dt;
-        best = i;
-      }
-    }
-    return best;
-  }, [playStepIndices, nowIdx]);
+  const stripMs = scrubVisualMs ?? playVisualMs ?? renderMs;
+  const stripIdx = cursorForMs(stripMs);
+  const stripNowIdx = useMemo(
+    () => cursorForMs(Date.now()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [timelineSteps],
+  );
+
 
 
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
@@ -2121,9 +2109,7 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      const ni = Math.max(0, stripIdx - 1);
-                      const target = playStepIndices[ni];
-                      if (typeof target === "number") setTimelineToIndex(target);
+                      setTimelineToMs(timelineSteps[Math.max(0, stripIdx - 1)]);
                     }}
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Vorheriger Frame"
@@ -2136,8 +2122,7 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      const target = playStepIndices[stripNowIdx];
-                      if (typeof target === "number") setTimelineToIndex(target);
+                      setTimelineToMs(timelineSteps[stripNowIdx]);
                     }}
                     disabled={stripIdx === stripNowIdx}
                     className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"
@@ -2151,35 +2136,21 @@ export function RadarMap({
                   {/* Track */}
                   <div className="min-w-0 flex-1">
                     <FilmstripTimeline
-                      frames={stripFrames.map((f) => ({ ms: Date.parse(f.t) }))}
+                      frames={timelineSteps.map((ms) => ({ ms }))}
                       idx={stripIdx}
                       isMobile={isMobile}
                       playing={playing}
-                      visualMs={scrubVisualMs ?? playVisualMs ?? renderMs}
-                      color={(() => {
-                        const f = stripFrames[stripIdx] ?? null;
-                        return timelineColorFor(f);
-                      })()}
+                      visualMs={stripMs}
+                      color={timelineColorForMs(stripMs ?? timelineSteps[stripIdx] ?? Date.now())}
                       bandMode="measurement-forecast"
                       ariaLabel="Radar-Zeit"
-                      formatBubble={(d) => {
-                        // Frame anhand der Bubble-Zeit bestimmen (nächster in stripFrames).
-                        const target = d.getTime();
-                        let best: RadarFrame | null = null;
-                        let bestDt = Infinity;
-                        for (const f of stripFrames) {
-                          const dt = Math.abs(Date.parse(f.t) - target);
-                          if (dt < bestDt) { bestDt = dt; best = f; }
-                        }
-                        return fmtBubble(d, best);
-                      }}
+                      formatBubble={(d) => fmtBubble(d, d.getTime() <= Date.now())}
                       onScrubMs={(ms) => {
                         setScrubVisualMs(ms);
                         if (ms !== null) setRenderMs(ms);
                       }}
                       onChange={(i: number) => {
-                        const target = playStepIndices[i];
-                        if (typeof target === "number") setTimelineToIndex(target);
+                        setTimelineToMs(timelineSteps[i]);
                         setPlaying(false);
                       }}
                     />
@@ -2191,10 +2162,11 @@ export function RadarMap({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      const ni = Math.min(playStepIndices.length - 1, stripIdx + 1);
-                      const target = playStepIndices[ni];
-                      if (typeof target === "number") setTimelineToIndex(target);
+                      setTimelineToMs(
+                        timelineSteps[Math.min(timelineSteps.length - 1, stripIdx + 1)],
+                      );
                     }}
+
                     className="hidden sm:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 sm:h-7 sm:w-7"
                     aria-label="Nächster Frame"
                   >
