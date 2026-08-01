@@ -1571,13 +1571,14 @@ function fmtUpdatedAt(iso: string): string {
 
 
 
-function fmtBubble(d: Date, frame: RadarFrame | null): string {
+function fmtBubble(d: Date, measured: boolean): string {
   const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
-  const kind = frame?.source === "radar" ? "Messung" : "Prognose";
+  const kind = measured ? "Messung" : "Prognose";
   return `${kind}: ${wd}, ${hh}:${mm}`;
 }
+
 
 // FilmstripTimeline lebt jetzt in ./filmstrip-timeline und wird von allen
 // Karten (Radar, Satellit, Wind) geteilt.
