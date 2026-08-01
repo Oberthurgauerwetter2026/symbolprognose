@@ -1783,9 +1783,9 @@ export function RadarMap({
       playTimeRef.current = nextMs;
       renderMsRef.current = nextMs;
       // React-State nur gedrosselt anfassen: Overlays lesen aus Props, die
-      // sich pro Tick sonst ändern und teure Redraws auslösen würden. Die
-      // Karte selbst bewegt sich zwischen 15-min-Rasterframes optisch nicht,
-      // daher reicht ~7Hz Update-Frequenz für Bubble/Label/Idx.
+      // sich pro Tick sonst ändern und teure Redraws auslösen würden. Im
+      // Prognoseteil verändert sich das Bild nun kontinuierlich, daher ein
+      // etwas dichterer Flush (~16 Hz) für Bubble/Label/Idx.
       if (now - lastFlush >= FLUSH_MS) {
         lastFlush = now;
         setPlayVisualMs(nextMs);
@@ -1805,39 +1805,27 @@ export function RadarMap({
       setPlayVisualMs(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, speed, playStepIndices, frames]);
+  }, [playing, speed, timelineSteps, frames]);
 
   const currentFrame = idx !== null ? frames[idx] ?? null : null;
   // Der sichtbare Zustand wird unten über `timelineStateForMs` kontinuierlich
   // zwischen den benachbarten Frames gerendert.
 
 
-  // Reduzierte Frame-Liste für den Filmstrip — gleiche Cadence wie Play
-  // (5 min Messung / durchgehend 15 min Prognose).
-  const stripFrames = useMemo(
-    () => playStepIndices.map((i) => frames[i]).filter(Boolean) as RadarFrame[],
-    [playStepIndices, frames],
-  );
   // Alle Radar-PNG-URLs (Messung + Prognose) für Pre-Decode (Scrub ohne Stocker).
   const radarUrls = useMemo(
     () => frames.filter((f) => !!f.precipUrl).map((f) => f.precipUrl as string),
     [frames],
   );
 
-  const stripIdx = idx !== null ? stepCursorForIndex(idx) : 0;
-  const stripNowIdx = useMemo(() => {
-    if (playStepIndices.length === 0) return 0;
-    let best = 0;
-    let bestDt = Infinity;
-    for (let i = 0; i < playStepIndices.length; i++) {
-      const dt = Math.abs(playStepIndices[i] - nowIdx);
-      if (dt < bestDt) {
-        bestDt = dt;
-        best = i;
-      }
-    }
-    return best;
-  }, [playStepIndices, nowIdx]);
+  const stripMs = scrubVisualMs ?? playVisualMs ?? renderMs;
+  const stripIdx = cursorForMs(stripMs);
+  const stripNowIdx = useMemo(
+    () => cursorForMs(Date.now()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [timelineSteps],
+  );
+
 
 
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
