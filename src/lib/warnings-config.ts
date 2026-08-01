@@ -55,6 +55,15 @@ export const HAZARDS: HazardDef[] = [
     paramPlaceholder: "z. B. 40",
   },
   {
+    id: "wind",
+    label: "Wind",
+    title: "Windwarnung",
+    icon: WindsockIcon,
+    paramLabel: "Böenspitzen",
+    paramUnit: "km/h",
+    paramPlaceholder: "z. B. 90",
+  },
+  {
     id: "schnee",
     label: "Schnee",
     title: "Schneefallwarnung",
@@ -72,15 +81,7 @@ export const HAZARDS: HazardDef[] = [
     paramUnit: "°C",
     paramPlaceholder: "z. B. -3",
   },
-  {
-    id: "wind",
-    label: "Wind",
-    title: "Windwarnung",
-    icon: WindsockIcon,
-    paramLabel: "Böenspitzen",
-    paramUnit: "km/h",
-    paramPlaceholder: "z. B. 90",
-  },
+
   {
     id: "frost",
     label: "Frost",
