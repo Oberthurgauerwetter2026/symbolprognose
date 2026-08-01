@@ -722,11 +722,11 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           {rowErr && <p className="text-sm text-destructive">{rowErr}</p>}
           {loading ? (
             <p className="text-base text-muted-foreground">Lade…</p>
-          ) : items.length === 0 ? (
-            <p className="text-base text-muted-foreground">Noch keine Warnungen erfasst.</p>
+          ) : current.length === 0 ? (
+            <p className="text-base text-muted-foreground">Aktuell keine laufenden Warnungen.</p>
           ) : (
             <ul className="space-y-3">
-              {items.map((w) => {
+              {current.map((w) => {
                 const h = getHazard(w.hazard as HazardId);
                 const Icon = h.icon;
                 const def = LEVELS[w.level as WarnLevel];
