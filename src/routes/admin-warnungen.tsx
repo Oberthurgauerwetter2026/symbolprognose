@@ -405,7 +405,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         </header>
 
 
-        <IngestSection password={password} />
+        <MapPreviewSection refreshKey={previewKey} />
 
         <AutoThunderSection password={password} />
 
