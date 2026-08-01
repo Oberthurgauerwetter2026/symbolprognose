@@ -24,6 +24,7 @@ import {
   setWarningActive,
   setWarningAdvisory,
   deleteWarning,
+  deleteArchivedWarnings,
   type WarningDTO,
 } from "@/lib/warnings.functions";
 import {
@@ -845,6 +846,26 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               <summary className="cursor-pointer font-medium text-muted-foreground">
                 Beendet / abgelaufen ({archived.length})
               </summary>
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  disabled={rowBusy === "__all__"}
+                  onClick={() => {
+                    if (!confirm(`${archived.length} Einträge endgültig löschen?`)) return;
+                    setRowBusy("__all__");
+                    setRowErr(null);
+                    void deleteArchivedWarnings({ data: { password } })
+                      .then(() => load())
+                      .catch((e: unknown) =>
+                        setRowErr(e instanceof Error ? e.message : "Aktion fehlgeschlagen"),
+                      )
+                      .finally(() => setRowBusy(null));
+                  }}
+                  className="flex items-center gap-1.5 rounded-md border border-destructive/40 px-2.5 py-1.5 text-destructive disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" /> Alle löschen
+                </button>
+              </div>
               <ul className="mt-3 space-y-2">
                 {archived.map((w) => (
                   <li key={w.id} className="flex flex-wrap items-center gap-2">
