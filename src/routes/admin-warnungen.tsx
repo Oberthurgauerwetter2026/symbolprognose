@@ -487,22 +487,44 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             const sug = suggestLevel(form.hazard, form.valueTo || form.valueFrom, hrs);
             return (
               <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
-                <p className="mb-2 font-semibold">
-                  Schwellen
-                  {row?.hours ? ` · ${row.hours} Std.` : ""}
-                </p>
-                {row ? (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {([1, 2, 3] as WarnLevel[]).map((l) => (
-                      <span
-                        key={l}
-                        className="rounded px-2 py-1 text-xs font-semibold"
-                        style={{ background: LEVELS[l].color, color: LEVELS[l].textOnColor }}
-                      >
-                        Stufe {l}: ab {row.limits[l - 1]} {th.unit}
-                      </span>
-                    ))}
+                <p className="mb-2 font-semibold">Schwellen</p>
+                {th.rows.length ? (
+                  <div className="mb-2 space-y-1.5">
+                    {th.rows.map((r) => {
+                      const active = row === r;
+                      return (
+                        <div
+                          key={`${r.hours ?? "fix"}-${r.unit ?? th.unit}`}
+                          className={`flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 ${
+                            active ? "border-foreground/40 bg-background" : "border-transparent"
+                          }`}
+                        >
+                          <span className="min-w-[9rem] text-xs font-semibold text-muted-foreground">
+                            {r.periodLabel}
+                            {r.own ? " (eigene Setzung)" : ""}
+                          </span>
+                          {([1, 2, 3] as WarnLevel[]).map((l) => (
+                            <span
+                              key={l}
+                              className="rounded px-2 py-1 text-xs font-semibold"
+                              style={{ background: LEVELS[l].color, color: LEVELS[l].textOnColor }}
+                            >
+                              Stufe {l}: ab {r.limits[l - 1]} {r.unit ?? th.unit}
+                            </span>
+                          ))}
+                          {active ? (
+                            <span className="text-xs text-muted-foreground">
+                              passt zur Gültigkeit
+                              {hrs ? ` (${Math.round(hrs)} Std.)` : ""}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
+                ) : null}
+                {th.periodNote ? (
+                  <p className="mb-2 text-xs text-muted-foreground">{th.periodNote}</p>
                 ) : null}
                 <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
                   {th.notes.map((n) => (
@@ -516,6 +538,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                       {sug === 0
                         ? "Messwert unter Stufe 1 – keine Warnung nötig."
                         : `Empfehlung aus Messwert: Stufe ${sug}.`}
+                      {row ? ` Bezug: ${row.periodLabel}.` : ""}
                     </span>
                     {sug !== 0 && sug !== form.level ? (
                       <button
