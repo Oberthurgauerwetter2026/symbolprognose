@@ -37,9 +37,10 @@ export const listWarnings = createServerFn({ method: "GET" }).handler(async () =
 export const adminListWarnings = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => d)
   .handler(async ({ data }) => {
-    const { assertAdmin, readAllWarnings } = await import("@/lib/warnings.server");
+    const { assertAdmin, readAllWarnings, deactivateExpired } = await import("@/lib/warnings.server");
     const { toDTO } = await import("@/lib/warnings-dto.server");
     assertAdmin(data.password);
+    await deactivateExpired();
     const rows = await readAllWarnings();
     return { warnings: rows.map(toDTO) };
   });
