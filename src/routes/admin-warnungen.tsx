@@ -24,6 +24,7 @@ import {
   setWarningActive,
   setWarningAdvisory,
   deleteWarning,
+  deleteArchivedWarnings,
   type WarningDTO,
 } from "@/lib/warnings.functions";
 import {
