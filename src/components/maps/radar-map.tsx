@@ -1547,9 +1547,10 @@ function useNowFrameIndex(frames: RadarFrame[]): number {
 }
 
 
-function timelineColorFor(frame: RadarFrame | null): string {
-  return frame?.source === "radar" ? MEASUREMENT_COLOR : FORECAST_COLOR;
+function timelineColorForMs(ms: number): string {
+  return ms <= Date.now() ? MEASUREMENT_COLOR : FORECAST_COLOR;
 }
+
 
 // ---------------- MeteoSchweiz-Style Timeline ----------------
 
