@@ -713,7 +713,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                           }
                         >
                           <Icon className="h-6 w-6 shrink-0" />
-                          <span className="min-w-0 flex-1 break-words">
+                          <span className="min-w-0 flex-1 truncate">
                             {w.title ||
                               `${w.advisory ? "Vorinformation " + h.label : h.title} (Stufe ${w.level})`}
                           </span>
