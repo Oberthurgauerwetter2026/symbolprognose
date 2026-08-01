@@ -83,6 +83,22 @@ export async function readActiveWarnings(): Promise<WarningWithRegions[]> {
   return attachRegions((rows ?? []) as WarningRow[], (links ?? []) as { warning_id: string; region_id: string }[]);
 }
 
+/**
+ * Abgelaufene Warnungen automatisch beenden (unabhängig von der Quelle).
+ * Gibt die Anzahl der deaktivierten Warnungen zurück.
+ */
+export async function deactivateExpired(): Promise<number> {
+  const sb = await adminClient();
+  const { data, error } = await sb
+    .from("warnings")
+    .update({ active: false })
+    .eq("active", true)
+    .lt("valid_to", new Date().toISOString())
+    .select("id");
+  if (error) return 0;
+  return (data ?? []).length;
+}
+
 /** Admin-Sicht: alles, auch inaktive und abgelaufene Warnungen. */
 export async function readAllWarnings(): Promise<WarningWithRegions[]> {
   const sb = await adminClient();

@@ -83,7 +83,14 @@ export async function notifyWarning(warningId: string): Promise<number> {
     frost: "🌡️",
   };
   const baseTitle = warning.title || warningTitle(hazardId, level);
-  const title = `${emoji[hazardId] ? `${emoji[hazardId]} ` : ""}${baseTitle}`;
+  // Ortsangabe im Titel: bis zu zwei Gemeinden, danach gekürzt.
+  const place =
+    names.length === 0
+      ? ""
+      : names.length <= 2
+        ? names.join(", ")
+        : `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
+  const title = `${emoji[hazardId] ? `${emoji[hazardId]} ` : ""}${baseTitle}${place ? ` für ${place}` : ""}`;
 
   const { SITE_URL } = await import("@/lib/site-url");
   const known = ["gewitter", "regen", "schnee", "glaette", "wind", "frost"].includes(hazardId);

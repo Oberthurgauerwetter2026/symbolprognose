@@ -27,14 +27,11 @@ import {
   type WarningDTO,
 } from "@/lib/warnings.functions";
 import {
-  runIngestNow,
-  getIngestStatus,
   getAutoThunderStatus,
   runAutoThunderNow,
-  type IngestTarget,
-  type IngestStatus,
   type AutoThunderStatus,
 } from "@/lib/ingest-admin.functions";
+import { WarnMap } from "@/components/maps/warn-map";
 
 const STORAGE_KEY = "wx_warn_admin_pw";
 
@@ -217,12 +214,26 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
   const [rowErr, setRowErr] = useState<string | null>(null);
   /** Zuletzt automatisch erzeugte Texte – zum Erkennen manueller Änderungen. */
   const [lastTpl, setLastTpl] = useState(() => genTexts("gewitter", 1, "", 6));
+  /** Erhöht sich nach jedem Laden — erzwingt eine frische Kartenvorschau. */
+  const [previewKey, setPreviewKey] = useState(0);
+
+  /** Laufende Warnungen (aktiv und noch gültig) vs. Archiv. */
+  const current = useMemo(
+    () => items.filter((w) => w.active && new Date(w.validTo).getTime() >= Date.now()),
+    [items],
+  );
+  const archived = useMemo(
+    () => items.filter((w) => !w.active || new Date(w.validTo).getTime() < Date.now()),
+    [items],
+  );
+
 
   const load = async () => {
     setLoading(true);
     try {
       const res = await adminListWarnings({ data: { password } });
       setItems(res.warnings);
+      setPreviewKey((k) => k + 1);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Laden fehlgeschlagen");
     } finally {
@@ -408,7 +419,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         </header>
 
 
-        <IngestSection password={password} />
+        <MapPreviewSection refreshKey={previewKey} />
 
         <AutoThunderSection password={password} />
 
@@ -722,11 +733,11 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           {rowErr && <p className="text-sm text-destructive">{rowErr}</p>}
           {loading ? (
             <p className="text-base text-muted-foreground">Lade…</p>
-          ) : items.length === 0 ? (
-            <p className="text-base text-muted-foreground">Noch keine Warnungen erfasst.</p>
+          ) : current.length === 0 ? (
+            <p className="text-base text-muted-foreground">Aktuell keine laufenden Warnungen.</p>
           ) : (
             <ul className="space-y-3">
-              {items.map((w) => {
+              {current.map((w) => {
                 const h = getHazard(w.hazard as HazardId);
                 const Icon = h.icon;
                 const def = LEVELS[w.level as WarnLevel];
@@ -828,103 +839,60 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               })}
             </ul>
           )}
+
+          {archived.length > 0 && (
+            <details className="rounded-lg border border-border bg-card p-4 text-sm shadow-sm">
+              <summary className="cursor-pointer font-medium text-muted-foreground">
+                Beendet / abgelaufen ({archived.length})
+              </summary>
+              <ul className="mt-3 space-y-2">
+                {archived.map((w) => (
+                  <li key={w.id} className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">
+                      {w.title || warningTitle(w.hazard as HazardId, w.level as WarnLevel, w.advisory)}
+                    </span>
+                    <span className="text-muted-foreground">{formatRange(w.validFrom, w.validTo)}</span>
+                    <button
+                      type="button"
+                      disabled={rowBusy === w.id}
+                      onClick={() => {
+                        if (!confirm("Warnung löschen?")) return;
+                        setRowBusy(w.id);
+                        setRowErr(null);
+                        void deleteWarning({ data: { password, id: w.id } })
+                          .then(() => load())
+                          .catch((e: unknown) =>
+                            setRowErr(e instanceof Error ? e.message : "Aktion fehlgeschlagen"),
+                          )
+                          .finally(() => setRowBusy(null));
+                      }}
+                      className="ml-auto flex items-center gap-1.5 text-destructive disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" /> Löschen
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       </div>
     </div>
   );
 }
 
-const INGEST_TARGETS: Array<{ id: IngestTarget; label: string }> = [
-  { id: "radar", label: "Radar-Messung (MeteoSchweiz)" },
-  { id: "openmeteo", label: "Prognose (ICON-CH1/CH2)" },
-  { id: "arome", label: "AROME-HD" },
-  { id: "mch", label: "MCH Lokalprognose" },
-  { id: "symbol", label: "Symbolprognose" },
-];
-
-/** Ingest-Status und manueller Start — unabhängig vom Cloudflare-Cron-Worker. */
-function IngestSection({ password }: { password: string }) {
-  const [status, setStatus] = useState<IngestStatus[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string>("");
-
-  const load = async () => {
-    try {
-      setStatus(await getIngestStatus());
-    } catch (e) {
-      setMsg((e as Error).message);
-    }
-  };
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  const run = async (target: IngestTarget) => {
-    setBusy(target);
-    setMsg("");
-    try {
-      const res = (await runIngestNow({ data: { password, target } })) as Record<string, unknown>;
-      if (res.ok) setMsg(`${target}: Ingest gestartet — Daten erscheinen in 2–5 Minuten.`);
-      else if (res.throttled)
-        setMsg(
-          `${target}: kürzlich bereits gestartet, bitte ${Math.ceil(
-            Number(res.retryInMs ?? 0) / 60000,
-          )} min warten.`,
-        );
-      else setMsg(`${target}: Fehler — ${String(res.error ?? "unbekannt")}`);
-    } catch (e) {
-      setMsg(`${target}: ${(e as Error).message}`);
-    } finally {
-      setBusy(null);
-      setTimeout(() => void load(), 3000);
-    }
-  };
-
+/** Vorschau der öffentlichen Warnkarte — zur Kontrolle neu erfasster Warnungen. */
+function MapPreviewSection({ refreshKey }: { refreshKey: number }) {
   return (
     <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Datenquellen / Ingest
+        Vorschau Warnkarte
       </h2>
-      {status && (
-        <ul className="space-y-1 text-xs">
-          {status.map((s) => {
-            const stale = s.ageMinutes == null || s.ageMinutes > 30;
-            return (
-              <li key={s.target} className="flex items-center gap-2">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${stale ? "bg-red-500" : "bg-emerald-500"}`}
-                />
-                <span className="font-medium">
-                  {s.target === "radar" ? "Radar-Messung" : "Prognose"}
-                </span>
-                <span className="text-muted-foreground">
-                  {s.ageMinutes != null
-                    ? `aktualisiert vor ${s.ageMinutes} min`
-                    : (s.error ?? "unbekannt")}
-                  {s.latestFrame
-                    ? ` · letztes Bild ${new Date(s.latestFrame).toLocaleString("de-CH")}`
-                    : ""}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div className="flex flex-wrap gap-2">
-        {INGEST_TARGETS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            disabled={busy !== null}
-            onClick={() => void run(t.id)}
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
-          >
-            {busy === t.id ? "Startet …" : t.label}
-          </button>
-        ))}
-      </div>
-      {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
+      <WarnMap key={refreshKey} bare />
+      <p className="text-xs text-muted-foreground">
+        So sehen Besucherinnen und Besucher die Karte. Die Vorschau wird nach jedem Speichern
+        aktualisiert.
+      </p>
     </section>
   );
 }
