@@ -839,6 +839,42 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
               })}
             </ul>
           )}
+
+          {archived.length > 0 && (
+            <details className="rounded-lg border border-border bg-card p-4 text-sm shadow-sm">
+              <summary className="cursor-pointer font-medium text-muted-foreground">
+                Beendet / abgelaufen ({archived.length})
+              </summary>
+              <ul className="mt-3 space-y-2">
+                {archived.map((w) => (
+                  <li key={w.id} className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">
+                      {w.title || warningTitle(w.hazard as HazardId, w.level as WarnLevel, w.advisory)}
+                    </span>
+                    <span className="text-muted-foreground">{formatRange(w.validFrom, w.validTo)}</span>
+                    <button
+                      type="button"
+                      disabled={rowBusy === w.id}
+                      onClick={() => {
+                        if (!confirm("Warnung löschen?")) return;
+                        setRowBusy(w.id);
+                        setRowErr(null);
+                        void deleteWarning({ data: { password, id: w.id } })
+                          .then(() => load())
+                          .catch((e: unknown) =>
+                            setRowErr(e instanceof Error ? e.message : "Aktion fehlgeschlagen"),
+                          )
+                          .finally(() => setRowBusy(null));
+                      }}
+                      className="ml-auto flex items-center gap-1.5 text-destructive disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" /> Löschen
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       </div>
     </div>
