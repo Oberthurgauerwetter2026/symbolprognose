@@ -710,7 +710,7 @@ function MapSearchBar({ bare }: { bare: boolean }) {
       onWheel={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
-      <div className="relative rounded-lg bg-primary/45 px-3 py-2 shadow-md backdrop-blur-sm">
+      <div className="relative rounded-lg bg-primary/30 px-3 py-2 shadow-sm backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <svg
             width="18"
