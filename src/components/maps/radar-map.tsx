@@ -1648,10 +1648,9 @@ export function RadarMap({
     else if (renderMs > lastMs) setRenderMs(lastMs);
   }, [frames, renderMs]);
 
-  // Durchgehendes 5-min-Zeitraster über Messung UND Prognose.
-  // Messzeitpunkte werden auf den nächstgelegenen echten Radarframe gesnappt
-  // (Toleranz 2.5 min); Prognosezeitpunkte bleiben virtuell und werden beim
-  // Rendern aus den beiden umliegenden Prognosebildern interpoliert.
+  // Gemischtes Zeitraster: Messung im 5-min-Takt (auf echte Radarframes
+  // gesnappt), Prognose exakt auf den vorhandenen Prognose-Frames (deren
+  // Kadenz wird aus den Daten abgeleitet — heute 15 min, künftig ggf. 60 min).
   const timelineSteps = useMemo(() => {
     if (frames.length === 0) return [] as number[];
     const times = frames.map((f) => Date.parse(f.t));
@@ -1687,24 +1686,26 @@ export function RadarMap({
     const out: number[] = [];
     const push = (ms: number) => {
       if (ms < firstMs || ms > lastMs) return;
-      if (out.length > 0 && out[out.length - 1] === ms) return;
+      if (out.length > 0 && out[out.length - 1] >= ms) return;
       out.push(ms);
     };
 
+    // Messteil: 5-min-Raster, nur Zeitpunkte mit echtem Frame.
     const startMs = Math.ceil(firstMs / STEP5) * STEP5;
-    for (let t = startMs; t <= lastMs; t += STEP5) {
-      if (t <= nowMs) {
-        // Messung: nur Zeitpunkte mit echtem Frame, auf dessen Zeit gesnappt.
-        const i = pickNearest(t, TOL);
-        if (i !== null) push(times[i]);
-      } else {
-        // Prognose: durchgehendes Raster, Zwischenwerte interpoliert.
-        push(t);
-      }
+    for (let t = startMs; t <= Math.min(lastMs, nowMs); t += STEP5) {
+      const i = pickNearest(t, TOL);
+      if (i !== null) push(times[i]);
     }
+
+    // Prognoseteil: echte Frame-Zeiten (keine virtuellen Zwischenschritte).
+    for (const t of times) {
+      if (t > nowMs) push(t);
+    }
+
     if (out.length === 0) out.push(firstMs);
     return out;
   }, [frames]);
+
 
 
   const idxRef = useRef<number | null>(null);
@@ -1751,7 +1752,16 @@ export function RadarMap({
     }
 
     const FRAME_MS = 1800 / speed;
-    const REF_GAP_MS = 15 * 60_000;
+    // Jeder Timeline-Schritt dauert gleich lang, egal ob 5-min-Messung oder
+    // gröberer Prognoseschritt. Die lokale Schrittweite wird zur Laufzeit aus
+    // dem Raster gelesen, damit die Prognose nicht durchrast.
+    const gapAtMs = (ms: number): number => {
+      if (timelineSteps.length < 2) return 5 * 60_000;
+      let i = 0;
+      while (i < timelineSteps.length - 2 && timelineSteps[i + 1] <= ms) i++;
+      return Math.max(60_000, timelineSteps[i + 1] - timelineSteps[i]);
+    };
+
     let raf = 0;
     let last = performance.now();
     const firstMs = timelineSteps[0];
@@ -1771,7 +1781,7 @@ export function RadarMap({
       const dt = now - last;
       last = now;
       const prevMs = playTimeRef.current ?? startMs;
-      const nextMs = prevMs + (dt * REF_GAP_MS) / FRAME_MS;
+      const nextMs = prevMs + (dt * gapAtMs(prevMs)) / FRAME_MS;
       if (nextMs >= lastMs) {
         playTimeRef.current = lastMs;
         setPlayVisualMs(lastMs);
