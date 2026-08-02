@@ -4,7 +4,7 @@ Oben in der Symbol-Regionskarte kommt ein halbtransparentes Suchband. Wer dort e
 
 ## Verhalten
 
-- Band liegt halbtransparent über dem oberen Kartenrand (Lupe + Platzhalter „Ort, Berg, PLZ suchen“), Breite volle Kartenbreite, Ecken passend zur Karte.
+- Band liegt halbtransparent über dem oberen Kartenrand (Lupe + Platzhalter „Ort, PLZ suchen“), Breite volle Kartenbreite, Ecken passend zur Karte.
 - Ab 2 Zeichen erscheint eine Trefferliste (gleiche Ortssuche wie in der Lokalprognose, Schweiz-weit inkl. Bergen/PLZ soweit die Quelle liefert).
 - Auswahl eines Treffers öffnet die Lokalprognose mit diesem Ort (`/karten/lokal?lat=…&lon=…&name=…`); im Embed-Modus als neuer Tab auf die öffentliche Seite.
 - Leeres Feld + Fokus: Liste „Zuletzt gesucht“ mit den letzten 3 Orten (neuester zuerst, keine Duplikate). Ohne Verlauf wird keine Liste gezeigt.
