@@ -706,11 +706,11 @@ function MapSearchBar({ bare }: { bare: boolean }) {
   return (
     <div
       ref={boxRef}
-      className="pointer-events-auto absolute inset-x-0 top-0 z-[900]"
+      className="pointer-events-auto absolute left-2 right-2 top-2 z-[900] rounded-lg"
       onWheel={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
     >
-      <div className="relative bg-primary/70 px-3 py-2 backdrop-blur-sm">
+      <div className="relative rounded-lg bg-primary/45 px-3 py-2 shadow-md backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <svg
             width="18"
