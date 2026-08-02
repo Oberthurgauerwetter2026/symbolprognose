@@ -10,9 +10,7 @@ export const Route = createFileRoute("/embed/warnungen")({
   },
   component: () => (
     <EmbedShell>
-      <div className="p-2">
-        <WarnMap bare />
-      </div>
+      <WarnMap bare />
     </EmbedShell>
   ),
 
