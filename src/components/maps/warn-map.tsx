@@ -237,7 +237,6 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   const hoverRef = useRef<(f: Feature) => L.PathOptions>(() => ({}));
 
 
-  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["warnings"],
     queryFn: () => listWarnings(),
@@ -247,32 +246,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   });
 
   /** Live-Aktualisierung: Änderungen an Warnungen sofort übernehmen. */
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const bump = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        void queryClient.invalidateQueries({ queryKey: ["warnings"] });
-      }, 300);
-    };
+  useWarningsRealtime();
 
-    const channel = supabase
-      .channel("warn-map-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "warnings" }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "warning_regions" }, bump)
-      .subscribe();
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") bump();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-      void supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 
   const warnings: WarningDTO[] = query.data?.warnings ?? [];
 
