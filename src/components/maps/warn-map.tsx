@@ -743,7 +743,12 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                             {formatRange(w.validFrom, w.validTo)}
                           </p>
 
-                          <p className="text-base leading-relaxed text-foreground">{w.description}</p>
+                          <p className="text-base leading-relaxed text-foreground">
+                            {w.advisory
+                              ? (w.description ?? "").replace(/^Vorinformation\s*[:–-]?\s*/i, "").trim()
+                              : w.description}
+                          </p>
+
                           {impactText && (
                             <p className="text-base leading-relaxed text-foreground">
                               <span className="font-semibold">Mögliche Auswirkungen: </span>
