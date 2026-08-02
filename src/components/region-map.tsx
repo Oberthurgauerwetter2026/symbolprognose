@@ -1010,6 +1010,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
         )}
       >
+        <MapSearchBar bare={bare} />
         <MapContainer
           center={center}
           zoom={11}
