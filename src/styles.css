@@ -204,5 +204,14 @@
 html.js-ok .embed-fallback { display: none; }
 html.js-ok .embed-live { display: block; }
 
+/* Embed-Kontext: kein eigener Seitenhintergrund, damit die Host-Seite
+   (z. B. WordPress) durchscheint und kein grauer Rahmen entsteht. */
+html.embed,
+html.embed body,
+html.embed .embed-live,
+html.embed .embed-fallback {
+  background: transparent;
+}
+
 
 

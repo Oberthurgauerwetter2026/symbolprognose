@@ -24,6 +24,7 @@ export function EmbedShell({
     // gerendert ist (sichtbar als blauer Wrapper auf Display-Browsern).
     let cancelled = false;
     const html = document.documentElement;
+    html.classList.add("embed");
 
     const tryActivate = (attempt = 0) => {
       if (cancelled) return;
@@ -63,6 +64,7 @@ export function EmbedShell({
 
     return () => {
       cancelled = true;
+      html.classList.remove("embed");
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
     };
