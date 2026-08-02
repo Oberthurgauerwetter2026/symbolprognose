@@ -181,9 +181,10 @@ function genTexts(
   const description = fillTemplate(tpl.description, value, durationHours);
   return {
     title: warningTitle(hazard, level, advisory),
-    description: advisory ? `Vorinformation: ${description}` : description,
+    description,
     impact: templateImpact(tpl),
   };
+
 }
 
 function emptyForm(): FormState {
