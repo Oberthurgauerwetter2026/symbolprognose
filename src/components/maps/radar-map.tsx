@@ -1697,10 +1697,16 @@ export function RadarMap({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil: echte Frame-Zeiten (keine virtuellen Zwischenschritte).
-    for (const t of times) {
-      if (t > nowMs) push(t);
+    // Prognoseteil: Stundenraster. Die feineren Frames (15 min) bleiben für
+    // die Animation erhalten, der Slider rastet aber nur auf volle Stunden.
+    const HOUR = 60 * 60_000;
+    const HOUR_TOL = HOUR / 8; // 7.5 min
+    const firstHour = Math.ceil((nowMs + 1) / HOUR) * HOUR;
+    for (let t = firstHour; t <= lastMs; t += HOUR) {
+      const i = pickNearest(t, HOUR_TOL);
+      push(i !== null ? times[i] : t);
     }
+
 
     if (out.length === 0) out.push(firstMs);
     return out;
