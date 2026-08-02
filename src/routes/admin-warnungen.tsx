@@ -7,6 +7,7 @@ import {
   REGIONS,
   REGION_GROUPS,
   TEMPLATES,
+  ADVISORY_TEMPLATES,
   templateImpact,
   fillTemplate,
 
