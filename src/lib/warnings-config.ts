@@ -317,6 +317,117 @@ export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
 };
 
 
+/**
+ * Vorinformationen: Texte weisen auf ein mögliches Ereignis hin,
+ * nicht auf eine bereits feststehende Gefahr. Auswirkungen und Verhaltenshinweise
+ * bleiben bewusst leer, da sie bei einer reinen Möglichkeitsaussage nicht sinnvoll sind.
+ */
+export const ADVISORY_TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
+  gewitter: {
+    1: {
+      description: "Erhöhte Schauer- und Gewitterneigung.",
+      impact: "",
+      advice: "",
+    },
+    2: {
+      description: "Deutlich erhöhte Gewitterneigung.",
+      impact: "",
+      advice: "",
+    },
+    3: {
+      description: "Hohe Wahrscheinlichkeit für starke Gewitter.",
+      impact: "",
+      advice: "",
+    },
+  },
+  regen: {
+    1: {
+      description: "Erhöhte Regenneigung.",
+      impact: "",
+      advice: "",
+    },
+    2: {
+      description: "Deutlich erhöhte Niederschlagsneigung.",
+      impact: "",
+      advice: "",
+    },
+    3: {
+      description: "Hohe Wahrscheinlichkeit für kräftigen Regen.",
+      impact: "",
+      advice: "",
+    },
+  },
+  wind: {
+    1: {
+      description: "Erhöhte Windböen möglich.",
+      impact: "",
+      advice: "",
+    },
+    2: {
+      description: "Deutlich erhöhte Böen möglich.",
+      impact: "",
+      advice: "",
+    },
+    3: {
+      description: "Hohe Wahrscheinlichkeit für stürmische Böen.",
+      impact: "",
+      advice: "",
+    },
+  },
+  schnee: {
+    1: {
+      description: "Erhöhte Schneefallneigung.",
+      impact: "",
+      advice: "",
+    },
+    2: {
+      description: "Deutlich erhöhte Schneefallneigung.",
+      impact: "",
+      advice: "",
+    },
+    3: {
+      description: "Hohe Wahrscheinlichkeit für kräftigen Schneefall.",
+      impact: "",
+      advice: "",
+    },
+  },
+  glaette: {
+    1: {
+      description: "Erhöhte Glättegefahr.",
+      impact: "",
+      advice: "",
+    },
+    2: {
+      description: "Deutlich erhöhte Glättegefahr.",
+      impact: "",
+      advice: "",
+    },
+    3: {
+      description: "Hohe Wahrscheinlichkeit für grössere Vereisung.",
+      impact: "",
+      advice: "",
+    },
+  },
+  frost: {
+    1: {
+      description: "Frost möglich.",
+      impact: "",
+      advice: "",
+    },
+    2: {
+      description: "Deutlich frostige Bedingungen möglich.",
+      impact: "",
+      advice: "",
+    },
+    3: {
+      description: "Hohe Wahrscheinlichkeit für strengen Frost.",
+      impact: "",
+      advice: "",
+    },
+  },
+};
+
+
 /** Auswirkungen + Verhaltenshinweis als ein Textblock (für Formular und Auto-Warnung). */
 export function templateImpact(tpl: Template): string {
   return `${tpl.impact} Empfohlenes Verhalten: ${tpl.advice}`;
