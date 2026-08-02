@@ -1752,7 +1752,16 @@ export function RadarMap({
     }
 
     const FRAME_MS = 1800 / speed;
-    const REF_GAP_MS = 15 * 60_000;
+    // Jeder Timeline-Schritt dauert gleich lang, egal ob 5-min-Messung oder
+    // gröberer Prognoseschritt. Die lokale Schrittweite wird zur Laufzeit aus
+    // dem Raster gelesen, damit die Prognose nicht durchrast.
+    const gapAtMs = (ms: number): number => {
+      if (timelineSteps.length < 2) return 5 * 60_000;
+      let i = 0;
+      while (i < timelineSteps.length - 2 && timelineSteps[i + 1] <= ms) i++;
+      return Math.max(60_000, timelineSteps[i + 1] - timelineSteps[i]);
+    };
+
     let raf = 0;
     let last = performance.now();
     const firstMs = timelineSteps[0];
