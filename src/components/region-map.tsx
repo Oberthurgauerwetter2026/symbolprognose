@@ -597,6 +597,181 @@ function DayTabs({
   );
 }
 
+/** Halbtransparentes Suchband über der Karte → führt zur Lokalprognose. */
+const RECENT_KEY = "otw:lokal-recent";
+
+interface RecentPlace {
+  name: string;
+  latitude: number;
+  longitude: number;
+  admin1?: string;
+}
+
+function readRecent(): RecentPlace[] {
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY);
+    const arr = raw ? (JSON.parse(raw) as RecentPlace[]) : [];
+    return Array.isArray(arr) ? arr.filter((p) => p && p.name).slice(0, 3) : [];
+  } catch {
+    return [];
+  }
+}
+
+function MapSearchBar({ bare }: { bare: boolean }) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [debounced, setDebounced] = useState("");
+  const [recent, setRecent] = useState<RecentPlace[]>([]);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setRecent(readRecent()), []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(query), 300);
+    return () => window.clearTimeout(id);
+  }, [query]);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  const results = useQuery({
+    queryKey: ["region-map-geo", debounced],
+    queryFn: () => searchLocations(debounced),
+    enabled: debounced.trim().length >= 2,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const go = (p: RecentPlace) => {
+    const next = [
+      p,
+      ...readRecent().filter(
+        (r) =>
+          r.name !== p.name ||
+          Math.abs(r.latitude - p.latitude) > 1e-4 ||
+          Math.abs(r.longitude - p.longitude) > 1e-4,
+      ),
+    ].slice(0, 3);
+    try {
+      window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    } catch {
+      /* Speicher nicht verfügbar – Verlauf ist optional */
+    }
+    setRecent(next);
+    setQuery("");
+    setOpen(false);
+
+    const qs = new URLSearchParams({
+      lat: String(p.latitude),
+      lon: String(p.longitude),
+      name: p.name,
+    });
+    if (bare) {
+      window.open(`${SITE_URL}/karten/lokal?${qs.toString()}`, "_blank", "noopener");
+      return;
+    }
+    router
+      .navigate({
+        to: "/karten/lokal",
+        search: { lat: p.latitude, lon: p.longitude, name: p.name },
+      })
+      .catch(() => window.location.assign(`/karten/lokal?${qs.toString()}`));
+  };
+
+  const list =
+    debounced.trim().length >= 2
+      ? (results.data ?? []).map((r) => ({
+          key: String(r.id),
+          name: r.name,
+          admin1: r.admin1,
+          latitude: r.latitude,
+          longitude: r.longitude,
+        }))
+      : recent.map((r, i) => ({
+          key: `recent-${i}-${r.name}`,
+          name: r.name,
+          admin1: r.admin1,
+          latitude: r.latitude,
+          longitude: r.longitude,
+        }));
+
+  const showList = open && list.length > 0;
+
+  return (
+    <div
+      ref={boxRef}
+      className="pointer-events-auto absolute inset-x-0 top-0 z-[900]"
+      onWheel={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
+      <div className="relative bg-primary/70 px-3 py-2 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            className="shrink-0 text-primary-foreground/90"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setOpen(false);
+              if (e.key === "Enter" && list.length > 0) go(list[0]);
+            }}
+            placeholder="Ort, PLZ suchen"
+            aria-label="Ort für Lokalprognose suchen"
+            className="h-8 w-full min-w-0 border-0 bg-transparent text-sm font-medium text-primary-foreground placeholder:text-primary-foreground/70 focus:outline-none"
+          />
+        </div>
+
+        {showList && (
+          <ul className="absolute inset-x-2 top-[calc(100%-2px)] max-h-64 overflow-y-auto rounded-b-lg border border-border/60 bg-card shadow-xl">
+            {debounced.trim().length < 2 && (
+              <li className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Zuletzt gesucht
+              </li>
+            )}
+            {list.map((r) => (
+              <li key={r.key}>
+                <button
+                  type="button"
+                  onClick={() => go(r)}
+                  className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
+                >
+                  <span className="font-semibold text-foreground">{r.name}</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {r.admin1 ?? "CH"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill?: boolean } = {}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
