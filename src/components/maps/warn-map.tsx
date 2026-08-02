@@ -3,7 +3,8 @@ import { MapContainer, GeoJSON, TileLayer, ZoomControl, Marker, useMap } from "r
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, BellRing, Loader2, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import regionData from "@/data/region.json";
@@ -236,12 +237,42 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   const hoverRef = useRef<(f: Feature) => L.PathOptions>(() => ({}));
 
 
+  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["warnings"],
     queryFn: () => listWarnings(),
-    refetchInterval: 5 * 60 * 1000,
-    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
+
+  /** Live-Aktualisierung: Änderungen an Warnungen sofort übernehmen. */
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: ["warnings"] });
+      }, 300);
+    };
+
+    const channel = supabase
+      .channel("warn-map-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "warnings" }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "warning_regions" }, bump)
+      .subscribe();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") bump();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const warnings: WarningDTO[] = query.data?.warnings ?? [];
 
