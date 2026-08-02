@@ -1781,7 +1781,7 @@ export function RadarMap({
       const dt = now - last;
       last = now;
       const prevMs = playTimeRef.current ?? startMs;
-      const nextMs = prevMs + (dt * REF_GAP_MS) / FRAME_MS;
+      const nextMs = prevMs + (dt * gapAtMs(prevMs)) / FRAME_MS;
       if (nextMs >= lastMs) {
         playTimeRef.current = lastMs;
         setPlayVisualMs(lastMs);
