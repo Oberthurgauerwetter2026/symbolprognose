@@ -716,18 +716,25 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                           }
                         >
                           <Icon className="h-6 w-6 shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            {w.advisory &&
-                              !(w.title || "").toLowerCase().startsWith("vorinformation") && (
-                                <span className="mb-1 block w-fit rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
-                                  Vorinformation
-                                </span>
-                              )}
-                            <span className="block truncate">
-                              {w.title ||
-                                `${w.advisory ? "Vorinformation " + h.label : h.title} (Stufe ${w.level})`}
-                            </span>
-                          </div>
+                          {(() => {
+                            const fallback = `${h.label} (Stufe ${w.level})`;
+                            const raw = (w.title || fallback).trim();
+                            const stripped = w.advisory
+                              ? raw.replace(/^vorinformation\s*[:–-]?\s*/i, "").trim()
+                              : raw;
+                            const titleText = stripped || fallback;
+                            return (
+                              <div className="min-w-0 flex-1">
+                                {w.advisory && (
+                                  <span className="mb-1 block w-fit rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
+                                    Vorinformation
+                                  </span>
+                                )}
+                                <span className="block truncate">{titleText}</span>
+                              </div>
+                            );
+                          })()}
+
 
                         </div>
 
