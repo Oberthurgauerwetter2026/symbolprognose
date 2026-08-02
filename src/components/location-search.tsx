@@ -100,12 +100,12 @@ export function LocationSearch({
 
     if (onSelect) {
       onSelect({
-        id: `${p.latitude},${p.longitude}`,
+        id: Math.round((p.latitude + p.longitude) * 1e5),
         name: p.name,
         latitude: p.latitude,
         longitude: p.longitude,
         admin1: p.admin1,
-      } as unknown as GeoLocation);
+      });
       return;
     }
 
