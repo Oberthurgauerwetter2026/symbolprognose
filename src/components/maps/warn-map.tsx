@@ -3,7 +3,8 @@ import { MapContainer, GeoJSON, TileLayer, ZoomControl, Marker, useMap } from "r
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, BellRing, Loader2, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import regionData from "@/data/region.json";
