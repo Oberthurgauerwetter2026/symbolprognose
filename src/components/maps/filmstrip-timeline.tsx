@@ -111,10 +111,12 @@ export function FilmstripTimeline({
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
   const frameMs = times[displayIdx] ?? tMin;
+  // Bubble und Strip rasten immer auf echte Frame-Zeiten ein (5-min-Messung,
+  // Prognose-Kadenz). Die kontinuierliche Zeit dient nur dem Karten-Morphing.
   const motionMs = dragging
-    ? (dragMs as number)
+    ? frameMs
     : visualMs != null
-      ? visualMs
+      ? (times[nearestIndexForMs(visualMs)] ?? frameMs)
       : frameMs;
   const translateX = containerW / 2 - ((motionMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
