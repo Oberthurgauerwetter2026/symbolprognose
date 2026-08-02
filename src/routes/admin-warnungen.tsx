@@ -987,6 +987,20 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
 /** Vorschau der öffentlichen Warnkarte — zur Kontrolle neu erfasster Warnungen. */
 function MapPreviewSection({ refreshKey }: { refreshKey: number }) {
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    setUpdatedAt(
+      new Date().toLocaleString("de-CH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    );
+  }, [refreshKey]);
+
   return (
     <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -994,8 +1008,7 @@ function MapPreviewSection({ refreshKey }: { refreshKey: number }) {
       </h2>
       <WarnMap key={refreshKey} bare />
       <p className="text-xs text-muted-foreground">
-        So sehen Besucherinnen und Besucher die Karte. Die Vorschau wird nach jedem Speichern
-        aktualisiert.
+        {updatedAt ? `Aktualisiert: ${updatedAt}` : "\u00a0"}
       </p>
     </section>
   );
