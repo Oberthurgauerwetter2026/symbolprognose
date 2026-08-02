@@ -178,12 +178,14 @@ function genTexts(
   durationHours?: number | null,
   advisory = false,
 ) {
-  const tpl = TEMPLATES[hazard][level];
-  const description = fillTemplate(tpl.description, value, durationHours);
+  const tpl = advisory ? ADVISORY_TEMPLATES[hazard][level] : TEMPLATES[hazard][level];
+  const description = advisory
+    ? tpl.description
+    : fillTemplate(tpl.description, value, durationHours);
   return {
     title: warningTitle(hazard, level, advisory),
     description,
-    impact: templateImpact(tpl),
+    impact: advisory ? "" : templateImpact(tpl),
   };
 
 }
