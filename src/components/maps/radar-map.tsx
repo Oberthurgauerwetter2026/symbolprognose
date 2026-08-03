@@ -1402,8 +1402,9 @@ function MeasurementCanvasOverlay({
     ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingEnabled = !organic;
     ctx.imageSmoothingQuality = "high";
+
     ctx.drawImage(off, 0, 0, off.width, off.height, 0, 0, size.x, size.y);
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
