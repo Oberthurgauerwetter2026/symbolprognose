@@ -1,9 +1,11 @@
+import { useEffect, useMemo, useState } from "react";
 import { Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 import { REFERENCE_CITIES } from "@/data/reference-cities";
 
 export { REFERENCE_CITIES };
+
 
 const CITY_FONT =
   "system-ui,-apple-system,Segoe UI,Roboto,sans-serif";
