@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, Marker, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, useMap } from "react-leaflet";
+
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -24,8 +25,8 @@ const MAP_BOUNDS: [[number, number], [number, number]] = [
   [47.90, 9.95],
 ];
 
-import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
-const CITIES = OBERTHURGAU_PLACES;
+import { CityMarkers } from "./city-markers";
+
 
 
 function useMapZoom(): number {

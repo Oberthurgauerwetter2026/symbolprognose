@@ -238,6 +238,7 @@ import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 const WIND_CITIES = OBERTHURGAU_PLACES;
 
 
+
 function cityIcon(name: string): L.DivIcon {
   const bullet =
     "font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2561a1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;line-height:1;margin-right:4px;vertical-align:middle;";
