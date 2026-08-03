@@ -1218,8 +1218,24 @@ function MeasurementCanvasOverlay({
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
-    const src = sourceRef.current;
-    if (!cv || !src) return;
+    if (!cv) return;
+    const srcA = cacheRef.current.get(url) ?? sourceRef.current ?? null;
+    const srcBRaw = nextUrl && nextUrl !== url ? cacheRef.current.get(nextUrl) ?? null : null;
+    if (!srcA && !srcBRaw) return;
+
+    // Weicher Übergang: rein gewichtete Mischung der Intensitätsfelder in
+    // EINER Zeichenfläche. Dadurch bleibt die Farbdichte konstant (kein
+    // Aufhellen/Abdunkeln durch gestapelte Halbtransparenzen) und die
+    // Geometrie der Flächen wird nicht verformt.
+    const QSTEPS = 12;
+    let wRaw = Math.max(0, Math.min(1, typeof blend === "number" ? blend : 0));
+    if (!srcBRaw) wRaw = 0;
+    if (!srcA) wRaw = 1;
+    const w = Math.round(wRaw * QSTEPS) / QSTEPS;
+    const fieldA = w >= 1 ? null : srcA;
+    const fieldB = w <= 0 ? null : srcBRaw;
+    if (!fieldA && !fieldB) return;
+
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
     if (cv.width !== size.x * dpr || cv.height !== size.y * dpr) {
@@ -1240,7 +1256,9 @@ function MeasurementCanvasOverlay({
       frameCanvasCacheRef.current.clear();
       viewKeyRef.current = viewKey;
     }
-    const cacheKey = `${url}|${viewKey}`;
+    const cacheKey = `${fieldA ? url : ""}>${fieldB ? nextUrl : ""}@${
+      fieldA && fieldB ? w : 0
+    }|${viewKey}`;
     let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
 
     if (!off) {
@@ -1258,20 +1276,26 @@ function MeasurementCanvasOverlay({
       const latSpan = maxLat - minLat;
       const lonSpan = maxLon - minLon;
 
-      const sw = src.w;
-      const sh = src.h;
-      const smoothMmh = ensureSmooth(src);
-      const sampleAt = (fx: number, fy: number) => {
+      const smoothA = fieldA ? ensureSmooth(fieldA) : null;
+      const smoothB = fieldB ? ensureSmooth(fieldB) : null;
+      const sampleField = (
+        field: DecodedRadar,
+        arr: Float32Array,
+        fx: number,
+        fy: number,
+      ) => {
+        const sw = field.w;
+        const sh = field.h;
         const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
         const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
         const x1 = Math.min(sw - 1, x0 + 1);
         const y1 = Math.min(sh - 1, y0 + 1);
         const tx = Math.max(0, Math.min(1, fx - x0));
         const ty = Math.max(0, Math.min(1, fy - y0));
-        const v00 = smoothMmh[y0 * sw + x0];
-        const v01 = smoothMmh[y0 * sw + x1];
-        const v10 = smoothMmh[y1 * sw + x0];
-        const v11 = smoothMmh[y1 * sw + x1];
+        const v00 = arr[y0 * sw + x0];
+        const v01 = arr[y0 * sw + x1];
+        const v10 = arr[y1 * sw + x0];
+        const v11 = arr[y1 * sw + x1];
         return (
           v00 * (1 - tx) * (1 - ty) +
           v01 * tx * (1 - ty) +
@@ -1280,14 +1304,28 @@ function MeasurementCanvasOverlay({
         );
       };
 
+      const wA = fieldA && fieldB ? 1 - w : fieldA ? 1 : 0;
+      const wB = fieldA && fieldB ? w : fieldB ? 1 : 0;
+
       for (let ly = 0; ly < lowH; ly++) {
         for (let lx = 0; lx < lowW; lx++) {
           const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
           if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
-          const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
-          const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
-          if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
-          const v = sampleAt(fx, fy);
+          let v = 0;
+          if (fieldA && smoothA) {
+            const fx = ((ll.lng - minLon) / lonSpan) * (fieldA.w - 1);
+            const fy = ((maxLat - ll.lat) / latSpan) * (fieldA.h - 1);
+            if (fx >= 0 && fx <= fieldA.w - 1 && fy >= 0 && fy <= fieldA.h - 1) {
+              v += wA * sampleField(fieldA, smoothA, fx, fy);
+            }
+          }
+          if (fieldB && smoothB) {
+            const fx = ((ll.lng - minLon) / lonSpan) * (fieldB.w - 1);
+            const fy = ((maxLat - ll.lat) / latSpan) * (fieldB.h - 1);
+            if (fx >= 0 && fx <= fieldB.w - 1 && fy >= 0 && fy <= fieldB.h - 1) {
+              v += wB * sampleField(fieldB, smoothB, fx, fy);
+            }
+          }
           if (v < 0.05) continue;
           const [r, g, b, a] = colorFor(v);
           if (a === 0) continue;
