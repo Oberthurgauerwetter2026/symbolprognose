@@ -915,11 +915,20 @@ function PrecipOverlay({
  */
 function MeasurementCanvasOverlay({
   url,
+  nextUrl,
+  progress = 0,
+  advect = false,
   bounds,
   opacity,
   prefetchUrls,
 }: {
   url: string;
+  /** Nachbar-Frame für die Advektion (nur Prognose). */
+  nextUrl?: string | null;
+  /** 0…1 Position zwischen `url` und `nextUrl`. */
+  progress?: number;
+  /** Advektion entlang des Bewegungsfeldes aktivieren. */
+  advect?: boolean;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
@@ -931,9 +940,19 @@ function MeasurementCanvasOverlay({
   const sourceRef = useRef<DecodedRadar | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const DECODE_CACHE_MAX = 96;
+  // Advektierte Zwischenfelder (Schlüssel: urlA|urlB|quantisierter Fortschritt).
+  const blendCacheRef = useRef<Map<string, DecodedRadar>>(new Map());
+  const BLEND_CACHE_MAX = 32;
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+  const nextUrlRef = useRef<string | null>(nextUrl ?? null);
+  nextUrlRef.current = nextUrl ?? null;
+  const advectRef = useRef(advect);
+  advectRef.current = advect;
   // Unused payload placeholder for redraw signature (kept to avoid churn).
   const payload: RadarPayload | undefined = undefined;
   void payload;
+
 
 
   const redrawRef = useRef<() => void>(() => {});
