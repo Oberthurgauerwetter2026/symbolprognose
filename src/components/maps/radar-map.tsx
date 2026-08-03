@@ -1697,15 +1697,16 @@ export function RadarMap({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil: Stundenraster. Die feineren Frames (15 min) bleiben für
-    // die Animation erhalten, der Slider rastet aber nur auf volle Stunden.
-    const HOUR = 60 * 60_000;
-    const HOUR_TOL = HOUR / 8; // 7.5 min
-    const firstHour = Math.ceil((nowMs + 1) / HOUR) * HOUR;
-    for (let t = firstHour; t <= lastMs; t += HOUR) {
-      const i = pickNearest(t, HOUR_TOL);
+    // Prognoseteil: 30-min-Raster. Die feineren Frames (15 min) bleiben für
+    // die Animation erhalten, der Slider rastet aber auf :00 und :30.
+    const HALF = 30 * 60_000;
+    const HALF_TOL = 7.5 * 60_000;
+    const firstHalf = Math.ceil((nowMs + 1) / HALF) * HALF;
+    for (let t = firstHalf; t <= lastMs; t += HALF) {
+      const i = pickNearest(t, HALF_TOL);
       push(i !== null ? times[i] : t);
     }
+
 
 
     if (out.length === 0) out.push(firstMs);
