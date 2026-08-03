@@ -1320,7 +1320,7 @@ function MeasurementCanvasOverlay({
       frameCanvasCacheRef.current.clear();
       viewKeyRef.current = viewKey;
     }
-    const cacheKey = `${url}|${viewKey}|${organic ? "w" : "p"}`;
+    const cacheKey = `${url}|${viewKey}|${organic ? "blk" : "p"}`;
     let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
 
     if (!off) {
