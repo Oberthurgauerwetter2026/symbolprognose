@@ -1296,8 +1296,87 @@ function MeasurementCanvasOverlay({
     redraw();
   }, [payload, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
 
+  // Opazität separat nachziehen (Crossfade ändert nur die Deckkraft, nicht die
+  // Geometrie) — ohne Neuberechnung des Frame-Canvas.
+  useEffect(() => {
+    const cv = canvasRef.current;
+    if (cv) cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+  }, [opacity]);
+
   return null;
 }
+
+/**
+ * Crossfade-Ebene für Niederschlagsfelder: hält beim Wechsel der Quell-URL das
+ * vorherige Feld sichtbar und blendet es über `durationMs` aus, während das
+ * neue Feld eingeblendet wird. Es entstehen dabei KEINE Zwischengeometrien —
+ * beide Felder bleiben geometrisch unverändert, es wird ausschliesslich die
+ * Deckkraft animiert (Summe bleibt konstant, kein Aufblitzen, kein Loch).
+ */
+function CrossfadePrecipOverlay({
+  url,
+  bounds,
+  opacity,
+  prefetchUrls,
+  durationMs = 700,
+  fade = true,
+}: {
+  url: string;
+  bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+  opacity: number;
+  prefetchUrls?: string[];
+  durationMs?: number;
+  fade?: boolean;
+}) {
+  const [prevUrl, setPrevUrl] = useState<string | null>(null);
+  const [p, setP] = useState(1);
+  const lastUrlRef = useRef<string>(url);
+
+  useEffect(() => {
+    if (url === lastUrlRef.current) return;
+    const from = lastUrlRef.current;
+    lastUrlRef.current = url;
+    if (!fade || durationMs <= 0) {
+      setPrevUrl(null);
+      setP(1);
+      return;
+    }
+    setPrevUrl(from);
+    setP(0);
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.max(0, Math.min(1, (now - start) / durationMs));
+      // Weiche Ein-/Ausblendung (Cosinus-Ease) für einen ruhigen Übergang.
+      const eased = 0.5 - Math.cos(Math.PI * t) / 2;
+      setP(eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else setPrevUrl(null);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [url, fade, durationMs]);
+
+  return (
+    <>
+      {prevUrl && prevUrl !== url && (
+        <MeasurementCanvasOverlay
+          key={`fade-out:${prevUrl}`}
+          url={prevUrl}
+          bounds={bounds}
+          opacity={opacity * (1 - p)}
+        />
+      )}
+      <MeasurementCanvasOverlay
+        url={url}
+        bounds={bounds}
+        opacity={opacity * p}
+        prefetchUrls={prefetchUrls}
+      />
+    </>
+  );
+}
+
 
 /**
  * Hagel-Punkt-Overlay für MESS-Frames: leitet aus der Niederschlagsintensität
