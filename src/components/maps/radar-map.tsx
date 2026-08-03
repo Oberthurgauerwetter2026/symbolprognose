@@ -2004,13 +2004,16 @@ export function RadarMap({
                     />
                   )}
                   {showPng && (
-                    <MeasurementCanvasOverlay
+                    <CrossfadePrecipOverlay
                       url={overlayFrame.precipUrl as string}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
+                      fade={overlayFrame.source !== "radar"}
+                      durationMs={700}
                     />
                   )}
+
 
                 </>
               );
