@@ -1268,10 +1268,8 @@ function MeasurementCanvasOverlay({
     let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
 
     if (!off) {
-      // Volle Pixelauflösung: kein Zwischenraster mehr, damit beim Blitten
-      // nichts hochskaliert (und damit verschmiert) werden muss. Auf schwachen
-      // Mobilgeräten bleibt Schrittweite 2 als Performance-Reserve.
-      const STEP = (window.devicePixelRatio || 1) > 2 && size.x < 520 ? 2 : 1;
+      // STEP=2 halbiert den Pixel-Loop bei praktisch unveränderter Optik.
+      const STEP = 2;
       const lowW = Math.max(1, Math.ceil(size.x / STEP));
       const lowH = Math.max(1, Math.ceil(size.y / STEP));
       off = document.createElement("canvas");
@@ -1286,29 +1284,18 @@ function MeasurementCanvasOverlay({
 
       const sw = src.w;
       const sh = src.h;
-      // Rohwerte statt geglätteter Kopie: Zellgröße und Spitzenintensität
-      // entsprechen exakt dem Modellraster.
-      const smoothMmh = src.mmh;
-      // Kanten-Kompression: bilinear, aber die Übergangszone wird auf ~40 %
-      // einer Rasterzelle zusammengezogen. Ergebnis: Zellgrenzen liegen dort,
-      // wo das Modell sie hat, ohne harte Treppenstufen.
-      const edge = (t: number) => {
-        const k = 1.35;
-        const s = Math.max(0, Math.min(1, (t - 0.5) * k + 0.5));
-        return s * s * (3 - 2 * s);
-      };
+      const smoothMmh = ensureSmooth(src);
       const sampleAt = (fx: number, fy: number) => {
         const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
         const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
         const x1 = Math.min(sw - 1, x0 + 1);
         const y1 = Math.min(sh - 1, y0 + 1);
-        const tx = edge(Math.max(0, Math.min(1, fx - x0)));
-        const ty = edge(Math.max(0, Math.min(1, fy - y0)));
+        const tx = Math.max(0, Math.min(1, fx - x0));
+        const ty = Math.max(0, Math.min(1, fy - y0));
         const v00 = smoothMmh[y0 * sw + x0];
         const v01 = smoothMmh[y0 * sw + x1];
         const v10 = smoothMmh[y1 * sw + x0];
         const v11 = smoothMmh[y1 * sw + x1];
-
         return (
           v00 * (1 - tx) * (1 - ty) +
           v01 * tx * (1 - ty) +
@@ -1354,8 +1341,7 @@ function MeasurementCanvasOverlay({
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "low";
-
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(off, 0, 0, off.width, off.height, 0, 0, size.x, size.y);
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
