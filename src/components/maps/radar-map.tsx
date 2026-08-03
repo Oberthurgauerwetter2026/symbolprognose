@@ -1697,15 +1697,15 @@ export function RadarMap({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil: 30-min-Raster. Die feineren Frames (15 min) bleiben für
-    // die Animation erhalten, der Slider rastet aber auf :00 und :30.
-    const HALF = 30 * 60_000;
-    const HALF_TOL = 7.5 * 60_000;
-    const firstHalf = Math.ceil((nowMs + 1) / HALF) * HALF;
-    for (let t = firstHalf; t <= lastMs; t += HALF) {
-      const i = pickNearest(t, HALF_TOL);
+    // Prognoseteil: 15-min-Raster entsprechend der echten Prognose-Kadenz.
+    const QUARTER = 15 * 60_000;
+    const QUARTER_TOL = 4 * 60_000;
+    const firstQuarter = Math.ceil((nowMs + 1) / QUARTER) * QUARTER;
+    for (let t = firstQuarter; t <= lastMs; t += QUARTER) {
+      const i = pickNearest(t, QUARTER_TOL);
       push(i !== null ? times[i] : t);
     }
+
 
 
 
