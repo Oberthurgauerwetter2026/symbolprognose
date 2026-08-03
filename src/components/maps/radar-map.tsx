@@ -1340,7 +1340,9 @@ function MeasurementCanvasOverlay({
 
       const sw = src.w;
       const sh = src.h;
-      const smoothMmh = ensureSmooth(src);
+      // Prognose (organic): unbearbeitete Modellwerte, keine Glättung.
+      const smoothMmh = organic ? src.mmh : ensureSmooth(src);
+
       const sampleAt = (fx: number, fy: number) => {
         const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
         const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
