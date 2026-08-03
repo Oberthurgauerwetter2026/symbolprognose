@@ -1002,11 +1002,14 @@ function MeasurementCanvasOverlay({
   bounds,
   opacity,
   prefetchUrls,
+  organic = false,
 }: {
   url: string;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
+  /** Prognose-Frames: organischer Domain-Warp der Sample-Koordinaten. */
+  organic?: boolean;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
