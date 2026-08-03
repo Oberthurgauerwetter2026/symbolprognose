@@ -25,6 +25,7 @@ import thurgauData from "@/data/thurgau.json";
 
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { cn } from "@/lib/utils";
+import { computeFlow, advectBlend } from "@/lib/radar-flow";
 import { FilmstripTimeline } from "./filmstrip-timeline";
 import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 
@@ -1361,7 +1362,7 @@ function MeasurementCanvasOverlay({
       frameCanvasCacheRef.current.clear();
       viewKeyRef.current = viewKey;
     }
-    const cacheKey = `${url}|${viewKey}`;
+    const cacheKey = `${fieldKey}|${viewKey}`;
     let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
 
     if (!off) {
