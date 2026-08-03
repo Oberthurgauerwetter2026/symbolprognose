@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, Marker, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl } from "react-leaflet";
+
+
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -24,55 +26,10 @@ const MAP_BOUNDS: [[number, number], [number, number]] = [
   [47.90, 9.95],
 ];
 
-import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
-const CITIES = OBERTHURGAU_PLACES;
-
-
-function useMapZoom(): number {
-  const map = useMap();
-  const [z, setZ] = useState<number>(() => map.getZoom());
-  useEffect(() => {
-    const update = () => setZ(map.getZoom());
-    map.on("zoomend zoom", update);
-    update();
-    return () => {
-      map.off("zoomend zoom", update);
-    };
-  }, [map]);
-  return z;
-}
-
-function cityIcon(name: string): L.DivIcon {
-  const bullet =
-    "font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2561a1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;line-height:1;margin-right:4px;vertical-align:middle;";
-  const label =
-    "font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;vertical-align:middle;";
-  return L.divIcon({
-    className: "accum-city-marker",
-    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-3px,-7px);"><span style="${bullet}">•</span><span style="${label}">${name}</span></div>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  });
-}
-
-function CityMarkers() {
-  const z = useMapZoom();
-  return (
-    <>
-      {CITIES.filter((c) => z >= (c.minZoom ?? 10.5)).map((c) => (
-        <Marker
-          key={c.name}
-          position={[c.lat, c.lon]}
-          icon={cityIcon(c.name)}
-          interactive={false}
-          keyboard={false}
-        />
-      ))}
-    </>
-  );
-}
+import { CityMarkers } from "./city-markers";
 
 // Niederschlagssummen-Farbskala (mm) — identische MeteoSchweiz-CombiPrecip-
+
 // Palette wie `radar-map.tsx` SCALE (gleiche RGB-Tripel, gleiche Reihenfolge),
 // nur an mm-Summen statt mm/h gehängt. Harte Bänder, keine Interpolation —
 // dadurch sehen Radar-Animation, ICON-CH-Forecast-Frames und Summen-Karte

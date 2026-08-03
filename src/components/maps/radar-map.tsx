@@ -26,7 +26,8 @@ import thurgauData from "@/data/thurgau.json";
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
-import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
+import { CityMarkers } from "./city-markers";
+
 
 
 
@@ -41,21 +42,6 @@ const LAKE = lakeData as unknown as FeatureCollection;
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const THURGAU = thurgauData as unknown as FeatureCollection;
 
-const RADAR_CITIES = OBERTHURGAU_PLACES;
-
-
-function cityIcon(name: string): L.DivIcon {
-  const bullet =
-    "font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2561a1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;line-height:1;margin-right:4px;vertical-align:middle;";
-  const label =
-    "font:500 12px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1a1a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;white-space:nowrap;vertical-align:middle;";
-  return L.divIcon({
-    className: "radar-city-marker",
-    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-3px,-7px);"><span style="${bullet}">•</span><span style="${label}">${name}</span></div>`,
-    iconSize: [0, 0],
-    iconAnchor: [0, 0],
-  });
-}
 
 
 // Niederschlags-Farbskala (mm/h) — MeteoSchweiz-CombiPrecip-Reset.
@@ -1970,17 +1956,9 @@ export function RadarMap({
 
 
 
-          {RADAR_CITIES.map((c, i) => (
-            <ZoomGate key={`${c.name}-${c.lat}-${c.lon}-${i}`} minZoom={c.minZoom ?? 10.5}>
-              <Marker
-                position={[c.lat, c.lon]}
-                icon={cityIcon(c.name)}
-                interactive={false}
-                keyboard={false}
-              />
-            </ZoomGate>
-          ))}
+          <CityMarkers />
           <ZoomControl position="topright" />
+
         </MapContainer>
 
 
