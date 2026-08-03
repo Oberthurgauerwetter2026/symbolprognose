@@ -585,7 +585,7 @@ function PrecipOverlay({
           if (x < nLon - 1) { sum += src[y * nLon + (x + 1)]; wsum += 1; }
           const v = sum / wsum;
           // Spitzen nicht absenken: lokales Maximum bleibt erhalten.
-          out[y * nLon + x] = Math.max(v, c > 0 ? Math.min(c, v * 1.2) : v);
+          out[y * nLon + x] = v;
         }
       }
       return out;
