@@ -457,18 +457,16 @@ function valueNoise(x: number, y: number): number {
  * unregelmässig/gewachsen, ohne dass Werte gemittelt (geglättet/weichgezeichnet)
  * werden — Zellgrösse und Spitzenintensität bleiben unverändert.
  */
-const ORGANIC_AMP = 0.65;
+const ORGANIC_AMP = 0.45;
 function warpX(fx: number, fy: number): number {
-  const n1 = valueNoise(fx * 0.3 + 11.3, fy * 0.3 - 4.7) - 0.5;
-  const n2 = valueNoise(fx * 0.9 + 57.2, fy * 0.9 + 3.4) - 0.5;
-  const n3 = valueNoise(fx * 2.1 + 91.7, fy * 2.1 - 18.2) - 0.5;
-  return fx + ORGANIC_AMP * (2 * n1 + n2 + 0.3 * n3);
+  const n1 = valueNoise(fx * 0.35 + 11.3, fy * 0.35 - 4.7) - 0.5;
+  const n2 = valueNoise(fx * 0.95 + 57.2, fy * 0.95 + 3.4) - 0.5;
+  return fx + ORGANIC_AMP * (2 * n1 + n2);
 }
 function warpY(fx: number, fy: number): number {
-  const n1 = valueNoise(fx * 0.3 - 8.1, fy * 0.3 + 21.9) - 0.5;
-  const n2 = valueNoise(fx * 0.9 - 31.6, fy * 0.9 - 12.8) - 0.5;
-  const n3 = valueNoise(fx * 2.1 - 66.4, fy * 2.1 + 44.5) - 0.5;
-  return fy + ORGANIC_AMP * (2 * n1 + n2 + 0.3 * n3);
+  const n1 = valueNoise(fx * 0.35 - 8.1, fy * 0.35 + 21.9) - 0.5;
+  const n2 = valueNoise(fx * 0.95 - 31.6, fy * 0.95 - 12.8) - 0.5;
+  return fy + ORGANIC_AMP * (2 * n1 + n2);
 }
 
 /**
@@ -1002,14 +1000,11 @@ function MeasurementCanvasOverlay({
   bounds,
   opacity,
   prefetchUrls,
-  organic = false,
 }: {
   url: string;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
-  /** Prognose-Frames: organischer Domain-Warp der Sample-Koordinaten. */
-  organic?: boolean;
 }) {
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1310,7 +1305,7 @@ function MeasurementCanvasOverlay({
       frameCanvasCacheRef.current.clear();
       viewKeyRef.current = viewKey;
     }
-    const cacheKey = `${url}|${viewKey}|${organic ? "w" : "p"}`;
+    const cacheKey = `${url}|${viewKey}`;
     let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
 
     if (!off) {
@@ -1354,12 +1349,9 @@ function MeasurementCanvasOverlay({
         for (let lx = 0; lx < lowW; lx++) {
           const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
           if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
-          const fxRaw = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
-          const fyRaw = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
-          if (fxRaw < 0 || fxRaw > src.w - 1 || fyRaw < 0 || fyRaw > src.h - 1) continue;
-          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
-          const fx = organic ? warpX(fxRaw, fyRaw) : fxRaw;
-          const fy = organic ? warpY(fxRaw, fyRaw) : fyRaw;
+          const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
+          const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
+          if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
           const v = sampleAt(fx, fy);
           if (v < 0.05) continue;
           const [r, g, b, a] = colorFor(v);
@@ -2036,7 +2028,6 @@ export function RadarMap({
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
-                      organic={overlayFrame.source !== "radar"}
                     />
                   )}
 
