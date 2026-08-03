@@ -52,7 +52,6 @@ function useMapZoom(): number {
   return z;
 }
 
-import { useEffect, useState } from "react";
 
 
 /**
