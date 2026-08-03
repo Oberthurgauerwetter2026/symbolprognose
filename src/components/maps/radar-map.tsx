@@ -457,7 +457,7 @@ function valueNoise(x: number, y: number): number {
  * unregelmässig/gewachsen, ohne dass Werte gemittelt (geglättet/weichgezeichnet)
  * werden — Zellgrösse und Spitzenintensität bleiben unverändert.
  */
-const ORGANIC_AMP = 0.9;
+const ORGANIC_AMP = 0.65;
 function warpX(fx: number, fy: number): number {
   const n1 = valueNoise(fx * 0.3 + 11.3, fy * 0.3 - 4.7) - 0.5;
   const n2 = valueNoise(fx * 0.9 + 57.2, fy * 0.9 + 3.4) - 0.5;
