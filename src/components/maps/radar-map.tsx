@@ -992,26 +992,26 @@ function MeasurementCanvasOverlay({
     const sw = src.w;
     const sh = src.h;
     const smooth = new Float32Array(sw * sh);
+    // Schwach gewichtete Glättung (Zentrum 12, 4er-Nachbarn 1): nur Anti-
+    // Aliasing an Kanten, keine Verbreiterung der Zellen und keine merkliche
+    // Absenkung der Spitzen wie beim früheren 3×3-Boxcar.
+    const CW = 12;
     for (let y = 0; y < sh; y++) {
       for (let x = 0; x < sw; x++) {
-        let sum = 0;
-        let cnt = 0;
-        for (let dy = -1; dy <= 1; dy++) {
-          const yy = y + dy;
-          if (yy < 0 || yy >= sh) continue;
-          for (let dx = -1; dx <= 1; dx++) {
-            const xx = x + dx;
-            if (xx < 0 || xx >= sw) continue;
-            sum += src.mmh[yy * sw + xx];
-            cnt++;
-          }
-        }
-        smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
+        const c = src.mmh[y * sw + x];
+        let sum = c * CW;
+        let wsum = CW;
+        if (y > 0) { sum += src.mmh[(y - 1) * sw + x]; wsum += 1; }
+        if (y < sh - 1) { sum += src.mmh[(y + 1) * sw + x]; wsum += 1; }
+        if (x > 0) { sum += src.mmh[y * sw + (x - 1)]; wsum += 1; }
+        if (x < sw - 1) { sum += src.mmh[y * sw + (x + 1)]; wsum += 1; }
+        smooth[y * sw + x] = sum / wsum;
       }
     }
     src.smoothMmh = smooth;
     return smooth;
   };
+
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
