@@ -54,6 +54,7 @@ function useMapZoom(): number {
 
 import { useEffect, useState } from "react";
 
+
 /**
  * Einheitliche Orts-Label für Karten im Standardfokus.
  * Kombiniert Referenzstädte (gross/medium) mit den Oberthurgau-Orten.
