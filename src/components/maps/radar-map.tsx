@@ -564,36 +564,13 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
-    const isForecastFrame = frame.source !== "radar";
+    // Prognose- und Mess-Frames werden identisch gerendert: keine zusätzliche
+    // Glättung für die Prognose, damit Kanten und Bandgrössen gleich wirken.
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    // Für Prognose-Frames: 3×3-Boxcar-Smoothing analog zur Messungs-Pipeline
-    // (`MeasurementCanvasOverlay.ensureSmooth`) — glättet Grid-Kanten zu
-    // organischen Blob-Rändern. Kein Denoise, kein Warp, kein Blend.
-    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
-      if (!src || src.length !== nLon * nLat) return src;
-      const out = new Array<number>(nLon * nLat);
-      for (let y = 0; y < nLat; y++) {
-        for (let x = 0; x < nLon; x++) {
-          let sum = 0;
-          let cnt = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            const yy = y + dy;
-            if (yy < 0 || yy >= nLat) continue;
-            for (let dx = -1; dx <= 1; dx++) {
-              const xx = x + dx;
-              if (xx < 0 || xx >= nLon) continue;
-              sum += src[yy * nLon + xx];
-              cnt++;
-            }
-          }
-          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
-        }
-      }
-      return out;
-    };
-    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
+    const vals = rawVals;
+    const snowVals = rawSnow;
+
     if (!vals || vals.length === 0) return;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
@@ -752,37 +729,14 @@ function PrecipOverlay({
     const { gridLat, gridLon } = payload;
     const nLat = gridLat.length;
     const nLon = gridLon.length;
-    const isForecastFrame = f.source !== "radar";
+    // Identische Optik für Messung und Prognose — keine Zusatzglättung.
+
     const rawVals = f.values;
     const rawSnow = f.snowValues;
     if (!rawVals || rawVals.length === 0) return null;
-    // Für Prognose-Frames: 3×3-Boxcar-Smoothing wie in der Messungs-Pipeline
-    // (`MeasurementCanvasOverlay.ensureSmooth`) — erzeugt organische Blob-
-    // Ränder statt rechteckiger Grid-Kanten, ohne Denoise oder Warp.
-    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
-      if (!src || src.length !== nLon * nLat) return src;
-      const out = new Array<number>(nLon * nLat);
-      for (let y = 0; y < nLat; y++) {
-        for (let x = 0; x < nLon; x++) {
-          let sum = 0;
-          let cnt = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            const yy = y + dy;
-            if (yy < 0 || yy >= nLat) continue;
-            for (let dx = -1; dx <= 1; dx++) {
-              const xx = x + dx;
-              if (xx < 0 || xx >= nLon) continue;
-              sum += src[yy * nLon + xx];
-              cnt++;
-            }
-          }
-          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
-        }
-      }
-      return out;
-    };
-    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
+    const vals = rawVals;
+    const snowVals = rawSnow;
+
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
