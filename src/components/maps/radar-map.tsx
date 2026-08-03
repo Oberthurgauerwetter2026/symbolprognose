@@ -726,7 +726,11 @@ function PrecipOverlay({
     const cacheKey = `${f.t}|${f.source ?? ""}`;
     const existing = cacheRef.current.get(cacheKey);
     if (existing) return existing;
+    const { gridLat, gridLon } = payload;
+    const nLat = gridLat.length;
+    const nLon = gridLon.length;
     // Identische Optik für Messung und Prognose — keine Zusatzglättung.
+
     const rawVals = f.values;
     const rawSnow = f.snowValues;
     if (!rawVals || rawVals.length === 0) return null;
