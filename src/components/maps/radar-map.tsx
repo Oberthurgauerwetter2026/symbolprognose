@@ -613,7 +613,7 @@ function PrecipOverlay({
     const smoothEdge = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
       const out = new Array<number>(nLon * nLat);
-      const CW = 12;
+      const CW = 20;
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
           const c = src[y * nLon + x];
