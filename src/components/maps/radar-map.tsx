@@ -724,8 +724,9 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          const sx = fxRaw;
-          const sy = fyRaw;
+          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
+          const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
+          const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
 
           let v = sampleAt(vals, sx, sy);
 
