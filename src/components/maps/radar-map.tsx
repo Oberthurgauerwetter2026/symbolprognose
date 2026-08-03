@@ -429,10 +429,47 @@ function timelineStateForMs(
   };
 }
 
-// Hinweis: Prognose-Frames werden bewusst als pixelgenaue Modellblöcke
-// gerendert (Nearest-Neighbour, keine Glättung, kein Domain-Warp) — analog zur
-// MeteoSchweiz-Darstellung.
+/**
+ * Deterministisches Value-Noise über Gitterkoordinaten (keine Zeit-, keine
+ * Bildschirmabhängigkeit → stabil bei Pan/Zoom und über Frames hinweg).
+ */
+function noiseHash(xi: number, yi: number): number {
+  const s = Math.sin(xi * 127.1 + yi * 311.7) * 43758.5453123;
+  return s - Math.floor(s);
+}
+function valueNoise(x: number, y: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const tx = x - xi;
+  const ty = y - yi;
+  const ux = tx * tx * (3 - 2 * tx);
+  const uy = ty * ty * (3 - 2 * ty);
+  const a = noiseHash(xi, yi);
+  const b = noiseHash(xi + 1, yi);
+  const c = noiseHash(xi, yi + 1);
+  const d = noiseHash(xi + 1, yi + 1);
+  return (a * (1 - ux) + b * ux) * (1 - uy) + (c * (1 - ux) + d * ux) * uy;
+}
 
+/**
+ * Organischer Domain-Warp für Prognose-Frames: verschiebt die Sample-
+ * Koordinaten um Bruchteile einer Gitterzelle. Ränder verlaufen dadurch
+ * unregelmässig/gewachsen, ohne dass Werte gemittelt (geglättet/weichgezeichnet)
+ * werden — Zellgrösse und Spitzenintensität bleiben unverändert.
+ */
+const ORGANIC_AMP = 0.65;
+function warpX(fx: number, fy: number): number {
+  const n1 = valueNoise(fx * 0.3 + 11.3, fy * 0.3 - 4.7) - 0.5;
+  const n2 = valueNoise(fx * 0.9 + 57.2, fy * 0.9 + 3.4) - 0.5;
+  const n3 = valueNoise(fx * 2.1 + 91.7, fy * 2.1 - 18.2) - 0.5;
+  return fx + ORGANIC_AMP * (2 * n1 + n2 + 0.3 * n3);
+}
+function warpY(fx: number, fy: number): number {
+  const n1 = valueNoise(fx * 0.3 - 8.1, fy * 0.3 + 21.9) - 0.5;
+  const n2 = valueNoise(fx * 0.9 - 31.6, fy * 0.9 - 12.8) - 0.5;
+  const n3 = valueNoise(fx * 2.1 - 66.4, fy * 2.1 + 44.5) - 0.5;
+  return fy + ORGANIC_AMP * (2 * n1 + n2 + 0.3 * n3);
+}
 
 /**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
@@ -595,11 +632,8 @@ function PrecipOverlay({
       }
       return out;
     };
-    // Prognose: keine Glättung — pixelgenaue Modellblöcke (Screenshot-Optik).
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    void smoothEdge;
-
+    const vals = isForecastFrame ? smoothEdge(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smoothEdge(rawSnow) ?? rawSnow : rawSnow;
 
     if (!vals || vals.length === 0) return;
     const STEP = 2;
@@ -642,7 +676,7 @@ function PrecipOverlay({
     }
 
 
-    const cacheKey = `${frame.t}|${frame.source ?? ""}|blk`;
+    const cacheKey = `${frame.t}|${frame.source ?? ""}`;
     let off = cacheRef.current.get(cacheKey) ?? null;
     let lowW: number;
     let lowH: number;
@@ -692,11 +726,9 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          // Prognose: Nearest-Neighbour (gerundete Gitterindizes) → harte
-          // Modellblöcke ohne Interpolation und ohne Domain-Warp.
-          const sx = isForecastFrame ? Math.round(fxRaw) : fxRaw;
-          const sy = isForecastFrame ? Math.round(fyRaw) : fyRaw;
-
+          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
+          const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
+          const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
 
           let v = sampleAt(vals, sx, sy);
 
@@ -742,9 +774,8 @@ function PrecipOverlay({
 
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = !isForecastFrame;
+    ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-
     ctx.drawImage(off, 0, 0, lowW, lowH, 0, 0, size.x, size.y);
     ctx.restore();
   };
@@ -757,7 +788,7 @@ function PrecipOverlay({
   buildOffscreenRef.current = (f: RadarFrame): HTMLCanvasElement | null => {
     const lookup = lookupRef.current;
     if (!lookup) return null;
-    const cacheKey = `${f.t}|${f.source ?? ""}|blk`;
+    const cacheKey = `${f.t}|${f.source ?? ""}`;
     const existing = cacheRef.current.get(cacheKey);
     if (existing) return existing;
     const { gridLat, gridLon } = payload;
@@ -787,11 +818,8 @@ function PrecipOverlay({
       }
       return out;
     };
-    // Prognose: keine Glättung — pixelgenaue Modellblöcke.
-    const vals = rawVals;
-    const snowVals = rawSnow;
-    void smoothEdge;
-
+    const vals = isForecastFrame ? smoothEdge(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smoothEdge(rawSnow) ?? rawSnow : rawSnow;
 
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
@@ -832,9 +860,8 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const sx = isForecastFrame ? Math.round(fxRaw) : fxRaw;
-        const sy = isForecastFrame ? Math.round(fyRaw) : fyRaw;
-
+        const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
+        const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
         let v = sampleAt(vals, sx, sy);
         const minV = 0.1;
         if (v < minV) continue;
@@ -1283,7 +1310,7 @@ function MeasurementCanvasOverlay({
       frameCanvasCacheRef.current.clear();
       viewKeyRef.current = viewKey;
     }
-    const cacheKey = `${url}|${viewKey}|${organic ? "blk" : "p"}`;
+    const cacheKey = `${url}|${viewKey}|${organic ? "w" : "p"}`;
     let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
 
     if (!off) {
@@ -1303,9 +1330,7 @@ function MeasurementCanvasOverlay({
 
       const sw = src.w;
       const sh = src.h;
-      // Prognose (organic): unbearbeitete Modellwerte, keine Glättung.
-      const smoothMmh = organic ? src.mmh : ensureSmooth(src);
-
+      const smoothMmh = ensureSmooth(src);
       const sampleAt = (fx: number, fy: number) => {
         const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
         const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
@@ -1332,12 +1357,11 @@ function MeasurementCanvasOverlay({
           const fxRaw = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
           const fyRaw = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
           if (fxRaw < 0 || fxRaw > src.w - 1 || fyRaw < 0 || fyRaw > src.h - 1) continue;
-          // Prognose: Nearest-Neighbour → harte Modellblöcke, kein Warp.
-          const fx = organic ? Math.round(fxRaw) : fxRaw;
-          const fy = organic ? Math.round(fyRaw) : fyRaw;
+          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
+          const fx = organic ? warpX(fxRaw, fyRaw) : fxRaw;
+          const fy = organic ? warpY(fxRaw, fyRaw) : fyRaw;
           const v = sampleAt(fx, fy);
           if (v < 0.05) continue;
-
           const [r, g, b, a] = colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
@@ -1365,9 +1389,8 @@ function MeasurementCanvasOverlay({
     ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = !organic;
+    ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-
     ctx.drawImage(off, 0, 0, off.width, off.height, 0, 0, size.x, size.y);
     ctx.restore();
     cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
