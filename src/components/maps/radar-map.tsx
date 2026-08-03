@@ -399,6 +399,18 @@ function bracketFramesForMs(
   return { frame: eligible[idx], nextFrame: eligible[idx + 1] ?? null, progress: 0 };
 }
 
+/**
+ * Fade-Gewichtung innerhalb eines Zeitschritts: Das Feld hält den Grossteil
+ * des Schritts unverändert (Gewicht 0) und geht erst im letzten Abschnitt
+ * weich (Smoothstep) in das nächste Feld über. Kein Springen, kein Pumpen.
+ */
+function fadeWeight(progress: number, frac = 0.4): number {
+  const p = Math.max(0, Math.min(1, progress));
+  if (frac <= 0) return p >= 1 ? 1 : 0;
+  const t = Math.max(0, Math.min(1, (p - (1 - frac)) / frac));
+  return t * t * (3 - 2 * t);
+}
+
 function timelineStateForMs(
   frames: RadarFrame[],
   renderMs: number,
