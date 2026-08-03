@@ -2036,6 +2036,7 @@ export function RadarMap({
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
+                      organic={overlayFrame.source !== "radar"}
                     />
                   )}
 
