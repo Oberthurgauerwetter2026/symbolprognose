@@ -1369,12 +1369,12 @@ function MeasurementCanvasOverlay({
           const fxRaw = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
           const fyRaw = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
           if (fxRaw < 0 || fxRaw > src.w - 1 || fyRaw < 0 || fyRaw > src.h - 1) continue;
-          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
           // Prognose: Nearest-Neighbour → harte Modellblöcke, kein Warp.
           const fx = organic ? Math.round(fxRaw) : fxRaw;
           const fy = organic ? Math.round(fyRaw) : fyRaw;
-
+          const v = sampleAt(fx, fy);
           if (v < 0.05) continue;
+
           const [r, g, b, a] = colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
