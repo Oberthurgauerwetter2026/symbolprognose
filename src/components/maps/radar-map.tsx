@@ -430,46 +430,6 @@ function timelineStateForMs(
 }
 
 /**
- * Deterministisches Value-Noise über Gitterkoordinaten (keine Zeit-, keine
- * Bildschirmabhängigkeit → stabil bei Pan/Zoom und über Frames hinweg).
- */
-function noiseHash(xi: number, yi: number): number {
-  const s = Math.sin(xi * 127.1 + yi * 311.7) * 43758.5453123;
-  return s - Math.floor(s);
-}
-function valueNoise(x: number, y: number): number {
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const tx = x - xi;
-  const ty = y - yi;
-  const ux = tx * tx * (3 - 2 * tx);
-  const uy = ty * ty * (3 - 2 * ty);
-  const a = noiseHash(xi, yi);
-  const b = noiseHash(xi + 1, yi);
-  const c = noiseHash(xi, yi + 1);
-  const d = noiseHash(xi + 1, yi + 1);
-  return (a * (1 - ux) + b * ux) * (1 - uy) + (c * (1 - ux) + d * ux) * uy;
-}
-
-/**
- * Organischer Domain-Warp für Prognose-Frames: verschiebt die Sample-
- * Koordinaten um Bruchteile einer Gitterzelle. Ränder verlaufen dadurch
- * unregelmässig/gewachsen, ohne dass Werte gemittelt (geglättet/weichgezeichnet)
- * werden — Zellgrösse und Spitzenintensität bleiben unverändert.
- */
-const ORGANIC_AMP = 0.45;
-function warpX(fx: number, fy: number): number {
-  const n1 = valueNoise(fx * 0.35 + 11.3, fy * 0.35 - 4.7) - 0.5;
-  const n2 = valueNoise(fx * 0.95 + 57.2, fy * 0.95 + 3.4) - 0.5;
-  return fx + ORGANIC_AMP * (2 * n1 + n2);
-}
-function warpY(fx: number, fy: number): number {
-  const n1 = valueNoise(fx * 0.35 - 8.1, fy * 0.35 + 21.9) - 0.5;
-  const n2 = valueNoise(fx * 0.95 - 31.6, fy * 0.95 - 12.8) - 0.5;
-  return fy + ORGANIC_AMP * (2 * n1 + n2);
-}
-
-/**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
@@ -607,32 +567,33 @@ function PrecipOverlay({
     const isForecastFrame = frame.source !== "radar";
     const rawVals = frame.values;
     const rawSnow = frame.snowValues;
-    // Prognose-Frames: nur minimale Kantenglättung (Zentrum 12, 4er-Nachbarn 1,
-    // Diagonalen 0). Damit bleiben Zellgröße und Spitzenintensität dem Modell
-    // treu — der frühere 3×3-Boxcar hat Zellen um ~1 Pixel verbreitert.
-    const smoothEdge = (src: number[] | undefined): number[] | undefined => {
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing analog zur Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — glättet Grid-Kanten zu
+    // organischen Blob-Rändern. Kein Denoise, kein Warp, kein Blend.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
       const out = new Array<number>(nLon * nLat);
-      const CW = 20;
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
-          const c = src[y * nLon + x];
-          let sum = c * CW;
-          let wsum = CW;
-          if (y > 0) { sum += src[(y - 1) * nLon + x]; wsum += 1; }
-          if (y < nLat - 1) { sum += src[(y + 1) * nLon + x]; wsum += 1; }
-          if (x > 0) { sum += src[y * nLon + (x - 1)]; wsum += 1; }
-          if (x < nLon - 1) { sum += src[y * nLon + (x + 1)]; wsum += 1; }
-          const v = sum / wsum;
-          // Spitzen nicht absenken: lokales Maximum bleibt erhalten.
-          out[y * nLon + x] = v;
+          let sum = 0;
+          let cnt = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const yy = y + dy;
+            if (yy < 0 || yy >= nLat) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx;
+              if (xx < 0 || xx >= nLon) continue;
+              sum += src[yy * nLon + xx];
+              cnt++;
+            }
+          }
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
         }
       }
       return out;
     };
-    const vals = isForecastFrame ? smoothEdge(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? smoothEdge(rawSnow) ?? rawSnow : rawSnow;
-
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
     if (!vals || vals.length === 0) return;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
@@ -724,9 +685,8 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
-          const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
-          const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
+          const sx = fxRaw;
+          const sy = fyRaw;
 
           let v = sampleAt(vals, sx, sy);
 
@@ -796,29 +756,33 @@ function PrecipOverlay({
     const rawVals = f.values;
     const rawSnow = f.snowValues;
     if (!rawVals || rawVals.length === 0) return null;
-    // Prognose-Frames: nur minimale Kantenglättung (Zentrum 12, 4er-Nachbarn 1),
-    // damit Zellgröße und Intensität dem Modellraster entsprechen.
-    const smoothEdge = (src: number[] | undefined): number[] | undefined => {
+    // Für Prognose-Frames: 3×3-Boxcar-Smoothing wie in der Messungs-Pipeline
+    // (`MeasurementCanvasOverlay.ensureSmooth`) — erzeugt organische Blob-
+    // Ränder statt rechteckiger Grid-Kanten, ohne Denoise oder Warp.
+    const smooth3x3 = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
       const out = new Array<number>(nLon * nLat);
-      const CW = 20;
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
-          const c = src[y * nLon + x];
-          let sum = c * CW;
-          let wsum = CW;
-          if (y > 0) { sum += src[(y - 1) * nLon + x]; wsum += 1; }
-          if (y < nLat - 1) { sum += src[(y + 1) * nLon + x]; wsum += 1; }
-          if (x > 0) { sum += src[y * nLon + (x - 1)]; wsum += 1; }
-          if (x < nLon - 1) { sum += src[y * nLon + (x + 1)]; wsum += 1; }
-          out[y * nLon + x] = sum / wsum;
+          let sum = 0;
+          let cnt = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            const yy = y + dy;
+            if (yy < 0 || yy >= nLat) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx;
+              if (xx < 0 || xx >= nLon) continue;
+              sum += src[yy * nLon + xx];
+              cnt++;
+            }
+          }
+          out[y * nLon + x] = cnt > 0 ? sum / cnt : 0;
         }
       }
       return out;
     };
-    const vals = isForecastFrame ? smoothEdge(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? smoothEdge(rawSnow) ?? rawSnow : rawSnow;
-
+    const vals = isForecastFrame ? smooth3x3(rawVals) ?? rawVals : rawVals;
+    const snowVals = isForecastFrame ? smooth3x3(rawSnow) ?? rawSnow : rawSnow;
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
     const lowH = lookup.lowH;
@@ -858,8 +822,8 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
-        const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
+        const sx = fxRaw;
+        const sy = fyRaw;
         let v = sampleAt(vals, sx, sy);
         const minV = 0.1;
         if (v < minV) continue;
@@ -1033,26 +997,26 @@ function MeasurementCanvasOverlay({
     const sw = src.w;
     const sh = src.h;
     const smooth = new Float32Array(sw * sh);
-    // Schwach gewichtete Glättung (Zentrum 12, 4er-Nachbarn 1): nur Anti-
-    // Aliasing an Kanten, keine Verbreiterung der Zellen und keine merkliche
-    // Absenkung der Spitzen wie beim früheren 3×3-Boxcar.
-    const CW = 12;
     for (let y = 0; y < sh; y++) {
       for (let x = 0; x < sw; x++) {
-        const c = src.mmh[y * sw + x];
-        let sum = c * CW;
-        let wsum = CW;
-        if (y > 0) { sum += src.mmh[(y - 1) * sw + x]; wsum += 1; }
-        if (y < sh - 1) { sum += src.mmh[(y + 1) * sw + x]; wsum += 1; }
-        if (x > 0) { sum += src.mmh[y * sw + (x - 1)]; wsum += 1; }
-        if (x < sw - 1) { sum += src.mmh[y * sw + (x + 1)]; wsum += 1; }
-        smooth[y * sw + x] = sum / wsum;
+        let sum = 0;
+        let cnt = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          const yy = y + dy;
+          if (yy < 0 || yy >= sh) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const xx = x + dx;
+            if (xx < 0 || xx >= sw) continue;
+            sum += src.mmh[yy * sw + xx];
+            cnt++;
+          }
+        }
+        smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
       }
     }
     src.smoothMmh = smooth;
     return smooth;
   };
-
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
