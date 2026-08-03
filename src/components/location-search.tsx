@@ -162,7 +162,7 @@ export function LocationSearch({
         className={cn(
           "relative rounded-lg",
           overlay
-            ? "bg-primary/30 px-3 py-2 shadow-sm backdrop-blur-sm"
+            ? "bg-primary/15 px-3 py-2 shadow-sm backdrop-blur-md"
             : "border border-zinc-200 bg-zinc-50 px-3 focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/30",
         )}
       >
