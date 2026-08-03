@@ -275,36 +275,27 @@ def _index_minutely_times(loc: dict) -> dict[str, int]:
     return {t: i for i, t in enumerate(times)}
 
 
-#: Zielauflösung der Prognose-PNGs in Grad pro Pixel — identisch zum
-#: Messungs-Ingest (radar/precip: 240 × 144 auf die Oberthurgau-BBox, ~1 km).
-FORECAST_PX_DEG = 0.01
+#: Zielraster der Prognose-PNGs — exakt identisch zum Messungs-Ingest
+#: (scripts/ingest_radar.py: OUT_W, OUT_H = 240, 144 auf die Oberthurgau-BBox).
+FORECAST_OUT_W, FORECAST_OUT_H = 240, 144
 
 
-def _upsample_bilinear(arr, out_h: int, out_w: int):
-    """Bilineare Neurasterung eines 2-D-Feldes auf (out_h, out_w).
+def _upsample_nearest(arr, out_h: int, out_w: int):
+    """Nearest-Neighbour-Neurasterung eines 2-D-Feldes auf (out_h, out_w).
 
-    Ecken des Quell- und Zielgitters liegen auf denselben BBox-Kanten, damit
-    die Georeferenzierung des PNG unverändert bleibt."""
+    Gleiches Verfahren wie im Messungs-Ingest (`sample_to_bbox`): keine
+    Interpolation, damit die blockige 1-km-Zellstruktur und die harten
+    Farbbandkanten der Radarmessung identisch reproduziert werden. Ecken des
+    Quell- und Zielgitters liegen auf denselben BBox-Kanten, damit die
+    Georeferenzierung des PNG unverändert bleibt."""
     import numpy as np
 
     src_h, src_w = arr.shape
-    if src_h < 2 or src_w < 2 or (out_h == src_h and out_w == src_w):
+    if src_h < 1 or src_w < 1 or (out_h == src_h and out_w == src_w):
         return arr
-    ys = np.linspace(0.0, src_h - 1.0, out_h, dtype=np.float32)
-    xs = np.linspace(0.0, src_w - 1.0, out_w, dtype=np.float32)
-    y0 = np.floor(ys).astype(np.int32)
-    x0 = np.floor(xs).astype(np.int32)
-    y1 = np.minimum(y0 + 1, src_h - 1)
-    x1 = np.minimum(x0 + 1, src_w - 1)
-    ty = (ys - y0)[:, None]
-    tx = (xs - x0)[None, :]
-    a = arr[np.ix_(y0, x0)]
-    b = arr[np.ix_(y0, x1)]
-    c = arr[np.ix_(y1, x0)]
-    d = arr[np.ix_(y1, x1)]
-    top = a * (1.0 - tx) + b * tx
-    bot = c * (1.0 - tx) + d * tx
-    return (top * (1.0 - ty) + bot * ty).astype(np.float32)
+    ys = np.clip(np.rint(np.linspace(0.0, src_h - 1.0, out_h)).astype(np.int32), 0, src_h - 1)
+    xs = np.clip(np.rint(np.linspace(0.0, src_w - 1.0, out_w)).astype(np.int32), 0, src_w - 1)
+    return arr[np.ix_(ys, xs)].astype(np.float32)
 
 
 def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> bytes:
@@ -318,18 +309,14 @@ def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> byt
     # Bildzeile 0 muss max_lat entsprechen (PNG top-left = NW).
     arr = np.flipud(arr)
 
-    # Auf das Raster der Radarmessung bringen, damit Kanten und Bandgrössen im
-    # Client identisch wirken (ohne Hochskalier-Verschmierung im Browser).
-    bb = _bbox()
-    out_h = max(2, int(round((bb["max_lat"] - bb["min_lat"]) / FORECAST_PX_DEG)))
-    out_w = max(2, int(round((bb["max_lon"] - bb["min_lon"]) / FORECAST_PX_DEG)))
-    scale_ratio = (out_h * out_w) / float(max(1, n_lat * n_lon))
-    arr = _upsample_bilinear(arr, out_h, out_w)
+    # Auf das exakte Raster der Radarmessung bringen (240 × 144), per
+    # Nearest-Neighbour — so entstehen dieselben Pixelkanten wie in der Messung.
+    arr = _upsample_nearest(arr, FORECAST_OUT_H, FORECAST_OUT_W)
 
-    # Speckles/Löcher bandweise entfernen — kein Blur, keine Konturglättung.
-    # Mindestflächen mit der Rasterverfeinerung mitskalieren.
-    area_px = max(9, int(round(9 * scale_ratio)))
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=area_px, hole_area_px=area_px)
+    # Speckles/Löcher bandweise entfernen — identische Mindestflächen wie im
+    # Messungs-Ingest (9 px), kein Blur, keine Konturglättung.
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=9, hole_area_px=9)
+
 
     rgba = np.zeros((arr.shape[0], arr.shape[1], 4), dtype=np.uint8)
     for thresh, color in PRECIP_SCALE:
