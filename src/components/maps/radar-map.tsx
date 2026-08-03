@@ -462,7 +462,7 @@ function warpX(fx: number, fy: number): number {
   const n1 = valueNoise(fx * 0.3 + 11.3, fy * 0.3 - 4.7) - 0.5;
   const n2 = valueNoise(fx * 0.9 + 57.2, fy * 0.9 + 3.4) - 0.5;
   const n3 = valueNoise(fx * 2.1 + 91.7, fy * 2.1 - 18.2) - 0.5;
-  return fx + ORGANIC_AMP * (2 * n1 + n2 + 0.5 * n3);
+  return fx + ORGANIC_AMP * (2 * n1 + n2 + 0.3 * n3);
 }
 function warpY(fx: number, fy: number): number {
   const n1 = valueNoise(fx * 0.3 - 8.1, fy * 0.3 + 21.9) - 0.5;
