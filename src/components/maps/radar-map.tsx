@@ -1354,9 +1354,12 @@ function MeasurementCanvasOverlay({
         for (let lx = 0; lx < lowW; lx++) {
           const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
           if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
-          const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
-          const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
-          if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
+          const fxRaw = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
+          const fyRaw = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
+          if (fxRaw < 0 || fxRaw > src.w - 1 || fyRaw < 0 || fyRaw > src.h - 1) continue;
+          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
+          const fx = organic ? warpX(fxRaw, fyRaw) : fxRaw;
+          const fy = organic ? warpY(fxRaw, fyRaw) : fyRaw;
           const v = sampleAt(fx, fy);
           if (v < 0.05) continue;
           const [r, g, b, a] = colorFor(v);
