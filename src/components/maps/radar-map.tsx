@@ -2023,6 +2023,12 @@ export function RadarMap({
               const warmGrid = !!overlayFrame && hasPng && !!overlayNext && nextHasGrid;
               const gridFrame = showGrid ? overlayFrame : warmGrid ? overlayNext : null;
 
+              // Prognosefelder halten den Grossteil des Schritts stabil und
+              // gehen nur im letzten Abschnitt weich ins nächste Feld über.
+              // Messframes bleiben wie bisher harte Frame-Wechsel.
+              const isForecast = overlayFrame.source !== "radar";
+              const fadeW = isForecast ? fadeWeight(overlayProg) : 0;
+
               return (
                 <>
                   {gridFrame && (
@@ -2030,7 +2036,7 @@ export function RadarMap({
                       payload={data}
                       frame={gridFrame}
                       nextFrame={showGrid ? overlayNext : null}
-                      progress={showGrid ? overlayProg : 0}
+                      progress={showGrid ? fadeW : 0}
                       opacity={showGrid ? opacityVal : 0}
                       prewarmFrames={frames}
                     />
@@ -2038,11 +2044,11 @@ export function RadarMap({
                   {showPng && (
                     <CrossfadePrecipOverlay
                       url={overlayFrame.precipUrl as string}
+                      nextUrl={overlayNext?.precipUrl ?? null}
+                      blend={fadeW}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
-                      fade={overlayFrame.source !== "radar"}
-                      durationMs={700}
                     />
                   )}
 
