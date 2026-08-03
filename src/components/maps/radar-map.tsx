@@ -1447,7 +1447,18 @@ function MeasurementCanvasOverlay({
 
   useEffect(() => {
     redraw();
-  }, [payload, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
+  }, [
+    payload,
+    bounds.minLat,
+    bounds.maxLat,
+    bounds.minLon,
+    bounds.maxLon,
+    progress,
+    nextUrl,
+    advect,
+    opacity,
+  ]);
+
 
   return null;
 }
