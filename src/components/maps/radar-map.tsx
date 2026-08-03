@@ -399,6 +399,18 @@ function bracketFramesForMs(
   return { frame: eligible[idx], nextFrame: eligible[idx + 1] ?? null, progress: 0 };
 }
 
+/**
+ * Fade-Gewichtung innerhalb eines Zeitschritts: Das Feld hält den Grossteil
+ * des Schritts unverändert (Gewicht 0) und geht erst im letzten Abschnitt
+ * weich (Smoothstep) in das nächste Feld über. Kein Springen, kein Pumpen.
+ */
+function fadeWeight(progress: number, frac = 0.4): number {
+  const p = Math.max(0, Math.min(1, progress));
+  if (frac <= 0) return p >= 1 ? 1 : 0;
+  const t = Math.max(0, Math.min(1, (p - (1 - frac)) / frac));
+  return t * t * (3 - 2 * t);
+}
+
 function timelineStateForMs(
   frames: RadarFrame[],
   renderMs: number,
@@ -558,6 +570,21 @@ function PrecipOverlay({
     const snowVals = rawSnow;
 
     if (!vals || vals.length === 0) return;
+
+    // Weicher Übergang zum nächsten Feld: rein gewichtete Mischung der
+    // Intensitäten (keine Geometrieverformung, keine geschätzte Bewegung).
+    // `progress` liefert bereits die Fade-Gewichtung (0 = Feld hält stabil).
+    const nf = nextFrameRef.current;
+    const QSTEPS = 12;
+    const nextValsRaw =
+      nf && Array.isArray(nf.values) && nf.values.length === vals.length ? nf.values : null;
+    const wRaw = Math.max(0, Math.min(1, progressRef.current || 0));
+    const blendW = nextValsRaw ? Math.round(wRaw * QSTEPS) / QSTEPS : 0;
+    const nextVals = blendW > 0 ? nextValsRaw : null;
+    const nextSnow =
+      nextVals && nf && Array.isArray(nf.snowValues) && nf.snowValues.length === vals.length
+        ? nf.snowValues
+        : null;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
@@ -598,7 +625,9 @@ function PrecipOverlay({
     }
 
 
-    const cacheKey = `${frame.t}|${frame.source ?? ""}`;
+    const cacheKey = `${frame.t}|${frame.source ?? ""}${
+      nextVals ? `>${nf?.t ?? ""}@${blendW}` : ""
+    }`;
     let off = cacheRef.current.get(cacheKey) ?? null;
     let lowW: number;
     let lowH: number;
@@ -652,13 +681,15 @@ function PrecipOverlay({
           const sy = fyRaw;
 
           let v = sampleAt(vals, sx, sy);
+          if (nextVals) v = v * (1 - blendW) + sampleAt(nextVals, sx, sy) * blendW;
 
           const minV = 0.1;
           if (v < minV) continue;
 
           let snowFrac = 0;
           if (snowVals) {
-            const sv = sampleAt(snowVals, sx, sy);
+            let sv = sampleAt(snowVals, sx, sy);
+            if (nextSnow) sv = sv * (1 - blendW) + sampleAt(nextSnow, sx, sy) * blendW;
             if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
           }
 
@@ -901,11 +932,17 @@ function PrecipOverlay({
  */
 function MeasurementCanvasOverlay({
   url,
+  nextUrl,
+  blend = 0,
   bounds,
   opacity,
   prefetchUrls,
 }: {
   url: string;
+  /** Zielfeld des weichen Übergangs (optional). */
+  nextUrl?: string | null;
+  /** Gewicht von `nextUrl` (0 = nur `url`, 1 = nur `nextUrl`). */
+  blend?: number;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
@@ -994,78 +1031,84 @@ function MeasurementCanvasOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
-  // PNG → mm/h-Grid decoding mit LRU-Cache pro Quell-URL.
+  // PNG → mm/h-Grid decoding mit LRU-Cache pro Quell-URL. Aktuelles und
+  // Zielfeld werden beide dekodiert, damit der weiche Übergang ohne
+  // Nachladepause (und damit ohne Aufblitzen) läuft.
   useEffect(() => {
-    const cached = cacheRef.current.get(url);
-    if (cached) {
-      // Reinsert to mark as recent.
-      cacheRef.current.delete(url);
-      cacheRef.current.set(url, cached);
-      sourceRef.current = cached;
-      redraw();
-      return;
-    }
     let cancelled = false;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.decoding = "async";
-    img.onload = () => {
-      if (cancelled) return;
-      const cw = img.naturalWidth;
-      const ch = img.naturalHeight;
-      if (cw === 0 || ch === 0) return;
-      const c = document.createElement("canvas");
-      c.width = cw;
-      c.height = ch;
-      const cx = c.getContext("2d", { willReadFrequently: true });
-      if (!cx) return;
-      cx.drawImage(img, 0, 0);
-      let data: Uint8ClampedArray;
-      try {
-        data = cx.getImageData(0, 0, cw, ch).data;
-      } catch {
+    const decode = (u: string) => {
+      const cached = cacheRef.current.get(u);
+      if (cached) {
+        // Reinsert to mark as recent.
+        cacheRef.current.delete(u);
+        cacheRef.current.set(u, cached);
+        if (u === url) sourceRef.current = cached;
+        redraw();
         return;
       }
-      const mmh = new Float32Array(cw * ch);
-      for (let i = 0; i < cw * ch; i++) {
-        const o = i * 4;
-        const a = data[o + 3];
-        if (a < 8) {
-          mmh[i] = 0;
-          continue;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.decoding = "async";
+      img.onload = () => {
+        if (cancelled) return;
+        const cw = img.naturalWidth;
+        const ch = img.naturalHeight;
+        if (cw === 0 || ch === 0) return;
+        const c = document.createElement("canvas");
+        c.width = cw;
+        c.height = ch;
+        const cx = c.getContext("2d", { willReadFrequently: true });
+        if (!cx) return;
+        cx.drawImage(img, 0, 0);
+        let data: Uint8ClampedArray;
+        try {
+          data = cx.getImageData(0, 0, cw, ch).data;
+        } catch {
+          return;
         }
-        const r = data[o];
-        const g = data[o + 1];
-        const b = data[o + 2];
-        let bestD = Infinity;
-        let bestMmh = 0;
-        for (const s of SCALE) {
-          const dr = r - s.rgb[0];
-          const dg = g - s.rgb[1];
-          const db = b - s.rgb[2];
-          const d = dr * dr + dg * dg + db * db;
-          if (d < bestD) {
-            bestD = d;
-            bestMmh = s.mmh;
+        const mmh = new Float32Array(cw * ch);
+        for (let i = 0; i < cw * ch; i++) {
+          const o = i * 4;
+          const a = data[o + 3];
+          if (a < 8) {
+            mmh[i] = 0;
+            continue;
           }
+          const r = data[o];
+          const g = data[o + 1];
+          const b = data[o + 2];
+          let bestD = Infinity;
+          let bestMmh = 0;
+          for (const s of SCALE) {
+            const dr = r - s.rgb[0];
+            const dg = g - s.rgb[1];
+            const db = b - s.rgb[2];
+            const d = dr * dr + dg * dg + db * db;
+            if (d < bestD) {
+              bestD = d;
+              bestMmh = s.mmh;
+            }
+          }
+          mmh[i] = bestMmh;
         }
-        mmh[i] = bestMmh;
-      }
-      const entry = { w: cw, h: ch, mmh };
-      cacheRef.current.set(url, entry);
-      while (cacheRef.current.size > DECODE_CACHE_MAX) {
-        const firstKey = cacheRef.current.keys().next().value;
-        if (firstKey === undefined) break;
-        cacheRef.current.delete(firstKey);
-      }
-      sourceRef.current = entry;
-      redraw();
+        const entry = { w: cw, h: ch, mmh };
+        cacheRef.current.set(u, entry);
+        while (cacheRef.current.size > DECODE_CACHE_MAX) {
+          const firstKey = cacheRef.current.keys().next().value;
+          if (firstKey === undefined) break;
+          cacheRef.current.delete(firstKey);
+        }
+        if (u === url) sourceRef.current = entry;
+        redraw();
+      };
+      img.src = u;
     };
-    img.src = url;
+    decode(url);
+    if (nextUrl && nextUrl !== url) decode(nextUrl);
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, nextUrl]);
 
 
 
@@ -1187,8 +1230,24 @@ function MeasurementCanvasOverlay({
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
-    const src = sourceRef.current;
-    if (!cv || !src) return;
+    if (!cv) return;
+    const srcA = cacheRef.current.get(url) ?? sourceRef.current ?? null;
+    const srcBRaw = nextUrl && nextUrl !== url ? cacheRef.current.get(nextUrl) ?? null : null;
+    if (!srcA && !srcBRaw) return;
+
+    // Weicher Übergang: rein gewichtete Mischung der Intensitätsfelder in
+    // EINER Zeichenfläche. Dadurch bleibt die Farbdichte konstant (kein
+    // Aufhellen/Abdunkeln durch gestapelte Halbtransparenzen) und die
+    // Geometrie der Flächen wird nicht verformt.
+    const QSTEPS = 12;
+    let wRaw = Math.max(0, Math.min(1, typeof blend === "number" ? blend : 0));
+    if (!srcBRaw) wRaw = 0;
+    if (!srcA) wRaw = 1;
+    const w = Math.round(wRaw * QSTEPS) / QSTEPS;
+    const fieldA = w >= 1 ? null : srcA;
+    const fieldB = w <= 0 ? null : srcBRaw;
+    if (!fieldA && !fieldB) return;
+
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
     if (cv.width !== size.x * dpr || cv.height !== size.y * dpr) {
@@ -1209,7 +1268,9 @@ function MeasurementCanvasOverlay({
       frameCanvasCacheRef.current.clear();
       viewKeyRef.current = viewKey;
     }
-    const cacheKey = `${url}|${viewKey}`;
+    const cacheKey = `${fieldA ? url : ""}>${fieldB ? nextUrl : ""}@${
+      fieldA && fieldB ? w : 0
+    }|${viewKey}`;
     let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
 
     if (!off) {
@@ -1227,20 +1288,26 @@ function MeasurementCanvasOverlay({
       const latSpan = maxLat - minLat;
       const lonSpan = maxLon - minLon;
 
-      const sw = src.w;
-      const sh = src.h;
-      const smoothMmh = ensureSmooth(src);
-      const sampleAt = (fx: number, fy: number) => {
+      const smoothA = fieldA ? ensureSmooth(fieldA) : null;
+      const smoothB = fieldB ? ensureSmooth(fieldB) : null;
+      const sampleField = (
+        field: DecodedRadar,
+        arr: Float32Array,
+        fx: number,
+        fy: number,
+      ) => {
+        const sw = field.w;
+        const sh = field.h;
         const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
         const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
         const x1 = Math.min(sw - 1, x0 + 1);
         const y1 = Math.min(sh - 1, y0 + 1);
         const tx = Math.max(0, Math.min(1, fx - x0));
         const ty = Math.max(0, Math.min(1, fy - y0));
-        const v00 = smoothMmh[y0 * sw + x0];
-        const v01 = smoothMmh[y0 * sw + x1];
-        const v10 = smoothMmh[y1 * sw + x0];
-        const v11 = smoothMmh[y1 * sw + x1];
+        const v00 = arr[y0 * sw + x0];
+        const v01 = arr[y0 * sw + x1];
+        const v10 = arr[y1 * sw + x0];
+        const v11 = arr[y1 * sw + x1];
         return (
           v00 * (1 - tx) * (1 - ty) +
           v01 * tx * (1 - ty) +
@@ -1249,14 +1316,28 @@ function MeasurementCanvasOverlay({
         );
       };
 
+      const wA = fieldA && fieldB ? 1 - w : fieldA ? 1 : 0;
+      const wB = fieldA && fieldB ? w : fieldB ? 1 : 0;
+
       for (let ly = 0; ly < lowH; ly++) {
         for (let lx = 0; lx < lowW; lx++) {
           const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
           if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
-          const fx = ((ll.lng - minLon) / lonSpan) * (src.w - 1);
-          const fy = ((maxLat - ll.lat) / latSpan) * (src.h - 1);
-          if (fx < 0 || fx > src.w - 1 || fy < 0 || fy > src.h - 1) continue;
-          const v = sampleAt(fx, fy);
+          let v = 0;
+          if (fieldA && smoothA) {
+            const fx = ((ll.lng - minLon) / lonSpan) * (fieldA.w - 1);
+            const fy = ((maxLat - ll.lat) / latSpan) * (fieldA.h - 1);
+            if (fx >= 0 && fx <= fieldA.w - 1 && fy >= 0 && fy <= fieldA.h - 1) {
+              v += wA * sampleField(fieldA, smoothA, fx, fy);
+            }
+          }
+          if (fieldB && smoothB) {
+            const fx = ((ll.lng - minLon) / lonSpan) * (fieldB.w - 1);
+            const fy = ((maxLat - ll.lat) / latSpan) * (fieldB.h - 1);
+            if (fx >= 0 && fx <= fieldB.w - 1 && fy >= 0 && fy <= fieldB.h - 1) {
+              v += wB * sampleField(fieldB, smoothB, fx, fy);
+            }
+          }
           if (v < 0.05) continue;
           const [r, g, b, a] = colorFor(v);
           if (a === 0) continue;
@@ -1294,10 +1375,9 @@ function MeasurementCanvasOverlay({
 
   useEffect(() => {
     redraw();
-  }, [payload, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
+  }, [payload, blend, nextUrl, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
 
-  // Opazität separat nachziehen (Crossfade ändert nur die Deckkraft, nicht die
-  // Geometrie) — ohne Neuberechnung des Frame-Canvas.
+  // Opazität separat nachziehen — ohne Neuberechnung des Frame-Canvas.
   useEffect(() => {
     const cv = canvasRef.current;
     if (cv) cv.style.opacity = String(Math.max(0, Math.min(1, opacity)));
@@ -1307,73 +1387,37 @@ function MeasurementCanvasOverlay({
 }
 
 /**
- * Crossfade-Ebene für Niederschlagsfelder: hält beim Wechsel der Quell-URL das
- * vorherige Feld sichtbar und blendet es über `durationMs` aus, während das
- * neue Feld eingeblendet wird. Es entstehen dabei KEINE Zwischengeometrien —
- * beide Felder bleiben geometrisch unverändert, es wird ausschliesslich die
- * Deckkraft animiert (Summe bleibt konstant, kein Aufblitzen, kein Loch).
+ * Weicher Übergang zwischen zwei Niederschlagsfeldern in EINER Zeichenfläche.
+ * Es werden nicht zwei halbtransparente Ebenen gestapelt (das erzeugt beim
+ * Überlappen ein Aufhellen/Abdunkeln und wirkt als Flackern), sondern die
+ * Intensitätsfelder werden gewichtet gemischt und danach eingefärbt. Dadurch
+ * bleibt die Farbdichte über den gesamten Übergang konstant. Die Geometrie der
+ * Flächen wird nie verformt oder verschoben.
  */
 function CrossfadePrecipOverlay({
   url,
+  nextUrl,
+  blend = 0,
   bounds,
   opacity,
   prefetchUrls,
-  durationMs = 700,
-  fade = true,
 }: {
   url: string;
+  nextUrl?: string | null;
+  blend?: number;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
-  durationMs?: number;
-  fade?: boolean;
 }) {
-  const [prevUrl, setPrevUrl] = useState<string | null>(null);
-  const [p, setP] = useState(1);
-  const lastUrlRef = useRef<string>(url);
-
-  useEffect(() => {
-    if (url === lastUrlRef.current) return;
-    const from = lastUrlRef.current;
-    lastUrlRef.current = url;
-    if (!fade || durationMs <= 0) {
-      setPrevUrl(null);
-      setP(1);
-      return;
-    }
-    setPrevUrl(from);
-    setP(0);
-    let raf = 0;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const t = Math.max(0, Math.min(1, (now - start) / durationMs));
-      // Weiche Ein-/Ausblendung (Cosinus-Ease) für einen ruhigen Übergang.
-      const eased = 0.5 - Math.cos(Math.PI * t) / 2;
-      setP(eased);
-      if (t < 1) raf = requestAnimationFrame(tick);
-      else setPrevUrl(null);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [url, fade, durationMs]);
-
   return (
-    <>
-      {prevUrl && prevUrl !== url && (
-        <MeasurementCanvasOverlay
-          key={`fade-out:${prevUrl}`}
-          url={prevUrl}
-          bounds={bounds}
-          opacity={opacity * (1 - p)}
-        />
-      )}
-      <MeasurementCanvasOverlay
-        url={url}
-        bounds={bounds}
-        opacity={opacity * p}
-        prefetchUrls={prefetchUrls}
-      />
-    </>
+    <MeasurementCanvasOverlay
+      url={url}
+      nextUrl={nextUrl}
+      blend={blend}
+      bounds={bounds}
+      opacity={opacity}
+      prefetchUrls={prefetchUrls}
+    />
   );
 }
 
@@ -1991,6 +2035,12 @@ export function RadarMap({
               const warmGrid = !!overlayFrame && hasPng && !!overlayNext && nextHasGrid;
               const gridFrame = showGrid ? overlayFrame : warmGrid ? overlayNext : null;
 
+              // Prognosefelder halten den Grossteil des Schritts stabil und
+              // gehen nur im letzten Abschnitt weich ins nächste Feld über.
+              // Messframes bleiben wie bisher harte Frame-Wechsel.
+              const isForecast = overlayFrame.source !== "radar";
+              const fadeW = isForecast ? fadeWeight(overlayProg) : 0;
+
               return (
                 <>
                   {gridFrame && (
@@ -1998,7 +2048,7 @@ export function RadarMap({
                       payload={data}
                       frame={gridFrame}
                       nextFrame={showGrid ? overlayNext : null}
-                      progress={showGrid ? overlayProg : 0}
+                      progress={showGrid ? fadeW : 0}
                       opacity={showGrid ? opacityVal : 0}
                       prewarmFrames={frames}
                     />
@@ -2006,11 +2056,11 @@ export function RadarMap({
                   {showPng && (
                     <CrossfadePrecipOverlay
                       url={overlayFrame.precipUrl as string}
+                      nextUrl={overlayNext?.precipUrl ?? null}
+                      blend={fadeW}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
-                      fade={overlayFrame.source !== "radar"}
-                      durationMs={700}
                     />
                   )}
 
