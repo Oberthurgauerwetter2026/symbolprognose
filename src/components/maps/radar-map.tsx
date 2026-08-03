@@ -729,9 +729,11 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
-          const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
-          const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
+          // Prognose: Nearest-Neighbour (gerundete Gitterindizes) → harte
+          // Modellblöcke ohne Interpolation und ohne Domain-Warp.
+          const sx = isForecastFrame ? Math.round(fxRaw) : fxRaw;
+          const sy = isForecastFrame ? Math.round(fyRaw) : fyRaw;
+
 
           let v = sampleAt(vals, sx, sy);
 
