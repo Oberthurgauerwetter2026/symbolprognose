@@ -824,8 +824,11 @@ function PrecipOverlay({
       }
       return out;
     };
-    const vals = isForecastFrame ? smoothEdge(rawVals) ?? rawVals : rawVals;
-    const snowVals = isForecastFrame ? smoothEdge(rawSnow) ?? rawSnow : rawSnow;
+    // Prognose: keine Glättung — pixelgenaue Modellblöcke.
+    const vals = rawVals;
+    const snowVals = rawSnow;
+    void smoothEdge;
+
 
     if (!vals || vals.length === 0) return null;
     const lowW = lookup.lowW;
