@@ -280,22 +280,63 @@ def _index_minutely_times(loc: dict) -> dict[str, int]:
 FORECAST_OUT_W, FORECAST_OUT_H = 240, 144
 
 
-def _upsample_nearest(arr, out_h: int, out_w: int):
-    """Nearest-Neighbour-Neurasterung eines 2-D-Feldes auf (out_h, out_w).
+def _upsample_smooth(arr, out_h: int, out_w: int):
+    """Glatte Neurasterung eines 2-D-Feldes auf (out_h, out_w).
 
-    Gleiches Verfahren wie im Messungs-Ingest (`sample_to_bbox`): keine
-    Interpolation, damit die blockige 1-km-Zellstruktur und die harten
-    Farbbandkanten der Radarmessung identisch reproduziert werden. Ecken des
-    Quell- und Zielgitters liegen auf denselben BBox-Kanten, damit die
-    Georeferenzierung des PNG unverändert bleibt."""
+    Interpoliert die *Werte* (Catmull-Rom, separabel, NumPy-only), nicht die
+    Farben. Dadurch verlaufen die später bandweise gesetzten Farbkanten als
+    organische Konturen statt als Rechteckblöcke der groben Modellzellen.
+    Ecken des Quell- und Zielgitters liegen auf denselben BBox-Kanten, damit
+    die Georeferenzierung des PNG unverändert bleibt."""
     import numpy as np
 
     src_h, src_w = arr.shape
     if src_h < 1 or src_w < 1 or (out_h == src_h and out_w == src_w):
-        return arr
-    ys = np.clip(np.rint(np.linspace(0.0, src_h - 1.0, out_h)).astype(np.int32), 0, src_h - 1)
-    xs = np.clip(np.rint(np.linspace(0.0, src_w - 1.0, out_w)).astype(np.int32), 0, src_w - 1)
-    return arr[np.ix_(ys, xs)].astype(np.float32)
+        return arr.astype(np.float32)
+
+    field = np.nan_to_num(arr.astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
+
+    def _interp_axis(data, axis: int, out_n: int):
+        src_n = data.shape[axis]
+        if src_n == out_n:
+            return data
+        if src_n < 4:
+            # Zu wenige Stützstellen für Catmull-Rom → linear.
+            pos = np.linspace(0.0, src_n - 1.0, out_n)
+            i0 = np.clip(np.floor(pos).astype(np.int32), 0, src_n - 1)
+            i1 = np.clip(i0 + 1, 0, src_n - 1)
+            t = (pos - i0).astype(np.float32)
+            d = np.moveaxis(data, axis, 0)
+            out = d[i0] * (1.0 - t)[:, None] + d[i1] * t[:, None]
+            return np.moveaxis(out, 0, axis)
+
+        pos = np.linspace(0.0, src_n - 1.0, out_n)
+        i1 = np.clip(np.floor(pos).astype(np.int32), 0, src_n - 1)
+        t = (pos - i1).astype(np.float32)
+        i0 = np.clip(i1 - 1, 0, src_n - 1)
+        i2 = np.clip(i1 + 1, 0, src_n - 1)
+        i3 = np.clip(i1 + 2, 0, src_n - 1)
+
+        t2 = t * t
+        t3 = t2 * t
+        w0 = -0.5 * t3 + t2 - 0.5 * t
+        w1 = 1.5 * t3 - 2.5 * t2 + 1.0
+        w2 = -1.5 * t3 + 2.0 * t2 + 0.5 * t
+        w3 = 0.5 * t3 - 0.5 * t2
+
+        d = np.moveaxis(data, axis, 0)
+        out = (
+            d[i0] * w0[:, None]
+            + d[i1] * w1[:, None]
+            + d[i2] * w2[:, None]
+            + d[i3] * w3[:, None]
+        )
+        return np.moveaxis(out, 0, axis)
+
+    out = _interp_axis(field, 0, out_h)
+    out = _interp_axis(out, 1, out_w)
+    # Catmull-Rom kann leicht unterschwingen — negative Werte abschneiden.
+    return np.clip(out, 0.0, None).astype(np.float32)
 
 
 def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> bytes:
@@ -309,13 +350,14 @@ def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> byt
     # Bildzeile 0 muss max_lat entsprechen (PNG top-left = NW).
     arr = np.flipud(arr)
 
-    # Auf das exakte Raster der Radarmessung bringen (240 × 144), per
-    # Nearest-Neighbour — so entstehen dieselben Pixelkanten wie in der Messung.
-    arr = _upsample_nearest(arr, FORECAST_OUT_H, FORECAST_OUT_W)
+    # Auf das exakte Raster der Radarmessung bringen (240 × 144) — glatte
+    # Wertinterpolation, damit die Bandkanten organisch statt blockig laufen.
+    arr = _upsample_smooth(arr, FORECAST_OUT_H, FORECAST_OUT_W)
 
-    # Speckles/Löcher bandweise entfernen — identische Mindestflächen wie im
-    # Messungs-Ingest (9 px), kein Blur, keine Konturglättung.
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=9, hole_area_px=9)
+    # Speckles/Löcher bandweise entfernen. Mindestflächen etwas grösser als in
+    # der Messung (9 px), damit durch die Interpolation keine dünnen
+    # Ein-Pixel-Säume zwischen zwei Bändern stehen bleiben.
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=14, hole_area_px=14)
 
 
     rgba = np.zeros((arr.shape[0], arr.shape[1], 4), dtype=np.uint8)
