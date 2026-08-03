@@ -1286,8 +1286,61 @@ function MeasurementCanvasOverlay({
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
-    const src = sourceRef.current;
-    if (!cv || !src) return;
+    const baseSrc = sourceRef.current;
+    if (!cv || !baseSrc) return;
+
+    // ---- Advektion: Zwischenfeld entlang des Bewegungsfeldes ----
+    // Statt Cross-Fade wird Feld A vorwärts und Feld B rückwärts entlang des
+    // geschätzten Flusses verschoben; nur die Intensität mischt linear.
+    let src = baseSrc;
+    let fieldKey = url;
+    const nu = nextUrlRef.current;
+    const p = progressRef.current;
+    if (advectRef.current && nu && nu !== url && p > 0.02 && p < 0.98) {
+      const nextSrc = cacheRef.current.get(nu);
+      if (nextSrc && nextSrc.w === baseSrc.w && nextSrc.h === baseSrc.h) {
+        // Fortschritt quantisieren (1/8-Schritte) — begrenzt die Rechenlast.
+        const q = Math.round(p * 8) / 8;
+        if (q > 0 && q < 1) {
+          const bKey = `${url}|${nu}|${q}`;
+          let blended = blendCacheRef.current.get(bKey);
+          if (!blended) {
+            const flow = computeFlow(
+              `${url}|${nu}`,
+              baseSrc.mmh,
+              nextSrc.mmh,
+              baseSrc.w,
+              baseSrc.h,
+            );
+            if (flow) {
+              const mmh = advectBlend(
+                baseSrc.mmh,
+                nextSrc.mmh,
+                flow,
+                q,
+                baseSrc.w,
+                baseSrc.h,
+              );
+              blended = { w: baseSrc.w, h: baseSrc.h, mmh };
+              blendCacheRef.current.set(bKey, blended);
+              while (blendCacheRef.current.size > BLEND_CACHE_MAX) {
+                const firstKey = blendCacheRef.current.keys().next().value;
+                if (firstKey === undefined) break;
+                blendCacheRef.current.delete(firstKey);
+              }
+            }
+          } else {
+            blendCacheRef.current.delete(bKey);
+            blendCacheRef.current.set(bKey, blended);
+          }
+          if (blended) {
+            src = blended;
+            fieldKey = bKey;
+          }
+        }
+      }
+    }
+
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
     if (cv.width !== size.x * dpr || cv.height !== size.y * dpr) {
