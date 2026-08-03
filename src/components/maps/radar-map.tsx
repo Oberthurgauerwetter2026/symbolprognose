@@ -669,13 +669,15 @@ function PrecipOverlay({
           const sy = fyRaw;
 
           let v = sampleAt(vals, sx, sy);
+          if (nextVals) v = v * (1 - blendW) + sampleAt(nextVals, sx, sy) * blendW;
 
           const minV = 0.1;
           if (v < minV) continue;
 
           let snowFrac = 0;
           if (snowVals) {
-            const sv = sampleAt(snowVals, sx, sy);
+            let sv = sampleAt(snowVals, sx, sy);
+            if (nextSnow) sv = sv * (1 - blendW) + sampleAt(nextSnow, sx, sy) * blendW;
             if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
           }
 
