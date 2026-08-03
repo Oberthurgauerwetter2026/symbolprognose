@@ -920,11 +920,17 @@ function PrecipOverlay({
  */
 function MeasurementCanvasOverlay({
   url,
+  nextUrl,
+  blend = 0,
   bounds,
   opacity,
   prefetchUrls,
 }: {
   url: string;
+  /** Zielfeld des weichen Übergangs (optional). */
+  nextUrl?: string | null;
+  /** Gewicht von `nextUrl` (0 = nur `url`, 1 = nur `nextUrl`). */
+  blend?: number;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
