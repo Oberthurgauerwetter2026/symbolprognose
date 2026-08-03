@@ -679,7 +679,7 @@ function PrecipOverlay({
     }
 
 
-    const cacheKey = `${frame.t}|${frame.source ?? ""}`;
+    const cacheKey = `${frame.t}|${frame.source ?? ""}|blk`;
     let off = cacheRef.current.get(cacheKey) ?? null;
     let lowW: number;
     let lowH: number;
