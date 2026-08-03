@@ -558,6 +558,21 @@ function PrecipOverlay({
     const snowVals = rawSnow;
 
     if (!vals || vals.length === 0) return;
+
+    // Weicher Übergang zum nächsten Feld: rein gewichtete Mischung der
+    // Intensitäten (keine Geometrieverformung, keine geschätzte Bewegung).
+    // `progress` liefert bereits die Fade-Gewichtung (0 = Feld hält stabil).
+    const nf = nextFrameRef.current;
+    const QSTEPS = 12;
+    const nextValsRaw =
+      nf && Array.isArray(nf.values) && nf.values.length === vals.length ? nf.values : null;
+    const wRaw = Math.max(0, Math.min(1, progressRef.current || 0));
+    const blendW = nextValsRaw ? Math.round(wRaw * QSTEPS) / QSTEPS : 0;
+    const nextVals = blendW > 0 ? nextValsRaw : null;
+    const nextSnow =
+      nextVals && nf && Array.isArray(nf.snowValues) && nf.snowValues.length === vals.length
+        ? nf.snowValues
+        : null;
     const STEP = 2;
     const lowWForView = Math.max(1, Math.ceil(size.x / STEP));
     const lowHForView = Math.max(1, Math.ceil(size.y / STEP));
