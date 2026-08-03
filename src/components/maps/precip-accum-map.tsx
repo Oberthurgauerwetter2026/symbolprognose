@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl } from "react-leaflet";
+
 
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
