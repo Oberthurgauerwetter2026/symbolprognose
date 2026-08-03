@@ -1019,78 +1019,84 @@ function MeasurementCanvasOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 
-  // PNG → mm/h-Grid decoding mit LRU-Cache pro Quell-URL.
+  // PNG → mm/h-Grid decoding mit LRU-Cache pro Quell-URL. Aktuelles und
+  // Zielfeld werden beide dekodiert, damit der weiche Übergang ohne
+  // Nachladepause (und damit ohne Aufblitzen) läuft.
   useEffect(() => {
-    const cached = cacheRef.current.get(url);
-    if (cached) {
-      // Reinsert to mark as recent.
-      cacheRef.current.delete(url);
-      cacheRef.current.set(url, cached);
-      sourceRef.current = cached;
-      redraw();
-      return;
-    }
     let cancelled = false;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.decoding = "async";
-    img.onload = () => {
-      if (cancelled) return;
-      const cw = img.naturalWidth;
-      const ch = img.naturalHeight;
-      if (cw === 0 || ch === 0) return;
-      const c = document.createElement("canvas");
-      c.width = cw;
-      c.height = ch;
-      const cx = c.getContext("2d", { willReadFrequently: true });
-      if (!cx) return;
-      cx.drawImage(img, 0, 0);
-      let data: Uint8ClampedArray;
-      try {
-        data = cx.getImageData(0, 0, cw, ch).data;
-      } catch {
+    const decode = (u: string) => {
+      const cached = cacheRef.current.get(u);
+      if (cached) {
+        // Reinsert to mark as recent.
+        cacheRef.current.delete(u);
+        cacheRef.current.set(u, cached);
+        if (u === url) sourceRef.current = cached;
+        redraw();
         return;
       }
-      const mmh = new Float32Array(cw * ch);
-      for (let i = 0; i < cw * ch; i++) {
-        const o = i * 4;
-        const a = data[o + 3];
-        if (a < 8) {
-          mmh[i] = 0;
-          continue;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.decoding = "async";
+      img.onload = () => {
+        if (cancelled) return;
+        const cw = img.naturalWidth;
+        const ch = img.naturalHeight;
+        if (cw === 0 || ch === 0) return;
+        const c = document.createElement("canvas");
+        c.width = cw;
+        c.height = ch;
+        const cx = c.getContext("2d", { willReadFrequently: true });
+        if (!cx) return;
+        cx.drawImage(img, 0, 0);
+        let data: Uint8ClampedArray;
+        try {
+          data = cx.getImageData(0, 0, cw, ch).data;
+        } catch {
+          return;
         }
-        const r = data[o];
-        const g = data[o + 1];
-        const b = data[o + 2];
-        let bestD = Infinity;
-        let bestMmh = 0;
-        for (const s of SCALE) {
-          const dr = r - s.rgb[0];
-          const dg = g - s.rgb[1];
-          const db = b - s.rgb[2];
-          const d = dr * dr + dg * dg + db * db;
-          if (d < bestD) {
-            bestD = d;
-            bestMmh = s.mmh;
+        const mmh = new Float32Array(cw * ch);
+        for (let i = 0; i < cw * ch; i++) {
+          const o = i * 4;
+          const a = data[o + 3];
+          if (a < 8) {
+            mmh[i] = 0;
+            continue;
           }
+          const r = data[o];
+          const g = data[o + 1];
+          const b = data[o + 2];
+          let bestD = Infinity;
+          let bestMmh = 0;
+          for (const s of SCALE) {
+            const dr = r - s.rgb[0];
+            const dg = g - s.rgb[1];
+            const db = b - s.rgb[2];
+            const d = dr * dr + dg * dg + db * db;
+            if (d < bestD) {
+              bestD = d;
+              bestMmh = s.mmh;
+            }
+          }
+          mmh[i] = bestMmh;
         }
-        mmh[i] = bestMmh;
-      }
-      const entry = { w: cw, h: ch, mmh };
-      cacheRef.current.set(url, entry);
-      while (cacheRef.current.size > DECODE_CACHE_MAX) {
-        const firstKey = cacheRef.current.keys().next().value;
-        if (firstKey === undefined) break;
-        cacheRef.current.delete(firstKey);
-      }
-      sourceRef.current = entry;
-      redraw();
+        const entry = { w: cw, h: ch, mmh };
+        cacheRef.current.set(u, entry);
+        while (cacheRef.current.size > DECODE_CACHE_MAX) {
+          const firstKey = cacheRef.current.keys().next().value;
+          if (firstKey === undefined) break;
+          cacheRef.current.delete(firstKey);
+        }
+        if (u === url) sourceRef.current = entry;
+        redraw();
+      };
+      img.src = u;
     };
-    img.src = url;
+    decode(url);
+    if (nextUrl && nextUrl !== url) decode(nextUrl);
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, nextUrl]);
 
 
 
