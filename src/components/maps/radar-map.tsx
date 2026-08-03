@@ -1716,14 +1716,12 @@ export function RadarMap({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil: 15-min-Raster entsprechend der echten Prognose-Kadenz.
-    const QUARTER = 15 * 60_000;
-    const QUARTER_TOL = 4 * 60_000;
-    const firstQuarter = Math.ceil((nowMs + 1) / QUARTER) * QUARTER;
-    for (let t = firstQuarter; t <= lastMs; t += QUARTER) {
-      const i = pickNearest(t, QUARTER_TOL);
-      push(i !== null ? times[i] : t);
+    // Prognoseteil: ausschliesslich echte Modellfelder (ICON-CH1). Keine
+    // synthetischen Zwischenschritte — jedes Feld ist ein eigener Zustand.
+    for (const t of times) {
+      if (t > nowMs) push(t);
     }
+
 
 
 
