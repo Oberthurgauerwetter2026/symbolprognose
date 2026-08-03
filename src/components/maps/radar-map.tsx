@@ -794,7 +794,7 @@ function PrecipOverlay({
   buildOffscreenRef.current = (f: RadarFrame): HTMLCanvasElement | null => {
     const lookup = lookupRef.current;
     if (!lookup) return null;
-    const cacheKey = `${f.t}|${f.source ?? ""}`;
+    const cacheKey = `${f.t}|${f.source ?? ""}|blk`;
     const existing = cacheRef.current.get(cacheKey);
     if (existing) return existing;
     const { gridLat, gridLon } = payload;
