@@ -25,7 +25,6 @@ import thurgauData from "@/data/thurgau.json";
 
 import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { cn } from "@/lib/utils";
-import { computeFlow, advectBlend } from "@/lib/radar-flow";
 import { FilmstripTimeline } from "./filmstrip-timeline";
 import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 
@@ -916,20 +915,11 @@ function PrecipOverlay({
  */
 function MeasurementCanvasOverlay({
   url,
-  nextUrl,
-  progress = 0,
-  advect = false,
   bounds,
   opacity,
   prefetchUrls,
 }: {
   url: string;
-  /** Nachbar-Frame für die Advektion (nur Prognose). */
-  nextUrl?: string | null;
-  /** 0…1 Position zwischen `url` und `nextUrl`. */
-  progress?: number;
-  /** Advektion entlang des Bewegungsfeldes aktivieren. */
-  advect?: boolean;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
@@ -941,19 +931,9 @@ function MeasurementCanvasOverlay({
   const sourceRef = useRef<DecodedRadar | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const DECODE_CACHE_MAX = 96;
-  // Advektierte Zwischenfelder (Schlüssel: urlA|urlB|quantisierter Fortschritt).
-  const blendCacheRef = useRef<Map<string, DecodedRadar>>(new Map());
-  const BLEND_CACHE_MAX = 32;
-  const progressRef = useRef(progress);
-  progressRef.current = progress;
-  const nextUrlRef = useRef<string | null>(nextUrl ?? null);
-  nextUrlRef.current = nextUrl ?? null;
-  const advectRef = useRef(advect);
-  advectRef.current = advect;
   // Unused payload placeholder for redraw signature (kept to avoid churn).
   const payload: RadarPayload | undefined = undefined;
   void payload;
-
 
 
   const redrawRef = useRef<() => void>(() => {});
@@ -1101,72 +1081,6 @@ function MeasurementCanvasOverlay({
     };
   }, [url]);
 
-  // Nachbar-Frame für die Advektion vorab dekodieren.
-  useEffect(() => {
-    if (!nextUrl || cacheRef.current.has(nextUrl)) {
-      if (nextUrl) redraw();
-      return;
-    }
-    let cancelled = false;
-    const target = nextUrl;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.decoding = "async";
-    img.onload = () => {
-      if (cancelled) return;
-      const cw = img.naturalWidth;
-      const ch = img.naturalHeight;
-      if (cw === 0 || ch === 0) return;
-      const c = document.createElement("canvas");
-      c.width = cw;
-      c.height = ch;
-      const cx = c.getContext("2d", { willReadFrequently: true });
-      if (!cx) return;
-      cx.drawImage(img, 0, 0);
-      let data: Uint8ClampedArray;
-      try {
-        data = cx.getImageData(0, 0, cw, ch).data;
-      } catch {
-        return;
-      }
-      const mmh = new Float32Array(cw * ch);
-      for (let i = 0; i < cw * ch; i++) {
-        const o = i * 4;
-        if (data[o + 3] < 8) {
-          mmh[i] = 0;
-          continue;
-        }
-        const r = data[o];
-        const g = data[o + 1];
-        const b = data[o + 2];
-        let bestD = Infinity;
-        let bestMmh = 0;
-        for (const s of SCALE) {
-          const dr = r - s.rgb[0];
-          const dg = g - s.rgb[1];
-          const db = b - s.rgb[2];
-          const d = dr * dr + dg * dg + db * db;
-          if (d < bestD) {
-            bestD = d;
-            bestMmh = s.mmh;
-          }
-        }
-        mmh[i] = bestMmh;
-      }
-      cacheRef.current.set(target, { w: cw, h: ch, mmh });
-      while (cacheRef.current.size > DECODE_CACHE_MAX) {
-        const firstKey = cacheRef.current.keys().next().value;
-        if (firstKey === undefined) break;
-        cacheRef.current.delete(firstKey);
-      }
-      redraw();
-    };
-    img.src = target;
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextUrl]);
 
 
 
@@ -1287,61 +1201,8 @@ function MeasurementCanvasOverlay({
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
-    const baseSrc = sourceRef.current;
-    if (!cv || !baseSrc) return;
-
-    // ---- Advektion: Zwischenfeld entlang des Bewegungsfeldes ----
-    // Statt Cross-Fade wird Feld A vorwärts und Feld B rückwärts entlang des
-    // geschätzten Flusses verschoben; nur die Intensität mischt linear.
-    let src = baseSrc;
-    let fieldKey = url;
-    const nu = nextUrlRef.current;
-    const p = progressRef.current;
-    if (advectRef.current && nu && nu !== url && p > 0.02 && p < 0.98) {
-      const nextSrc = cacheRef.current.get(nu);
-      if (nextSrc && nextSrc.w === baseSrc.w && nextSrc.h === baseSrc.h) {
-        // Fortschritt quantisieren (1/8-Schritte) — begrenzt die Rechenlast.
-        const q = Math.round(p * 8) / 8;
-        if (q > 0 && q < 1) {
-          const bKey = `${url}|${nu}|${q}`;
-          let blended = blendCacheRef.current.get(bKey);
-          if (!blended) {
-            const flow = computeFlow(
-              `${url}|${nu}`,
-              baseSrc.mmh,
-              nextSrc.mmh,
-              baseSrc.w,
-              baseSrc.h,
-            );
-            if (flow) {
-              const mmh = advectBlend(
-                baseSrc.mmh,
-                nextSrc.mmh,
-                flow,
-                q,
-                baseSrc.w,
-                baseSrc.h,
-              );
-              blended = { w: baseSrc.w, h: baseSrc.h, mmh };
-              blendCacheRef.current.set(bKey, blended);
-              while (blendCacheRef.current.size > BLEND_CACHE_MAX) {
-                const firstKey = blendCacheRef.current.keys().next().value;
-                if (firstKey === undefined) break;
-                blendCacheRef.current.delete(firstKey);
-              }
-            }
-          } else {
-            blendCacheRef.current.delete(bKey);
-            blendCacheRef.current.set(bKey, blended);
-          }
-          if (blended) {
-            src = blended;
-            fieldKey = bKey;
-          }
-        }
-      }
-    }
-
+    const src = sourceRef.current;
+    if (!cv || !src) return;
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
     if (cv.width !== size.x * dpr || cv.height !== size.y * dpr) {
@@ -1362,7 +1223,7 @@ function MeasurementCanvasOverlay({
       frameCanvasCacheRef.current.clear();
       viewKeyRef.current = viewKey;
     }
-    const cacheKey = `${fieldKey}|${viewKey}`;
+    const cacheKey = `${url}|${viewKey}`;
     let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
 
     if (!off) {
@@ -1447,18 +1308,7 @@ function MeasurementCanvasOverlay({
 
   useEffect(() => {
     redraw();
-  }, [
-    payload,
-    bounds.minLat,
-    bounds.maxLat,
-    bounds.minLon,
-    bounds.maxLon,
-    progress,
-    nextUrl,
-    advect,
-    opacity,
-  ]);
-
+  }, [payload, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
 
   return null;
 }
@@ -1801,12 +1651,13 @@ export function RadarMap({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil: fixes 15-min-Raster auf :00/:15/:30/:45. Zeitpunkte ohne
-    // echten Modellframe werden per Advektion aus dem Nachbarpaar erzeugt.
+    // Prognoseteil: 15-min-Raster entsprechend der echten Prognose-Kadenz.
     const QUARTER = 15 * 60_000;
+    const QUARTER_TOL = 4 * 60_000;
     const firstQuarter = Math.ceil((nowMs + 1) / QUARTER) * QUARTER;
     for (let t = firstQuarter; t <= lastMs; t += QUARTER) {
-      push(t);
+      const i = pickNearest(t, QUARTER_TOL);
+      push(i !== null ? times[i] : t);
     }
 
 
@@ -2072,15 +1923,6 @@ export function RadarMap({
               const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
-              // Advektion nur im Prognoseteil zwischen zwei Modell-PNGs.
-              const advectPair =
-                !!overlayFrame &&
-                !!overlayNext &&
-                overlayFrame.source !== "radar" &&
-                overlayNext.source !== "radar" &&
-                !!overlayFrame.precipUrl &&
-                !!overlayNext.precipUrl;
-
               const showPng = !!overlayFrame && hasPng;
               const showGrid = !!overlayFrame && hasGrid && !hasPng;
               const warmGrid = !!overlayFrame && hasPng && !!overlayNext && nextHasGrid;
@@ -2101,9 +1943,6 @@ export function RadarMap({
                   {showPng && (
                     <MeasurementCanvasOverlay
                       url={overlayFrame.precipUrl as string}
-                      nextUrl={advectPair ? (overlayNext?.precipUrl as string) : null}
-                      progress={advectPair ? overlayProg : 0}
-                      advect={advectPair}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
