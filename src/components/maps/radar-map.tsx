@@ -869,8 +869,9 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
-        const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
+        const sx = isForecastFrame ? Math.round(fxRaw) : fxRaw;
+        const sy = isForecastFrame ? Math.round(fyRaw) : fyRaw;
+
         let v = sampleAt(vals, sx, sy);
         const minV = 0.1;
         if (v < minV) continue;
