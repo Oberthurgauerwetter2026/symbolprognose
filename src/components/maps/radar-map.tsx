@@ -430,6 +430,46 @@ function timelineStateForMs(
 }
 
 /**
+ * Deterministisches Value-Noise über Gitterkoordinaten (keine Zeit-, keine
+ * Bildschirmabhängigkeit → stabil bei Pan/Zoom und über Frames hinweg).
+ */
+function noiseHash(xi: number, yi: number): number {
+  const s = Math.sin(xi * 127.1 + yi * 311.7) * 43758.5453123;
+  return s - Math.floor(s);
+}
+function valueNoise(x: number, y: number): number {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const tx = x - xi;
+  const ty = y - yi;
+  const ux = tx * tx * (3 - 2 * tx);
+  const uy = ty * ty * (3 - 2 * ty);
+  const a = noiseHash(xi, yi);
+  const b = noiseHash(xi + 1, yi);
+  const c = noiseHash(xi, yi + 1);
+  const d = noiseHash(xi + 1, yi + 1);
+  return (a * (1 - ux) + b * ux) * (1 - uy) + (c * (1 - ux) + d * ux) * uy;
+}
+
+/**
+ * Organischer Domain-Warp für Prognose-Frames: verschiebt die Sample-
+ * Koordinaten um Bruchteile einer Gitterzelle. Ränder verlaufen dadurch
+ * unregelmässig/gewachsen, ohne dass Werte gemittelt (geglättet/weichgezeichnet)
+ * werden — Zellgrösse und Spitzenintensität bleiben unverändert.
+ */
+const ORGANIC_AMP = 0.45;
+function warpX(fx: number, fy: number): number {
+  const n1 = valueNoise(fx * 0.35 + 11.3, fy * 0.35 - 4.7) - 0.5;
+  const n2 = valueNoise(fx * 0.95 + 57.2, fy * 0.95 + 3.4) - 0.5;
+  return fx + ORGANIC_AMP * (2 * n1 + n2);
+}
+function warpY(fx: number, fy: number): number {
+  const n1 = valueNoise(fx * 0.35 - 8.1, fy * 0.35 + 21.9) - 0.5;
+  const n2 = valueNoise(fx * 0.95 - 31.6, fy * 0.95 - 12.8) - 0.5;
+  return fy + ORGANIC_AMP * (2 * n1 + n2);
+}
+
+/**
  * Canvas-Overlay-Layer, der ein Niederschlags-Grid mit bilinearer Interpolation
  * über die Karte rendert. Updates per setFrame() ohne Layer-Neuaufbau.
  */
@@ -573,7 +613,7 @@ function PrecipOverlay({
     const smoothEdge = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
       const out = new Array<number>(nLon * nLat);
-      const CW = 12;
+      const CW = 20;
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
           const c = src[y * nLon + x];
@@ -684,8 +724,9 @@ function PrecipOverlay({
           const fxRaw = lookup.fx[cell];
           const fyRaw = lookup.fy[cell];
 
-          const sx = fxRaw;
-          const sy = fyRaw;
+          // Prognose: organischer Domain-Warp (kein Glätten/Weichzeichnen).
+          const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
+          const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
 
           let v = sampleAt(vals, sx, sy);
 
@@ -760,7 +801,7 @@ function PrecipOverlay({
     const smoothEdge = (src: number[] | undefined): number[] | undefined => {
       if (!src || src.length !== nLon * nLat) return src;
       const out = new Array<number>(nLon * nLat);
-      const CW = 12;
+      const CW = 20;
       for (let y = 0; y < nLat; y++) {
         for (let x = 0; x < nLon; x++) {
           const c = src[y * nLon + x];
@@ -817,8 +858,8 @@ function PrecipOverlay({
         if (!lookup.valid[cell]) continue;
         const fxRaw = lookup.fx[cell];
         const fyRaw = lookup.fy[cell];
-        const sx = fxRaw;
-        const sy = fyRaw;
+        const sx = isForecastFrame ? warpX(fxRaw, fyRaw) : fxRaw;
+        const sy = isForecastFrame ? warpY(fxRaw, fyRaw) : fyRaw;
         let v = sampleAt(vals, sx, sy);
         const minV = 0.1;
         if (v < minV) continue;
