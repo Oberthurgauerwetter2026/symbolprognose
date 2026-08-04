@@ -814,7 +814,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             </>
           );
           const cls = cn(
-            "flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs font-semibold tracking-wide sm:text-sm",
+            "flex h-full shrink-0 items-center gap-2 px-3 text-xs font-semibold tracking-wide sm:text-sm",
             fill ? "w-full" : "rounded-lg sm:rounded-xl",
           );
           const style = isAdvisory
