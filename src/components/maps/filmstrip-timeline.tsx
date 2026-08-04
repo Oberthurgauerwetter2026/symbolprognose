@@ -141,12 +141,41 @@ export function FilmstripTimeline({
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
   const pendingTargetRef = useRef<number | null>(null);
+  const pointerTypeRef = useRef<string | null>(null);
+
+  const isCoarsePointer = () =>
+    typeof window !== "undefined" &&
+    typeof navigator !== "undefined" &&
+    "vibrate" in navigator &&
+    window.matchMedia("(pointer: coarse)").matches;
+
+  const hapticFor = (ms: number) => {
+    if (!isCoarsePointer()) return;
+    const d = new Date(ms);
+    const isDayBreak = d.getHours() === 0 && d.getMinutes() === 0;
+    const isForecast =
+      bandMode === "measurement-forecast"
+        ? ms > nowMs
+        : bandMode === "forecast-only";
+    const pattern = isDayBreak ? [10, 30, 15] : isForecast ? 8 : 4;
+    try {
+      navigator.vibrate(pattern);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const onDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    pointerTypeRef.current = e.pointerType;
     dragStartRef.current = { x: e.clientX, ms: motionMs };
     setDragMs(motionMs);
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      try { navigator.vibrate(6); } catch { /* ignore */ }
+    if (isCoarsePointer()) {
+      try {
+        navigator.vibrate(6);
+      } catch {
+        /* ignore */
+      }
     }
   };
   const snapAndEmit = (target: number) => {
@@ -154,6 +183,10 @@ export function FilmstripTimeline({
     if (best !== lastSentIdxRef.current) {
       lastSentIdxRef.current = best;
       onChange(best);
+      if (best !== lastHapticIdxRef.current) {
+        lastHapticIdxRef.current = best;
+        hapticFor(times[best] ?? target);
+      }
     }
     return best;
   };
