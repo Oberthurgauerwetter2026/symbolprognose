@@ -637,7 +637,27 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   const { data: forecasts, dataUpdatedAt } = useQuery(regionForecastQuery());
 
   // Aktive Warnungen je Spot (Gemeinde per Punkt-in-Polygon).
-  const activeWarnings = useActiveWarnings();
+  const allWarnings = useActiveWarnings();
+
+  // Minutentakt, damit ablaufende/beginnende Warnungen ohne Neuladen wechseln.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  // Nur Warnungen, deren Zeitfenster jetzt läuft (keine Vorlaufzeit, kein Nachlauf).
+  const activeWarnings = useMemo(
+    () =>
+      allWarnings.filter((w) => {
+        const from = new Date(w.validFrom).getTime();
+        const to = new Date(w.validTo).getTime();
+        if (Number.isNaN(from) || Number.isNaN(to)) return false;
+        return from <= nowMs && nowMs < to;
+      }),
+    [allWarnings, nowMs],
+  );
+
   const spotWarnings = useMemo(() => {
     const out: Record<string, WarningDTO | null> = {};
     for (const s of SPOTS) {
@@ -662,6 +682,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
       maxAdvisoryLevel: adv as 0 | WarnLevel,
     };
   }, [activeWarnings]);
+
 
 
 
