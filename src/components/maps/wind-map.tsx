@@ -12,7 +12,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, Settings } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings, Info, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
@@ -974,6 +974,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
   // progress-State entfernt: keine Per-RAF-Repaints im Color-Overlay/Arrows.
   const progress = 0;
   const [arrowsOn, setArrowsOn] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const isMobile = useIsMobile();
   const idxRef = useRef<number | null>(null);
   const progressRef = useRef(0);
@@ -1129,19 +1130,41 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
         </MapContainer>
 
 
-        {/* Legende */}
-        <div className="pointer-events-none absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
-          <span className="mb-1 font-semibold text-foreground">Böen km/h</span>
-          {[...WIND_SCALE].reverse().map((s) => (
-            <div key={s.v} className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-3 rounded-sm sm:h-2.5 sm:w-4"
-                style={{ background: `rgb(${s.rgb.join(",")})` }}
-              />
-              <span className="tabular-nums text-muted-foreground">{s.label}</span>
+        {/* Legende — nur auf Klick */}
+        {legendOpen ? (
+          <div className="absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="font-semibold text-foreground">Böen km/h</span>
+              <button
+                type="button"
+                aria-label="Legende schliessen"
+                onClick={() => setLegendOpen(false)}
+                className="-mr-0.5 rounded p-0.5 text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-3 w-3" />
+              </button>
             </div>
-          ))}
-        </div>
+            {[...WIND_SCALE].reverse().map((s) => (
+              <div key={s.v} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2 w-3 rounded-sm sm:h-2.5 sm:w-4"
+                  style={{ background: `rgb(${s.rgb.join(",")})` }}
+                />
+                <span className="tabular-nums text-muted-foreground">{s.label}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setLegendOpen(true)}
+            aria-label="Legende anzeigen"
+            title="Legende"
+            className="absolute right-3 top-24 z-[400] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Steuerpanel — bare: schwebend über der Karte; sonst Panel unter der Karte (analog Radar) */}
