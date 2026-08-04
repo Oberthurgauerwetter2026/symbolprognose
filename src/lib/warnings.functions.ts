@@ -9,6 +9,7 @@ export interface WarningDTO {
   title: string;
   description: string;
   impact: string;
+  peakPhase: string | null;
   value: string | null;
   active: boolean;
   source: string;
@@ -62,6 +63,7 @@ export interface SaveWarningInput {
   title: string;
   description: string;
   impact: string;
+  peakPhase?: string | null;
   value?: string | null;
   regionIds: string[];
   active: boolean;
@@ -85,6 +87,7 @@ export const saveWarning = createServerFn({ method: "POST" })
       title: data.title.slice(0, 200),
       description: data.description.slice(0, 2000),
       impact: data.impact.slice(0, 2000),
+      peak_phase: data.peakPhase ? data.peakPhase.slice(0, 500) : null,
       params: data.value ? { value: String(data.value).slice(0, 40) } : {},
       active: data.active,
       advisory: data.advisory ?? false,

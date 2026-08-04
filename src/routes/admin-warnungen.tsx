@@ -165,6 +165,7 @@ interface FormState {
   title: string;
   description: string;
   impact: string;
+  peakPhase: string;
   regionIds: string[];
   active: boolean;
   advisory: boolean;
@@ -204,7 +205,7 @@ function emptyForm(): FormState {
     title: t.title,
     description: t.description,
     impact: t.impact,
-
+    peakPhase: "",
     regionIds: [],
     active: true,
     advisory: false,
@@ -362,6 +363,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
           title: form.title,
           description: form.description,
           impact: form.impact,
+          peakPhase: form.peakPhase || null,
           value: combineValue(form.valueFrom, form.valueTo) || null,
           regionIds: form.regionIds,
           active: form.active,
@@ -406,6 +408,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
       title: w.title,
       description: w.description,
       impact: w.impact,
+      peakPhase: w.peakPhase ?? "",
       regionIds: w.regionIds,
       active: w.active,
       advisory: w.advisory,
@@ -602,6 +605,15 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                 rows={5}
                 value={form.impact}
                 onChange={(e) => setForm((f) => ({ ...f, impact: e.target.value }))}
+                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+              />
+            </label>
+            <label className="text-sm font-semibold sm:col-span-2">
+              Stärkste Phase (optional)
+              <input
+                value={form.peakPhase}
+                onChange={(e) => setForm((f) => ({ ...f, peakPhase: e.target.value }))}
+                placeholder="z. B. heute 14:00 – 17:00"
                 className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
               />
             </label>

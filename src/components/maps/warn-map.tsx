@@ -768,6 +768,13 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                               : w.description}
                           </p>
 
+                          {w.peakPhase && (
+                            <p className="text-base leading-relaxed text-foreground">
+                              <span className="font-semibold">Stärkste Phase: </span>
+                              {w.peakPhase}
+                            </p>
+                          )}
+
                           {impactText && (
                             <p className="text-base leading-relaxed text-foreground">
                               <span className="font-semibold">Mögliche Auswirkungen: </span>

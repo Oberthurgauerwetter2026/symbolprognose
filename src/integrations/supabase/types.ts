@@ -106,6 +106,7 @@ export type Database = {
           impact: string
           level: number
           params: Json
+          peak_phase: string | null
           source: string
           title: string | null
           updated_at: string
@@ -123,6 +124,7 @@ export type Database = {
           impact?: string
           level: number
           params?: Json
+          peak_phase?: string | null
           source?: string
           title?: string | null
           updated_at?: string
@@ -140,6 +142,7 @@ export type Database = {
           impact?: string
           level?: number
           params?: Json
+          peak_phase?: string | null
           source?: string
           title?: string | null
           updated_at?: string
