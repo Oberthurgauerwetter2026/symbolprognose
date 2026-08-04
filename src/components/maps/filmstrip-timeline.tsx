@@ -140,6 +140,22 @@ export function FilmstripTimeline({
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
   const pendingTargetRef = useRef<number | null>(null);
+  // Kinetisches Scrollen: geglättete Geschwindigkeit (ms Zeitachse pro ms Realzeit)
+  const velRef = useRef(0);
+  const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
+  const momentumRafRef = useRef<number | null>(null);
+
+  const stopMomentum = () => {
+    if (momentumRafRef.current !== null) {
+      cancelAnimationFrame(momentumRafRef.current);
+      momentumRafRef.current = null;
+    }
+  };
+
+  useEffect(() => stopMomentum, []);
+  useEffect(() => {
+    if (playing) stopMomentum();
+  }, [playing]);
 
   const isCoarsePointer = () =>
     typeof window !== "undefined" &&
@@ -156,8 +172,11 @@ export function FilmstripTimeline({
   };
 
   const onDown = (e: React.PointerEvent) => {
+    stopMomentum();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragStartRef.current = { x: e.clientX, ms: motionMs };
+    velRef.current = 0;
+    lastMoveRef.current = { x: e.clientX, t: performance.now() };
     setDragMs(motionMs);
     if (isCoarsePointer()) haptic(6);
   };
@@ -176,6 +195,19 @@ export function FilmstripTimeline({
   };
   const onMove = (e: React.PointerEvent) => {
     if (!dragStartRef.current) return;
+    const now = performance.now();
+    const last = lastMoveRef.current;
+    if (last) {
+      const dt = now - last.t;
+      if (dt > 4) {
+        // px/ms -> Zeitachse ms pro Realzeit-ms (Ziehen nach links = vorwärts)
+        const v = ((-(e.clientX - last.x) / PX_PER_HOUR) * 3_600_000) / dt;
+        velRef.current = velRef.current * 0.8 + v * 0.2;
+        lastMoveRef.current = { x: e.clientX, t: now };
+      }
+    } else {
+      lastMoveRef.current = { x: e.clientX, t: now };
+    }
     const dx = e.clientX - dragStartRef.current.x;
     const dMs = (-dx / PX_PER_HOUR) * 3_600_000;
     const target = Math.max(tMin, Math.min(tMax, dragStartRef.current.ms + dMs));
@@ -190,21 +222,75 @@ export function FilmstripTimeline({
       onScrubMs?.(t);
     });
   };
+
+  const startMomentum = (fromMs: number) => {
+    let ms = fromMs;
+    let v = velRef.current;
+    let prev = performance.now();
+    const FRICTION = 0.95;
+    // Schwelle: unter ~1 Sekunde Zeitachse pro Sekunde Realzeit ist der Schwung aus.
+    const MIN_V = 1.5;
+
+    const finish = () => {
+      momentumRafRef.current = null;
+      snapAndEmit(ms);
+      setDragMs(null);
+      onScrubMs?.(null);
+    };
+
+    const step = () => {
+      const now = performance.now();
+      const dt = Math.min(48, now - prev);
+      prev = now;
+      ms += v * dt;
+      v *= Math.pow(FRICTION, dt / 16.67);
+      if (ms <= tMin) {
+        ms = tMin;
+        finish();
+        return;
+      }
+      if (ms >= tMax) {
+        ms = tMax;
+        finish();
+        return;
+      }
+      snapAndEmit(ms);
+      setDragMs(ms);
+      onScrubMs?.(ms);
+      if (Math.abs(v) < MIN_V) {
+        finish();
+        return;
+      }
+      momentumRafRef.current = requestAnimationFrame(step);
+    };
+    momentumRafRef.current = requestAnimationFrame(step);
+  };
+
   const onUp = (e: React.PointerEvent) => {
+    const start = dragStartRef.current;
     dragStartRef.current = null;
+    lastMoveRef.current = null;
     if (rafPendingRef.current !== null) {
       cancelAnimationFrame(rafPendingRef.current);
       rafPendingRef.current = null;
     }
+    const lastTarget = pendingTargetRef.current;
     pendingTargetRef.current = null;
-    setDragMs(null);
-    onScrubMs?.(null);
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {
       /* ignore */
     }
+    const from = lastTarget ?? dragMs ?? start?.ms ?? motionMs;
+    if (Math.abs(velRef.current) > 3 && from > tMin && from < tMax) {
+      startMomentum(from);
+      return;
+    }
+    velRef.current = 0;
+    setDragMs(null);
+    onScrubMs?.(null);
   };
+
 
   return (
     <div className="select-none">
