@@ -14,6 +14,7 @@ export interface WarningRow {
   title: string | null;
   description: string;
   impact: string;
+  peak_phase: string | null;
   params: Record<string, unknown>;
   active: boolean;
   source: string;
