@@ -10,6 +10,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { Pause, Play, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -386,12 +387,14 @@ function WindColorOverlay({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },
@@ -574,9 +577,11 @@ function WindParticleLayer({
         const sync = () => syncSize(cv);
         sync();
         map.on("moveend zoomend resize", sync);
+        attachCanvasZoomAnim(map, cv, sync);
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+        detachCanvasZoomAnim(this._canvas);
         if (this._canvas) this._canvas.remove();
         canvasRef.current = null;
         return this;
@@ -765,11 +770,13 @@ function WindArrowLayer({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },

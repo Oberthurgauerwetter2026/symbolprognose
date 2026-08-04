@@ -12,6 +12,7 @@ import {
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -480,12 +481,14 @@ function PrecipOverlay({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },
@@ -1023,12 +1026,14 @@ function MeasurementCanvasOverlay({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },
@@ -1481,12 +1486,14 @@ function MeasurementHailDotsLayer({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },
