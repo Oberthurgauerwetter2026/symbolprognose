@@ -2007,7 +2007,7 @@ export function RadarMap({
       >
         <MapContainer
           center={[47.575, 9.35]}
-          zoom={9.0}
+          zoom={9.5}
           zoomSnap={0.5}
           zoomDelta={0.5}
           maxBounds={maxBoundsExt}
