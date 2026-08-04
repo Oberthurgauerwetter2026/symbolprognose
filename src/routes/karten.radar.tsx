@@ -2,20 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
-import { LazyRadarMap } from "@/components/maps/lazy-maps";
+import { LazyRadarMap, preloadRadarMap } from "@/components/maps/lazy-maps";
+import { MapSkeleton } from "@/components/maps/map-skeleton";
+import { radarFramesQuery } from "@/lib/map-queries";
 import { getMap } from "@/lib/maps-config";
-import { getRadarFrames } from "@/lib/radar.functions";
 import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/radar")({
   ssr: false,
   loader: ({ context }) => {
     // Daten parallel zum Lazy-Chunk laden, ohne die Navigation zu blockieren.
-    context.queryClient.prefetchQuery({
-      queryKey: ["radar-frames"],
-      queryFn: () => getRadarFrames(),
-      staleTime: 5 * 60_000,
-    });
+    preloadRadarMap();
+    context.queryClient.prefetchQuery(radarFramesQuery());
   },
   component: KartenRadarPage,
   head: () => ({
@@ -33,7 +31,7 @@ function KartenRadarPage() {
     <DashboardLayout title={def.label} subtitle={def.description}>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="radar" />
-        <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
+        <Suspense fallback={<MapSkeleton />}>
           <LazyRadarMap />
         </Suspense>
       </div>

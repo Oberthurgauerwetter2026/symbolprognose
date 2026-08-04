@@ -22,7 +22,8 @@ import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
 
-import { getWindFrames, type WindPayload, type WindFrame } from "@/lib/wind.functions";
+import { type WindPayload, type WindFrame } from "@/lib/wind.functions";
+import { windFramesQuery } from "@/lib/map-queries";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
@@ -963,12 +964,7 @@ function fmtBubble(d: Date): string {
 type DisplayMode = "flow" | "arrows" | "both";
 
 export function WindMap({ bare = false }: { bare?: boolean } = {}) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["wind-frames"],
-    queryFn: () => getWindFrames(),
-    staleTime: 5 * 60_000,
-    gcTime: 30 * 60_000,
-  });
+  const { data, isLoading, error } = useQuery(windFramesQuery());
 
   const rawFrames = data?.frames ?? [];
   const frames = useMemo(() => buildHourlyWindFrames(rawFrames), [rawFrames]);

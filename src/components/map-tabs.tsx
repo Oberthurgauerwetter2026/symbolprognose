@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { MAPS, type MapId } from "@/lib/maps-config";
+import { preloadMapChunk } from "@/components/maps/lazy-maps";
 import { cn } from "@/lib/utils";
 
 const BRAND = "#2561a1";
@@ -14,6 +15,10 @@ export function MapTabs({ active }: { active: MapId }) {
           <Link
             key={m.id}
             to={m.routePath}
+            preload="intent"
+            onMouseEnter={() => preloadMapChunk(m.id)}
+            onTouchStart={() => preloadMapChunk(m.id)}
+            onFocus={() => preloadMapChunk(m.id)}
             className={cn(
               "flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
               isActive

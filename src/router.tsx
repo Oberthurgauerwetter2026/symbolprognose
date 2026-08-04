@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter, useRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { setupQueryPersistence } from "./lib/query-persist";
 
 function DefaultErrorComponent({
   error,
@@ -52,11 +53,18 @@ export const getRouter = () => {
     },
   });
 
+  // Letzter Kartenstand aus localStorage, damit nach Neuladen sofort Daten da sind.
+  setupQueryPersistence(queryClient);
+
   const router = createRouter({
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    // Route-Code + Loader schon beim Hovern/Antippen starten.
+    defaultPreload: "intent",
+    defaultPreloadDelay: 30,
     defaultPreloadStaleTime: 0,
+
     defaultErrorComponent: DefaultErrorComponent,
   });
 

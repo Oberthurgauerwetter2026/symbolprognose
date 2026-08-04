@@ -19,7 +19,8 @@ import {
   formatRange,
   type HazardId,
 } from "@/lib/warnings-config";
-import { listWarnings, type WarningDTO } from "@/lib/warnings.functions";
+import { type WarningDTO } from "@/lib/warnings.functions";
+import { warningsQuery } from "@/lib/map-queries";
 import { PushOptIn } from "@/components/warnings/push-opt-in";
 import { useWarningsRealtime } from "@/hooks/use-warnings";
 
@@ -238,11 +239,9 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
 
   const query = useQuery({
-    queryKey: ["warnings"],
-    queryFn: () => listWarnings(),
+    ...warningsQuery(),
     refetchInterval: 60 * 1000,
     refetchOnWindowFocus: true,
-    staleTime: 0,
   });
 
   /** Live-Aktualisierung: Änderungen an Warnungen sofort übernehmen. */

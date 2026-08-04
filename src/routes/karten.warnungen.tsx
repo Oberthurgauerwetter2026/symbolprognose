@@ -2,11 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
 import { WarnMap } from "@/components/maps/warn-map";
+import { warningsQuery } from "@/lib/map-queries";
 import { getMap } from "@/lib/maps-config";
 import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/warnungen")({
   ssr: false,
+  loader: ({ context }) => {
+    context.queryClient.prefetchQuery(warningsQuery());
+  },
   component: KartenWarnungenPage,
   head: () => ({
     meta: [

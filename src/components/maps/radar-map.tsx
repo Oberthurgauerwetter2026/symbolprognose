@@ -24,7 +24,8 @@ import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
-import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { radarFramesQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
 import { CityMarkers } from "./city-markers";
@@ -1696,10 +1697,7 @@ export function RadarMap({
   initialFrames?: RadarPayload;
 }) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ["radar-frames"],
-    queryFn: () => getRadarFrames(),
-    staleTime: 5 * 60_000,
-    gcTime: 30 * 60_000,
+    ...radarFramesQuery(),
     initialData: initialFrames,
     initialDataUpdatedAt: initialFrames ? Date.now() : undefined,
   });

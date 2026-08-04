@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { satelliteManifestQuery } from "@/lib/map-queries";
 import { MapContainer, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -23,6 +24,7 @@ import {
   SATELLITE_REGIONS,
   getRegion,
   getSatelliteManifest,
+
   type SatelliteRegionId,
   type SatelliteFrame,
 } from "@/lib/satellite.functions";
@@ -377,9 +379,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
   const isMobile = useIsMobile();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["satellite-manifest", regionId],
-    queryFn: () => getSatelliteManifest({ data: { region: regionId } }),
-    staleTime: 60_000,
+    ...satelliteManifestQuery(regionId),
     refetchInterval: 60_000,
   });
 
