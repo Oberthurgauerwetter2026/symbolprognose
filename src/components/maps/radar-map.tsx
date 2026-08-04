@@ -1362,10 +1362,14 @@ function MeasurementCanvasOverlay({
               v += wB * sampleField(fieldB, smoothB, fx, fy);
             }
           }
-          if (v < 0.05) continue;
-          const [r, g, b, a] = colorFor(v);
-          if (a === 0) continue;
-          const alpha = Math.round(a * 255);
+          // `v` ist ein kontinuierlicher Bandindex (0 = trocken). Einfärbung
+          // über die gerundete Stufe — dadurch entstehen keine einzelnen
+          // Pixel der Nachbarfarbe innerhalb einer Fläche.
+          if (v < 0.5) continue;
+          const bandIdx = Math.min(SCALE.length, Math.max(1, Math.round(v))) - 1;
+          const s = SCALE[bandIdx];
+          const [r, g, b] = s.rgb;
+          const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
           dArr[idx] = r;
