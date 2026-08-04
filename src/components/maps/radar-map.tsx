@@ -235,12 +235,13 @@ const regionBounds: L.LatLngBoundsExpression = [
   [47.6392538, 9.4773698],
 ];
 
-// Etwas grösser als die erweiterte Daten-Bbox (46.85–48.30 / 8.15–10.55), damit der
-// Standardausschnitt knapp drüber liegt.
+// Exakt die Daten-Bbox: so liegt die harte Datenkante immer knapp aussen am
+// Kartenrand und wirkt nicht abgeschnitten.
 const maxBoundsExt: L.LatLngBoundsExpression = [
-  [46.80, 8.10],
-  [48.35, 10.60],
+  [46.85, 8.15],
+  [48.3, 10.55],
 ];
+
 
 function InvalidateOnResize() {
   const map = useMap();
