@@ -17,6 +17,7 @@ export function toDTO(r: WarningWithRegions): WarningDTO {
     title: r.title ?? "",
     description: r.description,
     impact: r.impact,
+    peakPhase: r.peak_phase,
     value: value == null ? null : String(value),
     active: r.active,
     source: r.source,
