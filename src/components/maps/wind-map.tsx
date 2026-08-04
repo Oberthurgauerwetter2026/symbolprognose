@@ -974,6 +974,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
   // progress-State entfernt: keine Per-RAF-Repaints im Color-Overlay/Arrows.
   const progress = 0;
   const [arrowsOn, setArrowsOn] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const isMobile = useIsMobile();
   const idxRef = useRef<number | null>(null);
   const progressRef = useRef(0);
