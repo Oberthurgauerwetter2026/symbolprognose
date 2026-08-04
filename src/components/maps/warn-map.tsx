@@ -811,6 +811,13 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         </aside>
 
       </div>
+
+      {updatedLabel ? (
+        <div className="text-left text-[11px] text-muted-foreground">
+          Aktualisiert {updatedLabel}
+        </div>
+      ) : null}
+
     </div>
   );
 }
