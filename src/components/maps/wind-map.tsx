@@ -240,9 +240,10 @@ import { CityMarkers } from "./city-markers";
 
 
 const maxBoundsExt: L.LatLngBoundsExpression = [
-  [46.80, 8.10],
-  [48.35, 10.60],
+  [46.85, 8.15],
+  [48.3, 10.55],
 ];
+
 
 function InvalidateOnResize() {
   const map = useMap();
@@ -1048,7 +1049,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
           zoomDelta={0.5}
           maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
-          minZoom={8}
+          minZoom={9}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
