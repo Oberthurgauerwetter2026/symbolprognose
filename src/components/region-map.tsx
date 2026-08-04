@@ -646,16 +646,33 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
     return () => window.clearInterval(id);
   }, []);
 
-  // Vorlaufzeit sichtbar (künftige Warnungen), abgelaufene ausblenden.
-  const activeWarnings = useMemo(
-    () =>
-      allWarnings.filter((w) => {
-        const to = new Date(w.validTo).getTime();
-        if (Number.isNaN(to)) return false;
-        return nowMs < to;
-      }),
-    [allWarnings, nowMs],
-  );
+  // Warnungen passend zum gewählten Zeitschritt: Vorlaufzeit sichtbar,
+  // für den betrachteten Zeitraum abgelaufene Warnungen ausgeblendet.
+  const activeWarnings = useMemo(() => {
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    const dayStart = midnight.getTime();
+
+    let winStart: number;
+    let winEnd: number;
+    if (viewMode === "hourly") {
+      winStart = dayStart + absoluteHour * 3600_000;
+      winEnd = winStart + 3600_000;
+    } else {
+      winStart = dayStart + selectedDayIdx * 24 * 3600_000;
+      winEnd = winStart + 24 * 3600_000;
+    }
+    // Vergangenes im aktuellen Fenster nicht mehr berücksichtigen.
+    winStart = Math.max(winStart, nowMs);
+    if (winEnd <= winStart) return [];
+
+    return allWarnings.filter((w) => {
+      const from = new Date(w.validFrom).getTime();
+      const to = new Date(w.validTo).getTime();
+      if (Number.isNaN(from) || Number.isNaN(to)) return false;
+      return from < winEnd && to > winStart;
+    });
+  }, [allWarnings, nowMs, viewMode, absoluteHour, selectedDayIdx]);
 
   const spotWarnings = useMemo(() => {
     const out: Record<string, WarningDTO | null> = {};
