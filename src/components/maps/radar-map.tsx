@@ -402,13 +402,15 @@ function bracketFramesForMs(
 /**
  * Fade-Gewichtung innerhalb eines Zeitschritts: Das Feld hält den Grossteil
  * des Schritts unverändert (Gewicht 0) und geht erst im letzten Abschnitt
- * weich (Smoothstep) in das nächste Feld über. Kein Springen, kein Pumpen.
+ * weich (höherwertiger Smoothstep) in das nächste Feld über. Grösseres
+ * Blend-Fenster als früher, damit der Stundenwechsel ruhiger wirkt.
  */
-function fadeWeight(progress: number, frac = 0.4): number {
+function fadeWeight(progress: number, frac = 0.55): number {
   const p = Math.max(0, Math.min(1, progress));
   if (frac <= 0) return p >= 1 ? 1 : 0;
   const t = Math.max(0, Math.min(1, (p - (1 - frac)) / frac));
-  return t * t * (3 - 2 * t);
+  // Höherwertiger Smoothstep (Perlin): flachere Anfangs-/End-Phase, ruhigerer Übergang.
+  return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
 function timelineStateForMs(
@@ -575,7 +577,7 @@ function PrecipOverlay({
     // Intensitäten (keine Geometrieverformung, keine geschätzte Bewegung).
     // `progress` liefert bereits die Fade-Gewichtung (0 = Feld hält stabil).
     const nf = nextFrameRef.current;
-    const QSTEPS = 12;
+    const QSTEPS = 24;
     const nextValsRaw =
       nf && Array.isArray(nf.values) && nf.values.length === vals.length ? nf.values : null;
     const wRaw = Math.max(0, Math.min(1, progressRef.current || 0));
@@ -1239,7 +1241,7 @@ function MeasurementCanvasOverlay({
     // EINER Zeichenfläche. Dadurch bleibt die Farbdichte konstant (kein
     // Aufhellen/Abdunkeln durch gestapelte Halbtransparenzen) und die
     // Geometrie der Flächen wird nicht verformt.
-    const QSTEPS = 12;
+    const QSTEPS = 24;
     let wRaw = Math.max(0, Math.min(1, typeof blend === "number" ? blend : 0));
     if (!srcBRaw) wRaw = 0;
     if (!srcA) wRaw = 1;
