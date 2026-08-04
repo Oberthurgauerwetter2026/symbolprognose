@@ -141,7 +141,6 @@ export function FilmstripTimeline({
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
   const pendingTargetRef = useRef<number | null>(null);
-  const pointerTypeRef = useRef<string | null>(null);
 
   const isCoarsePointer = () =>
     typeof window !== "undefined" &&
