@@ -1187,11 +1187,13 @@ function MeasurementCanvasOverlay({
           return;
         }
         const mmh = new Float32Array(cw * ch);
+        const band = new Float32Array(cw * ch);
         for (let i = 0; i < cw * ch; i++) {
           const o = i * 4;
           const a = data[o + 3];
           if (a < 8) {
             mmh[i] = 0;
+            band[i] = 0;
             continue;
           }
           const r = data[o];
@@ -1199,7 +1201,9 @@ function MeasurementCanvasOverlay({
           const b = data[o + 2];
           let bestD = Infinity;
           let bestMmh = 0;
-          for (const s of SCALE) {
+          let bestBand = 0;
+          for (let si = 0; si < SCALE.length; si++) {
+            const s = SCALE[si];
             const dr = r - s.rgb[0];
             const dg = g - s.rgb[1];
             const db = b - s.rgb[2];
@@ -1207,11 +1211,13 @@ function MeasurementCanvasOverlay({
             if (d < bestD) {
               bestD = d;
               bestMmh = s.mmh;
+              bestBand = si + 1;
             }
           }
           mmh[i] = bestMmh;
+          band[i] = bestBand;
         }
-        cacheRef.current.set(u, { w: cw, h: ch, mmh });
+        cacheRef.current.set(u, { w: cw, h: ch, mmh, band });
         while (cacheRef.current.size > DECODE_CACHE_MAX) {
           const firstKey = cacheRef.current.keys().next().value;
           if (firstKey === undefined) break;
