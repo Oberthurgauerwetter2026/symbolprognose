@@ -9,6 +9,7 @@ export interface WarningDTO {
   title: string;
   description: string;
   impact: string;
+  peakPhase: string | null;
   value: string | null;
   active: boolean;
   source: string;
