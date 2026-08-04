@@ -19,7 +19,8 @@ import {
   formatRange,
   type HazardId,
 } from "@/lib/warnings-config";
-import { listWarnings, type WarningDTO } from "@/lib/warnings.functions";
+import { type WarningDTO } from "@/lib/warnings.functions";
+import { warningsQuery } from "@/lib/map-queries";
 import { PushOptIn } from "@/components/warnings/push-opt-in";
 import { useWarningsRealtime } from "@/hooks/use-warnings";
 

@@ -24,7 +24,8 @@ import lakeData from "@/data/lake.json";
 import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
-import { getRadarFrames, type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { radarFramesQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
 import { CityMarkers } from "./city-markers";

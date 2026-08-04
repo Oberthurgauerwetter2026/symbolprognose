@@ -22,7 +22,8 @@ import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
 
-import { getWindFrames, type WindPayload, type WindFrame } from "@/lib/wind.functions";
+import { type WindPayload, type WindFrame } from "@/lib/wind.functions";
+import { windFramesQuery } from "@/lib/map-queries";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
