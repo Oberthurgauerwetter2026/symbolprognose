@@ -1762,31 +1762,17 @@ export function RadarMap({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil, Phase 1: 15-min-Raster solange echte ICON-CH1-Bildfelder
-    // (mit `precipUrl`) vorliegen — so entspricht ein Reglerschritt genau
-    // einem Feld und der Crossfade läuft über den ganzen Schritt.
-    const STEP15 = 15 * 60_000;
-    const TOL15 = 2 * 60_000;
+    // Prognoseteil: Stundenraster. ICON-CH1 liefert keine echten 15-min-Felder
+    // (die 15-min-Reihe wiederholt den Stundenwert), darum ein Schritt pro
+    // Stunde — nur wenn dazu ein echtes Feld existiert.
     const HOUR = 60 * 60_000;
     const HOUR_TOL = 4 * 60_000;
-
-    let fcEndMs = nowMs;
-    const startQ = Math.ceil((nowMs + 1) / STEP15) * STEP15;
-    for (let t = startQ; t <= lastMs; t += STEP15) {
-      const i = pickNearest(t, TOL15);
-      if (i === null || !frames[i]?.precipUrl) break;
-      if (times[i] > nowMs) {
-        push(times[i]);
-        fcEndMs = Math.max(fcEndMs, times[i]);
-      }
-    }
-
-    // Prognoseteil, Phase 2: Stundenraster für den restlichen Horizont.
-    const startFc = Math.ceil((Math.max(nowMs, fcEndMs) + 1) / HOUR) * HOUR;
+    const startFc = Math.ceil((nowMs + 1) / HOUR) * HOUR;
     for (let t = startFc; t <= lastMs; t += HOUR) {
       const i = pickNearest(t, HOUR_TOL);
       if (i !== null && times[i] > nowMs) push(times[i]);
     }
+
 
 
 
@@ -2044,9 +2030,44 @@ export function RadarMap({
             (() => {
               const rtMs = scrubVisualMs ?? playVisualMs ?? renderMs ?? Date.parse(currentFrame.t);
               const timelineState = timelineStateForMs(frames, rtMs);
-              const overlayFrame = timelineState.frame ?? currentFrame;
-              const overlayNext = timelineState.nextFrame;
-              const overlayProg = timelineState.progress;
+              let overlayFrame = timelineState.frame ?? currentFrame;
+              let overlayNext = timelineState.nextFrame;
+              let overlayProg = timelineState.progress;
+
+              // Prognose: Übergang aus dem angezeigten Zeitraster (Stundenschritt)
+              // ableiten statt aus dem Feldabstand der Rohdaten — sonst blendet
+              // der vordere Bereich (15-min-Frames) gar nicht über.
+              if (rtMs > Date.now() && timelineSteps.length > 1) {
+                let bi = -1;
+                for (let k = 0; k < timelineSteps.length - 1; k++) {
+                  if (rtMs >= timelineSteps[k] && rtMs <= timelineSteps[k + 1]) {
+                    bi = k;
+                    break;
+                  }
+                }
+                if (bi >= 0) {
+                  const aMs = timelineSteps[bi];
+                  const bMs = timelineSteps[bi + 1];
+                  const a = frames[nearestFrameIndexForMs(frames, aMs)];
+                  const b = frames[nearestFrameIndexForMs(frames, bMs)];
+                  if (a && b) {
+                    overlayFrame = a;
+                    overlayNext = b;
+                    overlayProg = Math.max(0, Math.min(1, (rtMs - aMs) / Math.max(1, bMs - aMs)));
+                  }
+                } else {
+                  const lastStep = timelineSteps[timelineSteps.length - 1];
+                  if (rtMs >= lastStep) {
+                    const a = frames[nearestFrameIndexForMs(frames, lastStep)];
+                    if (a) {
+                      overlayFrame = a;
+                      overlayNext = null;
+                      overlayProg = 0;
+                    }
+                  }
+                }
+              }
+
 
               const hasPng = !!overlayFrame?.precipUrl;
               const hasGrid = Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
