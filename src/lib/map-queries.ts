@@ -10,7 +10,10 @@ import { queryOptions } from "@tanstack/react-query";
 import { SPOTS } from "@/data/spots";
 import { getAggregatedForecastBatch } from "@/lib/forecast-aggregated.functions";
 import { getRadarFrames } from "@/lib/radar.functions";
-import { getSatelliteManifest } from "@/lib/satellite.functions";
+import {
+  getSatelliteManifest,
+  type SatelliteRegionId,
+} from "@/lib/satellite.functions";
 import { listWarnings } from "@/lib/warnings.functions";
 import { getWindFrames } from "@/lib/wind.functions";
 
@@ -77,7 +80,7 @@ export const windFramesQuery = () =>
   });
 
 /** Satellitenmanifest je Region. */
-export const satelliteManifestQuery = (region: string) =>
+export const satelliteManifestQuery = (region: SatelliteRegionId) =>
   queryOptions({
     queryKey: ["satellite-manifest", region],
     queryFn: () => getSatelliteManifest({ data: { region } }),
