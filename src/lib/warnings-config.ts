@@ -205,8 +205,10 @@ export interface Template {
 export const TEMPLATES: Record<HazardId, Record<WarnLevel, Template>> = {
   gewitter: {
     1: {
-      description: "Örtlich Gewitter.{v: Erwartete Böenspitzen {v} km/h.}",
-      impact: "Kurzzeitig Starkregen, nasse Fahrbahnen und eingeschränkte Sicht.",
+      description:
+        "Örtlich Gewitter mit kurzzeitigem Starkregen, kleinem Hagel und Windböen.{v: Erwartete Böenspitzen {v} km/h.}",
+      impact:
+        "Kurzzeitig Starkregen, nasse Fahrbahnen und eingeschränkte Sicht. Örtlich kleiner Hagel und einzelne kräftige Böen.",
       advice: "Lose Gegenstände sichern. Fahrweise anpassen.",
     },
     2: {
