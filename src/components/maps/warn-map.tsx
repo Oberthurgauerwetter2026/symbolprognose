@@ -250,6 +250,20 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
   const warnings: WarningDTO[] = query.data?.warnings ?? [];
 
+  /** Zeitpunkt des letzten erfolgreichen Datenabrufs (Europe/Zurich). */
+  const updatedLabel = useMemo(() => {
+    const iso = query.data?.updatedAt;
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return new Intl.DateTimeFormat("de-CH", {
+      dateStyle: "short",
+      timeStyle: "short",
+      timeZone: "Europe/Zurich",
+    }).format(d);
+  }, [query.data?.updatedAt]);
+
+
   /** Höchste Stufe je Gemeinde für die aktuelle Auswahl (echte Warnungen). */
   const levelByRegion = useMemo(() => {
     const map = new Map<string, number>();
