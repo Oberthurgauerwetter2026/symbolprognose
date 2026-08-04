@@ -299,7 +299,7 @@ export function FilmstripTimeline({
           <span
             key={`pulse-${visualTick.id}`}
             aria-hidden="true"
-            className={`pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-35 motion-safe:animate-ping motion-reduce:hidden ${
+            className={`pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-35 motion-safe:animate-[ping_260ms_ease-out_1] motion-reduce:hidden ${
               visualTick.strong ? "h-7 w-7" : "h-5 w-5"
             }`}
             style={{ background: color }}
