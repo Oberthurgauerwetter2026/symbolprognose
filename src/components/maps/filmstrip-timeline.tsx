@@ -9,10 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 export type FilmstripFrame = { ms: number };
 
-export type FilmstripBandMode =
-  | "measurement-forecast"
-  | "measurement-only"
-  | "forecast-only";
+export type FilmstripBandMode = "measurement-forecast" | "measurement-only" | "forecast-only";
 
 const DEFAULT_MEASUREMENT_COLOR = "#9ca3af";
 const DEFAULT_FORECAST_COLOR = "#2561a1";
@@ -134,9 +131,8 @@ export function FilmstripTimeline({
   const measurementWidth = bandMode === "measurement-forecast" ? nowLeft : totalWidth;
   // Prognose-Band-Startposition: ab nowMs (Radar) oder ab 0 (Wind).
   const forecastLeft = bandMode === "measurement-forecast" ? nowLeft : 0;
-  const forecastWidth = bandMode === "measurement-forecast"
-    ? Math.max(0, totalWidth - nowLeft)
-    : totalWidth;
+  const forecastWidth =
+    bandMode === "measurement-forecast" ? Math.max(0, totalWidth - nowLeft) : totalWidth;
 
   const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
   const rafPendingRef = useRef<number | null>(null);
@@ -153,9 +149,7 @@ export function FilmstripTimeline({
     const d = new Date(ms);
     const isDayBreak = d.getHours() === 0 && d.getMinutes() === 0;
     const isForecast =
-      bandMode === "measurement-forecast"
-        ? ms > nowMs
-        : bandMode === "forecast-only";
+      bandMode === "measurement-forecast" ? ms > nowMs : bandMode === "forecast-only";
     const pattern = isDayBreak ? [10, 30, 15] : isForecast ? 8 : 4;
     try {
       navigator.vibrate(pattern);
@@ -275,7 +269,7 @@ export function FilmstripTimeline({
         onPointerUp={onUp}
         onPointerCancel={onUp}
         className="relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none active:cursor-grabbing focus-visible:ring-2"
-        style={{ ['--tw-ring-color' as never]: color }}
+        style={{ ["--tw-ring-color" as never]: color }}
       >
         {/* Fixe Mittel-Linie */}
         <span className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-px -translate-x-1/2 bg-neutral-900/85" />
@@ -296,7 +290,12 @@ export function FilmstripTimeline({
           {showMeasurementBand && (
             <div
               className="absolute top-6 h-4 rounded-sm"
-              style={{ left: 0, width: measurementWidth, background: measurementColor, opacity: 0.6 }}
+              style={{
+                left: 0,
+                width: measurementWidth,
+                background: measurementColor,
+                opacity: 0.6,
+              }}
             />
           )}
           {showForecastBand && (
@@ -341,10 +340,7 @@ export function FilmstripTimeline({
 
           {/* "Jetzt"-Marker im Strip (nur wenn nowMs innerhalb liegt) */}
           {bandMode === "measurement-forecast" && nowLeft > 0 && nowLeft < totalWidth && (
-            <span
-              className="absolute top-5 h-6 w-[2px] bg-neutral-950"
-              style={{ left: nowLeft }}
-            />
+            <span className="absolute top-5 h-6 w-[2px] bg-neutral-950" style={{ left: nowLeft }} />
           )}
         </div>
       </div>
