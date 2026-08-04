@@ -632,13 +632,6 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             </button>
           )}
 
-          {updatedLabel ? (
-            <div className="pointer-events-none absolute bottom-3 right-3 z-[400] rounded-md bg-card/70 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur-sm">
-              Aktualisiert {updatedLabel}
-            </div>
-          ) : null}
-
-        </div>
 
 
         {/* Info-Panel */}
