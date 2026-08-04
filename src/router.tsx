@@ -60,7 +60,11 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    // Route-Code + Loader schon beim Hovern/Antippen starten.
+    defaultPreload: "intent",
+    defaultPreloadDelay: 30,
     defaultPreloadStaleTime: 0,
+
     defaultErrorComponent: DefaultErrorComponent,
   });
 
