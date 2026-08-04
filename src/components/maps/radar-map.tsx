@@ -952,7 +952,17 @@ function MeasurementCanvasOverlay({
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
-  type DecodedRadar = { w: number; h: number; mmh: Float32Array; smoothMmh?: Float32Array };
+  // `band` = Index der Farbstufe (0 = kein Niederschlag, 1…SCALE.length).
+  // Interpolation/Glättung laufen über den Bandindex, nicht über den
+  // quantisierten mm/h-Wert — sonst kippen Pixel innerhalb einer Fläche in
+  // die Nachbarfarbe (Farbpunkt-Artefakt).
+  type DecodedRadar = {
+    w: number;
+    h: number;
+    mmh: Float32Array;
+    band: Float32Array;
+    smoothBand?: Float32Array;
+  };
   const sourceRef = useRef<DecodedRadar | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const DECODE_CACHE_MAX = 96;
