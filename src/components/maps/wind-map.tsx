@@ -240,9 +240,10 @@ import { CityMarkers } from "./city-markers";
 
 
 const maxBoundsExt: L.LatLngBoundsExpression = [
-  [46.80, 8.10],
-  [48.35, 10.60],
+  [46.85, 8.15],
+  [48.3, 10.55],
 ];
+
 
 function InvalidateOnResize() {
   const map = useMap();
