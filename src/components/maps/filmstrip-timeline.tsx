@@ -90,6 +90,7 @@ export function FilmstripTimeline({
   const dayBreaks = hours.filter((h) => h.hour === 0);
 
   const [dragMs, setDragMs] = useState<number | null>(null);
+  const [visualTick, setVisualTick] = useState<{ id: number; strong: boolean } | null>(null);
   const dragging = dragMs !== null;
   const lastSentIdxRef = useRef<number>(idx);
   const lastHapticIdxRef = useRef<number>(-1);
@@ -155,6 +156,12 @@ export function FilmstripTimeline({
     haptic(isDayBreak ? [10, 30, 15] : isForecast ? 8 : 4);
   };
 
+  const visualTickFor = (ms: number) => {
+    const d = new Date(ms);
+    const strong = d.getHours() === 0 && d.getMinutes() === 0;
+    setVisualTick((current) => ({ id: (current?.id ?? 0) + 1, strong }));
+  };
+
   const onDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragStartRef.current = { x: e.clientX, ms: motionMs };
@@ -170,6 +177,7 @@ export function FilmstripTimeline({
       if (best !== lastHapticIdxRef.current) {
         lastHapticIdxRef.current = best;
         hapticFor(times[best] ?? target);
+        visualTickFor(times[best] ?? target);
       }
     }
     return best;
@@ -244,6 +252,7 @@ export function FilmstripTimeline({
             if (next !== lastHapticIdxRef.current) {
               lastHapticIdxRef.current = next;
               hapticFor(times[next] ?? tMin);
+              visualTickFor(times[next] ?? tMin);
             }
             onChange(next);
           } else if (e.key === "ArrowRight") {
@@ -252,6 +261,7 @@ export function FilmstripTimeline({
             if (next !== lastHapticIdxRef.current) {
               lastHapticIdxRef.current = next;
               hapticFor(times[next] ?? tMin);
+              visualTickFor(times[next] ?? tMin);
             }
             onChange(next);
           }
@@ -264,11 +274,37 @@ export function FilmstripTimeline({
         style={{ ["--tw-ring-color" as never]: color }}
       >
         {/* Fixe Mittel-Linie */}
-        <span className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-px -translate-x-1/2 bg-neutral-900/85" />
         <span
-          className="pointer-events-none absolute left-1/2 top-0 z-30 h-2 w-2 -translate-x-1/2 rotate-45"
+          key={`line-${visualTick?.id ?? 0}`}
+          className={`pointer-events-none absolute left-1/2 top-0 z-30 h-full -translate-x-1/2 bg-neutral-900/85 ${
+            visualTick
+              ? visualTick.strong
+                ? "w-[3px] motion-safe:animate-[pulse_300ms_ease-out_1]"
+                : "w-[2px] motion-safe:animate-[pulse_180ms_ease-out_1]"
+              : "w-px"
+          }`}
+        />
+        <span
+          key={`marker-${visualTick?.id ?? 0}`}
+          className={`pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 rotate-45 ${
+            visualTick?.strong
+              ? "h-3 w-3 motion-safe:animate-[pulse_300ms_ease-out_1]"
+              : visualTick
+                ? "h-2.5 w-2.5 motion-safe:animate-[pulse_180ms_ease-out_1]"
+                : "h-2 w-2"
+          }`}
           style={{ background: color }}
         />
+        {visualTick && (
+          <span
+            key={`pulse-${visualTick.id}`}
+            aria-hidden="true"
+            className={`pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-35 motion-safe:animate-[ping_260ms_ease-out_1] motion-reduce:hidden ${
+              visualTick.strong ? "h-7 w-7" : "h-5 w-5"
+            }`}
+            style={{ background: color }}
+          />
+        )}
 
         {/* Scrollender Strip */}
         <div
