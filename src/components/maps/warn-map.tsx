@@ -631,17 +631,10 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               <Info className="h-4 w-4" />
             </button>
           )}
-
-          {updatedLabel ? (
-            <div className="pointer-events-none absolute bottom-3 right-3 z-[400] rounded-md bg-card/70 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur-sm">
-              Aktualisiert {updatedLabel}
-            </div>
-          ) : null}
-
         </div>
 
-
         {/* Info-Panel */}
+
         <aside
           className={cn(
             "space-y-3",
@@ -818,6 +811,13 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
         </aside>
 
       </div>
+
+      {updatedLabel ? (
+        <div className="text-left text-[11px] text-muted-foreground">
+          Aktualisiert {updatedLabel}
+        </div>
+      ) : null}
+
     </div>
   );
 }
