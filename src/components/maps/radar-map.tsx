@@ -1714,6 +1714,7 @@ export function RadarMap({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
+  const [legendOpen, setLegendOpen] = useState(false);
   // Persistente, kontinuierliche Render-Zeit. `idx` ist nur noch der nächste
   // UI-Anker für Buttons/Labels; diese Zeit steuert den sichtbaren Zustand.
   const [renderMs, setRenderMs] = useState<number | null>(null);
