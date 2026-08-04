@@ -814,7 +814,7 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
             </>
           );
           const cls = cn(
-            "flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs font-semibold tracking-wide sm:text-sm",
+            "flex h-full shrink-0 items-center gap-2 px-3 text-xs font-semibold tracking-wide sm:text-sm",
             fill ? "w-full" : "rounded-lg sm:rounded-xl",
           );
           const style = isAdvisory
@@ -851,7 +851,10 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
 
   return (
     <div className={cn("@container", fill ? "flex h-full w-full flex-col" : "space-y-4")}>
-      {warnBanner}
+      {/* Fester Slot: verhindert Layout-Sprung beim Ein-/Ausblenden des Banners */}
+      <div className="h-7 shrink-0 sm:h-8" aria-hidden={warnBanner ? undefined : true}>
+        {warnBanner}
+      </div>
       {/* Karte */}
 
       <div
