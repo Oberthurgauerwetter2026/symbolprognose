@@ -250,6 +250,20 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
   const warnings: WarningDTO[] = query.data?.warnings ?? [];
 
+  /** Zeitpunkt des letzten erfolgreichen Datenabrufs (Europe/Zurich). */
+  const updatedLabel = useMemo(() => {
+    const iso = query.data?.updatedAt;
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return new Intl.DateTimeFormat("de-CH", {
+      dateStyle: "short",
+      timeStyle: "short",
+      timeZone: "Europe/Zurich",
+    }).format(d);
+  }, [query.data?.updatedAt]);
+
+
   /** Höchste Stufe je Gemeinde für die aktuelle Auswahl (echte Warnungen). */
   const levelByRegion = useMemo(() => {
     const map = new Map<string, number>();
@@ -618,7 +632,14 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             </button>
           )}
 
+          {updatedLabel ? (
+            <div className="pointer-events-none absolute bottom-3 right-3 z-[400] rounded-md bg-card/70 px-2 py-1 text-[11px] text-muted-foreground shadow-sm backdrop-blur-sm">
+              Aktualisiert {updatedLabel}
+            </div>
+          ) : null}
+
         </div>
+
 
         {/* Info-Panel */}
         <aside
