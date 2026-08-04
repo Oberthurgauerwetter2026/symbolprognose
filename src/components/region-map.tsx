@@ -646,14 +646,13 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
     return () => window.clearInterval(id);
   }, []);
 
-  // Nur Warnungen, deren Zeitfenster jetzt läuft (keine Vorlaufzeit, kein Nachlauf).
+  // Vorlaufzeit sichtbar (künftige Warnungen), abgelaufene ausblenden.
   const activeWarnings = useMemo(
     () =>
       allWarnings.filter((w) => {
-        const from = new Date(w.validFrom).getTime();
         const to = new Date(w.validTo).getTime();
-        if (Number.isNaN(from) || Number.isNaN(to)) return false;
-        return from <= nowMs && nowMs < to;
+        if (Number.isNaN(to)) return false;
+        return nowMs < to;
       }),
     [allWarnings, nowMs],
   );
