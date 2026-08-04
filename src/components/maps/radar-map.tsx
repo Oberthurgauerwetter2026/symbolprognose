@@ -1760,11 +1760,16 @@ export function RadarMap({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil: ausschliesslich echte Modellfelder (ICON-CH1). Keine
-    // synthetischen Zwischenschritte — jedes Feld ist ein eigener Zustand.
-    for (const t of times) {
-      if (t > nowMs) push(t);
+    // Prognoseteil: Stundenraster. Nur echte Modellfelder — eine Stundenmarke
+    // erscheint nur, wenn dazu ein Feld innerhalb der Toleranz existiert.
+    const HOUR = 60 * 60_000;
+    const HOUR_TOL = 4 * 60_000;
+    const startFc = Math.ceil((nowMs + 1) / HOUR) * HOUR;
+    for (let t = startFc; t <= lastMs; t += HOUR) {
+      const i = pickNearest(t, HOUR_TOL);
+      if (i !== null && times[i] > nowMs) push(times[i]);
     }
+
 
 
 
