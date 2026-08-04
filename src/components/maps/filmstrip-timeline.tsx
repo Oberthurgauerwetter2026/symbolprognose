@@ -256,10 +256,20 @@ export function FilmstripTimeline({
         onKeyDown={(e) => {
           if (e.key === "ArrowLeft") {
             e.preventDefault();
-            onChange(Math.max(0, idx - 1));
+            const next = Math.max(0, idx - 1);
+            if (next !== lastHapticIdxRef.current) {
+              lastHapticIdxRef.current = next;
+              hapticFor(times[next] ?? tMin);
+            }
+            onChange(next);
           } else if (e.key === "ArrowRight") {
             e.preventDefault();
-            onChange(Math.min(frames.length - 1, idx + 1));
+            const next = Math.min(frames.length - 1, idx + 1);
+            if (next !== lastHapticIdxRef.current) {
+              lastHapticIdxRef.current = next;
+              hapticFor(times[next] ?? tMin);
+            }
+            onChange(next);
           }
         }}
         onPointerDown={onDown}
