@@ -165,6 +165,7 @@ interface FormState {
   title: string;
   description: string;
   impact: string;
+  peakPhase: string;
   regionIds: string[];
   active: boolean;
   advisory: boolean;
