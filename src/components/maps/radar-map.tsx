@@ -1762,15 +1762,32 @@ export function RadarMap({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil: Stundenraster. Nur echte Modellfelder — eine Stundenmarke
-    // erscheint nur, wenn dazu ein Feld innerhalb der Toleranz existiert.
+    // Prognoseteil, Phase 1: 15-min-Raster solange echte ICON-CH1-Bildfelder
+    // (mit `precipUrl`) vorliegen — so entspricht ein Reglerschritt genau
+    // einem Feld und der Crossfade läuft über den ganzen Schritt.
+    const STEP15 = 15 * 60_000;
+    const TOL15 = 2 * 60_000;
     const HOUR = 60 * 60_000;
     const HOUR_TOL = 4 * 60_000;
-    const startFc = Math.ceil((nowMs + 1) / HOUR) * HOUR;
+
+    let fcEndMs = nowMs;
+    const startQ = Math.ceil((nowMs + 1) / STEP15) * STEP15;
+    for (let t = startQ; t <= lastMs; t += STEP15) {
+      const i = pickNearest(t, TOL15);
+      if (i === null || !frames[i]?.precipUrl) break;
+      if (times[i] > nowMs) {
+        push(times[i]);
+        fcEndMs = Math.max(fcEndMs, times[i]);
+      }
+    }
+
+    // Prognoseteil, Phase 2: Stundenraster für den restlichen Horizont.
+    const startFc = Math.ceil((Math.max(nowMs, fcEndMs) + 1) / HOUR) * HOUR;
     for (let t = startFc; t <= lastMs; t += HOUR) {
       const i = pickNearest(t, HOUR_TOL);
       if (i !== null && times[i] > nowMs) push(times[i]);
     }
+
 
 
 
