@@ -982,7 +982,7 @@ function MeasurementCanvasOverlay({
   }
 
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
-    if (src.smoothMmh) return src.smoothMmh;
+    if (src.smoothBand) return src.smoothBand;
     const sw = src.w;
     const sh = src.h;
     const smooth = new Float32Array(sw * sh);
@@ -996,14 +996,14 @@ function MeasurementCanvasOverlay({
           for (let dx = -1; dx <= 1; dx++) {
             const xx = x + dx;
             if (xx < 0 || xx >= sw) continue;
-            sum += src.mmh[yy * sw + xx];
+            sum += src.band[yy * sw + xx];
             cnt++;
           }
         }
         smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
       }
     }
-    src.smoothMmh = smooth;
+    src.smoothBand = smooth;
     return smooth;
   };
 
