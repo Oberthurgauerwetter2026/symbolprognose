@@ -324,6 +324,7 @@ export function FilmstripTimeline({
         aria-valuenow={idx}
         tabIndex={0}
         onKeyDown={(e) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") stopMomentum();
           if (e.key === "ArrowLeft") {
             e.preventDefault();
             const next = Math.max(0, idx - 1);
