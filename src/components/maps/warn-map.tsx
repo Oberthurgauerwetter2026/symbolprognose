@@ -631,10 +631,10 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
               <Info className="h-4 w-4" />
             </button>
           )}
-
-
+        </div>
 
         {/* Info-Panel */}
+
         <aside
           className={cn(
             "space-y-3",
