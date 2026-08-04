@@ -480,12 +480,14 @@ function PrecipOverlay({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },
@@ -1023,12 +1025,14 @@ function MeasurementCanvasOverlay({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },
@@ -1481,12 +1485,14 @@ function MeasurementHailDotsLayer({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },

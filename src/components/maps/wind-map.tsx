@@ -386,12 +386,14 @@ function WindColorOverlay({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },
@@ -574,6 +576,7 @@ function WindParticleLayer({
         const sync = () => syncSize(cv);
         sync();
         map.on("moveend zoomend resize", sync);
+        attachCanvasZoomAnim(map, cv, sync);
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
@@ -765,11 +768,13 @@ function WindArrowLayer({
         this._canvas = cv;
         canvasRef.current = cv;
         map.on("moveend zoomend resize", redraw);
+        attachCanvasZoomAnim(map, cv, redraw);
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
         map.off("moveend zoomend resize", redraw);
+        detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
       },
