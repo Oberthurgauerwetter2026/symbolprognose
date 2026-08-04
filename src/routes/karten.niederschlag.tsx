@@ -4,13 +4,18 @@ import { useQuery } from "@tanstack/react-query";
 
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
-import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
+import { LazyPrecipAccumMap, preloadPrecipAccumMap } from "@/components/maps/lazy-maps";
+import { MapSkeleton } from "@/components/maps/map-skeleton";
+import { radarAccumQuery } from "@/lib/map-queries";
 import { getMap } from "@/lib/maps-config";
-import { getRadarFrames } from "@/lib/radar.functions";
 import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/niederschlag")({
   ssr: false,
+  loader: ({ context }) => {
+    preloadPrecipAccumMap();
+    context.queryClient.prefetchQuery(radarAccumQuery());
+  },
   component: KartenNiederschlagPage,
   head: () => ({
     meta: [
@@ -35,9 +40,7 @@ function KartenNiederschlagPage() {
 
 function PrecipDashboard() {
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
-    queryKey: ["radar-frames-accum", "extended"],
-    queryFn: () => getRadarFrames({ data: { extended: true } }),
-    staleTime: 30 * 60_000,
+    ...radarAccumQuery(),
     refetchInterval: 60 * 60_000,
   });
 

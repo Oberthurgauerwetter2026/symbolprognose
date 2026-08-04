@@ -2,11 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
-import { LazyRegionMap } from "@/components/maps/lazy-maps";
+import { LazyRegionMap, preloadRegionMap } from "@/components/maps/lazy-maps";
+import { MapSkeleton } from "@/components/maps/map-skeleton";
+import { regionForecastQuery, warningsQuery } from "@/lib/map-queries";
 import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/region")({
   ssr: false,
+  loader: ({ context }) => {
+    // Chunk und Daten gleichzeitig starten (kein Wasserfall).
+    preloadRegionMap();
+    context.queryClient.prefetchQuery(regionForecastQuery());
+    context.queryClient.prefetchQuery(warningsQuery());
+  },
   component: KartenRegionPage,
   head: () => ({
     meta: [
@@ -32,7 +40,7 @@ function KartenRegionPage() {
     <DashboardLayout title="Wetterkarte Region" subtitle="Symbolprognose · aktualisiert jede Stunde">
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="region" />
-        <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
+        <Suspense fallback={<MapSkeleton />}>
           <LazyRegionMap />
         </Suspense>
       </div>

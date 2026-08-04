@@ -2,12 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
-import { LazySatelliteMap } from "@/components/maps/lazy-maps";
+import { LazySatelliteMap, preloadSatelliteMap } from "@/components/maps/lazy-maps";
+import { MapSkeleton } from "@/components/maps/map-skeleton";
+import { satelliteManifestQuery } from "@/lib/map-queries";
 import { getMap } from "@/lib/maps-config";
 import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
 
 export const Route = createFileRoute("/karten/satellit")({
   ssr: false,
+  loader: ({ context }) => {
+    preloadSatelliteMap();
+    context.queryClient.prefetchQuery(satelliteManifestQuery("alpen-ch"));
+  },
   component: KartenSatellitPage,
   head: () => ({
     meta: [
@@ -26,7 +32,7 @@ function KartenSatellitPage() {
     <DashboardLayout title={def.label} subtitle={def.description}>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="satellit" />
-        <Suspense fallback={<div className="h-[720px] rounded-lg bg-muted" />}>
+        <Suspense fallback={<MapSkeleton height={720} />}>
           <LazySatelliteMap />
         </Suspense>
       </div>
