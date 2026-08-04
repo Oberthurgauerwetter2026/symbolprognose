@@ -2030,9 +2030,44 @@ export function RadarMap({
             (() => {
               const rtMs = scrubVisualMs ?? playVisualMs ?? renderMs ?? Date.parse(currentFrame.t);
               const timelineState = timelineStateForMs(frames, rtMs);
-              const overlayFrame = timelineState.frame ?? currentFrame;
-              const overlayNext = timelineState.nextFrame;
-              const overlayProg = timelineState.progress;
+              let overlayFrame = timelineState.frame ?? currentFrame;
+              let overlayNext = timelineState.nextFrame;
+              let overlayProg = timelineState.progress;
+
+              // Prognose: Übergang aus dem angezeigten Zeitraster (Stundenschritt)
+              // ableiten statt aus dem Feldabstand der Rohdaten — sonst blendet
+              // der vordere Bereich (15-min-Frames) gar nicht über.
+              if (rtMs > Date.now() && timelineSteps.length > 1) {
+                let bi = -1;
+                for (let k = 0; k < timelineSteps.length - 1; k++) {
+                  if (rtMs >= timelineSteps[k] && rtMs <= timelineSteps[k + 1]) {
+                    bi = k;
+                    break;
+                  }
+                }
+                if (bi >= 0) {
+                  const aMs = timelineSteps[bi];
+                  const bMs = timelineSteps[bi + 1];
+                  const a = frames[nearestFrameIndexForMs(frames, aMs)];
+                  const b = frames[nearestFrameIndexForMs(frames, bMs)];
+                  if (a && b) {
+                    overlayFrame = a;
+                    overlayNext = b;
+                    overlayProg = Math.max(0, Math.min(1, (rtMs - aMs) / Math.max(1, bMs - aMs)));
+                  }
+                } else {
+                  const lastStep = timelineSteps[timelineSteps.length - 1];
+                  if (rtMs >= lastStep) {
+                    const a = frames[nearestFrameIndexForMs(frames, lastStep)];
+                    if (a) {
+                      overlayFrame = a;
+                      overlayNext = null;
+                      overlayProg = 0;
+                    }
+                  }
+                }
+              }
+
 
               const hasPng = !!overlayFrame?.precipUrl;
               const hasGrid = Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
