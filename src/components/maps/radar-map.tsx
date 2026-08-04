@@ -1696,10 +1696,7 @@ export function RadarMap({
   initialFrames?: RadarPayload;
 }) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ["radar-frames"],
-    queryFn: () => getRadarFrames(),
-    staleTime: 5 * 60_000,
-    gcTime: 30 * 60_000,
+    ...radarFramesQuery(),
     initialData: initialFrames,
     initialDataUpdatedAt: initialFrames ? Date.now() : undefined,
   });

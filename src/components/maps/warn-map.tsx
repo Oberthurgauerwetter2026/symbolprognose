@@ -238,11 +238,9 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
 
   const query = useQuery({
-    queryKey: ["warnings"],
-    queryFn: () => listWarnings(),
+    ...warningsQuery(),
     refetchInterval: 60 * 1000,
     refetchOnWindowFocus: true,
-    staleTime: 0,
   });
 
   /** Live-Aktualisierung: Änderungen an Warnungen sofort übernehmen. */

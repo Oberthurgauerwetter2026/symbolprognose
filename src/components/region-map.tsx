@@ -56,7 +56,7 @@ import lakeData from "@/data/lake.json";
 import thurgauData from "@/data/thurgau.json";
 import switzerlandData from "@/data/switzerland.json";
 import { useServerFn } from "@tanstack/react-start";
-import { getAggregatedForecastBatch } from "@/lib/forecast-aggregated.functions";
+import { regionForecastQuery } from "@/lib/map-queries";
 import type { ForecastResponse } from "@/lib/weather";
 import { searchLocations } from "@/lib/weather";
 
@@ -633,17 +633,8 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
 
 
   // Eine einzige Server-Anfrage für alle Spots (Batch + Edge-Cache).
-  const getForecastBatch = useServerFn(getAggregatedForecastBatch);
-  const points = useMemo(
-    () => SPOTS.map((s) => ({ id: s.id, lat: s.lat, lon: s.lon })),
-    [],
-  );
-  const { data: forecasts, dataUpdatedAt } = useQuery({
-    queryKey: ["map-weather-batch", "v9"],
-    queryFn: () => getForecastBatch({ data: { points, v: "v9" } }),
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 30,
-  });
+  // Query-Definition zentral, damit der Route-Loader denselben Eintrag füllt.
+  const { data: forecasts, dataUpdatedAt } = useQuery(regionForecastQuery());
 
   // Aktive Warnungen je Spot (Gemeinde per Punkt-in-Polygon).
   const activeWarnings = useActiveWarnings();

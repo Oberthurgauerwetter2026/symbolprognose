@@ -377,9 +377,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
   const isMobile = useIsMobile();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["satellite-manifest", regionId],
-    queryFn: () => getSatelliteManifest({ data: { region: regionId } }),
-    staleTime: 60_000,
+    ...satelliteManifestQuery(regionId),
     refetchInterval: 60_000,
   });
 
