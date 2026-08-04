@@ -92,8 +92,12 @@ export function FilmstripTimeline({
   const [dragMs, setDragMs] = useState<number | null>(null);
   const dragging = dragMs !== null;
   const lastSentIdxRef = useRef<number>(idx);
+  const lastHapticIdxRef = useRef<number>(-1);
   useEffect(() => {
-    if (!dragging) lastSentIdxRef.current = idx;
+    if (!dragging) {
+      lastSentIdxRef.current = idx;
+      lastHapticIdxRef.current = idx;
+    }
   }, [dragging, idx]);
 
   const nearestIndexForMs = (target: number): number => {
