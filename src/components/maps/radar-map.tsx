@@ -952,7 +952,17 @@ function MeasurementCanvasOverlay({
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
-  type DecodedRadar = { w: number; h: number; mmh: Float32Array; smoothMmh?: Float32Array };
+  // `band` = Index der Farbstufe (0 = kein Niederschlag, 1…SCALE.length).
+  // Interpolation/Glättung laufen über den Bandindex, nicht über den
+  // quantisierten mm/h-Wert — sonst kippen Pixel innerhalb einer Fläche in
+  // die Nachbarfarbe (Farbpunkt-Artefakt).
+  type DecodedRadar = {
+    w: number;
+    h: number;
+    mmh: Float32Array;
+    band: Float32Array;
+    smoothBand?: Float32Array;
+  };
   const sourceRef = useRef<DecodedRadar | null>(null);
   const cacheRef = useRef<Map<string, DecodedRadar>>(new Map());
   const DECODE_CACHE_MAX = 96;
@@ -972,7 +982,7 @@ function MeasurementCanvasOverlay({
   }
 
   const ensureSmooth = (src: DecodedRadar): Float32Array => {
-    if (src.smoothMmh) return src.smoothMmh;
+    if (src.smoothBand) return src.smoothBand;
     const sw = src.w;
     const sh = src.h;
     const smooth = new Float32Array(sw * sh);
@@ -986,14 +996,14 @@ function MeasurementCanvasOverlay({
           for (let dx = -1; dx <= 1; dx++) {
             const xx = x + dx;
             if (xx < 0 || xx >= sw) continue;
-            sum += src.mmh[yy * sw + xx];
+            sum += src.band[yy * sw + xx];
             cnt++;
           }
         }
         smooth[y * sw + x] = cnt > 0 ? sum / cnt : 0;
       }
     }
-    src.smoothMmh = smooth;
+    src.smoothBand = smooth;
     return smooth;
   };
 
@@ -1069,11 +1079,13 @@ function MeasurementCanvasOverlay({
           return;
         }
         const mmh = new Float32Array(cw * ch);
+        const band = new Float32Array(cw * ch);
         for (let i = 0; i < cw * ch; i++) {
           const o = i * 4;
           const a = data[o + 3];
           if (a < 8) {
             mmh[i] = 0;
+            band[i] = 0;
             continue;
           }
           const r = data[o];
@@ -1081,7 +1093,9 @@ function MeasurementCanvasOverlay({
           const b = data[o + 2];
           let bestD = Infinity;
           let bestMmh = 0;
-          for (const s of SCALE) {
+          let bestBand = 0;
+          for (let si = 0; si < SCALE.length; si++) {
+            const s = SCALE[si];
             const dr = r - s.rgb[0];
             const dg = g - s.rgb[1];
             const db = b - s.rgb[2];
@@ -1089,11 +1103,13 @@ function MeasurementCanvasOverlay({
             if (d < bestD) {
               bestD = d;
               bestMmh = s.mmh;
+              bestBand = si + 1;
             }
           }
           mmh[i] = bestMmh;
+          band[i] = bestBand;
         }
-        const entry = { w: cw, h: ch, mmh };
+        const entry = { w: cw, h: ch, mmh, band };
         cacheRef.current.set(u, entry);
         while (cacheRef.current.size > DECODE_CACHE_MAX) {
           const firstKey = cacheRef.current.keys().next().value;
@@ -1171,11 +1187,13 @@ function MeasurementCanvasOverlay({
           return;
         }
         const mmh = new Float32Array(cw * ch);
+        const band = new Float32Array(cw * ch);
         for (let i = 0; i < cw * ch; i++) {
           const o = i * 4;
           const a = data[o + 3];
           if (a < 8) {
             mmh[i] = 0;
+            band[i] = 0;
             continue;
           }
           const r = data[o];
@@ -1183,7 +1201,9 @@ function MeasurementCanvasOverlay({
           const b = data[o + 2];
           let bestD = Infinity;
           let bestMmh = 0;
-          for (const s of SCALE) {
+          let bestBand = 0;
+          for (let si = 0; si < SCALE.length; si++) {
+            const s = SCALE[si];
             const dr = r - s.rgb[0];
             const dg = g - s.rgb[1];
             const db = b - s.rgb[2];
@@ -1191,11 +1211,13 @@ function MeasurementCanvasOverlay({
             if (d < bestD) {
               bestD = d;
               bestMmh = s.mmh;
+              bestBand = si + 1;
             }
           }
           mmh[i] = bestMmh;
+          band[i] = bestBand;
         }
-        cacheRef.current.set(u, { w: cw, h: ch, mmh });
+        cacheRef.current.set(u, { w: cw, h: ch, mmh, band });
         while (cacheRef.current.size > DECODE_CACHE_MAX) {
           const firstKey = cacheRef.current.keys().next().value;
           if (firstKey === undefined) break;
@@ -1340,10 +1362,14 @@ function MeasurementCanvasOverlay({
               v += wB * sampleField(fieldB, smoothB, fx, fy);
             }
           }
-          if (v < 0.05) continue;
-          const [r, g, b, a] = colorFor(v);
-          if (a === 0) continue;
-          const alpha = Math.round(a * 255);
+          // `v` ist ein kontinuierlicher Bandindex (0 = trocken). Einfärbung
+          // über die gerundete Stufe — dadurch entstehen keine einzelnen
+          // Pixel der Nachbarfarbe innerhalb einer Fläche.
+          if (v < 0.5) continue;
+          const bandIdx = Math.min(SCALE.length, Math.max(1, Math.round(v))) - 1;
+          const s = SCALE[bandIdx];
+          const [r, g, b] = s.rgb;
+          const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
           dArr[idx] = r;
