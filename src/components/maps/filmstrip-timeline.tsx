@@ -166,7 +166,6 @@ export function FilmstripTimeline({
 
   const onDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    pointerTypeRef.current = e.pointerType;
     dragStartRef.current = { x: e.clientX, ms: motionMs };
     setDragMs(motionMs);
     if (isCoarsePointer()) {
