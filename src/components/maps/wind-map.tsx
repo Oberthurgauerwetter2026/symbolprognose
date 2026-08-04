@@ -580,6 +580,7 @@ function WindParticleLayer({
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+        detachCanvasZoomAnim(this._canvas);
         if (this._canvas) this._canvas.remove();
         canvasRef.current = null;
         return this;
