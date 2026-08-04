@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { haptic, hapticsAvailable } from "@/lib/haptics";
+
+
 /**
  * Wiederverwendbarer Filmstrip aus dem Niederschlagsradar.
  * Scrollender Streifen mit fixer Mittellinie, Bubble oben,
@@ -140,8 +143,7 @@ export function FilmstripTimeline({
 
   const isCoarsePointer = () =>
     typeof window !== "undefined" &&
-    typeof navigator !== "undefined" &&
-    "vibrate" in navigator &&
+    hapticsAvailable() &&
     window.matchMedia("(pointer: coarse)").matches;
 
   const hapticFor = (ms: number) => {
@@ -150,26 +152,16 @@ export function FilmstripTimeline({
     const isDayBreak = d.getHours() === 0 && d.getMinutes() === 0;
     const isForecast =
       bandMode === "measurement-forecast" ? ms > nowMs : bandMode === "forecast-only";
-    const pattern = isDayBreak ? [10, 30, 15] : isForecast ? 8 : 4;
-    try {
-      navigator.vibrate(pattern);
-    } catch {
-      /* ignore */
-    }
+    haptic(isDayBreak ? [10, 30, 15] : isForecast ? 8 : 4);
   };
 
   const onDown = (e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragStartRef.current = { x: e.clientX, ms: motionMs };
     setDragMs(motionMs);
-    if (isCoarsePointer()) {
-      try {
-        navigator.vibrate(6);
-      } catch {
-        /* ignore */
-      }
-    }
+    if (isCoarsePointer()) haptic(6);
   };
+
   const snapAndEmit = (target: number) => {
     const best = nearestIndexForMs(target);
     if (best !== lastSentIdxRef.current) {
