@@ -353,9 +353,15 @@ export function FilmstripTimeline({
         style={{ ["--tw-ring-color" as never]: color }}
       >
         {/* Fixe Mittel-Linie */}
-        <span className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-px -translate-x-1/2 bg-neutral-900/85" />
         <span
-          className="pointer-events-none absolute left-1/2 top-0 z-30 h-2 w-2 -translate-x-1/2 rotate-45"
+          className={`pointer-events-none absolute left-1/2 top-0 z-30 h-full -translate-x-1/2 bg-neutral-900/85 transition-all duration-200 ${
+            dragging ? "w-[2px] bg-neutral-900" : "w-px"
+          }`}
+        />
+        <span
+          className={`pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 rotate-45 transition-all duration-200 ${
+            dragging ? "h-3 w-3" : "h-2 w-2"
+          }`}
           style={{ background: color }}
         />
 
