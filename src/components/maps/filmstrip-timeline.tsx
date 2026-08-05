@@ -253,9 +253,12 @@ export function FilmstripTimeline({
     const FRICTION = 0.95;
     // Schwelle: unter ~1 Sekunde Zeitachse pro Sekunde Realzeit ist der Schwung aus.
     const MIN_V = 1.5;
+    momentumMsRef.current = ms;
 
     const finish = () => {
       momentumRafRef.current = null;
+      momentumMsRef.current = null;
+      velRef.current = 0;
       snapAndEmit(ms);
       setDragMs(null);
       onScrubMs?.(null);
@@ -267,13 +270,16 @@ export function FilmstripTimeline({
       prev = now;
       ms += v * dt;
       v *= Math.pow(FRICTION, dt / 16.67);
+      momentumMsRef.current = ms;
       if (ms <= tMin) {
         ms = tMin;
+        momentumMsRef.current = ms;
         finish();
         return;
       }
       if (ms >= tMax) {
         ms = tMax;
+        momentumMsRef.current = ms;
         finish();
         return;
       }
@@ -288,6 +294,7 @@ export function FilmstripTimeline({
     };
     momentumRafRef.current = requestAnimationFrame(step);
   };
+
 
   const onUp = (e: React.PointerEvent) => {
     const start = dragStartRef.current;
