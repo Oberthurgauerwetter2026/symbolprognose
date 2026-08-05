@@ -202,6 +202,28 @@ export const savePushSubscription = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const getPushSubscription = createServerFn({ method: "POST" })
+  .inputValidator((d: { endpoint: string }) => d)
+  .handler(async ({ data }) => {
+    if (!/^https:\/\//.test(data.endpoint) || data.endpoint.length > 1000) {
+      throw new Error("Ungültiger Endpoint");
+    }
+    const { adminClient } = await import("@/lib/warnings.server");
+    const sb = await adminClient();
+    const { data: row, error } = await sb
+      .from("push_subscriptions")
+      .select("region_ids, updated_at")
+      .eq("endpoint", data.endpoint)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) return { found: false, regionIds: [] as string[], updatedAt: null as string | null };
+    return {
+      found: true,
+      regionIds: (row.region_ids ?? []) as string[],
+      updatedAt: row.updated_at as string | null,
+    };
+  });
+
 export const removePushSubscription = createServerFn({ method: "POST" })
   .inputValidator((d: { endpoint: string }) => d)
   .handler(async ({ data }) => {
@@ -210,3 +232,4 @@ export const removePushSubscription = createServerFn({ method: "POST" })
     await sb.from("push_subscriptions").delete().eq("endpoint", data.endpoint);
     return { ok: true };
   });
+

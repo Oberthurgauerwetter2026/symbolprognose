@@ -7,7 +7,12 @@ import { useEffect, useState } from "react";
 import { BellOff, BellRing, Check, ChevronDown, Circle, Info, Loader2 } from "lucide-react";
 import { REGIONS } from "@/lib/warnings-config";
 import { SITE_URL } from "@/lib/site-url";
-import { getPushPublicKey, savePushSubscription, removePushSubscription } from "@/lib/warnings.functions";
+import {
+  getPushPublicKey,
+  savePushSubscription,
+  removePushSubscription,
+  getPushSubscription,
+} from "@/lib/warnings.functions";
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -36,6 +41,10 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [hintOpen, setHintOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>([]);
+  const [savedRegionIds, setSavedRegionIds] = useState<string[]>([]);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [framed, setFramed] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
@@ -54,8 +63,19 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
       const sub = await reg?.pushManager.getSubscription();
       setSubscribed(Boolean(sub));
+      if (!sub) return;
+      try {
+        const info = await getPushSubscription({ data: { endpoint: sub.endpoint } });
+        setMissing(!info.found);
+        setSavedRegionIds(info.regionIds);
+        setRegionIds(info.regionIds);
+        setSavedAt(info.updatedAt);
+      } catch {
+        /* Abo-Details nicht abrufbar – Anzeige bleibt ohne Gemeindeliste */
+      }
     });
   }, []);
+
 
   // Bewusst keine Vorauswahl: die Nutzerin wählt ihre Gemeinden selbst.
   void defaultRegionId;
@@ -106,9 +126,40 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         },
       });
       setSubscribed(true);
+      setMissing(false);
+      setSavedRegionIds(regionIds);
+      setSavedAt(new Date().toISOString());
+      setPickOpen(false);
       note(`Benachrichtigungen aktiviert für ${regionIds.length} Gemeinde${regionIds.length === 1 ? "" : "n"}.`);
     } catch (e) {
       note(e instanceof Error ? e.message : "Aktivierung fehlgeschlagen.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveRegions() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const reg = await navigator.serviceWorker.getRegistration("/push-sw.js");
+      const sub = await reg?.pushManager.getSubscription();
+      if (!sub) throw new Error("Kein aktives Abo gefunden – bitte neu aktivieren.");
+      await savePushSubscription({
+        data: {
+          endpoint: sub.endpoint,
+          p256dh: bufToB64(sub.getKey("p256dh")),
+          auth: bufToB64(sub.getKey("auth")),
+          regionIds,
+        },
+      });
+      setSavedRegionIds(regionIds);
+      setSavedAt(new Date().toISOString());
+      setMissing(false);
+      setEditing(false);
+      note(`Gespeichert – ${regionIds.length} Gemeinde${regionIds.length === 1 ? "" : "n"} abonniert.`);
+    } catch (e) {
+      note(e instanceof Error ? e.message : "Speichern fehlgeschlagen.", "error");
     } finally {
       setBusy(false);
     }
@@ -124,6 +175,10 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         await sub.unsubscribe();
       }
       setSubscribed(false);
+      setEditing(false);
+      setSavedRegionIds([]);
+      setSavedAt(null);
+      setMissing(false);
       note("Benachrichtigungen deaktiviert.");
     } catch {
       note("Deaktivierung fehlgeschlagen.", "error");
@@ -131,6 +186,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
       setBusy(false);
     }
   }
+
 
   if (!supported) {
     return (
@@ -188,7 +244,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         Erhalte eine Meldung, sobald für deine Gemeinden eine Warnung ausgegeben wird.
       </p>
 
-      {!subscribed && (
+      {(!subscribed || editing) && (
         <div className="rounded-lg border border-border">
           <button
             type="button"
@@ -266,27 +322,102 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         </p>
       )}
 
-      {subscribed && (
-        <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs text-foreground">
-          Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden.
-        </p>
+      {subscribed && !editing && (
+        <div className="rounded-lg border border-border bg-muted/50 px-2 py-1.5 text-xs text-foreground">
+          {missing ? (
+            <p className="leading-snug">
+              Dieses Gerät ist beim Server nicht mehr registriert – bitte die Benachrichtigungen neu
+              aktivieren.
+            </p>
+          ) : (
+            <>
+              <p className="font-semibold">
+                Abonniert: {savedRegionIds.length} von {REGIONS.length} Gemeinden
+              </p>
+              {savedRegionIds.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {REGIONS.filter((r) => savedRegionIds.includes(r.id)).map((r) => (
+                    <span
+                      key={r.id}
+                      className="rounded border border-primary/50 bg-primary/15 px-1.5 py-0.5 text-xs font-medium"
+                    >
+                      {r.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {savedAt && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Zuletzt geändert:{" "}
+                  {new Date(savedAt).toLocaleString("de-CH", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setRegionIds(savedRegionIds);
+                  setEditing(true);
+                  setPickOpen(true);
+                  setMsg(null);
+                }}
+                className="mt-1.5 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-semibold hover:bg-muted"
+              >
+                Gemeinden ändern
+              </button>
+            </>
+          )}
+        </div>
       )}
 
-      <button
-        type="button"
-        disabled={busy || (!subscribed && none)}
-        onClick={subscribed ? unsubscribe : subscribe}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : subscribed ? (
-          <BellOff className="h-4 w-4" />
-        ) : (
-          <BellRing className="h-4 w-4" />
-        )}
-        {subscribed ? "Benachrichtigungen ausschalten" : "Benachrichtigungen aktivieren"}
-      </button>
+
+      {editing ? (
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            disabled={busy || none}
+            onClick={saveRegions}
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Speichern
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setRegionIds(savedRegionIds);
+              setEditing(false);
+              setPickOpen(false);
+            }}
+            className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+          >
+            Abbrechen
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={busy || (!subscribed && none)}
+          onClick={subscribed ? unsubscribe : subscribe}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : subscribed ? (
+            <BellOff className="h-4 w-4" />
+          ) : (
+            <BellRing className="h-4 w-4" />
+          )}
+          {subscribed ? "Benachrichtigungen ausschalten" : "Benachrichtigungen aktivieren"}
+        </button>
+      )}
+
 
       {msg && (
         <p className={"text-xs " + (msgKind === "error" ? "text-destructive" : "text-foreground")}>
