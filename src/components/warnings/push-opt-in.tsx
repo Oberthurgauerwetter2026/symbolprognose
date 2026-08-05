@@ -328,21 +328,48 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         </p>
       )}
 
-      <button
-        type="button"
-        disabled={busy || (!subscribed && none)}
-        onClick={subscribed ? unsubscribe : subscribe}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : subscribed ? (
-          <BellOff className="h-4 w-4" />
-        ) : (
-          <BellRing className="h-4 w-4" />
-        )}
-        {subscribed ? "Benachrichtigungen ausschalten" : "Benachrichtigungen aktivieren"}
-      </button>
+      {editing ? (
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            disabled={busy || none}
+            onClick={saveRegions}
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            Speichern
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setRegionIds(savedRegionIds);
+              setEditing(false);
+              setPickOpen(false);
+            }}
+            className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+          >
+            Abbrechen
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={busy || (!subscribed && none)}
+          onClick={subscribed ? unsubscribe : subscribe}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : subscribed ? (
+            <BellOff className="h-4 w-4" />
+          ) : (
+            <BellRing className="h-4 w-4" />
+          )}
+          {subscribed ? "Benachrichtigungen ausschalten" : "Benachrichtigungen aktivieren"}
+        </button>
+      )}
+
 
       {msg && (
         <p className={"text-xs " + (msgKind === "error" ? "text-destructive" : "text-foreground")}>
