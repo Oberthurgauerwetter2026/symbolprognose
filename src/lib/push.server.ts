@@ -106,7 +106,7 @@ export async function notifyWarning(warningId: string): Promise<number> {
     const ok = await sendPush(s, {
       title,
       body,
-      url: "https://oberthurgauerwetter.ch",
+      url: `${SITE_URL}/karten/warnungen`,
       tag: warning.id,
       icon,
     });
