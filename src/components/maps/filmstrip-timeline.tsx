@@ -348,9 +348,8 @@ export function FilmstripTimeline({
         onPointerUp={onUp}
         onPointerCancel={onUp}
         className={`relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none transition-all duration-200 active:cursor-grabbing focus-visible:ring-2 ${
-          dragging ? "bg-gradient-to-b from-neutral-100 to-white shadow-lg ring-2" : ""
+          dragging ? "bg-gradient-to-b from-neutral-100 to-white shadow-lg" : ""
         }`}
-        style={{ ["--tw-ring-color" as never]: color }}
       >
         {/* Fixe Mittel-Linie */}
         <span
