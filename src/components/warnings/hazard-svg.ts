@@ -38,9 +38,10 @@ const SNOW = `<g stroke-width="1.6"><g transform="translate(8.8 8.8) scale(0.68)
 
 const WINDSOCK = `<path d="M4.4 3.6v17" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/><path d="M6 5.1c0-.5.4-.85.9-.76l3.3.62v9.1l-3.3.62c-.5.09-.9-.26-.9-.76z" fill="currentColor" stroke="none"/><path d="M11.6 5.25 15 5.9v6.8l-3.4.65z" fill="currentColor" stroke="none"/><path d="M16.4 6.2 18.5 6.6a2.7 2.7 0 0 1 0 5.4l-2.1.4z" fill="currentColor" stroke="none"/>`;
 
-const SKID = `M8.7 17.0 5.2 17.6 c-1.7.3-1.5 1.35.2 1.8 l2.5.65 c1.7.45 1.6 1.5-.15 1.9 l-2.35.55`;
+const SKID = `M11.4 16.8 H5.9 c-1.8 0-1.8 1.35 0 1.8 l3.6.9 c1.8.45 1.8 1.55-.2 1.95 l-3.6.7`;
 
-const SLIPPERY = `<g stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4.7 14.1V9.1c0-.5.14-1 .42-1.42l1.83-2.7c.3-.44.8-.7 1.33-.7h7.44c.53 0 1.03.26 1.33.7l1.83 2.7c.28.42.42.92.42 1.42v5c0 .33-.27.6-.6.6H5.3a.6.6 0 0 1-.6-.6z"/><path d="M7.35 8.3 8.7 6.0h6.6l1.35 2.3z"/><path d="M4.7 8.9H3.5" /><path d="M19.3 8.9h1.2"/><path d="M10.2 9.9h3.6v1.7h-3.6z"/><path d="M6.9 12.6h10.2"/><path d="M6.9 14.7v1.1"/><path d="M17.1 14.7v1.1"/><path d="${SKID}"/><g transform="translate(8.6 0)"><path d="${SKID}"/></g></g>`;
+const SLIPPERY = `<g fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 14.3V9.0c0-.55.16-1.08.46-1.53l1.9-2.85c.31-.46.83-.74 1.39-.74h7.5c.56 0 1.08.28 1.39.74l1.9 2.85c.3.45.46.98.46 1.53v5.3c0 .36-.29.65-.65.65H5.15a.65.65 0 0 1-.65-.65z"/><path d="M7.2 8.1 8.6 5.7h6.8l1.4 2.4z"/><path d="M4.5 8.7H3.2"/><path d="M19.5 8.7h1.3"/><path d="M10.5 9.6h3v1.5h-3z"/><path d="M6.7 12.5h10.6"/><path d="M6.9 14.9v1.2"/><path d="M17.1 14.9v1.2"/><path d="${SKID}"/><g transform="translate(6.9 0)"><path d="${SKID}"/></g></g>`;
+
 
 
 /** Thermometer mit Schneeflocke (Frost) – identisch zur Kartenlegende. */
