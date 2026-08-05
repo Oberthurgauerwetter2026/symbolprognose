@@ -171,33 +171,6 @@ export function FilmstripTimeline({
   const forecastWidth =
     bandMode === "measurement-forecast" ? Math.max(0, totalWidth - nowLeft) : totalWidth;
 
-  const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
-  const rafPendingRef = useRef<number | null>(null);
-  const pendingTargetRef = useRef<number | null>(null);
-  // Kinetisches Scrollen: geglättete Geschwindigkeit (ms Zeitachse pro ms Realzeit)
-  const velRef = useRef(0);
-  const velHistoryRef = useRef<number[]>([]);
-  const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
-  const momentumRafRef = useRef<number | null>(null);
-
-  const stopMomentum = () => {
-    if (momentumRafRef.current !== null) {
-      cancelAnimationFrame(momentumRafRef.current);
-      momentumRafRef.current = null;
-    }
-  };
-
-  useEffect(() => stopMomentum, []);
-  useEffect(() => {
-    if (playing && dragMs !== null) {
-      stopMomentum();
-      snapAndEmit(dragMs);
-      setDragMs(null);
-      onScrubMs?.(null);
-      velRef.current = 0;
-      velHistoryRef.current = [];
-    }
-  }, [playing]);
 
   const isCoarsePointer = () =>
     typeof window !== "undefined" &&
