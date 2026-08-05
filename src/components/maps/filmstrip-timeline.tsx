@@ -100,35 +100,6 @@ export function FilmstripTimeline({
     }
   }, [dragging, idx]);
 
-  const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
-  const rafPendingRef = useRef<number | null>(null);
-  const pendingTargetRef = useRef<number | null>(null);
-  // Kinetisches Scrollen: geglättete Geschwindigkeit (ms Zeitachse pro ms Realzeit)
-  const velRef = useRef(0);
-  const velHistoryRef = useRef<number[]>([]);
-  const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
-  const momentumRafRef = useRef<number | null>(null);
-
-  const stopMomentum = () => {
-    if (momentumRafRef.current !== null) {
-      cancelAnimationFrame(momentumRafRef.current);
-      momentumRafRef.current = null;
-    }
-  };
-
-  useEffect(() => stopMomentum, []);
-  useEffect(() => {
-    if (playing && dragMs !== null) {
-      stopMomentum();
-      snapAndEmit(dragMs);
-      setDragMs(null);
-      onScrubMs?.(null);
-      velRef.current = 0;
-      velHistoryRef.current = [];
-    }
-  }, [playing]);
-
-
   const nearestIndexForMs = (target: number): number => {
     let best = 0;
     let bestDt = Infinity;
@@ -144,18 +115,13 @@ export function FilmstripTimeline({
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
   const frameMs = times[displayIdx] ?? tMin;
-  // Aktives Ziehen: Strip + Bubble rasten auf echte Frame-Zeiten ein.
-  // Nachlauf (Momentum): Strip + Bubble folgen der kontinuierlichen Zeit.
-  // Playback: Strip + Bubble folgen der aktuellen Frame-Zeit.
-  const isActiveDrag = dragStartRef.current !== null;
-  const isMomentum = momentumRafRef.current !== null;
-  const motionMs = isActiveDrag
+  // Bubble und Strip rasten immer auf echte Frame-Zeiten ein (5-min-Messung,
+  // Prognose-Kadenz). Die kontinuierliche Zeit dient nur dem Karten-Morphing.
+  const motionMs = dragging
     ? frameMs
-    : isMomentum
-      ? (dragMs ?? frameMs)
-      : visualMs != null
-        ? (times[nearestIndexForMs(visualMs)] ?? frameMs)
-        : frameMs;
+    : visualMs != null
+      ? (times[nearestIndexForMs(visualMs)] ?? frameMs)
+      : frameMs;
   const translateX = containerW / 2 - ((motionMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
   const bubbleLabel = formatBubble(new Date(motionMs));
@@ -171,6 +137,25 @@ export function FilmstripTimeline({
   const forecastWidth =
     bandMode === "measurement-forecast" ? Math.max(0, totalWidth - nowLeft) : totalWidth;
 
+  const dragStartRef = useRef<{ x: number; ms: number } | null>(null);
+  const rafPendingRef = useRef<number | null>(null);
+  const pendingTargetRef = useRef<number | null>(null);
+  // Kinetisches Scrollen: geglättete Geschwindigkeit (ms Zeitachse pro ms Realzeit)
+  const velRef = useRef(0);
+  const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
+  const momentumRafRef = useRef<number | null>(null);
+
+  const stopMomentum = () => {
+    if (momentumRafRef.current !== null) {
+      cancelAnimationFrame(momentumRafRef.current);
+      momentumRafRef.current = null;
+    }
+  };
+
+  useEffect(() => stopMomentum, []);
+  useEffect(() => {
+    if (playing) stopMomentum();
+  }, [playing]);
 
   const isCoarsePointer = () =>
     typeof window !== "undefined" &&
@@ -191,7 +176,6 @@ export function FilmstripTimeline({
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragStartRef.current = { x: e.clientX, ms: motionMs };
     velRef.current = 0;
-    velHistoryRef.current = [];
     lastMoveRef.current = { x: e.clientX, t: performance.now() };
     setDragMs(motionMs);
     if (isCoarsePointer()) haptic(6);
@@ -215,12 +199,10 @@ export function FilmstripTimeline({
     const last = lastMoveRef.current;
     if (last) {
       const dt = now - last.t;
-      if (dt > 8) {
+      if (dt > 4) {
         // px/ms -> Zeitachse ms pro Realzeit-ms (Ziehen nach links = vorwärts)
         const v = ((-(e.clientX - last.x) / PX_PER_HOUR) * 3_600_000) / dt;
-        velHistoryRef.current.push(v);
-        if (velHistoryRef.current.length > 4) velHistoryRef.current.shift();
-        velRef.current = velHistoryRef.current.reduce((a, b) => a + b, 0) / velHistoryRef.current.length;
+        velRef.current = velRef.current * 0.8 + v * 0.2;
         lastMoveRef.current = { x: e.clientX, t: now };
       }
     } else {
@@ -245,8 +227,8 @@ export function FilmstripTimeline({
     let ms = fromMs;
     let v = velRef.current;
     let prev = performance.now();
-    // Feste Verzögerung für gleichmässiges Auslaufen unabhängig von der Anfangsgeschwindigkeit.
-    const DECELERATION = 15_000; // ms Zeitachse pro ms Realzeit²
+    const FRICTION = 0.95;
+    // Schwelle: unter ~1 Sekunde Zeitachse pro Sekunde Realzeit ist der Schwung aus.
     const MIN_V = 1.5;
 
     const finish = () => {
@@ -254,8 +236,6 @@ export function FilmstripTimeline({
       snapAndEmit(ms);
       setDragMs(null);
       onScrubMs?.(null);
-      velRef.current = 0;
-      velHistoryRef.current = [];
     };
 
     const step = () => {
@@ -263,7 +243,7 @@ export function FilmstripTimeline({
       const dt = Math.min(48, now - prev);
       prev = now;
       ms += v * dt;
-
+      v *= Math.pow(FRICTION, dt / 16.67);
       if (ms <= tMin) {
         ms = tMin;
         finish();
@@ -274,27 +254,15 @@ export function FilmstripTimeline({
         finish();
         return;
       }
-
-      // Konstante Abbremsrate
-      const decel = DECELERATION * dt;
-      if (v > 0) {
-        v = Math.max(0, v - decel);
-      } else if (v < 0) {
-        v = Math.min(0, v + decel);
-      }
-
-      // Während des Nachlaufens keine Frame-Snap-Emission; nur kontinuierliche Position.
+      snapAndEmit(ms);
       setDragMs(ms);
       onScrubMs?.(ms);
-
       if (Math.abs(v) < MIN_V) {
         finish();
         return;
       }
-
       momentumRafRef.current = requestAnimationFrame(step);
     };
-
     momentumRafRef.current = requestAnimationFrame(step);
   };
 
@@ -319,7 +287,6 @@ export function FilmstripTimeline({
       return;
     }
     velRef.current = 0;
-    velHistoryRef.current = [];
     setDragMs(null);
     onScrubMs?.(null);
   };
@@ -357,15 +324,7 @@ export function FilmstripTimeline({
         aria-valuenow={idx}
         tabIndex={0}
         onKeyDown={(e) => {
-          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-            stopMomentum();
-            if (dragMs !== null) {
-              setDragMs(null);
-              onScrubMs?.(null);
-              velRef.current = 0;
-              velHistoryRef.current = [];
-            }
-          }
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") stopMomentum();
           if (e.key === "ArrowLeft") {
             e.preventDefault();
             const next = Math.max(0, idx - 1);
