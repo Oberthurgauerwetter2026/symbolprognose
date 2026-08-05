@@ -1880,7 +1880,11 @@ export function RadarMap({
     const idxMs =
       timelineSteps[cursorForMs(renderMsRef.current)] ??
       Date.parse(frames[idxRef.current ?? 0]?.t ?? frames[0].t);
-    const startMs = Math.max(firstMs, Math.min(lastMs, scrubVisualMs ?? renderMsRef.current ?? idxMs));
+    const rawStart = scrubVisualMs ?? renderMsRef.current ?? idxMs;
+    const clamped = Math.max(firstMs, Math.min(lastMs, rawStart));
+    // Steht der Cursor praktisch am Ende (z. B. nach einem Durchlauf), von
+    // vorne starten, sonst würde Play sofort wieder stoppen.
+    const startMs = lastMs - clamped <= gapAtMs(clamped) * 0.5 ? firstMs : clamped;
 
     playTimeRef.current = startMs;
     setPlayVisualMs(startMs);
@@ -1892,17 +1896,22 @@ export function RadarMap({
       const dt = now - last;
       last = now;
       const prevMs = playTimeRef.current ?? startMs;
-      const nextMs = prevMs + (dt * gapAtMs(prevMs)) / FRAME_MS;
+      let nextMs = prevMs + (dt * gapAtMs(prevMs)) / FRAME_MS;
       if (nextMs >= lastMs) {
-        playTimeRef.current = lastMs;
-        setPlayVisualMs(lastMs);
-        setRenderMs(lastMs);
-        const endIdx = nearestFrameIndexForMs(frames, lastMs);
-        idxRef.current = endIdx;
-        setIdx(endIdx);
-        setPlaying(false);
+        // Endlosschleife: am Ende wieder von vorne beginnen.
+        nextMs = firstMs;
+        playTimeRef.current = nextMs;
+        renderMsRef.current = nextMs;
+        lastFlush = now;
+        setPlayVisualMs(nextMs);
+        setRenderMs(nextMs);
+        const wrapIdx = nearestFrameIndexForMs(frames, nextMs);
+        idxRef.current = wrapIdx;
+        setIdx(wrapIdx);
+        raf = requestAnimationFrame(tick);
         return;
       }
+
       playTimeRef.current = nextMs;
       renderMsRef.current = nextMs;
       // React-State nur gedrosselt anfassen: Overlays lesen aus Props, die
