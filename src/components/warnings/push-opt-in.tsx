@@ -322,11 +322,59 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         </p>
       )}
 
-      {subscribed && (
-        <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs text-foreground">
-          Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden.
-        </p>
+      {subscribed && !editing && (
+        <div className="rounded-lg border border-border bg-muted/50 px-2 py-1.5 text-xs text-foreground">
+          {missing ? (
+            <p className="leading-snug">
+              Dieses Gerät ist beim Server nicht mehr registriert – bitte die Benachrichtigungen neu
+              aktivieren.
+            </p>
+          ) : (
+            <>
+              <p className="font-semibold">
+                Abonniert: {savedRegionIds.length} von {REGIONS.length} Gemeinden
+              </p>
+              {savedRegionIds.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {REGIONS.filter((r) => savedRegionIds.includes(r.id)).map((r) => (
+                    <span
+                      key={r.id}
+                      className="rounded border border-primary/50 bg-primary/15 px-1.5 py-0.5 text-xs font-medium"
+                    >
+                      {r.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {savedAt && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Zuletzt geändert:{" "}
+                  {new Date(savedAt).toLocaleString("de-CH", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setRegionIds(savedRegionIds);
+                  setEditing(true);
+                  setPickOpen(true);
+                  setMsg(null);
+                }}
+                className="mt-1.5 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-semibold hover:bg-muted"
+              >
+                Gemeinden ändern
+              </button>
+            </>
+          )}
+        </div>
       )}
+
 
       {editing ? (
         <div className="flex gap-1.5">
