@@ -126,9 +126,40 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         },
       });
       setSubscribed(true);
+      setMissing(false);
+      setSavedRegionIds(regionIds);
+      setSavedAt(new Date().toISOString());
+      setPickOpen(false);
       note(`Benachrichtigungen aktiviert für ${regionIds.length} Gemeinde${regionIds.length === 1 ? "" : "n"}.`);
     } catch (e) {
       note(e instanceof Error ? e.message : "Aktivierung fehlgeschlagen.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveRegions() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const reg = await navigator.serviceWorker.getRegistration("/push-sw.js");
+      const sub = await reg?.pushManager.getSubscription();
+      if (!sub) throw new Error("Kein aktives Abo gefunden – bitte neu aktivieren.");
+      await savePushSubscription({
+        data: {
+          endpoint: sub.endpoint,
+          p256dh: bufToB64(sub.getKey("p256dh")),
+          auth: bufToB64(sub.getKey("auth")),
+          regionIds,
+        },
+      });
+      setSavedRegionIds(regionIds);
+      setSavedAt(new Date().toISOString());
+      setMissing(false);
+      setEditing(false);
+      note(`Gespeichert – ${regionIds.length} Gemeinde${regionIds.length === 1 ? "" : "n"} abonniert.`);
+    } catch (e) {
+      note(e instanceof Error ? e.message : "Speichern fehlgeschlagen.", "error");
     } finally {
       setBusy(false);
     }
@@ -144,6 +175,10 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         await sub.unsubscribe();
       }
       setSubscribed(false);
+      setEditing(false);
+      setSavedRegionIds([]);
+      setSavedAt(null);
+      setMissing(false);
       note("Benachrichtigungen deaktiviert.");
     } catch {
       note("Deaktivierung fehlgeschlagen.", "error");
@@ -151,6 +186,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
       setBusy(false);
     }
   }
+
 
   if (!supported) {
     return (
