@@ -41,6 +41,10 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [hintOpen, setHintOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>([]);
+  const [savedRegionIds, setSavedRegionIds] = useState<string[]>([]);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [framed, setFramed] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
@@ -59,8 +63,19 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
       const sub = await reg?.pushManager.getSubscription();
       setSubscribed(Boolean(sub));
+      if (!sub) return;
+      try {
+        const info = await getPushSubscription({ data: { endpoint: sub.endpoint } });
+        setMissing(!info.found);
+        setSavedRegionIds(info.regionIds);
+        setRegionIds(info.regionIds);
+        setSavedAt(info.updatedAt);
+      } catch {
+        /* Abo-Details nicht abrufbar – Anzeige bleibt ohne Gemeindeliste */
+      }
     });
   }, []);
+
 
   // Bewusst keine Vorauswahl: die Nutzerin wählt ihre Gemeinden selbst.
   void defaultRegionId;
