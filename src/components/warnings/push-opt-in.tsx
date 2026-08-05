@@ -244,7 +244,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         Erhalte eine Meldung, sobald für deine Gemeinden eine Warnung ausgegeben wird.
       </p>
 
-      {!subscribed && (
+      {(!subscribed || editing) && (
         <div className="rounded-lg border border-border">
           <button
             type="button"
