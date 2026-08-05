@@ -144,17 +144,35 @@ export function FilmstripTimeline({
   const velRef = useRef(0);
   const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
   const momentumRafRef = useRef<number | null>(null);
+  const momentumMsRef = useRef<number | null>(null);
+  const snapAndEmitRef = useRef<(target: number) => number>(() => 0);
 
-  const stopMomentum = () => {
+  const cancelMomentumRaf = () => {
     if (momentumRafRef.current !== null) {
       cancelAnimationFrame(momentumRafRef.current);
       momentumRafRef.current = null;
+      return true;
     }
+    return false;
   };
 
-  useEffect(() => stopMomentum, []);
+  // Bricht das Nachlaufen ab UND räumt den Zieh-Zustand auf, sonst bleibt die
+  // Anzeige auf der Scrub-Zeit hängen und Playback wirkt eingefroren.
+  const stopMomentum = () => {
+    const wasRunning = cancelMomentumRaf();
+    if (!wasRunning) return;
+    const last = momentumMsRef.current;
+    momentumMsRef.current = null;
+    velRef.current = 0;
+    if (last !== null) snapAndEmitRef.current(last);
+    setDragMs(null);
+    onScrubMs?.(null);
+  };
+
+  useEffect(() => cancelMomentumRaf, []);
   useEffect(() => {
     if (playing) stopMomentum();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
 
   const isCoarsePointer = () =>
