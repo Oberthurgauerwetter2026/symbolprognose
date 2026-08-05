@@ -144,17 +144,39 @@ export function FilmstripTimeline({
   const velRef = useRef(0);
   const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
   const momentumRafRef = useRef<number | null>(null);
+  const momentumMsRef = useRef<number | null>(null);
+  const snapAndEmitRef = useRef<(target: number) => number>(() => 0);
 
-  const stopMomentum = () => {
+  const cancelMomentumRaf = () => {
     if (momentumRafRef.current !== null) {
       cancelAnimationFrame(momentumRafRef.current);
       momentumRafRef.current = null;
+      return true;
     }
+    return false;
   };
 
-  useEffect(() => stopMomentum, []);
+  // Bricht das Nachlaufen ab UND räumt den Zieh-Zustand auf, sonst bleibt die
+  // Anzeige auf der Scrub-Zeit hängen und Playback wirkt eingefroren.
+  const stopMomentum = () => {
+    const wasRunning = cancelMomentumRaf();
+    if (!wasRunning) return;
+    const last = momentumMsRef.current;
+    momentumMsRef.current = null;
+    velRef.current = 0;
+    if (last !== null) snapAndEmitRef.current(last);
+    setDragMs(null);
+    onScrubMs?.(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      cancelMomentumRaf();
+    };
+  }, []);
   useEffect(() => {
     if (playing) stopMomentum();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
 
   const isCoarsePointer = () =>
@@ -193,6 +215,7 @@ export function FilmstripTimeline({
     }
     return best;
   };
+  snapAndEmitRef.current = snapAndEmit;
   const onMove = (e: React.PointerEvent) => {
     if (!dragStartRef.current) return;
     const now = performance.now();
@@ -230,9 +253,12 @@ export function FilmstripTimeline({
     const FRICTION = 0.95;
     // Schwelle: unter ~1 Sekunde Zeitachse pro Sekunde Realzeit ist der Schwung aus.
     const MIN_V = 1.5;
+    momentumMsRef.current = ms;
 
     const finish = () => {
       momentumRafRef.current = null;
+      momentumMsRef.current = null;
+      velRef.current = 0;
       snapAndEmit(ms);
       setDragMs(null);
       onScrubMs?.(null);
@@ -244,13 +270,16 @@ export function FilmstripTimeline({
       prev = now;
       ms += v * dt;
       v *= Math.pow(FRICTION, dt / 16.67);
+      momentumMsRef.current = ms;
       if (ms <= tMin) {
         ms = tMin;
+        momentumMsRef.current = ms;
         finish();
         return;
       }
       if (ms >= tMax) {
         ms = tMax;
+        momentumMsRef.current = ms;
         finish();
         return;
       }
@@ -265,6 +294,7 @@ export function FilmstripTimeline({
     };
     momentumRafRef.current = requestAnimationFrame(step);
   };
+
 
   const onUp = (e: React.PointerEvent) => {
     const start = dragStartRef.current;
