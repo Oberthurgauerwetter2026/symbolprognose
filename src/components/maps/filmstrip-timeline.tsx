@@ -215,6 +215,7 @@ export function FilmstripTimeline({
     }
     return best;
   };
+  snapAndEmitRef.current = snapAndEmit;
   const onMove = (e: React.PointerEvent) => {
     if (!dragStartRef.current) return;
     const now = performance.now();
