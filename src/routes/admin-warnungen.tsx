@@ -18,6 +18,7 @@ import {
   THRESHOLDS,
   thresholdRowFor,
   suggestLevel,
+  THUNDER_RAIN_MMH,
   type HazardId,
   type WarnLevel,
 } from "@/lib/warnings-config";
