@@ -169,7 +169,11 @@ export function FilmstripTimeline({
     onScrubMs?.(null);
   };
 
-  useEffect(() => cancelMomentumRaf, []);
+  useEffect(() => {
+    return () => {
+      cancelMomentumRaf();
+    };
+  }, []);
   useEffect(() => {
     if (playing) stopMomentum();
     // eslint-disable-next-line react-hooks/exhaustive-deps
