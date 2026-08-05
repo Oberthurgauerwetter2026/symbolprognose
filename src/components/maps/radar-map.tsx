@@ -1887,6 +1887,9 @@ export function RadarMap({
     const startMs = lastMs - clamped <= gapAtMs(clamped) * 0.5 ? firstMs : clamped;
 
     playTimeRef.current = startMs;
+    // Playback hat Vorrang: eine hängengebliebene Scrub-Zeit würde die Anzeige
+    // sonst dauerhaft einfrieren.
+    setScrubVisualMs(null);
     setPlayVisualMs(startMs);
     setRenderMs(startMs);
 
