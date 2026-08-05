@@ -45,6 +45,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [missing, setMissing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [subsOpen, setSubsOpen] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [framed, setFramed] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
@@ -331,45 +332,61 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             </p>
           ) : (
             <>
-              <p className="font-semibold">
-                Abonniert: {savedRegionIds.length} von {REGIONS.length} Gemeinden
-              </p>
-              {savedRegionIds.length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {REGIONS.filter((r) => savedRegionIds.includes(r.id)).map((r) => (
-                    <span
-                      key={r.id}
-                      className="rounded border border-primary/50 bg-primary/15 px-1.5 py-0.5 text-xs font-medium"
-                    >
-                      {r.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {savedAt && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Zuletzt geändert:{" "}
-                  {new Date(savedAt).toLocaleString("de-CH", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              )}
               <button
                 type="button"
-                onClick={() => {
-                  setRegionIds(savedRegionIds);
-                  setEditing(true);
-                  setPickOpen(true);
-                  setMsg(null);
-                }}
-                className="mt-1.5 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-semibold hover:bg-muted"
+                aria-expanded={subsOpen}
+                onClick={() => setSubsOpen((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 text-left font-semibold"
               >
-                Gemeinden ändern
+                <span>
+                  Abonniert: {savedRegionIds.length} von {REGIONS.length} Gemeinden
+                </span>
+                <ChevronDown
+                  className={
+                    "h-4 w-4 shrink-0 transition-transform " + (subsOpen ? "rotate-180" : "")
+                  }
+                />
               </button>
+              {subsOpen && (
+                <>
+                  {savedRegionIds.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {REGIONS.filter((r) => savedRegionIds.includes(r.id)).map((r) => (
+                        <span
+                          key={r.id}
+                          className="rounded border border-primary/50 bg-primary/15 px-1.5 py-0.5 text-xs font-medium"
+                        >
+                          {r.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {savedAt && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Zuletzt geändert:{" "}
+                      {new Date(savedAt).toLocaleString("de-CH", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegionIds(savedRegionIds);
+                      setEditing(true);
+                      setPickOpen(true);
+                      setMsg(null);
+                    }}
+                    className="mt-1.5 rounded border border-border bg-background px-1.5 py-0.5 text-xs font-semibold hover:bg-muted"
+                  >
+                    Gemeinden ändern
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>
