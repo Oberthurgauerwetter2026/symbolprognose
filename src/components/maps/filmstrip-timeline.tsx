@@ -115,13 +115,18 @@ export function FilmstripTimeline({
   const dragIdx = dragMs !== null ? nearestIndexForMs(dragMs) : idx;
   const displayIdx = dragging ? dragIdx : idx;
   const frameMs = times[displayIdx] ?? tMin;
-  // Bubble und Strip rasten immer auf echte Frame-Zeiten ein (5-min-Messung,
-  // Prognose-Kadenz). Die kontinuierliche Zeit dient nur dem Karten-Morphing.
-  const motionMs = dragging
+  // Aktives Ziehen: Strip + Bubble rasten auf echte Frame-Zeiten ein.
+  // Nachlauf (Momentum): Strip + Bubble folgen der kontinuierlichen Zeit.
+  // Playback: Strip + Bubble folgen der aktuellen Frame-Zeit.
+  const isActiveDrag = dragStartRef.current !== null;
+  const isMomentum = momentumRafRef.current !== null;
+  const motionMs = isActiveDrag
     ? frameMs
-    : visualMs != null
-      ? (times[nearestIndexForMs(visualMs)] ?? frameMs)
-      : frameMs;
+    : isMomentum
+      ? (dragMs ?? frameMs)
+      : visualMs != null
+        ? (times[nearestIndexForMs(visualMs)] ?? frameMs)
+        : frameMs;
   const translateX = containerW / 2 - ((motionMs - tMin) / 3_600_000) * PX_PER_HOUR;
   const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
   const bubbleLabel = formatBubble(new Date(motionMs));
@@ -155,7 +160,14 @@ export function FilmstripTimeline({
 
   useEffect(() => stopMomentum, []);
   useEffect(() => {
-    if (playing) stopMomentum();
+    if (playing && dragMs !== null) {
+      stopMomentum();
+      snapAndEmit(dragMs);
+      setDragMs(null);
+      onScrubMs?.(null);
+      velRef.current = 0;
+      velHistoryRef.current = [];
+    }
   }, [playing]);
 
   const isCoarsePointer = () =>
@@ -304,10 +316,11 @@ export function FilmstripTimeline({
       startMomentum(from);
       return;
     }
-    velRef.current = 0;
-    setDragMs(null);
-    onScrubMs?.(null);
-  };
+  velRef.current = 0;
+  velHistoryRef.current = [];
+  setDragMs(null);
+  onScrubMs?.(null);
+};
 
 
   return (
@@ -341,9 +354,17 @@ export function FilmstripTimeline({
         aria-valuemax={frames.length - 1}
         aria-valuenow={idx}
         tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowLeft" || e.key === "ArrowRight") stopMomentum();
-          if (e.key === "ArrowLeft") {
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+              stopMomentum();
+              if (dragMs !== null) {
+                setDragMs(null);
+                onScrubMs?.(null);
+                velRef.current = 0;
+                velHistoryRef.current = [];
+              }
+            }
+            if (e.key === "ArrowLeft") {
             e.preventDefault();
             const next = Math.max(0, idx - 1);
             if (next !== lastHapticIdxRef.current) {
