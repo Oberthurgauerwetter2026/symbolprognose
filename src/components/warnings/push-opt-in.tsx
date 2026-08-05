@@ -7,7 +7,12 @@ import { useEffect, useState } from "react";
 import { BellOff, BellRing, Check, ChevronDown, Circle, Info, Loader2 } from "lucide-react";
 import { REGIONS } from "@/lib/warnings-config";
 import { SITE_URL } from "@/lib/site-url";
-import { getPushPublicKey, savePushSubscription, removePushSubscription } from "@/lib/warnings.functions";
+import {
+  getPushPublicKey,
+  savePushSubscription,
+  removePushSubscription,
+  getPushSubscription,
+} from "@/lib/warnings.functions";
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
