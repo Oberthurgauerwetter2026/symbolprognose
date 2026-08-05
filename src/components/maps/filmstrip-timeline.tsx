@@ -142,6 +142,7 @@ export function FilmstripTimeline({
   const pendingTargetRef = useRef<number | null>(null);
   // Kinetisches Scrollen: geglättete Geschwindigkeit (ms Zeitachse pro ms Realzeit)
   const velRef = useRef(0);
+  const velHistoryRef = useRef<number[]>([]);
   const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
   const momentumRafRef = useRef<number | null>(null);
 
@@ -176,6 +177,7 @@ export function FilmstripTimeline({
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragStartRef.current = { x: e.clientX, ms: motionMs };
     velRef.current = 0;
+    velHistoryRef.current = [];
     lastMoveRef.current = { x: e.clientX, t: performance.now() };
     setDragMs(motionMs);
     if (isCoarsePointer()) haptic(6);
@@ -199,10 +201,12 @@ export function FilmstripTimeline({
     const last = lastMoveRef.current;
     if (last) {
       const dt = now - last.t;
-      if (dt > 4) {
+      if (dt > 8) {
         // px/ms -> Zeitachse ms pro Realzeit-ms (Ziehen nach links = vorwärts)
         const v = ((-(e.clientX - last.x) / PX_PER_HOUR) * 3_600_000) / dt;
-        velRef.current = velRef.current * 0.8 + v * 0.2;
+        velHistoryRef.current.push(v);
+        if (velHistoryRef.current.length > 4) velHistoryRef.current.shift();
+        velRef.current = velHistoryRef.current.reduce((a, b) => a + b, 0) / velHistoryRef.current.length;
         lastMoveRef.current = { x: e.clientX, t: now };
       }
     } else {
@@ -227,8 +231,8 @@ export function FilmstripTimeline({
     let ms = fromMs;
     let v = velRef.current;
     let prev = performance.now();
-    const FRICTION = 0.95;
-    // Schwelle: unter ~1 Sekunde Zeitachse pro Sekunde Realzeit ist der Schwung aus.
+    // Feste Verzögerung für gleichmässiges Auslaufen unabhängig von der Anfangsgeschwindigkeit.
+    const DECELERATION = 15_000; // ms Zeitachse pro ms Realzeit²
     const MIN_V = 1.5;
 
     const finish = () => {
@@ -236,6 +240,8 @@ export function FilmstripTimeline({
       snapAndEmit(ms);
       setDragMs(null);
       onScrubMs?.(null);
+      velRef.current = 0;
+      velHistoryRef.current = [];
     };
 
     const step = () => {
@@ -243,7 +249,7 @@ export function FilmstripTimeline({
       const dt = Math.min(48, now - prev);
       prev = now;
       ms += v * dt;
-      v *= Math.pow(FRICTION, dt / 16.67);
+
       if (ms <= tMin) {
         ms = tMin;
         finish();
@@ -254,15 +260,27 @@ export function FilmstripTimeline({
         finish();
         return;
       }
-      snapAndEmit(ms);
+
+      // Konstante Abbremsrate
+      const decel = DECELERATION * dt;
+      if (v > 0) {
+        v = Math.max(0, v - decel);
+      } else if (v < 0) {
+        v = Math.min(0, v + decel);
+      }
+
+      // Während des Nachlaufens keine Frame-Snap-Emission; nur kontinuierliche Position.
       setDragMs(ms);
       onScrubMs?.(ms);
+
       if (Math.abs(v) < MIN_V) {
         finish();
         return;
       }
+
       momentumRafRef.current = requestAnimationFrame(step);
     };
+
     momentumRafRef.current = requestAnimationFrame(step);
   };
 
