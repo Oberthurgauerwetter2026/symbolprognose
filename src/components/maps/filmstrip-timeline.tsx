@@ -295,10 +295,10 @@ export function FilmstripTimeline({
   return (
     <div className="select-none">
       {/* Bubble über fixer Mittellinie */}
-      <div className="relative h-7">
+      <div className="relative h-9">
         <div className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center">
           <span
-            className="whitespace-nowrap rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-md"
+            className="whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-semibold text-white shadow-md"
             style={{ background: color }}
           >
             {bubbleLabel}
@@ -306,9 +306,9 @@ export function FilmstripTimeline({
           <span
             className="h-0 w-0"
             style={{
-              borderLeft: "5px solid transparent",
-              borderRight: "5px solid transparent",
-              borderTop: `5px solid ${color}`,
+              borderLeft: "6px solid transparent",
+              borderRight: "6px solid transparent",
+              borderTop: `6px solid ${color}`,
             }}
           />
         </div>
