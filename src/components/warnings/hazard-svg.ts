@@ -40,7 +40,7 @@ const WINDSOCK = `<path d="M4.4 3.6v17" stroke="currentColor" stroke-width="2.8"
 
 const SKID = `M11.2 16.4 C8.6 16.2 6.3 17.2 7.6 18.3 C9.0 19.4 11.5 19.6 10.7 20.9 C10.0 22.0 8.2 22.2 6.4 22.4`;
 
-const SLIPPERY = `<g fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 14.4V8.9c0-.55.16-1.08.46-1.53l1.9-2.85c.31-.46.83-.74 1.39-.74h7.5c.56 0 1.08.28 1.39.74l1.9 2.85c.3.45.46.98.46 1.53v5.5c0 .36-.29.65-.65.65H5.15a.65.65 0 0 1-.65-.65z"/><path d="M7.2 8.0 8.6 5.6h6.8l1.4 2.4z"/><path d="M4.5 8.6H3.2"/><path d="M19.5 8.6h1.3"/><rect x="10.6" y="9.9" width="2.8" height="1.4" rx=".3" fill="currentColor" stroke="none"/><path d="M6.7 12.9h10.6"/><path d="M6.9 15.0v1.2"/><path d="M17.1 15.0v1.2"/><g stroke-width="1.55"><path d="${SKID}"/><g transform="translate(7.6 0)"><path d="${SKID}"/></g></g></g>`;
+const SLIPPERY = `<g fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 14.4V8.9c0-.55.16-1.08.46-1.53l1.9-2.85c.31-.46.83-.74 1.39-.74h7.5c.56 0 1.08.28 1.39.74l1.9 2.85c.3.45.46.98.46 1.53v5.5c0 .36-.29.65-.65.65H5.15a.65.65 0 0 1-.65-.65z"/><path d="M7.2 8.0 8.6 5.6h6.8l1.4 2.4z"/><path d="M4.5 8.6H3.2"/><path d="M19.5 8.6h1.3"/><rect x="10.6" y="9.9" width="2.8" height="1.4" rx=".3" fill="currentColor" stroke="none"/><path d="M6.7 12.9h10.6"/><path d="M6.9 15.0v1.2"/><path d="M17.1 15.0v1.2"/><g stroke-width="1.55"><path d="${SKID}"/><g transform="translate(7.7 -0.6)"><path d="${SKID}"/></g></g></g>`;
 
 
 
