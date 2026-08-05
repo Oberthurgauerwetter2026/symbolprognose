@@ -318,11 +318,11 @@ export function FilmstripTimeline({
       startMomentum(from);
       return;
     }
-  velRef.current = 0;
-  velHistoryRef.current = [];
-  setDragMs(null);
-  onScrubMs?.(null);
-};
+    velRef.current = 0;
+    velHistoryRef.current = [];
+    setDragMs(null);
+    onScrubMs?.(null);
+  };
 
 
   return (
