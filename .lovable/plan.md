@@ -1,30 +1,22 @@
-# Automatische Gewitterwarnung: früher und zuverlässiger auslösen
+# Abonnierte Gemeinden im Push-Bereich anzeigen und ändern
 
-## Ausgangslage (geprüft)
+## Problem
 
-- Heute Abend hat die Automatik korrekt ausgelöst: drei Auto-Warnungen Stufe 3 für Horn, Arbon und Roggwil (gültig 19:06–19:56 Lokalzeit), danach automatisch beendet.
-- Aktuell melden alle 21 Gemeinden 0.0 mm/h — deshalb liegt jetzt keine Warnung vor.
-- Zwei erkennbare Lücken:
-  1. **Latenz:** Der ausgewertete Radar-Frame ist beim Abruf 12–17 Minuten alt. Eine Zelle erzeugt also erst deutlich nach dem Durchzug eine Warnung.
-  2. **Nur Gemeindefläche:** Es zählt ausschliesslich das Maximum *innerhalb* einer Gemeinde. Eine kräftige Zelle, die 3–5 km ausserhalb steht und auf die Region zuzieht, löst nichts aus — obwohl sie in wenigen Minuten eintrifft.
+Wer Benachrichtigungen aktiviert hat, sieht danach nur den Satz „Aktiv – du erhältst Warnmeldungen für deine gewählten Gemeinden“. Welche Gemeinden das konkret sind, ist nicht sichtbar – und nach dem Neuladen der Seite ist die Auswahl im Browser gar nicht mehr bekannt (sie liegt nur in der Datenbank).
 
 ## Was gebaut wird
 
-1. **Umland-Puffer (Zellen im Anmarsch)**
-   Der Radar-Ingest schreibt zusätzlich zum Gemeindemaximum ein Maximum in einem Puffer um jede Gemeinde (ca. 6 km). Zieht eine Zelle über der Schwelle im Puffer und bewegt sie sich auf die Gemeinde zu, wird eine Warnung mit Hinweis „Zelle zieht heran“ erstellt — mit derselben Stufenlogik, aber Gültigkeit ab jetzt.
+1. **Abonnierte Gemeinden auflisten**
+   Ist ein Abo aktiv, zeigt der Push-Bereich die abonnierten Gemeinden als Chips an, mit Zähler („Abonniert: 21 von 21 Gemeinden“) und dem Datum der letzten Änderung. Die Liste wird beim Öffnen der Karte anhand des vorhandenen Push-Endpoints vom Server geladen, funktioniert also auch nach Neustart des Geräts.
 
-2. **Aktualität sichtbar machen**
-   Im Admin-Tool wird pro Gemeinde der aktuell gemessene Spitzenwert (mm/h), der Messzeitpunkt und das Alter angezeigt, dazu die aktive Schwelle. So ist auf einen Blick nachvollziehbar, warum eine Zone gewarnt hat oder nicht.
+2. **Auswahl nachträglich ändern**
+   Neuer Button „Gemeinden ändern“ öffnet die bekannte Auswahlliste, vorbelegt mit den bisher abonnierten Gemeinden. „Speichern“ aktualisiert das Abo (keine neue Push-Berechtigung nötig), „Abbrechen“ verwirft.
 
-3. **Latenz reduzieren**
-   Der Radar-Ingest wird so angepasst, dass er den jeweils neuesten verfügbaren Messframe verwendet und `region-max.json` direkt nach dem Frame-Download schreibt (statt am Ende des Gesamtlaufs). Zielsetzung: Warnung innerhalb von rund 5–8 Minuten nach dem Messzeitpunkt.
-
-4. **Keine Schwellenänderung**
-   Die Stufen bleiben bei 15 / 30 / 50 mm/h (MeteoSchweiz-konform). Für „knapp darunter“-Situationen ist die Vorinformation im Admin-Tool das richtige Mittel, nicht eine tiefere Automatikschwelle.
+3. **Sonderfall abgelaufenes Abo**
+   Findet der Server zum Endpoint keinen Eintrag mehr (z. B. gelöscht), erscheint der Hinweis, dass das Abo nicht mehr registriert ist, mit dem Aktivieren-Ablauf wie bisher.
 
 ## Technische Details
 
-- `scripts/ingest_radar.py`: `write_region_max()` erweitert um `bufMmh` je Gemeinde (Puffer-Maximum) und Aufruf früher im Ablauf.
-- `src/lib/openmeteo-cache.server.ts`: Typ `RadarRegionMaxPayload` um `bufMmh` ergänzt.
-- `src/lib/auto-thunder.server.ts`: Auslösung entweder über Gemeindemaximum oder über Puffermaximum in Kombination mit Verlagerung Richtung Gemeinde; Beschreibungstext unterscheidet „gemessen über der Gemeinde“ und „Zelle zieht heran“.
-- `src/routes/admin-warnungen.tsx`: neuer Abschnitt „Radarmessung je Gemeinde“ (Werte, Messzeit, Alter, Schwelle) im bestehenden Datenquellen-Bereich.
+- `src/lib/warnings.functions.ts`: neue Server-Funktion `getPushSubscription({ endpoint })`, die über den Admin-Client `region_ids` und `updated_at` zum Endpoint liest und `{ found, regionIds, updatedAt }` zurückgibt. Endpoint wird wie beim Speichern validiert (nur `https://`, max. 1000 Zeichen); es werden keine Schlüssel (`p256dh`/`auth`) zurückgegeben.
+- `src/components/warnings/push-opt-in.tsx`: nach dem Lesen der bestehenden `PushSubscription` wird `getPushSubscription` aufgerufen und `regionIds` gesetzt; neuer Zustand `editing` für den Änderungsmodus; Speichern nutzt das bestehende `savePushSubscription` (Upsert auf `endpoint`).
+- Keine Schema- oder Policy-Änderung nötig: `push_subscriptions` bleibt per RLS gesperrt, der Zugriff läuft ausschliesslich über die Server-Funktion.
