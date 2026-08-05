@@ -347,13 +347,21 @@ export function FilmstripTimeline({
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        className="relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none active:cursor-grabbing focus-visible:ring-2"
+        className={`relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none transition-all duration-200 active:cursor-grabbing focus-visible:ring-2 ${
+          dragging ? "bg-gradient-to-b from-neutral-100 to-white shadow-lg ring-2" : ""
+        }`}
         style={{ ["--tw-ring-color" as never]: color }}
       >
         {/* Fixe Mittel-Linie */}
-        <span className="pointer-events-none absolute left-1/2 top-0 z-30 h-full w-px -translate-x-1/2 bg-neutral-900/85" />
         <span
-          className="pointer-events-none absolute left-1/2 top-0 z-30 h-2 w-2 -translate-x-1/2 rotate-45"
+          className={`pointer-events-none absolute left-1/2 top-0 z-30 h-full -translate-x-1/2 bg-neutral-900/85 transition-all duration-200 ${
+            dragging ? "w-[2px] bg-neutral-900" : "w-px"
+          }`}
+        />
+        <span
+          className={`pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 rotate-45 transition-all duration-200 ${
+            dragging ? "h-3 w-3" : "h-2 w-2"
+          }`}
           style={{ background: color }}
         />
 
