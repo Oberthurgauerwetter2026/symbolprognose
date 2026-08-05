@@ -994,7 +994,9 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
       return;
     }
     progressRef.current = 0;
-    if (idxRef.current === null) {
+    // Steht der Cursor am letzten Frame (z. B. nach einem Durchlauf), von
+    // vorne starten, sonst würde Play sofort wieder stoppen.
+    if (idxRef.current === null || idxRef.current >= frames.length - 1) {
       idxRef.current = 0;
       setIdx(0);
     }
@@ -1009,15 +1011,12 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
         p = p - 1;
         if (p >= 1) p = 0;
         const cur = idxRef.current ?? 0;
-        const next = cur + 1;
-        if (next >= frames.length) {
-          progressRef.current = 0;
-          setPlaying(false);
-          return;
-        }
+        // Endlosschleife: am Ende wieder beim ersten Frame beginnen.
+        const next = cur + 1 >= frames.length ? 0 : cur + 1;
         idxRef.current = next;
         setIdx(next);
       }
+
       progressRef.current = p;
       raf = requestAnimationFrame(tick);
     };
