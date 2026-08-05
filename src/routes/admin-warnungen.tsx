@@ -18,6 +18,7 @@ import {
   THRESHOLDS,
   thresholdRowFor,
   suggestLevel,
+  THUNDER_RAIN_MMH,
   type HazardId,
   type WarnLevel,
 } from "@/lib/warnings-config";
@@ -1085,7 +1086,8 @@ function AutoThunderSection({ password }: { password: string }) {
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Automatik läuft alle 5 Minuten und warnt ab 8 mm/h (Stufe 1), 15 mm/h (Stufe 2) und 30 mm/h (Stufe 3).
+        Automatik läuft alle 5 Minuten und warnt ab {THUNDER_RAIN_MMH[0]} mm/h (Stufe 1),{" "}
+        {THUNDER_RAIN_MMH[1]} mm/h (Stufe 2) und {THUNDER_RAIN_MMH[2]} mm/h (Stufe 3).
       </p>
       <button
         type="button"
