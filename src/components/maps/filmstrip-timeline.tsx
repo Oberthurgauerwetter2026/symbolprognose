@@ -356,17 +356,17 @@ export function FilmstripTimeline({
         aria-valuemax={frames.length - 1}
         aria-valuenow={idx}
         tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-              stopMomentum();
-              if (dragMs !== null) {
-                setDragMs(null);
-                onScrubMs?.(null);
-                velRef.current = 0;
-                velHistoryRef.current = [];
-              }
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            stopMomentum();
+            if (dragMs !== null) {
+              setDragMs(null);
+              onScrubMs?.(null);
+              velRef.current = 0;
+              velHistoryRef.current = [];
             }
-            if (e.key === "ArrowLeft") {
+          }
+          if (e.key === "ArrowLeft") {
             e.preventDefault();
             const next = Math.max(0, idx - 1);
             if (next !== lastHapticIdxRef.current) {
