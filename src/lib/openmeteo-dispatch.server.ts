@@ -218,7 +218,15 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
     return { ok: false, status: res.status, error: res.error };
   }
 
-  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref };
+  if (retryOf) {
+    console.warn(
+      `[openmeteo-dispatch] Neuversuch nach Lauf ${retryOf.id} ` +
+        `(${retryOf.conclusion ?? "?"}, ${retryOf.reason})`,
+    );
+  }
+
+  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref, ...(retryOf ? { retryOf } : {}) };
+
 }
 
 
