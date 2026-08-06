@@ -819,32 +819,42 @@ def write_region_max(s3, since: datetime) -> None:
     automatischen Gewitterwarnung gelesen, damit reale Zellen sofort (ohne
     Modell-Vorlauf) eine Warnung auslösen.
     """
-    fields: dict[str, np.ndarray] = {}
-    ts_iso: str | None = None
-    for product in ("precip", "hail"):
-        a = _newest_asset(product, since)
-        if not a:
-            continue
+    def load(asset: AssetRef, product: str) -> tuple[np.ndarray, datetime] | None:
         try:
-            r = http_get(a.href, timeout=60)
+            r = http_get(asset.href, timeout=60)
             r.raise_for_status()
             values, meta = read_h5_grid(r.content)
             img_ts = meta.get("image_time")
             if isinstance(img_ts, datetime):
-                a.ts = img_ts
+                asset.ts = img_ts
             converted, _ = _to_mmh(values, meta, product)
-            fields[product] = sample_to_bbox(converted, meta)
-            if product == "precip":
-                ts_iso = a.ts.strftime("%Y-%m-%dT%H:%M:00Z")
+            return sample_to_bbox(converted, meta), asset.ts
         except Exception as exc:
             print(f"region-max: {product} failed ({exc!r})", flush=True)
+            return None
 
-    if "precip" not in fields:
+    # Zwei neueste Niederschlagsfelder: aktuelles Feld plus Vorgänger für die
+    # Verlagerungsschätzung.
+    precip_assets = _newest_assets("precip", since, 2)
+    loaded: list[tuple[np.ndarray, datetime]] = []
+    for a in precip_assets:
+        got = load(a, "precip")
+        if got:
+            loaded.append(got)
+
+    if not loaded:
         print("region-max: no precip field — skipping", flush=True)
         return
 
-    precip = np.nan_to_num(fields["precip"], nan=0.0)
-    hail = np.nan_to_num(fields.get("hail", np.zeros_like(precip)), nan=0.0)
+    precip = np.nan_to_num(loaded[-1][0], nan=0.0)
+    ts_iso = loaded[-1][1].strftime("%Y-%m-%dT%H:%M:00Z")
+
+    hail = np.zeros_like(precip)
+    hail_asset = _newest_asset("hail", since)
+    if hail_asset:
+        got = load(hail_asset, "hail")
+        if got:
+            hail = np.nan_to_num(got[0], nan=0.0)
 
     regions: list[dict] = []
     for rid, name, mask in region_masks():
@@ -859,40 +869,30 @@ def write_region_max(s3, since: datetime) -> None:
             }
         )
 
-    # Schwerpunkt des Messfeldes (nur konvektive Zellen ≥ 8 mm/h) in Grad.
-    centroid: dict | None = None
-    w = np.where(precip >= 8.0, precip, 0.0)
-    total = float(w.sum())
-    if total > 0:
-        ys, xs = np.nonzero(w)
-        ww = w[ys, xs]
-        px = float((xs * ww).sum() / total)
-        py = float((ys * ww).sum() / total)
-        lon = BBOX_WGS["minLon"] + px / (OUT_W - 1) * (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"])
-        lat = BBOX_WGS["maxLat"] - py / (OUT_H - 1) * (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"])
-        centroid = {"lat": round(lat, 4), "lon": round(lon, 4)}
+    # Verlagerung per Musterabgleich der beiden letzten Radarbilder.
+    motion: dict | None = None
+    if len(loaded) >= 2:
+        dt_min = (loaded[-1][1] - loaded[-2][1]).total_seconds() / 60.0
+        motion = estimate_motion(np.nan_to_num(loaded[-2][0], nan=0.0), precip, dt_min)
+        if motion:
+            print(
+                f"region-max: motion {motion['kmh']} km/h aus {motion['dirFromDeg']}° "
+                f"(dt={motion['dtMin']} min, q={motion['quality']})",
+                flush=True,
+            )
+        else:
+            print("region-max: no reliable motion estimate", flush=True)
 
-    ts = ts_iso or datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:00Z")
-
-    # Vorgängerframe für die Verlagerungsschätzung mitführen.
-    prev: dict | None = None
-    try:
-        old = json.loads(
-            s3.get_object(Bucket=BUCKET, Key="radar/region-max.json")["Body"].read().decode("utf-8")
-        )
-        if old.get("centroid") and old.get("t") and old.get("t") != ts:
-            prev = {"t": old["t"], "centroid": old["centroid"]}
-    except Exception:
-        prev = None
+    ts = ts_iso
 
     body = {
         "t": ts,
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": RADAR_INGEST_VERSION,
         "regions": regions,
-        "centroid": centroid,
-        "prev": prev,
+        "motion": motion,
     }
+
     s3.put_object(
         Bucket=BUCKET,
         Key="radar/region-max.json",
