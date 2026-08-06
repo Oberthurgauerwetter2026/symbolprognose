@@ -4,8 +4,9 @@
  * Grundlage ist ausschliesslich das gemessene MCH-Radarfeld: der Radar-Ingest
  * schreibt alle 5 Minuten je Gemeinde die gemessene Spitzenintensität nach R2
  * (`radar/region-max.json`). Modellprognosen lösen keine Warnungen aus.
- * Die Verlagerung (Richtung/Geschwindigkeit) wird aus dem Schwerpunkt der
- * gemessenen Zellen zweier aufeinanderfolgender Radarbilder geschätzt.
+ * Die Verlagerung (Richtung/Geschwindigkeit) schätzt der Ingest per
+ * Musterabgleich der beiden letzten Radarbilder im Oberthurgau-Fenster.
+
  *
  * Server-only.
  */
