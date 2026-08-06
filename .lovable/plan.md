@@ -1,32 +1,29 @@
-# Druckkarte (Luftdruck MSL) mit Isobaren
+# Radar-Ingest: selbstständige Abbrüche verhindern
 
-Neue Kartenseite `/karten/druck` im gleichen Stil wie Radar und Wind: Isobaren-Linien auf Meeresniveau, Hoch-/Tiefdruck-Zentren mit H/T-Markierung und Filmstrip-Zeitachse über die nächsten 48 Stunden.
+## Bestätigte Ursache
 
-Hinweis zur gewählten Vorgabe: da keine Rückmeldung zum Umfang kam, wird die Variante mit eigener Kartenseite umgesetzt, Ausschnitt wie bei Radar/Wind (Ostschweiz/Bodenseeraum). Auf diesem kleinen Gebiet verlaufen Isobaren fast gerade — die Karte zeigt deshalb zusätzlich den Druckwert farbig als Fläche und die Drucktendenz (Änderung der letzten 3 h), damit die Darstellung aussagekräftig bleibt. Eine Ausweitung auf Mitteleuropa ist später möglich, braucht aber ein zusätzliches, gröberes Datenraster.
+Der Workflow verwendet bereits `cancel-in-progress: false`. GitHub Actions lässt in einer Concurrency-Gruppe jedoch nur einen laufenden und einen wartenden Run zu. Kommt währenddessen ein weiterer Dispatch, wird der ältere **wartende** Run mit „Canceling since a higher priority waiting request … exists“ ersetzt.
 
-## Was gebaut wird
+Der aktuelle 4-Minuten-Throttle in `radar-dispatch.server.ts` ist nur eine Variable im Speicher einer Server-Instanz. Bei mehreren Instanzen, Neustarts oder zusätzlichen manuellen Triggern ist er nicht global wirksam. Deshalb gelangen weiterhin mehrere Radar-Runs in die GitHub-Warteschlange.
 
-1. **Datenbasis**: Der bestehende stündliche Gitter-Ingest (ICON-CH1/CH2 über dem Karten-Ausschnitt) liefert künftig zusätzlich den Luftdruck auf Meeresniveau. Kein neuer Workflow, kein neuer Cron — dieselbe Datei, ein Feld mehr.
-2. **Kartenseite** `/karten/druck`:
-   - Farbfläche für den Druck (Skala ca. 985–1035 hPa, blau = tief, rot = hoch)
-   - Isobaren als Linien im 1-hPa-Schritt mit Beschriftung
-   - H/T-Symbole an lokalen Maxima/Minima
-   - Filmstrip-Zeitachse mit Play, kinetischem Scrollen und Haptik wie bei Radar/Wind
-   - Referenzstädte-Marker, Zoom-Synchronisation der Canvas-Ebene, „i"-Legende
-   - Quellenangabe unterhalb der Karte: „Quelle: Oberthurgauer Wetter · MeteoSchweiz ICON-CH1/CH2 (OGD)"
-3. **Einbindung**: neuer Eintrag in der Kartenliste (Tabs, Übersicht) mit Symbol und Beschreibung, Lazy-Loading und Preload wie die anderen Karten.
+## Änderung
 
-## Technische Umsetzung
+1. Vor jedem Radar-Dispatch über die GitHub-API prüfen, ob für `radar-ingest.yml` bereits ein Run mit Status `queued` oder `in_progress` existiert.
+2. Wenn ja, **keinen neuen Run anlegen** und den Trigger als „busy/already running“ beantworten. Der nächste 5-Minuten-Cron versucht es erneut.
+3. Erst wenn kein aktiver oder wartender Run vorhanden ist, `workflow_dispatch` auslösen.
+4. Den bisherigen flüchtigen 4-Minuten-Throttle als zusätzlichen Schutz behalten, aber nicht mehr als Hauptsperre behandeln.
+5. Antworten und Worker-Logs klar unterscheiden: `dispatched`, `already-running`, `throttled` und echter GitHub-Fehler.
+6. Den Workflow selbst bei `cancel-in-progress: false` belassen; dadurch wird ein bereits laufender Ingest niemals zugunsten eines neuen Triggers beendet.
 
-- `scripts/ingest_openmeteo.py`: `pressure_msl` in die stündlichen Grid-Phasen (phase1 ICON-CH1, phase2 ICON-CH2) aufnehmen.
-- `src/lib/pressure.functions.ts`: neue Serverfunktion `getPressureFrames()` analog `wind.functions.ts` — liest den R2-Open-Meteo-Cache, baut `PressurePayload { bbox, gridLat, gridLon, frames: { t, pmsl[] }[] }`, +0…+48 h stündlich, mit leerem Payload + `warning` statt Fehler bei fehlendem Cache.
-- `src/lib/map-queries.ts`: `pressureFramesQuery()` ergänzen, Key `pressure-frames` zu `PERSISTED_QUERY_PREFIXES` hinzufügen.
-- `src/components/maps/pressure-map.tsx`: Leaflet-Karte + Canvas-Overlay. Bilineares Upsampling des Grids, Farbfläche, Isobaren über Marching-Squares auf dem interpolierten Feld, Labels entlang der Linien, H/T-Erkennung über lokale Extrema mit Mindestabstand. Wiederverwendung von `canvas-zoom-anim.ts`, `filmstrip-timeline.tsx`, `city-markers.tsx`; Crossfade zwischen Stundenframes wie beim Radar.
-- `src/components/maps/lazy-maps.ts`: `LazyPressureMap` + `preloadPressureMap`, Eintrag in `MAP_CHUNK_PRELOADERS`.
-- `src/lib/maps-config.ts`: `MapId` um `"druck"` erweitern, `routePath: "/karten/druck"`, Icon `Gauge`, Reihenfolge nach „Niederschlag".
-- `src/routes/karten.druck.tsx`: Route mit eigenem `head()` (Titel, Description, og-Tags), Loader mit `ensureQueryData` und `useSuspenseQuery` in der Komponente, gleiche Struktur wie `karten.wind.tsx`.
+## Technische Dateien
 
-## Nicht enthalten
+- `src/lib/gh-dispatch.server.ts`: read-only Abfrage der Workflow-Runs mit Retry/Fehlerbehandlung ergänzen.
+- `src/lib/radar-dispatch.server.ts`: globale Busy-Prüfung unmittelbar vor dem Dispatch einbauen und Result-Typ erweitern.
+- `src/routes/api/public/radar/ingest-trigger.ts`: Busy-Ergebnis als erfolgreiche Nicht-Ausführung zurückgeben, nicht als Serverfehler.
+- `cron-worker/src/index.ts`: Busy-Antwort im Status/Log korrekt als „bereits aktiv“ ausgeben.
 
-- Kein Embed-Snippet für die Druckkarte (kann später ergänzt werden).
-- Keine Druckwerte in Lokalprognose oder Push-Warnungen.
+## Prüfung
+
+- Trigger bei bereits laufendem Radar-Ingest aufrufen: kein zusätzlicher GitHub-Run wird erzeugt.
+- Nach Abschluss erneut triggern: genau ein neuer Run wird erzeugt.
+- Kontrollieren, dass keine neuen Runs mehr mit der genannten Concurrency-Meldung abbrechen.
