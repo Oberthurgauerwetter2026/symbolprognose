@@ -58,6 +58,8 @@ async function triggerEndpoint(
 
     if (res.status === 202) {
       console.log(`[cron:${label}] ${startedAt} → 202 dispatched: ${record.body}`);
+    } else if (res.status === 200 && record.body.includes('"alreadyRunning":true')) {
+      console.log(`[cron:${label}] ${startedAt} → 200 already running: ${record.body}`);
     } else if (res.status === 429) {
       console.log(`[cron:${label}] ${startedAt} → 429 throttled: ${record.body}`);
     } else {

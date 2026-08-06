@@ -8,7 +8,11 @@
  * automatisch wiederholt; der Throttle wird nur bei Erfolg gesetzt.
  */
 
-import { githubDispatchEnv, postWorkflowDispatch } from "./gh-dispatch.server";
+import {
+  getWorkflowActivity,
+  githubDispatchEnv,
+  postWorkflowDispatch,
+} from "./gh-dispatch.server";
 
 let lastDispatchAt = 0;
 // 4 min: verhindert, dass GitHub Actions einen zweiten Run in die
@@ -20,6 +24,13 @@ const MIN_INTERVAL_MS = 4 * 60_000;
 
 export type DispatchResult =
   | { ok: true; dispatchedAt: string; ref: string }
+  | {
+      ok: false;
+      alreadyRunning: true;
+      runId: number;
+      runStatus: "queued" | "in_progress";
+      runUrl: string;
+    }
   | { ok: false; throttled: true; retryInMs: number }
   | { ok: false; status: number; error: string }
   | { ok: false; error: string };
@@ -33,6 +44,25 @@ export async function dispatchRadarIngest(): Promise<DispatchResult> {
   const now = Date.now();
   if (now - lastDispatchAt < MIN_INTERVAL_MS) {
     return { ok: false, throttled: true, retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt) };
+  }
+
+  const activity = await getWorkflowActivity({
+    repo: env.repo,
+    token: env.token,
+    workflowFile: "radar-ingest.yml",
+    userAgent: "lovable-radar-trigger",
+  });
+  if (!activity.ok) {
+    return { ok: false, status: activity.status, error: activity.error };
+  }
+  if (activity.active && activity.run) {
+    return {
+      ok: false,
+      alreadyRunning: true,
+      runId: activity.run.id,
+      runStatus: activity.run.status,
+      runUrl: activity.run.htmlUrl,
+    };
   }
 
   const res = await postWorkflowDispatch({
