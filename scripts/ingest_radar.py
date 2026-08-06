@@ -695,13 +695,118 @@ def region_masks() -> list[tuple[str, str, np.ndarray]]:
     return out
 
 
-def _newest_asset(product: str, since: datetime) -> AssetRef | None:
+def _newest_assets(product: str, since: datetime, count: int = 1) -> list[AssetRef]:
     try:
         assets = list_recent_assets(product, since)
     except Exception as exc:
         print(f"region-max: STAC error for {product}: {exc!r}", flush=True)
+        return []
+    return assets[-count:] if assets else []
+
+
+def _newest_asset(product: str, since: datetime) -> AssetRef | None:
+    got = _newest_assets(product, since, 1)
+    return got[0] if got else None
+
+
+# Fenster rund um den Oberthurgau (ca. 60 km) für die Verlagerungsschätzung.
+MOTION_WINDOW = {"minLon": 8.55, "maxLon": 10.05, "minLat": 47.15, "maxLat": 47.95}
+# Maximale Verschiebung in Pixeln (entspricht ca. 120 km/h bei 5-Min-Takt).
+MOTION_MAX_SHIFT_PX = 16
+
+
+def _win_slice() -> tuple[slice, slice]:
+    def px(lon: float) -> int:
+        return int(round((lon - BBOX_WGS["minLon"]) / (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) * (OUT_W - 1)))
+
+    def py(lat: float) -> int:
+        return int(round((BBOX_WGS["maxLat"] - lat) / (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) * (OUT_H - 1)))
+
+    x0, x1 = max(0, px(MOTION_WINDOW["minLon"])), min(OUT_W, px(MOTION_WINDOW["maxLon"]) + 1)
+    y0, y1 = max(0, py(MOTION_WINDOW["maxLat"])), min(OUT_H, py(MOTION_WINDOW["minLat"]) + 1)
+    return slice(y0, y1), slice(x0, x1)
+
+
+def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | None:
+    """Verlagerung zweier aufeinanderfolgender Niederschlagsfelder.
+
+    Musterabgleich (Kreuzkorrelation) in einem Fenster rund um den Oberthurgau:
+    gesucht wird die Verschiebung, bei der das Vorgängerfeld am besten auf das
+    aktuelle Feld passt. Gibt `None` zurück, wenn die Schätzung nicht belastbar
+    ist (zu wenig Fläche, unplausibler Zeitabstand oder kein klares Maximum).
+    """
+    if not (4.0 <= dt_min <= 12.0):
         return None
-    return assets[-1] if assets else None
+    sy, sx = _win_slice()
+    a = np.nan_to_num(prev, nan=0.0)[sy, sx]
+    b = np.nan_to_num(cur, nan=0.0)[sy, sx]
+    if a.shape != b.shape or a.size == 0:
+        return None
+    # Nur relevante Niederschlagsflächen, Werte gedämpft (robuster gegen Spitzen).
+    a = np.where(a >= 1.0, np.sqrt(a), 0.0).astype(np.float32)
+    b = np.where(b >= 1.0, np.sqrt(b), 0.0).astype(np.float32)
+    min_px = max(30, int(0.002 * a.size))
+    if int((a > 0).sum()) < min_px or int((b > 0).sum()) < min_px:
+        return None
+
+    m = MOTION_MAX_SHIFT_PX
+    h, w = a.shape
+    if h <= 2 * m + 4 or w <= 2 * m + 4:
+        return None
+    core_b = b[m : h - m, m : w - m]
+    nb = float(np.linalg.norm(core_b))
+    if nb <= 0:
+        return None
+
+    scores = np.full((2 * m + 1, 2 * m + 1), -1.0, dtype=np.float32)
+    for dy in range(-m, m + 1):
+        for dx in range(-m, m + 1):
+            # Vorgängerfeld um (dx, dy) verschoben mit dem aktuellen Kern vergleichen.
+            sub = a[m + dy : h - m + dy, m + dx : w - m + dx]
+            na = float(np.linalg.norm(sub))
+            if na <= 0:
+                continue
+            scores[dy + m, dx + m] = float((sub * core_b).sum()) / (na * nb)
+
+    best = float(scores.max())
+    if best <= 0.35:
+        return None
+    iy, ix = np.unravel_index(int(scores.argmax()), scores.shape)
+    # Eindeutigkeit: bestes Ergebnis muss klar über dem Mittel liegen.
+    mean = float(scores[scores >= 0].mean())
+    if best - mean < 0.03:
+        return None
+
+    def refine(idx: int, axis_vals: np.ndarray) -> float:
+        if idx <= 0 or idx >= len(axis_vals) - 1:
+            return float(idx)
+        c0, c1, c2 = float(axis_vals[idx - 1]), float(axis_vals[idx]), float(axis_vals[idx + 1])
+        den = c0 - 2 * c1 + c2
+        if den == 0:
+            return float(idx)
+        return float(idx) - 0.5 * (c2 - c0) / den
+
+    fy = refine(int(iy), scores[:, ix])
+    fx = refine(int(ix), scores[iy, :])
+    shift_x = fx - m  # Pixel nach Osten
+    shift_y = fy - m  # Pixel nach Süden
+
+    deg_lon = shift_x * (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / (OUT_W - 1)
+    deg_lat = -shift_y * (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / (OUT_H - 1)
+    mid_lat = (MOTION_WINDOW["minLat"] + MOTION_WINDOW["maxLat"]) / 2
+    dx_km = deg_lon * 111.32 * math.cos(math.radians(mid_lat))
+    dy_km = deg_lat * 111.32
+    kmh = math.hypot(dx_km, dy_km) / (dt_min / 60.0)
+    if not (5.0 <= kmh <= 120.0):
+        return None
+    bearing_from = (math.degrees(math.atan2(-dx_km, -dy_km)) + 360.0) % 360.0
+    return {
+        "dirFromDeg": round(bearing_from, 1),
+        "kmh": round(kmh, 1),
+        "dtMin": round(dt_min, 1),
+        "quality": round(best, 3),
+    }
+
 
 
 def write_region_max(s3, since: datetime) -> None:
