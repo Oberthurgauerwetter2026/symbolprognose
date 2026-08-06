@@ -50,9 +50,22 @@ const ACTIVE_STATUSES = new Set([
   "in_progress",
 ]);
 
+export interface DispatchOk {
+  ok: true;
+  dispatchedAt: string;
+  ref: string;
+  /** Gesetzt, wenn dieser Dispatch einen fehlgeschlagenen Lauf nachholt. */
+  retryOf?: {
+    id: number;
+    conclusion: string | null;
+    reason: "runner-unavailable" | "run-failed";
+  };
+}
+
 export type DispatchResult =
-  | { ok: true; dispatchedAt: string; ref: string }
+  | DispatchOk
   | { ok: false; throttled: true; retryInMs: number; reason: "interval" }
+
   | {
       ok: false;
       throttled: true;
