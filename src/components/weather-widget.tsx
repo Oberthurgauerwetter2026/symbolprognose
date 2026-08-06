@@ -1478,12 +1478,12 @@ function Footer({
   return (
     <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
       <div className="text-xs text-zinc-700 font-medium leading-relaxed">
-        MeteoSchweiz local_forecast (OGD, ICON-CH1/CH2-EPS) · DWD-MOSMIX (Tag 6–10) ·
-        Open-Meteo ICON-seamless (Karten & Niederschlag) · MeteoSchweiz CPC (Radar) ·
-        EUMETSAT MTG (Satellit) · aktualisiert{" "}
+        Quelle: Oberthurgauer Wetter · MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX ·
+        aktualisiert{" "}
         {String(updated.getHours()).padStart(2, "0")}:
         {String(updated.getMinutes()).padStart(2, "0")}
       </div>
+
       <div className="text-xs text-zinc-700 font-medium">
         Grafik ©{" "}
         <a
