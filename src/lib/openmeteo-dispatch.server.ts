@@ -18,8 +18,27 @@
 // abzubrechen.
 import { postWorkflowDispatch } from "./gh-dispatch.server";
 
+/** Sperre nach erfolgreichem/laufendem Lauf (regulärer 30-Min-Takt). */
 const RECENT_RUN_GUARD_MS = 28 * 60_000;
-const MIN_INTERVAL_MS = RECENT_RUN_GUARD_MS;
+/** Reiner Burst-Schutz gegen Doppelklicks/Race innerhalb derselben Instanz. */
+const MIN_INTERVAL_MS = 3 * 60_000;
+/**
+ * Läuft ein Job kürzer als das, hat GitHub keinen Runner zugewiesen
+ * ("job was not acquired by Runner of type hosted") — kein Datenfehler.
+ */
+const INFRA_FAIL_MAX_DURATION_MS = 60_000;
+const INFRA_FAIL_CONCLUSIONS = new Set(["failure", "startup_failure", "cancelled"]);
+
+function isInfraFailure(run: GhRun): boolean {
+  if (run.status !== "completed") return false;
+  if (!run.conclusion || !INFRA_FAIL_CONCLUSIONS.has(run.conclusion)) return false;
+  if (run.conclusion === "startup_failure") return true;
+  const started = Date.parse(run.run_started_at ?? run.created_at);
+  const ended = Date.parse(run.updated_at ?? run.created_at);
+  if (!Number.isFinite(started) || !Number.isFinite(ended)) return false;
+  return ended - started < INFRA_FAIL_MAX_DURATION_MS;
+}
+
 
 let lastDispatchAt = 0;
 
