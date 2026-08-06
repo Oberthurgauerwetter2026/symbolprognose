@@ -6,6 +6,8 @@
  * (~2 h nach Modellläufen 00/06/12/18 UTC), grosser Schutz ist also OK.
  */
 
+import { githubDispatchEnv, postWorkflowDispatch } from "./gh-dispatch.server";
+
 let lastDispatchAt = 0;
 const MIN_INTERVAL_MS = 30 * 60_000;
 
@@ -16,11 +18,8 @@ export type DispatchResult =
   | { ok: false; error: string };
 
 export async function dispatchSymbolIngest(): Promise<DispatchResult> {
-  const token = process.env.GITHUB_DISPATCH_TOKEN;
-  const repo = process.env.GITHUB_REPO;
-  const ref = process.env.GITHUB_REF ?? "main";
-
-  if (!token || !repo) {
+  const env = githubDispatchEnv();
+  if (!env) {
     return { ok: false, error: "Server misconfigured: missing GITHUB_DISPATCH_TOKEN or GITHUB_REPO" };
   }
 
@@ -29,24 +28,16 @@ export async function dispatchSymbolIngest(): Promise<DispatchResult> {
     return { ok: false, throttled: true, retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt) };
   }
 
-  const url = `https://api.github.com/repos/${repo}/actions/workflows/openmeteo-symbol.yml/dispatches`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "lovable-symbol-trigger",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ ref }),
+  const res = await postWorkflowDispatch({
+    ...env,
+    workflowFile: "openmeteo-symbol.yml",
+    userAgent: "lovable-symbol-trigger",
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    return { ok: false, status: res.status, error: text.slice(0, 500) };
+    return { ok: false, status: res.status, error: res.error };
   }
 
   lastDispatchAt = now;
-  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref };
+  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref: env.ref };
 }
