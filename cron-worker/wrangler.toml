@@ -10,7 +10,7 @@ crons = ["*/5 * * * *", "0 2,8,14,20 * * *"]
 [vars]
 # Stabile Produktions-URL (ändert sich nicht bei Umbenennung des Projekts).
 TARGET_URL = "https://project--190ceb62-232f-4af4-9fcc-a0a628f223d4.lovable.app/api/public/radar/ingest-trigger"
-EPS_TARGET_URL = "https://project--190ceb62-232f-4af4-9fcc-a0a628f223d4.lovable.app/api/public/eps/ingest-trigger"
+LIGHTNING_TARGET_URL = "https://project--190ceb62-232f-4af4-9fcc-a0a628f223d4.lovable.app/api/public/lightning/ingest-trigger"
 SYMBOL_TARGET_URL = "https://project--190ceb62-232f-4af4-9fcc-a0a628f223d4.lovable.app/api/public/symbol/ingest-trigger"
 OPENMETEO_TARGET_URL = "https://project--190ceb62-232f-4af4-9fcc-a0a628f223d4.lovable.app/api/public/openmeteo/ingest-trigger"
 AROME_TARGET_URL = "https://project--190ceb62-232f-4af4-9fcc-a0a628f223d4.lovable.app/api/public/arome/ingest-trigger"

@@ -159,3 +159,112 @@ export const runAutoThunderNow = createServerFn({ method: "POST" })
       return { ok: false as const, error: err instanceof Error ? err.message : "unbekannt" };
     }
   });
+
+export interface PipelineHealth {
+  id: string;
+  label: string;
+  /** Erwartetes Aktualisierungsintervall in Minuten (für die Ampel). */
+  expectedEveryMin: number;
+  dataGeneratedAt: string | null;
+  dataAgeMinutes: number | null;
+  runStatus: string | null;
+  runConclusion: string | null;
+  runCreatedAt: string | null;
+  runUrl: string | null;
+  error?: string;
+}
+
+/**
+ * Diagnose aller Ingest-Pipelines: Alter der R2-Datei + letzter GitHub-Run.
+ * Damit ist auf einen Blick unterscheidbar, ob der Trigger oder das
+ * Ingest-Skript scheitert.
+ */
+export const getPipelineHealth = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string }) => d)
+  .handler(async ({ data }): Promise<PipelineHealth[]> => {
+    const { assertAdmin } = await import("@/lib/warnings.server");
+    assertAdmin(data.password);
+    const { r2ObjectUrlCandidates } = await import("@/lib/r2-url.server");
+
+    const defs = [
+      { id: "radar", label: "Radar (CPC/POH)", file: "radar-ingest.yml", object: "radar/frames.json", expectedEveryMin: 5 },
+      { id: "openmeteo", label: "ICON-CH1 Prognose", file: "openmeteo-ingest.yml", object: "openmeteo/forecast.json", expectedEveryMin: 30 },
+      { id: "symbol", label: "Symbolprognose", file: "openmeteo-symbol.yml", object: "openmeteo/symbol.json", expectedEveryMin: 360 },
+      { id: "mch", label: "MCH Local-Forecast", file: "mch-local-forecast.yml", object: "mch/local_forecast.json", expectedEveryMin: 60 },
+      { id: "arome", label: "AROME-HD", file: "arome-ingest.yml", object: "arome/frames.json", expectedEveryMin: 60 },
+      { id: "lightning", label: "Blitzortung", file: "blitzortung-ingest.yml", object: "lightning/latest.json", expectedEveryMin: 5 },
+    ] as const;
+
+    const token = process.env.GITHUB_DISPATCH_TOKEN;
+    const repo = process.env.GITHUB_REPO;
+
+    async function latestRun(file: string) {
+      if (!token || !repo) return null;
+      try {
+        const res = await fetch(
+          `https://api.github.com/repos/${repo}/actions/workflows/${file}/runs?per_page=1`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "lovable-ingest-health",
+            },
+          },
+        );
+        if (!res.ok) return null;
+        const json = (await res.json()) as {
+          workflow_runs?: Array<{
+            status: string;
+            conclusion: string | null;
+            created_at: string;
+            html_url: string;
+          }>;
+        };
+        return json.workflow_runs?.[0] ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function objectAge(object: string) {
+      const urls = [
+        ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, object),
+        ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, object),
+      ].filter((u, i, a) => a.indexOf(u) === i);
+      for (const url of urls) {
+        try {
+          const res = await fetch(url, { headers: { "cache-control": "no-cache" } });
+          if (!res.ok) continue;
+          const json = (await res.json()) as { generatedAt?: string };
+          if (!json.generatedAt) continue;
+          const ms = Date.parse(json.generatedAt);
+          return {
+            generatedAt: json.generatedAt,
+            ageMinutes: Number.isFinite(ms) ? Math.round((Date.now() - ms) / 60000) : null,
+          };
+        } catch {
+          // nächste URL
+        }
+      }
+      return null;
+    }
+
+    return await Promise.all(
+      defs.map(async (d): Promise<PipelineHealth> => {
+        const [run, age] = await Promise.all([latestRun(d.file), objectAge(d.object)]);
+        return {
+          id: d.id,
+          label: d.label,
+          expectedEveryMin: d.expectedEveryMin,
+          dataGeneratedAt: age?.generatedAt ?? null,
+          dataAgeMinutes: age?.ageMinutes ?? null,
+          runStatus: run?.status ?? null,
+          runConclusion: run?.conclusion ?? null,
+          runCreatedAt: run?.created_at ?? null,
+          runUrl: run?.html_url ?? null,
+          ...(age ? {} : { error: "keine Datei in R2 erreichbar" }),
+        };
+      }),
+    );
+  });

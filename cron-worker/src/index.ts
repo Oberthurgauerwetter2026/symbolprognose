@@ -1,7 +1,7 @@
 /**
  * Cloudflare Worker — zuverlässige Trigger für Ingest-Workflows.
  *
- *   - "*\/5 * * * *"       → radar + eps + openmeteo
+ *   - "*\/5 * * * *"       → radar + lightning + openmeteo
  *   - "0 2,8,14,20 * * *"  → symbol (phaseA, ~2 h nach Modellläufen 00/06/12/18 UTC)
  *
  * Alle Server-Endpoints haben eigene Throttles, gleichzeitiges Pingen ist
@@ -11,7 +11,7 @@
 
 export interface Env {
   TARGET_URL: string;
-  EPS_TARGET_URL?: string;
+  LIGHTNING_TARGET_URL?: string;
   SYMBOL_TARGET_URL?: string;
   OPENMETEO_TARGET_URL?: string;
   AROME_TARGET_URL?: string;
@@ -27,7 +27,7 @@ interface RunRecord {
 }
 
 const lastRadar: RunRecord = { at: null, status: null, body: null };
-const lastEps: RunRecord = { at: null, status: null, body: null };
+const lastLightning: RunRecord = { at: null, status: null, body: null };
 const lastSymbol: RunRecord = { at: null, status: null, body: null };
 const lastOpenmeteo: RunRecord = { at: null, status: null, body: null };
 const lastArome: RunRecord = { at: null, status: null, body: null };
@@ -81,9 +81,14 @@ async function triggerFiveMin(
   tasks.push(
     triggerEndpoint(env.TARGET_URL, env.RADAR_TRIGGER_SECRET, "radar", lastRadar),
   );
-  if (env.EPS_TARGET_URL) {
+  if (env.LIGHTNING_TARGET_URL) {
     tasks.push(
-      triggerEndpoint(env.EPS_TARGET_URL, env.RADAR_TRIGGER_SECRET, "eps", lastEps),
+      triggerEndpoint(
+        env.LIGHTNING_TARGET_URL,
+        env.RADAR_TRIGGER_SECRET,
+        "lightning",
+        lastLightning,
+      ),
     );
   }
   if (opts.includeOpenmeteo && env.OPENMETEO_TARGET_URL) {
@@ -149,7 +154,7 @@ export default {
       ctx.waitUntil(triggerSymbol(env));
     } else {
       // Open-Meteo nur alle 30 min, AROME-HD und MCH-Local-Forecast stündlich,
-      // Radar/EPS alle 5 min.
+      // Radar/Blitze alle 5 min.
       const minute = new Date(event.scheduledTime).getUTCMinutes();
       const includeOpenmeteo = minute % 30 === 0;
       const includeArome = minute === 0;
@@ -177,7 +182,7 @@ export default {
         crons: ["*/5 * * * *", "0 2,8,14,20 * * *"],
         targets: {
           radar: env.TARGET_URL,
-          eps: env.EPS_TARGET_URL ?? null,
+          lightning: env.LIGHTNING_TARGET_URL ?? null,
           symbol: env.SYMBOL_TARGET_URL ?? null,
           openmeteo: env.OPENMETEO_TARGET_URL ?? null,
           arome: env.AROME_TARGET_URL ?? null,
@@ -185,7 +190,7 @@ export default {
           warn: env.WARN_TARGET_URL ?? null,
         },
         lastRadar,
-        lastEps,
+        lastLightning,
         lastSymbol,
         lastOpenmeteo,
         lastArome,
@@ -199,7 +204,7 @@ export default {
       return Response.json({
         ok: true,
         lastRadar,
-        lastEps,
+        lastLightning,
         lastSymbol,
         lastOpenmeteo,
         lastArome,
@@ -216,12 +221,20 @@ export default {
       return Response.json({ ok: true, lastWarn });
     }
 
-    if (url.pathname === "/run/eps" && request.method === "POST") {
-      if (!env.EPS_TARGET_URL) {
-        return Response.json({ ok: false, error: "EPS_TARGET_URL not configured" }, { status: 500 });
+    if (url.pathname === "/run/lightning" && request.method === "POST") {
+      if (!env.LIGHTNING_TARGET_URL) {
+        return Response.json(
+          { ok: false, error: "LIGHTNING_TARGET_URL not configured" },
+          { status: 500 },
+        );
       }
-      await triggerEndpoint(env.EPS_TARGET_URL, env.RADAR_TRIGGER_SECRET, "eps", lastEps);
-      return Response.json({ ok: true, lastEps });
+      await triggerEndpoint(
+        env.LIGHTNING_TARGET_URL,
+        env.RADAR_TRIGGER_SECRET,
+        "lightning",
+        lastLightning,
+      );
+      return Response.json({ ok: true, lastLightning });
     }
 
     if (url.pathname === "/run/radar" && request.method === "POST") {

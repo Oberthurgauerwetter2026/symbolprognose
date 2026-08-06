@@ -1,14 +1,15 @@
 /**
- * GitHub workflow_dispatch helper for the mch-local-forecast workflow.
- * Aufgerufen vom Cloudflare Worker Cron Trigger (stündlich).
- *
- * Throttle: 5 min. MCH OGD wird stündlich erneuert, daher gedeckelt.
+ * GitHub workflow_dispatch helper für den Blitzortung-Ingest.
+ * Aufgerufen vom Cloudflare Worker Cron Trigger (alle 5 min) —
+ * GitHub `schedule:` war zu unzuverlässig.
  */
 
 import { githubDispatchEnv, postWorkflowDispatch } from "./gh-dispatch.server";
 
 let lastDispatchAt = 0;
-const MIN_INTERVAL_MS = 5 * 60_000;
+// Der Ingest lauscht 120 s am Blitzortung-Stream; 4 min Throttle passt zum
+// 5-Min-Cron und verhindert überlappende Runs.
+const MIN_INTERVAL_MS = 4 * 60_000;
 
 export type DispatchResult =
   | { ok: true; dispatchedAt: string; ref: string }
@@ -16,7 +17,7 @@ export type DispatchResult =
   | { ok: false; status: number; error: string }
   | { ok: false; error: string };
 
-export async function dispatchMchLocalForecastIngest(): Promise<DispatchResult> {
+export async function dispatchLightningIngest(): Promise<DispatchResult> {
   const env = githubDispatchEnv();
   if (!env) {
     return {
@@ -32,8 +33,8 @@ export async function dispatchMchLocalForecastIngest(): Promise<DispatchResult> 
 
   const res = await postWorkflowDispatch({
     ...env,
-    workflowFile: "mch-local-forecast.yml",
-    userAgent: "lovable-mch-local-forecast-trigger",
+    workflowFile: "blitzortung-ingest.yml",
+    userAgent: "lovable-lightning-trigger",
   });
 
   if (!res.ok) {
