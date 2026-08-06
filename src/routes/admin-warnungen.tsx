@@ -35,7 +35,9 @@ import {
 import {
   getAutoThunderStatus,
   runAutoThunderNow,
+  getPipelineHealth,
   type AutoThunderStatus,
+  type PipelineHealth,
 } from "@/lib/ingest-admin.functions";
 import { WarnMap } from "@/components/maps/warn-map";
 
@@ -434,6 +436,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
         <MapPreviewSection refreshKey={previewKey} />
 
         <AutoThunderSection password={password} />
+        <PipelineHealthSection password={password} />
 
 
 
@@ -1098,6 +1101,89 @@ function AutoThunderSection({ password }: { password: string }) {
         {busy ? "Prüft …" : "Jetzt prüfen"}
       </button>
       {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
+    </section>
+  );
+}
+
+/** Diagnose: Alter der Datenquellen + letzter GitHub-Run je Pipeline. */
+function PipelineHealthSection({ password }: { password: string }) {
+  const [rows, setRows] = useState<PipelineHealth[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = async () => {
+    setBusy(true);
+    setMsg("");
+    try {
+      setRows(await getPipelineHealth({ data: { password } }));
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Pipeline-Diagnose
+        </h2>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void load()}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+        >
+          {busy ? "Lädt …" : "Aktualisieren"}
+        </button>
+      </div>
+      {msg && <p className="text-xs text-destructive">{msg}</p>}
+      <div className="space-y-2">
+        {(rows ?? []).map((r) => {
+          const age = r.dataAgeMinutes;
+          const limit = r.expectedEveryMin;
+          const dot =
+            age == null
+              ? "bg-red-500"
+              : age <= limit * 2
+                ? "bg-emerald-500"
+                : age <= limit * 6
+                  ? "bg-amber-500"
+                  : "bg-red-500";
+          const runInfo = r.runCreatedAt
+            ? `${r.runConclusion ?? r.runStatus ?? "?"} · ${new Date(r.runCreatedAt).toLocaleString("de-CH")}`
+            : "kein Run gefunden";
+          return (
+            <div key={r.id} className="flex flex-wrap items-center gap-2 text-xs">
+              <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${dot}`} />
+              <span className="min-w-40 font-medium">{r.label}</span>
+              <span className="text-muted-foreground">
+                Daten {age == null ? (r.error ?? "unbekannt") : `${age} min alt`} (Soll ≤ {limit} min)
+              </span>
+              <span className="text-muted-foreground">· Run: {runInfo}</span>
+              {r.runUrl && (
+                <a
+                  href={r.runUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline"
+                >
+                  öffnen
+                </a>
+              )}
+            </div>
+          );
+        })}
+        {rows && rows.length === 0 && (
+          <p className="text-xs text-muted-foreground">keine Daten</p>
+        )}
+      </div>
     </section>
   );
 }
