@@ -821,7 +821,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
       <div className="text-left text-[11px] text-muted-foreground">
         {updatedLabel ? <>Aktualisiert {updatedLabel} · </> : null}
-        Quelle: Oberthurgauer Wetter · Warnkriterien nach MeteoSchweiz · Gewitter-Autowarnung aus MeteoSchweiz Radar (CPC &amp; POH)
+        Quelle: Oberthurgauer Wetter · Radar MCH
       </div>
 
 

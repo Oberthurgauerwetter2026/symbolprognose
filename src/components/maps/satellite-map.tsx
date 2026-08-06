@@ -779,9 +779,9 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
           </div>
       )}
 
-      {/* Quellenangabe */}
-      {!loop && (
-        <div className="pointer-events-none absolute bottom-2 left-3 z-[500] max-w-[calc(100%-24px)] truncate rounded-full bg-black/40 px-2.5 py-1 text-[10px] text-white/90 backdrop-blur-md">
+      {/* Quellenangabe — statisch unterhalb von Karte und Steuerpanel */}
+      {!loop && !bare && (
+        <div className="px-3 pb-2 pt-1 text-left text-[11px] text-muted-foreground">
           Quelle: Oberthurgauer Wetter · {source}
         </div>
       )}
