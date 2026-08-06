@@ -175,10 +175,12 @@ export interface RadarRegionMaxPayload {
   generatedAt?: string;
   version?: string;
   regions: { id: string; name?: string; mmh: number; poh?: number }[];
-  /** Schwerpunkt der gemessenen Zellen (Grad). */
-  centroid?: { lat: number; lon: number } | null;
-  /** Vorgängerframe für die Verlagerungsschätzung. */
-  prev?: { t: string; centroid: { lat: number; lon: number } } | null;
+  /**
+   * Verlagerung aus dem Musterabgleich der beiden letzten Radarbilder:
+   * Herkunftsrichtung in Grad, Geschwindigkeit in km/h.
+   */
+  motion?: { dirFromDeg: number; kmh: number; dtMin?: number; quality?: number } | null;
+
 
 }
 

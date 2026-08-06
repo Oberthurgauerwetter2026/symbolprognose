@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import io
 import json
+import math
+
 import os
 import re
 import sys
@@ -43,7 +45,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v23-class-clean"
+RADAR_INGEST_VERSION = "v24-motion-xcorr"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # RZC instant rate, mm/h
@@ -695,13 +697,121 @@ def region_masks() -> list[tuple[str, str, np.ndarray]]:
     return out
 
 
-def _newest_asset(product: str, since: datetime) -> AssetRef | None:
+def _newest_assets(product: str, since: datetime, count: int = 1) -> list[AssetRef]:
     try:
         assets = list_recent_assets(product, since)
     except Exception as exc:
         print(f"region-max: STAC error for {product}: {exc!r}", flush=True)
+        return []
+    return assets[-count:] if assets else []
+
+
+def _newest_asset(product: str, since: datetime) -> AssetRef | None:
+    got = _newest_assets(product, since, 1)
+    return got[0] if got else None
+
+
+# Fenster rund um den Oberthurgau (ca. 60 km) für die Verlagerungsschätzung.
+MOTION_WINDOW = {"minLon": 8.55, "maxLon": 10.05, "minLat": 47.15, "maxLat": 47.95}
+# Maximale Verschiebung in Pixeln (entspricht ca. 120 km/h bei 5-Min-Takt).
+MOTION_MAX_SHIFT_PX = 16
+
+
+def _win_slice() -> tuple[slice, slice]:
+    def px(lon: float) -> int:
+        return int(round((lon - BBOX_WGS["minLon"]) / (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) * (OUT_W - 1)))
+
+    def py(lat: float) -> int:
+        return int(round((BBOX_WGS["maxLat"] - lat) / (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) * (OUT_H - 1)))
+
+    x0, x1 = max(0, px(MOTION_WINDOW["minLon"])), min(OUT_W, px(MOTION_WINDOW["maxLon"]) + 1)
+    y0, y1 = max(0, py(MOTION_WINDOW["maxLat"])), min(OUT_H, py(MOTION_WINDOW["minLat"]) + 1)
+    return slice(y0, y1), slice(x0, x1)
+
+
+def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | None:
+    """Verlagerung zweier aufeinanderfolgender Niederschlagsfelder.
+
+    Musterabgleich (Kreuzkorrelation) in einem Fenster rund um den Oberthurgau:
+    gesucht wird die Verschiebung, bei der das Vorgängerfeld am besten auf das
+    aktuelle Feld passt. Gibt `None` zurück, wenn die Schätzung nicht belastbar
+    ist (zu wenig Fläche, unplausibler Zeitabstand oder kein klares Maximum).
+    """
+    if not (4.0 <= dt_min <= 12.0):
         return None
-    return assets[-1] if assets else None
+    sy, sx = _win_slice()
+    a = np.nan_to_num(prev, nan=0.0)[sy, sx]
+    b = np.nan_to_num(cur, nan=0.0)[sy, sx]
+    if a.shape != b.shape or a.size == 0:
+        return None
+    # Nur relevante Niederschlagsflächen, Werte gedämpft (robuster gegen Spitzen).
+    a = np.where(a >= 1.0, np.sqrt(a), 0.0).astype(np.float32)
+    b = np.where(b >= 1.0, np.sqrt(b), 0.0).astype(np.float32)
+    min_px = max(30, int(0.002 * a.size))
+    if int((a > 0).sum()) < min_px or int((b > 0).sum()) < min_px:
+        return None
+
+    m = MOTION_MAX_SHIFT_PX
+    h, w = a.shape
+    if h <= 2 * m + 4 or w <= 2 * m + 4:
+        return None
+    core_b = b[m : h - m, m : w - m]
+    nb = float(np.linalg.norm(core_b))
+    if nb <= 0:
+        return None
+
+    scores = np.full((2 * m + 1, 2 * m + 1), -1.0, dtype=np.float32)
+    for dy in range(-m, m + 1):
+        for dx in range(-m, m + 1):
+            # Vorgängerfeld um (dx, dy) verschoben mit dem aktuellen Kern vergleichen.
+            sub = a[m + dy : h - m + dy, m + dx : w - m + dx]
+            na = float(np.linalg.norm(sub))
+            if na <= 0:
+                continue
+            scores[dy + m, dx + m] = float((sub * core_b).sum()) / (na * nb)
+
+    best = float(scores.max())
+    if best <= 0.35:
+        return None
+    iy, ix = np.unravel_index(int(scores.argmax()), scores.shape)
+    # Eindeutigkeit: bestes Ergebnis muss klar über dem Mittel liegen.
+    mean = float(scores[scores >= 0].mean())
+    if best - mean < 0.03:
+        return None
+
+    def refine(idx: int, axis_vals: np.ndarray) -> float:
+        if idx <= 0 or idx >= len(axis_vals) - 1:
+            return float(idx)
+        c0, c1, c2 = float(axis_vals[idx - 1]), float(axis_vals[idx]), float(axis_vals[idx + 1])
+        den = c0 - 2 * c1 + c2
+        if den == 0:
+            return float(idx)
+        return float(idx) - 0.5 * (c2 - c0) / den
+
+    fy = refine(int(iy), scores[:, ix])
+    fx = refine(int(ix), scores[iy, :])
+    # `fx/fy` gibt an, wo das Vorgängerfeld gelesen werden muss; die tatsächliche
+    # Verlagerung ist der Gegenvektor.
+    shift_x = m - fx  # Pixel nach Osten
+    shift_y = m - fy  # Pixel nach Süden
+
+
+    deg_lon = shift_x * (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / (OUT_W - 1)
+    deg_lat = -shift_y * (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / (OUT_H - 1)
+    mid_lat = (MOTION_WINDOW["minLat"] + MOTION_WINDOW["maxLat"]) / 2
+    dx_km = deg_lon * 111.32 * math.cos(math.radians(mid_lat))
+    dy_km = deg_lat * 111.32
+    kmh = math.hypot(dx_km, dy_km) / (dt_min / 60.0)
+    if not (5.0 <= kmh <= 120.0):
+        return None
+    bearing_from = (math.degrees(math.atan2(-dx_km, -dy_km)) + 360.0) % 360.0
+    return {
+        "dirFromDeg": round(bearing_from, 1),
+        "kmh": round(kmh, 1),
+        "dtMin": round(dt_min, 1),
+        "quality": round(best, 3),
+    }
+
 
 
 def write_region_max(s3, since: datetime) -> None:
@@ -712,32 +822,42 @@ def write_region_max(s3, since: datetime) -> None:
     automatischen Gewitterwarnung gelesen, damit reale Zellen sofort (ohne
     Modell-Vorlauf) eine Warnung auslösen.
     """
-    fields: dict[str, np.ndarray] = {}
-    ts_iso: str | None = None
-    for product in ("precip", "hail"):
-        a = _newest_asset(product, since)
-        if not a:
-            continue
+    def load(asset: AssetRef, product: str) -> tuple[np.ndarray, datetime] | None:
         try:
-            r = http_get(a.href, timeout=60)
+            r = http_get(asset.href, timeout=60)
             r.raise_for_status()
             values, meta = read_h5_grid(r.content)
             img_ts = meta.get("image_time")
             if isinstance(img_ts, datetime):
-                a.ts = img_ts
+                asset.ts = img_ts
             converted, _ = _to_mmh(values, meta, product)
-            fields[product] = sample_to_bbox(converted, meta)
-            if product == "precip":
-                ts_iso = a.ts.strftime("%Y-%m-%dT%H:%M:00Z")
+            return sample_to_bbox(converted, meta), asset.ts
         except Exception as exc:
             print(f"region-max: {product} failed ({exc!r})", flush=True)
+            return None
 
-    if "precip" not in fields:
+    # Zwei neueste Niederschlagsfelder: aktuelles Feld plus Vorgänger für die
+    # Verlagerungsschätzung.
+    precip_assets = _newest_assets("precip", since, 2)
+    loaded: list[tuple[np.ndarray, datetime]] = []
+    for a in precip_assets:
+        got = load(a, "precip")
+        if got:
+            loaded.append(got)
+
+    if not loaded:
         print("region-max: no precip field — skipping", flush=True)
         return
 
-    precip = np.nan_to_num(fields["precip"], nan=0.0)
-    hail = np.nan_to_num(fields.get("hail", np.zeros_like(precip)), nan=0.0)
+    precip = np.nan_to_num(loaded[-1][0], nan=0.0)
+    ts_iso = loaded[-1][1].strftime("%Y-%m-%dT%H:%M:00Z")
+
+    hail = np.zeros_like(precip)
+    hail_asset = _newest_asset("hail", since)
+    if hail_asset:
+        got = load(hail_asset, "hail")
+        if got:
+            hail = np.nan_to_num(got[0], nan=0.0)
 
     regions: list[dict] = []
     for rid, name, mask in region_masks():
@@ -752,40 +872,30 @@ def write_region_max(s3, since: datetime) -> None:
             }
         )
 
-    # Schwerpunkt des Messfeldes (nur konvektive Zellen ≥ 8 mm/h) in Grad.
-    centroid: dict | None = None
-    w = np.where(precip >= 8.0, precip, 0.0)
-    total = float(w.sum())
-    if total > 0:
-        ys, xs = np.nonzero(w)
-        ww = w[ys, xs]
-        px = float((xs * ww).sum() / total)
-        py = float((ys * ww).sum() / total)
-        lon = BBOX_WGS["minLon"] + px / (OUT_W - 1) * (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"])
-        lat = BBOX_WGS["maxLat"] - py / (OUT_H - 1) * (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"])
-        centroid = {"lat": round(lat, 4), "lon": round(lon, 4)}
+    # Verlagerung per Musterabgleich der beiden letzten Radarbilder.
+    motion: dict | None = None
+    if len(loaded) >= 2:
+        dt_min = (loaded[-1][1] - loaded[-2][1]).total_seconds() / 60.0
+        motion = estimate_motion(np.nan_to_num(loaded[-2][0], nan=0.0), precip, dt_min)
+        if motion:
+            print(
+                f"region-max: motion {motion['kmh']} km/h aus {motion['dirFromDeg']}° "
+                f"(dt={motion['dtMin']} min, q={motion['quality']})",
+                flush=True,
+            )
+        else:
+            print("region-max: no reliable motion estimate", flush=True)
 
-    ts = ts_iso or datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:00Z")
-
-    # Vorgängerframe für die Verlagerungsschätzung mitführen.
-    prev: dict | None = None
-    try:
-        old = json.loads(
-            s3.get_object(Bucket=BUCKET, Key="radar/region-max.json")["Body"].read().decode("utf-8")
-        )
-        if old.get("centroid") and old.get("t") and old.get("t") != ts:
-            prev = {"t": old["t"], "centroid": old["centroid"]}
-    except Exception:
-        prev = None
+    ts = ts_iso
 
     body = {
         "t": ts,
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": RADAR_INGEST_VERSION,
         "regions": regions,
-        "centroid": centroid,
-        "prev": prev,
+        "motion": motion,
     }
+
     s3.put_object(
         Bucket=BUCKET,
         Key="radar/region-max.json",

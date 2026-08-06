@@ -4,8 +4,9 @@
  * Grundlage ist ausschliesslich das gemessene MCH-Radarfeld: der Radar-Ingest
  * schreibt alle 5 Minuten je Gemeinde die gemessene Spitzenintensität nach R2
  * (`radar/region-max.json`). Modellprognosen lösen keine Warnungen aus.
- * Die Verlagerung (Richtung/Geschwindigkeit) wird aus dem Schwerpunkt der
- * gemessenen Zellen zweier aufeinanderfolgender Radarbilder geschätzt.
+ * Die Verlagerung (Richtung/Geschwindigkeit) schätzt der Ingest per
+ * Musterabgleich der beiden letzten Radarbilder im Oberthurgau-Fenster.
+
  *
  * Server-only.
  */
@@ -75,20 +76,14 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     perRegion.set(r.id, Math.max(perRegion.get(r.id) ?? 0, mmh));
   }
 
-  // Verlagerung aus zwei aufeinanderfolgenden Radarbildern.
+  // Verlagerung: der Radar-Ingest schätzt sie per Musterabgleich der beiden
+  // letzten Radarbilder. Fehlt die Angabe, entfällt der Zugbahn-Satz.
   let motion: AutoThunderResult["motion"];
-  const a = regionMax.prev?.centroid;
-  const b = regionMax.centroid;
-  if (a && b && regionMax.prev?.t) {
-    const dtH = (new Date(regionMax.t).getTime() - new Date(regionMax.prev.t).getTime()) / 3600_000;
-    if (dtH > 0.02) {
-      const dy = (b.lat - a.lat) * 111.32;
-      const dx = (b.lon - a.lon) * 111.32 * Math.cos(((a.lat + b.lat) / 2) * (Math.PI / 180));
-      const kmh = Math.hypot(dx, dy) / dtH;
-      const bearingFrom = (Math.atan2(-dx, -dy) * 180) / Math.PI;
-      if (kmh >= 5 && kmh < 120) motion = { from: compass(bearingFrom), kmh: Math.round(kmh) };
-    }
+  const m = regionMax.motion;
+  if (m && typeof m.kmh === "number" && typeof m.dirFromDeg === "number") {
+    if (m.kmh >= 5 && m.kmh < 120) motion = { from: compass(m.dirFromDeg), kmh: Math.round(m.kmh) };
   }
+
 
   const sb = await adminClient();
   let created = 0;
