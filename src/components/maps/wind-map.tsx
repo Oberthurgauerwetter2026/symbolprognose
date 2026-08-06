@@ -378,7 +378,7 @@ function WindColorOverlay({
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
-      onAdd(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+      onAdd(this: L.Layer & { _canvas?: HTMLCanvasElement; _sync?: () => void }) {
         const pane = map.getPanes().overlayPane;
         const cv = L.DomUtil.create("canvas", "wind-color-canvas") as HTMLCanvasElement;
         cv.style.position = "absolute";
@@ -570,13 +570,14 @@ function WindParticleLayer({
         this._canvas = cv;
         canvasRef.current = cv;
         const sync = () => syncSize(cv);
+        this._sync = sync;
         sync();
         map.on("moveend resize", sync);
         attachCanvasZoomAnim(map, cv, sync);
         return this;
       },
-      onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
-        map.off("moveend resize", sync);
+      onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement; _sync?: () => void }) {
+        if (this._sync) map.off("moveend resize", this._sync);
         detachCanvasZoomAnim(this._canvas);
         if (this._canvas) this._canvas.remove();
         canvasRef.current = null;
