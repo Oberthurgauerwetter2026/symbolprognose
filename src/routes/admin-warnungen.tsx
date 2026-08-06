@@ -1177,7 +1177,13 @@ function PipelineHealthSection({ password }: { password: string }) {
                   öffnen
                 </a>
               )}
+              {r.runNote && (
+                <span className="w-full text-amber-600 dark:text-amber-400">
+                  ↳ {r.runNote}
+                </span>
+              )}
             </div>
+
           );
         })}
         {rows && rows.length === 0 && (
