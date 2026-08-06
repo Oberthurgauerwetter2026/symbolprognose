@@ -388,14 +388,14 @@ function WindColorOverlay({
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
-        map.on("moveend zoomend resize", redraw);
+        map.on("moveend resize", redraw);
         attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
-        map.off("moveend zoomend resize", redraw);
+        map.off("moveend resize", redraw);
         detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
@@ -571,11 +571,12 @@ function WindParticleLayer({
         canvasRef.current = cv;
         const sync = () => syncSize(cv);
         sync();
-        map.on("moveend zoomend resize", sync);
+        map.on("moveend resize", sync);
         attachCanvasZoomAnim(map, cv, sync);
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+        map.off("moveend resize", sync);
         detachCanvasZoomAnim(this._canvas);
         if (this._canvas) this._canvas.remove();
         canvasRef.current = null;
@@ -764,13 +765,13 @@ function WindArrowLayer({
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
-        map.on("moveend zoomend resize", redraw);
+        map.on("moveend resize", redraw);
         attachCanvasZoomAnim(map, cv, redraw);
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
-        map.off("moveend zoomend resize", redraw);
+        map.off("moveend resize", redraw);
         detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;

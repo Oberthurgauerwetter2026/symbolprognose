@@ -482,14 +482,14 @@ function PrecipOverlay({
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
-        map.on("moveend zoomend resize", redraw);
+        map.on("moveend resize", redraw);
         attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
-        map.off("moveend zoomend resize", redraw);
+        map.off("moveend resize", redraw);
         detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
@@ -1019,14 +1019,14 @@ function MeasurementCanvasOverlay({
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
-        map.on("moveend zoomend resize", redraw);
+        map.on("moveend resize", redraw);
         attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
-        map.off("moveend zoomend resize", redraw);
+        map.off("moveend resize", redraw);
         detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
@@ -1479,14 +1479,14 @@ function MeasurementHailDotsLayer({
         pane.appendChild(cv);
         this._canvas = cv;
         canvasRef.current = cv;
-        map.on("moveend zoomend resize", redraw);
+        map.on("moveend resize", redraw);
         attachCanvasZoomAnim(map, cv, redraw);
         redraw();
         return this;
       },
       onRemove(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         if (this._canvas) this._canvas.remove();
-        map.off("moveend zoomend resize", redraw);
+        map.off("moveend resize", redraw);
         detachCanvasZoomAnim(this._canvas);
         canvasRef.current = null;
         return this;
