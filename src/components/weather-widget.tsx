@@ -509,11 +509,12 @@ function DataStamp({ updatedAt }: { updatedAt: number }) {
     minute: "2-digit",
   }).format(new Date(updatedAt));
   const tip =
-    "Wettermodelle (ICON-seamless, DWD-MOSMIX) werden ca. alle 6 Stunden " +
-    "(00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 15–30 Min. zwischengespeichert.";
+    "Lokalprognose auf Basis von MeteoSchweiz local_forecast (OGD) und DWD-MOSMIX. " +
+    "Wettermodelle werden ca. alle 6 Stunden (00/06/12/18 UTC) neu gerechnet. " +
+    "Im Browser werden Daten 15–30 Min. zwischengespeichert.";
   return (
     <p className="text-[11px] text-zinc-500 text-center pt-1" title={tip}>
-      Datenstand: {fmt} · Quelle: Oberthurgauer Wetter · Modelle: ICON-seamless, DWD-MOSMIX
+      Aktualisiert {fmt} · Quelle: Oberthurgauer Wetter · MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX
     </p>
   );
 }

@@ -213,8 +213,8 @@ export function LokalNoscript({ data }: { data: LokalNoscriptData }) {
       )}
 
       <footer className="text-[10px] text-muted-foreground">
-        Quelle: Oberthurgauer Wetter · MeteoSchweiz local_forecast (OGD) &amp; DWD-MOSMIX via opendata.dwd.de
-        {data.generatedAt ? ` · Stand ${fmtTime(data.generatedAt)}` : ""}
+        {data.generatedAt ? `Aktualisiert ${fmtTime(data.generatedAt)} · ` : ""}
+        Quelle: Oberthurgauer Wetter · MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX
       </footer>
     </div>
   );
