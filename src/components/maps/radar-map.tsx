@@ -538,18 +538,10 @@ function PrecipOverlay({
       redrawRef.current();
     });
   }
-  // Invalidiere Cache bei Pan/Zoom/Resize — alle Einträge betreffen alte View.
-  useEffect(() => {
-    const clear = () => {
-      cacheRef.current.clear();
-      lookupRef.current = null;
-      viewKeyRef.current = "";
-    };
-    map.on("zoomstart movestart resize", clear);
-    return () => {
-      map.off("zoomstart movestart resize", clear);
-    };
-  }, [map]);
+  // Cache-Invalidierung passiert im Redraw über den View-Key (Zoom, Grösse,
+  // DPR, Center). Ein Leeren bereits bei `zoomstart`/`movestart` würde das
+  // Bild während der Bewegung entwerten und den Redraw danach verzögern.
+
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
