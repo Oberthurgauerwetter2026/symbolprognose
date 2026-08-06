@@ -39,6 +39,7 @@ import { Route as ApiPublicRadarProxyRouteImport } from './routes/api/public/rad
 import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
 import { Route as ApiPublicOpenmeteoIngestTriggerRouteImport } from './routes/api/public/openmeteo/ingest-trigger'
 import { Route as ApiPublicMchIngestTriggerRouteImport } from './routes/api/public/mch/ingest-trigger'
+import { Route as ApiPublicLightningIngestTriggerRouteImport } from './routes/api/public/lightning/ingest-trigger'
 import { Route as ApiPublicEmbedRegionLokalStaticRouteImport } from './routes/api/public/embed/region-lokal-static'
 import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 import { Route as ApiPublicAromeIngestTriggerRouteImport } from './routes/api/public/arome/ingest-trigger'
@@ -198,6 +199,12 @@ const ApiPublicMchIngestTriggerRoute =
     path: '/api/public/mch/ingest-trigger',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicLightningIngestTriggerRoute =
+  ApiPublicLightningIngestTriggerRouteImport.update({
+    id: '/api/public/lightning/ingest-trigger',
+    path: '/api/public/lightning/ingest-trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicEmbedRegionLokalStaticRoute =
   ApiPublicEmbedRegionLokalStaticRouteImport.update({
     id: '/api/public/embed/region-lokal-static',
@@ -243,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
+  '/api/public/lightning/ingest-trigger': typeof ApiPublicLightningIngestTriggerRoute
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
@@ -278,6 +286,7 @@ export interface FileRoutesByTo {
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
+  '/api/public/lightning/ingest-trigger': typeof ApiPublicLightningIngestTriggerRoute
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
@@ -314,6 +323,7 @@ export interface FileRoutesById {
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
+  '/api/public/lightning/ingest-trigger': typeof ApiPublicLightningIngestTriggerRoute
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
+    | '/api/public/lightning/ingest-trigger'
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
@@ -386,6 +397,7 @@ export interface FileRouteTypes {
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
+    | '/api/public/lightning/ingest-trigger'
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
@@ -421,6 +433,7 @@ export interface FileRouteTypes {
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
+    | '/api/public/lightning/ingest-trigger'
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
@@ -457,6 +470,7 @@ export interface RootRouteChildren {
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
   ApiPublicEmbedRegionLokalStaticRoute: typeof ApiPublicEmbedRegionLokalStaticRoute
+  ApiPublicLightningIngestTriggerRoute: typeof ApiPublicLightningIngestTriggerRoute
   ApiPublicMchIngestTriggerRoute: typeof ApiPublicMchIngestTriggerRoute
   ApiPublicOpenmeteoIngestTriggerRoute: typeof ApiPublicOpenmeteoIngestTriggerRoute
   ApiPublicRadarIngestTriggerRoute: typeof ApiPublicRadarIngestTriggerRoute
@@ -678,6 +692,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMchIngestTriggerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/lightning/ingest-trigger': {
+      id: '/api/public/lightning/ingest-trigger'
+      path: '/api/public/lightning/ingest-trigger'
+      fullPath: '/api/public/lightning/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicLightningIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/embed/region-lokal-static': {
       id: '/api/public/embed/region-lokal-static'
       path: '/api/public/embed/region-lokal-static'
@@ -729,6 +750,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
   ApiPublicEmbedRegionLokalStaticRoute: ApiPublicEmbedRegionLokalStaticRoute,
+  ApiPublicLightningIngestTriggerRoute: ApiPublicLightningIngestTriggerRoute,
   ApiPublicMchIngestTriggerRoute: ApiPublicMchIngestTriggerRoute,
   ApiPublicOpenmeteoIngestTriggerRoute: ApiPublicOpenmeteoIngestTriggerRoute,
   ApiPublicRadarIngestTriggerRoute: ApiPublicRadarIngestTriggerRoute,
@@ -740,13 +762,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

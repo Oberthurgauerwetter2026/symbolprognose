@@ -1,9 +1,11 @@
 name: Blitzortung Ingest
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
+  # Trigger ausschliesslich via Cloudflare Worker (cron-worker/) alle 5 min.
+  # GitHub `schedule:` entfernt — wurde wiederholt verworfen (Daten wurden
+  # stundenweise alt).
   workflow_dispatch: {}
+
 
 concurrency:
   group: blitzortung-ingest
