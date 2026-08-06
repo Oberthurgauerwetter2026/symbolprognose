@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import io
 import json
+import math
+
 import os
 import re
 import sys
