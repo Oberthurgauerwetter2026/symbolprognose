@@ -476,6 +476,9 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
             <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">mm Niederschlag</p>
           </div>
         </div>
+        <div className="mt-2 text-left text-[11px] text-muted-foreground">
+          Quelle: Oberthurgauer Wetter · MeteoSchweiz ICON-CH1 → ICON-CH2 via Open-Meteo · akkumulierter Niederschlag
+        </div>
       </CardContent>
     </Card>
   );
