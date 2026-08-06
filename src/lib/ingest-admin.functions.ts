@@ -171,8 +171,11 @@ export interface PipelineHealth {
   runConclusion: string | null;
   runCreatedAt: string | null;
   runUrl: string | null;
+  /** Kurzbegründung zum letzten Lauf, z.B. Runner-Ausfall bei GitHub. */
+  runNote?: string;
   error?: string;
 }
+
 
 /**
  * Diagnose aller Ingest-Pipelines: Alter der R2-Datei + letzter GitHub-Run.
