@@ -623,14 +623,31 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
           </div>
         )}
         {loop && frames.length > 0 && frames[safeIndex]?.time && (
-          <div className="pointer-events-none absolute right-3 top-3 z-[450] rounded-md border bg-card/85 px-2.5 py-1 font-mono text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
-            {new Intl.DateTimeFormat("de-CH", {
-              timeZone: "Europe/Zurich",
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            }).format(new Date(frames[safeIndex].time))}
+          <div className="pointer-events-none absolute right-3 top-3 z-[450]">
+            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1.5 shadow-lg backdrop-blur-md">
+              <div
+                className="h-1.5 w-1.5 rounded-full shadow-[0_0_8px_rgba(250,204,21,0.6)]"
+                style={{ background: BRAND }}
+                aria-hidden="true"
+              />
+              <span className="text-xs font-medium tracking-wide text-white/95">
+                <span className="opacity-70">
+                  {new Intl.DateTimeFormat("de-CH", {
+                    timeZone: "Europe/Zurich",
+                    day: "2-digit",
+                    month: "2-digit",
+                  }).format(new Date(frames[safeIndex].time))}
+                </span>
+                <span className="mx-1 text-[10px] opacity-40" aria-hidden="true">|</span>
+                <span className="tabular-nums">
+                  {new Intl.DateTimeFormat("de-CH", {
+                    timeZone: "Europe/Zurich",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }).format(new Date(frames[safeIndex].time))}
+                </span>
+              </span>
+            </div>
           </div>
         )}
 
