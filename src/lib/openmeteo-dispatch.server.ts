@@ -18,8 +18,27 @@
 // abzubrechen.
 import { postWorkflowDispatch } from "./gh-dispatch.server";
 
+/** Sperre nach erfolgreichem/laufendem Lauf (regulärer 30-Min-Takt). */
 const RECENT_RUN_GUARD_MS = 28 * 60_000;
-const MIN_INTERVAL_MS = RECENT_RUN_GUARD_MS;
+/** Reiner Burst-Schutz gegen Doppelklicks/Race innerhalb derselben Instanz. */
+const MIN_INTERVAL_MS = 3 * 60_000;
+/**
+ * Läuft ein Job kürzer als das, hat GitHub keinen Runner zugewiesen
+ * ("job was not acquired by Runner of type hosted") — kein Datenfehler.
+ */
+const INFRA_FAIL_MAX_DURATION_MS = 60_000;
+const INFRA_FAIL_CONCLUSIONS = new Set(["failure", "startup_failure", "cancelled"]);
+
+function isInfraFailure(run: GhRun): boolean {
+  if (run.status !== "completed") return false;
+  if (!run.conclusion || !INFRA_FAIL_CONCLUSIONS.has(run.conclusion)) return false;
+  if (run.conclusion === "startup_failure") return true;
+  const started = Date.parse(run.run_started_at ?? run.created_at);
+  const ended = Date.parse(run.updated_at ?? run.created_at);
+  if (!Number.isFinite(started) || !Number.isFinite(ended)) return false;
+  return ended - started < INFRA_FAIL_MAX_DURATION_MS;
+}
+
 
 let lastDispatchAt = 0;
 
@@ -31,9 +50,22 @@ const ACTIVE_STATUSES = new Set([
   "in_progress",
 ]);
 
+export interface DispatchOk {
+  ok: true;
+  dispatchedAt: string;
+  ref: string;
+  /** Gesetzt, wenn dieser Dispatch einen fehlgeschlagenen Lauf nachholt. */
+  retryOf?: {
+    id: number;
+    conclusion: string | null;
+    reason: "runner-unavailable" | "run-failed";
+  };
+}
+
 export type DispatchResult =
-  | { ok: true; dispatchedAt: string; ref: string }
+  | DispatchOk
   | { ok: false; throttled: true; retryInMs: number; reason: "interval" }
+
   | {
       ok: false;
       throttled: true;
@@ -62,7 +94,10 @@ interface GhRun {
   conclusion: string | null;
   html_url: string;
   created_at: string;
+  run_started_at?: string;
+  updated_at?: string;
 }
+
 
 async function fetchRecentRuns(
   repo: string,
@@ -98,16 +133,14 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
   }
 
   const now = Date.now();
-  if (now - lastDispatchAt < MIN_INTERVAL_MS) {
-    return {
-      ok: false,
-      throttled: true,
-      reason: "interval",
-      retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt),
-    };
-  }
 
+  // Zuerst GitHub fragen: läuft schon etwas, oder war der letzte Lauf
+  // erfolgreich? Erst danach greift die Zeitsperre — ein fehlgeschlagener
+  // Lauf (z.B. GitHub konnte keinen Runner zuweisen) darf sofort neu
+  // versucht werden.
   const runs = await fetchRecentRuns(repo, token);
+  let retryOf: DispatchOk["retryOf"];
+
   if (runs) {
     const active = runs.find((r) => ACTIVE_STATUSES.has(r.status));
     if (active) {
@@ -126,7 +159,8 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
     const latest = runs[0];
     if (latest) {
       const ageMs = now - new Date(latest.created_at).getTime();
-      const blocksRetry = latest.status !== "completed" || latest.conclusion === "success";
+      const failed = latest.status === "completed" && latest.conclusion !== "success";
+      const blocksRetry = !failed;
       if (blocksRetry && ageMs < RECENT_RUN_GUARD_MS) {
         return {
           ok: false,
@@ -142,13 +176,32 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
           },
         };
       }
+      if (failed) {
+        retryOf = {
+          id: latest.id,
+          conclusion: latest.conclusion,
+          reason: isInfraFailure(latest) ? "runner-unavailable" : "run-failed",
+        };
+      }
     }
+  }
+
+  // Zeitsperre nur als Burst-Schutz — und nicht, wenn wir gerade einen
+  // fehlgeschlagenen Lauf nachholen.
+  if (!retryOf && now - lastDispatchAt < MIN_INTERVAL_MS) {
+    return {
+      ok: false,
+      throttled: true,
+      reason: "interval",
+      retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt),
+    };
   }
 
   // Throttle sofort setzen, damit ein zweiter Request aus derselben
   // Instanz, der parallel ankommt, sicher geblockt wird — auch wenn
   // der GitHub-POST unten noch in-flight ist.
   lastDispatchAt = now;
+
 
   const res = await postWorkflowDispatch({
     token,
@@ -165,7 +218,15 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
     return { ok: false, status: res.status, error: res.error };
   }
 
-  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref };
+  if (retryOf) {
+    console.warn(
+      `[openmeteo-dispatch] Neuversuch nach Lauf ${retryOf.id} ` +
+        `(${retryOf.conclusion ?? "?"}, ${retryOf.reason})`,
+    );
+  }
+
+  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref, ...(retryOf ? { retryOf } : {}) };
+
 }
 
 

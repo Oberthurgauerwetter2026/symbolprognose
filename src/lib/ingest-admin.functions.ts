@@ -171,8 +171,11 @@ export interface PipelineHealth {
   runConclusion: string | null;
   runCreatedAt: string | null;
   runUrl: string | null;
+  /** Kurzbegründung zum letzten Lauf, z.B. Runner-Ausfall bei GitHub. */
+  runNote?: string;
   error?: string;
 }
+
 
 /**
  * Diagnose aller Ingest-Pipelines: Alter der R2-Datei + letzter GitHub-Run.
@@ -219,6 +222,8 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
             conclusion: string | null;
             created_at: string;
             html_url: string;
+            run_started_at?: string;
+            updated_at?: string;
           }>;
         };
         return json.workflow_runs?.[0] ?? null;
@@ -226,6 +231,31 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
         return null;
       }
     }
+
+    /**
+     * Läufe, die ohne ausgeführten Schritt scheitern, sind GitHub-seitige
+     * Infrastrukturfehler ("job was not acquired by Runner of type hosted").
+     */
+    function runNote(run: {
+      status: string;
+      conclusion: string | null;
+      created_at: string;
+      run_started_at?: string;
+      updated_at?: string;
+    } | null): string | undefined {
+      if (!run || run.status !== "completed") return undefined;
+      if (!run.conclusion || run.conclusion === "success") return undefined;
+      const started = Date.parse(run.run_started_at ?? run.created_at);
+      const ended = Date.parse(run.updated_at ?? run.created_at);
+      const shortRun =
+        Number.isFinite(started) && Number.isFinite(ended) && ended - started < 60_000;
+      if (run.conclusion === "startup_failure" || shortRun) {
+        return "Runner bei GitHub nicht verfügbar — Neuversuch beim nächsten Takt";
+      }
+      if (run.conclusion === "cancelled") return "Lauf abgebrochen — Neuversuch beim nächsten Takt";
+      return "Lauf fehlgeschlagen — Neuversuch beim nächsten Takt";
+    }
+
 
     async function objectAge(object: string) {
       const urls = [
@@ -263,7 +293,9 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
           runConclusion: run?.conclusion ?? null,
           runCreatedAt: run?.created_at ?? null,
           runUrl: run?.html_url ?? null,
+          ...(runNote(run) ? { runNote: runNote(run)! } : {}),
           ...(age ? {} : { error: "keine Datei in R2 erreichbar" }),
+
         };
       }),
     );
