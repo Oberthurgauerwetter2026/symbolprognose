@@ -420,16 +420,9 @@ function WindColorOverlay({
   function redraw() {
     redrawRef.current();
   }
-  useEffect(() => {
-    const clear = () => {
-      cacheRef.current.clear();
-      viewKeyRef.current = "";
-    };
-    map.on("zoomstart movestart resize", clear);
-    return () => {
-      map.off("zoomstart movestart resize", clear);
-    };
-  }, [map]);
+  // Cache-Invalidierung erfolgt im Redraw über den View-Key (Zoom, Grösse,
+  // DPR, Center) — nicht schon bei `zoomstart`/`movestart`.
+
 
   redrawRef.current = () => {
     const cv = canvasRef.current;
