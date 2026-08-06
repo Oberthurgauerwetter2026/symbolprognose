@@ -81,7 +81,10 @@ interface GhRun {
   conclusion: string | null;
   html_url: string;
   created_at: string;
+  run_started_at?: string;
+  updated_at?: string;
 }
+
 
 async function fetchRecentRuns(
   repo: string,
