@@ -378,7 +378,7 @@ function WindColorOverlay({
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
-      onAdd(this: L.Layer & { _canvas?: HTMLCanvasElement; _sync?: () => void }) {
+      onAdd(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
         const pane = map.getPanes().overlayPane;
         const cv = L.DomUtil.create("canvas", "wind-color-canvas") as HTMLCanvasElement;
         cv.style.position = "absolute";
@@ -559,7 +559,7 @@ function WindParticleLayer({
 
   useEffect(() => {
     const CanvasLayer = L.Layer.extend({
-      onAdd(this: L.Layer & { _canvas?: HTMLCanvasElement }) {
+      onAdd(this: L.Layer & { _canvas?: HTMLCanvasElement; _sync?: () => void }) {
         const pane = map.getPanes().overlayPane;
         const cv = L.DomUtil.create("canvas", "wind-particle-canvas") as HTMLCanvasElement;
         cv.style.position = "absolute";
