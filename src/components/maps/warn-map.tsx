@@ -819,11 +819,11 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
 
       </div>
 
-      {updatedLabel ? (
-        <div className="text-left text-[11px] text-muted-foreground">
-          Aktualisiert {updatedLabel}
-        </div>
-      ) : null}
+      <div className="text-left text-[11px] text-muted-foreground">
+        {updatedLabel ? <>Aktualisiert {updatedLabel} · </> : null}
+        Quelle: Oberthurgauer Wetter · Warnkriterien nach MeteoSchweiz · Gewitter-Autowarnung aus MeteoSchweiz Radar (CPC &amp; POH)
+      </div>
+
 
     </div>
   );

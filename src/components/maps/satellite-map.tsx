@@ -778,6 +778,13 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             </div>
           </div>
       )}
+
+      {/* Quellenangabe */}
+      {!loop && (
+        <div className="pointer-events-none absolute bottom-2 left-3 z-[500] max-w-[calc(100%-24px)] truncate rounded-full bg-black/40 px-2.5 py-1 text-[10px] text-white/90 backdrop-blur-md">
+          Quelle: Oberthurgauer Wetter · {source}
+        </div>
+      )}
     </div>
   );
 }
