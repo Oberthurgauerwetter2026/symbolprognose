@@ -45,7 +45,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v23-class-clean"
+RADAR_INGEST_VERSION = "v24-motion-xcorr"
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # RZC instant rate, mm/h
