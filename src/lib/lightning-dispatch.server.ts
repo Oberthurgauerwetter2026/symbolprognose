@@ -4,7 +4,11 @@
  * GitHub `schedule:` war zu unzuverlässig.
  */
 
-import { githubDispatchEnv, postWorkflowDispatch } from "./gh-dispatch.server";
+import {
+  githubDispatchEnv,
+  lastRunWasInfraFailure,
+  postWorkflowDispatch,
+} from "./gh-dispatch.server";
 
 let lastDispatchAt = 0;
 // Der Ingest lauscht 120 s am Blitzortung-Stream; 4 min Throttle passt zum
@@ -12,7 +16,7 @@ let lastDispatchAt = 0;
 const MIN_INTERVAL_MS = 4 * 60_000;
 
 export type DispatchResult =
-  | { ok: true; dispatchedAt: string; ref: string }
+  | { ok: true; dispatchedAt: string; ref: string; retryAfterRunnerFailure?: true }
   | { ok: false; throttled: true; retryInMs: number }
   | { ok: false; status: number; error: string }
   | { ok: false; error: string };
@@ -27,7 +31,19 @@ export async function dispatchLightningIngest(): Promise<DispatchResult> {
   }
 
   const now = Date.now();
-  if (now - lastDispatchAt < MIN_INTERVAL_MS) {
+  // Zeit-Throttle greift nicht, wenn der letzte Lauf an fehlender
+  // GitHub-Infrastruktur scheiterte ("job was not acquired by Runner") —
+  // dann darf sofort nachgeholt werden.
+  const withinThrottle = now - lastDispatchAt < MIN_INTERVAL_MS;
+  const infraRetry = withinThrottle
+    ? await lastRunWasInfraFailure({
+        repo: env.repo,
+        token: env.token,
+        workflowFile: "blitzortung-ingest.yml",
+        userAgent: "lovable-lightning-trigger",
+      })
+    : false;
+  if (withinThrottle && !infraRetry) {
     return { ok: false, throttled: true, retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt) };
   }
 
@@ -42,5 +58,10 @@ export async function dispatchLightningIngest(): Promise<DispatchResult> {
   }
 
   lastDispatchAt = now;
-  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref: env.ref };
+  return {
+    ok: true,
+    dispatchedAt: new Date(now).toISOString(),
+    ref: env.ref,
+    ...(infraRetry ? { retryAfterRunnerFailure: true as const } : {}),
+  };
 }
