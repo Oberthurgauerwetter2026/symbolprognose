@@ -189,6 +189,85 @@ export async function getWorkflowActivity(opts: {
   };
 }
 
+/** Minimaler Ausschnitt eines GitHub-Workflow-Runs. */
+export interface GhRunSummary {
+  id: number;
+  status: string;
+  conclusion: string | null;
+  html_url: string;
+  created_at: string;
+  run_started_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Läuft ein Job kürzer als eine Minute und scheitert, hat GitHub keinen
+ * Runner zugewiesen ("job was not acquired by Runner of type hosted") —
+ * kein Datenfehler, sondern ein Infrastrukturausfall.
+ */
+const INFRA_FAIL_MAX_DURATION_MS = 60_000;
+const INFRA_FAIL_CONCLUSIONS = new Set(["failure", "startup_failure", "cancelled"]);
+
+export function isInfraFailureRun(run: GhRunSummary | null | undefined): boolean {
+  if (!run || run.status !== "completed") return false;
+  if (!run.conclusion || !INFRA_FAIL_CONCLUSIONS.has(run.conclusion)) return false;
+  if (run.conclusion === "startup_failure") return true;
+  const started = Date.parse(run.run_started_at ?? run.created_at);
+  const ended = Date.parse(run.updated_at ?? run.created_at);
+  if (!Number.isFinite(started) || !Number.isFinite(ended)) return false;
+  return ended - started < INFRA_FAIL_MAX_DURATION_MS;
+}
+
+/**
+ * Liest die letzten Runs eines Workflows (neueste zuerst).
+ * Gibt null zurück, wenn GitHub nicht erreichbar ist.
+ */
+export async function getRecentRuns(opts: {
+  repo: string;
+  token: string;
+  workflowFile: string;
+  userAgent: string;
+  perPage?: number;
+}): Promise<GhRunSummary[] | null> {
+  const url =
+    `https://api.github.com/repos/${opts.repo}/actions/workflows/` +
+    `${opts.workflowFile}/runs?per_page=${opts.perPage ?? 10}`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${opts.token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": opts.userAgent,
+      },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { workflow_runs?: GhRunSummary[] };
+    const runs = (data.workflow_runs ?? []).slice();
+    runs.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+    return runs;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Prüft, ob der letzte Lauf eines Workflows an fehlender GitHub-Infrastruktur
+ * scheiterte. In diesem Fall darf der Zeit-Throttle übersprungen werden.
+ */
+export async function lastRunWasInfraFailure(opts: {
+  repo: string;
+  token: string;
+  workflowFile: string;
+  userAgent: string;
+}): Promise<boolean> {
+  const runs = await getRecentRuns({ ...opts, perPage: 5 });
+  if (!runs || runs.length === 0) return false;
+  return isInfraFailureRun(runs[0]);
+}
+
 /** Liest die GitHub-Env-Vars; gibt null zurück, wenn unvollständig. */
 export function githubDispatchEnv(): { token: string; repo: string; ref: string } | null {
   const token = process.env.GITHUB_DISPATCH_TOKEN;

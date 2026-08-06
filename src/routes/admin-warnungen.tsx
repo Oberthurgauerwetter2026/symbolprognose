@@ -1182,6 +1182,11 @@ function PipelineHealthSection({ password }: { password: string }) {
                   ↳ {r.runNote}
                 </span>
               )}
+              {typeof r.runnerFailures === "number" && r.runnerFailures > 0 && (
+                <span className="w-full text-muted-foreground">
+                  ↳ {r.runnerFailures} von {r.runsChecked} Läufen ohne Runner (GitHub)
+                </span>
+              )}
             </div>
 
           );

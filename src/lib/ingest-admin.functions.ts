@@ -173,6 +173,9 @@ export interface PipelineHealth {
   runUrl: string | null;
   /** Kurzbegründung zum letzten Lauf, z.B. Runner-Ausfall bei GitHub. */
   runNote?: string;
+  /** Anzahl Runner-Ausfälle unter den letzten `runsChecked` Läufen. */
+  runnerFailures?: number;
+  runsChecked?: number;
   error?: string;
 }
 
@@ -188,6 +191,7 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("@/lib/warnings.server");
     assertAdmin(data.password);
     const { r2ObjectUrlCandidates } = await import("@/lib/r2-url.server");
+    const { isInfraFailureRun } = await import("@/lib/gh-dispatch.server");
 
     const defs = [
       { id: "radar", label: "Radar (CPC/POH)", file: "radar-ingest.yml", object: "radar/frames.json", expectedEveryMin: 5 },
@@ -201,11 +205,11 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
     const token = process.env.GITHUB_DISPATCH_TOKEN;
     const repo = process.env.GITHUB_REPO;
 
-    async function latestRun(file: string) {
+    async function recentRuns(file: string) {
       if (!token || !repo) return null;
       try {
         const res = await fetch(
-          `https://api.github.com/repos/${repo}/actions/workflows/${file}/runs?per_page=1`,
+          `https://api.github.com/repos/${repo}/actions/workflows/${file}/runs?per_page=10`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -218,6 +222,7 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
         if (!res.ok) return null;
         const json = (await res.json()) as {
           workflow_runs?: Array<{
+            id: number;
             status: string;
             conclusion: string | null;
             created_at: string;
@@ -226,7 +231,7 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
             updated_at?: string;
           }>;
         };
-        return json.workflow_runs?.[0] ?? null;
+        return json.workflow_runs ?? null;
       } catch {
         return null;
       }
@@ -282,7 +287,9 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
 
     return await Promise.all(
       defs.map(async (d): Promise<PipelineHealth> => {
-        const [run, age] = await Promise.all([latestRun(d.file), objectAge(d.object)]);
+        const [runs, age] = await Promise.all([recentRuns(d.file), objectAge(d.object)]);
+        const run = runs?.[0] ?? null;
+        const runnerFailures = (runs ?? []).filter((r) => isInfraFailureRun(r)).length;
         return {
           id: d.id,
           label: d.label,
@@ -294,6 +301,7 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
           runCreatedAt: run?.created_at ?? null,
           runUrl: run?.html_url ?? null,
           ...(runNote(run) ? { runNote: runNote(run)! } : {}),
+          ...(runs ? { runnerFailures, runsChecked: runs.length } : {}),
           ...(age ? {} : { error: "keine Datei in R2 erreichbar" }),
 
         };
