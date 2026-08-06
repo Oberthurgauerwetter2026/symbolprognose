@@ -16,6 +16,8 @@
 // Minuten; ein zweiter Dispatch innerhalb desselben Slots würde GitHub
 // veranlassen, einen wartenden Run mit "higher priority waiting request"
 // abzubrechen.
+import { postWorkflowDispatch } from "./gh-dispatch.server";
+
 const RECENT_RUN_GUARD_MS = 28 * 60_000;
 const MIN_INTERVAL_MS = RECENT_RUN_GUARD_MS;
 
