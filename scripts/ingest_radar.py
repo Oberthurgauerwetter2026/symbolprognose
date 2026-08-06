@@ -790,8 +790,11 @@ def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | 
 
     fy = refine(int(iy), scores[:, ix])
     fx = refine(int(ix), scores[iy, :])
-    shift_x = fx - m  # Pixel nach Osten
-    shift_y = fy - m  # Pixel nach Süden
+    # `fx/fy` gibt an, wo das Vorgängerfeld gelesen werden muss; die tatsächliche
+    # Verlagerung ist der Gegenvektor.
+    shift_x = m - fx  # Pixel nach Osten
+    shift_y = m - fy  # Pixel nach Süden
+
 
     deg_lon = shift_x * (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / (OUT_W - 1)
     deg_lat = -shift_y * (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / (OUT_H - 1)
