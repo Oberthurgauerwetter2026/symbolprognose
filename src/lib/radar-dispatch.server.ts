@@ -1,9 +1,14 @@
 /**
  * GitHub workflow_dispatch helper for the radar-ingest workflow.
  * Aufgerufen von:
- *   - Cloudflare Worker Cron Trigger (src/server.ts → scheduled)
+ *   - Cloudflare Worker Cron Trigger (cron-worker/) alle 5 min
  *   - HTTP-Endpoint (src/routes/api/public/radar/ingest-trigger.ts) als Fallback
+ *
+ * Transiente GitHub-Fehler (500/429) werden im gemeinsamen Helper
+ * automatisch wiederholt; der Throttle wird nur bei Erfolg gesetzt.
  */
+
+import { githubDispatchEnv, postWorkflowDispatch } from "./gh-dispatch.server";
 
 let lastDispatchAt = 0;
 // 4 min: verhindert, dass GitHub Actions einen zweiten Run in die
@@ -20,11 +25,8 @@ export type DispatchResult =
   | { ok: false; error: string };
 
 export async function dispatchRadarIngest(): Promise<DispatchResult> {
-  const token = process.env.GITHUB_DISPATCH_TOKEN;
-  const repo = process.env.GITHUB_REPO;
-  const ref = process.env.GITHUB_REF ?? "main";
-
-  if (!token || !repo) {
+  const env = githubDispatchEnv();
+  if (!env) {
     return { ok: false, error: "Server misconfigured: missing GITHUB_DISPATCH_TOKEN or GITHUB_REPO" };
   }
 
@@ -33,24 +35,17 @@ export async function dispatchRadarIngest(): Promise<DispatchResult> {
     return { ok: false, throttled: true, retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt) };
   }
 
-  const url = `https://api.github.com/repos/${repo}/actions/workflows/radar-ingest.yml/dispatches`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "lovable-radar-trigger",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ ref }),
+  const res = await postWorkflowDispatch({
+    ...env,
+    workflowFile: "radar-ingest.yml",
+    userAgent: "lovable-radar-trigger",
   });
 
   if (!res.ok) {
-    const text = await res.text();
-    return { ok: false, status: res.status, error: text.slice(0, 500) };
+    // Throttle NICHT setzen — der nächste Cron-Tick darf sofort nachholen.
+    return { ok: false, status: res.status, error: res.error };
   }
 
   lastDispatchAt = now;
-  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref };
+  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref: env.ref };
 }
