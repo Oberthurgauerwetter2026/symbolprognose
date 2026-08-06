@@ -120,16 +120,14 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
   }
 
   const now = Date.now();
-  if (now - lastDispatchAt < MIN_INTERVAL_MS) {
-    return {
-      ok: false,
-      throttled: true,
-      reason: "interval",
-      retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt),
-    };
-  }
 
+  // Zuerst GitHub fragen: läuft schon etwas, oder war der letzte Lauf
+  // erfolgreich? Erst danach greift die Zeitsperre — ein fehlgeschlagener
+  // Lauf (z.B. GitHub konnte keinen Runner zuweisen) darf sofort neu
+  // versucht werden.
   const runs = await fetchRecentRuns(repo, token);
+  let retryOf: DispatchOk["retryOf"];
+
   if (runs) {
     const active = runs.find((r) => ACTIVE_STATUSES.has(r.status));
     if (active) {
@@ -148,7 +146,8 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
     const latest = runs[0];
     if (latest) {
       const ageMs = now - new Date(latest.created_at).getTime();
-      const blocksRetry = latest.status !== "completed" || latest.conclusion === "success";
+      const failed = latest.status === "completed" && latest.conclusion !== "success";
+      const blocksRetry = !failed;
       if (blocksRetry && ageMs < RECENT_RUN_GUARD_MS) {
         return {
           ok: false,
@@ -164,13 +163,32 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
           },
         };
       }
+      if (failed) {
+        retryOf = {
+          id: latest.id,
+          conclusion: latest.conclusion,
+          reason: isInfraFailure(latest) ? "runner-unavailable" : "run-failed",
+        };
+      }
     }
+  }
+
+  // Zeitsperre nur als Burst-Schutz — und nicht, wenn wir gerade einen
+  // fehlgeschlagenen Lauf nachholen.
+  if (!retryOf && now - lastDispatchAt < MIN_INTERVAL_MS) {
+    return {
+      ok: false,
+      throttled: true,
+      reason: "interval",
+      retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt),
+    };
   }
 
   // Throttle sofort setzen, damit ein zweiter Request aus derselben
   // Instanz, der parallel ankommt, sicher geblockt wird — auch wenn
   // der GitHub-POST unten noch in-flight ist.
   lastDispatchAt = now;
+
 
   const res = await postWorkflowDispatch({
     token,
