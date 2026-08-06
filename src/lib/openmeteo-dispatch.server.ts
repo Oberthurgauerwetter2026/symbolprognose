@@ -148,27 +148,22 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
   // der GitHub-POST unten noch in-flight ist.
   lastDispatchAt = now;
 
-  const url = `https://api.github.com/repos/${repo}/actions/workflows/openmeteo-ingest.yml/dispatches`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "lovable-openmeteo-trigger",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ ref }),
+  const res = await postWorkflowDispatch({
+    token,
+    repo,
+    ref,
+    workflowFile: "openmeteo-ingest.yml",
+    userAgent: "lovable-openmeteo-trigger",
   });
 
   if (!res.ok) {
-    // Dispatch fehlgeschlagen → Throttle wieder freigeben, damit der
-    // nächste Cron-Tick einen neuen Versuch starten darf.
+    // Dispatch fehlgeschlagen (auch nach Retries) → Throttle wieder
+    // freigeben, damit der nächste Cron-Tick einen neuen Versuch startet.
     lastDispatchAt = 0;
-    const text = await res.text();
-    return { ok: false, status: res.status, error: text.slice(0, 500) };
+    return { ok: false, status: res.status, error: res.error };
   }
 
   return { ok: true, dispatchedAt: new Date(now).toISOString(), ref };
 }
+
 
