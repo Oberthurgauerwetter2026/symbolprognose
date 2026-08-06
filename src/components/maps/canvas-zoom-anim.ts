@@ -27,6 +27,12 @@ export function attachCanvasZoomAnim(
 ): Detach {
   const internals = map as unknown as MapInternals;
 
+  // Leaflet animiert nur Elemente mit dieser Klasse mit derselben
+  // 250-ms-Transition wie Kartenkacheln und ImageOverlays. Ohne die Klasse
+  // springt das Canvas sofort auf die Zielmatrix und ist bis zum Ende der
+  // Kartenanimation sichtbar versetzt.
+  L.DomUtil.addClass(canvas, "leaflet-zoom-animated");
+
   // Zoomstand/Position beim Start des Zooms — Referenz für die Transform.
   let startZoom = map.getZoom();
   let startTopLeftLatLng = map.containerPointToLatLng([0, 0]);
@@ -73,6 +79,7 @@ export function attachCanvasZoomAnim(
     map.off("zoomanim", onZoomAnim);
     map.off("zoom", onZoom);
     map.off("zoomend", onZoomEnd);
+    L.DomUtil.removeClass(canvas, "leaflet-zoom-animated");
     registry.delete(canvas);
   };
   registry.set(canvas, detach);
