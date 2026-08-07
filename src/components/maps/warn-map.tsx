@@ -20,6 +20,7 @@ import {
   type HazardId,
 } from "@/lib/warnings-config";
 import { type WarningDTO } from "@/lib/warnings.functions";
+import { warningsForRegion } from "@/lib/warnings-lookup";
 import { warningsQuery } from "@/lib/map-queries";
 import { PushOptIn } from "@/components/warnings/push-opt-in";
 import { useWarningsRealtime } from "@/hooks/use-warnings";
@@ -315,8 +316,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   const selectedWarnings = useMemo(() => {
     // Ohne Auswahl zeigt das Panel die Legende statt einer Warnliste.
     if (!selected) return [];
-    return warnings.filter(
-      (w) => w.regionIds.includes(selected) && (hazard === "alle" || w.hazard === hazard),
+    return warningsForRegion(warnings, selected).filter(
+      (w) => hazard === "alle" || w.hazard === hazard,
     );
   }, [warnings, selected, hazard]);
 

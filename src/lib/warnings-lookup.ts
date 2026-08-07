@@ -75,7 +75,7 @@ export function regionIdForPoint(lat: number, lon: number): string | null {
   return best && best.d <= 12 ? best.id : null;
 }
 
-/** Alle aktiven Warnungen einer Gemeinde, höchste Stufe zuerst. */
+/** Alle aktiven Warnungen einer Gemeinde, echte Warnungen vor Vorinformationen. */
 export function warningsForRegion(
   warnings: WarningDTO[] | undefined,
   regionId: string | null,
@@ -85,6 +85,7 @@ export function warningsForRegion(
     .filter((w) => w.regionIds.includes(regionId))
     .sort(
       (a, b) =>
+        Number(a.advisory) - Number(b.advisory) ||
         b.level - a.level ||
         new Date(a.validTo).getTime() - new Date(b.validTo).getTime(),
     );
