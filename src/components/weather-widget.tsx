@@ -543,7 +543,7 @@ function Header({
   onToggleSnow: (v: boolean) => void;
 }) {
   return (
-    <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-5 border-b border-zinc-200">
+    <header className="sticky top-0 z-20 bg-zinc-100 flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-4 border-b border-zinc-200 shadow-sm">
       <div className="space-y-2 w-full @[640px]:max-w-[56ch]">
         <div className="flex items-center gap-2">
           {!hideSearch && (
@@ -568,11 +568,11 @@ function Header({
           </button>
         </div>
         {locationName && (
-          <div className="flex items-center gap-1.5 text-sm font-semibold text-zinc-800">
-            <span className="text-accent" aria-hidden>
-              ⌖
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-lg font-bold text-accent-foreground shadow-sm">
+              <MapPin className="h-4 w-4 shrink-0" aria-hidden />
+              {locationName}
             </span>
-            <span>{locationName}</span>
           </div>
         )}
       </div>
