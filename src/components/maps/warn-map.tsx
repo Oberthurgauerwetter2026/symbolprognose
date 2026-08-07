@@ -616,7 +616,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                       background: `repeating-linear-gradient(45deg, ${LEVELS[1].color} 0 3px, transparent 3px 6px)`,
                     }}
                   />
-                  <span className="text-muted-foreground">schraffiert = Vorinformation</span>
+                  <span className="text-muted-foreground">Vorinformation</span>
                 </div>
               </div>
             </div>
@@ -701,7 +701,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                           background: `repeating-linear-gradient(45deg, ${LEVELS[1].color} 0 4px, transparent 4px 8px)`,
                         }}
                       />
-                      <span className="text-muted-foreground">schraffiert = Vorinformation</span>
+                      <span className="text-muted-foreground">Vorinformation</span>
                     </div>
                   </div>
                 </div>
