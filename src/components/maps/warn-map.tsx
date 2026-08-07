@@ -598,14 +598,14 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 </button>
               </div>
               <div className="flex flex-col gap-1.5">
-                {[0, 1, 2, 3].map((l) => (
+                {[0].map((l) => (
                   <div key={l} className="flex items-center gap-2">
                     <span
                       className="inline-block h-3 w-5 shrink-0 rounded-sm"
-                      style={{ background: LEVELS[l as 0 | 1 | 2 | 3].color }}
+                      style={{ background: LEVELS[l as 0].color }}
                     />
                     <span className="text-muted-foreground">
-                      {LEVELS[l as 0 | 1 | 2 | 3].label}
+                      {LEVELS[l as 0].label}
                     </span>
                   </div>
                 ))}
@@ -618,6 +618,17 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                   />
                   <span className="text-muted-foreground">Vorinformation</span>
                 </div>
+                {[1, 2, 3].map((l) => (
+                  <div key={l} className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-3 w-5 shrink-0 rounded-sm"
+                      style={{ background: LEVELS[l as 1 | 2 | 3].color }}
+                    />
+                    <span className="text-muted-foreground">
+                      {LEVELS[l as 1 | 2 | 3].label}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
