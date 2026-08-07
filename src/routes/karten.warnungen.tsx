@@ -33,7 +33,7 @@ export const Route = createFileRoute("/karten/warnungen")({
 function KartenWarnungenPage() {
   const def = getMap("warnungen");
   return (
-    <DashboardLayout title={def.label} subtitle={def.description}>
+    <DashboardLayout title={def.label}>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="warnungen" />
         <WarnMap />

@@ -67,7 +67,6 @@ function WarnkartePage() {
           <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
             Wetterwarnungen Oberthurgau
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">{DESC}</p>
         </header>
 
         <WarnMap />
