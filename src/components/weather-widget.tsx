@@ -543,7 +543,7 @@ function Header({
   onToggleSnow: (v: boolean) => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 bg-zinc-100 flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-4 border-b border-zinc-200 shadow-sm">
+    <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-4 border-b border-zinc-200">
       <div className="space-y-2 w-full @[640px]:max-w-[56ch]">
         <div className="flex items-center gap-2">
           {!hideSearch && (
