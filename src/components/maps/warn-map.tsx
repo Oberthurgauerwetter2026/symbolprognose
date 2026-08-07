@@ -694,14 +694,14 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                   </p>
                   <div className="mt-4 space-y-2">
                     <p className="text-sm font-semibold text-foreground">Legende</p>
-                    {[0, 1, 2, 3].map((l) => (
+                    {[0].map((l) => (
                       <div key={l} className="flex items-center gap-2 text-sm">
                         <span
                           className="inline-block h-4 w-6 shrink-0 rounded-sm border border-border"
-                          style={{ background: LEVELS[l as 0 | 1 | 2 | 3].color }}
+                          style={{ background: LEVELS[l as 0].color }}
                         />
                         <span className="text-muted-foreground">
-                          {LEVELS[l as 0 | 1 | 2 | 3].label}
+                          {LEVELS[l as 0].label}
                         </span>
                       </div>
                     ))}
@@ -714,6 +714,17 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                       />
                       <span className="text-muted-foreground">Vorinformation</span>
                     </div>
+                    {[1, 2, 3].map((l) => (
+                      <div key={l} className="flex items-center gap-2 text-sm">
+                        <span
+                          className="inline-block h-4 w-6 shrink-0 rounded-sm border border-border"
+                          style={{ background: LEVELS[l as 1 | 2 | 3].color }}
+                        />
+                        <span className="text-muted-foreground">
+                          {LEVELS[l as 1 | 2 | 3].label}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : selectedWarnings.length === 0 ? (
