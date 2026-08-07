@@ -662,11 +662,11 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
             )}
           >
 
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="text-lg font-semibold text-foreground">
-                {selected ? regionName(selected) : "Region Oberthurgau"}
-              </h2>
-              {selected && (
+            {selected && (
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="text-lg font-semibold text-foreground">
+                  {regionName(selected)}
+                </h2>
                 <button
                   type="button"
                   onClick={() => setSelected(null)}
@@ -675,8 +675,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
                 >
                   <X className="h-5 w-5" />
                 </button>
-              )}
-            </div>
+              </div>
+            )}
             {query.data?.warning && (
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">{query.data.warning}</p>
             )}
