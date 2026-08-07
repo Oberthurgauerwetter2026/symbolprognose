@@ -20,6 +20,7 @@ import {
   type HazardId,
 } from "@/lib/warnings-config";
 import { type WarningDTO } from "@/lib/warnings.functions";
+import { warningsForRegion } from "@/lib/warnings-lookup";
 import { warningsQuery } from "@/lib/map-queries";
 import { PushOptIn } from "@/components/warnings/push-opt-in";
 import { useWarningsRealtime } from "@/hooks/use-warnings";
