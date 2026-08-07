@@ -17,7 +17,7 @@ import { LocationSearch } from "@/components/location-search";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
-import { Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+import { MapPin, Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
 import { useActiveWarnings } from "@/hooks/use-warnings";
 import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
 import { WarningBadge } from "@/components/warnings/warning-badge";
