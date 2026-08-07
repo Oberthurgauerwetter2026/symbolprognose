@@ -569,8 +569,8 @@ function Header({
         </div>
         {locationName && (
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-lg font-bold text-accent-foreground shadow-sm">
-              <MapPin className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-0.5 text-base font-semibold text-accent-foreground shadow-sm">
+              <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {locationName}
             </span>
           </div>
