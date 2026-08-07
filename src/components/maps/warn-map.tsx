@@ -315,8 +315,8 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
   const selectedWarnings = useMemo(() => {
     // Ohne Auswahl zeigt das Panel die Legende statt einer Warnliste.
     if (!selected) return [];
-    return warnings.filter(
-      (w) => w.regionIds.includes(selected) && (hazard === "alle" || w.hazard === hazard),
+    return warningsForRegion(warnings, selected).filter(
+      (w) => hazard === "alle" || w.hazard === hazard,
     );
   }, [warnings, selected, hazard]);
 
