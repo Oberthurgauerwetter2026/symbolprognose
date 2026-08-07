@@ -24,7 +24,7 @@ async function buildWarnings(lat: number, lon: number): Promise<LokalNoscriptDat
     const rows = await readActiveWarnings();
     return rows
       .filter((w) => w.regionIds.includes(regionId))
-      .sort((a, b) => Number(a.advisory) - Number(b.advisory) || b.level - a.level)
+      .sort((a, b) => b.level - a.level)
       .map((w) => {
         const lvl = Math.max(1, Math.min(3, w.level)) as WarnLevel;
         return {
