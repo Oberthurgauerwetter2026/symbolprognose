@@ -432,11 +432,16 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
   const [playing, setPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(500);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [loaded, setLoaded] = useState(0);
+  const [loadedIdx, setLoadedIdx] = useState<number[]>([]);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const total = frames.length;
-  const ready = total > 0 && loaded >= 1;
+  const loaded = loadedIdx.length;
+  const loadedSet = useMemo(() => new Set(loadedIdx), [loadedIdx]);
+  // Erst abspielen, wenn genügend Zeitschritte da sind — sonst blitzen leere
+  // Bilder durch.
+  const ready = total > 0 && loaded >= Math.max(2, Math.ceil(total / 3));
+
 
   const lastTimeRef = useRef<string | null>(null);
   const initialIndexRef = useRef<number>(0);
