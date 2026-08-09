@@ -176,7 +176,10 @@ export interface PipelineHealth {
   /** Anzahl Runner-Ausfälle unter den letzten `runsChecked` Läufen. */
   runnerFailures?: number;
   runsChecked?: number;
+  /** Daten deutlich älter als das Soll-Intervall (> 6×) — als Fehler behandeln. */
+  stale?: true;
   error?: string;
+
 }
 
 
