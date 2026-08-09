@@ -302,7 +302,11 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
           runUrl: run?.html_url ?? null,
           ...(runNote(run) ? { runNote: runNote(run)! } : {}),
           ...(runs ? { runnerFailures, runsChecked: runs.length } : {}),
-          ...(age != null && age > d.expectedEveryMin * 6 ? { stale: true as const } : {}),
+          ...(age ? {} : { error: "keine Datei in R2 erreichbar" }),
+          ...(age?.ageMinutes != null && age.ageMinutes > d.expectedEveryMin * 6
+            ? { stale: true as const }
+            : {}),
+
 
         };
       }),
