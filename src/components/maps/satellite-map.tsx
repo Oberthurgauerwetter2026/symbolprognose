@@ -476,7 +476,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
   }, [frames, index, safeIndex, total]);
 
   useEffect(() => {
-    setLoaded(0);
+    setLoadedIdx([]);
     setPlaying(false);
   }, [regionId]);
 
@@ -489,13 +489,22 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
     if (!playing || total < 2 || !ready) return;
     const t = window.setInterval(() => {
       setIndex((i) => {
-        const next = (i + 1) % total;
+        // Nur auf bereits geladene Zeitschritte springen.
+        let next = i;
+        for (let step = 1; step <= total; step++) {
+          const cand = (i + step) % total;
+          if (loadedSet.has(cand)) {
+            next = cand;
+            break;
+          }
+        }
         lastTimeRef.current = frames[next]?.time ?? null;
         return next;
       });
     }, speedMs);
     return () => window.clearInterval(t);
-  }, [playing, speedMs, total, ready, frames]);
+  }, [playing, speedMs, total, ready, frames, loadedSet]);
+
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
