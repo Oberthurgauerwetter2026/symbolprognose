@@ -36,8 +36,11 @@ import {
   getAutoThunderStatus,
   runAutoThunderNow,
   getPipelineHealth,
+  getCronWorkerStatus,
   type AutoThunderStatus,
   type PipelineHealth,
+  type CronWorkerStatus,
+
 } from "@/lib/ingest-admin.functions";
 import { WarnMap } from "@/components/maps/warn-map";
 
