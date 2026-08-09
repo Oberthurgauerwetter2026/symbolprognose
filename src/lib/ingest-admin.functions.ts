@@ -176,7 +176,10 @@ export interface PipelineHealth {
   /** Anzahl Runner-Ausfälle unter den letzten `runsChecked` Läufen. */
   runnerFailures?: number;
   runsChecked?: number;
+  /** Daten deutlich älter als das Soll-Intervall (> 6×) — als Fehler behandeln. */
+  stale?: true;
   error?: string;
+
 }
 
 
@@ -303,8 +306,106 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
           ...(runNote(run) ? { runNote: runNote(run)! } : {}),
           ...(runs ? { runnerFailures, runsChecked: runs.length } : {}),
           ...(age ? {} : { error: "keine Datei in R2 erreichbar" }),
+          ...(age?.ageMinutes != null && age.ageMinutes > d.expectedEveryMin * 6
+            ? { stale: true as const }
+            : {}),
+
 
         };
       }),
     );
   });
+
+export interface CronWorkerStatus {
+  /** Letzter erfolgreicher Deploy des Cloudflare-Cron-Workers. */
+  lastDeployAt: string | null;
+  lastDeployUrl: string | null;
+  lastDeployConclusion: string | null;
+  /** Letzte Änderung an cron-worker/** im Repo. */
+  lastChangeAt: string | null;
+  /** true, wenn nach dem letzten Deploy noch Änderungen gepusht wurden. */
+  deployOutdated: boolean;
+  error?: string;
+}
+
+/**
+ * Der Cloudflare-Cron-Worker ist die einzige Trigger-Quelle aller Ingests.
+ * Ist sein Deploy älter als die letzte Änderung, fehlen live neue
+ * Trigger-Ziele (z.B. Blitzortung) — genau das war am 06.08. der Fall.
+ */
+export const getCronWorkerStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string }) => d)
+  .handler(async ({ data }): Promise<CronWorkerStatus> => {
+    const { assertAdmin } = await import("@/lib/warnings.server");
+    assertAdmin(data.password);
+
+    const token = process.env.GITHUB_DISPATCH_TOKEN;
+    const repo = process.env.GITHUB_REPO;
+    const empty: CronWorkerStatus = {
+      lastDeployAt: null,
+      lastDeployUrl: null,
+      lastDeployConclusion: null,
+      lastChangeAt: null,
+      deployOutdated: false,
+    };
+    if (!token || !repo) {
+      return { ...empty, error: "GitHub-Zugang nicht konfiguriert" };
+    }
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "lovable-cron-worker-health",
+    };
+
+    try {
+      const [runsRes, commitsRes] = await Promise.all([
+        fetch(
+          `https://api.github.com/repos/${repo}/actions/workflows/cron-worker-deploy.yml/runs?per_page=10`,
+          { headers },
+        ),
+        fetch(
+          `https://api.github.com/repos/${repo}/commits?path=cron-worker&per_page=1`,
+          { headers },
+        ),
+      ]);
+      if (!runsRes.ok) return { ...empty, error: `GitHub ${runsRes.status}` };
+
+      const runsJson = (await runsRes.json()) as {
+        workflow_runs?: Array<{
+          conclusion: string | null;
+          status: string;
+          created_at: string;
+          updated_at?: string;
+          html_url: string;
+        }>;
+      };
+      const runs = runsJson.workflow_runs ?? [];
+      const success = runs.find((r) => r.conclusion === "success");
+      const latest = runs[0] ?? null;
+
+      let lastChangeAt: string | null = null;
+      if (commitsRes.ok) {
+        const commits = (await commitsRes.json()) as Array<{
+          commit?: { committer?: { date?: string } };
+        }>;
+        lastChangeAt = commits[0]?.commit?.committer?.date ?? null;
+      }
+
+      const deployAt = success?.updated_at ?? success?.created_at ?? null;
+      const deployOutdated =
+        !!lastChangeAt && !!deployAt && Date.parse(lastChangeAt) > Date.parse(deployAt);
+
+      return {
+        lastDeployAt: deployAt,
+        lastDeployUrl: success?.html_url ?? latest?.html_url ?? null,
+        lastDeployConclusion: latest?.conclusion ?? latest?.status ?? null,
+        lastChangeAt,
+        deployOutdated,
+      };
+    } catch (err) {
+      return { ...empty, error: err instanceof Error ? err.message : "unbekannt" };
+    }
+  });
+

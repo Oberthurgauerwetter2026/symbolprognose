@@ -6,7 +6,12 @@ on:
     paths:
       - "cron-worker/**"
       - ".github/workflows/cron-worker-deploy.yml"
+  # Sicherheitsnetz: falls ein Push den Deploy nicht auslöst, wird der Worker
+  # spätestens täglich neu deployt (sonst laufen neue Trigger-Vars nie live).
+  schedule:
+    - cron: "10 3 * * *"
   workflow_dispatch: {}
+
 
 concurrency:
   group: cron-worker-deploy
