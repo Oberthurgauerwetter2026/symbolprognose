@@ -651,7 +651,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
               frames={frames}
               activeIndex={safeIndex}
               initialIndex={safeInitialIndex}
-              onProgress={(l) => setLoaded(l)}
+              onProgress={(indices) => setLoadedIdx(indices)}
             />
           )}
           {showSwiss && <SwissOutline />}
