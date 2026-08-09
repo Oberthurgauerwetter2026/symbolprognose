@@ -232,9 +232,13 @@ function LightningLayer({ strikes }: { strikes: LightningStrike[] }) {
 
 
 /**
- * Mountet zuerst nur den aktiven Frame, dann inkrementell die übrigen
- * (radial vom aktiven Index aus).
+ * Lädt die Zeitschritte in einer Warteschlange: zuerst den aktiven Frame, dann
+ * radial nach aussen — höchstens `MAX_IN_FLIGHT` gleichzeitig. Der WMS-Dienst
+ * antwortet pro Kachel in 0,15–9 s; alles gleichzeitig anzufragen blockiert die
+ * 6 Browser-Verbindungen und liess die Karte lange leer.
  */
+const MAX_IN_FLIGHT = 3;
+
 function FrameStack({
   provider,
   layer,
@@ -252,7 +256,7 @@ function FrameStack({
   frames: SatelliteFrame[];
   activeIndex: number;
   initialIndex: number;
-  onProgress: (loaded: number, total: number) => void;
+  onProgress: (loadedIndices: number[], total: number) => void;
 }) {
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
@@ -293,9 +297,34 @@ function FrameStack({
         'Oberthurgauer Wetter · © <a href="https://earthdata.nasa.gov/" target="_blank" rel="noopener">NASA GIBS</a> · VIIRS NOAA-20',
     };
 
+    let cancelled = false;
+    let inFlight = 0;
+    const queue: number[] = [];
+
+    /** Nächste Plätze der Warteschlange füllen. */
+    const pump = () => {
+      if (cancelled) return;
+      while (inFlight < MAX_IN_FLIGHT && queue.length > 0) {
+        const next = queue.shift()!;
+        mountFrame(next);
+      }
+    };
+
+    const settle = (i: number, loaded: boolean) => {
+      if (cancelled) return;
+      inFlight = Math.max(0, inFlight - 1);
+      if (loaded && !loadedRef.current.has(i)) {
+        loadedRef.current.add(i);
+        onProgress([...loadedRef.current], frames.length);
+      }
+      pump();
+    };
+
     const mountFrame = (i: number) => {
       if (i < 0 || i >= frames.length || layersRef.current[i]) return;
       const f = frames[i];
+      inFlight += 1;
+      let done = false;
       let tl: L.TileLayer;
       if (provider === "gibs-wmts") {
         const tms = tileMatrixSet ?? "GoogleMapsCompatible_Level9";
@@ -309,12 +338,16 @@ function FrameStack({
         tl = wl;
       }
       tl.on("load", () => {
-        if (!loadedRef.current.has(i)) {
-          loadedRef.current.add(i);
-          onProgress(loadedRef.current.size, frames.length);
-        }
+        if (done) return;
+        done = true;
+        settle(i, true);
       });
       tl.on("tileerror", () => {
+        if (!done) {
+          done = true;
+          // Fehlerhafte Frames blockieren die Warteschlange nicht.
+          settle(i, false);
+        }
         if (triedFallbackRef.current) return;
         if (provider === "eumetsat-wms" && fallbackLayer && fallbackLayer !== effectiveLayer) {
           triedFallbackRef.current = true;
@@ -328,29 +361,19 @@ function FrameStack({
       layersRef.current[i] = tl;
     };
 
-    mountFrame(clampedInitialIndex);
-    onProgress(0, frames.length);
-
-    let cancelled = false;
-    const order: number[] = [];
+    onProgress([], frames.length);
     for (let d = 1; d < frames.length; d++) {
       const a = clampedInitialIndex + d;
       const b = clampedInitialIndex - d;
-      if (a < frames.length) order.push(a);
-      if (b >= 0) order.push(b);
+      if (a < frames.length) queue.push(a);
+      if (b >= 0) queue.push(b);
     }
-    const timers: number[] = [];
-    order.forEach((i, k) => {
-      const t = window.setTimeout(() => {
-        if (cancelled) return;
-        mountFrame(i);
-      }, 80 + k * 40);
-      timers.push(t);
-    });
+    // Aktiver Frame zuerst, dann die Warteschlange auffüllen.
+    mountFrame(clampedInitialIndex);
+    pump();
 
     return () => {
       cancelled = true;
-      timers.forEach((t) => window.clearTimeout(t));
       layersRef.current.forEach((tl) => tl?.remove());
       layersRef.current = [];
     };
@@ -363,6 +386,7 @@ function FrameStack({
 
   return null;
 }
+
 
 // ---------- Timeline ----------
 // SatelliteTimeline wurde durch die geteilte FilmstripTimeline ersetzt.
