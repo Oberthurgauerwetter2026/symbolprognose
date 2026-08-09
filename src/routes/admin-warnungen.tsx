@@ -1187,6 +1187,11 @@ function PipelineHealthSection({ password }: { password: string }) {
                   ↳ {r.runnerFailures} von {r.runsChecked} Läufen ohne Runner (GitHub)
                 </span>
               )}
+              {r.stale && (
+                <span className="w-full font-medium text-destructive">
+                  ↳ Daten deutlich zu alt — Trigger prüfen (Cron-Worker-Deploy unten)
+                </span>
+              )}
             </div>
 
           );
@@ -1194,7 +1199,60 @@ function PipelineHealthSection({ password }: { password: string }) {
         {rows && rows.length === 0 && (
           <p className="text-xs text-muted-foreground">keine Daten</p>
         )}
+        <CronWorkerStatusRow password={password} />
       </div>
     </section>
   );
 }
+
+/** Zeigt, ob der Cloudflare-Cron-Worker auf dem aktuellen Stand deployt ist. */
+function CronWorkerStatusRow({ password }: { password: string }) {
+  const [st, setSt] = useState<CronWorkerStatus | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setSt(await getCronWorkerStatus({ data: { password } }));
+      } catch {
+        setSt(null);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!st) return null;
+  const dot = st.error || st.deployOutdated || !st.lastDeployAt ? "bg-red-500" : "bg-emerald-500";
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2 text-xs">
+      <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${dot}`} />
+      <span className="min-w-40 font-medium">Cron-Worker (Trigger-Quelle)</span>
+      <span className="text-muted-foreground">
+        Deploy{" "}
+        {st.lastDeployAt
+          ? new Date(st.lastDeployAt).toLocaleString("de-CH")
+          : (st.error ?? "unbekannt")}
+      </span>
+      {st.lastChangeAt && (
+        <span className="text-muted-foreground">
+          · letzte Änderung {new Date(st.lastChangeAt).toLocaleString("de-CH")}
+        </span>
+      )}
+      {st.lastDeployUrl && (
+        <a
+          href={st.lastDeployUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-primary underline"
+        >
+          öffnen
+        </a>
+      )}
+      {st.deployOutdated && (
+        <span className="w-full font-medium text-destructive">
+          ↳ Worker-Änderungen sind noch nicht live — Deploy „Deploy cron-worker" starten
+        </span>
+      )}
+    </div>
+  );
+}
+
