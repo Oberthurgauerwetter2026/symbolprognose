@@ -1617,6 +1617,18 @@ function MeasurementHailDotsLayer({
  */
 const FLASH_FRACTION = 0.4; // Aufglühen klingt über die ersten 40 % des Schritts ab
 
+/** Zickzack-Blitz (viewBox 0 0 24 24) — geteilt von Karte und Legende. */
+const BOLT_PATH = "M13.5 2 5 14h5.5L9.5 22 19 9.5h-5.8L13.5 2Z";
+
+function boltSvg(size: number, opacity: number, mirrored: boolean, tilt: number): string {
+  const glow = (opacity * 0.85).toFixed(2);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;transform:rotate(${tilt}deg)${mirrored ? " scaleX(-1)" : ""};opacity:${opacity.toFixed(2)};filter:drop-shadow(0 0 ${(size * 0.35).toFixed(1)}px rgba(253,224,71,${glow})) drop-shadow(0 0 ${(size * 0.7).toFixed(1)}px rgba(253,224,71,${(opacity * 0.5).toFixed(2)}))">`
+    + `<path d="${BOLT_PATH}" fill="#fde047" stroke="#fde047" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.55"/>`
+    + `<path d="${BOLT_PATH}" fill="#fffbe0" stroke="#ffffff" stroke-width="0.9" stroke-linejoin="round"/>`
+    + `</svg>`;
+}
+
+
 function RadarLightningLayer({
   strikes,
   stepStartMs,
@@ -1644,6 +1656,15 @@ function RadarLightningLayer({
     };
   }, [map]);
 
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useEffect(() => {
+    const onZoom = () => setZoom(map.getZoom());
+    map.on("zoomend", onZoom);
+    return () => {
+      map.off("zoomend", onZoom);
+    };
+  }, [map]);
+
   useEffect(() => {
     const group = layerRef.current;
     if (!group) return;
@@ -1653,38 +1674,35 @@ function RadarLightningLayer({
     if (p >= FLASH_FRACTION) return;
     // 1 → 0 über die erste Phase des Zeitschritts.
     const k = 1 - p / FLASH_FRACTION;
-    const opacity = Math.max(0.05, k);
-    const radius = 3 + 4 * k;
+    const opacity = Math.max(0.08, k);
+    // Grösse skaliert leicht mit dem Zoom (bei weitem Rauszoomen kleiner).
+    const base = Math.max(14, Math.min(30, 10 + (zoom - 7) * 3));
+    const size = Math.round(base * (0.85 + 0.25 * k));
 
     for (const s of strikes) {
       const t = Date.parse(s.t);
       if (!Number.isFinite(t)) continue;
       if (t < stepStartMs || t >= stepEndMs) continue;
 
-      // Halo
-      L.circleMarker([s.lat, s.lon], {
+      // Pseudo-Zufall aus der Position → stabile Rotation/Spiegelung pro Blitz.
+      const seed = Math.abs(Math.sin(s.lat * 12.9898 + s.lon * 78.233) * 43758.5453);
+      const tilt = ((seed % 1) - 0.5) * 30;
+      const mirrored = Math.floor(seed) % 2 === 0;
+
+      L.marker([s.lat, s.lon], {
         pane: "radar-lightning",
-        radius: radius + 6 * k,
-        stroke: false,
-        fill: true,
-        fillColor: "#fde047",
-        fillOpacity: opacity * 0.3,
         interactive: false,
-      }).addTo(group);
-      // Kern
-      L.circleMarker([s.lat, s.lon], {
-        pane: "radar-lightning",
-        radius,
-        stroke: true,
-        color: "#ffffff",
-        weight: 1,
-        fill: true,
-        fillColor: "#fffbe0",
-        fillOpacity: opacity,
-        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: "radar-lightning-bolt",
+          html: boltSvg(size, opacity, mirrored, tilt),
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        }),
       }).addTo(group);
     }
-  }, [strikes, stepStartMs, stepEndMs, progress]);
+  }, [strikes, stepStartMs, stepEndMs, progress, zoom]);
+
 
   return null;
 }
@@ -2347,11 +2365,10 @@ export function RadarMap({
             <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Blitze</span>
             <div className="flex items-center gap-1.5">
               <span
-                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
-                style={{
-                  backgroundImage: "radial-gradient(circle, #fffbe0 30%, #fde047 55%, transparent 60%)",
-                }}
+                className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
+                dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0) }}
               />
+
               <span className="text-muted-foreground">Blitzortung</span>
             </div>
           </div>
