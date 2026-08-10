@@ -1791,6 +1791,22 @@ export function RadarMap({
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [showLightning, setShowLightning] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("radar.lightning") === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("radar.lightning", showLightning ? "1" : "0");
+  }, [showLightning]);
+  const { data: lightningData } = useQuery({
+    queryKey: ["lightning"],
+    queryFn: () => getLightningStrikes(),
+    enabled: showLightning,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+  const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
   // Persistente, kontinuierliche Render-Zeit. `idx` ist nur noch der nächste
   // UI-Anker für Buttons/Labels; diese Zeit steuert den sichtbaren Zustand.
   const [renderMs, setRenderMs] = useState<number | null>(null);
