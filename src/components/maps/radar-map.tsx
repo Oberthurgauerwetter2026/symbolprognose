@@ -1678,9 +1678,8 @@ function RadarLightningLayer({
       if (t < stepStartMs || t >= stepEndMs) continue;
 
       // Pseudo-Zufall aus der Position → stabile Rotation/Spiegelung pro Blitz.
-      const seed = Math.abs(Math.sin(s.lat * 12.9898 + s.lon * 78.233) * 43758.5453);
-      const tilt = ((seed % 1) - 0.5) * 30;
-      const mirrored = Math.floor(seed) % 2 === 0;
+      const { tilt, mirrored } = boltJitter(s.lat, s.lon);
+
 
       L.marker([s.lat, s.lon], {
         pane: "radar-lightning",
