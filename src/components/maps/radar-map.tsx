@@ -1607,6 +1607,88 @@ function MeasurementHailDotsLayer({
   return null;
 }
 
+/**
+ * Blitz-Layer für das Niederschlagsradar.
+ *
+ * Anders als im Satellitenbild altern Blitze hier nicht über mehrere Frames:
+ * Sie glühen im Zeitschritt, in den ihr Zeitstempel fällt, kurz auf und sind
+ * beim nächsten Schritt wieder verschwunden.
+ */
+const FLASH_FRACTION = 0.4; // Aufglühen klingt über die ersten 40 % des Schritts ab
+
+function RadarLightningLayer({
+  strikes,
+  stepStartMs,
+  stepEndMs,
+  progress,
+}: {
+  strikes: LightningStrike[];
+  stepStartMs: number;
+  stepEndMs: number;
+  progress: number;
+}) {
+  const map = useMap();
+  const layerRef = useRef<L.LayerGroup | null>(null);
+
+  useEffect(() => {
+    const pane = map.getPane("radar-lightning") ?? map.createPane("radar-lightning");
+    pane.style.zIndex = "655";
+    pane.style.pointerEvents = "none";
+    const group = L.layerGroup([], { pane: "radar-lightning" });
+    group.addTo(map);
+    layerRef.current = group;
+    return () => {
+      group.remove();
+      layerRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const group = layerRef.current;
+    if (!group) return;
+    group.clearLayers();
+
+    const p = Math.max(0, Math.min(1, progress));
+    if (p >= FLASH_FRACTION) return;
+    // 1 → 0 über die erste Phase des Zeitschritts.
+    const k = 1 - p / FLASH_FRACTION;
+    const opacity = Math.max(0.05, k);
+    const radius = 3 + 4 * k;
+
+    for (const s of strikes) {
+      const t = Date.parse(s.t);
+      if (!Number.isFinite(t)) continue;
+      if (t < stepStartMs || t >= stepEndMs) continue;
+
+      // Halo
+      L.circleMarker([s.lat, s.lon], {
+        pane: "radar-lightning",
+        radius: radius + 6 * k,
+        stroke: false,
+        fill: true,
+        fillColor: "#fde047",
+        fillOpacity: opacity * 0.3,
+        interactive: false,
+      }).addTo(group);
+      // Kern
+      L.circleMarker([s.lat, s.lon], {
+        pane: "radar-lightning",
+        radius,
+        stroke: true,
+        color: "#ffffff",
+        weight: 1,
+        fill: true,
+        fillColor: "#fffbe0",
+        fillOpacity: opacity,
+        interactive: false,
+      }).addTo(group);
+    }
+  }, [strikes, stepStartMs, stepEndMs, progress]);
+
+  return null;
+}
+
+
 function useNowFrameIndex(frames: RadarFrame[]): number {
   return useMemo(() => {
     if (frames.length === 0) return 0;
