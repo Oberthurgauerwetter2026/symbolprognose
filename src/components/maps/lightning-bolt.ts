@@ -18,6 +18,10 @@ export interface BoltColors {
   /** Breiter Glow-Stroke + Drop-Shadow (rgb-Tripel als "r,g,b"). */
   glow: string;
   glowRgb: string;
+  /** Dünne äussere Kontur (meist schwarz). */
+  outline: string;
+  /** Konturstärke in SVG-Einheiten (viewBox 24×24). */
+  outlineWidth: number;
 }
 
 export const BOLT_YELLOW: BoltColors = {
@@ -25,6 +29,8 @@ export const BOLT_YELLOW: BoltColors = {
   edge: "#ffffff",
   glow: "#fde047",
   glowRgb: "253,224,71",
+  outline: "rgba(0,0,0,0.85)",
+  outlineWidth: 1.5,
 };
 
 export const BOLT_RADAR: BoltColors = {
@@ -32,6 +38,8 @@ export const BOLT_RADAR: BoltColors = {
   edge: "#ffffff",
   glow: "#ffeb3b",
   glowRgb: "255,235,59",
+  outline: "rgba(0,0,0,0.85)",
+  outlineWidth: 1.5,
 };
 
 export function boltSvg(
