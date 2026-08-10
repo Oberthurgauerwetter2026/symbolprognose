@@ -1656,6 +1656,15 @@ function RadarLightningLayer({
     };
   }, [map]);
 
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useEffect(() => {
+    const onZoom = () => setZoom(map.getZoom());
+    map.on("zoomend", onZoom);
+    return () => {
+      map.off("zoomend", onZoom);
+    };
+  }, [map]);
+
   useEffect(() => {
     const group = layerRef.current;
     if (!group) return;
@@ -1665,38 +1674,35 @@ function RadarLightningLayer({
     if (p >= FLASH_FRACTION) return;
     // 1 → 0 über die erste Phase des Zeitschritts.
     const k = 1 - p / FLASH_FRACTION;
-    const opacity = Math.max(0.05, k);
-    const radius = 3 + 4 * k;
+    const opacity = Math.max(0.08, k);
+    // Grösse skaliert leicht mit dem Zoom (bei weitem Rauszoomen kleiner).
+    const base = Math.max(14, Math.min(30, 10 + (zoom - 7) * 3));
+    const size = Math.round(base * (0.85 + 0.25 * k));
 
     for (const s of strikes) {
       const t = Date.parse(s.t);
       if (!Number.isFinite(t)) continue;
       if (t < stepStartMs || t >= stepEndMs) continue;
 
-      // Halo
-      L.circleMarker([s.lat, s.lon], {
+      // Pseudo-Zufall aus der Position → stabile Rotation/Spiegelung pro Blitz.
+      const seed = Math.abs(Math.sin(s.lat * 12.9898 + s.lon * 78.233) * 43758.5453);
+      const tilt = ((seed % 1) - 0.5) * 30;
+      const mirrored = Math.floor(seed) % 2 === 0;
+
+      L.marker([s.lat, s.lon], {
         pane: "radar-lightning",
-        radius: radius + 6 * k,
-        stroke: false,
-        fill: true,
-        fillColor: "#fde047",
-        fillOpacity: opacity * 0.3,
         interactive: false,
-      }).addTo(group);
-      // Kern
-      L.circleMarker([s.lat, s.lon], {
-        pane: "radar-lightning",
-        radius,
-        stroke: true,
-        color: "#ffffff",
-        weight: 1,
-        fill: true,
-        fillColor: "#fffbe0",
-        fillOpacity: opacity,
-        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: "radar-lightning-bolt",
+          html: boltSvg(size, opacity, mirrored, tilt),
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        }),
       }).addTo(group);
     }
-  }, [strikes, stepStartMs, stepEndMs, progress]);
+  }, [strikes, stepStartMs, stepEndMs, progress, zoom]);
+
 
   return null;
 }
