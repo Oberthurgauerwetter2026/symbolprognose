@@ -505,15 +505,89 @@ export function warningTitle(hazard: HazardId, level: WarnLevel, advisory = fals
 }
 
 
-export function formatRange(from: string, to: string): string {
-  const f = new Date(from);
-  const t = new Date(to);
-  const d = (x: Date) =>
-    `${String(x.getDate()).padStart(2, "0")}.${String(x.getMonth() + 1).padStart(2, "0")}. ${String(
-      x.getHours(),
-    ).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`;
-  return `${d(f)} – ${d(t)} Uhr`;
+/**
+ * Zeitzonenfeste Darstellung (Europe/Zurich) – wichtig, weil Push-Meldungen,
+ * Embeds und Snapshots serverseitig in UTC gerendert werden. Sommer-/Winterzeit
+ * wird von Intl automatisch berücksichtigt.
+ */
+export const ZURICH_TZ = "Europe/Zurich";
+
+export interface ZurichParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  weekday: number; // 0 = So
 }
+
+const WEEKDAY_INDEX: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+const zurichFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: ZURICH_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  weekday: "short",
+  hour12: false,
+});
+
+export function zurichParts(input: string | number | Date): ZurichParts | null {
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return null;
+  const map: Record<string, string> = {};
+  for (const p of zurichFormatter.formatToParts(d)) map[p.type] = p.value;
+  const hour = Number(map.hour === "24" ? "0" : map.hour);
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour,
+    minute: Number(map.minute),
+    weekday: WEEKDAY_INDEX[map.weekday ?? "Sun"] ?? 0,
+  };
+}
+
+const p2 = (n: number) => String(n).padStart(2, "0");
+
+/** "20:35" in Schweizer Zeit; Fallback: Eingabe unverändert. */
+export function zurichTime(iso: string): string {
+  const p = zurichParts(iso);
+  return p ? `${p2(p.hour)}:${p2(p.minute)}` : iso;
+}
+
+/** "Mo 10.8." in Schweizer Zeit; Fallback: Eingabe unverändert. */
+export function zurichWeekdayDate(iso: string): string {
+  const p = zurichParts(iso);
+  if (!p) return iso;
+  const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][p.weekday];
+  return `${wd} ${p.day}.${p.month}.`;
+}
+
+/** Stunde des Tages in Schweizer Zeit (für Tag/Nacht-Symbole). */
+export function zurichHour(iso: string): number | null {
+  return zurichParts(iso)?.hour ?? null;
+}
+
+export function formatRange(from: string, to: string): string {
+  const d = (x: string) => {
+    const p = zurichParts(x);
+    if (!p) return x;
+    return `${p2(p.day)}.${p2(p.month)}. ${p2(p.hour)}:${p2(p.minute)}`;
+  };
+  return `${d(from)} – ${d(to)} Uhr`;
+}
+
 
 /* ------------------------ Offizielle Warnschwellen ------------------------ */
 

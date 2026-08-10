@@ -7,6 +7,7 @@
 import thurgauData from "@/data/thurgau.json";
 import { SPOTS, type Spot } from "@/data/spots";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import { zurichTime } from "@/lib/warnings-config";
 
 const THURGAU = thurgauData as unknown as FeatureCollection;
 const BRAND = "#2561a1";
@@ -157,8 +158,7 @@ function buildSvg({
     })
     .join("");
 
-  const now = new Date();
-  const stamp = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const stamp = zurichTime(new Date().toISOString());
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeXml(title)}">

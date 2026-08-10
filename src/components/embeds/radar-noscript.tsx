@@ -3,6 +3,7 @@
  * Zeigt das jüngste echte Radarbild als <img> plus einen
  * Niederschlagsverlauf für Amriswil. Reine Präsentation.
  */
+import { zurichTime, zurichWeekdayDate } from "@/lib/warnings-config";
 
 export interface RadarNoscriptData {
   latestImageUrl?: string;
@@ -16,17 +17,8 @@ function fmt(n: number | null | undefined, digits = 1, suffix = ""): string {
   if (n == null || !Number.isFinite(n)) return "–";
   return `${n.toFixed(digits)}${suffix}`;
 }
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
-  return `${wd} ${d.getDate()}.${d.getMonth() + 1}.`;
-}
+const fmtTime = zurichTime;
+const fmtDate = zurichWeekdayDate;
 
 export function RadarNoscript({ data }: { data: RadarNoscriptData }) {
   return (
