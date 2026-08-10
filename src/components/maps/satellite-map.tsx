@@ -194,14 +194,14 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
       }
       opacity = Math.max(0.08, Math.min(1, opacity));
 
-      const { tilt, mirrored } = boltJitter(s.lat, s.lon);
+      const { tilt } = boltJitter(s.lat, s.lon);
       L.marker([s.lat, s.lon], {
         pane: "lightning",
         interactive: false,
         keyboard: false,
         icon: L.divIcon({
           className: "satellite-lightning-bolt",
-          html: boltSvg(size, opacity, mirrored, tilt, colors),
+          html: boltSvg(size, opacity, false, tilt, colors),
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
         }),
@@ -394,8 +394,8 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
   });
 
   const [showLightning, setShowLightning] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("sat.lightning") === "1";
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("sat.lightning") !== "0";
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
