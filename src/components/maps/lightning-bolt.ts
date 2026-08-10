@@ -34,10 +34,10 @@ export function boltSvg(
   tilt: number,
   colors: BoltColors = BOLT_YELLOW,
 ): string {
-  const glowOpacity = (opacity * 0.85).toFixed(2);
+  const glowOpacity = (opacity * 0.6).toFixed(2);
   return (
-    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;transform:rotate(${tilt}deg)${mirrored ? " scaleX(-1)" : ""};opacity:${opacity.toFixed(2)};filter:drop-shadow(0 0 ${(size * 0.35).toFixed(1)}px rgba(${colors.glowRgb},${glowOpacity})) drop-shadow(0 0 ${(size * 0.7).toFixed(1)}px rgba(${colors.glowRgb},${(opacity * 0.5).toFixed(2)}))">` +
-    `<path d="${BOLT_PATH}" fill="${colors.glow}" stroke="${colors.glow}" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.55"/>` +
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;transform:rotate(${tilt}deg)${mirrored ? " scaleX(-1)" : ""};opacity:${opacity.toFixed(2)};filter:drop-shadow(0 0 ${(size * 0.25).toFixed(1)}px rgba(${colors.glowRgb},${glowOpacity})) drop-shadow(0 0 ${(size * 0.5).toFixed(1)}px rgba(${colors.glowRgb},${(opacity * 0.4).toFixed(2)}))">` +
+    `<path d="${BOLT_PATH}" fill="${colors.glow}" stroke="${colors.glow}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.4"/>` +
     `<path d="${BOLT_PATH}" fill="${colors.core}" stroke="${colors.edge}" stroke-width="0.9" stroke-linejoin="round"/>` +
     `</svg>`
   );
