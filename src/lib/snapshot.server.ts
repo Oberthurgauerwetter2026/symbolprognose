@@ -7,6 +7,7 @@
 import thurgauData from "@/data/thurgau.json";
 import { SPOTS, type Spot } from "@/data/spots";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import { zurichTime } from "@/lib/warnings-config";
 
 const THURGAU = thurgauData as unknown as FeatureCollection;
 const BRAND = "#2561a1";
