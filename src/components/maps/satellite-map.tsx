@@ -184,11 +184,11 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
         size = 22;
         opacity = 1;
       } else if (ageMin < 8) {
-        colors = { core: "#fde68a", edge: "#fbbf24", glow: "#f59e0b", glowRgb: "245,158,11", outline: "rgba(0,0,0,0.85)", outlineWidth: 1.5 };
+        colors = { core: "#fde68a", edge: "#fbbf24", glow: "#f59e0b", glowRgb: "245,158,11", outline: "rgba(0,0,0,0.85)", outlineWidth: 2.5 };
         size = 18;
         opacity = 0.85 - ((ageMin - 2) / 6) * 0.5; // 0.85 → 0.35
       } else {
-        colors = { core: "#ef4444", edge: "#b91c1c", glow: "#7f1d1d", glowRgb: "127,29,29", outline: "rgba(0,0,0,0.85)", outlineWidth: 1.5 };
+        colors = { core: "#ef4444", edge: "#b91c1c", glow: "#7f1d1d", glowRgb: "127,29,29", outline: "rgba(0,0,0,0.85)", outlineWidth: 2.5 };
         size = 14;
         opacity = 0.35 - ((ageMin - 8) / 7) * 0.25; // 0.35 → 0.10
       }

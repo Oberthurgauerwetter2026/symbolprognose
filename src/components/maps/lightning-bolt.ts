@@ -30,7 +30,7 @@ export const BOLT_YELLOW: BoltColors = {
   glow: "#fde047",
   glowRgb: "253,224,71",
   outline: "rgba(0,0,0,0.85)",
-  outlineWidth: 1.5,
+  outlineWidth: 2.5,
 };
 
 export const BOLT_RADAR: BoltColors = {
@@ -39,7 +39,7 @@ export const BOLT_RADAR: BoltColors = {
   glow: "#ffeb3b",
   glowRgb: "255,235,59",
   outline: "rgba(0,0,0,0.85)",
-  outlineWidth: 1.5,
+  outlineWidth: 2.5,
 };
 
 export function boltSvg(
