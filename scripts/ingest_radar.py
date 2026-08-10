@@ -1111,15 +1111,46 @@ def main() -> int:
     except Exception as exc:
         print(f"  R2 inventory error: {exc!r}", flush=True)
 
-    cleanup(s3, now - timedelta(hours=RETENTION))
-    write_manifest(s3)
+    status: dict[str, str] = {"frames": f"{processed} new"}
+
     try:
-        write_region_max(s3, now - timedelta(hours=2))
+        retry_r2("cleanup", lambda: cleanup(s3, now - timedelta(hours=RETENTION)))
+        status["cleanup"] = "ok"
+    except Exception as exc:
+        # Weicher Fehler: alte Objekte werden beim naechsten Lauf entfernt.
+        print(f"cleanup: failed, skipping ({exc!r})", flush=True)
+        status["cleanup"] = "failed (soft)"
+
+    manifest_ok = True
+    try:
+        retry_r2("manifest", lambda: write_manifest(s3))
+        status["manifest"] = "ok"
+    except Exception as exc:
+        manifest_ok = False
+        print(f"manifest: FAILED after retries ({exc!r})", flush=True)
+        status["manifest"] = "FAILED"
+
+    try:
+        retry_r2("region-max", lambda: write_region_max(s3, now - timedelta(hours=2)))
+        status["region-max"] = "ok"
     except Exception as exc:
         print(f"region-max: failed ({exc!r})", flush=True)
+        status["region-max"] = "failed (soft)"
 
+    print(
+        "result: " + " | ".join(f"{k}={v}" for k, v in status.items()),
+        flush=True,
+    )
+    if not manifest_ok:
+        print(
+            "exiting 1: radar/frames.json could not be written, "
+            "map would not see the new frames",
+            flush=True,
+        )
+        return 1
     print(f"done: processed {processed} new frames", flush=True)
     return 0
+
 
 
 if __name__ == "__main__":
