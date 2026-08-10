@@ -1801,8 +1801,8 @@ export function RadarMap({
   const [showHail, setShowHail] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
   const [showLightning, setShowLightning] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("radar.lightning") === "1";
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem("radar.lightning") !== "0";
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
