@@ -14,7 +14,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
@@ -25,6 +25,7 @@ import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
 import { type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 import { radarFramesQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
@@ -1607,6 +1608,88 @@ function MeasurementHailDotsLayer({
   return null;
 }
 
+/**
+ * Blitz-Layer für das Niederschlagsradar.
+ *
+ * Anders als im Satellitenbild altern Blitze hier nicht über mehrere Frames:
+ * Sie glühen im Zeitschritt, in den ihr Zeitstempel fällt, kurz auf und sind
+ * beim nächsten Schritt wieder verschwunden.
+ */
+const FLASH_FRACTION = 0.4; // Aufglühen klingt über die ersten 40 % des Schritts ab
+
+function RadarLightningLayer({
+  strikes,
+  stepStartMs,
+  stepEndMs,
+  progress,
+}: {
+  strikes: LightningStrike[];
+  stepStartMs: number;
+  stepEndMs: number;
+  progress: number;
+}) {
+  const map = useMap();
+  const layerRef = useRef<L.LayerGroup | null>(null);
+
+  useEffect(() => {
+    const pane = map.getPane("radar-lightning") ?? map.createPane("radar-lightning");
+    pane.style.zIndex = "655";
+    pane.style.pointerEvents = "none";
+    const group = L.layerGroup([], { pane: "radar-lightning" });
+    group.addTo(map);
+    layerRef.current = group;
+    return () => {
+      group.remove();
+      layerRef.current = null;
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const group = layerRef.current;
+    if (!group) return;
+    group.clearLayers();
+
+    const p = Math.max(0, Math.min(1, progress));
+    if (p >= FLASH_FRACTION) return;
+    // 1 → 0 über die erste Phase des Zeitschritts.
+    const k = 1 - p / FLASH_FRACTION;
+    const opacity = Math.max(0.05, k);
+    const radius = 3 + 4 * k;
+
+    for (const s of strikes) {
+      const t = Date.parse(s.t);
+      if (!Number.isFinite(t)) continue;
+      if (t < stepStartMs || t >= stepEndMs) continue;
+
+      // Halo
+      L.circleMarker([s.lat, s.lon], {
+        pane: "radar-lightning",
+        radius: radius + 6 * k,
+        stroke: false,
+        fill: true,
+        fillColor: "#fde047",
+        fillOpacity: opacity * 0.3,
+        interactive: false,
+      }).addTo(group);
+      // Kern
+      L.circleMarker([s.lat, s.lon], {
+        pane: "radar-lightning",
+        radius,
+        stroke: true,
+        color: "#ffffff",
+        weight: 1,
+        fill: true,
+        fillColor: "#fffbe0",
+        fillOpacity: opacity,
+        interactive: false,
+      }).addTo(group);
+    }
+  }, [strikes, stepStartMs, stepEndMs, progress]);
+
+  return null;
+}
+
+
 function useNowFrameIndex(frames: RadarFrame[]): number {
   return useMemo(() => {
     if (frames.length === 0) return 0;
@@ -1708,6 +1791,22 @@ export function RadarMap({
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [showLightning, setShowLightning] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("radar.lightning") === "1";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("radar.lightning", showLightning ? "1" : "0");
+  }, [showLightning]);
+  const { data: lightningData } = useQuery({
+    queryKey: ["lightning"],
+    queryFn: () => getLightningStrikes(),
+    enabled: showLightning,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+  const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
   // Persistente, kontinuierliche Render-Zeit. `idx` ist nur noch der nächste
   // UI-Anker für Buttons/Labels; diese Zeit steuert den sichtbaren Zustand.
   const [renderMs, setRenderMs] = useState<number | null>(null);
@@ -1953,6 +2052,21 @@ export function RadarMap({
     [timelineSteps],
   );
 
+  // Zeitfenster des aktuell gezeigten Schritts (für das Blitz-Aufglühen).
+  // Nur im Messteil — für die Prognose gibt es keine Blitzdaten.
+  const lightningWindow = (() => {
+    if (!showLightning || timelineSteps.length === 0) return null;
+    const ms = stripMs ?? timelineSteps[0];
+    let i = 0;
+    while (i < timelineSteps.length - 1 && timelineSteps[i + 1] <= ms) i++;
+    const start = timelineSteps[i];
+    const end = timelineSteps[i + 1] ?? start + 5 * 60_000;
+    if (start > Date.now()) return null;
+    const span = Math.max(60_000, end - start);
+    const progress = Math.max(0, Math.min(1, (ms - start) / span));
+    return { start, end, progress };
+  })();
+
 
 
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
@@ -2164,6 +2278,14 @@ export function RadarMap({
           {data && currentFrame && showHail && currentFrame.source === "radar" && (
             <MeasurementHailDotsLayer payload={data} frame={currentFrame} />
           )}
+          {showLightning && lightningWindow && (
+            <RadarLightningLayer
+              strikes={lightningStrikes}
+              stepStartMs={lightningWindow.start}
+              stepEndMs={lightningWindow.end}
+              progress={lightningWindow.progress}
+            />
+          )}
 
 
 
@@ -2222,6 +2344,16 @@ export function RadarMap({
               />
               <span className="text-muted-foreground">POH</span>
             </div>
+            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Blitze</span>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                style={{
+                  backgroundImage: "radial-gradient(circle, #fffbe0 30%, #fde047 55%, transparent 60%)",
+                }}
+              />
+              <span className="text-muted-foreground">Blitzortung</span>
+            </div>
           </div>
         ) : (
           <button
@@ -2234,6 +2366,24 @@ export function RadarMap({
             <Info className="h-4 w-4" />
           </button>
         )}
+
+        {/* Blitze ein-/ausblenden */}
+        <button
+          type="button"
+          onClick={() => setShowLightning((v) => !v)}
+          aria-pressed={showLightning}
+          aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+          title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+          className={cn(
+            "absolute right-3 top-[8.5rem] z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
+            showLightning
+              ? "bg-amber-400 text-neutral-900"
+              : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
+          )}
+        >
+          <Zap className="h-4 w-4" />
+        </button>
+
 
       </div>
 
@@ -2439,7 +2589,7 @@ export function RadarMap({
       {/* Footnote unter der Karte */}
       {data && (
         <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
-          Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1 (Nowcast) und ICON-seamless (Vorhersage bis +48 h)
+          Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1 (Nowcast) und ICON-seamless (Vorhersage bis +48 h) · Blitzortung.org (Blitze)
         </p>
       )}
     </div>
