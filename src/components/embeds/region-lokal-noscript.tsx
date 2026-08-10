@@ -6,6 +6,7 @@
  */
 
 import { LokalNoscript, type LokalNoscriptData } from "@/components/embeds/lokal-noscript";
+import { zurichTime } from "@/lib/warnings-config";
 
 export interface RegionLokalNoscriptData {
   mapImageUrl?: string;

@@ -6,6 +6,7 @@
  */
 
 import { weatherLabel, windDirectionLabel } from "@/lib/weather";
+import { zurichTime, zurichWeekdayDate } from "@/lib/warnings-config";
 
 export interface LokalNoscriptData {
   locationName: string;

@@ -12,6 +12,7 @@ import { regionIdForPoint } from "./warnings-lookup";
 import {
   LEVELS,
   formatRange,
+  zurichHour,
   warningTitle,
   type HazardId,
   type WarnLevel,
@@ -52,9 +53,8 @@ function emptyData(name: string): LokalNoscriptData {
 }
 
 function isDayHour(iso: string): boolean {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return true;
-  const h = d.getHours();
+  const h = zurichHour(iso);
+  if (h == null) return true;
   return h >= 6 && h < 20;
 }
 
