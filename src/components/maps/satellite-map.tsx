@@ -380,7 +380,15 @@ function fmtBubble(d: Date): string {
 }
 
 
-export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; loop?: boolean } = {}) {
+export function SatelliteMap({
+  bare = false,
+  loop = false,
+  lightningInitiallyActive,
+}: {
+  bare?: boolean;
+  loop?: boolean;
+  lightningInitiallyActive?: boolean;
+} = {}) {
   const [regionId, setRegionId] = useState<SatelliteRegionId>("alpen-ch");
   const region = useMemo(() => getRegion(regionId), [regionId]);
   const isMobile = useIsMobile();
@@ -391,6 +399,7 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
   });
 
   const [showLightning, setShowLightning] = useState<boolean>(() => {
+    if (lightningInitiallyActive !== undefined) return lightningInitiallyActive;
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem("sat.lightning") !== "0";
   });

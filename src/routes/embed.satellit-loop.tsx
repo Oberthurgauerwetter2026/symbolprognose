@@ -28,7 +28,7 @@ function EmbedSatellitLoop() {
           <Suspense
             fallback={<div className="h-full min-h-[300px] w-full animate-pulse rounded-lg bg-muted" />}
           >
-            <SatelliteMapLazy bare loop />
+            <SatelliteMapLazy bare loop lightningInitiallyActive />
           </Suspense>
         </ClientOnly>
       </div>
