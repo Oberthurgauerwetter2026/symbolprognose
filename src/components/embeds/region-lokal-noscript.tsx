@@ -13,11 +13,7 @@ export interface RegionLokalNoscriptData {
   forecast: LokalNoscriptData;
 }
 
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
+const fmtTime = zurichTime;
 
 export function RegionLokalNoscript({ data }: { data: RegionLokalNoscriptData }) {
   return (
