@@ -135,10 +135,17 @@ function SwissOutline() {
 }
 
 
-function LightningLayer({ strikes }: { strikes: LightningStrike[] }) {
+/**
+ * Blitze frame-genau: Alter wird gegen die Zeit des angezeigten Zeitschritts
+ * gerechnet, nicht gegen die Systemzeit. So erscheinen Blitze im passenden
+ * Frame, altern über die folgenden Frames farblich und verschwinden nach
+ * 15 Minuten Blitz-Alter.
+ */
+const LIGHTNING_LIFETIME_MIN = 15;
+
+function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; frameTime?: string }) {
   const map = useMap();
   const layerRef = useRef<L.LayerGroup | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     const pane = map.getPane("lightning") ?? map.createPane("lightning");
@@ -157,78 +164,67 @@ function LightningLayer({ strikes }: { strikes: LightningStrike[] }) {
     const group = layerRef.current;
     if (!group) return;
 
-    let stopped = false;
-    const render = () => {
-      if (stopped || !layerRef.current) return;
-      const now = Date.now();
-      group.clearLayers();
-      for (const s of strikes) {
-        const t = Date.parse(s.t);
-        if (!Number.isFinite(t)) continue;
-        const ageMs = now - t;
-        if (ageMs < 0 || ageMs > 15 * 60_000) continue;
-        const ageMin = ageMs / 60_000;
-        let color: string;
-        let radius: number;
-        let opacity: number;
-        let glowColor: string;
-        if (ageMin < 2) {
-          color = "#fffbe0";
-          glowColor = "#fde047";
-          radius = 6;
-          opacity = 1;
-        } else if (ageMin < 8) {
-          color = "#fbbf24";
-          glowColor = "#f59e0b";
-          radius = 5;
-          opacity = 0.85 - ((ageMin - 2) / 6) * 0.5; // 0.85 → 0.35
-        } else {
-          color = "#b91c1c";
-          glowColor = "#7f1d1d";
-          radius = 3.5;
-          opacity = 0.35 - ((ageMin - 8) / 7) * 0.25; // 0.35 → 0.10
-        }
-        opacity = Math.max(0.08, Math.min(1, opacity));
+    const refMs = frameTime ? Date.parse(frameTime) : Date.now();
+    const ref = Number.isFinite(refMs) ? refMs : Date.now();
 
-        // Halo (Glow)
-        L.circleMarker([s.lat, s.lon], {
-          pane: "lightning",
-          radius: radius + 4,
-          stroke: false,
-          fill: true,
-          fillColor: glowColor,
-          fillOpacity: opacity * 0.25,
-          interactive: false,
-        }).addTo(group);
-        // Kern
-        L.circleMarker([s.lat, s.lon], {
-          pane: "lightning",
-          radius,
-          stroke: true,
-          color,
-          weight: 1,
-          fill: true,
-          fillColor: color,
-          fillOpacity: opacity,
-          interactive: false,
-        }).addTo(group);
+    group.clearLayers();
+    for (const s of strikes) {
+      const t = Date.parse(s.t);
+      if (!Number.isFinite(t)) continue;
+      const ageMs = ref - t;
+      // Zukünftige Blitze gehören noch nicht in diesen Zeitschritt.
+      if (ageMs < 0 || ageMs > LIGHTNING_LIFETIME_MIN * 60_000) continue;
+      const ageMin = ageMs / 60_000;
+      let color: string;
+      let radius: number;
+      let opacity: number;
+      let glowColor: string;
+      if (ageMin < 2) {
+        color = "#fffbe0";
+        glowColor = "#fde047";
+        radius = 6;
+        opacity = 1;
+      } else if (ageMin < 8) {
+        color = "#fbbf24";
+        glowColor = "#f59e0b";
+        radius = 5;
+        opacity = 0.85 - ((ageMin - 2) / 6) * 0.5; // 0.85 → 0.35
+      } else {
+        color = "#b91c1c";
+        glowColor = "#7f1d1d";
+        radius = 3.5;
+        opacity = 0.35 - ((ageMin - 8) / 7) * 0.25; // 0.35 → 0.10
       }
-      rafRef.current = window.setTimeout(() => {
-        rafRef.current = window.requestAnimationFrame(render);
-      }, 1000) as unknown as number;
-    };
-    render();
-    return () => {
-      stopped = true;
-      if (rafRef.current !== null) {
-        window.clearTimeout(rafRef.current);
-        window.cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [strikes]);
+      opacity = Math.max(0.08, Math.min(1, opacity));
+
+      // Halo (Glow)
+      L.circleMarker([s.lat, s.lon], {
+        pane: "lightning",
+        radius: radius + 4,
+        stroke: false,
+        fill: true,
+        fillColor: glowColor,
+        fillOpacity: opacity * 0.25,
+        interactive: false,
+      }).addTo(group);
+      // Kern
+      L.circleMarker([s.lat, s.lon], {
+        pane: "lightning",
+        radius,
+        stroke: true,
+        color,
+        weight: 1,
+        fill: true,
+        fillColor: color,
+        fillOpacity: opacity,
+        interactive: false,
+      }).addTo(group);
+    }
+  }, [strikes, frameTime]);
 
   return null;
 }
+
 
 
 /**
@@ -447,6 +443,16 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
   const initialIndexRef = useRef<number>(0);
   const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
   const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
+  // Blitze im aktuell angezeigten Zeitschritt (0–15 Min. Blitz-Alter).
+  const visibleStrikeCount = useMemo(() => {
+    const frameTime = frames[safeIndex]?.time;
+    const ref = frameTime ? Date.parse(frameTime) : Date.now();
+    const base = Number.isFinite(ref) ? ref : Date.now();
+    return lightningStrikes.filter((s) => {
+      const age = base - Date.parse(s.t);
+      return Number.isFinite(age) && age >= 0 && age <= 15 * 60_000;
+    }).length;
+  }, [lightningStrikes, frames, safeIndex]);
   useEffect(() => {
     if (frames.length === 0) return;
     if (lastTimeRef.current === null) {
@@ -655,9 +661,12 @@ export function SatelliteMap({ bare = false, loop = false }: { bare?: boolean; l
             />
           )}
           {showSwiss && <SwissOutline />}
-          {showLightning && <LightningLayer strikes={lightningStrikes} />}
+          {showLightning && (
+            <LightningLayer strikes={lightningStrikes} frameTime={frames[safeIndex]?.time} />
+          )}
         </MapContainer>
-        {showLightning && lightningStrikes.length === 0 && (
+        {showLightning && visibleStrikeCount === 0 && (
+
           <div className="pointer-events-none absolute left-3 top-3 z-[450] rounded-md border bg-card/85 px-2.5 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
             Keine aktiven Blitze im Alpenraum
           </div>
