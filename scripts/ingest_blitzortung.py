@@ -163,25 +163,53 @@ def _merge(old: list[dict], new: list[dict]) -> list[dict]:
     return out
 
 
-def _fetch_archive() -> list[dict]:
-    """Bestehendes Archiv aus R2 laden (best effort)."""
-    base = (os.environ.get("R2_PUBLIC_URL") or "").rstrip("/")
-    if not base:
-        return []
-    try:
-        import urllib.request
+def _make_s3():
+    account_id = os.environ["R2_ACCOUNT_ID"]
+    endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+        region_name="auto",
+        config=BotoConfig(retries={"max_attempts": 5, "mode": "standard"}),
+    )
 
-        url = f"{base}/lightning/recent.json?ts={int(time.time())}"
-        with urllib.request.urlopen(url, timeout=10) as res:
-            data = json.loads(res.read().decode("utf-8"))
-        got = data.get("strikes")
-        return got if isinstance(got, list) else []
-    except Exception:
-        return []
+
+def _fetch_archive_s3(s3) -> list[dict]:
+    """Bestehendes Archiv direkt aus dem Bucket laden.
+
+    Fehlende Datei → leeres Archiv. Jeder andere Fehler wird geworfen, damit
+    das Archiv nicht stillschweigend überschrieben wird.
+    """
+    try:
+        res = s3.get_object(Bucket=os.environ["R2_BUCKET"], Key="lightning/recent.json")
+    except Exception as e:
+        code = getattr(e, "response", {}).get("Error", {}).get("Code") if hasattr(e, "response") else None
+        if code in ("NoSuchKey", "404", "NotFound"):
+            return []
+        raise
+    data = json.loads(res["Body"].read().decode("utf-8"))
+    got = data.get("strikes")
+    return got if isinstance(got, list) else []
 
 
 def main() -> int:
     debug: dict = {"listenSeconds": LISTEN_S, "windowMinutes": WINDOW_MIN}
+    s3 = _make_s3()
+
+    # Archiv VOR dem Sammeln lesen — schlägt das fehl, wird `recent.json`
+    # nicht angetastet.
+    archive_ok = True
+    old_archive: list[dict] = []
+    try:
+        old_archive = _fetch_archive_s3(s3)
+        debug["archiveFetched"] = len(old_archive)
+    except Exception as e:
+        archive_ok = False
+        debug["archiveFetchError"] = str(e)
+        print(f"Archiv-Lesen fehlgeschlagen: {e}", file=sys.stderr)
+
     try:
         strikes = asyncio.run(_collect_strikes(debug))
     except Exception as e:
@@ -190,9 +218,19 @@ def main() -> int:
     latest = _prune_window(strikes)
     debug["strikesInBBox"] = len(latest)
 
-    archive = _prune(_merge(_fetch_archive(), strikes), ARCHIVE_MIN, 60000)
+    kept_old = _prune(old_archive, ARCHIVE_MIN, 60000)
+    archive = _prune(_merge(old_archive, strikes), ARCHIVE_MIN, 60000)
     debug["archiveStrikes"] = len(archive)
     debug["archiveMinutes"] = ARCHIVE_MIN
+    if archive:
+        debug["archiveOldest"] = archive[0]["t"]
+        debug["archiveNewest"] = archive[-1]["t"]
+
+    # Plausibilität: das neue Archiv muss mindestens die noch gültigen alten
+    # Blitze enthalten, sonst wäre es ein Datenverlust.
+    archive_safe = archive_ok and len(archive) >= len(kept_old)
+    if not archive_safe:
+        debug["archiveWriteSkipped"] = True
 
     now_iso = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -209,16 +247,6 @@ def main() -> int:
             separators=(",", ":"),
         ).encode("utf-8")
 
-    account_id = os.environ["R2_ACCOUNT_ID"]
-    endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=endpoint,
-        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
-        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-        region_name="auto",
-        config=BotoConfig(retries={"max_attempts": 5, "mode": "standard"}),
-    )
     s3.put_object(
         Bucket=os.environ["R2_BUCKET"],
         Key="lightning/latest.json",
@@ -226,20 +254,23 @@ def main() -> int:
         ContentType="application/json",
         CacheControl="public, max-age=20",
     )
-    s3.put_object(
-        Bucket=os.environ["R2_BUCKET"],
-        Key="lightning/recent.json",
-        Body=_payload(archive, ARCHIVE_MIN),
-        ContentType="application/json",
-        CacheControl="public, max-age=20",
-    )
+    if archive_safe:
+        s3.put_object(
+            Bucket=os.environ["R2_BUCKET"],
+            Key="lightning/recent.json",
+            Body=_payload(archive, ARCHIVE_MIN),
+            ContentType="application/json",
+            CacheControl="public, max-age=20",
+        )
     print(
         f"uploaded {len(latest)} strikes (window={WINDOW_MIN} min), "
-        f"archive {len(archive)} strikes ({ARCHIVE_MIN} min) debug={debug}"
+        f"archive {len(archive)} strikes ({ARCHIVE_MIN} min, "
+        f"written={archive_safe}) debug={debug}"
     )
-    return 0
+    return 0 if archive_safe else 1
 
 
 
 if __name__ == "__main__":
     sys.exit(main())
+
