@@ -79,7 +79,9 @@ async function fetchR2Lightning(): Promise<LightningPayload | null> {
         generatedAt: typeof json.generatedAt === "string" ? json.generatedAt : new Date().toISOString(),
         bbox: json.bbox ?? { ...EMPTY_BBOX },
         strikes,
+        windowMinutes: Number.isFinite(json.windowMinutes) ? Number(json.windowMinutes) : 15,
         attribution: json.attribution ?? "Blitze: Blitzortung.org",
+
       };
     } catch {
       // try next candidate
