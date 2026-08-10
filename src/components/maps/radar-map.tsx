@@ -25,6 +25,7 @@ import switzerlandData from "@/data/switzerland.json";
 import thurgauData from "@/data/thurgau.json";
 
 import { type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
+import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 import { radarFramesQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
