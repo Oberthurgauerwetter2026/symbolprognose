@@ -57,6 +57,7 @@ export function boltSvg(
   const glowStrokeWidth = Math.min(5, 2.5 * boost).toFixed(1);
   return (
     `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;transform:rotate(${tilt}deg)${mirrored ? " scaleX(-1)" : ""};opacity:${opacity.toFixed(2)};filter:drop-shadow(0 0 ${(size * 0.25 * boost).toFixed(1)}px rgba(${colors.glowRgb},${glowOpacity})) drop-shadow(0 0 ${(size * 0.5 * boost).toFixed(1)}px rgba(${colors.glowRgb},${outerGlowOpacity}))">` +
+    `<path d="${BOLT_PATH}" fill="none" stroke="${colors.outline}" stroke-width="${colors.outlineWidth}" stroke-linejoin="round" stroke-linecap="round" opacity="${opacity.toFixed(2)}"/>` +
     `<path d="${BOLT_PATH}" fill="${colors.glow}" stroke="${colors.glow}" stroke-width="${glowStrokeWidth}" stroke-linejoin="round" stroke-linecap="round" opacity="${glowStrokeOpacity}"/>` +
     `<path d="${BOLT_PATH}" fill="${colors.core}" stroke="${colors.edge}" stroke-width="0.9" stroke-linejoin="round"/>` +
     `</svg>`
