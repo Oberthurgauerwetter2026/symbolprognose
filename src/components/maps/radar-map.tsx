@@ -13,6 +13,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
+import { boltJitter, boltSvg } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1617,16 +1618,8 @@ function MeasurementHailDotsLayer({
  */
 const FLASH_FRACTION = 0.4; // Aufglühen klingt über die ersten 40 % des Schritts ab
 
-/** Zickzack-Blitz (viewBox 0 0 24 24) — geteilt von Karte und Legende. */
-const BOLT_PATH = "M13.5 2 5 14h5.5L9.5 22 19 9.5h-5.8L13.5 2Z";
 
-function boltSvg(size: number, opacity: number, mirrored: boolean, tilt: number): string {
-  const glow = (opacity * 0.85).toFixed(2);
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;transform:rotate(${tilt}deg)${mirrored ? " scaleX(-1)" : ""};opacity:${opacity.toFixed(2)};filter:drop-shadow(0 0 ${(size * 0.35).toFixed(1)}px rgba(253,224,71,${glow})) drop-shadow(0 0 ${(size * 0.7).toFixed(1)}px rgba(253,224,71,${(opacity * 0.5).toFixed(2)}))">`
-    + `<path d="${BOLT_PATH}" fill="#fde047" stroke="#fde047" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.55"/>`
-    + `<path d="${BOLT_PATH}" fill="#fffbe0" stroke="#ffffff" stroke-width="0.9" stroke-linejoin="round"/>`
-    + `</svg>`;
-}
+
 
 
 function RadarLightningLayer({
@@ -1685,9 +1678,8 @@ function RadarLightningLayer({
       if (t < stepStartMs || t >= stepEndMs) continue;
 
       // Pseudo-Zufall aus der Position → stabile Rotation/Spiegelung pro Blitz.
-      const seed = Math.abs(Math.sin(s.lat * 12.9898 + s.lon * 78.233) * 43758.5453);
-      const tilt = ((seed % 1) - 0.5) * 30;
-      const mirrored = Math.floor(seed) % 2 === 0;
+      const { tilt, mirrored } = boltJitter(s.lat, s.lon);
+
 
       L.marker([s.lat, s.lon], {
         pane: "radar-lightning",
