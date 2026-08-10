@@ -156,6 +156,28 @@ def http_get(url: str, *, timeout: int = 60, attempts: int = 4) -> requests.Resp
     raise last_exc
 
 
+def retry_r2(label: str, fn, attempts: int = 3):
+    """Run an R2/S3 write with backoff. Raises the last error if all attempts fail."""
+    delays = [2, 5]
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if i == attempts - 1:
+                break
+            sleep_s = delays[min(i, len(delays) - 1)]
+            print(
+                f"  {label}: attempt {i + 1}/{attempts} failed ({exc!r}); retry in {sleep_s}s",
+                flush=True,
+            )
+            time.sleep(sleep_s)
+    assert last_exc is not None
+    raise last_exc
+
+
+
 # ---------------------------------------------------------------------------
 # STAC discovery
 # ---------------------------------------------------------------------------
