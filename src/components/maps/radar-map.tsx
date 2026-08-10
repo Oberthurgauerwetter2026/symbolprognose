@@ -2052,6 +2052,21 @@ export function RadarMap({
     [timelineSteps],
   );
 
+  // Zeitfenster des aktuell gezeigten Schritts (für das Blitz-Aufglühen).
+  // Nur im Messteil — für die Prognose gibt es keine Blitzdaten.
+  const lightningWindow = (() => {
+    if (!showLightning || timelineSteps.length === 0) return null;
+    const ms = stripMs ?? timelineSteps[0];
+    let i = 0;
+    while (i < timelineSteps.length - 1 && timelineSteps[i + 1] <= ms) i++;
+    const start = timelineSteps[i];
+    const end = timelineSteps[i + 1] ?? start + 5 * 60_000;
+    if (start > Date.now()) return null;
+    const span = Math.max(60_000, end - start);
+    const progress = Math.max(0, Math.min(1, (ms - start) / span));
+    return { start, end, progress };
+  })();
+
 
 
   // (Backdrop-Layer entfernt — stabile ImageOverlay-Instanz unten aktualisiert
