@@ -31,7 +31,7 @@ from botocore.config import Config as BotoConfig
 BBOX = {"minLat": 44.0, "maxLat": 49.0, "minLon": 5.0, "maxLon": 12.0}
 WINDOW_MIN = int(os.environ.get("BO_WINDOW_MIN", "15"))
 ARCHIVE_MIN = int(os.environ.get("BO_ARCHIVE_MIN", "360"))
-LISTEN_S = int(os.environ.get("BO_LISTEN_S", "90"))
+LISTEN_S = int(os.environ.get("BO_LISTEN_S", "280"))
 
 BO_ENDPOINTS = [
     "wss://ws1.blitzortung.org",
