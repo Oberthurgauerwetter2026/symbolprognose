@@ -1617,6 +1617,18 @@ function MeasurementHailDotsLayer({
  */
 const FLASH_FRACTION = 0.4; // Aufglühen klingt über die ersten 40 % des Schritts ab
 
+/** Zickzack-Blitz (viewBox 0 0 24 24) — geteilt von Karte und Legende. */
+const BOLT_PATH = "M13.5 2 5 14h5.5L9.5 22 19 9.5h-5.8L13.5 2Z";
+
+function boltSvg(size: number, opacity: number, mirrored: boolean, tilt: number): string {
+  const glow = (opacity * 0.85).toFixed(2);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;transform:rotate(${tilt}deg)${mirrored ? " scaleX(-1)" : ""};opacity:${opacity.toFixed(2)};filter:drop-shadow(0 0 ${(size * 0.35).toFixed(1)}px rgba(253,224,71,${glow})) drop-shadow(0 0 ${(size * 0.7).toFixed(1)}px rgba(253,224,71,${(opacity * 0.5).toFixed(2)}))">`
+    + `<path d="${BOLT_PATH}" fill="#fde047" stroke="#fde047" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.55"/>`
+    + `<path d="${BOLT_PATH}" fill="#fffbe0" stroke="#ffffff" stroke-width="0.9" stroke-linejoin="round"/>`
+    + `</svg>`;
+}
+
+
 function RadarLightningLayer({
   strikes,
   stepStartMs,
