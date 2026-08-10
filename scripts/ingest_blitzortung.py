@@ -128,8 +128,8 @@ async def _collect_strikes(debug: dict) -> list[dict]:
     return strikes
 
 
-def _prune_window(strikes: list[dict]) -> list[dict]:
-    cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=WINDOW_MIN)
+def _prune(strikes: list[dict], minutes: int, cap: int) -> list[dict]:
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=minutes)
     out = []
     for s in strikes:
         try:
@@ -139,7 +139,44 @@ def _prune_window(strikes: list[dict]) -> list[dict]:
         if t >= cutoff:
             out.append(s)
     out.sort(key=lambda s: s["t"])
-    return out[-5000:]
+    return out[-cap:]
+
+
+def _prune_window(strikes: list[dict]) -> list[dict]:
+    return _prune(strikes, WINDOW_MIN, 5000)
+
+
+def _merge(old: list[dict], new: list[dict]) -> list[dict]:
+    """Alte und neue Blitze zusammenführen, Duplikate über t/lat/lon entfernen."""
+    seen: set[tuple] = set()
+    out: list[dict] = []
+    for s in [*old, *new]:
+        try:
+            key = (s["t"], round(float(s["lat"]), 4), round(float(s["lon"]), 4))
+        except Exception:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(s)
+    return out
+
+
+def _fetch_archive() -> list[dict]:
+    """Bestehendes Archiv aus R2 laden (best effort)."""
+    base = (os.environ.get("R2_PUBLIC_URL") or "").rstrip("/")
+    if not base:
+        return []
+    try:
+        import urllib.request
+
+        url = f"{base}/lightning/recent.json?ts={int(time.time())}"
+        with urllib.request.urlopen(url, timeout=10) as res:
+            data = json.loads(res.read().decode("utf-8"))
+        got = data.get("strikes")
+        return got if isinstance(got, list) else []
+    except Exception:
+        return []
 
 
 def main() -> int:
@@ -149,16 +186,27 @@ def main() -> int:
     except Exception as e:
         debug["fatal"] = str(e)
         strikes = []
-    strikes = _prune_window(strikes)
-    debug["strikesInBBox"] = len(strikes)
-    payload = {
-        "generatedAt": datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-        "bbox": BBOX,
-        "strikes": strikes,
-        "attribution": "Blitze: Blitzortung.org",
-        "debug": debug,
-    }
-    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    latest = _prune_window(strikes)
+    debug["strikesInBBox"] = len(latest)
+
+    archive = _prune(_merge(_fetch_archive(), strikes), ARCHIVE_MIN, 60000)
+    debug["archiveStrikes"] = len(archive)
+    debug["archiveMinutes"] = ARCHIVE_MIN
+
+    now_iso = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    def _payload(items: list[dict], window: int) -> bytes:
+        return json.dumps(
+            {
+                "generatedAt": now_iso,
+                "bbox": BBOX,
+                "strikes": items,
+                "windowMinutes": window,
+                "attribution": "Blitze: Blitzortung.org",
+                "debug": debug,
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
 
     account_id = os.environ["R2_ACCOUNT_ID"]
     endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
@@ -173,12 +221,23 @@ def main() -> int:
     s3.put_object(
         Bucket=os.environ["R2_BUCKET"],
         Key="lightning/latest.json",
-        Body=body,
+        Body=_payload(latest, WINDOW_MIN),
         ContentType="application/json",
         CacheControl="public, max-age=20",
     )
-    print(f"uploaded {len(strikes)} strikes (window={WINDOW_MIN} min) debug={debug}")
+    s3.put_object(
+        Bucket=os.environ["R2_BUCKET"],
+        Key="lightning/recent.json",
+        Body=_payload(archive, ARCHIVE_MIN),
+        ContentType="application/json",
+        CacheControl="public, max-age=20",
+    )
+    print(
+        f"uploaded {len(latest)} strikes (window={WINDOW_MIN} min), "
+        f"archive {len(archive)} strikes ({ARCHIVE_MIN} min) debug={debug}"
+    )
     return 0
+
 
 
 if __name__ == "__main__":
