@@ -13,7 +13,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
-import { boltJitter, boltSvg } from "./lightning-bolt";
+import { boltJitter, boltSvg, BOLT_RADAR } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1677,9 +1677,8 @@ function RadarLightningLayer({
       if (!Number.isFinite(t)) continue;
       if (t < stepStartMs || t >= stepEndMs) continue;
 
-      // Pseudo-Zufall aus der Position → stabile Rotation/Spiegelung pro Blitz.
-      const { tilt, mirrored } = boltJitter(s.lat, s.lon);
-
+      // Pseudo-Zufall aus der Position → stabile Rotation pro Blitz.
+      const { tilt } = boltJitter(s.lat, s.lon);
 
       L.marker([s.lat, s.lon], {
         pane: "radar-lightning",
@@ -1687,7 +1686,7 @@ function RadarLightningLayer({
         keyboard: false,
         icon: L.divIcon({
           className: "radar-lightning-bolt",
-          html: boltSvg(size, opacity, mirrored, tilt),
+          html: boltSvg(size, opacity, false, tilt, BOLT_RADAR, 1.5),
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
         }),
@@ -2358,7 +2357,7 @@ export function RadarMap({
             <div className="flex items-center gap-1.5">
               <span
                 className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
-                dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0) }}
+                dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0, BOLT_RADAR, 1.5) }}
               />
 
               <span className="text-muted-foreground">Blitzortung</span>
