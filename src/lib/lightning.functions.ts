@@ -30,6 +30,8 @@ export interface LightningPayload {
   generatedAt: string;
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   strikes: LightningStrike[];
+  /** Zeitfenster des Archivs in Minuten. */
+  windowMinutes: number;
   attribution: string;
 }
 
@@ -40,17 +42,23 @@ function emptyPayload(): LightningPayload {
     generatedAt: new Date().toISOString(),
     bbox: { ...EMPTY_BBOX },
     strikes: [],
+    windowMinutes: 15,
     attribution: "Blitze: Blitzortung.org",
   };
 }
 
 async function fetchR2Lightning(): Promise<LightningPayload | null> {
+  // `recent.json` ist das rollierende 6-h-Archiv (frame-genaue Anzeige),
+  // `latest.json` das 15-Minuten-Fenster als Rückfall.
   const candidates = [
+    ...r2ObjectUrlCandidates(process.env.LIGHTNING_MANIFEST_URL, "lightning/recent.json"),
+    ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, "lightning/recent.json"),
     ...r2ObjectUrlCandidates(process.env.LIGHTNING_MANIFEST_URL, "lightning/latest.json"),
     ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, "lightning/latest.json"),
   ].filter((url, index, all) => all.indexOf(url) === index);
 
   if (candidates.length === 0) return null;
+
 
   for (const url of candidates) {
     try {
