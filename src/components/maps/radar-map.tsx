@@ -2278,6 +2278,14 @@ export function RadarMap({
           {data && currentFrame && showHail && currentFrame.source === "radar" && (
             <MeasurementHailDotsLayer payload={data} frame={currentFrame} />
           )}
+          {showLightning && lightningWindow && (
+            <RadarLightningLayer
+              strikes={lightningStrikes}
+              stepStartMs={lightningWindow.start}
+              stepEndMs={lightningWindow.end}
+              progress={lightningWindow.progress}
+            />
+          )}
 
 
 
