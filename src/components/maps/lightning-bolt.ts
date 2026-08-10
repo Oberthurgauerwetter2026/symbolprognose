@@ -27,17 +27,29 @@ export const BOLT_YELLOW: BoltColors = {
   glowRgb: "253,224,71",
 };
 
+export const BOLT_RADAR: BoltColors = {
+  core: "#fff59d",
+  edge: "#ffffff",
+  glow: "#ffeb3b",
+  glowRgb: "255,235,59",
+};
+
 export function boltSvg(
   size: number,
   opacity: number,
   mirrored: boolean,
   tilt: number,
   colors: BoltColors = BOLT_YELLOW,
+  glowBoost: number = 1,
 ): string {
-  const glowOpacity = (opacity * 0.6).toFixed(2);
+  const boost = Math.max(0.2, glowBoost);
+  const glowOpacity = Math.min(1, opacity * 0.6 * boost).toFixed(2);
+  const outerGlowOpacity = Math.min(1, opacity * 0.4 * boost).toFixed(2);
+  const glowStrokeOpacity = Math.min(1, 0.4 * boost).toFixed(2);
+  const glowStrokeWidth = Math.min(5, 2.5 * boost).toFixed(1);
   return (
-    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;transform:rotate(${tilt}deg)${mirrored ? " scaleX(-1)" : ""};opacity:${opacity.toFixed(2)};filter:drop-shadow(0 0 ${(size * 0.25).toFixed(1)}px rgba(${colors.glowRgb},${glowOpacity})) drop-shadow(0 0 ${(size * 0.5).toFixed(1)}px rgba(${colors.glowRgb},${(opacity * 0.4).toFixed(2)}))">` +
-    `<path d="${BOLT_PATH}" fill="${colors.glow}" stroke="${colors.glow}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.4"/>` +
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="overflow:visible;transform:rotate(${tilt}deg)${mirrored ? " scaleX(-1)" : ""};opacity:${opacity.toFixed(2)};filter:drop-shadow(0 0 ${(size * 0.25 * boost).toFixed(1)}px rgba(${colors.glowRgb},${glowOpacity})) drop-shadow(0 0 ${(size * 0.5 * boost).toFixed(1)}px rgba(${colors.glowRgb},${outerGlowOpacity}))">` +
+    `<path d="${BOLT_PATH}" fill="${colors.glow}" stroke="${colors.glow}" stroke-width="${glowStrokeWidth}" stroke-linejoin="round" stroke-linecap="round" opacity="${glowStrokeOpacity}"/>` +
     `<path d="${BOLT_PATH}" fill="${colors.core}" stroke="${colors.edge}" stroke-width="0.9" stroke-linejoin="round"/>` +
     `</svg>`
   );
