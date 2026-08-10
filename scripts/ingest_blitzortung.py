@@ -14,7 +14,7 @@ Blitzortung ist ein Community-Projekt. Attribution im UI ist Pflicht.
 
 ENV (required): R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
                 R2_BUCKET, R2_PUBLIC_URL
-ENV (optional): BO_WINDOW_MIN (default 15), BO_LISTEN_S (default 90)
+ENV (optional): BO_WINDOW_MIN (default 15), BO_LISTEN_S (default 280)
 """
 from __future__ import annotations
 
