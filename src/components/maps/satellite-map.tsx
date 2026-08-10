@@ -175,51 +175,38 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
       // Zukünftige Blitze gehören noch nicht in diesen Zeitschritt.
       if (ageMs < 0 || ageMs > LIGHTNING_LIFETIME_MIN * 60_000) continue;
       const ageMin = ageMs / 60_000;
-      let color: string;
-      let radius: number;
+      let colors: BoltColors;
+      let size: number;
       let opacity: number;
-      let glowColor: string;
       if (ageMin < 2) {
-        color = "#fffbe0";
-        glowColor = "#fde047";
-        radius = 6;
+        colors = BOLT_YELLOW;
+        size = 22;
         opacity = 1;
       } else if (ageMin < 8) {
-        color = "#fbbf24";
-        glowColor = "#f59e0b";
-        radius = 5;
+        colors = { core: "#fde68a", edge: "#fbbf24", glow: "#f59e0b", glowRgb: "245,158,11" };
+        size = 18;
         opacity = 0.85 - ((ageMin - 2) / 6) * 0.5; // 0.85 → 0.35
       } else {
-        color = "#b91c1c";
-        glowColor = "#7f1d1d";
-        radius = 3.5;
+        colors = { core: "#ef4444", edge: "#b91c1c", glow: "#7f1d1d", glowRgb: "127,29,29" };
+        size = 14;
         opacity = 0.35 - ((ageMin - 8) / 7) * 0.25; // 0.35 → 0.10
       }
       opacity = Math.max(0.08, Math.min(1, opacity));
 
-      // Halo (Glow)
-      L.circleMarker([s.lat, s.lon], {
+      const { tilt, mirrored } = boltJitter(s.lat, s.lon);
+      L.marker([s.lat, s.lon], {
         pane: "lightning",
-        radius: radius + 4,
-        stroke: false,
-        fill: true,
-        fillColor: glowColor,
-        fillOpacity: opacity * 0.25,
         interactive: false,
-      }).addTo(group);
-      // Kern
-      L.circleMarker([s.lat, s.lon], {
-        pane: "lightning",
-        radius,
-        stroke: true,
-        color,
-        weight: 1,
-        fill: true,
-        fillColor: color,
-        fillOpacity: opacity,
-        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: "satellite-lightning-bolt",
+          html: boltSvg(size, opacity, mirrored, tilt, colors),
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        }),
       }).addTo(group);
     }
+
   }, [strikes, frameTime]);
 
   return null;
