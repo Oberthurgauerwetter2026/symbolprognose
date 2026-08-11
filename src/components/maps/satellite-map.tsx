@@ -437,16 +437,6 @@ export function SatelliteMap({
   const initialIndexRef = useRef<number>(0);
   const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
   const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
-  // Blitze im aktuell angezeigten Zeitschritt (0–15 Min. Blitz-Alter).
-  const visibleStrikeCount = useMemo(() => {
-    const frameTime = frames[safeIndex]?.time;
-    const ref = frameTime ? Date.parse(frameTime) : Date.now();
-    const base = Number.isFinite(ref) ? ref : Date.now();
-    return lightningStrikes.filter((s) => {
-      const age = base - Date.parse(s.t);
-      return Number.isFinite(age) && age >= 0 && age <= 15 * 60_000;
-    }).length;
-  }, [lightningStrikes, frames, safeIndex]);
   useEffect(() => {
     if (frames.length === 0) return;
     if (lastTimeRef.current === null) {
@@ -659,12 +649,6 @@ export function SatelliteMap({
             <LightningLayer strikes={lightningStrikes} frameTime={frames[safeIndex]?.time} />
           )}
         </MapContainer>
-        {showLightning && visibleStrikeCount === 0 && (
-
-          <div className="pointer-events-none absolute left-3 top-3 z-[450] rounded-md border bg-card/85 px-2.5 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
-            Keine aktiven Blitze im Alpenraum
-          </div>
-        )}
         {loop && frames.length > 0 && frames[safeIndex]?.time && (
           <div className="pointer-events-none absolute right-3 top-3 z-[450]">
             <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1.5 shadow-lg backdrop-blur-md">
