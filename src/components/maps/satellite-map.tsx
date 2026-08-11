@@ -437,16 +437,6 @@ export function SatelliteMap({
   const initialIndexRef = useRef<number>(0);
   const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
   const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
-  // Blitze im aktuell angezeigten Zeitschritt (0–15 Min. Blitz-Alter).
-  const visibleStrikeCount = useMemo(() => {
-    const frameTime = frames[safeIndex]?.time;
-    const ref = frameTime ? Date.parse(frameTime) : Date.now();
-    const base = Number.isFinite(ref) ? ref : Date.now();
-    return lightningStrikes.filter((s) => {
-      const age = base - Date.parse(s.t);
-      return Number.isFinite(age) && age >= 0 && age <= 15 * 60_000;
-    }).length;
-  }, [lightningStrikes, frames, safeIndex]);
   useEffect(() => {
     if (frames.length === 0) return;
     if (lastTimeRef.current === null) {
