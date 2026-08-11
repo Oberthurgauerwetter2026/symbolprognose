@@ -276,6 +276,13 @@ export function WeatherWidget({
       return d.getTime();
     })();
     const cutoffMs = curHourMs + 12 * 3600_000;
+    // Nur Stunden innerhalb der angezeigten Tageskacheln — sonst laufen die
+    // Slots über den letzten Kacheltag hinaus und der Panel-Header bleibt
+    // fälschlich auf dem letzten Tag stehen.
+    const lastDayIso = days.length ? days[days.length - 1].iso : null;
+    const dayEndMs = lastDayIso
+      ? new Date(lastDayIso + "T23:59:59").getTime()
+      : Infinity;
     const out: { idx: number; cadence: "1h" | "3h" }[] = [];
     const safeLen = Math.min(
       h.time.length,
@@ -286,6 +293,7 @@ export function WeatherWidget({
     for (let i = 0; i < safeLen; i++) {
       const tMs = new Date(h.time[i]).getTime();
       if (tMs < curHourMs) continue;
+      if (tMs > dayEndMs) break;
       if (tMs < cutoffMs) {
         out.push({ idx: i, cadence: "1h" });
       } else {
@@ -295,7 +303,8 @@ export function WeatherWidget({
       }
     }
     return out;
-  }, [forecast.data, now]);
+  }, [forecast.data, now, days]);
+
 
   const allWarnings = useActiveWarnings();
   const localWarnings = useMemo(() => {
