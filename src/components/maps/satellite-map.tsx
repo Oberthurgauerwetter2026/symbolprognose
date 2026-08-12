@@ -458,6 +458,9 @@ export function SatelliteMap({
   const [speedMs, setSpeedMs] = useState(500);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loadedIdx, setLoadedIdx] = useState<number[]>([]);
+  const [outage, setOutage] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const total = frames.length;
