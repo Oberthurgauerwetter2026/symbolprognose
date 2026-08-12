@@ -690,7 +690,7 @@ export function SatelliteMap({
           <FlyToRegion regionId={regionId} fitBounds={loop} />
           {frames.length > 0 && (
             <FrameStack
-              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}-${reloadKey}`}
               provider={data?.provider ?? region.provider ?? "eumetsat-wms"}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
