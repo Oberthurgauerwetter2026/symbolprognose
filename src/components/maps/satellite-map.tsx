@@ -751,6 +751,23 @@ export function SatelliteMap({
           </div>
         )}
 
+        {outage && total > 0 && (
+          <div className="absolute inset-x-0 top-3 z-[460] flex justify-center px-3">
+            <div className="flex items-center gap-3 rounded-full border border-white/15 bg-black/50 px-4 py-2 shadow-lg backdrop-blur-md">
+              <span className="text-xs font-medium text-white/95">
+                Satellitenbilder derzeit nicht verfügbar (Störung bei EUMETSAT)
+              </span>
+              <button
+                type="button"
+                onClick={retryLoad}
+                className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-white/25"
+              >
+                Erneut versuchen
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Steuerpanel — bare: schwebend über der Karte; sonst Panel unter der Karte (analog Radar) */}
