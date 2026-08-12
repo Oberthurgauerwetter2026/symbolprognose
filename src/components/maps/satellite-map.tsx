@@ -506,7 +506,26 @@ export function SatelliteMap({
   useEffect(() => {
     setLoadedIdx([]);
     setPlaying(false);
+    setOutage(false);
   }, [regionId]);
+
+  // Nach einer erkannten Dienststörung einmal automatisch neu versuchen.
+  useEffect(() => {
+    if (!outage) return;
+    const t = window.setTimeout(() => {
+      setOutage(false);
+      setLoadedIdx([]);
+      setReloadKey((k) => k + 1);
+    }, 60_000);
+    return () => window.clearTimeout(t);
+  }, [outage]);
+
+  const retryLoad = () => {
+    setOutage(false);
+    setLoadedIdx([]);
+    setReloadKey((k) => k + 1);
+  };
+
 
   useEffect(() => {
     if (ready && !playing && total >= 2) setPlaying(true);
