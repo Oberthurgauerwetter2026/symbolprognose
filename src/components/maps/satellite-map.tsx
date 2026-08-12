@@ -219,6 +219,10 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
  * 6 Browser-Verbindungen und liess die Karte lange leer.
  */
 const MAX_IN_FLIGHT = 3;
+/** Hängt ein Zeitschritt länger, gilt er als fehlgeschlagen (Dienst-Timeout). */
+const FRAME_TIMEOUT_MS = 12_000;
+/** So viele Fehlschläge ohne einen Erfolg ⇒ Dienststörung. */
+const OUTAGE_FAIL_STREAK = 4;
 
 function FrameStack({
   provider,
@@ -229,6 +233,7 @@ function FrameStack({
   activeIndex,
   initialIndex,
   onProgress,
+  onOutage,
 }: {
   provider: "eumetsat-wms" | "gibs-wmts";
   layer: string;
@@ -238,6 +243,7 @@ function FrameStack({
   activeIndex: number;
   initialIndex: number;
   onProgress: (loadedIndices: number[], total: number) => void;
+  onOutage?: (outage: boolean) => void;
 }) {
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
@@ -246,6 +252,7 @@ function FrameStack({
   const triedFallbackRef = useRef(false);
   const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
   const clampedInitialIndex = frames.length > 0 ? Math.min(Math.max(initialIndex, 0), frames.length - 1) : 0;
+
 
   useEffect(() => {
     setEffectiveLayer(layer);
