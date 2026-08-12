@@ -699,6 +699,7 @@ export function SatelliteMap({
               activeIndex={safeIndex}
               initialIndex={safeInitialIndex}
               onProgress={(indices) => setLoadedIdx(indices)}
+              onOutage={setOutage}
             />
           )}
           {showSwiss && <SwissOutline />}
