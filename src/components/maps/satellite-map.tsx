@@ -287,7 +287,10 @@ function FrameStack({
 
     let cancelled = false;
     let inFlight = 0;
+    let failStreak = 0;
+    let anySuccess = false;
     const queue: number[] = [];
+    const timers = new Set<number>();
 
     /** Nächste Plätze der Warteschlange füllen. */
     const pump = () => {
@@ -301,9 +304,25 @@ function FrameStack({
     const settle = (i: number, loaded: boolean) => {
       if (cancelled) return;
       inFlight = Math.max(0, inFlight - 1);
-      if (loaded && !loadedRef.current.has(i)) {
-        loadedRef.current.add(i);
-        onProgress([...loadedRef.current], frames.length);
+      if (loaded) {
+        anySuccess = true;
+        failStreak = 0;
+        if (!loadedRef.current.has(i)) {
+          loadedRef.current.add(i);
+          onProgress([...loadedRef.current], frames.length);
+        }
+        onOutage?.(false);
+      } else {
+        failStreak += 1;
+        // Komplettausfall der Quelle: Laden abbrechen statt endlos anfragen.
+        if (!anySuccess && failStreak >= OUTAGE_FAIL_STREAK) {
+          cancelled = true;
+          queue.length = 0;
+          timers.forEach((t) => window.clearTimeout(t));
+          timers.clear();
+          onOutage?.(true);
+          return;
+        }
       }
       pump();
     };
@@ -313,6 +332,14 @@ function FrameStack({
       const f = frames[i];
       inFlight += 1;
       let done = false;
+      let timer = 0;
+      const finish = (loaded: boolean) => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        timers.delete(timer);
+        settle(i, loaded);
+      };
       let tl: L.TileLayer;
       if (provider === "gibs-wmts") {
         const tms = tileMatrixSet ?? "GoogleMapsCompatible_Level9";
@@ -325,18 +352,15 @@ function FrameStack({
         wl.setParams({ time: f.time } as unknown as L.WMSParams, false);
         tl = wl;
       }
-      tl.on("load", () => {
-        if (done) return;
-        done = true;
-        settle(i, true);
-      });
+      // Zeitgrenze: hängende Anfragen dürfen den Ladeplatz nicht blockieren.
+      timer = window.setTimeout(() => finish(false), FRAME_TIMEOUT_MS);
+      timers.add(timer);
+      tl.on("load", () => finish(true));
       tl.on("tileerror", () => {
-        if (!done) {
-          done = true;
-          // Fehlerhafte Frames blockieren die Warteschlange nicht.
-          settle(i, false);
-        }
+        finish(false);
         if (triedFallbackRef.current) return;
+        // Reserve-Layer nur, wenn der Dienst grundsätzlich antwortet.
+        if (!anySuccess) return;
         if (provider === "eumetsat-wms" && fallbackLayer && fallbackLayer !== effectiveLayer) {
           triedFallbackRef.current = true;
           setEffectiveLayer(fallbackLayer);
@@ -350,6 +374,7 @@ function FrameStack({
     };
 
     onProgress([], frames.length);
+    onOutage?.(false);
     for (let d = 1; d < frames.length; d++) {
       const a = clampedInitialIndex + d;
       const b = clampedInitialIndex - d;
@@ -362,9 +387,12 @@ function FrameStack({
 
     return () => {
       cancelled = true;
+      timers.forEach((t) => window.clearTimeout(t));
+      timers.clear();
       layersRef.current.forEach((tl) => tl?.remove());
       layersRef.current = [];
     };
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, provider, effectiveLayer, tileMatrixSet, frames, clampedInitialIndex]);
 
