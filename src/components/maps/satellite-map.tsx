@@ -219,6 +219,10 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
  * 6 Browser-Verbindungen und liess die Karte lange leer.
  */
 const MAX_IN_FLIGHT = 3;
+/** Hängt ein Zeitschritt länger, gilt er als fehlgeschlagen (Dienst-Timeout). */
+const FRAME_TIMEOUT_MS = 12_000;
+/** So viele Fehlschläge ohne einen Erfolg ⇒ Dienststörung. */
+const OUTAGE_FAIL_STREAK = 4;
 
 function FrameStack({
   provider,
@@ -229,6 +233,7 @@ function FrameStack({
   activeIndex,
   initialIndex,
   onProgress,
+  onOutage,
 }: {
   provider: "eumetsat-wms" | "gibs-wmts";
   layer: string;
@@ -238,6 +243,7 @@ function FrameStack({
   activeIndex: number;
   initialIndex: number;
   onProgress: (loadedIndices: number[], total: number) => void;
+  onOutage?: (outage: boolean) => void;
 }) {
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
@@ -246,6 +252,7 @@ function FrameStack({
   const triedFallbackRef = useRef(false);
   const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
   const clampedInitialIndex = frames.length > 0 ? Math.min(Math.max(initialIndex, 0), frames.length - 1) : 0;
+
 
   useEffect(() => {
     setEffectiveLayer(layer);
@@ -280,7 +287,10 @@ function FrameStack({
 
     let cancelled = false;
     let inFlight = 0;
+    let failStreak = 0;
+    let anySuccess = false;
     const queue: number[] = [];
+    const timers = new Set<number>();
 
     /** Nächste Plätze der Warteschlange füllen. */
     const pump = () => {
@@ -294,9 +304,25 @@ function FrameStack({
     const settle = (i: number, loaded: boolean) => {
       if (cancelled) return;
       inFlight = Math.max(0, inFlight - 1);
-      if (loaded && !loadedRef.current.has(i)) {
-        loadedRef.current.add(i);
-        onProgress([...loadedRef.current], frames.length);
+      if (loaded) {
+        anySuccess = true;
+        failStreak = 0;
+        if (!loadedRef.current.has(i)) {
+          loadedRef.current.add(i);
+          onProgress([...loadedRef.current], frames.length);
+        }
+        onOutage?.(false);
+      } else {
+        failStreak += 1;
+        // Komplettausfall der Quelle: Laden abbrechen statt endlos anfragen.
+        if (!anySuccess && failStreak >= OUTAGE_FAIL_STREAK) {
+          cancelled = true;
+          queue.length = 0;
+          timers.forEach((t) => window.clearTimeout(t));
+          timers.clear();
+          onOutage?.(true);
+          return;
+        }
       }
       pump();
     };
@@ -306,6 +332,14 @@ function FrameStack({
       const f = frames[i];
       inFlight += 1;
       let done = false;
+      let timer = 0;
+      const finish = (loaded: boolean) => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        timers.delete(timer);
+        settle(i, loaded);
+      };
       let tl: L.TileLayer;
       if (provider === "gibs-wmts") {
         const tms = tileMatrixSet ?? "GoogleMapsCompatible_Level9";
@@ -318,18 +352,15 @@ function FrameStack({
         wl.setParams({ time: f.time } as unknown as L.WMSParams, false);
         tl = wl;
       }
-      tl.on("load", () => {
-        if (done) return;
-        done = true;
-        settle(i, true);
-      });
+      // Zeitgrenze: hängende Anfragen dürfen den Ladeplatz nicht blockieren.
+      timer = window.setTimeout(() => finish(false), FRAME_TIMEOUT_MS);
+      timers.add(timer);
+      tl.on("load", () => finish(true));
       tl.on("tileerror", () => {
-        if (!done) {
-          done = true;
-          // Fehlerhafte Frames blockieren die Warteschlange nicht.
-          settle(i, false);
-        }
+        finish(false);
         if (triedFallbackRef.current) return;
+        // Reserve-Layer nur, wenn der Dienst grundsätzlich antwortet.
+        if (!anySuccess) return;
         if (provider === "eumetsat-wms" && fallbackLayer && fallbackLayer !== effectiveLayer) {
           triedFallbackRef.current = true;
           setEffectiveLayer(fallbackLayer);
@@ -343,6 +374,7 @@ function FrameStack({
     };
 
     onProgress([], frames.length);
+    onOutage?.(false);
     for (let d = 1; d < frames.length; d++) {
       const a = clampedInitialIndex + d;
       const b = clampedInitialIndex - d;
@@ -355,9 +387,12 @@ function FrameStack({
 
     return () => {
       cancelled = true;
+      timers.forEach((t) => window.clearTimeout(t));
+      timers.clear();
       layersRef.current.forEach((tl) => tl?.remove());
       layersRef.current = [];
     };
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, provider, effectiveLayer, tileMatrixSet, frames, clampedInitialIndex]);
 
@@ -423,6 +458,9 @@ export function SatelliteMap({
   const [speedMs, setSpeedMs] = useState(500);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loadedIdx, setLoadedIdx] = useState<number[]>([]);
+  const [outage, setOutage] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const total = frames.length;
@@ -468,7 +506,26 @@ export function SatelliteMap({
   useEffect(() => {
     setLoadedIdx([]);
     setPlaying(false);
+    setOutage(false);
   }, [regionId]);
+
+  // Nach einer erkannten Dienststörung einmal automatisch neu versuchen.
+  useEffect(() => {
+    if (!outage) return;
+    const t = window.setTimeout(() => {
+      setOutage(false);
+      setLoadedIdx([]);
+      setReloadKey((k) => k + 1);
+    }, 60_000);
+    return () => window.clearTimeout(t);
+  }, [outage]);
+
+  const retryLoad = () => {
+    setOutage(false);
+    setLoadedIdx([]);
+    setReloadKey((k) => k + 1);
+  };
+
 
   useEffect(() => {
     if (ready && !playing && total >= 2) setPlaying(true);
@@ -633,7 +690,7 @@ export function SatelliteMap({
           <FlyToRegion regionId={regionId} fitBounds={loop} />
           {frames.length > 0 && (
             <FrameStack
-              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}`}
+              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}-${reloadKey}`}
               provider={data?.provider ?? region.provider ?? "eumetsat-wms"}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
@@ -642,6 +699,7 @@ export function SatelliteMap({
               activeIndex={safeIndex}
               initialIndex={safeInitialIndex}
               onProgress={(indices) => setLoadedIdx(indices)}
+              onOutage={setOutage}
             />
           )}
           {showSwiss && <SwissOutline />}
@@ -689,6 +747,23 @@ export function SatelliteMap({
           <div className="absolute inset-0 z-[400] flex items-center justify-center bg-background/80">
             <div className="rounded-md border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
               Satellitenbilder vorübergehend nicht verfügbar.
+            </div>
+          </div>
+        )}
+
+        {outage && total > 0 && (
+          <div className="absolute inset-x-0 top-3 z-[460] flex justify-center px-3">
+            <div className="flex items-center gap-3 rounded-full border border-white/15 bg-black/50 px-4 py-2 shadow-lg backdrop-blur-md">
+              <span className="text-xs font-medium text-white/95">
+                Satellitenbilder derzeit nicht verfügbar (Störung bei EUMETSAT)
+              </span>
+              <button
+                type="button"
+                onClick={retryLoad}
+                className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-white/25"
+              >
+                Erneut versuchen
+              </button>
             </div>
           </div>
         )}
