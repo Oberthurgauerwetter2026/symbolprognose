@@ -495,6 +495,107 @@ def rasterize_forecast_pngs(
     return manifest_entries
 
 
+def rasterize_forecast_hourly_pngs(
+    s3,
+    bucket: str,
+    public_url: str,
+    lats: list[float],
+    lons: list[float],
+    phase2: list | None,
+    after_iso: str | None,
+) -> list[dict]:
+    """Verlängert die Prognose-PNGs mit ICON-CH2-Stundenfeldern.
+
+    Ohne diese PNGs würde der Client die Stundenprognose aus dem groben
+    Sparse-Grid rendern — das ergibt sichtbare Rechteckblöcke. Deshalb werden
+    auch die Stundenslots (nach dem letzten CH1-Slot bis +48 h) im gleichen
+    240 × 144-Raster, mit gleicher Farbskala und gleicher Glättung gerastert."""
+    if not phase2 or not lats or not lons:
+        print("forecast-hourly-pngs: no phase2 data — skipping")
+        return []
+
+    n_lat = len(lats)
+    n_lon = len(lons)
+    n_pts = n_lat * n_lon
+    if len(phase2) != n_pts:
+        print(
+            f"forecast-hourly-pngs: grid mismatch ({len(phase2)} vs {n_pts}) — skipping",
+        )
+        return []
+
+    ref_loc = next(
+        (
+            loc for loc in phase2
+            if ((loc or {}).get("hourly") or {}).get("time")
+            and ((loc or {}).get("hourly") or {}).get("precipitation")
+        ),
+        None,
+    )
+    ref_times: list[str] = ((ref_loc or {}).get("hourly") or {}).get("time") or []
+    if not ref_times:
+        print("forecast-hourly-pngs: no hourly times in phase2 — skipping")
+        return []
+
+    per_pt_precip: list[list] = [
+        (((loc or {}).get("hourly") or {}).get("precipitation") or []) for loc in phase2
+    ]
+
+    now = datetime.now(tz=timezone.utc)
+    horizon = now + timedelta(hours=48)
+    start = now
+    if after_iso:
+        try:
+            after_dt = datetime.fromisoformat(after_iso.replace("Z", "+00:00"))
+            start = max(start, after_dt + timedelta(minutes=10))
+        except ValueError:
+            pass
+
+    manifest_entries: list[dict] = []
+    uploaded = 0
+    # Grobes Quellgitter → grössere Mindestfläche, damit die Interpolation keine
+    # dünnen Säume zwischen den Bändern hinterlässt.
+    for ti, t_iso in enumerate(ref_times):
+        try:
+            t_dt = datetime.fromisoformat(t_iso).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if t_dt < start or t_dt > horizon:
+            continue
+
+        frame_vals: list[float] = [0.0] * n_pts
+        any_positive = False
+        for pi in range(n_pts):
+            arr = per_pt_precip[pi]
+            v = arr[ti] if ti < len(arr) else None
+            fv = float(v) if isinstance(v, (int, float)) else 0.0  # hourly = mm/h
+            if fv > 0.05:
+                any_positive = True
+            frame_vals[pi] = fv
+
+        png = _render_frame_png(n_lat, n_lon, frame_vals, min_area_px=24)
+        stamp = t_dt.strftime("%Y%m%dT%H%M")
+        key = f"radar/forecast/{stamp}.png"
+        s3.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=png,
+            ContentType="image/png",
+            CacheControl="public, max-age=31536000, immutable",
+        )
+        uploaded += 1
+        manifest_entries.append({
+            "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
+            "precipUrl": f"{public_url.rstrip('/')}/{key}",
+            "source": "icon-ch2",
+            "hasPrecip": any_positive,
+        })
+    print(f"forecast-hourly-pngs: uploaded {uploaded} frames")
+    return manifest_entries
+
+
+
+
+
 def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
     bb = _bbox()
     body: dict = {
