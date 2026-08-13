@@ -572,6 +572,7 @@ def rasterize_forecast_hourly_pngs(
     uploaded = 0
     # Grobes Quellgitter → grössere Mindestfläche, damit die Interpolation keine
     # dünnen Säume zwischen den Bändern hinterlässt.
+    failed = 0
     for ti, t_iso in enumerate(ref_times):
         try:
             t_dt = datetime.fromisoformat(t_iso).replace(tzinfo=timezone.utc)
@@ -583,32 +584,43 @@ def rasterize_forecast_hourly_pngs(
         frame_vals: list[float] = [0.0] * n_pts
         any_positive = False
         for pi in range(n_pts):
-            arr = per_pt_precip[pi]
+            arr = per_pt_precip[pi] if pi < len(per_pt_precip) else []
             v = arr[ti] if ti < len(arr) else None
             fv = float(v) if isinstance(v, (int, float)) else 0.0  # hourly = mm/h
             if fv > 0.05:
                 any_positive = True
             frame_vals[pi] = fv
 
-        png = _render_frame_png(n_lat, n_lon, frame_vals, min_area_px=24)
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         key = f"radar/forecast/{stamp}.png"
-        s3.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=png,
-            ContentType="image/png",
-            CacheControl="public, max-age=31536000, immutable",
-        )
+        try:
+            png = _render_frame_png(n_lat, n_lon, frame_vals, min_area_px=24)
+            s3.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=png,
+                ContentType="image/png",
+                CacheControl="public, max-age=31536000, immutable",
+            )
+        except Exception as exc:
+            failed += 1
+            print(f"forecast-hourly-pngs: FAIL {stamp}: {exc!r}")
+            continue
         uploaded += 1
         manifest_entries.append({
             "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
             "precipUrl": f"{public_url.rstrip('/')}/{key}",
-            "source": "icon-ch2",
+            "source": "icon-seamless",
             "hasPrecip": any_positive,
         })
-    print(f"forecast-hourly-pngs: uploaded {uploaded} frames")
+    print(
+        f"forecast-hourly-pngs: uploaded {uploaded} frames, {failed} failed"
+        + (f", bis {manifest_entries[-1]['t']}" if manifest_entries else ""),
+    )
+    if uploaded == 0:
+        print("forecast-hourly-pngs: WARN — keine Stundenframes erzeugt (Prognose endet früher)")
     return manifest_entries
+
 
 
 
