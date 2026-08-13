@@ -339,9 +339,19 @@ def _upsample_smooth(arr, out_h: int, out_w: int):
     return np.clip(out, 0.0, None).astype(np.float32)
 
 
-def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> bytes:
+def _render_frame_png(
+    n_lat: int,
+    n_lon: int,
+    mmh_row_major: list[float],
+    min_area_px: int = 14,
+) -> bytes:
     """`mmh_row_major` ist [lat_asc * lon_asc] mit len = n_lat*n_lon.
-    Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat."""
+    Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat.
+
+    WICHTIG (dauerhafte Vorgabe): Prognosefelder werden NIE blockig gerastert.
+    Die Neurasterung läuft immer über `_upsample_smooth` (Catmull-Rom auf den
+    Werten), damit die Bandkanten organisch verlaufen — auch wenn die Quelle ein
+    grobes Modellgitter ist."""
     import numpy as np
     from PIL import Image
     from _morph import clean_precip_field
@@ -357,7 +367,8 @@ def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> byt
     # Speckles/Löcher bandweise entfernen. Mindestflächen etwas grösser als in
     # der Messung (9 px), damit durch die Interpolation keine dünnen
     # Ein-Pixel-Säume zwischen zwei Bändern stehen bleiben.
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=14, hole_area_px=14)
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min_area_px, hole_area_px=min_area_px)
+
 
 
     rgba = np.zeros((arr.shape[0], arr.shape[1], 4), dtype=np.uint8)
