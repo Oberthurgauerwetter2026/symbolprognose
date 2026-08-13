@@ -2254,10 +2254,16 @@ export function RadarMap({
               const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
+              // DAUERHAFTE VORGABE: Die Radar-Prognose wird NIE aus dem
+              // Sparse-Grid gerendert (ergibt Rechteckblöcke). Prognoseframes
+              // ohne PNG zeigen nichts; der Grid-Pfad bleibt nur für Messframes.
+              const isForecastFrame = !!overlayFrame && overlayFrame.source !== "radar";
               const showPng = !!overlayFrame && hasPng;
-              const showGrid = !!overlayFrame && hasGrid && !hasPng;
-              const warmGrid = !!overlayFrame && hasPng && !!overlayNext && nextHasGrid;
+              const showGrid = !!overlayFrame && hasGrid && !hasPng && !isForecastFrame;
+              const warmGrid =
+                !!overlayFrame && hasPng && !!overlayNext && nextHasGrid && !isForecastFrame;
               const gridFrame = showGrid ? overlayFrame : warmGrid ? overlayNext : null;
+
 
               // Prognosefelder halten den Grossteil des Schritts stabil und
               // gehen nur im letzten Abschnitt weich ins nächste Feld über.
