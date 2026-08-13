@@ -495,7 +495,33 @@ def rasterize_forecast_pngs(
     return manifest_entries
 
 
+def _guess_grid_shape(n: int, hint_lat: int, hint_lon: int) -> tuple[int, int] | None:
+    """Rekonstruiert (n_lat, n_lon) für n Punkte, wenn die Achsen nicht passen.
+
+    Bevorzugt ein Seitenverhältnis nahe dem erwarteten Gitter, damit die
+    Stunden-PNGs auch mit einem Cache aus einem Lauf mit anderer Gittergrösse
+    erzeugt werden können (statt blockig aus dem Sparse-Grid zu rendern).
+    """
+    if n <= 1 or hint_lat <= 0 or hint_lon <= 0:
+        return None
+    target = hint_lon / hint_lat
+    best: tuple[float, int, int] | None = None
+    for n_lat in range(2, n + 1):
+        if n % n_lat:
+            continue
+        n_lon = n // n_lat
+        if n_lon < 2:
+            continue
+        err = abs((n_lon / n_lat) - target)
+        if best is None or err < best[0]:
+            best = (err, n_lat, n_lon)
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
 def rasterize_forecast_hourly_pngs(
+
     s3,
     bucket: str,
     public_url: str,
