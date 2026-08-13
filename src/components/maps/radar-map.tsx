@@ -1811,8 +1811,16 @@ export function RadarMap({
   const frames = useMemo(() => {
     const all = data?.frames ?? [];
     const cutoff = Date.now() + 48 * 3600 * 1000;
-    return all.filter((f) => Date.parse(f.t) <= cutoff);
+    return all.filter((f) => {
+      if (Date.parse(f.t) > cutoff) return false;
+      // DAUERHAFTE VORGABE: Prognoseframes ohne PNG kommen nicht in die
+      // Timeline. Sie würden aus dem groben Sparse-Grid als Rechteckblöcke
+      // gerendert. Ihre Werte bleiben für die Niederschlagssummen im Payload.
+      if (f.source !== "radar" && !f.precipUrl) return false;
+      return true;
+    });
   }, [data]);
+
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
