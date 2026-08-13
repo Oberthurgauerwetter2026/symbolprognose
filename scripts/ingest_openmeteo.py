@@ -776,7 +776,7 @@ def main() -> None:
             phase1 = downsample_phase1(dense_lats, dense_lons, phase1_dense, pts)
             print(f"  -> downsampled to sparse: {len(phase1)} locations")
 
-    # ---- Prognose-PNGs rasterisieren + Manifest schreiben ----
+    # ---- Prognose-Rasterung vorbereiten (Manifest wird nach phase2 geschrieben) ----
     raster_lats = dense_lats
     raster_lons = dense_lons
     raster_phase1 = phase1_dense
@@ -788,16 +788,17 @@ def main() -> None:
         raster_phase1 = phase1
         print("forecast-pngs: using sparse cache fallback for forecast manifest")
 
+    forecast_frames: list[dict] = []
     if raster_phase1 and r2_public_url:
         try:
             forecast_frames = rasterize_forecast_pngs(
                 s3, bucket, r2_public_url, raster_lats, raster_lons, raster_phase1
             )
-            write_forecast_manifest(s3, bucket, forecast_frames)
         except Exception as exc:
             print(f"WARN: forecast PNG rasterization failed: {exc!r}")
     elif raster_phase1 and not r2_public_url:
         print("WARN: R2_PUBLIC_URL not set — skipping forecast PNG rasterization")
+
 
 
 
