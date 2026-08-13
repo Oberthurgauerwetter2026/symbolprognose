@@ -821,6 +821,24 @@ def main() -> None:
         else:
             print(f"  -> {len(phase2)} locations")
 
+    # ---- Stunden-Prognose als PNGs anhängen + Manifest schreiben ----
+    # Wichtig: Ohne diese PNGs rendert der Client den Stundenbereich aus dem
+    # groben Sparse-Grid und die Niederschlagsflächen erscheinen als Blöcke.
+    if r2_public_url:
+        try:
+            last_ch1_t = forecast_frames[-1]["t"] if forecast_frames else None
+            hourly_lats, hourly_lons = grid_axes_from_points(pts)
+            forecast_frames = forecast_frames + rasterize_forecast_hourly_pngs(
+                s3, bucket, r2_public_url, hourly_lats, hourly_lons, phase2, last_ch1_t
+            )
+        except Exception as exc:
+            print(f"WARN: hourly forecast PNG rasterization failed: {exc!r}")
+        if forecast_frames:
+            try:
+                write_forecast_manifest(s3, bucket, forecast_frames)
+            except Exception as exc:
+                print(f"WARN: forecast manifest write failed: {exc!r}")
+
 
     # ---- phaseC (Bias-Lookback) ----
     if only_phaseA:
