@@ -495,7 +495,33 @@ def rasterize_forecast_pngs(
     return manifest_entries
 
 
+def _guess_grid_shape(n: int, hint_lat: int, hint_lon: int) -> tuple[int, int] | None:
+    """Rekonstruiert (n_lat, n_lon) für n Punkte, wenn die Achsen nicht passen.
+
+    Bevorzugt ein Seitenverhältnis nahe dem erwarteten Gitter, damit die
+    Stunden-PNGs auch mit einem Cache aus einem Lauf mit anderer Gittergrösse
+    erzeugt werden können (statt blockig aus dem Sparse-Grid zu rendern).
+    """
+    if n <= 1 or hint_lat <= 0 or hint_lon <= 0:
+        return None
+    target = hint_lon / hint_lat
+    best: tuple[float, int, int] | None = None
+    for n_lat in range(2, n + 1):
+        if n % n_lat:
+            continue
+        n_lon = n // n_lat
+        if n_lon < 2:
+            continue
+        err = abs((n_lon / n_lat) - target)
+        if best is None or err < best[0]:
+            best = (err, n_lat, n_lon)
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
 def rasterize_forecast_hourly_pngs(
+
     s3,
     bucket: str,
     public_url: str,
@@ -510,18 +536,31 @@ def rasterize_forecast_hourly_pngs(
     Sparse-Grid rendern — das ergibt sichtbare Rechteckblöcke. Deshalb werden
     auch die Stundenslots (nach dem letzten CH1-Slot bis +48 h) im gleichen
     240 × 144-Raster, mit gleicher Farbskala und gleicher Glättung gerastert."""
-    if not phase2 or not lats or not lons:
-        print("forecast-hourly-pngs: no phase2 data — skipping")
+    if not phase2:
+        print("forecast-hourly-pngs: SKIP — phase2 leer (keine Stundendaten)")
         return []
 
     n_lat = len(lats)
     n_lon = len(lons)
     n_pts = n_lat * n_lon
-    if len(phase2) != n_pts:
-        print(
-            f"forecast-hourly-pngs: grid mismatch ({len(phase2)} vs {n_pts}) — skipping",
-        )
-        return []
+    print(
+        f"forecast-hourly-pngs: phase2={len(phase2)} pts, grid={n_lat}×{n_lon}={n_pts}",
+    )
+    if n_pts != len(phase2):
+        # Gitterachsen passen nicht zur Punktliste (z. B. Cache aus einem Lauf
+        # mit anderer GRID_LAT/GRID_LON). Achsen aus der Länge rekonstruieren,
+        # statt die Stunden-PNGs auszulassen — ohne PNG würde der Client wieder
+        # blockig aus dem Sparse-Grid rendern.
+        guessed = _guess_grid_shape(len(phase2), n_lat, n_lon)
+        if guessed is None:
+            print(
+                f"forecast-hourly-pngs: SKIP — Gitter nicht rekonstruierbar "
+                f"({len(phase2)} Punkte, erwartet {n_pts})",
+            )
+            return []
+        n_lat, n_lon = guessed
+        n_pts = n_lat * n_lon
+        print(f"forecast-hourly-pngs: Gitter korrigiert auf {n_lat}×{n_lon}")
 
     ref_loc = next(
         (
@@ -533,7 +572,7 @@ def rasterize_forecast_hourly_pngs(
     )
     ref_times: list[str] = ((ref_loc or {}).get("hourly") or {}).get("time") or []
     if not ref_times:
-        print("forecast-hourly-pngs: no hourly times in phase2 — skipping")
+        print("forecast-hourly-pngs: SKIP — keine hourly.time/precipitation in phase2")
         return []
 
     per_pt_precip: list[list] = [
@@ -548,12 +587,18 @@ def rasterize_forecast_hourly_pngs(
             after_dt = datetime.fromisoformat(after_iso.replace("Z", "+00:00"))
             start = max(start, after_dt + timedelta(minutes=10))
         except ValueError:
-            pass
+            print(f"forecast-hourly-pngs: after_iso unlesbar ({after_iso!r}) — ab jetzt")
+    print(
+        f"forecast-hourly-pngs: hourly-slots={len(ref_times)} "
+        f"({ref_times[0]} … {ref_times[-1]}), Fenster {start.isoformat()} … {horizon.isoformat()}",
+    )
+
 
     manifest_entries: list[dict] = []
     uploaded = 0
     # Grobes Quellgitter → grössere Mindestfläche, damit die Interpolation keine
     # dünnen Säume zwischen den Bändern hinterlässt.
+    failed = 0
     for ti, t_iso in enumerate(ref_times):
         try:
             t_dt = datetime.fromisoformat(t_iso).replace(tzinfo=timezone.utc)
@@ -565,32 +610,43 @@ def rasterize_forecast_hourly_pngs(
         frame_vals: list[float] = [0.0] * n_pts
         any_positive = False
         for pi in range(n_pts):
-            arr = per_pt_precip[pi]
+            arr = per_pt_precip[pi] if pi < len(per_pt_precip) else []
             v = arr[ti] if ti < len(arr) else None
             fv = float(v) if isinstance(v, (int, float)) else 0.0  # hourly = mm/h
             if fv > 0.05:
                 any_positive = True
             frame_vals[pi] = fv
 
-        png = _render_frame_png(n_lat, n_lon, frame_vals, min_area_px=24)
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         key = f"radar/forecast/{stamp}.png"
-        s3.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=png,
-            ContentType="image/png",
-            CacheControl="public, max-age=31536000, immutable",
-        )
+        try:
+            png = _render_frame_png(n_lat, n_lon, frame_vals, min_area_px=24)
+            s3.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=png,
+                ContentType="image/png",
+                CacheControl="public, max-age=31536000, immutable",
+            )
+        except Exception as exc:
+            failed += 1
+            print(f"forecast-hourly-pngs: FAIL {stamp}: {exc!r}")
+            continue
         uploaded += 1
         manifest_entries.append({
             "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
             "precipUrl": f"{public_url.rstrip('/')}/{key}",
-            "source": "icon-ch2",
+            "source": "icon-seamless",
             "hasPrecip": any_positive,
         })
-    print(f"forecast-hourly-pngs: uploaded {uploaded} frames")
+    print(
+        f"forecast-hourly-pngs: uploaded {uploaded} frames, {failed} failed"
+        + (f", bis {manifest_entries[-1]['t']}" if manifest_entries else ""),
+    )
+    if uploaded == 0:
+        print("forecast-hourly-pngs: WARN — keine Stundenframes erzeugt (Prognose endet früher)")
     return manifest_entries
+
 
 
 
@@ -832,7 +888,11 @@ def main() -> None:
                 s3, bucket, r2_public_url, hourly_lats, hourly_lons, phase2, last_ch1_t
             )
         except Exception as exc:
+            import traceback
+
             print(f"WARN: hourly forecast PNG rasterization failed: {exc!r}")
+            traceback.print_exc()
+
         if forecast_frames:
             try:
                 write_forecast_manifest(s3, bucket, forecast_frames)

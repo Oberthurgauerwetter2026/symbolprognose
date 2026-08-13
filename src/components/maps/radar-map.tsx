@@ -1811,8 +1811,16 @@ export function RadarMap({
   const frames = useMemo(() => {
     const all = data?.frames ?? [];
     const cutoff = Date.now() + 48 * 3600 * 1000;
-    return all.filter((f) => Date.parse(f.t) <= cutoff);
+    return all.filter((f) => {
+      if (Date.parse(f.t) > cutoff) return false;
+      // DAUERHAFTE VORGABE: Prognoseframes ohne PNG kommen nicht in die
+      // Timeline. Sie würden aus dem groben Sparse-Grid als Rechteckblöcke
+      // gerendert. Ihre Werte bleiben für die Niederschlagssummen im Payload.
+      if (f.source !== "radar" && !f.precipUrl) return false;
+      return true;
+    });
   }, [data]);
+
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -2254,10 +2262,16 @@ export function RadarMap({
               const ib = overlayFrame?.imageBbox ?? data.imageBbox;
               const opacityVal = 0.6;
 
+              // DAUERHAFTE VORGABE: Die Radar-Prognose wird NIE aus dem
+              // Sparse-Grid gerendert (ergibt Rechteckblöcke). Prognoseframes
+              // ohne PNG zeigen nichts; der Grid-Pfad bleibt nur für Messframes.
+              const isForecastFrame = !!overlayFrame && overlayFrame.source !== "radar";
               const showPng = !!overlayFrame && hasPng;
-              const showGrid = !!overlayFrame && hasGrid && !hasPng;
-              const warmGrid = !!overlayFrame && hasPng && !!overlayNext && nextHasGrid;
+              const showGrid = !!overlayFrame && hasGrid && !hasPng && !isForecastFrame;
+              const warmGrid =
+                !!overlayFrame && hasPng && !!overlayNext && nextHasGrid && !isForecastFrame;
               const gridFrame = showGrid ? overlayFrame : warmGrid ? overlayNext : null;
+
 
               // Prognosefelder halten den Grossteil des Schritts stabil und
               // gehen nur im letzten Abschnitt weich ins nächste Feld über.
