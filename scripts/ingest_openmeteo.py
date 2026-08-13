@@ -862,7 +862,11 @@ def main() -> None:
                 s3, bucket, r2_public_url, hourly_lats, hourly_lons, phase2, last_ch1_t
             )
         except Exception as exc:
+            import traceback
+
             print(f"WARN: hourly forecast PNG rasterization failed: {exc!r}")
+            traceback.print_exc()
+
         if forecast_frames:
             try:
                 write_forecast_manifest(s3, bucket, forecast_frames)
