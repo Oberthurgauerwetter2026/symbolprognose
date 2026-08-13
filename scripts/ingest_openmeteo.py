@@ -339,9 +339,19 @@ def _upsample_smooth(arr, out_h: int, out_w: int):
     return np.clip(out, 0.0, None).astype(np.float32)
 
 
-def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> bytes:
+def _render_frame_png(
+    n_lat: int,
+    n_lon: int,
+    mmh_row_major: list[float],
+    min_area_px: int = 14,
+) -> bytes:
     """`mmh_row_major` ist [lat_asc * lon_asc] mit len = n_lat*n_lon.
-    Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat."""
+    Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat.
+
+    WICHTIG (dauerhafte Vorgabe): Prognosefelder werden NIE blockig gerastert.
+    Die Neurasterung läuft immer über `_upsample_smooth` (Catmull-Rom auf den
+    Werten), damit die Bandkanten organisch verlaufen — auch wenn die Quelle ein
+    grobes Modellgitter ist."""
     import numpy as np
     from PIL import Image
     from _morph import clean_precip_field
@@ -357,7 +367,8 @@ def _render_frame_png(n_lat: int, n_lon: int, mmh_row_major: list[float]) -> byt
     # Speckles/Löcher bandweise entfernen. Mindestflächen etwas grösser als in
     # der Messung (9 px), damit durch die Interpolation keine dünnen
     # Ein-Pixel-Säume zwischen zwei Bändern stehen bleiben.
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=14, hole_area_px=14)
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min_area_px, hole_area_px=min_area_px)
+
 
 
     rgba = np.zeros((arr.shape[0], arr.shape[1], 4), dtype=np.uint8)
@@ -482,6 +493,107 @@ def rasterize_forecast_pngs(
         })
     print(f"forecast-pngs: uploaded {uploaded} frames")
     return manifest_entries
+
+
+def rasterize_forecast_hourly_pngs(
+    s3,
+    bucket: str,
+    public_url: str,
+    lats: list[float],
+    lons: list[float],
+    phase2: list | None,
+    after_iso: str | None,
+) -> list[dict]:
+    """Verlängert die Prognose-PNGs mit ICON-CH2-Stundenfeldern.
+
+    Ohne diese PNGs würde der Client die Stundenprognose aus dem groben
+    Sparse-Grid rendern — das ergibt sichtbare Rechteckblöcke. Deshalb werden
+    auch die Stundenslots (nach dem letzten CH1-Slot bis +48 h) im gleichen
+    240 × 144-Raster, mit gleicher Farbskala und gleicher Glättung gerastert."""
+    if not phase2 or not lats or not lons:
+        print("forecast-hourly-pngs: no phase2 data — skipping")
+        return []
+
+    n_lat = len(lats)
+    n_lon = len(lons)
+    n_pts = n_lat * n_lon
+    if len(phase2) != n_pts:
+        print(
+            f"forecast-hourly-pngs: grid mismatch ({len(phase2)} vs {n_pts}) — skipping",
+        )
+        return []
+
+    ref_loc = next(
+        (
+            loc for loc in phase2
+            if ((loc or {}).get("hourly") or {}).get("time")
+            and ((loc or {}).get("hourly") or {}).get("precipitation")
+        ),
+        None,
+    )
+    ref_times: list[str] = ((ref_loc or {}).get("hourly") or {}).get("time") or []
+    if not ref_times:
+        print("forecast-hourly-pngs: no hourly times in phase2 — skipping")
+        return []
+
+    per_pt_precip: list[list] = [
+        (((loc or {}).get("hourly") or {}).get("precipitation") or []) for loc in phase2
+    ]
+
+    now = datetime.now(tz=timezone.utc)
+    horizon = now + timedelta(hours=48)
+    start = now
+    if after_iso:
+        try:
+            after_dt = datetime.fromisoformat(after_iso.replace("Z", "+00:00"))
+            start = max(start, after_dt + timedelta(minutes=10))
+        except ValueError:
+            pass
+
+    manifest_entries: list[dict] = []
+    uploaded = 0
+    # Grobes Quellgitter → grössere Mindestfläche, damit die Interpolation keine
+    # dünnen Säume zwischen den Bändern hinterlässt.
+    for ti, t_iso in enumerate(ref_times):
+        try:
+            t_dt = datetime.fromisoformat(t_iso).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if t_dt < start or t_dt > horizon:
+            continue
+
+        frame_vals: list[float] = [0.0] * n_pts
+        any_positive = False
+        for pi in range(n_pts):
+            arr = per_pt_precip[pi]
+            v = arr[ti] if ti < len(arr) else None
+            fv = float(v) if isinstance(v, (int, float)) else 0.0  # hourly = mm/h
+            if fv > 0.05:
+                any_positive = True
+            frame_vals[pi] = fv
+
+        png = _render_frame_png(n_lat, n_lon, frame_vals, min_area_px=24)
+        stamp = t_dt.strftime("%Y%m%dT%H%M")
+        key = f"radar/forecast/{stamp}.png"
+        s3.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=png,
+            ContentType="image/png",
+            CacheControl="public, max-age=31536000, immutable",
+        )
+        uploaded += 1
+        manifest_entries.append({
+            "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
+            "precipUrl": f"{public_url.rstrip('/')}/{key}",
+            "source": "icon-ch2",
+            "hasPrecip": any_positive,
+        })
+    print(f"forecast-hourly-pngs: uploaded {uploaded} frames")
+    return manifest_entries
+
+
+
 
 
 def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
@@ -664,7 +776,7 @@ def main() -> None:
             phase1 = downsample_phase1(dense_lats, dense_lons, phase1_dense, pts)
             print(f"  -> downsampled to sparse: {len(phase1)} locations")
 
-    # ---- Prognose-PNGs rasterisieren + Manifest schreiben ----
+    # ---- Prognose-Rasterung vorbereiten (Manifest wird nach phase2 geschrieben) ----
     raster_lats = dense_lats
     raster_lons = dense_lons
     raster_phase1 = phase1_dense
@@ -676,16 +788,17 @@ def main() -> None:
         raster_phase1 = phase1
         print("forecast-pngs: using sparse cache fallback for forecast manifest")
 
+    forecast_frames: list[dict] = []
     if raster_phase1 and r2_public_url:
         try:
             forecast_frames = rasterize_forecast_pngs(
                 s3, bucket, r2_public_url, raster_lats, raster_lons, raster_phase1
             )
-            write_forecast_manifest(s3, bucket, forecast_frames)
         except Exception as exc:
             print(f"WARN: forecast PNG rasterization failed: {exc!r}")
     elif raster_phase1 and not r2_public_url:
         print("WARN: R2_PUBLIC_URL not set — skipping forecast PNG rasterization")
+
 
 
 
@@ -707,6 +820,24 @@ def main() -> None:
                 print("  -> kein Fallback verfügbar, phase2 bleibt leer")
         else:
             print(f"  -> {len(phase2)} locations")
+
+    # ---- Stunden-Prognose als PNGs anhängen + Manifest schreiben ----
+    # Wichtig: Ohne diese PNGs rendert der Client den Stundenbereich aus dem
+    # groben Sparse-Grid und die Niederschlagsflächen erscheinen als Blöcke.
+    if r2_public_url:
+        try:
+            last_ch1_t = forecast_frames[-1]["t"] if forecast_frames else None
+            hourly_lats, hourly_lons = grid_axes_from_points(pts)
+            forecast_frames = forecast_frames + rasterize_forecast_hourly_pngs(
+                s3, bucket, r2_public_url, hourly_lats, hourly_lons, phase2, last_ch1_t
+            )
+        except Exception as exc:
+            print(f"WARN: hourly forecast PNG rasterization failed: {exc!r}")
+        if forecast_frames:
+            try:
+                write_forecast_manifest(s3, bucket, forecast_frames)
+            except Exception as exc:
+                print(f"WARN: forecast manifest write failed: {exc!r}")
 
 
     # ---- phaseC (Bias-Lookback) ----

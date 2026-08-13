@@ -646,30 +646,49 @@ function PrecipOverlay({
       const img = ctx.createImageData(lowW, lowH);
       const data = img.data;
 
-      // Bilineare Sample-Funktion.
-      const sampleAt = (arr: number[], fx: number, fy: number) => {
-        const x0 = Math.floor(fx);
-        const y0 = Math.floor(fy);
-        const x1 = x0 + 1;
-        const y1 = y0 + 1;
-        const txL = fx - x0;
-        const tyL = fy - y0;
-        const inX0 = x0 >= 0 && x0 < nLon;
-        const inX1 = x1 >= 0 && x1 < nLon;
-        const inY0 = y0 >= 0 && y0 < nLat;
-        const inY1 = y1 >= 0 && y1 < nLat;
-        if ((!inX0 && !inX1) || (!inY0 && !inY1)) return 0;
-        const v00 = inX0 && inY0 ? arr[y0 * nLon + x0] : 0;
-        const v01 = inX1 && inY0 ? arr[y0 * nLon + x1] : 0;
-        const v10 = inX0 && inY1 ? arr[y1 * nLon + x0] : 0;
-        const v11 = inX1 && inY1 ? arr[y1 * nLon + x1] : 0;
+      // Catmull-Rom-Sampling (bikubisch, separabel).
+      //
+      // WICHTIG (dauerhafte Vorgabe): Grid-Frames der Prognose dürfen nie
+      // blockig erscheinen. Bilineare Interpolation über das grobe Modellgitter
+      // erzeugt sichtbare Rechteckkanten — deshalb hier durchgehend Catmull-Rom.
+      const at = (arr: number[], x: number, y: number) => {
+        const cx = x < 0 ? 0 : x > nLon - 1 ? nLon - 1 : x;
+        const cy = y < 0 ? 0 : y > nLat - 1 ? nLat - 1 : y;
+        return arr[cy * nLon + cx] ?? 0;
+      };
+      const cubic = (p0: number, p1: number, p2: number, p3: number, t: number) => {
+        const t2 = t * t;
+        const t3 = t2 * t;
         return (
-          v00 * (1 - txL) * (1 - tyL) +
-          v01 * txL * (1 - tyL) +
-          v10 * (1 - txL) * tyL +
-          v11 * txL * tyL
+          p0 * (-0.5 * t3 + t2 - 0.5 * t) +
+          p1 * (1.5 * t3 - 2.5 * t2 + 1) +
+          p2 * (-1.5 * t3 + 2 * t2 + 0.5 * t) +
+          p3 * (0.5 * t3 - 0.5 * t2)
         );
       };
+      const sampleAt = (arr: number[], fx: number, fy: number) => {
+        if (fx < -1 || fx > nLon || fy < -1 || fy > nLat) return 0;
+        const x1 = Math.floor(fx);
+        const y1 = Math.floor(fy);
+        const tx = fx - x1;
+        const ty = fy - y1;
+        const rows: number[] = [];
+        for (let dy = -1; dy <= 2; dy++) {
+          const yy = y1 + dy;
+          rows.push(
+            cubic(
+              at(arr, x1 - 1, yy),
+              at(arr, x1, yy),
+              at(arr, x1 + 1, yy),
+              at(arr, x1 + 2, yy),
+              tx,
+            ),
+          );
+        }
+        const v = cubic(rows[0], rows[1], rows[2], rows[3], ty);
+        return v > 0 ? v : 0;
+      };
+
 
       for (let ly = 0; ly < lowH; ly++) {
         for (let lx = 0; lx < lowW; lx++) {
