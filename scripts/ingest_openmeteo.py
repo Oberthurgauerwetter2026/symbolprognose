@@ -510,18 +510,31 @@ def rasterize_forecast_hourly_pngs(
     Sparse-Grid rendern — das ergibt sichtbare Rechteckblöcke. Deshalb werden
     auch die Stundenslots (nach dem letzten CH1-Slot bis +48 h) im gleichen
     240 × 144-Raster, mit gleicher Farbskala und gleicher Glättung gerastert."""
-    if not phase2 or not lats or not lons:
-        print("forecast-hourly-pngs: no phase2 data — skipping")
+    if not phase2:
+        print("forecast-hourly-pngs: SKIP — phase2 leer (keine Stundendaten)")
         return []
 
     n_lat = len(lats)
     n_lon = len(lons)
     n_pts = n_lat * n_lon
-    if len(phase2) != n_pts:
-        print(
-            f"forecast-hourly-pngs: grid mismatch ({len(phase2)} vs {n_pts}) — skipping",
-        )
-        return []
+    print(
+        f"forecast-hourly-pngs: phase2={len(phase2)} pts, grid={n_lat}×{n_lon}={n_pts}",
+    )
+    if n_pts != len(phase2):
+        # Gitterachsen passen nicht zur Punktliste (z. B. Cache aus einem Lauf
+        # mit anderer GRID_LAT/GRID_LON). Achsen aus der Länge rekonstruieren,
+        # statt die Stunden-PNGs auszulassen — ohne PNG würde der Client wieder
+        # blockig aus dem Sparse-Grid rendern.
+        guessed = _guess_grid_shape(len(phase2), n_lat, n_lon)
+        if guessed is None:
+            print(
+                f"forecast-hourly-pngs: SKIP — Gitter nicht rekonstruierbar "
+                f"({len(phase2)} Punkte, erwartet {n_pts})",
+            )
+            return []
+        n_lat, n_lon = guessed
+        n_pts = n_lat * n_lon
+        print(f"forecast-hourly-pngs: Gitter korrigiert auf {n_lat}×{n_lon}")
 
     ref_loc = next(
         (
@@ -533,7 +546,7 @@ def rasterize_forecast_hourly_pngs(
     )
     ref_times: list[str] = ((ref_loc or {}).get("hourly") or {}).get("time") or []
     if not ref_times:
-        print("forecast-hourly-pngs: no hourly times in phase2 — skipping")
+        print("forecast-hourly-pngs: SKIP — keine hourly.time/precipitation in phase2")
         return []
 
     per_pt_precip: list[list] = [
@@ -548,7 +561,12 @@ def rasterize_forecast_hourly_pngs(
             after_dt = datetime.fromisoformat(after_iso.replace("Z", "+00:00"))
             start = max(start, after_dt + timedelta(minutes=10))
         except ValueError:
-            pass
+            print(f"forecast-hourly-pngs: after_iso unlesbar ({after_iso!r}) — ab jetzt")
+    print(
+        f"forecast-hourly-pngs: hourly-slots={len(ref_times)} "
+        f"({ref_times[0]} … {ref_times[-1]}), Fenster {start.isoformat()} … {horizon.isoformat()}",
+    )
+
 
     manifest_entries: list[dict] = []
     uploaded = 0
