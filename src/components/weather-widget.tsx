@@ -686,16 +686,16 @@ function DayStrip({
                   size={80}
                   scope="daily"
                   precip={d.precipitation_sum[di]}
-                  precipProb={d.precipitation_probability_max?.[i]}
-                  precipHours={d.precipitation_hours?.[i]}
-                  thunderHours={d.thunderstorm_hours?.[i]}
-                  isSnow={(d.snowfall_sum?.[i] ?? 0) > 0.1}
-                  temp={d.temperature_2m_max?.[i]}
+                  precipProb={d.precipitation_probability_max?.[di]}
+                  precipHours={d.precipitation_hours?.[di]}
+                  thunderHours={d.thunderstorm_hours?.[di]}
+                  isSnow={(d.snowfall_sum?.[di] ?? 0) > 0.1}
+                  temp={d.temperature_2m_max?.[di]}
 
-                  sunshineRatio={(d.sunshine_duration?.[i] ?? 0) / (15 * 3600)}
-                  cloudLow={d.cloud_cover_low_mean?.[i]}
-                  cloudMid={d.cloud_cover_mid_mean?.[i]}
-                  cloudHigh={d.cloud_cover_high_mean?.[i]}
+                  sunshineRatio={(d.sunshine_duration?.[di] ?? 0) / (15 * 3600)}
+                  cloudLow={d.cloud_cover_low_mean?.[di]}
+                  cloudMid={d.cloud_cover_mid_mean?.[di]}
+                  cloudHigh={d.cloud_cover_high_mean?.[di]}
                 />
               </div>
               <div className="flex items-baseline justify-center gap-2 tabular-nums font-[family-name:var(--font-display)]">
