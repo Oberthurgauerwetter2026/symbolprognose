@@ -259,12 +259,20 @@ export function WeatherWidget({
 
   const days = useMemo(() => {
     if (!forecast.data) return [];
-    return forecast.data.daily.time.slice(0, 7).map((iso, i) => ({
-      iso,
-      date: new Date(iso + "T12:00:00"),
-      idx: i,
-    }));
+    // Zürich-Heute als YYYY-MM-DD — Tage vor heute verwerfen, damit die erste
+    // Kachel immer der aktuelle Tag ist (Modell-Läufe starten oft am Vortag).
+    const todayIso = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Zurich",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    return forecast.data.daily.time
+      .map((iso, i) => ({ iso, date: new Date(iso + "T12:00:00"), idx: i }))
+      .filter((d) => d.iso >= todayIso)
+      .slice(0, 7);
   }, [forecast.data]);
+
 
   // Continuous slot list: 1h cadence for next 12h, then 3h cadence onward.
   const allHourly = useMemo<{ idx: number; cadence: "1h" | "3h" }[]>(() => {
