@@ -273,6 +273,17 @@ export function WeatherWidget({
       .slice(0, 7);
   }, [forecast.data]);
 
+  // Fällt der gewählte Tag (z. B. aus der URL) durch die Kürzung weg,
+  // auf den ersten verbliebenen Tag zurückfallen.
+  useEffect(() => {
+    if (days.length && selectedDayIdx >= days.length) {
+      setSelectedDayIdx(0);
+      setPanelTarget((p) => ({ idx: 0, tick: p.tick + 1 }));
+    }
+  }, [days.length, selectedDayIdx]);
+
+
+
 
   // Continuous slot list: 1h cadence for next 12h, then 3h cadence onward.
   const allHourly = useMemo<{ idx: number; cadence: "1h" | "3h" }[]>(() => {
