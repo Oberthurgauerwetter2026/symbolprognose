@@ -428,7 +428,7 @@ export function WeatherWidget({
 
             <DaySummaryBar
               forecast={forecast.data}
-              selectedDayIdx={selectedDayIdx}
+              selectedDayIdx={days[selectedDayIdx]?.idx ?? 0}
             />
 
             <DetailPanel
@@ -647,7 +647,8 @@ function DayStrip({
       <div className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
         {days.map((day, i) => {
           const selected = i === selectedIdx;
-          const prob = d.precipitation_probability_max?.[i] ?? 0;
+          const di = day.idx;
+          const prob = d.precipitation_probability_max?.[di] ?? 0;
           const probLabel = prob === 0 ? "0 %" : prob < 5 ? "<5 %" : `${prob} %`;
           return (
             <button
@@ -677,14 +678,14 @@ function DayStrip({
               </div>
               <div
                 className="py-1 select-none text-zinc-900 flex justify-center [&_svg]:h-14 [&_svg]:w-14 @[640px]:[&_svg]:h-20 @[640px]:[&_svg]:w-20"
-                aria-label={weatherLabel(d.weathercode[i])}
-                title={weatherLabel(d.weathercode[i])}
+                aria-label={weatherLabel(d.weathercode[di])}
+                title={weatherLabel(d.weathercode[di])}
               >
                 <WeatherIcon
-                  code={d.weathercode[i]}
+                  code={d.weathercode[di]}
                   size={80}
                   scope="daily"
-                  precip={d.precipitation_sum[i]}
+                  precip={d.precipitation_sum[di]}
                   precipProb={d.precipitation_probability_max?.[i]}
                   precipHours={d.precipitation_hours?.[i]}
                   thunderHours={d.thunderstorm_hours?.[i]}
@@ -699,17 +700,17 @@ function DayStrip({
               </div>
               <div className="flex items-baseline justify-center gap-2 tabular-nums font-[family-name:var(--font-display)]">
                 <span className="text-base @[640px]:text-lg font-semibold text-zinc-700">
-                  {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
+                  {Number.isFinite(d.temperature_2m_min[di]) ? `${Math.round(d.temperature_2m_min[di])}°` : "–"}
                 </span>
                 <span className="text-zinc-400 font-normal">|</span>
                 <span className="text-lg @[640px]:text-xl @[1100px]:text-2xl font-bold text-zinc-900">
-                  {Number.isFinite(d.temperature_2m_max[i]) ? `${Math.round(d.temperature_2m_max[i])}°` : "–"}
+                  {Number.isFinite(d.temperature_2m_max[di]) ? `${Math.round(d.temperature_2m_max[di])}°` : "–"}
                 </span>
               </div>
               <div className="pt-2 border-t border-zinc-200/70 space-y-1">
                 <div className="flex items-baseline justify-between tabular-nums">
                   <span className="text-sm font-bold text-zinc-900">
-                    {Number.isFinite(d.precipitation_sum[i]) ? `${d.precipitation_sum[i].toFixed(1)} mm` : "– mm"}
+                    {Number.isFinite(d.precipitation_sum[di]) ? `${d.precipitation_sum[di].toFixed(1)} mm` : "– mm"}
                   </span>
                   <span className="text-xs font-semibold text-zinc-700">{probLabel}</span>
                 </div>
