@@ -259,12 +259,31 @@ export function WeatherWidget({
 
   const days = useMemo(() => {
     if (!forecast.data) return [];
-    return forecast.data.daily.time.slice(0, 7).map((iso, i) => ({
-      iso,
-      date: new Date(iso + "T12:00:00"),
-      idx: i,
-    }));
+    // Zürich-Heute als YYYY-MM-DD — Tage vor heute verwerfen, damit die erste
+    // Kachel immer der aktuelle Tag ist (Modell-Läufe starten oft am Vortag).
+    const todayIso = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Zurich",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    return forecast.data.daily.time
+      .map((iso, i) => ({ iso, date: new Date(iso + "T12:00:00"), idx: i }))
+      .filter((d) => d.iso >= todayIso)
+      .slice(0, 7);
   }, [forecast.data]);
+
+  // Fällt der gewählte Tag (z. B. aus der URL) durch die Kürzung weg,
+  // auf den ersten verbliebenen Tag zurückfallen.
+  useEffect(() => {
+    if (days.length && selectedDayIdx >= days.length) {
+      setSelectedDayIdx(0);
+      setPanelTarget((p) => ({ idx: 0, tick: p.tick + 1 }));
+    }
+  }, [days.length, selectedDayIdx]);
+
+
+
 
   // Continuous slot list: 1h cadence for next 12h, then 3h cadence onward.
   const allHourly = useMemo<{ idx: number; cadence: "1h" | "3h" }[]>(() => {
@@ -420,7 +439,7 @@ export function WeatherWidget({
 
             <DaySummaryBar
               forecast={forecast.data}
-              selectedDayIdx={selectedDayIdx}
+              selectedDayIdx={days[selectedDayIdx]?.idx ?? 0}
             />
 
             <DetailPanel
@@ -639,7 +658,8 @@ function DayStrip({
       <div className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
         {days.map((day, i) => {
           const selected = i === selectedIdx;
-          const prob = d.precipitation_probability_max?.[i] ?? 0;
+          const di = day.idx;
+          const prob = d.precipitation_probability_max?.[di] ?? 0;
           const probLabel = prob === 0 ? "0 %" : prob < 5 ? "<5 %" : `${prob} %`;
           return (
             <button
@@ -669,39 +689,39 @@ function DayStrip({
               </div>
               <div
                 className="py-1 select-none text-zinc-900 flex justify-center [&_svg]:h-14 [&_svg]:w-14 @[640px]:[&_svg]:h-20 @[640px]:[&_svg]:w-20"
-                aria-label={weatherLabel(d.weathercode[i])}
-                title={weatherLabel(d.weathercode[i])}
+                aria-label={weatherLabel(d.weathercode[di])}
+                title={weatherLabel(d.weathercode[di])}
               >
                 <WeatherIcon
-                  code={d.weathercode[i]}
+                  code={d.weathercode[di]}
                   size={80}
                   scope="daily"
-                  precip={d.precipitation_sum[i]}
-                  precipProb={d.precipitation_probability_max?.[i]}
-                  precipHours={d.precipitation_hours?.[i]}
-                  thunderHours={d.thunderstorm_hours?.[i]}
-                  isSnow={(d.snowfall_sum?.[i] ?? 0) > 0.1}
-                  temp={d.temperature_2m_max?.[i]}
+                  precip={d.precipitation_sum[di]}
+                  precipProb={d.precipitation_probability_max?.[di]}
+                  precipHours={d.precipitation_hours?.[di]}
+                  thunderHours={d.thunderstorm_hours?.[di]}
+                  isSnow={(d.snowfall_sum?.[di] ?? 0) > 0.1}
+                  temp={d.temperature_2m_max?.[di]}
 
-                  sunshineRatio={(d.sunshine_duration?.[i] ?? 0) / (15 * 3600)}
-                  cloudLow={d.cloud_cover_low_mean?.[i]}
-                  cloudMid={d.cloud_cover_mid_mean?.[i]}
-                  cloudHigh={d.cloud_cover_high_mean?.[i]}
+                  sunshineRatio={(d.sunshine_duration?.[di] ?? 0) / (15 * 3600)}
+                  cloudLow={d.cloud_cover_low_mean?.[di]}
+                  cloudMid={d.cloud_cover_mid_mean?.[di]}
+                  cloudHigh={d.cloud_cover_high_mean?.[di]}
                 />
               </div>
               <div className="flex items-baseline justify-center gap-2 tabular-nums font-[family-name:var(--font-display)]">
                 <span className="text-base @[640px]:text-lg font-semibold text-zinc-700">
-                  {Number.isFinite(d.temperature_2m_min[i]) ? `${Math.round(d.temperature_2m_min[i])}°` : "–"}
+                  {Number.isFinite(d.temperature_2m_min[di]) ? `${Math.round(d.temperature_2m_min[di])}°` : "–"}
                 </span>
                 <span className="text-zinc-400 font-normal">|</span>
                 <span className="text-lg @[640px]:text-xl @[1100px]:text-2xl font-bold text-zinc-900">
-                  {Number.isFinite(d.temperature_2m_max[i]) ? `${Math.round(d.temperature_2m_max[i])}°` : "–"}
+                  {Number.isFinite(d.temperature_2m_max[di]) ? `${Math.round(d.temperature_2m_max[di])}°` : "–"}
                 </span>
               </div>
               <div className="pt-2 border-t border-zinc-200/70 space-y-1">
                 <div className="flex items-baseline justify-between tabular-nums">
                   <span className="text-sm font-bold text-zinc-900">
-                    {Number.isFinite(d.precipitation_sum[i]) ? `${d.precipitation_sum[i].toFixed(1)} mm` : "– mm"}
+                    {Number.isFinite(d.precipitation_sum[di]) ? `${d.precipitation_sum[di].toFixed(1)} mm` : "– mm"}
                   </span>
                   <span className="text-xs font-semibold text-zinc-700">{probLabel}</span>
                 </div>
