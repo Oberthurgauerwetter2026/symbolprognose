@@ -2393,7 +2393,14 @@ export function RadarMap({
                 dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0, BOLT_RADAR, 1.5) }}
               />
 
-              <span className="text-muted-foreground">Blitzortung</span>
+              <a
+                href="https://www.blitzortung.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                Blitzortung
+              </a>
             </div>
           </div>
         ) : (
