@@ -35,6 +35,22 @@ import { FilmstripTimeline } from "./filmstrip-timeline";
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#facc15";
+
+/**
+ * Attribution für die Blitzdaten. Blitzortung.org verlangt für die
+ * kostenlose, nicht-kommerzielle Nutzung eine sichtbare Quellenangabe
+ * mit Link — darum auch im Loop-/Embed-Modus eingeblendet.
+ */
+const BlitzortungLink = (
+  <a
+    href="https://www.blitzortung.org/"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="underline underline-offset-2 hover:text-foreground"
+  >
+    Blitzortung.org
+  </a>
+);
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
 // Supersampling: fragt beim GeoServer die doppelte Pixelauflösung an und lässt
