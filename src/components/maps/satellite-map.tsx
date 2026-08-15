@@ -882,10 +882,17 @@ export function SatelliteMap({
       )}
 
       {/* Quellenangabe — statisch unterhalb von Karte und Steuerpanel */}
-      {!loop && !bare && (
+      {!loop && !bare ? (
         <div className="px-3 pb-2 pt-1 text-left text-[11px] text-muted-foreground">
           Quelle: Oberthurgauer Wetter · {source}
+          {showLightning ? <> · Blitze: {BlitzortungLink}</> : null}
         </div>
+      ) : (
+        showLightning && (
+          <div className="px-2 pb-1 pt-0.5 text-left text-[10px] text-muted-foreground">
+            Blitze: {BlitzortungLink}
+          </div>
+        )
       )}
     </div>
   );
