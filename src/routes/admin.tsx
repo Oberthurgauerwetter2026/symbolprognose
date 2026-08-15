@@ -169,6 +169,16 @@ const MODELS: ModelInfo[] = [
     usage: "Restfelder: Niederschlagswahrscheinlichkeit, Sonnenauf-/-untergang",
     endpoint: "https://api.open-meteo.com/v1/forecast?models=best_match",
   },
+  {
+    name: "Blitzortung.org",
+    provider:
+      "Community-Netz privater Empfängerstationen · gratis, nur nicht-kommerzielle Nutzung, Attribution mit Link erforderlich",
+    resolution: "Einzelblitze (Zeit, Lat/Lon), Alpenraum-Bbox 44–49 N / 5–12 E",
+    members: "—",
+    range: "rollierendes Archiv 6 h (recent.json), 15-min-Fenster (latest.json)",
+    usage: "Blitz-Layer in Radar & Satellitenbild, Gewitter-Autowarnung",
+    endpoint: "wss://ws1.blitzortung.org (ws7/ws8 als Rückfall)",
+  },
 ];
 
 function ModelsSection() {

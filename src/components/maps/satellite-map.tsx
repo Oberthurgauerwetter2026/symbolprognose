@@ -35,6 +35,22 @@ import { FilmstripTimeline } from "./filmstrip-timeline";
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
 const BRAND = "#facc15";
+
+/**
+ * Attribution für die Blitzdaten. Blitzortung.org verlangt für die
+ * kostenlose, nicht-kommerzielle Nutzung eine sichtbare Quellenangabe
+ * mit Link — darum auch im Loop-/Embed-Modus eingeblendet.
+ */
+const BlitzortungLink = (
+  <a
+    href="https://www.blitzortung.org/"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="underline underline-offset-2 hover:text-foreground"
+  >
+    Blitzortung.org
+  </a>
+);
 const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
 // Supersampling: fragt beim GeoServer die doppelte Pixelauflösung an und lässt
@@ -882,10 +898,17 @@ export function SatelliteMap({
       )}
 
       {/* Quellenangabe — statisch unterhalb von Karte und Steuerpanel */}
-      {!loop && !bare && (
+      {!loop && !bare ? (
         <div className="px-3 pb-2 pt-1 text-left text-[11px] text-muted-foreground">
           Quelle: Oberthurgauer Wetter · {source}
+          {showLightning ? <> · Blitze: {BlitzortungLink}</> : null}
         </div>
+      ) : (
+        showLightning && (
+          <div className="px-2 pb-1 pt-0.5 text-left text-[10px] text-muted-foreground">
+            Blitze: {BlitzortungLink}
+          </div>
+        )
       )}
     </div>
   );
