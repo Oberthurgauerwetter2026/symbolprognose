@@ -367,8 +367,16 @@ export function WeatherWidget({
   }
 
   return (
-    <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
-      <div className="max-w-5xl mx-auto space-y-5">
+    <div
+      ref={rootRef}
+      className={`@container bg-zinc-100 text-zinc-900 antialiased font-medium ${
+        compact
+          ? "py-2 px-2"
+          : "py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6"
+      }`}
+    >
+      <div className={`max-w-5xl mx-auto ${compact ? "space-y-3" : "space-y-5"}`}>
+
         <Header
           locationName={location?.name ?? null}
           hideSearch={embedMinimal}
