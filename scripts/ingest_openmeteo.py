@@ -541,9 +541,15 @@ def rasterize_forecast_pngs(
         )
         return []
 
-    # Zeit-Achse aus dem ersten gültigen Punkt lesen; einzelne fehlgeschlagene
-    # Batches werden als `{}`-Platzhalter eingefügt und dürfen die Rasterung
-    # nicht komplett blockieren.
+    # Lückenprüfung VOR dem Rendern: fehlende Batches dürfen nie als 0 mm/h
+    # gezeichnet werden (führte zu gerade abgeschnittenen Prognosefeldern).
+    cov = check_grid_coverage(phase1_dense, n_lat, n_lon, "forecast-pngs", "minutely_15")
+    if cov is None:
+        FORECAST_STATS["coverage"] = None
+        return []
+    missing_flags, coverage_pct = cov
+    FORECAST_STATS["coverage"] = coverage_pct
+
     ref_loc = next(
         (
             loc for loc in phase1_dense
@@ -569,12 +575,13 @@ def rasterize_forecast_pngs(
     horizon = now + timedelta(hours=48)
     past = now - timedelta(hours=1)
 
-    _purged = _purge_forecast_pngs(s3, bucket)
-    if _purged:
-        print(f"forecast-pngs: purged {_purged} old objects")
+    import numpy as np
 
-    manifest_entries: list[dict] = []
-    uploaded = 0
+    miss_mask = np.asarray(missing_flags, dtype=bool).reshape(n_lat, n_lon)
+
+    # Erst alles rendern, dann alte PNGs löschen und neu hochladen — so bleibt
+    # bei einem Fehler die letzte gute Prognose in R2 bestehen.
+    rendered: list[tuple[str, bytes, dict]] = []
     for ti, t_iso in enumerate(ref_times):
         try:
             t_dt = datetime.fromisoformat(t_iso).replace(tzinfo=timezone.utc)
@@ -582,7 +589,6 @@ def rasterize_forecast_pngs(
             continue
         if t_dt < past or t_dt > horizon:
             continue
-        # Werte pro Grid-Punkt aggregieren; None → 0.
         frame_vals: list[float] = [0.0] * n_pts
         any_positive = False
         for pi in range(n_pts):
@@ -596,12 +602,33 @@ def rasterize_forecast_pngs(
                     any_positive = True
                 frame_vals[pi] = fv
 
-        # Auch komplett trockene Frames rendern (leerer PNG), damit die
-        # Timeline lückenlos bleibt. Nutzt die "any_positive" nur für Logging.
-        png = _render_frame_png(n_lat, n_lon, frame_vals)
-        # Dateiname: YYYYMMDDTHHMM.png, Zeit auf 15-min gerundet.
+        grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
+        grid = _fill_missing_values(grid, miss_mask)
+
+        png = _render_frame_png(n_lat, n_lon, grid.reshape(-1).tolist())
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         key = f"radar/forecast/{stamp}.png"
+        rendered.append((
+            key,
+            png,
+            {
+                "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
+                "precipUrl": f"{public_url.rstrip('/')}/{key}",
+                "source": "icon-ch1",
+                "hasPrecip": any_positive,
+            },
+        ))
+
+    if not rendered:
+        print("forecast-pngs: keine Frames gerendert — alte Prognose bleibt bestehen")
+        return []
+
+    _purged = _purge_forecast_pngs(s3, bucket)
+    if _purged:
+        print(f"forecast-pngs: purged {_purged} old objects")
+
+    manifest_entries: list[dict] = []
+    for key, png, entry in rendered:
         s3.put_object(
             Bucket=bucket,
             Key=key,
@@ -609,15 +636,10 @@ def rasterize_forecast_pngs(
             ContentType="image/png",
             CacheControl="public, max-age=31536000, immutable",
         )
-        uploaded += 1
-        manifest_entries.append({
-            "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
-            "precipUrl": f"{public_url.rstrip('/')}/{key}",
-            "source": "icon-ch1",
-            "hasPrecip": any_positive,
-        })
-    print(f"forecast-pngs: uploaded {uploaded} frames")
+        manifest_entries.append(entry)
+    print(f"forecast-pngs: uploaded {len(manifest_entries)} frames")
     return manifest_entries
+
 
 
 def _guess_grid_shape(n: int, hint_lat: int, hint_lon: int) -> tuple[int, int] | None:
