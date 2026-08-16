@@ -599,7 +599,16 @@ function DayTabs({
   );
 }
 
-export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill?: boolean } = {}) {
+export function RegionMap({
+  bare = false,
+  fill = false,
+  onSelectSpot,
+}: {
+  bare?: boolean;
+  fill?: boolean;
+  /** Embed-Modus: Ortsauswahl wird nach oben gemeldet statt navigiert. */
+  onSelectSpot?: (spot: { name: string; lat: number; lon: number }) => void;
+} = {}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -769,6 +778,10 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
   const HOUR_LABELS = Array.from({ length: 25 }, (_, i) => i);
 
   const goToLokal = (spot: Spot) => {
+    if (onSelectSpot) {
+      onSelectSpot({ name: spot.name, lat: spot.lat, lon: spot.lon });
+      return;
+    }
     router
       .navigate({
         to: "/karten/lokal",
@@ -867,7 +880,16 @@ export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill
               : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
         )}
       >
-        <LocationSearch variant="overlay" bare={bare} />
+        <LocationSearch
+          variant="overlay"
+          bare={bare}
+          onSelect={
+            onSelectSpot
+              ? (loc) =>
+                  onSelectSpot({ name: loc.name, lat: loc.latitude, lon: loc.longitude })
+              : undefined
+          }
+        />
         <MapContainer
           center={center}
           zoom={11}

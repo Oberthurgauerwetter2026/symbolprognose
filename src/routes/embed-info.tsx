@@ -147,8 +147,12 @@ const PRODUCTS: Product[] = [
     label: "Wetterkarte Region",
     path: "/embed/region",
     height: 600,
-    description: "Symbolprognose, Temperatur und Wind für die Region Oberthurgau.",
+    variant: "auto-height",
+    description:
+      "Symbolprognose, Temperatur und Wind für die Region Oberthurgau. Ein Klick auf eine Gemeinde öffnet die Lokalprognose direkt im gleichen Widget — ohne Wetterboard-Rahmen, mit „Zurück zur Karte“-Button.",
+    note: "Das Snippet enthält ein kleines Skript für die Höhenanpassung, damit die aufklappende Lokalprognose vollständig sichtbar ist; in WordPress in einen Custom-HTML-Block einfügen.",
   },
+
   {
     id: "lokal-suche",
     label: "Lokalprognose mit Ortssuche (Auto-Höhe)",
