@@ -177,6 +177,11 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
 #: gerade abgeschnittene Prognosefelder).
 MISSING_KEY = "__missing__"
 
+#: Laufstatistik der Prognose-Rasterung. `coverage` = Anteil vorhandener
+#: Gitterpunkte in Prozent, `None` = Lauf abgebrochen (Prognose unvollständig).
+FORECAST_STATS: dict = {"coverage": None, "hourlyCoverage": None}
+
+
 
 def is_missing_loc(loc) -> bool:
     return bool(isinstance(loc, dict) and loc.get(MISSING_KEY))
