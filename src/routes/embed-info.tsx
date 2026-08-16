@@ -52,6 +52,43 @@ function buildAmriswilSnippet(url: string, path: string, height = 520) {
 ></iframe>`;
 }
 
+/**
+ * Snippet mit automatischer Höhenanpassung: das Widget meldet seine Höhe per
+ * postMessage, das iframe wächst weich mit, sobald ein Ort gewählt wurde.
+ */
+function buildAutoHeightSnippet(url: string, path: string, startHeight = 260) {
+  const full = `${url}${path}`;
+  const origin = new URL(url).origin;
+  return `<link rel="preconnect" href="${origin}" crossorigin>
+<link rel="dns-prefetch" href="${origin}">
+<iframe
+  id="otw-lokal-suche"
+  src="${full}"
+  loading="eager"
+  fetchpriority="high"
+  referrerpolicy="no-referrer-when-downgrade"
+  scrolling="no"
+  allow="geolocation"
+  style="width:100%;height:${startHeight}px;border:0;display:block;background:#f4f4f5;border-radius:8px;transition:height .25s ease"
+  title="Lokalprognose mit Ortssuche"
+></iframe>
+<script>
+(function () {
+  var frame = document.getElementById('otw-lokal-suche');
+  window.addEventListener('message', function (e) {
+    if (e.origin !== '${origin}') return;
+    var d = e.data;
+    if (!d || d.type !== 'lovable-weather:height') return;
+    var h = Number(d.height);
+    if (!isFinite(h) || h < 120 || h > 4000) return;
+    frame.style.height = Math.ceil(h) + 'px';
+  });
+})();
+</script>`;
+}
+
+
+
 
 function SnippetBlock({ snippet }: { snippet: string }) {
   const [copied, setCopied] = useState(false);
@@ -81,7 +118,7 @@ interface Product {
   path: string;
   height: number;
   description: string;
-  variant?: "amriswil";
+  variant?: "amriswil" | "auto-height";
   note?: string;
 }
 
@@ -113,12 +150,23 @@ const PRODUCTS: Product[] = [
     description: "Symbolprognose, Temperatur und Wind für die Region Oberthurgau.",
   },
   {
+    id: "lokal-suche",
+    label: "Lokalprognose mit Ortssuche (Auto-Höhe)",
+    path: "/embed/lokal-suche",
+    height: 260,
+    variant: "auto-height",
+    description:
+      "Startet schlank mit Suchfeld und Ortung. Sobald ein Ort gewählt ist, klappen Tagesleiste, Stundenverlauf und 7-Tage-Prognose auf — das iframe wächst automatisch mit.",
+    note: "Das Snippet enthält ein kleines Skript für die Höhenanpassung; in WordPress in einen Custom-HTML-Block einfügen (nicht in einen reinen iframe-Block).",
+  },
+  {
     id: "lokal",
     label: "Lokalprognose (Karte)",
     path: "/embed/lokal",
     height: 600,
     description: "5-Tage-Prognose im 3-Stunden-Takt für jeden Ort der Region.",
   },
+
   {
     id: "wind",
     label: "Wind",
@@ -184,7 +232,10 @@ function EmbedInfo() {
             const snippet =
               p.variant === "amriswil"
                 ? buildAmriswilSnippet(url, p.path, p.height)
-                : buildSimpleSnippet(url, p.path, p.height);
+                : p.variant === "auto-height"
+                  ? buildAutoHeightSnippet(url, p.path, p.height)
+                  : buildSimpleSnippet(url, p.path, p.height);
+
             return (
               <div key={p.id} className="space-y-3 rounded-2xl border border-border bg-card p-4">
                 <div className="flex items-start gap-3">

@@ -367,8 +367,16 @@ export function WeatherWidget({
   }
 
   return (
-    <div ref={rootRef} className="@container bg-zinc-100 text-zinc-900 antialiased font-medium py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6">
-      <div className="max-w-5xl mx-auto space-y-5">
+    <div
+      ref={rootRef}
+      className={`@container bg-zinc-100 text-zinc-900 antialiased font-medium ${
+        compact
+          ? "py-2 px-2"
+          : "py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6"
+      }`}
+    >
+      <div className={`max-w-5xl mx-auto ${compact ? "space-y-3" : "space-y-5"}`}>
+
         <Header
           locationName={location?.name ?? null}
           hideSearch={embedMinimal}
@@ -405,17 +413,23 @@ export function WeatherWidget({
 
 
 
-        {!location && (
-          <div className="p-8 bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2">
-            <div className="text-2xl" aria-hidden>↑</div>
-            <p className="text-sm font-semibold text-zinc-900">
-              Gemeinde suchen oder „Ortung" verwenden,
+        {!location &&
+          (compact ? (
+            <p className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-center text-xs font-semibold text-zinc-800">
+              Gemeinde suchen oder „Ortung“ verwenden — die Prognose klappt danach auf.
             </p>
-            <p className="text-sm text-zinc-700">
-              um die 5-Tage-Prognose anzuzeigen.
-            </p>
-          </div>
-        )}
+          ) : (
+            <div className="p-8 bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2">
+              <div className="text-2xl" aria-hidden>↑</div>
+              <p className="text-sm font-semibold text-zinc-900">
+                Gemeinde suchen oder „Ortung" verwenden,
+              </p>
+              <p className="text-sm text-zinc-700">
+                um die 5-Tage-Prognose anzuzeigen.
+              </p>
+            </div>
+          ))}
+
         {location && forecast.isLoading && <SkeletonWidget />}
         {location && forecast.isError && (
           <div className="p-6 bg-zinc-50 border border-zinc-200 rounded-sm text-sm text-zinc-600">
