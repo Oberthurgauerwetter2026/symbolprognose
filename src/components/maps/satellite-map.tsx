@@ -451,7 +451,8 @@ function FrameStack({
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, provider, effectiveLayer, tileMatrixSet, frames, clampedInitialIndex]);
+  }, [map, provider, effectiveLayer, tileMatrixSet, framesKey, clampedInitialIndex, noSupersample]);
+
 
   useEffect(() => {
     layersRef.current.forEach((tl, i) => tl?.setOpacity(i === clampedActiveIndex ? 1 : 0));
