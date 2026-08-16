@@ -622,7 +622,7 @@ export function SatelliteMap({
   }, [ready]);
 
   useEffect(() => {
-    if (!playing || total < 2 || !ready) return;
+    if (!playing || total < 2 || !ready || !visible) return;
     const t = window.setInterval(() => {
       setIndex((i) => {
         // Nur auf bereits geladene Zeitschritte springen.
@@ -639,7 +639,8 @@ export function SatelliteMap({
       });
     }, speedMs);
     return () => window.clearInterval(t);
-  }, [playing, speedMs, total, ready, frames, loadedSet]);
+  }, [playing, speedMs, total, ready, frames, loadedSet, visible]);
+
 
 
   useEffect(() => {
