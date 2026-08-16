@@ -780,7 +780,7 @@ export function SatelliteMap({
           <FlyToRegion regionId={regionId} fitBounds={loop} />
           {frames.length > 0 && (
             <FrameStack
-              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}-${reloadKey}`}
+              key={`${regionId}-${layer}-${reloadKey}`}
               provider={data?.provider ?? region.provider ?? "eumetsat-wms"}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
@@ -790,12 +790,18 @@ export function SatelliteMap({
               initialIndex={safeInitialIndex}
               onProgress={(indices) => setLoadedIdx(indices)}
               onOutage={setOutage}
+              noSupersample={loop}
             />
           )}
           {showSwiss && <SwissOutline />}
           {showLightning && (
-            <LightningLayer strikes={lightningStrikes} frameTime={frames[safeIndex]?.time} />
+            <LightningLayer
+              strikes={lightningStrikes}
+              frameTime={frames[safeIndex]?.time}
+              frameBucket={frameBucket}
+            />
           )}
+
         </MapContainer>
         {loop && frames.length > 0 && frames[safeIndex]?.time && (
           <div className="pointer-events-none absolute right-3 top-3 z-[450]">
