@@ -835,6 +835,8 @@ def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
         },
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": VERSION,
+        "coverage": FORECAST_STATS.get("coverage"),
+        "hourlyCoverage": FORECAST_STATS.get("hourlyCoverage"),
         "frames": sorted(frames, key=lambda f: f["t"]),
     }
     s3.put_object(
@@ -844,7 +846,11 @@ def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
         ContentType="application/json",
         CacheControl="public, max-age=30",
     )
-    print(f"forecast-manifest: {len(frames)} entries")
+    print(
+        f"forecast-manifest: {len(frames)} entries, "
+        f"coverage={FORECAST_STATS.get('coverage')}",
+    )
+
 
 
 def downsample_phase1(
