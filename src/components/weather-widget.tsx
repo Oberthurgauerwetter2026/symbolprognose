@@ -114,12 +114,15 @@ export function WeatherWidget({
   detailOnly = false,
   lockedLocation,
   compact = false,
+  initialExtended = false,
 }: {
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
   detailOnly?: boolean;
   lockedLocation?: { name: string; latitude: number; longitude: number };
   compact?: boolean;
+  /** Startet direkt mit der 7-Tage-Kachelreihe (z. B. im Embed). */
+  initialExtended?: boolean;
 } = {}) {
   const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (lockedLocation) return lockedLocation;
