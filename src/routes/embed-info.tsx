@@ -232,7 +232,10 @@ function EmbedInfo() {
             const snippet =
               p.variant === "amriswil"
                 ? buildAmriswilSnippet(url, p.path, p.height)
-                : buildSimpleSnippet(url, p.path, p.height);
+                : p.variant === "auto-height"
+                  ? buildAutoHeightSnippet(url, p.path, p.height)
+                  : buildSimpleSnippet(url, p.path, p.height);
+
             return (
               <div key={p.id} className="space-y-3 rounded-2xl border border-border bg-card p-4">
                 <div className="flex items-start gap-3">
