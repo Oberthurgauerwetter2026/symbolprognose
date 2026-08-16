@@ -310,8 +310,10 @@ function FrameStack({
   }, [layer]);
 
   useEffect(() => {
+    const frames = framesRef.current;
     loadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
+
 
     const wmsOpts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean; format_options?: string } = {
       layers: effectiveLayer,
