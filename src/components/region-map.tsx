@@ -778,6 +778,10 @@ export function RegionMap({
   const HOUR_LABELS = Array.from({ length: 25 }, (_, i) => i);
 
   const goToLokal = (spot: Spot) => {
+    if (onSelectSpot) {
+      onSelectSpot({ name: spot.name, lat: spot.lat, lon: spot.lon });
+      return;
+    }
     router
       .navigate({
         to: "/karten/lokal",
