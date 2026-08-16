@@ -52,6 +52,43 @@ function buildAmriswilSnippet(url: string, path: string, height = 520) {
 ></iframe>`;
 }
 
+/**
+ * Snippet mit automatischer Höhenanpassung: das Widget meldet seine Höhe per
+ * postMessage, das iframe wächst weich mit, sobald ein Ort gewählt wurde.
+ */
+function buildAutoHeightSnippet(url: string, path: string, startHeight = 260) {
+  const full = `${url}${path}`;
+  const origin = new URL(url).origin;
+  return `<link rel="preconnect" href="${origin}" crossorigin>
+<link rel="dns-prefetch" href="${origin}">
+<iframe
+  id="otw-lokal-suche"
+  src="${full}"
+  loading="eager"
+  fetchpriority="high"
+  referrerpolicy="no-referrer-when-downgrade"
+  scrolling="no"
+  allow="geolocation"
+  style="width:100%;height:${startHeight}px;border:0;display:block;background:#f4f4f5;border-radius:8px;transition:height .25s ease"
+  title="Lokalprognose mit Ortssuche"
+></iframe>
+<script>
+(function () {
+  var frame = document.getElementById('otw-lokal-suche');
+  window.addEventListener('message', function (e) {
+    if (e.origin !== '${origin}') return;
+    var d = e.data;
+    if (!d || d.type !== 'lovable-weather:height') return;
+    var h = Number(d.height);
+    if (!isFinite(h) || h < 120 || h > 4000) return;
+    frame.style.height = Math.ceil(h) + 'px';
+  });
+})();
+</script>`;
+}
+
+
+
 
 function SnippetBlock({ snippet }: { snippet: string }) {
   const [copied, setCopied] = useState(false);

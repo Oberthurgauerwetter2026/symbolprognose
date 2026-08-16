@@ -30,6 +30,7 @@ import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
+import { Route as EmbedLokalSucheRouteImport } from './routes/embed.lokal-suche'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
 import { Route as ApiPublicWarningsAutoThunderRouteImport } from './routes/api/public/warnings/auto-thunder'
@@ -149,6 +150,11 @@ const EmbedRadarRoute = EmbedRadarRouteImport.update({
   path: '/embed/radar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmbedLokalSucheRoute = EmbedLokalSucheRouteImport.update({
+  id: '/embed/lokal-suche',
+  path: '/embed/lokal-suche',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmbedLokalRoute = EmbedLokalRouteImport.update({
   id: '/embed/lokal',
   path: '/embed/lokal',
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
+  '/embed/lokal-suche': typeof EmbedLokalSucheRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
+  '/embed/lokal-suche': typeof EmbedLokalSucheRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -305,6 +313,7 @@ export interface FileRoutesById {
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
+  '/embed/lokal-suche': typeof EmbedLokalSucheRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -343,6 +352,7 @@ export interface FileRouteTypes {
     | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
+    | '/embed/lokal-suche'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -379,6 +389,7 @@ export interface FileRouteTypes {
     | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
+    | '/embed/lokal-suche'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -415,6 +426,7 @@ export interface FileRouteTypes {
     | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
+    | '/embed/lokal-suche'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -452,6 +464,7 @@ export interface RootRouteChildren {
   WarnkarteRoute: typeof WarnkarteRoute
   EmbedAllRoute: typeof EmbedAllRoute
   EmbedLokalRoute: typeof EmbedLokalRoute
+  EmbedLokalSucheRoute: typeof EmbedLokalSucheRoute
   EmbedRadarRoute: typeof EmbedRadarRoute
   EmbedRegionRoute: typeof EmbedRegionRoute
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
@@ -629,6 +642,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedRadarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/embed/lokal-suche': {
+      id: '/embed/lokal-suche'
+      path: '/embed/lokal-suche'
+      fullPath: '/embed/lokal-suche'
+      preLoaderRoute: typeof EmbedLokalSucheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/embed/lokal': {
       id: '/embed/lokal'
       path: '/embed/lokal'
@@ -732,6 +752,7 @@ const rootRouteChildren: RootRouteChildren = {
   WarnkarteRoute: WarnkarteRoute,
   EmbedAllRoute: EmbedAllRoute,
   EmbedLokalRoute: EmbedLokalRoute,
+  EmbedLokalSucheRoute: EmbedLokalSucheRoute,
   EmbedRadarRoute: EmbedRadarRoute,
   EmbedRegionRoute: EmbedRegionRoute,
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
