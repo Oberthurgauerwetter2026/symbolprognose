@@ -172,6 +172,16 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
 
 
 
+#: Platzhalter für einen Batch, der endgültig nicht geholt werden konnte.
+#: Wird als "kein Wert" behandelt — NIE als 0 mm/h gerastert (sonst entstehen
+#: gerade abgeschnittene Prognosefelder).
+MISSING_KEY = "__missing__"
+
+
+def is_missing_loc(loc) -> bool:
+    return bool(isinstance(loc, dict) and loc.get(MISSING_KEY))
+
+
 def chunk_fetch(
     label: str,
     base_params: dict,
@@ -185,9 +195,10 @@ def chunk_fetch(
     Reihenfolge der Ergebnisse entspricht strikt der Eingabe-Punktliste,
     damit phaseX[i] weiter zu pts[i] passt.
 
-    `max_fail_pct` (nur mit `optional=True`): erlaubte Ausfallquote einzelner
-    Batches. Fehlende Batches werden mit `{}`-Platzhaltern gefüllt, damit die
-    Punkt-Reihenfolge intakt bleibt (der Konsument prüft `minutely_15`).
+    Gescheiterte Batches werden nach dem ersten Durchgang sequentiell mit
+    zusätzlicher Wartezeit nachgeholt. Erst wenn auch das scheitert, werden
+    Platzhalter (`{MISSING_KEY: True}`) eingesetzt — diese gelten überall als
+    "kein Wert", damit kein Nullfeld gerastert wird.
     """
     total = len(pts)
     n_batches = (total + chunk_size - 1) // chunk_size
@@ -198,8 +209,11 @@ def chunk_fetch(
 
     results: list[list | None] = [None] * n_batches
 
+    def batch_pts(bi: int) -> list:
+        return pts[bi * chunk_size : (bi + 1) * chunk_size]
+
     def run(bi: int):
-        batch = pts[bi * chunk_size : (bi + 1) * chunk_size]
+        batch = batch_pts(bi)
         params = dict(base_params)
         params["latitude"] = ",".join(f"{p[0]:.4f}" for p in batch)
         params["longitude"] = ",".join(f"{p[1]:.4f}" for p in batch)
@@ -212,26 +226,44 @@ def chunk_fetch(
     except ValueError:
         batch_sleep = 0.0
 
-    failed = 0
+    pending: list[int] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = [ex.submit(run, bi) for bi in range(n_batches)]
         for idx, fut in enumerate(futures):
-            bi, sub_label, res, batch_len = fut.result()
+            bi, sub_label, res, _batch_len = fut.result()
             if res is None:
-                failed += 1
-                if not optional or max_fail_pct <= 0:
-                    print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
-                    return None
-                # Platzhalter, damit Reihenfolge/Anzahl stimmt
-                results[bi] = [{} for _ in range(batch_len)]
-                print(f"WARN: {sub_label} FAILED — placeholder inserted")
+                pending.append(bi)
+                print(f"WARN: {sub_label} FAILED — für Nachlauf vorgemerkt")
             else:
                 results[bi] = res
                 print(f"  {sub_label} ok")
             if batch_sleep > 0 and idx < len(futures) - 1:
                 time.sleep(batch_sleep)
 
+    # ---- Nachlauf: gescheiterte Batches sequentiell erneut versuchen ----
+    if pending:
+        try:
+            retry_wait = float(os.environ.get("RETRY_BATCH_SLEEP_S", "5"))
+        except ValueError:
+            retry_wait = 5.0
+        print(f"[{label}] Nachlauf für {len(pending)} gescheiterte Batches …")
+        still_failed: list[int] = []
+        for bi in pending:
+            time.sleep(retry_wait)
+            _bi, sub_label, res, _bl = run(bi)
+            if res is None:
+                still_failed.append(bi)
+                print(f"WARN: {sub_label} auch im Nachlauf FEHLGESCHLAGEN")
+            else:
+                results[bi] = res
+                print(f"  {sub_label} ok (Nachlauf)")
+        pending = still_failed
+
+    failed = len(pending)
     if failed > 0:
+        if not optional or max_fail_pct <= 0:
+            print(f"WARN: {label} skipped due to {failed} batch failure(s)")
+            return None
         fail_pct = 100.0 * failed / max(1, n_batches)
         print(f"[{label}] {failed}/{n_batches} batches failed ({fail_pct:.1f}%)")
         if fail_pct > max_fail_pct:
@@ -239,6 +271,8 @@ def chunk_fetch(
                 f"[{label}] failure rate {fail_pct:.1f}% > allowed {max_fail_pct:.1f}% — abort",
             )
             return None
+        for bi in pending:
+            results[bi] = [{MISSING_KEY: True} for _ in batch_pts(bi)]
 
     out: list = []
     for r in results:
@@ -246,6 +280,7 @@ def chunk_fetch(
             return None
         out.extend(r)
     return out
+
 
 
 
