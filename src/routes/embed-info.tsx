@@ -118,7 +118,7 @@ interface Product {
   path: string;
   height: number;
   description: string;
-  variant?: "amriswil";
+  variant?: "amriswil" | "auto-height";
   note?: string;
 }
 
