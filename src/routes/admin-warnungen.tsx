@@ -1041,7 +1041,8 @@ function MapPreviewSection({ refreshKey }: { refreshKey: number }) {
 /** Status und manueller Start der automatischen Gewitterwarnung. */
 /** Zeigt die zuletzt im Browser aufgetretenen Fehler (Absturz-Diagnose). */
 function ClientErrorsSection({ password }: { password: string }) {
-  const [rows, setRows] = useState<ClientErrorRow[]>([]);
+  type Row = Awaited<ReturnType<typeof adminListClientErrors>>[number];
+  const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
