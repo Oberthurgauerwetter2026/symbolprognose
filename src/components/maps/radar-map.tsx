@@ -13,7 +13,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
-import { boltJitter, boltSvg, BOLT_RADAR } from "./lightning-bolt";
+import { boltJitter, boltSvg, BOLT_RADAR, LIGHTNING_ENABLED } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1827,14 +1827,16 @@ export function RadarMap({
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
-  const [showLightning, setShowLightning] = useState<boolean>(() => {
+  const [lightningPref, setLightningPref] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem("radar.lightning") !== "0";
   });
+  // Blitze sind global deaktiviert; die Einstellung bleibt gespeichert.
+  const showLightning = LIGHTNING_ENABLED && lightningPref;
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("radar.lightning", showLightning ? "1" : "0");
-  }, [showLightning]);
+    window.localStorage.setItem("radar.lightning", lightningPref ? "1" : "0");
+  }, [lightningPref]);
   const { data: lightningData } = useQuery({
     queryKey: ["lightning"],
     queryFn: () => getLightningStrikes(),
@@ -1843,6 +1845,7 @@ export function RadarMap({
     refetchInterval: 120_000,
   });
   const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
+
   // Persistente, kontinuierliche Render-Zeit. `idx` ist nur noch der nächste
   // UI-Anker für Buttons/Labels; diese Zeit steuert den sichtbaren Zustand.
   const [renderMs, setRenderMs] = useState<number | null>(null);
@@ -2386,22 +2389,27 @@ export function RadarMap({
               />
               <span className="text-muted-foreground">POH</span>
             </div>
-            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Blitze</span>
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
-                dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0, BOLT_RADAR, 1.5) }}
-              />
+            {LIGHTNING_ENABLED && (
+              <>
+                <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Blitze</span>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
+                    dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0, BOLT_RADAR, 1.5) }}
+                  />
 
-              <a
-                href="https://www.blitzortung.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
-              >
-                Blitzortung
-              </a>
-            </div>
+                  <a
+                    href="https://www.blitzortung.org/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Blitzortung
+                  </a>
+                </div>
+              </>
+            )}
+
           </div>
         ) : (
           <button
@@ -2416,21 +2424,24 @@ export function RadarMap({
         )}
 
         {/* Blitze ein-/ausblenden */}
-        <button
-          type="button"
-          onClick={() => setShowLightning((v) => !v)}
-          aria-pressed={showLightning}
-          aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
-          title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
-          className={cn(
-            "absolute right-3 top-[8.5rem] z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
-            showLightning
-              ? "bg-amber-400 text-neutral-900"
-              : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
-          )}
-        >
-          <Zap className="h-4 w-4" />
-        </button>
+        {LIGHTNING_ENABLED && (
+          <button
+            type="button"
+            onClick={() => setLightningPref((v) => !v)}
+            aria-pressed={showLightning}
+            aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+            title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+            className={cn(
+              "absolute right-3 top-[8.5rem] z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
+              showLightning
+                ? "bg-amber-400 text-neutral-900"
+                : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
+            )}
+          >
+            <Zap className="h-4 w-4" />
+          </button>
+        )}
+
 
 
       </div>
@@ -2637,17 +2648,23 @@ export function RadarMap({
       {/* Footnote unter der Karte */}
       {data && (
         <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
-          Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1 (Nowcast) und ICON-seamless (Vorhersage bis +48 h) ·{" "}
-          <a
-            href="https://www.blitzortung.org/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            Blitzortung.org
-          </a>{" "}
-          (Blitze)
+          Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1 (Nowcast) und ICON-seamless (Vorhersage bis +48 h)
+          {LIGHTNING_ENABLED && (
+            <>
+              {" · "}
+              <a
+                href="https://www.blitzortung.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Blitzortung.org
+              </a>{" "}
+              (Blitze)
+            </>
+          )}
         </p>
+
       )}
     </div>
   );

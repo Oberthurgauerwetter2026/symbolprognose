@@ -5,7 +5,7 @@ import { MapContainer, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { FeatureCollection } from "geojson";
-import { BOLT_YELLOW, boltJitter, boltSvg, type BoltColors } from "./lightning-bolt";
+import { BOLT_YELLOW, boltJitter, boltSvg, LIGHTNING_ENABLED, type BoltColors } from "./lightning-bolt";
 import {
   Pause,
   Play,
@@ -521,15 +521,17 @@ export function SatelliteMap({
     refetchInterval: visible ? 60_000 : false,
   });
 
-  const [showLightning, setShowLightning] = useState<boolean>(() => {
+  const [lightningPref, setLightningPref] = useState<boolean>(() => {
     if (lightningInitiallyActive !== undefined) return lightningInitiallyActive;
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem("sat.lightning") !== "0";
   });
+  // Blitze sind global deaktiviert; die Einstellung bleibt gespeichert.
+  const showLightning = LIGHTNING_ENABLED && lightningPref;
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("sat.lightning", showLightning ? "1" : "0");
-  }, [showLightning]);
+    window.localStorage.setItem("sat.lightning", lightningPref ? "1" : "0");
+  }, [lightningPref]);
   const { data: lightningData } = useQuery({
     queryKey: ["lightning"],
     queryFn: () => getLightningStrikes(),
@@ -537,8 +539,8 @@ export function SatelliteMap({
     staleTime: 20_000,
     refetchInterval: visible ? 30_000 : false,
   });
-
   const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
+
 
 
   const frames = useMemo(() => data?.frames ?? [], [data]);
@@ -735,22 +737,25 @@ export function SatelliteMap({
           )}
         </div>
         <div className="pointer-events-auto flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setShowLightning((v) => !v)}
-            className={cn(
-              "inline-flex h-8 w-8 items-center justify-center rounded-full border shadow-sm backdrop-blur transition focus-visible:outline-none focus-visible:ring-2",
-              showLightning
-                ? "border-amber-300 bg-amber-400 text-white hover:bg-amber-500"
-                : "border-neutral-200/80 bg-white/90 text-neutral-700 hover:bg-neutral-100",
-            )}
-            style={{ ['--tw-ring-color' as never]: BRAND }}
-            title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
-            aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
-            aria-pressed={showLightning}
-          >
-            <Zap className="h-4 w-4" />
-          </button>
+          {LIGHTNING_ENABLED && (
+            <button
+              type="button"
+              onClick={() => setLightningPref((v) => !v)}
+              className={cn(
+                "inline-flex h-8 w-8 items-center justify-center rounded-full border shadow-sm backdrop-blur transition focus-visible:outline-none focus-visible:ring-2",
+                showLightning
+                  ? "border-amber-300 bg-amber-400 text-white hover:bg-amber-500"
+                  : "border-neutral-200/80 bg-white/90 text-neutral-700 hover:bg-neutral-100",
+              )}
+              style={{ ['--tw-ring-color' as never]: BRAND }}
+              title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+              aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+              aria-pressed={showLightning}
+            >
+              <Zap className="h-4 w-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={toggleFullscreen}
