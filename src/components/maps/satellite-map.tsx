@@ -400,7 +400,12 @@ function FrameStack({
           `/default/${f.time}/${tms}/{z}/{y}/{x}.jpg`;
         tl = L.tileLayer(url, { ...gibsOpts, opacity: i === clampedActiveIndex ? 1 : 0 });
       } else {
-        const wl = hiDpiWms(WMS_URL, { ...wmsOpts, opacity: i === clampedActiveIndex ? 1 : 0 });
+        const wl = hiDpiWms(WMS_URL, {
+          ...wmsOpts,
+          opacity: i === clampedActiveIndex ? 1 : 0,
+          noSupersample,
+        });
+
         wl.setParams({ time: f.time } as unknown as L.WMSParams, false);
         tl = wl;
       }
