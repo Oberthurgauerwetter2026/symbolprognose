@@ -714,6 +714,16 @@ def rasterize_forecast_hourly_pngs(
         n_pts = n_lat * n_lon
         print(f"forecast-hourly-pngs: Gitter korrigiert auf {n_lat}×{n_lon}")
 
+    cov = check_grid_coverage(
+        phase2, n_lat, n_lon, "forecast-hourly-pngs", "hourly",
+    )
+    if cov is None:
+        FORECAST_STATS["hourlyCoverage"] = None
+        return []
+    hourly_missing, hourly_coverage = cov
+    FORECAST_STATS["hourlyCoverage"] = hourly_coverage
+
+
     ref_loc = next(
         (
             loc for loc in phase2
