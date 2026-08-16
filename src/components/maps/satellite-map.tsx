@@ -59,6 +59,9 @@ const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const HiDpiWMS = L.TileLayer.WMS.extend({
   getTileUrl(coords: L.Coords) {
     const url = L.TileLayer.WMS.prototype.getTileUrl.call(this, coords);
+    // Im Loop-/Embed-Modus bewusst ohne Supersampling: 18 Zeitschritte in
+    // doppelter Auflösung sind auf der Host-Seite reine Dekodier-Last.
+    if ((this.options as { noSupersample?: boolean }).noSupersample) return url;
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
     if (dpr <= 1) return url;
     const size = (this.options as L.WMSOptions).tileSize as number;
@@ -68,8 +71,9 @@ const HiDpiWMS = L.TileLayer.WMS.extend({
       .replace(/([?&])HEIGHT=\d+/i, `$1HEIGHT=${hi}`);
   },
 });
-const hiDpiWms = (url: string, options: L.WMSOptions) =>
+const hiDpiWms = (url: string, options: L.WMSOptions & { noSupersample?: boolean }) =>
   new (HiDpiWMS as unknown as new (u: string, o: L.WMSOptions) => L.TileLayer.WMS)(url, options);
+
 
 const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
@@ -159,10 +163,23 @@ function SwissOutline() {
  * 15 Minuten Blitz-Alter.
  */
 const LIGHTNING_LIFETIME_MIN = 15;
+/** Obergrenze gleichzeitig gezeichneter Blitze (neueste zuerst). */
+const MAX_BOLTS = 400;
 
-function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; frameTime?: string }) {
+function LightningLayer({
+  strikes,
+  frameTime,
+  frameBucket,
+}: {
+  strikes: LightningStrike[];
+  frameTime?: string;
+  /** Frame-Zeit auf Minuten gerundet — nur hier wird neu gezeichnet. */
+  frameBucket?: number;
+}) {
   const map = useMap();
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const frameTimeRef = useRef(frameTime);
+  frameTimeRef.current = frameTime;
 
   useEffect(() => {
     const pane = map.getPane("lightning") ?? map.createPane("lightning");
@@ -181,17 +198,25 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
     const group = layerRef.current;
     if (!group) return;
 
-    const refMs = frameTime ? Date.parse(frameTime) : Date.now();
+    const ft = frameTimeRef.current;
+    const refMs = ft ? Date.parse(ft) : Date.now();
     const ref = Number.isFinite(refMs) ? refMs : Date.now();
 
-    group.clearLayers();
+    // Erst filtern und auf die neuesten begrenzen, dann zeichnen.
+    const visible: { s: LightningStrike; ageMin: number }[] = [];
     for (const s of strikes) {
       const t = Date.parse(s.t);
       if (!Number.isFinite(t)) continue;
       const ageMs = ref - t;
       // Zukünftige Blitze gehören noch nicht in diesen Zeitschritt.
       if (ageMs < 0 || ageMs > LIGHTNING_LIFETIME_MIN * 60_000) continue;
-      const ageMin = ageMs / 60_000;
+      visible.push({ s, ageMin: ageMs / 60_000 });
+    }
+    visible.sort((a, b) => a.ageMin - b.ageMin);
+    const shown = visible.length > MAX_BOLTS ? visible.slice(0, MAX_BOLTS) : visible;
+
+    group.clearLayers();
+    for (const { s, ageMin } of shown) {
       const colors: BoltColors = BOLT_YELLOW;
       let size: number;
       let opacity: number;
@@ -220,11 +245,11 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
         }),
       }).addTo(group);
     }
-
-  }, [strikes, frameTime]);
+  }, [strikes, frameBucket]);
 
   return null;
 }
+
 
 
 
@@ -250,6 +275,7 @@ function FrameStack({
   initialIndex,
   onProgress,
   onOutage,
+  noSupersample = false,
 }: {
   provider: "eumetsat-wms" | "gibs-wmts";
   layer: string;
@@ -260,6 +286,7 @@ function FrameStack({
   initialIndex: number;
   onProgress: (loadedIndices: number[], total: number) => void;
   onOutage?: (outage: boolean) => void;
+  noSupersample?: boolean;
 }) {
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
@@ -268,6 +295,13 @@ function FrameStack({
   const triedFallbackRef = useRef(false);
   const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
   const clampedInitialIndex = frames.length > 0 ? Math.min(Math.max(initialIndex, 0), frames.length - 1) : 0;
+  // Der Manifest-Refresh liefert jede Minute ein neues Array-Objekt mit
+  // identischen Zeitpunkten. Nur die Zeit-Signatur darf einen Neuaufbau
+  // aller Kachel-Ebenen auslösen — sonst ruckelt es im Minutentakt.
+  const framesKey = frames.map((f) => f.time).join(",");
+  const framesRef = useRef(frames);
+  framesRef.current = frames;
+
 
 
   useEffect(() => {
@@ -276,8 +310,10 @@ function FrameStack({
   }, [layer]);
 
   useEffect(() => {
+    const frames = framesRef.current;
     loadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
+
 
     const wmsOpts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean; format_options?: string } = {
       layers: effectiveLayer,
@@ -364,7 +400,12 @@ function FrameStack({
           `/default/${f.time}/${tms}/{z}/{y}/{x}.jpg`;
         tl = L.tileLayer(url, { ...gibsOpts, opacity: i === clampedActiveIndex ? 1 : 0 });
       } else {
-        const wl = hiDpiWms(WMS_URL, { ...wmsOpts, opacity: i === clampedActiveIndex ? 1 : 0 });
+        const wl = hiDpiWms(WMS_URL, {
+          ...wmsOpts,
+          opacity: i === clampedActiveIndex ? 1 : 0,
+          noSupersample,
+        });
+
         wl.setParams({ time: f.time } as unknown as L.WMSParams, false);
         tl = wl;
       }
@@ -410,7 +451,8 @@ function FrameStack({
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, provider, effectiveLayer, tileMatrixSet, frames, clampedInitialIndex]);
+  }, [map, provider, effectiveLayer, tileMatrixSet, framesKey, clampedInitialIndex, noSupersample]);
+
 
   useEffect(() => {
     layersRef.current.forEach((tl, i) => tl?.setOpacity(i === clampedActiveIndex ? 1 : 0));
@@ -444,9 +486,39 @@ export function SatelliteMap({
   const region = useMemo(() => getRegion(regionId), [regionId]);
   const isMobile = useIsMobile();
 
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  // Nur arbeiten, wenn das Widget wirklich sichtbar ist: im Embed auf einer
+  // fremden Seite liefen Animation und Refresh sonst dauerhaft im Hintergrund
+  // und liessen die Host-Seite stocken.
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const el = wrapperRef.current;
+    let onScreen = true;
+    const update = () => setVisible(onScreen && document.visibilityState !== "hidden");
+    const onVis = () => update();
+    document.addEventListener("visibilitychange", onVis);
+    let io: IntersectionObserver | null = null;
+    if (el && "IntersectionObserver" in window) {
+      io = new IntersectionObserver(
+        (entries) => {
+          onScreen = entries.some((e) => e.isIntersecting);
+          update();
+        },
+        { rootMargin: "100px" },
+      );
+      io.observe(el);
+    }
+    update();
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      io?.disconnect();
+    };
+  }, []);
+
   const { data, isLoading } = useQuery({
     ...satelliteManifestQuery(regionId),
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
   });
 
   const [showLightning, setShowLightning] = useState<boolean>(() => {
@@ -461,10 +533,11 @@ export function SatelliteMap({
   const { data: lightningData } = useQuery({
     queryKey: ["lightning"],
     queryFn: () => getLightningStrikes(),
-    enabled: showLightning,
+    enabled: showLightning && visible,
     staleTime: 20_000,
-    refetchInterval: 30_000,
+    refetchInterval: visible ? 30_000 : false,
   });
+
   const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
 
 
@@ -477,7 +550,7 @@ export function SatelliteMap({
   const [outage, setOutage] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const wrapperRef = useRef<HTMLDivElement>(null);
+
 
   const total = frames.length;
   const loaded = loadedIdx.length;
@@ -491,6 +564,13 @@ export function SatelliteMap({
   const initialIndexRef = useRef<number>(0);
   const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
   const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
+  // Blitz-Alterung nur minütlich neu zeichnen, nicht bei jedem 500-ms-Frame.
+  const frameBucket = useMemo(() => {
+    const t = frames[safeIndex]?.time;
+    const ms = t ? Date.parse(t) : NaN;
+    return Number.isFinite(ms) ? Math.floor(ms / 60_000) : 0;
+  }, [frames, safeIndex]);
+
   useEffect(() => {
     if (frames.length === 0) return;
     if (lastTimeRef.current === null) {
@@ -549,7 +629,7 @@ export function SatelliteMap({
   }, [ready]);
 
   useEffect(() => {
-    if (!playing || total < 2 || !ready) return;
+    if (!playing || total < 2 || !ready || !visible) return;
     const t = window.setInterval(() => {
       setIndex((i) => {
         // Nur auf bereits geladene Zeitschritte springen.
@@ -566,7 +646,8 @@ export function SatelliteMap({
       });
     }, speedMs);
     return () => window.clearInterval(t);
-  }, [playing, speedMs, total, ready, frames, loadedSet]);
+  }, [playing, speedMs, total, ready, frames, loadedSet, visible]);
+
 
 
   useEffect(() => {
@@ -706,7 +787,7 @@ export function SatelliteMap({
           <FlyToRegion regionId={regionId} fitBounds={loop} />
           {frames.length > 0 && (
             <FrameStack
-              key={`${regionId}-${layer}-${frames.length}-${frames[0]?.time}-${reloadKey}`}
+              key={`${regionId}-${layer}-${reloadKey}`}
               provider={data?.provider ?? region.provider ?? "eumetsat-wms"}
               layer={layer}
               fallbackLayer={data?.fallbackLayer ?? region.fallbackLayer}
@@ -716,12 +797,18 @@ export function SatelliteMap({
               initialIndex={safeInitialIndex}
               onProgress={(indices) => setLoadedIdx(indices)}
               onOutage={setOutage}
+              noSupersample={loop}
             />
           )}
           {showSwiss && <SwissOutline />}
           {showLightning && (
-            <LightningLayer strikes={lightningStrikes} frameTime={frames[safeIndex]?.time} />
+            <LightningLayer
+              strikes={lightningStrikes}
+              frameTime={frames[safeIndex]?.time}
+              frameBucket={frameBucket}
+            />
           )}
+
         </MapContainer>
         {loop && frames.length > 0 && frames[safeIndex]?.time && (
           <div className="pointer-events-none absolute right-3 top-3 z-[450]">
