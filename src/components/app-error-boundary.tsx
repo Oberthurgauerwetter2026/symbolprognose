@@ -58,17 +58,17 @@ export class AppErrorBoundary extends Component<
  * Umhüllt eine Ansicht mit dem Fehler-Auffangbereich, damit ein Renderfehler
  * niemals die ganze Seite leer werden lässt.
  */
-export function withErrorBoundary<C extends ComponentType<never>>(
-  Inner: C,
+export function withErrorBoundary<P extends object>(
+  Inner: ComponentType<P>,
   label: string,
   height?: number,
 ) {
-  const Wrapped = (props: ComponentProps<C>) => (
+  const Wrapped = (props: P) => (
     <AppErrorBoundary label={label} height={height}>
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <Inner {...(props as any)} />
+      <Inner {...props} />
     </AppErrorBoundary>
   );
   Wrapped.displayName = `withErrorBoundary(${label})`;
   return Wrapped;
 }
+
