@@ -599,7 +599,16 @@ function DayTabs({
   );
 }
 
-export function RegionMap({ bare = false, fill = false }: { bare?: boolean; fill?: boolean } = {}) {
+export function RegionMap({
+  bare = false,
+  fill = false,
+  onSelectSpot,
+}: {
+  bare?: boolean;
+  fill?: boolean;
+  /** Embed-Modus: Ortsauswahl wird nach oben gemeldet statt navigiert. */
+  onSelectSpot?: (spot: { name: string; lat: number; lon: number }) => void;
+} = {}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
