@@ -163,10 +163,23 @@ function SwissOutline() {
  * 15 Minuten Blitz-Alter.
  */
 const LIGHTNING_LIFETIME_MIN = 15;
+/** Obergrenze gleichzeitig gezeichneter Blitze (neueste zuerst). */
+const MAX_BOLTS = 400;
 
-function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; frameTime?: string }) {
+function LightningLayer({
+  strikes,
+  frameTime,
+  frameBucket,
+}: {
+  strikes: LightningStrike[];
+  frameTime?: string;
+  /** Frame-Zeit auf Minuten gerundet — nur hier wird neu gezeichnet. */
+  frameBucket?: number;
+}) {
   const map = useMap();
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const frameTimeRef = useRef(frameTime);
+  frameTimeRef.current = frameTime;
 
   useEffect(() => {
     const pane = map.getPane("lightning") ?? map.createPane("lightning");
@@ -185,17 +198,25 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
     const group = layerRef.current;
     if (!group) return;
 
-    const refMs = frameTime ? Date.parse(frameTime) : Date.now();
+    const ft = frameTimeRef.current;
+    const refMs = ft ? Date.parse(ft) : Date.now();
     const ref = Number.isFinite(refMs) ? refMs : Date.now();
 
-    group.clearLayers();
+    // Erst filtern und auf die neuesten begrenzen, dann zeichnen.
+    const visible: { s: LightningStrike; ageMin: number }[] = [];
     for (const s of strikes) {
       const t = Date.parse(s.t);
       if (!Number.isFinite(t)) continue;
       const ageMs = ref - t;
       // Zukünftige Blitze gehören noch nicht in diesen Zeitschritt.
       if (ageMs < 0 || ageMs > LIGHTNING_LIFETIME_MIN * 60_000) continue;
-      const ageMin = ageMs / 60_000;
+      visible.push({ s, ageMin: ageMs / 60_000 });
+    }
+    visible.sort((a, b) => a.ageMin - b.ageMin);
+    const shown = visible.length > MAX_BOLTS ? visible.slice(0, MAX_BOLTS) : visible;
+
+    group.clearLayers();
+    for (const { s, ageMin } of shown) {
       const colors: BoltColors = BOLT_YELLOW;
       let size: number;
       let opacity: number;
@@ -224,11 +245,11 @@ function LightningLayer({ strikes, frameTime }: { strikes: LightningStrike[]; fr
         }),
       }).addTo(group);
     }
-
-  }, [strikes, frameTime]);
+  }, [strikes, frameBucket]);
 
   return null;
 }
+
 
 
 
