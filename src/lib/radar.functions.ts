@@ -142,8 +142,17 @@ type ForecastManifestFrame = {
 type ForecastManifest = {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   generatedAt: string;
+  /** Anteil vorhandener Gitterpunkte des Ingest-Laufs in Prozent. */
+  coverage?: number | null;
   frames: ForecastManifestFrame[];
 };
+
+/**
+ * DAUERHAFTE VORGABE: Prognosefelder aus einem Lauf mit Datenlücken werden
+ * nicht ausgeliefert — sie erscheinen sonst als gerade abgeschnittene Flächen.
+ */
+const MIN_FORECAST_COVERAGE = 99;
+
 
 function locHasMinutely(loc: unknown): loc is LocResponse & {
   minutely_15: { time: string[]; precipitation: (number | null)[]; snowfall?: (number | null)[] };
