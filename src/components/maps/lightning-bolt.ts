@@ -7,8 +7,16 @@
  * wechseln.
  */
 
+/**
+ * Globaler Schalter für die Blitzanzeige (Radar + Satellitenbild).
+ * Vorübergehend aus: keine Blitz-Layer, keine Schalter, keine Datenabfrage.
+ * Zum Wiederaktivieren einfach auf `true` setzen.
+ */
+export const LIGHTNING_ENABLED = false;
+
 /** Zickzack-Blitz (viewBox 0 0 24 24). */
 export const BOLT_PATH = "M13.5 2 5 14h5.5L9.5 22 19 9.5h-5.8L13.5 2Z";
+
 
 export interface BoltColors {
   /** Heller Kern. */
