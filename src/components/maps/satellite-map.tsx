@@ -486,9 +486,39 @@ export function SatelliteMap({
   const region = useMemo(() => getRegion(regionId), [regionId]);
   const isMobile = useIsMobile();
 
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  // Nur arbeiten, wenn das Widget wirklich sichtbar ist: im Embed auf einer
+  // fremden Seite liefen Animation und Refresh sonst dauerhaft im Hintergrund
+  // und liessen die Host-Seite stocken.
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const el = wrapperRef.current;
+    let onScreen = true;
+    const update = () => setVisible(onScreen && document.visibilityState !== "hidden");
+    const onVis = () => update();
+    document.addEventListener("visibilitychange", onVis);
+    let io: IntersectionObserver | null = null;
+    if (el && "IntersectionObserver" in window) {
+      io = new IntersectionObserver(
+        (entries) => {
+          onScreen = entries.some((e) => e.isIntersecting);
+          update();
+        },
+        { rootMargin: "100px" },
+      );
+      io.observe(el);
+    }
+    update();
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      io?.disconnect();
+    };
+  }, []);
+
   const { data, isLoading } = useQuery({
     ...satelliteManifestQuery(regionId),
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
   });
 
   const [showLightning, setShowLightning] = useState<boolean>(() => {
@@ -503,10 +533,11 @@ export function SatelliteMap({
   const { data: lightningData } = useQuery({
     queryKey: ["lightning"],
     queryFn: () => getLightningStrikes(),
-    enabled: showLightning,
+    enabled: showLightning && visible,
     staleTime: 20_000,
-    refetchInterval: 30_000,
+    refetchInterval: visible ? 30_000 : false,
   });
+
   const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
 
 
