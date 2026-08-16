@@ -1,3 +1,4 @@
+import { withErrorBoundary } from "@/components/app-error-boundary";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -108,7 +109,7 @@ function useNow(intervalMs = 60_000): Date {
   return now;
 }
 
-export function WeatherWidget({
+function WeatherWidgetInner({
   initialDayIdx,
   initialLocation,
   detailOnly = false,
@@ -1582,3 +1583,7 @@ function SkeletonWidget() {
     </div>
   );
 }
+
+
+/** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
+export const WeatherWidget = withErrorBoundary(WeatherWidgetInner, "Die Lokalprognose", 360);

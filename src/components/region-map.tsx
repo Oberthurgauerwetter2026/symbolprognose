@@ -1,3 +1,4 @@
+import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LocationSearch } from "@/components/location-search";
@@ -599,7 +600,7 @@ function DayTabs({
   );
 }
 
-export function RegionMap({
+function RegionMapInner({
   bare = false,
   fill = false,
   onSelectSpot,
@@ -1143,3 +1144,7 @@ export function RegionMap({
     </div>
   );
 }
+
+
+/** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
+export const RegionMap = withErrorBoundary(RegionMapInner, "Die Regionskarte", 480);

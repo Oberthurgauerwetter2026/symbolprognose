@@ -1,3 +1,4 @@
+import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, GeoJSON, TileLayer, ZoomControl, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -228,7 +229,7 @@ export interface WarnMapProps {
   className?: string;
 }
 
-export function WarnMap({ bare = false, className }: WarnMapProps) {
+function WarnMapInner({ bare = false, className }: WarnMapProps) {
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -850,3 +851,7 @@ export function WarnMap({ bare = false, className }: WarnMapProps) {
     </div>
   );
 }
+
+
+/** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
+export const WarnMap = withErrorBoundary(WarnMapInner, "Die Warnkarte", 480);

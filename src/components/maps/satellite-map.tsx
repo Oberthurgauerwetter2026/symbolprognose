@@ -1,3 +1,4 @@
+import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { satelliteManifestQuery } from "@/lib/map-queries";
@@ -473,7 +474,7 @@ function fmtBubble(d: Date): string {
 }
 
 
-export function SatelliteMap({
+function SatelliteMapInner({
   bare = false,
   loop = false,
   lightningInitiallyActive,
@@ -1006,3 +1007,7 @@ export function SatelliteMap({
   );
 }
 
+
+
+/** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
+export const SatelliteMap = withErrorBoundary(SatelliteMapInner, "Das Satellitenbild", 520);

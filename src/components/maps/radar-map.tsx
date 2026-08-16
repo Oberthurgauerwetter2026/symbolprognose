@@ -1,3 +1,4 @@
+import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -1793,7 +1794,7 @@ function fmtBubble(d: Date, measured: boolean): string {
 
 
 
-export function RadarMap({
+function RadarMapInner({
   bare = false,
   initialFrames,
 }: {
@@ -2669,3 +2670,7 @@ export function RadarMap({
     </div>
   );
 }
+
+
+/** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
+export const RadarMap = withErrorBoundary(RadarMapInner, "Das Niederschlagsradar", 520);
