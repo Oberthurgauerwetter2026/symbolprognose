@@ -114,12 +114,15 @@ export function WeatherWidget({
   detailOnly = false,
   lockedLocation,
   compact = false,
+  initialExtended = false,
 }: {
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
   detailOnly?: boolean;
   lockedLocation?: { name: string; latitude: number; longitude: number };
   compact?: boolean;
+  /** Startet direkt mit der 7-Tage-Kachelreihe (z. B. im Embed). */
+  initialExtended?: boolean;
 } = {}) {
   const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (lockedLocation) return lockedLocation;
@@ -189,7 +192,7 @@ export function WeatherWidget({
     const params = new URLSearchParams(window.location.search);
     if (params.get("embed") === "minimal") setEmbedMinimal(true);
   }, []);
-  const [extended, setExtended] = useState(false);
+  const [extended, setExtended] = useState(initialExtended);
   const [snow, setSnow] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(initialDayIdx ?? 0);
   const [panelTarget, setPanelTarget] = useState<{ idx: number; tick: number }>({ idx: initialDayIdx ?? 0, tick: 0 });

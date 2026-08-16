@@ -42,8 +42,8 @@ function EmbedRegion() {
             </span>
           </div>
           <WeatherWidget
-            detailOnly
             compact
+            initialExtended
             lockedLocation={{
               name: selected.name,
               latitude: selected.lat,
