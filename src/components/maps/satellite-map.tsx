@@ -59,6 +59,9 @@ const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 const HiDpiWMS = L.TileLayer.WMS.extend({
   getTileUrl(coords: L.Coords) {
     const url = L.TileLayer.WMS.prototype.getTileUrl.call(this, coords);
+    // Im Loop-/Embed-Modus bewusst ohne Supersampling: 18 Zeitschritte in
+    // doppelter Auflösung sind auf der Host-Seite reine Dekodier-Last.
+    if ((this.options as { noSupersample?: boolean }).noSupersample) return url;
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
     if (dpr <= 1) return url;
     const size = (this.options as L.WMSOptions).tileSize as number;
@@ -68,8 +71,9 @@ const HiDpiWMS = L.TileLayer.WMS.extend({
       .replace(/([?&])HEIGHT=\d+/i, `$1HEIGHT=${hi}`);
   },
 });
-const hiDpiWms = (url: string, options: L.WMSOptions) =>
+const hiDpiWms = (url: string, options: L.WMSOptions & { noSupersample?: boolean }) =>
   new (HiDpiWMS as unknown as new (u: string, o: L.WMSOptions) => L.TileLayer.WMS)(url, options);
+
 
 const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
