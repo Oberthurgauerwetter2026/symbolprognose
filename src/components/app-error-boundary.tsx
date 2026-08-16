@@ -64,10 +64,10 @@ export function withErrorBoundary<F extends (props: never) => ReactNode>(
   height?: number,
 ): (props: Parameters<F>[0]) => ReactNode {
   const Wrapped = (props: Parameters<F>[0]) => {
-    const Inner2 = Inner as unknown as ComponentType<Parameters<F>[0]>;
+    const Inner2 = Inner as unknown as ComponentType<Record<string, unknown>>;
     return (
       <AppErrorBoundary label={label} height={height}>
-        <Inner2 {...props} />
+        <Inner2 {...((props ?? {}) as Record<string, unknown>)} />
       </AppErrorBoundary>
     );
   };
