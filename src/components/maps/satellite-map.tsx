@@ -521,15 +521,17 @@ export function SatelliteMap({
     refetchInterval: visible ? 60_000 : false,
   });
 
-  const [showLightning, setShowLightning] = useState<boolean>(() => {
+  const [lightningPref, setLightningPref] = useState<boolean>(() => {
     if (lightningInitiallyActive !== undefined) return lightningInitiallyActive;
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem("sat.lightning") !== "0";
   });
+  // Blitze sind global deaktiviert; die Einstellung bleibt gespeichert.
+  const showLightning = LIGHTNING_ENABLED && lightningPref;
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("sat.lightning", showLightning ? "1" : "0");
-  }, [showLightning]);
+    window.localStorage.setItem("sat.lightning", lightningPref ? "1" : "0");
+  }, [lightningPref]);
   const { data: lightningData } = useQuery({
     queryKey: ["lightning"],
     queryFn: () => getLightningStrikes(),
@@ -537,8 +539,8 @@ export function SatelliteMap({
     staleTime: 20_000,
     refetchInterval: visible ? 30_000 : false,
   });
-
   const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
+
 
 
   const frames = useMemo(() => data?.frames ?? [], [data]);
