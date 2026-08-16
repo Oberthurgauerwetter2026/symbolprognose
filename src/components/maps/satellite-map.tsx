@@ -275,6 +275,7 @@ function FrameStack({
   initialIndex,
   onProgress,
   onOutage,
+  noSupersample = false,
 }: {
   provider: "eumetsat-wms" | "gibs-wmts";
   layer: string;
@@ -285,6 +286,7 @@ function FrameStack({
   initialIndex: number;
   onProgress: (loadedIndices: number[], total: number) => void;
   onOutage?: (outage: boolean) => void;
+  noSupersample?: boolean;
 }) {
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
@@ -293,6 +295,13 @@ function FrameStack({
   const triedFallbackRef = useRef(false);
   const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
   const clampedInitialIndex = frames.length > 0 ? Math.min(Math.max(initialIndex, 0), frames.length - 1) : 0;
+  // Der Manifest-Refresh liefert jede Minute ein neues Array-Objekt mit
+  // identischen Zeitpunkten. Nur die Zeit-Signatur darf einen Neuaufbau
+  // aller Kachel-Ebenen auslösen — sonst ruckelt es im Minutentakt.
+  const framesKey = frames.map((f) => f.time).join(",");
+  const framesRef = useRef(frames);
+  framesRef.current = frames;
+
 
 
   useEffect(() => {
