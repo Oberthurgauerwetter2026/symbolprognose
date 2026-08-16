@@ -1827,14 +1827,16 @@ export function RadarMap({
   const [speed, setSpeed] = useState(2); // Default 2× beim Play
   const [showHail, setShowHail] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
-  const [showLightning, setShowLightning] = useState<boolean>(() => {
+  const [lightningPref, setLightningPref] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem("radar.lightning") !== "0";
   });
+  // Blitze sind global deaktiviert; die Einstellung bleibt gespeichert.
+  const showLightning = LIGHTNING_ENABLED && lightningPref;
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("radar.lightning", showLightning ? "1" : "0");
-  }, [showLightning]);
+    window.localStorage.setItem("radar.lightning", lightningPref ? "1" : "0");
+  }, [lightningPref]);
   const { data: lightningData } = useQuery({
     queryKey: ["lightning"],
     queryFn: () => getLightningStrikes(),
@@ -1843,6 +1845,7 @@ export function RadarMap({
     refetchInterval: 120_000,
   });
   const lightningStrikes = useMemo(() => lightningData?.strikes ?? [], [lightningData]);
+
   // Persistente, kontinuierliche Render-Zeit. `idx` ist nur noch der nächste
   // UI-Anker für Buttons/Labels; diese Zeit steuert den sichtbaren Zustand.
   const [renderMs, setRenderMs] = useState<number | null>(null);
