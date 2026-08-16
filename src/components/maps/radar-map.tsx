@@ -2419,21 +2419,24 @@ export function RadarMap({
         )}
 
         {/* Blitze ein-/ausblenden */}
-        <button
-          type="button"
-          onClick={() => setShowLightning((v) => !v)}
-          aria-pressed={showLightning}
-          aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
-          title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
-          className={cn(
-            "absolute right-3 top-[8.5rem] z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
-            showLightning
-              ? "bg-amber-400 text-neutral-900"
-              : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
-          )}
-        >
-          <Zap className="h-4 w-4" />
-        </button>
+        {LIGHTNING_ENABLED && (
+          <button
+            type="button"
+            onClick={() => setLightningPref((v) => !v)}
+            aria-pressed={showLightning}
+            aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+            title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+            className={cn(
+              "absolute right-3 top-[8.5rem] z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
+              showLightning
+                ? "bg-amber-400 text-neutral-900"
+                : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
+            )}
+          >
+            <Zap className="h-4 w-4" />
+          </button>
+        )}
+
 
 
       </div>
