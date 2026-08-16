@@ -756,6 +756,10 @@ def rasterize_forecast_hourly_pngs(
     )
 
 
+    import numpy as np
+
+    hourly_mask = np.asarray(hourly_missing, dtype=bool).reshape(n_lat, n_lon)
+
     manifest_entries: list[dict] = []
     uploaded = 0
     # Grobes Quellgitter → grössere Mindestfläche, damit die Interpolation keine
@@ -779,10 +783,16 @@ def rasterize_forecast_hourly_pngs(
                 any_positive = True
             frame_vals[pi] = fv
 
+        grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
+        grid = _fill_missing_values(grid, hourly_mask)
+
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         key = f"radar/forecast/{stamp}.png"
         try:
-            png = _render_frame_png(n_lat, n_lon, frame_vals, min_area_px=24)
+            png = _render_frame_png(
+                n_lat, n_lon, grid.reshape(-1).tolist(), min_area_px=24,
+            )
+
             s3.put_object(
                 Bucket=bucket,
                 Key=key,
