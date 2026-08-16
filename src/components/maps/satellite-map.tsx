@@ -5,7 +5,7 @@ import { MapContainer, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { FeatureCollection } from "geojson";
-import { BOLT_YELLOW, boltJitter, boltSvg, type BoltColors } from "./lightning-bolt";
+import { BOLT_YELLOW, boltJitter, boltSvg, LIGHTNING_ENABLED, type BoltColors } from "./lightning-bolt";
 import {
   Pause,
   Play,
