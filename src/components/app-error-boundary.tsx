@@ -58,17 +58,21 @@ export class AppErrorBoundary extends Component<
  * Umhüllt eine Ansicht mit dem Fehler-Auffangbereich, damit ein Renderfehler
  * niemals die ganze Seite leer werden lässt.
  */
-export function withErrorBoundary<P extends object>(
-  Inner: ComponentType<P>,
+export function withErrorBoundary<F extends (props: never) => ReactNode>(
+  Inner: F,
   label: string,
   height?: number,
-) {
-  const Wrapped = (props: P) => (
-    <AppErrorBoundary label={label} height={height}>
-      <Inner {...props} />
-    </AppErrorBoundary>
-  );
+): (props: Parameters<F>[0]) => ReactNode {
+  const Wrapped = (props: Parameters<F>[0]) => {
+    const Inner2 = Inner as unknown as ComponentType<Parameters<F>[0]>;
+    return (
+      <AppErrorBoundary label={label} height={height}>
+        <Inner2 {...props} />
+      </AppErrorBoundary>
+    );
+  };
   Wrapped.displayName = `withErrorBoundary(${label})`;
   return Wrapped;
 }
+
 
