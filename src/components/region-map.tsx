@@ -880,7 +880,16 @@ export function RegionMap({
               : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
         )}
       >
-        <LocationSearch variant="overlay" bare={bare} />
+        <LocationSearch
+          variant="overlay"
+          bare={bare}
+          onSelect={
+            onSelectSpot
+              ? (loc) =>
+                  onSelectSpot({ name: loc.name, lat: loc.latitude, lon: loc.longitude })
+              : undefined
+          }
+        />
         <MapContainer
           center={center}
           zoom={11}
