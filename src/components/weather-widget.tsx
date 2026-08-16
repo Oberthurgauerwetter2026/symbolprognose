@@ -192,7 +192,7 @@ export function WeatherWidget({
     const params = new URLSearchParams(window.location.search);
     if (params.get("embed") === "minimal") setEmbedMinimal(true);
   }, []);
-  const [extended, setExtended] = useState(false);
+  const [extended, setExtended] = useState(initialExtended);
   const [snow, setSnow] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(initialDayIdx ?? 0);
   const [panelTarget, setPanelTarget] = useState<{ idx: number; tick: number }>({ idx: initialDayIdx ?? 0, tick: 0 });
