@@ -55,9 +55,14 @@ jobs:
           # (CHUNK_PHASE1=60, BATCH_SLEEP_S) unter dem Open-Meteo-Minutenlimit.
           GRID_LAT_DENSE: "60"
           GRID_LON_DENSE: "72"
-          # Erlaubte Ausfallquote (%) einzelner Batches für phase1 dense,
-          # bevor die PNG-Rasterung aufgegeben wird.
-          PHASE1_DENSE_MAX_FAIL_PCT: "20"
+          # Erlaubte Ausfallquote (%) einzelner Batches für phase1 dense.
+          # Streng: eine lückenhafte Prognose darf nie publiziert werden.
+          PHASE1_DENSE_MAX_FAIL_PCT: "1"
+          # Maximal erlaubter Anteil fehlender Gitterpunkte (%) für die
+          # PNG-Rasterung; darüber bleibt die letzte gute Prognose stehen.
+          FORECAST_MAX_MISSING_PCT: "1"
+          RETRY_BATCH_SLEEP_S: "25"
+
           # phaseA (Symbolprognose) läuft nur 4× täglich via openmeteo-symbol.yml
           SKIP_PHASEA: "1"
         run: python -u scripts/ingest_openmeteo.py

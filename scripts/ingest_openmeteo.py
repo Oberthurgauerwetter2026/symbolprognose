@@ -172,6 +172,21 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
 
 
 
+#: Platzhalter für einen Batch, der endgültig nicht geholt werden konnte.
+#: Wird als "kein Wert" behandelt — NIE als 0 mm/h gerastert (sonst entstehen
+#: gerade abgeschnittene Prognosefelder).
+MISSING_KEY = "__missing__"
+
+#: Laufstatistik der Prognose-Rasterung. `coverage` = Anteil vorhandener
+#: Gitterpunkte in Prozent, `None` = Lauf abgebrochen (Prognose unvollständig).
+FORECAST_STATS: dict = {"coverage": None, "hourlyCoverage": None}
+
+
+
+def is_missing_loc(loc) -> bool:
+    return bool(isinstance(loc, dict) and loc.get(MISSING_KEY))
+
+
 def chunk_fetch(
     label: str,
     base_params: dict,
@@ -185,9 +200,10 @@ def chunk_fetch(
     Reihenfolge der Ergebnisse entspricht strikt der Eingabe-Punktliste,
     damit phaseX[i] weiter zu pts[i] passt.
 
-    `max_fail_pct` (nur mit `optional=True`): erlaubte Ausfallquote einzelner
-    Batches. Fehlende Batches werden mit `{}`-Platzhaltern gefüllt, damit die
-    Punkt-Reihenfolge intakt bleibt (der Konsument prüft `minutely_15`).
+    Gescheiterte Batches werden nach dem ersten Durchgang sequentiell mit
+    zusätzlicher Wartezeit nachgeholt. Erst wenn auch das scheitert, werden
+    Platzhalter (`{MISSING_KEY: True}`) eingesetzt — diese gelten überall als
+    "kein Wert", damit kein Nullfeld gerastert wird.
     """
     total = len(pts)
     n_batches = (total + chunk_size - 1) // chunk_size
@@ -198,8 +214,11 @@ def chunk_fetch(
 
     results: list[list | None] = [None] * n_batches
 
+    def batch_pts(bi: int) -> list:
+        return pts[bi * chunk_size : (bi + 1) * chunk_size]
+
     def run(bi: int):
-        batch = pts[bi * chunk_size : (bi + 1) * chunk_size]
+        batch = batch_pts(bi)
         params = dict(base_params)
         params["latitude"] = ",".join(f"{p[0]:.4f}" for p in batch)
         params["longitude"] = ",".join(f"{p[1]:.4f}" for p in batch)
@@ -212,26 +231,44 @@ def chunk_fetch(
     except ValueError:
         batch_sleep = 0.0
 
-    failed = 0
+    pending: list[int] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = [ex.submit(run, bi) for bi in range(n_batches)]
         for idx, fut in enumerate(futures):
-            bi, sub_label, res, batch_len = fut.result()
+            bi, sub_label, res, _batch_len = fut.result()
             if res is None:
-                failed += 1
-                if not optional or max_fail_pct <= 0:
-                    print(f"WARN: {label} skipped due to batch {bi + 1} failure (optional)")
-                    return None
-                # Platzhalter, damit Reihenfolge/Anzahl stimmt
-                results[bi] = [{} for _ in range(batch_len)]
-                print(f"WARN: {sub_label} FAILED — placeholder inserted")
+                pending.append(bi)
+                print(f"WARN: {sub_label} FAILED — für Nachlauf vorgemerkt")
             else:
                 results[bi] = res
                 print(f"  {sub_label} ok")
             if batch_sleep > 0 and idx < len(futures) - 1:
                 time.sleep(batch_sleep)
 
+    # ---- Nachlauf: gescheiterte Batches sequentiell erneut versuchen ----
+    if pending:
+        try:
+            retry_wait = float(os.environ.get("RETRY_BATCH_SLEEP_S", "5"))
+        except ValueError:
+            retry_wait = 5.0
+        print(f"[{label}] Nachlauf für {len(pending)} gescheiterte Batches …")
+        still_failed: list[int] = []
+        for bi in pending:
+            time.sleep(retry_wait)
+            _bi, sub_label, res, _bl = run(bi)
+            if res is None:
+                still_failed.append(bi)
+                print(f"WARN: {sub_label} auch im Nachlauf FEHLGESCHLAGEN")
+            else:
+                results[bi] = res
+                print(f"  {sub_label} ok (Nachlauf)")
+        pending = still_failed
+
+    failed = len(pending)
     if failed > 0:
+        if not optional or max_fail_pct <= 0:
+            print(f"WARN: {label} skipped due to {failed} batch failure(s)")
+            return None
         fail_pct = 100.0 * failed / max(1, n_batches)
         print(f"[{label}] {failed}/{n_batches} batches failed ({fail_pct:.1f}%)")
         if fail_pct > max_fail_pct:
@@ -239,6 +276,8 @@ def chunk_fetch(
                 f"[{label}] failure rate {fail_pct:.1f}% > allowed {max_fail_pct:.1f}% — abort",
             )
             return None
+        for bi in pending:
+            results[bi] = [{MISSING_KEY: True} for _ in batch_pts(bi)]
 
     out: list = []
     for r in results:
@@ -246,6 +285,7 @@ def chunk_fetch(
             return None
         out.extend(r)
     return out
+
 
 
 
@@ -391,6 +431,96 @@ def _purge_forecast_pngs(s3, bucket: str) -> int:
             purged += 1
     return purged
 
+#: Maximal erlaubter Anteil fehlender Gitterpunkte (Prozent), bevor die
+#: Prognose-Rasterung abbricht. Dauerhafte Vorgabe: eine unvollständige
+#: Prognose wird NIE publiziert — statt eines abgeschnittenen Feldes bleibt die
+#: letzte gute Prognose in R2 stehen.
+def _max_missing_pct() -> float:
+    try:
+        return float(os.environ.get("FORECAST_MAX_MISSING_PCT", "1"))
+    except ValueError:
+        return 1.0
+
+
+def check_grid_coverage(
+    locs: list,
+    n_lat: int,
+    n_lon: int,
+    label: str,
+    value_key: str,
+) -> tuple[list[bool], float] | None:
+    """Prüft, ob das Gitter lückenlos genug für ein Prognose-PNG ist.
+
+    Liefert (missing_mask, coverage_pct) oder None, wenn die Lücken zu gross
+    sind (ganze Gitterzeile/-spalte fehlt oder Fehlquote > Schwelle).
+    """
+    import numpy as np
+
+    n_pts = n_lat * n_lon
+    missing: list[bool] = []
+    for i in range(n_pts):
+        loc = locs[i] if i < len(locs) else None
+        if is_missing_loc(loc):
+            missing.append(True)
+            continue
+        block = (loc or {}).get(value_key) or {}
+        vals = block.get("precipitation")
+        missing.append(not isinstance(vals, list) or len(vals) == 0)
+
+    mask = np.asarray(missing, dtype=bool).reshape(n_lat, n_lon)
+    miss_pct = 100.0 * float(mask.mean())
+    coverage_pct = 100.0 - miss_pct
+    full_rows = int(mask.all(axis=1).sum())
+    full_cols = int(mask.all(axis=0).sum())
+    print(
+        f"{label}: coverage {coverage_pct:.2f}% "
+        f"(fehlend {miss_pct:.2f}%, leere Zeilen {full_rows}, leere Spalten {full_cols})",
+    )
+    if full_rows or full_cols:
+        print(
+            f"{label}: ABBRUCH — ganze Gitterzeilen/-spalten fehlen; "
+            "abgeschnittene Prognosen werden nicht publiziert",
+        )
+        return None
+    limit = _max_missing_pct()
+    if miss_pct > limit:
+        print(f"{label}: ABBRUCH — Fehlquote {miss_pct:.2f}% > erlaubt {limit:.2f}%")
+        return None
+    return missing, coverage_pct
+
+
+def _fill_missing_values(arr, mask):
+    """Füllt fehlende Gitterpunkte aus den Nachbarn (erst entlang lon, dann lat).
+
+    Kleine, isolierte Lücken bekommen so plausible Werte statt harter Nullen.
+    """
+    import numpy as np
+
+    if not mask.any():
+        return arr
+    out = arr.astype(np.float32).copy()
+    out[mask] = np.nan
+
+    def _fill_axis(a):
+        # Vorwärts- und Rückwärtsfüllung entlang Achse 1 (zeilenweise).
+        idx = np.where(~np.isnan(a), np.arange(a.shape[1])[None, :], -1)
+        fwd = np.maximum.accumulate(idx, axis=1)
+        idx2 = np.where(~np.isnan(a), np.arange(a.shape[1])[None, :], a.shape[1])
+        bwd = np.minimum.accumulate(idx2[:, ::-1], axis=1)[:, ::-1]
+        rows = np.arange(a.shape[0])[:, None]
+        left = np.where(fwd >= 0, a[rows, np.clip(fwd, 0, a.shape[1] - 1)], np.nan)
+        right = np.where(
+            bwd < a.shape[1], a[rows, np.clip(bwd, 0, a.shape[1] - 1)], np.nan
+        )
+        both = np.nanmean(np.stack([left, right]), axis=0)
+        return np.where(np.isnan(a), both, a)
+
+    with np.errstate(invalid="ignore"):
+        out = _fill_axis(out)
+        out = _fill_axis(out.T).T
+    return np.nan_to_num(out, nan=0.0)
+
+
 
 def rasterize_forecast_pngs(
     s3,
@@ -416,9 +546,15 @@ def rasterize_forecast_pngs(
         )
         return []
 
-    # Zeit-Achse aus dem ersten gültigen Punkt lesen; einzelne fehlgeschlagene
-    # Batches werden als `{}`-Platzhalter eingefügt und dürfen die Rasterung
-    # nicht komplett blockieren.
+    # Lückenprüfung VOR dem Rendern: fehlende Batches dürfen nie als 0 mm/h
+    # gezeichnet werden (führte zu gerade abgeschnittenen Prognosefeldern).
+    cov = check_grid_coverage(phase1_dense, n_lat, n_lon, "forecast-pngs", "minutely_15")
+    if cov is None:
+        FORECAST_STATS["coverage"] = None
+        return []
+    missing_flags, coverage_pct = cov
+    FORECAST_STATS["coverage"] = coverage_pct
+
     ref_loc = next(
         (
             loc for loc in phase1_dense
@@ -444,12 +580,13 @@ def rasterize_forecast_pngs(
     horizon = now + timedelta(hours=48)
     past = now - timedelta(hours=1)
 
-    _purged = _purge_forecast_pngs(s3, bucket)
-    if _purged:
-        print(f"forecast-pngs: purged {_purged} old objects")
+    import numpy as np
 
-    manifest_entries: list[dict] = []
-    uploaded = 0
+    miss_mask = np.asarray(missing_flags, dtype=bool).reshape(n_lat, n_lon)
+
+    # Erst alles rendern, dann alte PNGs löschen und neu hochladen — so bleibt
+    # bei einem Fehler die letzte gute Prognose in R2 bestehen.
+    rendered: list[tuple[str, bytes, dict]] = []
     for ti, t_iso in enumerate(ref_times):
         try:
             t_dt = datetime.fromisoformat(t_iso).replace(tzinfo=timezone.utc)
@@ -457,7 +594,6 @@ def rasterize_forecast_pngs(
             continue
         if t_dt < past or t_dt > horizon:
             continue
-        # Werte pro Grid-Punkt aggregieren; None → 0.
         frame_vals: list[float] = [0.0] * n_pts
         any_positive = False
         for pi in range(n_pts):
@@ -471,12 +607,33 @@ def rasterize_forecast_pngs(
                     any_positive = True
                 frame_vals[pi] = fv
 
-        # Auch komplett trockene Frames rendern (leerer PNG), damit die
-        # Timeline lückenlos bleibt. Nutzt die "any_positive" nur für Logging.
-        png = _render_frame_png(n_lat, n_lon, frame_vals)
-        # Dateiname: YYYYMMDDTHHMM.png, Zeit auf 15-min gerundet.
+        grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
+        grid = _fill_missing_values(grid, miss_mask)
+
+        png = _render_frame_png(n_lat, n_lon, grid.reshape(-1).tolist())
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         key = f"radar/forecast/{stamp}.png"
+        rendered.append((
+            key,
+            png,
+            {
+                "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
+                "precipUrl": f"{public_url.rstrip('/')}/{key}",
+                "source": "icon-ch1",
+                "hasPrecip": any_positive,
+            },
+        ))
+
+    if not rendered:
+        print("forecast-pngs: keine Frames gerendert — alte Prognose bleibt bestehen")
+        return []
+
+    _purged = _purge_forecast_pngs(s3, bucket)
+    if _purged:
+        print(f"forecast-pngs: purged {_purged} old objects")
+
+    manifest_entries: list[dict] = []
+    for key, png, entry in rendered:
         s3.put_object(
             Bucket=bucket,
             Key=key,
@@ -484,15 +641,10 @@ def rasterize_forecast_pngs(
             ContentType="image/png",
             CacheControl="public, max-age=31536000, immutable",
         )
-        uploaded += 1
-        manifest_entries.append({
-            "t": t_dt.strftime("%Y-%m-%dT%H:%M:00Z"),
-            "precipUrl": f"{public_url.rstrip('/')}/{key}",
-            "source": "icon-ch1",
-            "hasPrecip": any_positive,
-        })
-    print(f"forecast-pngs: uploaded {uploaded} frames")
+        manifest_entries.append(entry)
+    print(f"forecast-pngs: uploaded {len(manifest_entries)} frames")
     return manifest_entries
+
 
 
 def _guess_grid_shape(n: int, hint_lat: int, hint_lon: int) -> tuple[int, int] | None:
@@ -562,6 +714,16 @@ def rasterize_forecast_hourly_pngs(
         n_pts = n_lat * n_lon
         print(f"forecast-hourly-pngs: Gitter korrigiert auf {n_lat}×{n_lon}")
 
+    cov = check_grid_coverage(
+        phase2, n_lat, n_lon, "forecast-hourly-pngs", "hourly",
+    )
+    if cov is None:
+        FORECAST_STATS["hourlyCoverage"] = None
+        return []
+    hourly_missing, hourly_coverage = cov
+    FORECAST_STATS["hourlyCoverage"] = hourly_coverage
+
+
     ref_loc = next(
         (
             loc for loc in phase2
@@ -594,6 +756,10 @@ def rasterize_forecast_hourly_pngs(
     )
 
 
+    import numpy as np
+
+    hourly_mask = np.asarray(hourly_missing, dtype=bool).reshape(n_lat, n_lon)
+
     manifest_entries: list[dict] = []
     uploaded = 0
     # Grobes Quellgitter → grössere Mindestfläche, damit die Interpolation keine
@@ -617,10 +783,16 @@ def rasterize_forecast_hourly_pngs(
                 any_positive = True
             frame_vals[pi] = fv
 
+        grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
+        grid = _fill_missing_values(grid, hourly_mask)
+
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         key = f"radar/forecast/{stamp}.png"
         try:
-            png = _render_frame_png(n_lat, n_lon, frame_vals, min_area_px=24)
+            png = _render_frame_png(
+                n_lat, n_lon, grid.reshape(-1).tolist(), min_area_px=24,
+            )
+
             s3.put_object(
                 Bucket=bucket,
                 Key=key,
@@ -663,6 +835,8 @@ def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
         },
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": VERSION,
+        "coverage": FORECAST_STATS.get("coverage"),
+        "hourlyCoverage": FORECAST_STATS.get("hourlyCoverage"),
         "frames": sorted(frames, key=lambda f: f["t"]),
     }
     s3.put_object(
@@ -672,7 +846,11 @@ def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
         ContentType="application/json",
         CacheControl="public, max-age=30",
     )
-    print(f"forecast-manifest: {len(frames)} entries")
+    print(
+        f"forecast-manifest: {len(frames)} entries, "
+        f"coverage={FORECAST_STATS.get('coverage')}",
+    )
+
 
 
 def downsample_phase1(
@@ -893,11 +1071,17 @@ def main() -> None:
             print(f"WARN: hourly forecast PNG rasterization failed: {exc!r}")
             traceback.print_exc()
 
-        if forecast_frames:
+        if FORECAST_STATS.get("coverage") is None:
+            print(
+                "forecast-manifest: SKIP — Prognose unvollständig (Lückenprüfung "
+                "fehlgeschlagen); letztes gültiges Manifest bleibt aktiv",
+            )
+        elif forecast_frames:
             try:
                 write_forecast_manifest(s3, bucket, forecast_frames)
             except Exception as exc:
                 print(f"WARN: forecast manifest write failed: {exc!r}")
+
 
 
     # ---- phaseC (Bias-Lookback) ----

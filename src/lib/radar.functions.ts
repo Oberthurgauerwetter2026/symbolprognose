@@ -142,8 +142,17 @@ type ForecastManifestFrame = {
 type ForecastManifest = {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   generatedAt: string;
+  /** Anteil vorhandener Gitterpunkte des Ingest-Laufs in Prozent. */
+  coverage?: number | null;
   frames: ForecastManifestFrame[];
 };
+
+/**
+ * DAUERHAFTE VORGABE: Prognosefelder aus einem Lauf mit Datenlücken werden
+ * nicht ausgeliefert — sie erscheinen sonst als gerade abgeschnittene Flächen.
+ */
+const MIN_FORECAST_COVERAGE = 99;
+
 
 function locHasMinutely(loc: unknown): loc is LocResponse & {
   minutely_15: { time: string[]; precipitation: (number | null)[]; snowfall?: (number | null)[] };
@@ -242,6 +251,14 @@ async function fetchR2ForecastManifest(): Promise<ForecastManifest | null> {
         console.warn(`[radar] forecast manifest ${url} has invalid shape`);
         continue;
       }
+      // Lückenhafte Läufe (abgeschnittene Felder) nicht ausliefern.
+      if (typeof json.coverage === "number" && json.coverage < MIN_FORECAST_COVERAGE) {
+        console.warn(
+          `[radar] forecast manifest ${url} coverage ${json.coverage}% < ` +
+            `${MIN_FORECAST_COVERAGE}% — Prognose verworfen`,
+        );
+        return null;
+      }
       json.frames = json.frames.filter(
         (f) =>
           typeof f?.t === "string" &&
@@ -250,6 +267,7 @@ async function fetchR2ForecastManifest(): Promise<ForecastManifest | null> {
       );
       console.log(`[radar] forecast manifest loaded from ${url}: ${json.frames.length} frames`);
       return json;
+
     } catch (e) {
       console.warn(`[radar] forecast manifest fetch error ${url}: ${(e as Error).message}`);
     }
