@@ -16,21 +16,22 @@ export const Route = createFileRoute("/embed-info")({
  * Einfaches iframe-Snippet ohne JS-Fallback. Für alle Karten ausser
  * Lokalprognose Amriswil, die weiter das postMessage-Höhen-Skript braucht.
  */
-function buildSimpleSnippet(url: string, path: string, height = 600) {
+function buildSimpleSnippet(url: string, path: string, height = 600, lazy = false) {
   const full = `${url}${path}`;
   const origin = new URL(url).origin;
   return `<link rel="preconnect" href="${origin}" crossorigin>
 <link rel="dns-prefetch" href="${origin}">
 <iframe
   src="${full}"
-  loading="eager"
-  fetchpriority="high"
+  loading="${lazy ? "lazy" : "eager"}"
+  fetchpriority="${lazy ? "low" : "high"}"
   referrerpolicy="no-referrer-when-downgrade"
   allow="geolocation; fullscreen"
   style="width:100%;height:${height}px;border:0;display:block"
   title="Wetter-Karte"
 ></iframe>`;
 }
+
 
 /**
  * Monitor-stabiles Snippet für Lokalprognose Amriswil: statische HTML-Route,
