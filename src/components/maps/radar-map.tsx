@@ -2389,22 +2389,27 @@ export function RadarMap({
               />
               <span className="text-muted-foreground">POH</span>
             </div>
-            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Blitze</span>
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
-                dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0, BOLT_RADAR, 1.5) }}
-              />
+            {LIGHTNING_ENABLED && (
+              <>
+                <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Blitze</span>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
+                    dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0, BOLT_RADAR, 1.5) }}
+                  />
 
-              <a
-                href="https://www.blitzortung.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
-              >
-                Blitzortung
-              </a>
-            </div>
+                  <a
+                    href="https://www.blitzortung.org/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Blitzortung
+                  </a>
+                </div>
+              </>
+            )}
+
           </div>
         ) : (
           <button
