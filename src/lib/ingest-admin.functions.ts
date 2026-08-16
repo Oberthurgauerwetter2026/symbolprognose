@@ -84,6 +84,7 @@ export const getIngestStatus = createServerFn({ method: "GET" }).handler(
           if (!res.ok) continue;
           const json = (await res.json()) as {
             generatedAt?: string;
+            coverage?: number | null;
             frames?: Array<{ t?: string }>;
           };
           const frames = Array.isArray(json.frames) ? json.frames : [];
@@ -99,8 +100,10 @@ export const getIngestStatus = createServerFn({ method: "GET" }).handler(
             ageMinutes: Number.isFinite(gen)
               ? Math.round((Date.now() - gen) / 60000)
               : null,
+            coverage: typeof json.coverage === "number" ? json.coverage : null,
           };
           break;
+
         } catch {
           // nächste URL
         }
