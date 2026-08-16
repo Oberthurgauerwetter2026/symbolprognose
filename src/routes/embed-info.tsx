@@ -150,12 +150,23 @@ const PRODUCTS: Product[] = [
     description: "Symbolprognose, Temperatur und Wind für die Region Oberthurgau.",
   },
   {
+    id: "lokal-suche",
+    label: "Lokalprognose mit Ortssuche (Auto-Höhe)",
+    path: "/embed/lokal-suche",
+    height: 260,
+    variant: "auto-height",
+    description:
+      "Startet schlank mit Suchfeld und Ortung. Sobald ein Ort gewählt ist, klappen Tagesleiste, Stundenverlauf und 7-Tage-Prognose auf — das iframe wächst automatisch mit.",
+    note: "Das Snippet enthält ein kleines Skript für die Höhenanpassung; in WordPress in einen Custom-HTML-Block einfügen (nicht in einen reinen iframe-Block).",
+  },
+  {
     id: "lokal",
     label: "Lokalprognose (Karte)",
     path: "/embed/lokal",
     height: 600,
     description: "5-Tage-Prognose im 3-Stunden-Takt für jeden Ort der Region.",
   },
+
   {
     id: "wind",
     label: "Wind",
