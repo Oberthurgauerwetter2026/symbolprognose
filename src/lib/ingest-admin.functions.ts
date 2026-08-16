@@ -48,8 +48,11 @@ export interface IngestStatus {
   generatedAt: string | null;
   latestFrame: string | null;
   ageMinutes: number | null;
+  /** Nur openmeteo: Anteil vorhandener Gitterpunkte der Prognose in %. */
+  coverage?: number | null;
   error?: string;
 }
+
 
 export const getIngestStatus = createServerFn({ method: "GET" }).handler(
   async (): Promise<IngestStatus[]> => {
