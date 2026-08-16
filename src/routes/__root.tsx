@@ -11,6 +11,9 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AppErrorBoundary } from "@/components/app-error-boundary";
+import { installClientErrorReporter } from "@/lib/client-error-reporter";
+
 
 function NotFoundComponent() {
   return (
@@ -151,11 +154,17 @@ function RootComponent() {
     }
   }, []);
 
+  // Unbehandelte Fehler protokollieren, damit Abstürze nachvollziehbar sind.
+  useEffect(() => installClientErrorReporter(), []);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <AppErrorBoundary label="Die Seite" height={320}>
+        <Outlet />
+      </AppErrorBoundary>
     </QueryClientProvider>
   );
 }
+
 
 

@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_errors: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          kind: string
+          memory_mb: number | null
+          message: string
+          route: string | null
+          stack: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind: string
+          memory_mb?: number | null
+          message: string
+          route?: string | null
+          stack?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          kind?: string
+          memory_mb?: number | null
+          message?: string
+          route?: string | null
+          stack?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       job_runs: {
         Row: {
           closed: number

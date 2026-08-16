@@ -1,3 +1,4 @@
+import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { Download } from "lucide-react";
@@ -274,7 +275,7 @@ interface Props {
   gridLon: number[];
 }
 
-export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
+function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
   const nPts = gridLat.length * gridLon.length;
   const accum = useMemo(
     () => accumulatePrecip(frames, nPts, hours),
@@ -483,3 +484,7 @@ export function PrecipAccumMap({ hours, frames, gridLat, gridLon }: Props) {
     </Card>
   );
 }
+
+
+/** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
+export const PrecipAccumMap = withErrorBoundary(PrecipAccumMapInner, "Die Niederschlagssumme", 360);

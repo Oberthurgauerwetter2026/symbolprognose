@@ -1,3 +1,4 @@
+import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { satelliteManifestQuery } from "@/lib/map-queries";
@@ -264,6 +265,10 @@ const MAX_IN_FLIGHT = 3;
 const FRAME_TIMEOUT_MS = 12_000;
 /** So viele Fehlschläge ohne einen Erfolg ⇒ Dienststörung. */
 const OUTAGE_FAIL_STREAK = 4;
+/** Kachel-Ebenen vor dem aktiven Zeitschritt (Rückwärtsscrubben). */
+const WINDOW_BACK = 3;
+/** Kachel-Ebenen in Abspielrichtung (Vorladen für flüssige Animation). */
+const WINDOW_AHEAD = 6;
 
 function FrameStack({
   provider,
@@ -291,6 +296,8 @@ function FrameStack({
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
   const loadedRef = useRef<Set<number>>(new Set());
+  /** Einmal geladene Zeitschritte (bleiben im HTTP-Cache) — für Filmstrip/Autoplay. */
+  const everLoadedRef = useRef<Set<number>>(new Set());
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
   const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
@@ -301,8 +308,9 @@ function FrameStack({
   const framesKey = frames.map((f) => f.time).join(",");
   const framesRef = useRef(frames);
   framesRef.current = frames;
-
-
+  /** Nachschub-Funktion des aktiven Effekts (Fenster nachziehen). */
+  const ensureRef = useRef<((center: number) => void) | null>(null);
+  const lastCenterRef = useRef(clampedInitialIndex);
 
   useEffect(() => {
     setEffectiveLayer(layer);
@@ -312,8 +320,8 @@ function FrameStack({
   useEffect(() => {
     const frames = framesRef.current;
     loadedRef.current = new Set();
+    everLoadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
-
 
     const wmsOpts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean; format_options?: string } = {
       layers: effectiveLayer,
@@ -341,7 +349,7 @@ function FrameStack({
     let inFlight = 0;
     let failStreak = 0;
     let anySuccess = false;
-    const queue: number[] = [];
+    let queue: number[] = [];
     const timers = new Set<number>();
 
     /** Nächste Plätze der Warteschlange füllen. */
@@ -359,9 +367,10 @@ function FrameStack({
       if (loaded) {
         anySuccess = true;
         failStreak = 0;
-        if (!loadedRef.current.has(i)) {
-          loadedRef.current.add(i);
-          onProgress([...loadedRef.current], frames.length);
+        loadedRef.current.add(i);
+        if (!everLoadedRef.current.has(i)) {
+          everLoadedRef.current.add(i);
+          onProgress([...everLoadedRef.current], frames.length);
         }
         onOutage?.(false);
       } else {
@@ -398,11 +407,11 @@ function FrameStack({
         const url =
           `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${effectiveLayer}` +
           `/default/${f.time}/${tms}/{z}/{y}/{x}.jpg`;
-        tl = L.tileLayer(url, { ...gibsOpts, opacity: i === clampedActiveIndex ? 1 : 0 });
+        tl = L.tileLayer(url, { ...gibsOpts, opacity: i === lastCenterRef.current ? 1 : 0 });
       } else {
         const wl = hiDpiWms(WMS_URL, {
           ...wmsOpts,
-          opacity: i === clampedActiveIndex ? 1 : 0,
+          opacity: i === lastCenterRef.current ? 1 : 0,
           noSupersample,
         });
 
@@ -430,31 +439,75 @@ function FrameStack({
       layersRef.current[i] = tl;
     };
 
+    /** Ebene freigeben — Kacheln bleiben im HTTP-Cache des Browsers. */
+    const unmountFrame = (i: number) => {
+      const tl = layersRef.current[i];
+      if (!tl) return;
+      tl.off();
+      tl.remove();
+      layersRef.current[i] = null;
+      loadedRef.current.delete(i);
+    };
+
+    /**
+     * Speicherbremse: nur ein Fenster um den aktiven Zeitschritt bleibt als
+     * Kachel-Ebene in der Karte. Vorher hingen alle 18 Zeitschritte dauerhaft
+     * im DOM — das war die grösste Speicherlast und liess Tabs abstürzen.
+     */
+    const ensureWindow = (center: number) => {
+      if (cancelled || frames.length === 0) return;
+      const c = Math.min(Math.max(center, 0), frames.length - 1);
+      const keep = new Set<number>();
+      for (let d = -WINDOW_BACK; d <= WINDOW_AHEAD; d++) {
+        const i = c + d;
+        if (i >= 0 && i < frames.length) keep.add(i);
+      }
+      for (let i = 0; i < frames.length; i++) {
+        if (!keep.has(i)) unmountFrame(i);
+      }
+      // Reihenfolge: aktiver Frame, dann in Abspielrichtung, dann zurück.
+      queue = [];
+      const order = [c];
+      for (let d = 1; d <= Math.max(WINDOW_AHEAD, WINDOW_BACK); d++) {
+        if (d <= WINDOW_AHEAD) order.push(c + d);
+        if (d <= WINDOW_BACK) order.push(c - d);
+      }
+      for (const i of order) {
+        if (i < 0 || i >= frames.length) continue;
+        if (layersRef.current[i]) continue;
+        if (i === c) mountFrame(i);
+        else queue.push(i);
+      }
+      pump();
+    };
+
+    ensureRef.current = ensureWindow;
     onProgress([], frames.length);
     onOutage?.(false);
-    for (let d = 1; d < frames.length; d++) {
-      const a = clampedInitialIndex + d;
-      const b = clampedInitialIndex - d;
-      if (a < frames.length) queue.push(a);
-      if (b >= 0) queue.push(b);
-    }
-    // Aktiver Frame zuerst, dann die Warteschlange auffüllen.
-    mountFrame(clampedInitialIndex);
-    pump();
+    lastCenterRef.current = clampedInitialIndex;
+    ensureWindow(clampedInitialIndex);
 
     return () => {
       cancelled = true;
+      ensureRef.current = null;
       timers.forEach((t) => window.clearTimeout(t));
       timers.clear();
-      layersRef.current.forEach((tl) => tl?.remove());
+      layersRef.current.forEach((tl) => {
+        tl?.off();
+        tl?.remove();
+      });
       layersRef.current = [];
+      loadedRef.current = new Set();
+      everLoadedRef.current = new Set();
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, provider, effectiveLayer, tileMatrixSet, framesKey, clampedInitialIndex, noSupersample]);
 
-
+  // Fenster mitziehen und Sichtbarkeit setzen.
   useEffect(() => {
+    lastCenterRef.current = clampedActiveIndex;
+    ensureRef.current?.(clampedActiveIndex);
     layersRef.current.forEach((tl, i) => tl?.setOpacity(i === clampedActiveIndex ? 1 : 0));
   }, [clampedActiveIndex]);
 
@@ -473,7 +526,7 @@ function fmtBubble(d: Date): string {
 }
 
 
-export function SatelliteMap({
+function SatelliteMapInner({
   bare = false,
   loop = false,
   lightningInitiallyActive,
@@ -1006,3 +1059,7 @@ export function SatelliteMap({
   );
 }
 
+
+
+/** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
+export const SatelliteMap = withErrorBoundary(SatelliteMapInner, "Das Satellitenbild", 520);

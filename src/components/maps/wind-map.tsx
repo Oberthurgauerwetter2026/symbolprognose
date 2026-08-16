@@ -1,3 +1,4 @@
+import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -959,7 +960,7 @@ function fmtBubble(d: Date): string {
 // --------------------------------------------------------------------------
 type DisplayMode = "flow" | "arrows" | "both";
 
-export function WindMap({ bare = false }: { bare?: boolean } = {}) {
+function WindMapInner({ bare = false }: { bare?: boolean } = {}) {
   const { data, isLoading, error } = useQuery(windFramesQuery());
 
   const rawFrames = data?.frames ?? [];
@@ -1309,3 +1310,7 @@ export function WindMap({ bare = false }: { bare?: boolean } = {}) {
     </div>
   );
 }
+
+
+/** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
+export const WindMap = withErrorBoundary(WindMapInner, "Die Windkarte", 480);

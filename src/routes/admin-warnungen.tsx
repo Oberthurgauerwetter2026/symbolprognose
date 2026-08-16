@@ -33,6 +33,10 @@ import {
   type WarningDTO,
 } from "@/lib/warnings.functions";
 import {
+  adminListClientErrors,
+  adminClearClientErrors,
+} from "@/lib/client-errors.functions";
+import {
   getAutoThunderStatus,
   runAutoThunderNow,
   getPipelineHealth,
@@ -440,6 +444,7 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
 
         <AutoThunderSection password={password} />
         <PipelineHealthSection password={password} />
+        <ClientErrorsSection password={password} />
 
 
 
@@ -1034,6 +1039,84 @@ function MapPreviewSection({ refreshKey }: { refreshKey: number }) {
 }
 
 /** Status und manueller Start der automatischen Gewitterwarnung. */
+/** Zeigt die zuletzt im Browser aufgetretenen Fehler (Absturz-Diagnose). */
+function ClientErrorsSection({ password }: { password: string }) {
+  type Row = Awaited<ReturnType<typeof adminListClientErrors>>[number];
+  const [rows, setRows] = useState<Row[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = async () => {
+    setBusy(true);
+    setMsg("");
+    try {
+      setRows(await adminListClientErrors({ data: { password } }));
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [password]);
+
+  return (
+    <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Browser-Fehler (Absturz-Diagnose)
+        </h2>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={busy}
+            className="rounded-sm border border-border px-2 py-1 text-xs hover:bg-muted disabled:opacity-60"
+          >
+            {busy ? "Lade …" : "Aktualisieren"}
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              await adminClearClientErrors({ data: { password } });
+              void load();
+            }}
+            className="rounded-sm border border-border px-2 py-1 text-xs hover:bg-muted"
+          >
+            Alle löschen
+          </button>
+        </div>
+      </div>
+      {msg && <p className="text-xs text-red-600">{msg}</p>}
+      {rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Keine Fehler protokolliert.</p>
+      ) : (
+        <ul className="max-h-72 space-y-2 overflow-y-auto text-xs">
+          {rows.map((r) => (
+            <li key={r.id} className="rounded-sm border border-border bg-background p-2">
+              <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                <span className="font-mono">{new Date(r.created_at).toLocaleString("de-CH")}</span>
+                <span className="rounded-sm bg-muted px-1 py-0.5">{r.kind}</span>
+                {r.route && <span className="truncate">{r.route}</span>}
+                {r.memory_mb != null && <span>{Math.round(r.memory_mb)} MB</span>}
+              </div>
+              <p className="mt-1 font-medium text-foreground">{r.message}</p>
+              {r.stack && (
+                <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-[10px] text-muted-foreground">
+                  {r.stack}
+                </pre>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function AutoThunderSection({ password }: { password: string }) {
   const [status, setStatus] = useState<AutoThunderStatus | null>(null);
   const [busy, setBusy] = useState(false);
