@@ -426,6 +426,96 @@ def _purge_forecast_pngs(s3, bucket: str) -> int:
             purged += 1
     return purged
 
+#: Maximal erlaubter Anteil fehlender Gitterpunkte (Prozent), bevor die
+#: Prognose-Rasterung abbricht. Dauerhafte Vorgabe: eine unvollständige
+#: Prognose wird NIE publiziert — statt eines abgeschnittenen Feldes bleibt die
+#: letzte gute Prognose in R2 stehen.
+def _max_missing_pct() -> float:
+    try:
+        return float(os.environ.get("FORECAST_MAX_MISSING_PCT", "1"))
+    except ValueError:
+        return 1.0
+
+
+def check_grid_coverage(
+    locs: list,
+    n_lat: int,
+    n_lon: int,
+    label: str,
+    value_key: str,
+) -> tuple[list[bool], float] | None:
+    """Prüft, ob das Gitter lückenlos genug für ein Prognose-PNG ist.
+
+    Liefert (missing_mask, coverage_pct) oder None, wenn die Lücken zu gross
+    sind (ganze Gitterzeile/-spalte fehlt oder Fehlquote > Schwelle).
+    """
+    import numpy as np
+
+    n_pts = n_lat * n_lon
+    missing: list[bool] = []
+    for i in range(n_pts):
+        loc = locs[i] if i < len(locs) else None
+        if is_missing_loc(loc):
+            missing.append(True)
+            continue
+        block = (loc or {}).get(value_key) or {}
+        vals = block.get("precipitation")
+        missing.append(not isinstance(vals, list) or len(vals) == 0)
+
+    mask = np.asarray(missing, dtype=bool).reshape(n_lat, n_lon)
+    miss_pct = 100.0 * float(mask.mean())
+    coverage_pct = 100.0 - miss_pct
+    full_rows = int(mask.all(axis=1).sum())
+    full_cols = int(mask.all(axis=0).sum())
+    print(
+        f"{label}: coverage {coverage_pct:.2f}% "
+        f"(fehlend {miss_pct:.2f}%, leere Zeilen {full_rows}, leere Spalten {full_cols})",
+    )
+    if full_rows or full_cols:
+        print(
+            f"{label}: ABBRUCH — ganze Gitterzeilen/-spalten fehlen; "
+            "abgeschnittene Prognosen werden nicht publiziert",
+        )
+        return None
+    limit = _max_missing_pct()
+    if miss_pct > limit:
+        print(f"{label}: ABBRUCH — Fehlquote {miss_pct:.2f}% > erlaubt {limit:.2f}%")
+        return None
+    return missing, coverage_pct
+
+
+def _fill_missing_values(arr, mask):
+    """Füllt fehlende Gitterpunkte aus den Nachbarn (erst entlang lon, dann lat).
+
+    Kleine, isolierte Lücken bekommen so plausible Werte statt harter Nullen.
+    """
+    import numpy as np
+
+    if not mask.any():
+        return arr
+    out = arr.astype(np.float32).copy()
+    out[mask] = np.nan
+
+    def _fill_axis(a):
+        # Vorwärts- und Rückwärtsfüllung entlang Achse 1 (zeilenweise).
+        idx = np.where(~np.isnan(a), np.arange(a.shape[1])[None, :], -1)
+        fwd = np.maximum.accumulate(idx, axis=1)
+        idx2 = np.where(~np.isnan(a), np.arange(a.shape[1])[None, :], a.shape[1])
+        bwd = np.minimum.accumulate(idx2[:, ::-1], axis=1)[:, ::-1]
+        rows = np.arange(a.shape[0])[:, None]
+        left = np.where(fwd >= 0, a[rows, np.clip(fwd, 0, a.shape[1] - 1)], np.nan)
+        right = np.where(
+            bwd < a.shape[1], a[rows, np.clip(bwd, 0, a.shape[1] - 1)], np.nan
+        )
+        both = np.nanmean(np.stack([left, right]), axis=0)
+        return np.where(np.isnan(a), both, a)
+
+    with np.errstate(invalid="ignore"):
+        out = _fill_axis(out)
+        out = _fill_axis(out.T).T
+    return np.nan_to_num(out, nan=0.0)
+
+
 
 def rasterize_forecast_pngs(
     s3,
