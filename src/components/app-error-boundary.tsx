@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from "react";
+import { Component, type ComponentProps, type ComponentType, type ReactNode } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { reportError } from "@/lib/client-error-reporter";
 
@@ -58,14 +58,15 @@ export class AppErrorBoundary extends Component<
  * Umhüllt eine Ansicht mit dem Fehler-Auffangbereich, damit ein Renderfehler
  * niemals die ganze Seite leer werden lässt.
  */
-export function withErrorBoundary<P extends object>(
-  Inner: (props: P) => ReactNode,
+export function withErrorBoundary<C extends ComponentType<never>>(
+  Inner: C,
   label: string,
   height?: number,
 ) {
-  const Wrapped = (props: P) => (
+  const Wrapped = (props: ComponentProps<C>) => (
     <AppErrorBoundary label={label} height={height}>
-      <Inner {...props} />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <Inner {...(props as any)} />
     </AppErrorBoundary>
   );
   Wrapped.displayName = `withErrorBoundary(${label})`;
