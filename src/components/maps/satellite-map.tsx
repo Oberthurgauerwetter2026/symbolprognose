@@ -564,6 +564,13 @@ export function SatelliteMap({
   const initialIndexRef = useRef<number>(0);
   const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
   const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
+  // Blitz-Alterung nur minütlich neu zeichnen, nicht bei jedem 500-ms-Frame.
+  const frameBucket = useMemo(() => {
+    const t = frames[safeIndex]?.time;
+    const ms = t ? Date.parse(t) : NaN;
+    return Number.isFinite(ms) ? Math.floor(ms / 60_000) : 0;
+  }, [frames, safeIndex]);
+
   useEffect(() => {
     if (frames.length === 0) return;
     if (lastTimeRef.current === null) {
