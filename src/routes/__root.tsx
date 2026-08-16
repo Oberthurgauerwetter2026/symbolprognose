@@ -11,6 +11,9 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AppErrorBoundary } from "@/components/app-error-boundary";
+import { installClientErrorReporter } from "@/lib/client-error-reporter";
+
 
 function NotFoundComponent() {
   return (
