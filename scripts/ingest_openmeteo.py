@@ -1071,11 +1071,17 @@ def main() -> None:
             print(f"WARN: hourly forecast PNG rasterization failed: {exc!r}")
             traceback.print_exc()
 
-        if forecast_frames:
+        if FORECAST_STATS.get("coverage") is None:
+            print(
+                "forecast-manifest: SKIP — Prognose unvollständig (Lückenprüfung "
+                "fehlgeschlagen); letztes gültiges Manifest bleibt aktiv",
+            )
+        elif forecast_frames:
             try:
                 write_forecast_manifest(s3, bucket, forecast_frames)
             except Exception as exc:
                 print(f"WARN: forecast manifest write failed: {exc!r}")
+
 
 
     # ---- phaseC (Bias-Lookback) ----
