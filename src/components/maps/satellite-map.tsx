@@ -550,7 +550,7 @@ export function SatelliteMap({
   const [outage, setOutage] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const wrapperRef = useRef<HTMLDivElement>(null);
+
 
   const total = frames.length;
   const loaded = loadedIdx.length;
