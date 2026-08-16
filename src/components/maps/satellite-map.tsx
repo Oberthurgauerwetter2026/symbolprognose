@@ -296,6 +296,8 @@ function FrameStack({
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
   const loadedRef = useRef<Set<number>>(new Set());
+  /** Einmal geladene Zeitschritte (bleiben im HTTP-Cache) — für Filmstrip/Autoplay. */
+  const everLoadedRef = useRef<Set<number>>(new Set());
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
   const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
@@ -318,6 +320,7 @@ function FrameStack({
   useEffect(() => {
     const frames = framesRef.current;
     loadedRef.current = new Set();
+    everLoadedRef.current = new Set();
     layersRef.current = new Array(frames.length).fill(null);
 
     const wmsOpts: L.WMSOptions & { keepBuffer?: number; updateWhenZooming?: boolean; format_options?: string } = {
@@ -364,9 +367,10 @@ function FrameStack({
       if (loaded) {
         anySuccess = true;
         failStreak = 0;
-        if (!loadedRef.current.has(i)) {
-          loadedRef.current.add(i);
-          onProgress([...loadedRef.current], frames.length);
+        loadedRef.current.add(i);
+        if (!everLoadedRef.current.has(i)) {
+          everLoadedRef.current.add(i);
+          onProgress([...everLoadedRef.current], frames.length);
         }
         onOutage?.(false);
       } else {
@@ -494,6 +498,7 @@ function FrameStack({
       });
       layersRef.current = [];
       loadedRef.current = new Set();
+      everLoadedRef.current = new Set();
     };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
