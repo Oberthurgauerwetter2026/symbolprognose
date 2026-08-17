@@ -120,6 +120,7 @@ export interface AutoThunderStatus {
   detected: number;
   created: number;
   closed: number;
+  notified: number;
   note: string | null;
 }
 
@@ -130,14 +131,29 @@ export const getAutoThunderStatus = createServerFn({ method: "GET" }).handler(
     const sb = await adminClient();
     const { data } = await sb
       .from("job_runs")
-      .select("ran_at, detected, created, closed, note")
+      .select("ran_at, detected, created, closed, notified, note")
       .eq("job", "auto-thunder")
       .maybeSingle();
     const row = data as
-      | { ran_at: string; detected: number; created: number; closed: number; note: string | null }
+      | {
+          ran_at: string;
+          detected: number;
+          created: number;
+          closed: number;
+          notified: number | null;
+          note: string | null;
+        }
       | null;
     if (!row) {
-      return { ranAt: null, ageMinutes: null, detected: 0, created: 0, closed: 0, note: null };
+      return {
+        ranAt: null,
+        ageMinutes: null,
+        detected: 0,
+        created: 0,
+        closed: 0,
+        notified: 0,
+        note: null,
+      };
     }
     const ms = Date.parse(row.ran_at);
     return {
@@ -146,10 +162,12 @@ export const getAutoThunderStatus = createServerFn({ method: "GET" }).handler(
       detected: row.detected,
       created: row.created,
       closed: row.closed,
+      notified: row.notified ?? 0,
       note: row.note,
     };
   },
 );
+
 
 /** Gewitter-Autowarnung sofort prüfen (Admin-Passwort statt Cron-Secret). */
 export const runAutoThunderNow = createServerFn({ method: "POST" })
