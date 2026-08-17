@@ -699,7 +699,13 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                   </p>
                 ) : (
                   <ul className="mt-3 space-y-2">
-                    {warnings.map((w) => {
+                    {/* Widget: pro Gefahrenart/Stufe nur eine Zeile (die Automatik
+                        legt je Gemeinde eine eigene Warnung an). */}
+                    {Array.from(
+                      new Map(
+                        warnings.map((w) => [`${w.hazard}-${w.level}-${w.advisory ? 1 : 0}`, w]),
+                      ).values(),
+                    ).map((w) => {
                       const h = HAZARDS.find((x) => x.id === w.hazard);
                       const Icon = h?.icon;
                       const lv = LEVELS[w.level as 1 | 2 | 3];
