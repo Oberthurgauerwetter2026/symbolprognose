@@ -1161,9 +1161,17 @@ function WindMapInner({ bare = false }: { bare?: boolean } = {}) {
             <Info className="h-4 w-4" />
           </button>
         )}
+
+        {/* Widget: Prognosezeit als kleine Pille im Bild */}
+        {snapshot && currentFrame && (
+          <div className="pointer-events-none absolute left-3 top-3 z-[400] rounded-full bg-black/40 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur">
+            {fmtWidgetTime(new Date(currentFrame.t))}
+          </div>
+        )}
       </div>
 
       {/* Steuerpanel — bare: schwebend über der Karte; sonst Panel unter der Karte (analog Radar) */}
+      {!snapshot && (
       <div
         className={cn(
           bare
