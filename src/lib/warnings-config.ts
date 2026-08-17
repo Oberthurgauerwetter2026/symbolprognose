@@ -634,16 +634,15 @@ export const THRESHOLDS: Record<HazardId, HazardThresholds> = {
     unit: "km/h",
     rows: [
       { hours: null, periodLabel: "Böenspitze (Momentanwert)", limits: [70, 90, 120] },
-      { hours: 1, periodLabel: "Regen pro Stunde", limits: [15, 30, 50], unit: "mm/h" },
+      { hours: 1, periodLabel: "Regen pro Stunde", limits: [20, 40, 60], unit: "mm/h", own: true },
     ],
     notes: [
       "Offiziell nur MCH 3/4: Böen 90–120 km/h (Stufe 2), über 120 km/h (Stufe 3).",
       "Alternativ Hagelkorn 2–4 cm (Stufe 2) bzw. über 4 cm (Stufe 3) – Spitzenwert, kein Zeitraum.",
-      "Alternativ Regen 30–50 mm/h (Stufe 2) bzw. über 50 mm/h (Stufe 3).",
       "Ein erfülltes Kriterium genügt.",
     ],
     ownSetting:
-      "Stufe 1 (Böen ab 70 km/h bzw. Regen ab 15 mm/h) ist eine eigene Setzung – MeteoSchweiz definiert dafür keine Stufe. Für Blitzraten gibt es keine offizielle Schwelle.",
+      "Stufe 1 (Böen ab 70 km/h) ist eine eigene Setzung – MeteoSchweiz definiert dafür keine Stufe. Die Regenintensitäten 20/40/60 mm/h sind ebenfalls eine eigene Setzung (MeteoSchweiz: 30–50 mm/h Stufe 2, über 50 mm/h Stufe 3); sie sind bewusst höher gesetzt, damit die Radar-Autowarnung nicht zu häufig auslöst. Für Blitzraten gibt es keine offizielle Schwelle.",
   },
   regen: {
     unit: "mm",
