@@ -98,8 +98,8 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   let created = 0;
   const warnedRegions: string[] = [];
 
-  for (const [regionId, mmh] of perRegion) {
-    const level = levelFor(mmh);
+  for (const [regionId, v] of perRegion) {
+    const level = levelFor(v.area);
     if (!level) continue;
     warnedRegions.push(regionId);
 
@@ -117,9 +117,9 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       valid_from: validFrom,
       valid_to: validTo,
       title: warningTitle("gewitter", level),
-      description: `${base} Aktuell gemessene Spitzenintensität ${Math.round(mmh)} mm/h.${motionText}`,
+      description: `${base} Aktuell gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.${motionText}`,
       impact: templateImpact(tpl),
-      params: { value: String(Math.round(mmh)), auto: true, measured: true },
+      params: { value: String(Math.round(v.peak)), auto: true, measured: true },
       active: true,
       source: "auto",
       auto_key: `auto-gewitter-${regionId}`,
