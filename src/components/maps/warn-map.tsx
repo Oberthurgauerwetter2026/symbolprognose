@@ -457,6 +457,7 @@ function WarnMapInner({ bare = false, className }: WarnMapProps) {
           )}
         </div>
       </div>
+      )}
 
 
       <div
