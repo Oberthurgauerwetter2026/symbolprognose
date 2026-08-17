@@ -48,9 +48,15 @@ export interface AutoThunderResult {
   detected: number;
   created: number;
   closed: number;
+  /** Anzahl verschickter Push-Meldungen in diesem Lauf. */
+  notified: number;
   motion?: { from: string; kmh: number };
   note?: string;
 }
+
+/** Wiederholsperre: pro Warnung höchstens alle 45 Minuten eine Push-Meldung. */
+const RENOTIFY_MS = 45 * 60_000;
+
 
 async function runAutoThunderCore(): Promise<AutoThunderResult> {
   const regionMax = await getRadarRegionMax();
