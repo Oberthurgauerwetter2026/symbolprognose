@@ -885,11 +885,16 @@ def write_region_max(s3, since: datetime) -> None:
     for rid, name, mask in region_masks():
         if not mask.any():
             continue
+        vals = np.sort(precip[mask])[::-1]
+        # Flächengestützte Intensität: der MIN_CELL_PIXELS-höchste Wert. Damit
+        # löst ein einzelner Ausreisser-Pixel keine Autowarnung mehr aus.
+        mmh_area = float(vals[MIN_CELL_PIXELS - 1]) if vals.size >= MIN_CELL_PIXELS else 0.0
         regions.append(
             {
                 "id": rid,
                 "name": name,
-                "mmh": round(float(precip[mask].max()), 1),
+                "mmh": round(float(vals[0]), 1),
+                "mmhArea": round(mmh_area, 1),
                 "poh": round(float(hail[mask].max()), 0) if hail.shape == mask.shape else 0.0,
             }
         )
