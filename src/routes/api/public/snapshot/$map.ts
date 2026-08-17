@@ -4,12 +4,6 @@ import {
   buildPlaceholderSnapshotSvg,
   buildRegionSnapshotSvg,
 } from "@/lib/snapshot.server";
-import {
-  buildRadarSnapshotSvg,
-  buildWarnSnapshotSvg,
-  buildWindSnapshotSvg,
-} from "@/lib/snapshot-maps.server";
-
 
 const PUBLISHED = "https://oberthurgauer-wetter.lovable.app";
 
@@ -41,46 +35,22 @@ export const Route = createFileRoute("/api/public/snapshot/$map")({
             svg = await buildLokalSnapshotSvg();
             break;
           case "radar":
-            try {
-              svg = await buildRadarSnapshotSvg();
-            } catch (err) {
-              console.error("[snapshot] radar failed", err);
-              svg = buildPlaceholderSnapshotSvg({
-                title: "Niederschlagsradar Oberthurgau",
-                link: `${PUBLISHED}/karten/radar`,
-                note: "Messung derzeit nicht verfügbar — tippen für die interaktive Karte",
-              });
-            }
+            svg = buildPlaceholderSnapshotSvg({
+              title: "Radar Oberthurgau",
+              link: `${PUBLISHED}/karten/radar`,
+              note: "Tippen für interaktive Niederschlagsanimation",
+            });
             break;
           case "all":
             svg = await buildRegionSnapshotSvg();
             break;
           case "wind":
-            try {
-              svg = await buildWindSnapshotSvg();
-            } catch (err) {
-              console.error("[snapshot] wind failed", err);
-              svg = buildPlaceholderSnapshotSvg({
-                title: "Wind & Böenspitzen Oberthurgau",
-                link: `${PUBLISHED}/karten/wind`,
-                note: "Winddaten derzeit nicht verfügbar — tippen für die interaktive Karte",
-              });
-            }
+            svg = buildPlaceholderSnapshotSvg({
+              title: "Wind-Animation",
+              link: `${PUBLISHED}/karten/wind`,
+              note: "Bald verfügbar — tippen für mehr",
+            });
             break;
-          case "warnungen":
-          case "warnkarte":
-            try {
-              svg = await buildWarnSnapshotSvg();
-            } catch (err) {
-              console.error("[snapshot] warnungen failed", err);
-              svg = buildPlaceholderSnapshotSvg({
-                title: "Wetterwarnungen Oberthurgau",
-                link: `${PUBLISHED}/warnkarte`,
-                note: "Warnlage derzeit nicht abrufbar — tippen für die interaktive Karte",
-              });
-            }
-            break;
-
           default:
             return new Response("Unknown map", { status: 404 });
         }

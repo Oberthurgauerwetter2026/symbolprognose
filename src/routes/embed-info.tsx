@@ -87,23 +87,8 @@ function buildAutoHeightSnippet(url: string, path: string, startHeight = 260) {
 })();
 </script>`;
 }
-/**
- * Standbild-Snippet: reines verlinktes <img>, kein iframe, kein JavaScript.
- * Der Cache-Buster wechselt pro 5-Minuten-Fenster, damit WordPress-Besucher
- * ein aktuelles Bild sehen, ohne den Edge-Cache zu umgehen.
- */
-function buildImageSnippet(url: string, path: string, link: string, title: string) {
-  const origin = new URL(url).origin;
-  return `<a href="${origin}${link}" target="_blank" rel="noopener" style="display:block">
-  <img
-    src="${origin}${path}?v=${Math.floor(Date.now() / 300000)}"
-    alt="${title}"
-    loading="lazy"
-    decoding="async"
-    style="width:100%;height:auto;display:block;border:0;border-radius:8px"
-  >
-</a>`;
-}
+
+
 
 
 function SnippetBlock({ snippet }: { snippet: string }) {
@@ -134,48 +119,12 @@ interface Product {
   path: string;
   height: number;
   description: string;
-  variant?: "amriswil" | "auto-height" | "image";
-  /** Ziel des Klicks bei Standbildern (interaktive Karte). */
-  link?: string;
+  variant?: "amriswil" | "auto-height";
   note?: string;
 }
 
 /** Ein Eintrag pro Produkt des Wetterboards — jedes bekommt sein eigenes Snippet. */
 const PRODUCTS: Product[] = [
-  {
-    id: "standbild-radar",
-    label: "Standbild Niederschlagsradar",
-    path: "/api/public/snapshot/radar.svg",
-    link: "/karten/radar",
-    height: 0,
-    variant: "image",
-    description:
-      "Aktuelles Radar-Messbild als Bild — kein iframe, kein JavaScript. Skaliert auf die Widget-Breite und lädt bei jedem Seitenaufruf das jeweils neueste Bild.",
-    note: "Ein Klick auf das Bild öffnet die interaktive Radarkarte in einem neuen Tab. Das Bild wird alle 5 Minuten erneuert.",
-  },
-  {
-    id: "standbild-wind",
-    label: "Standbild Wind & Böen",
-    path: "/api/public/snapshot/wind.svg",
-    link: "/karten/wind",
-    height: 0,
-    variant: "image",
-    description:
-      "Windrichtung als Pfeil und Böenspitze in km/h für die Orte im Oberthurgau und die Referenzstädte — als reines Bild fürs Widget.",
-    note: "Ein Klick öffnet die interaktive Windkarte. Aktualisierung alle 5 Minuten.",
-  },
-  {
-    id: "standbild-warnungen",
-    label: "Standbild Wetterwarnungen",
-    path: "/api/public/snapshot/warnungen.svg",
-    link: "/warnkarte",
-    height: 0,
-    variant: "image",
-    description:
-      "Gemeindekarte mit der aktuellen Warnlage (Keine Gefahr, Vorinformation schraffiert, Stufe 1–3) inklusive Anzahl aktiver Warnungen und Zeitstempel.",
-    note: "Ein Klick öffnet die vollständige Warnkarte, dort ist auch das Push-Abo möglich.",
-  },
-
   {
     id: "warnungen",
     label: "Wetterwarnungen",
@@ -286,14 +235,11 @@ function EmbedInfo() {
             const map = MAPS.find((m) => m.embedPath === p.path);
             const Icon = map?.icon;
             const snippet =
-              p.variant === "image"
-                ? buildImageSnippet(url, p.path, p.link ?? "/", p.label)
-                : p.variant === "amriswil"
-                  ? buildAmriswilSnippet(url, p.path, p.height)
-                  : p.variant === "auto-height"
-                    ? buildAutoHeightSnippet(url, p.path, p.height)
-                    : buildSimpleSnippet(url, p.path, p.height, p.path.startsWith("/embed/satellit"));
-
+              p.variant === "amriswil"
+                ? buildAmriswilSnippet(url, p.path, p.height)
+                : p.variant === "auto-height"
+                  ? buildAutoHeightSnippet(url, p.path, p.height)
+                  : buildSimpleSnippet(url, p.path, p.height, p.path.startsWith("/embed/satellit"));
 
             return (
               <div key={p.id} className="space-y-3 rounded-2xl border border-border bg-card p-4">
@@ -310,10 +256,8 @@ function EmbedInfo() {
                     </h2>
                     <p className="text-sm text-muted-foreground">{p.description}</p>
                     <p className="text-xs text-muted-foreground">
-                      Pfad <code>{p.path}</code>
-                      {p.variant === "image" ? " · Bild, Höhe passt sich automatisch an" : <> · empfohlene Höhe <code>{p.height}px</code></>}
+                      Pfad <code>{p.path}</code> · empfohlene Höhe <code>{p.height}px</code>
                     </p>
-
                     {p.note && <p className="text-xs text-amber-800">{p.note}</p>}
                   </div>
                 </div>
