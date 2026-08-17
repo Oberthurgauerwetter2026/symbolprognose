@@ -2457,6 +2457,7 @@ function RadarMapInner({
       </div>
 
       {/* Steuerung — bare: schwebendes Overlay; sonst Panel unterhalb der Karte */}
+      {!snapshot && (
       <div
         className={cn(
           bare
