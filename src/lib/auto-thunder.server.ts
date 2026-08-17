@@ -68,12 +68,21 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
 
   const now = Date.now();
 
-  /** Pro Gemeinde: gemessene Spitzenintensität. */
-  const perRegion = new Map<string, number>();
+  /**
+   * Pro Gemeinde: Spitzenintensität (`peak`, für den Warntext) und die
+   * flächengestützte Intensität (`area`, entscheidet über die Stufe). Fehlt
+   * `mmhArea` (alter Ingest-Stand), gilt die Spitze als Rückfall.
+   */
+  const perRegion = new Map<string, { peak: number; area: number }>();
   for (const r of measured) {
-    const mmh = typeof r.mmh === "number" ? r.mmh : 0;
-    if (mmh < THRESHOLDS[0]) continue;
-    perRegion.set(r.id, Math.max(perRegion.get(r.id) ?? 0, mmh));
+    const peak = typeof r.mmh === "number" ? r.mmh : 0;
+    const area = typeof r.mmhArea === "number" ? r.mmhArea : peak;
+    if (area < THRESHOLDS[0]) continue;
+    const prev = perRegion.get(r.id);
+    perRegion.set(r.id, {
+      peak: Math.max(prev?.peak ?? 0, peak),
+      area: Math.max(prev?.area ?? 0, area),
+    });
   }
 
   // Verlagerung: der Radar-Ingest schätzt sie per Musterabgleich der beiden
