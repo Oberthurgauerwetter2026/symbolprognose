@@ -87,8 +87,23 @@ function buildAutoHeightSnippet(url: string, path: string, startHeight = 260) {
 })();
 </script>`;
 }
-
-
+/**
+ * Standbild-Snippet: reines verlinktes <img>, kein iframe, kein JavaScript.
+ * Der Cache-Buster wechselt pro 5-Minuten-Fenster, damit WordPress-Besucher
+ * ein aktuelles Bild sehen, ohne den Edge-Cache zu umgehen.
+ */
+function buildImageSnippet(url: string, path: string, link: string, title: string) {
+  const origin = new URL(url).origin;
+  return `<a href="${origin}${link}" target="_blank" rel="noopener" style="display:block">
+  <img
+    src="${origin}${path}?v=${Math.floor(Date.now() / 300000)}"
+    alt="${title}"
+    loading="lazy"
+    decoding="async"
+    style="width:100%;height:auto;display:block;border:0;border-radius:8px"
+  >
+</a>`;
+}
 
 
 function SnippetBlock({ snippet }: { snippet: string }) {
