@@ -57,6 +57,7 @@ export type Database = {
           detected: number
           job: string
           note: string | null
+          notified: number
           ran_at: string
         }
         Insert: {
@@ -65,6 +66,7 @@ export type Database = {
           detected?: number
           job: string
           note?: string | null
+          notified?: number
           ran_at?: string
         }
         Update: {
@@ -73,6 +75,7 @@ export type Database = {
           detected?: number
           job?: string
           note?: string | null
+          notified?: number
           ran_at?: string
         }
         Relationships: []
@@ -141,6 +144,7 @@ export type Database = {
           id: string
           impact: string
           level: number
+          notified_at: string | null
           params: Json
           peak_phase: string | null
           source: string
@@ -159,6 +163,7 @@ export type Database = {
           id?: string
           impact?: string
           level: number
+          notified_at?: string | null
           params?: Json
           peak_phase?: string | null
           source?: string
@@ -177,6 +182,7 @@ export type Database = {
           id?: string
           impact?: string
           level?: number
+          notified_at?: string | null
           params?: Json
           peak_phase?: string | null
           source?: string
