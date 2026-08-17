@@ -286,11 +286,14 @@ function EmbedInfo() {
             const map = MAPS.find((m) => m.embedPath === p.path);
             const Icon = map?.icon;
             const snippet =
-              p.variant === "amriswil"
-                ? buildAmriswilSnippet(url, p.path, p.height)
-                : p.variant === "auto-height"
-                  ? buildAutoHeightSnippet(url, p.path, p.height)
-                  : buildSimpleSnippet(url, p.path, p.height, p.path.startsWith("/embed/satellit"));
+              p.variant === "image"
+                ? buildImageSnippet(url, p.path, p.link ?? "/", p.label)
+                : p.variant === "amriswil"
+                  ? buildAmriswilSnippet(url, p.path, p.height)
+                  : p.variant === "auto-height"
+                    ? buildAutoHeightSnippet(url, p.path, p.height)
+                    : buildSimpleSnippet(url, p.path, p.height, p.path.startsWith("/embed/satellit"));
+
 
             return (
               <div key={p.id} className="space-y-3 rounded-2xl border border-border bg-card p-4">
