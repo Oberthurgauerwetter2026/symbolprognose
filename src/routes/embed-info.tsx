@@ -310,8 +310,10 @@ function EmbedInfo() {
                     </h2>
                     <p className="text-sm text-muted-foreground">{p.description}</p>
                     <p className="text-xs text-muted-foreground">
-                      Pfad <code>{p.path}</code> · empfohlene Höhe <code>{p.height}px</code>
+                      Pfad <code>{p.path}</code>
+                      {p.variant === "image" ? " · Bild, Höhe passt sich automatisch an" : <> · empfohlene Höhe <code>{p.height}px</code></>}
                     </p>
+
                     {p.note && <p className="text-xs text-amber-800">{p.note}</p>}
                   </div>
                 </div>
