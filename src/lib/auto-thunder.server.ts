@@ -198,7 +198,9 @@ async function recordRun(r: AutoThunderResult, error?: string): Promise<void> {
         detected: r.detected,
         created: r.created,
         closed: r.closed,
+        notified: r.notified,
         note: error ?? r.note ?? null,
+
       },
       { onConflict: "job" },
     );
