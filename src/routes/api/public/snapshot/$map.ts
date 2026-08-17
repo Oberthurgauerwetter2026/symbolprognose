@@ -4,6 +4,12 @@ import {
   buildPlaceholderSnapshotSvg,
   buildRegionSnapshotSvg,
 } from "@/lib/snapshot.server";
+import {
+  buildRadarSnapshotSvg,
+  buildWarnSnapshotSvg,
+  buildWindSnapshotSvg,
+} from "@/lib/snapshot-maps.server";
+
 
 const PUBLISHED = "https://oberthurgauer-wetter.lovable.app";
 
