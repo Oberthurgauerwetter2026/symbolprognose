@@ -302,7 +302,7 @@ function precipLegend(proj: Proj): string {
   const w = 46;
   const h = 16;
   const x0 = proj.width - 20 - bands.length * w;
-  const y0 = 24;
+  const y0 = proj.height - 62;
   const cells = bands
     .map(([c, label], i) => {
       const x = x0 + i * w;
