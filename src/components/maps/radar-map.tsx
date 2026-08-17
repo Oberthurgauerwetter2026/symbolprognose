@@ -1796,9 +1796,12 @@ function fmtBubble(d: Date, measured: boolean): string {
 
 function RadarMapInner({
   bare = false,
+  snapshot = false,
   initialFrames,
 }: {
   bare?: boolean;
+  /** Widget-Modus: nur aktuelle Messung, ohne Zeitsteuerung/Filmstrip. */
+  snapshot?: boolean;
   initialFrames?: RadarPayload;
 }) {
   const { data, isLoading, error } = useQuery({
@@ -1812,7 +1815,7 @@ function RadarMapInner({
   const frames = useMemo(() => {
     const all = data?.frames ?? [];
     const cutoff = Date.now() + 48 * 3600 * 1000;
-    return all.filter((f) => {
+    const kept = all.filter((f) => {
       if (Date.parse(f.t) > cutoff) return false;
       // DAUERHAFTE VORGABE: Prognoseframes ohne PNG kommen nicht in die
       // Timeline. Sie würden aus dem groben Sparse-Grid als Rechteckblöcke
@@ -1820,7 +1823,13 @@ function RadarMapInner({
       if (f.source !== "radar" && !f.precipUrl) return false;
       return true;
     });
-  }, [data]);
+    // Widget: nur die letzte Radarmessung — keine Prognose, keine Animation.
+    if (snapshot) {
+      const meas = kept.filter((f) => f.source === "radar");
+      return meas.length > 0 ? meas.slice(-1) : kept.slice(0, 1);
+    }
+    return kept;
+  }, [data, snapshot]);
 
   const nowIdx = useNowFrameIndex(frames);
   const [idx, setIdx] = useState<number | null>(null);
