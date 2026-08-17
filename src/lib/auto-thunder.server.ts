@@ -22,9 +22,10 @@ import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 /**
- * mm/h-Schwellen für Stufe 1/2/3. Stufe 2/3 entsprechen den offiziellen
- * MeteoSchweiz-Gewitterkriterien (30–50 mm/h bzw. über 50 mm/h),
- * Stufe 1 (15 mm/h) ist eine eigene Vorstufe.
+ * mm/h-Schwellen für Stufe 1/2/3 (20/40/60). Bewusst höher als die
+ * MeteoSchweiz-Kriterien, damit die Automatik nicht zu häufig auslöst.
+ * Massgebend ist die flächengestützte Intensität (mind. 3 Radar-Pixel),
+ * nicht die Spitze eines einzelnen Pixels.
  */
 const THRESHOLDS: [number, number, number] = THUNDER_RAIN_MMH;
 
