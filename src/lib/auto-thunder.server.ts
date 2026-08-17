@@ -22,9 +22,10 @@ import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 /**
- * mm/h-Schwellen für Stufe 1/2/3. Stufe 2/3 entsprechen den offiziellen
- * MeteoSchweiz-Gewitterkriterien (30–50 mm/h bzw. über 50 mm/h),
- * Stufe 1 (15 mm/h) ist eine eigene Vorstufe.
+ * mm/h-Schwellen für Stufe 1/2/3 (20/40/60). Bewusst höher als die
+ * MeteoSchweiz-Kriterien, damit die Automatik nicht zu häufig auslöst.
+ * Massgebend ist die flächengestützte Intensität (mind. 3 Radar-Pixel),
+ * nicht die Spitze eines einzelnen Pixels.
  */
 const THRESHOLDS: [number, number, number] = THUNDER_RAIN_MMH;
 
@@ -68,12 +69,21 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
 
   const now = Date.now();
 
-  /** Pro Gemeinde: gemessene Spitzenintensität. */
-  const perRegion = new Map<string, number>();
+  /**
+   * Pro Gemeinde: Spitzenintensität (`peak`, für den Warntext) und die
+   * flächengestützte Intensität (`area`, entscheidet über die Stufe). Fehlt
+   * `mmhArea` (alter Ingest-Stand), gilt die Spitze als Rückfall.
+   */
+  const perRegion = new Map<string, { peak: number; area: number }>();
   for (const r of measured) {
-    const mmh = typeof r.mmh === "number" ? r.mmh : 0;
-    if (mmh < THRESHOLDS[0]) continue;
-    perRegion.set(r.id, Math.max(perRegion.get(r.id) ?? 0, mmh));
+    const peak = typeof r.mmh === "number" ? r.mmh : 0;
+    const area = typeof r.mmhArea === "number" ? r.mmhArea : peak;
+    if (area < THRESHOLDS[0]) continue;
+    const prev = perRegion.get(r.id);
+    perRegion.set(r.id, {
+      peak: Math.max(prev?.peak ?? 0, peak),
+      area: Math.max(prev?.area ?? 0, area),
+    });
   }
 
   // Verlagerung: der Radar-Ingest schätzt sie per Musterabgleich der beiden
@@ -89,8 +99,8 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   let created = 0;
   const warnedRegions: string[] = [];
 
-  for (const [regionId, mmh] of perRegion) {
-    const level = levelFor(mmh);
+  for (const [regionId, v] of perRegion) {
+    const level = levelFor(v.area);
     if (!level) continue;
     warnedRegions.push(regionId);
 
@@ -108,9 +118,9 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       valid_from: validFrom,
       valid_to: validTo,
       title: warningTitle("gewitter", level),
-      description: `${base} Aktuell gemessene Spitzenintensität ${Math.round(mmh)} mm/h.${motionText}`,
+      description: `${base} Aktuell gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.${motionText}`,
       impact: templateImpact(tpl),
-      params: { value: String(Math.round(mmh)), auto: true, measured: true },
+      params: { value: String(Math.round(v.peak)), auto: true, measured: true },
       active: true,
       source: "auto",
       auto_key: `auto-gewitter-${regionId}`,
