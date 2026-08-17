@@ -992,8 +992,24 @@ function WindMapInner({
   }, [idx]);
 
   useEffect(() => {
-    if (idx === null && frames.length > 0) setIdx(0);
-  }, [frames.length, idx]);
+    if (frames.length === 0) return;
+    if (snapshot) {
+      // Widget: Frame, der der aktuellen Stunde am nächsten liegt.
+      const now = Date.now();
+      let best = 0;
+      let bestDiff = Infinity;
+      frames.forEach((f, i) => {
+        const diff = Math.abs(Date.parse(f.t) - now);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = i;
+        }
+      });
+      if (idx !== best) setIdx(best);
+      return;
+    }
+    if (idx === null) setIdx(0);
+  }, [frames, idx, snapshot]);
 
   useEffect(() => {
     if (!playing || frames.length === 0) {
