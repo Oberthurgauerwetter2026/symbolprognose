@@ -1171,7 +1171,9 @@ function AutoThunderSection({ password }: { password: string }) {
         <span className="text-muted-foreground">
           {status?.ranAt
             ? `letzter Lauf vor ${age} min (${new Date(status.ranAt).toLocaleString("de-CH")}) · ` +
-              `${status.detected} erkannt · ${status.created} erstellt · ${status.closed} beendet` +
+              `${status.detected} erkannt · ${status.created} erstellt · ${status.closed} beendet · ` +
+              `${status.notified} Push verschickt` +
+
               (status.note ? ` · ${status.note}` : "")
             : "noch kein Lauf protokolliert"}
         </span>
