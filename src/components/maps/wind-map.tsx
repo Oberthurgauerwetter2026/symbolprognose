@@ -1304,6 +1304,7 @@ function WindMapInner({ bare = false }: { bare?: boolean } = {}) {
             )}
           </div>
         </div>
+      )}
 
 
       {data && (
