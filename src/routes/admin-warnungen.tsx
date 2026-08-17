@@ -1142,9 +1142,11 @@ function AutoThunderSection({ password }: { password: string }) {
       if (res.ok) {
         setMsg(
           `Prüfung erledigt — ${Number(res.detected ?? 0)} Gemeinde(n) mit Gewitterzellen, ` +
-            `${Number(res.created ?? 0)} neu, ${Number(res.closed ?? 0)} beendet.` +
+            `${Number(res.created ?? 0)} neu, ${Number(res.closed ?? 0)} beendet, ` +
+            `${Number(res.notified ?? 0)} Push-Meldung(en) verschickt.` +
             (res.note ? ` Hinweis: ${String(res.note)}` : ""),
         );
+
       } else {
         setMsg(`Fehler — ${String(res.error ?? "unbekannt")}`);
       }
