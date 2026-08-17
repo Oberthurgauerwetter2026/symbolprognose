@@ -390,6 +390,7 @@ function WarnMapInner({ bare = false, className }: WarnMapProps) {
   return (
     <div className={cn("@container space-y-3", className)}>
       {/* Banner mit Gefahrenarten */}
+      {!snapshot && (
       <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-sm sm:flex-wrap sm:overflow-visible">
         <button
           type="button"
