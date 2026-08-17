@@ -174,7 +174,7 @@ export interface RadarRegionMaxPayload {
   t: string;
   generatedAt?: string;
   version?: string;
-  regions: { id: string; name?: string; mmh: number; poh?: number }[];
+  regions: { id: string; name?: string; mmh: number; mmhArea?: number; poh?: number }[];
   /**
    * Verlagerung aus dem Musterabgleich der beiden letzten Radarbilder:
    * Herkunftsrichtung in Grad, Geschwindigkeit in km/h.
