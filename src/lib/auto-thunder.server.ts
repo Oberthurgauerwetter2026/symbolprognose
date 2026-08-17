@@ -220,7 +220,7 @@ export async function runAutoThunder(): Promise<AutoThunderResult> {
     return res;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unbekannter Fehler";
-    await recordRun({ detected: 0, created: 0, closed: 0 }, `Fehler: ${msg}`);
+    await recordRun({ detected: 0, created: 0, closed: 0, notified: 0 }, `Fehler: ${msg}`);
     throw err;
   }
 }
