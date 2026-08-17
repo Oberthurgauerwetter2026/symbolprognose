@@ -105,6 +105,7 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
 
   const sb = await adminClient();
   let created = 0;
+  let notified = 0;
   const warnedRegions: string[] = [];
 
   for (const [regionId, v] of perRegion) {
@@ -134,13 +135,16 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       auto_key: `auto-gewitter-${regionId}`,
     };
 
-    const { data: existing } = await sb
+    const { data: existingData } = await sb
       .from("warnings")
-      .select("id")
+      .select("id, active, level, notified_at")
       .eq("auto_key", row.auto_key)
       .maybeSingle();
+    const existing = existingData as
+      | { id: string; active: boolean; level: number; notified_at: string | null }
+      | null;
 
-    let id: string | null = (existing as { id: string } | null)?.id ?? null;
+    let id: string | null = existing?.id ?? null;
     if (id) {
       await sb.from("warnings").update(row).eq("id", id);
     } else {
@@ -148,17 +152,39 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       id = (ins as { id: string } | null)?.id ?? null;
       created++;
     }
-    if (id) {
-      await setWarningRegions(id, [regionId]);
-      if (!existing) {
-        const { notifyWarning } = await import("@/lib/push.server");
-        await notifyWarning(id).catch(() => undefined);
-      }
+    if (!id) continue;
+    await setWarningRegions(id, [regionId]);
+
+    /**
+     * Push nur bei einem neuen Warnereignis:
+     * - Warnung neu angelegt
+     * - Zeile war vorher inaktiv (Reaktivierung = neues Gewitter)
+     * - Warnstufe steigt gegenüber der laufenden Warnung
+     * Reine Text-/Zeit-Aktualisierungen im 5-Minuten-Takt lösen keinen Push aus.
+     * Zusätzliche Wiederholsperre von 45 Minuten, ausser die Stufe steigt.
+     */
+    const escalated = !!existing && level > existing.level;
+    const reactivated = !!existing && existing.active === false;
+    const lastNotifiedMs = existing?.notified_at ? Date.parse(existing.notified_at) : NaN;
+    const withinCooldown =
+      Number.isFinite(lastNotifiedMs) && now - lastNotifiedMs < RENOTIFY_MS;
+    const shouldNotify =
+      !existing || escalated || (reactivated && !withinCooldown);
+
+    if (shouldNotify) {
+      const { notifyWarning } = await import("@/lib/push.server");
+      const sent = await notifyWarning(id).catch(() => 0);
+      if (sent > 0) notified += sent;
+      await sb
+        .from("warnings")
+        .update({ notified_at: new Date().toISOString() })
+        .eq("id", id);
     }
   }
 
   const closed = await closeStale(warnedRegions);
-  return { detected: warnedRegions.length, created, closed, motion };
+  return { detected: warnedRegions.length, created, closed, notified, motion };
+
 }
 
 /** Letzten Lauf protokollieren, damit der Admin den Status sieht. */
