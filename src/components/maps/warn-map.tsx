@@ -226,10 +226,12 @@ function labelIcon(name: string, level: number): L.DivIcon {
 export interface WarnMapProps {
   /** Kompakter Modus für Embeds (kein Push-Bereich, schmalere Paddings). */
   bare?: boolean;
+  /** Widget-Modus: nur Karte und aktive Warnungen, ohne Filter und Push. */
+  snapshot?: boolean;
   className?: string;
 }
 
-function WarnMapInner({ bare = false, className }: WarnMapProps) {
+function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProps) {
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -390,6 +392,7 @@ function WarnMapInner({ bare = false, className }: WarnMapProps) {
   return (
     <div className={cn("@container space-y-3", className)}>
       {/* Banner mit Gefahrenarten */}
+      {!snapshot && (
       <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-sm sm:flex-wrap sm:overflow-visible">
         <button
           type="button"
@@ -456,6 +459,7 @@ function WarnMapInner({ bare = false, className }: WarnMapProps) {
           )}
         </div>
       </div>
+      )}
 
 
       <div
@@ -688,7 +692,40 @@ function WarnMapInner({ bare = false, className }: WarnMapProps) {
               )}
             >
 
-              {!selected ? (
+              {snapshot && !selected ? (
+                warnings.length === 0 ? (
+                  <p className="mt-3 text-base leading-relaxed text-foreground">
+                    Zurzeit keine Warnungen im Oberthurgau.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {/* Widget: pro Gefahrenart/Stufe nur eine Zeile (die Automatik
+                        legt je Gemeinde eine eigene Warnung an). */}
+                    {Array.from(
+                      new Map(
+                        warnings.map((w) => [`${w.hazard}-${w.level}-${w.advisory ? 1 : 0}`, w]),
+                      ).values(),
+                    ).map((w) => {
+                      const h = HAZARDS.find((x) => x.id === w.hazard);
+                      const Icon = h?.icon;
+                      const lv = LEVELS[w.level as 1 | 2 | 3];
+                      return (
+                        <li
+                          key={w.id}
+                          className="flex items-start gap-2 rounded-lg px-2 py-1.5"
+                          style={{ background: lv.color, color: lv.textOnColor }}
+                        >
+                          {Icon && <Icon className="mt-0.5 h-5 w-5 shrink-0" />}
+                          <span className="text-sm font-semibold leading-snug">
+                            {h?.label ?? w.hazard} (Stufe {w.level})
+                            {w.advisory ? " · Vorinformation" : ""}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )
+              ) : !selected ? (
                 <div className="mt-3">
                   <p className="text-base leading-relaxed text-foreground">
                     Gemeinde auf der Karte antippen, um Warnungen anzuzeigen.
@@ -831,12 +868,14 @@ function WarnMapInner({ bare = false, className }: WarnMapProps) {
           </div>
 
 
-          <div className="rounded-xl border border-border bg-card p-2 shadow-sm">
-            <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-              <BellRing className="h-3.5 w-3.5" /> Warnungen abonnieren
-            </h3>
-            <PushOptIn defaultRegionId={selected} />
-          </div>
+          {!snapshot && (
+            <div className="rounded-xl border border-border bg-card p-2 shadow-sm">
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <BellRing className="h-3.5 w-3.5" /> Warnungen abonnieren
+              </h3>
+              <PushOptIn defaultRegionId={selected} />
+            </div>
+          )}
 
         </aside>
 

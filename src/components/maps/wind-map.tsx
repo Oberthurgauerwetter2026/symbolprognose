@@ -960,7 +960,18 @@ function fmtBubble(d: Date): string {
 // --------------------------------------------------------------------------
 type DisplayMode = "flow" | "arrows" | "both";
 
-function WindMapInner({ bare = false }: { bare?: boolean } = {}) {
+/** Kurzformat für die Widget-Pille: „Prognose: Mo, 19:00“. */
+function fmtWidgetTime(d: Date): string {
+  const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `Prognose: ${wd}, ${hh}:${mm}`;
+}
+
+function WindMapInner({
+  bare = false,
+  snapshot = false,
+}: { bare?: boolean; snapshot?: boolean } = {}) {
   const { data, isLoading, error } = useQuery(windFramesQuery());
 
   const rawFrames = data?.frames ?? [];
@@ -981,8 +992,24 @@ function WindMapInner({ bare = false }: { bare?: boolean } = {}) {
   }, [idx]);
 
   useEffect(() => {
-    if (idx === null && frames.length > 0) setIdx(0);
-  }, [frames.length, idx]);
+    if (frames.length === 0) return;
+    if (snapshot) {
+      // Widget: Frame, der der aktuellen Stunde am nächsten liegt.
+      const now = Date.now();
+      let best = 0;
+      let bestDiff = Infinity;
+      frames.forEach((f, i) => {
+        const diff = Math.abs(Date.parse(f.t) - now);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = i;
+        }
+      });
+      if (idx !== best) setIdx(best);
+      return;
+    }
+    if (idx === null) setIdx(0);
+  }, [frames, idx, snapshot]);
 
   useEffect(() => {
     if (!playing || frames.length === 0) {
@@ -1161,9 +1188,17 @@ function WindMapInner({ bare = false }: { bare?: boolean } = {}) {
             <Info className="h-4 w-4" />
           </button>
         )}
+
+        {/* Widget: Prognosezeit als kleine Pille im Bild */}
+        {snapshot && currentFrame && (
+          <div className="pointer-events-none absolute left-3 top-3 z-[400] rounded-full bg-black/40 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur">
+            {fmtWidgetTime(new Date(currentFrame.t))}
+          </div>
+        )}
       </div>
 
       {/* Steuerpanel — bare: schwebend über der Karte; sonst Panel unter der Karte (analog Radar) */}
+      {!snapshot && (
       <div
         className={cn(
           bare
@@ -1296,6 +1331,7 @@ function WindMapInner({ bare = false }: { bare?: boolean } = {}) {
             )}
           </div>
         </div>
+      )}
 
 
       {data && (

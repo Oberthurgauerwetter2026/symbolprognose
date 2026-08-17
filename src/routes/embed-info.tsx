@@ -126,6 +126,30 @@ interface Product {
 /** Ein Eintrag pro Produkt des Wetterboards — jedes bekommt sein eigenes Snippet. */
 const PRODUCTS: Product[] = [
   {
+    id: "widget-warnungen",
+    label: "Widget: Warnungen aktuell",
+    path: "/embed/widget-warnungen",
+    height: 560,
+    description:
+      "Kompaktes Widget mit der Warnkarte und einer Liste der derzeit aktiven Warnungen — ohne Gefahrenfilter und ohne Push-Bereich.",
+  },
+  {
+    id: "widget-radar",
+    label: "Widget: Radar aktuell (Messung)",
+    path: "/embed/widget-radar",
+    height: 460,
+    description:
+      "Zeigt nur die letzte Radarmessung mit Zeitangabe — ohne Filmstrip, Play-Funktion und Prognose.",
+  },
+  {
+    id: "widget-wind",
+    label: "Widget: Windprognose aktuell",
+    path: "/embed/widget-wind",
+    height: 460,
+    description:
+      "Zeigt nur die Windprognose für die aktuelle bzw. kommende Stunde — ohne Filmstrip und Zeitsteuerung.",
+  },
+  {
     id: "warnungen",
     label: "Wetterwarnungen",
     path: "/embed/warnungen",
