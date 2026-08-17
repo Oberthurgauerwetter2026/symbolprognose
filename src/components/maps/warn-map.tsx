@@ -226,10 +226,12 @@ function labelIcon(name: string, level: number): L.DivIcon {
 export interface WarnMapProps {
   /** Kompakter Modus für Embeds (kein Push-Bereich, schmalere Paddings). */
   bare?: boolean;
+  /** Widget-Modus: nur Karte und aktive Warnungen, ohne Filter und Push. */
+  snapshot?: boolean;
   className?: string;
 }
 
-function WarnMapInner({ bare = false, className }: WarnMapProps) {
+function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProps) {
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
