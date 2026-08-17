@@ -25,6 +25,7 @@ import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
 import { Route as EmbedWidgetWindRouteImport } from './routes/embed.widget-wind'
+import { Route as EmbedWidgetWarnungenRouteImport } from './routes/embed.widget-warnungen'
 import { Route as EmbedWidgetRadarRouteImport } from './routes/embed.widget-radar'
 import { Route as EmbedWarnungenRouteImport } from './routes/embed.warnungen'
 import { Route as EmbedSatellitLoopRouteImport } from './routes/embed.satellit-loop'
@@ -125,6 +126,11 @@ const EmbedWindRoute = EmbedWindRouteImport.update({
 const EmbedWidgetWindRoute = EmbedWidgetWindRouteImport.update({
   id: '/embed/widget-wind',
   path: '/embed/widget-wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedWidgetWarnungenRoute = EmbedWidgetWarnungenRouteImport.update({
+  id: '/embed/widget-warnungen',
+  path: '/embed/widget-warnungen',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedWidgetRadarRoute = EmbedWidgetRadarRouteImport.update({
@@ -258,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
+  '/embed/widget-warnungen': typeof EmbedWidgetWarnungenRoute
   '/embed/widget-wind': typeof EmbedWidgetWindRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
@@ -297,6 +304,7 @@ export interface FileRoutesByTo {
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
+  '/embed/widget-warnungen': typeof EmbedWidgetWarnungenRoute
   '/embed/widget-wind': typeof EmbedWidgetWindRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
@@ -337,6 +345,7 @@ export interface FileRoutesById {
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
+  '/embed/widget-warnungen': typeof EmbedWidgetWarnungenRoute
   '/embed/widget-wind': typeof EmbedWidgetWindRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
@@ -378,6 +387,7 @@ export interface FileRouteTypes {
     | '/embed/satellit-loop'
     | '/embed/warnungen'
     | '/embed/widget-radar'
+    | '/embed/widget-warnungen'
     | '/embed/widget-wind'
     | '/embed/wind'
     | '/intern/icons'
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/embed/satellit-loop'
     | '/embed/warnungen'
     | '/embed/widget-radar'
+    | '/embed/widget-warnungen'
     | '/embed/widget-wind'
     | '/embed/wind'
     | '/intern/icons'
@@ -456,6 +467,7 @@ export interface FileRouteTypes {
     | '/embed/satellit-loop'
     | '/embed/warnungen'
     | '/embed/widget-radar'
+    | '/embed/widget-warnungen'
     | '/embed/widget-wind'
     | '/embed/wind'
     | '/intern/icons'
@@ -496,6 +508,7 @@ export interface RootRouteChildren {
   EmbedSatellitLoopRoute: typeof EmbedSatellitLoopRoute
   EmbedWarnungenRoute: typeof EmbedWarnungenRoute
   EmbedWidgetRadarRoute: typeof EmbedWidgetRadarRoute
+  EmbedWidgetWarnungenRoute: typeof EmbedWidgetWarnungenRoute
   EmbedWidgetWindRoute: typeof EmbedWidgetWindRoute
   EmbedWindRoute: typeof EmbedWindRoute
   InternIconsRoute: typeof InternIconsRoute
@@ -631,6 +644,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/widget-wind'
       fullPath: '/embed/widget-wind'
       preLoaderRoute: typeof EmbedWidgetWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/widget-warnungen': {
+      id: '/embed/widget-warnungen'
+      path: '/embed/widget-warnungen'
+      fullPath: '/embed/widget-warnungen'
+      preLoaderRoute: typeof EmbedWidgetWarnungenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/widget-radar': {
@@ -800,6 +820,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedSatellitLoopRoute: EmbedSatellitLoopRoute,
   EmbedWarnungenRoute: EmbedWarnungenRoute,
   EmbedWidgetRadarRoute: EmbedWidgetRadarRoute,
+  EmbedWidgetWarnungenRoute: EmbedWidgetWarnungenRoute,
   EmbedWidgetWindRoute: EmbedWidgetWindRoute,
   EmbedWindRoute: EmbedWindRoute,
   InternIconsRoute: InternIconsRoute,
