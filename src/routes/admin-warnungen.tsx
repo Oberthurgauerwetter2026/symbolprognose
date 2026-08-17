@@ -1142,9 +1142,11 @@ function AutoThunderSection({ password }: { password: string }) {
       if (res.ok) {
         setMsg(
           `Prüfung erledigt — ${Number(res.detected ?? 0)} Gemeinde(n) mit Gewitterzellen, ` +
-            `${Number(res.created ?? 0)} neu, ${Number(res.closed ?? 0)} beendet.` +
+            `${Number(res.created ?? 0)} neu, ${Number(res.closed ?? 0)} beendet, ` +
+            `${Number(res.notified ?? 0)} Push-Meldung(en) verschickt.` +
             (res.note ? ` Hinweis: ${String(res.note)}` : ""),
         );
+
       } else {
         setMsg(`Fehler — ${String(res.error ?? "unbekannt")}`);
       }
@@ -1169,7 +1171,9 @@ function AutoThunderSection({ password }: { password: string }) {
         <span className="text-muted-foreground">
           {status?.ranAt
             ? `letzter Lauf vor ${age} min (${new Date(status.ranAt).toLocaleString("de-CH")}) · ` +
-              `${status.detected} erkannt · ${status.created} erstellt · ${status.closed} beendet` +
+              `${status.detected} erkannt · ${status.created} erstellt · ${status.closed} beendet · ` +
+              `${status.notified} Push verschickt` +
+
               (status.note ? ` · ${status.note}` : "")
             : "noch kein Lauf protokolliert"}
         </span>
