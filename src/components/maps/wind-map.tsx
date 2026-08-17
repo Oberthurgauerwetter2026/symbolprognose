@@ -960,7 +960,18 @@ function fmtBubble(d: Date): string {
 // --------------------------------------------------------------------------
 type DisplayMode = "flow" | "arrows" | "both";
 
-function WindMapInner({ bare = false }: { bare?: boolean } = {}) {
+/** Kurzformat für die Widget-Pille: „Prognose: Mo, 19:00“. */
+function fmtWidgetTime(d: Date): string {
+  const wd = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `Prognose: ${wd}, ${hh}:${mm}`;
+}
+
+function WindMapInner({
+  bare = false,
+  snapshot = false,
+}: { bare?: boolean; snapshot?: boolean } = {}) {
   const { data, isLoading, error } = useQuery(windFramesQuery());
 
   const rawFrames = data?.frames ?? [];
