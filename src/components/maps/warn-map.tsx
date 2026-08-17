@@ -835,12 +835,14 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
           </div>
 
 
-          <div className="rounded-xl border border-border bg-card p-2 shadow-sm">
-            <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-              <BellRing className="h-3.5 w-3.5" /> Warnungen abonnieren
-            </h3>
-            <PushOptIn defaultRegionId={selected} />
-          </div>
+          {!snapshot && (
+            <div className="rounded-xl border border-border bg-card p-2 shadow-sm">
+              <h3 className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <BellRing className="h-3.5 w-3.5" /> Warnungen abonnieren
+              </h3>
+              <PushOptIn defaultRegionId={selected} />
+            </div>
+          )}
 
         </aside>
 
