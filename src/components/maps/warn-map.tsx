@@ -692,7 +692,34 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
               )}
             >
 
-              {!selected ? (
+              {snapshot && !selected ? (
+                warnings.length === 0 ? (
+                  <p className="mt-3 text-base leading-relaxed text-foreground">
+                    Zurzeit keine Warnungen im Oberthurgau.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {warnings.map((w) => {
+                      const h = HAZARDS.find((x) => x.id === w.hazard);
+                      const Icon = h?.icon;
+                      const lv = LEVELS[w.level as 1 | 2 | 3];
+                      return (
+                        <li
+                          key={w.id}
+                          className="flex items-start gap-2 rounded-lg px-2 py-1.5"
+                          style={{ background: lv.color, color: lv.textOnColor }}
+                        >
+                          {Icon && <Icon className="mt-0.5 h-5 w-5 shrink-0" />}
+                          <span className="text-sm font-semibold leading-snug">
+                            {h?.label ?? w.hazard} (Stufe {w.level})
+                            {w.advisory ? " · Vorinformation" : ""}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )
+              ) : !selected ? (
                 <div className="mt-3">
                   <p className="text-base leading-relaxed text-foreground">
                     Gemeinde auf der Karte antippen, um Warnungen anzuzeigen.
