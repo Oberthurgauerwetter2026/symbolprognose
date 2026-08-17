@@ -496,7 +496,7 @@ function warnLegend(proj: Proj): string {
     { color: LEVELS[3].color, label: "Stufe 3" },
   ];
   const x0 = 24;
-  const y0 = proj.height - 90;
+  const y0 = proj.height - 200;
   const rows = items
     .map((it, i) => {
       const y = y0 + i * 22;
