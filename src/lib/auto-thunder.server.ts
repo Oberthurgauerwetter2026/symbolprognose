@@ -69,8 +69,10 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       detected: 0,
       created: 0,
       closed: await closeStale(),
+      notified: 0,
       note: "Radarmessung nicht verfügbar",
     };
+
   }
 
   const now = Date.now();
