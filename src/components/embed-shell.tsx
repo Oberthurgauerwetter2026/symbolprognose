@@ -144,7 +144,7 @@ export function EmbedShell({
       ref={ref}
       className={
         flush
-          ? "@container mx-auto min-h-[320px] w-full max-w-6xl p-0"
+          ? "@container mx-auto w-full max-w-6xl p-0"
           : "@container mx-auto min-h-[320px] w-full max-w-6xl p-0 @[360px]:p-2 @[520px]:p-4"
       }
     >
