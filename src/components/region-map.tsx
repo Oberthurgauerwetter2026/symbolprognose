@@ -983,7 +983,7 @@ function RegionMapInner({
               mode={viewMode}
               dayIdx={dayIndex}
               absoluteHour={absoluteHour}
-              onClick={() => goToLokal(s)}
+              
               data={forecasts?.[s.id]}
               warning={spotWarnings[s.id]}
 
