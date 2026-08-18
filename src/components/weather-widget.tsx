@@ -116,6 +116,7 @@ function WeatherWidgetInner({
   lockedLocation,
   compact = false,
   initialExtended = false,
+  requireExplicitLocation = false,
 }: {
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
@@ -124,6 +125,11 @@ function WeatherWidgetInner({
   compact?: boolean;
   /** Startet direkt mit der 7-Tage-Kachelreihe (z. B. im Embed). */
   initialExtended?: boolean;
+  /**
+   * Embed-Modus: kein gespeicherter Ort und keine automatische Ortung beim Start —
+   * die Prognose klappt erst nach Suche oder Klick auf „Ortung“ auf.
+   */
+  requireExplicitLocation?: boolean;
 } = {}) {
   const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (lockedLocation) return lockedLocation;
