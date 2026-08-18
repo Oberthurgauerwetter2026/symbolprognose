@@ -2,7 +2,7 @@ import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LocationSearch } from "@/components/location-search";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   MapContainer,
   GeoJSON,
