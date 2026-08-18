@@ -776,27 +776,6 @@ function RegionMapInner({
   const thumbPct = MAX_STEPS > 0 ? (stepOffset / MAX_STEPS) * 100 : 0;
   const HOUR_LABELS = Array.from({ length: 25 }, (_, i) => i);
 
-  const goToLokal = (spot: Spot) => {
-    if (onSelectSpot) {
-      onSelectSpot({ name: spot.name, lat: spot.lat, lon: spot.lon });
-      return;
-    }
-    router
-      .navigate({
-        to: "/karten/lokal",
-        search: { lat: spot.lat, lon: spot.lon, name: spot.name },
-      })
-      .catch(() => {
-        if (typeof window !== "undefined") {
-          const qs = new URLSearchParams({
-            lat: String(spot.lat),
-            lon: String(spot.lon),
-            name: spot.name,
-          });
-          window.location.assign(`/karten/lokal?${qs.toString()}`);
-        }
-      });
-  };
 
   const warnBanner =
     maxWarnLevel > 0 || maxAdvisoryLevel > 0
