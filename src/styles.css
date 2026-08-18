@@ -228,9 +228,11 @@ html.embed .embed-fallback {
 }
 
 @media (max-width: 639px) {
-  .map-attrib-compact .leaflet-bottom.leaflet-right,
-  .map-attrib-compact .leaflet-bottom.leaflet-left {
-    bottom: 108px;
+  /* Nur wenn das Bedienpanel die Karte überlagert, muss die Quellenzeile
+     angehoben werden. */
+  .map-attrib-lift .leaflet-bottom.leaflet-right,
+  .map-attrib-lift .leaflet-bottom.leaflet-left {
+    bottom: 104px;
   }
   .map-attrib-compact .leaflet-control-attribution {
     max-width: calc(100vw - 24px);
