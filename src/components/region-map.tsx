@@ -2,7 +2,7 @@ import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LocationSearch } from "@/components/location-search";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   MapContainer,
   GeoJSON,
@@ -215,7 +215,7 @@ function MarkerPill({
         fontFamily: '"Figtree", system-ui, sans-serif',
         color: "#fff",
         lineHeight: 1.15,
-        cursor: "pointer",
+        cursor: "default",
         transition: "transform 120ms ease, box-shadow 150ms ease",
         whiteSpace: "nowrap",
       }}
@@ -340,7 +340,6 @@ function SpotMarker({
   mode,
   dayIdx,
   absoluteHour,
-  onClick,
   data,
   warning,
 }: {
@@ -348,7 +347,6 @@ function SpotMarker({
   mode: "hourly" | "daily";
   dayIdx: number;
   absoluteHour: number;
-  onClick: () => void;
   data: ForecastResponse | undefined;
   warning?: WarningDTO | null;
 }) {
@@ -378,7 +376,7 @@ function SpotMarker({
                 fontWeight: 600,
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
-                cursor: "pointer",
+                cursor: "default",
                 whiteSpace: "nowrap",
               }}
             >
@@ -479,7 +477,7 @@ function SpotMarker({
         spot.lon + (spot.markerLonOffset ?? 0),
       ]}
       icon={icon}
-      eventHandlers={{ click: onClick }}
+      interactive={false}
     />
   );
 }
@@ -613,7 +611,7 @@ function RegionMapInner({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const router = useRouter();
+  
 
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
   const [baseHour, setBaseHour] = useState(() => currentBaseHour());
@@ -778,27 +776,6 @@ function RegionMapInner({
   const thumbPct = MAX_STEPS > 0 ? (stepOffset / MAX_STEPS) * 100 : 0;
   const HOUR_LABELS = Array.from({ length: 25 }, (_, i) => i);
 
-  const goToLokal = (spot: Spot) => {
-    if (onSelectSpot) {
-      onSelectSpot({ name: spot.name, lat: spot.lat, lon: spot.lon });
-      return;
-    }
-    router
-      .navigate({
-        to: "/karten/lokal",
-        search: { lat: spot.lat, lon: spot.lon, name: spot.name },
-      })
-      .catch(() => {
-        if (typeof window !== "undefined") {
-          const qs = new URLSearchParams({
-            lat: String(spot.lat),
-            lon: String(spot.lon),
-            name: spot.name,
-          });
-          window.location.assign(`/karten/lokal?${qs.toString()}`);
-        }
-      });
-  };
 
   const warnBanner =
     maxWarnLevel > 0 || maxAdvisoryLevel > 0
@@ -985,7 +962,7 @@ function RegionMapInner({
               mode={viewMode}
               dayIdx={dayIndex}
               absoluteHour={absoluteHour}
-              onClick={() => goToLokal(s)}
+              
               data={forecasts?.[s.id]}
               warning={spotWarnings[s.id]}
 
