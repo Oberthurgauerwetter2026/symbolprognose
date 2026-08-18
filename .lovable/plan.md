@@ -1,41 +1,27 @@
-# Radar-Prognose: flächiges Gelb absichern
+# Satellitenbild: weisses Flackern am Loop-Ende beheben
 
-## Befund (Stand jetzt geprüft)
+## Befund (im Code geprüft)
 
-- Das Prognose-Manifest (`radar/forecast-frames.json`) ist aktuell vollständig: 150 Frames, Coverage 100 %, davon 134 aus ICON-CH1 (15-min) und 16 aus der Stundenschiene.
-- Die Prognose-PNGs in der Ablage sind aktuell plausibel: bei den geprüften Zeitpunkten sind 90–100 % der Fläche transparent, Gelb (5 mm/h) tritt nur in kleinen Kernen auf.
-- Im lokalen Browsertest (Messung und Prognose bis Mi, 20:00) rendert die Karte weiche Bänder in der erwarteten Farbverteilung — kein flächiges Gelb.
-- Die Skalierung stimmt: die 15-min-Werte werden korrekt mit 4 auf mm/h gebracht, die Stundenschiene kommt als mm/h direkt aus ICON-CH2 (kein Mehrfachmodell, keine 3-h-Summen).
+`src/components/maps/satellite-map.tsx` hält nur ein Fenster von Kachel-Ebenen um den aktiven Zeitschritt (`WINDOW_BACK = 3`, `WINDOW_AHEAD = 6`), alle anderen werden entfernt (`unmountFrame`).
 
-Daraus folgt: Der Zustand aus dem Screenshot lässt sich mit den jetzt vorliegenden Daten nicht reproduzieren. Die Ursache ist damit **nicht bestätigt** — sie lag mit hoher Wahrscheinlichkeit in einem einzelnen Ingest-Lauf, dessen Feld für einige Stunden unrealistisch hohe Werte (≥ 5 mm/h über fast die ganze Fläche) enthielt. Deshalb steht am Anfang des Plans Beweissicherung plus eine Sperre, die so ein Bild gar nicht mehr anzeigt.
+Der Autoplay-Sprung wählt den nächsten Zeitschritt aus `loadedSet` — und das ist die Menge der *je einmal* geladenen Frames (`everLoadedRef`), nicht der aktuell montierten. Beim Loop-Ende springt der Index von letztem Frame auf 0. Frame 0 ist zu diesem Zeitpunkt aus der Karte entfernt: die Sichtbarkeitszeile setzt Deckkraft 1 für einen Layer, der nicht existiert — die Karte zeigt kurz nur den leeren Hintergrund, bis Frame 0 neu montiert und geladen ist. Das ist das weisse Flackern.
 
-## Vorgehen
+## Änderungen
 
-1. **Beweissicherung im Ingest**
-   Beim Rendern jedes Prognose-Frames die Flächenanteile pro Farbband mitrechnen und in `radar/forecast-frames.json` pro Frame ablegen (z. B. `wetPct`, `maxBandPct`, `maxMmh`). Damit ist im Nachhinein belegbar, ob ein Frame flächig in einem hohen Band lag.
+1. **Loop-Anfang im Fenster halten.** Das Frame-Fenster umschliesst die Zeitachse ringförmig: die Nachbarn werden modulo Anzahl Frames berechnet, sodass beim letzten Zeitschritt schon die ersten Frames wieder vorgeladen sind. Damit ist Frame 0 beim Wrap bereits montiert und geladen.
+2. **Nie auf einen leeren Frame umschalten.** Der aktuell sichtbare Frame bleibt sichtbar, bis der Ziel-Frame tatsächlich als Layer vorhanden und geladen ist. Fehlt er, wird er sofort montiert und der Wechsel erst nach dessen `load` vollzogen — kein Zwischenbild mit leerer Karte mehr.
+3. **Autoplay nur auf montierte Frames springen.** Die Auswahl des nächsten Zeitschritts nutzt die Menge der aktuell montierten/geladenen Ebenen statt „je geladen“; ist noch keiner bereit, bleibt der Loop einen Takt beim aktuellen Bild stehen.
 
-2. **Plausibilitätssperre im Ingest**
-   Ein Frame wird nicht veröffentlicht, wenn ein hohes Band (≥ 5 mm/h) mehr als einen definierten Anteil der Fläche einnimmt (Startwert 25 %) oder wenn praktisch die gesamte Fläche nass ist (> 90 %). Statt eines unsinnigen Frames bleibt der bisherige (gute) Frame stehen; der Lauf protokolliert die Ablehnung.
+Optik, Loop-Verhalten, Zeitanzeige und Quellenangaben bleiben unverändert; die Speicherbremse (Fenstergrösse) bleibt gleich gross.
 
-3. **Zweite Sperre im Frontend**
-   Beim Dekodieren eines Prognose-PNGs prüft die Karte denselben Anteil erneut. Reisst ein Frame die Schwelle, wird es nicht gezeichnet und der Zeitschritt bleibt leer — lieber keine Prognose als eine falsche Fläche.
+## Technisch
 
-4. **Sichtbarkeit im Admin**
-   In der Pipeline-Diagnose je Prognoselauf anzeigen: Anzahl Frames, Coverage, abgelehnte Frames und den grössten Nassflächenanteil. So wird ein Rückfall sofort sichtbar, ohne auf einen Screenshot warten zu müssen.
-
-5. **Merkregel festhalten**
-   Die bestehende Regel „Prognose nie blockig“ wird um „Prognose nie flächig in einem hohen Band“ ergänzt, damit die Sperre bei künftigen Änderungen nicht wieder entfernt wird.
-
-## Technische Details
-
-- `scripts/ingest_openmeteo.py`: in `_render_frame_png` zusätzlich die Bandstatistik zurückgeben; in den beiden Frame-Schleifen (15-min und Stunden) die Schwellenprüfung einbauen, abgelehnte Stempel sammeln und in `FORECAST_STATS` melden; Manifest-Einträge um die Kennzahlen erweitern. Schwellen über ENV steuerbar (`FORECAST_MAX_HIGHBAND_PCT`, `FORECAST_MAX_WET_PCT`).
-- `src/lib/radar.functions.ts`: die neuen Kennzahlen aus dem Manifest in den Frame-DTO übernehmen (ohne Verhaltensänderung an der bestehenden Filterlogik).
-- `src/components/maps/radar-map.tsx`: im PNG-Decoder von `CrossfadePrecipOverlay` den Anteil hoher Bänder bestimmen und implausible Frames verwerfen.
-- `src/lib/ingest-admin.functions.ts` + `src/routes/admin.tsx`: neue Kennzahlen in der Pipeline-Diagnose ausgeben.
-- Keine Änderung an Datenquellen, Modellwahl oder Farbskala.
+- `FrameStack`:
+  - `ensureWindow`: Nachbarindizes zyklisch (`(c + d + n) % n`) statt geklammert; `keep`-Set entsprechend.
+  - Neue Ref mit den aktuell geladenen, montierten Indizes; nach oben gemeldet (`onProgress` bleibt für den Filmstrip, zusätzlich ein `onMountedReady`-Callback oder ein geteiltes Ref).
+  - Sichtbarkeits-Effekt: Ziel-Layer nur einblenden, wenn `layersRef.current[i]` existiert und in `loadedRef` steht; sonst mounten und in dessen `load`-Handler die Umschaltung nachziehen (vorheriger Layer bleibt bis dahin auf Deckkraft 1).
+- `SatelliteMap`: Autoplay-Interval prüft die montiert-geladene Menge; bei leerer Menge kein Indexwechsel.
 
 ## Prüfung
 
-- Ein künstlich flächig gesetztes Feld wird im Ingest abgelehnt (Log) und erscheint nicht im Manifest.
-- Die aktuelle Prognose bleibt unverändert sichtbar (gleiche Frames, gleiche Optik).
-- Admin zeigt Frames, Coverage und abgelehnte Frames des letzten Prognoselaufs.
+Embed und `/karten/satellit` im Browser über mindestens zwei komplette Durchläufe beobachten und den Übergang letzter Frame → erster Frame per Screenshot-Serie kontrollieren (kein leeres Bild dazwischen).
