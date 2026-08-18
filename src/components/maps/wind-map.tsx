@@ -1339,7 +1339,7 @@ function WindMapInner({
           Aktualisiert am {new Intl.DateTimeFormat("de-CH", {
             day: "2-digit", month: "2-digit", year: "numeric",
             hour: "2-digit", minute: "2-digit",
-          }).format(new Date(data.generatedAt))} · Quelle: MeteoSchweiz ICON-CH1 → ICON-CH2 via Open-Meteo — stündliche Windböen 10 m, +0 … +48 h
+          }).format(new Date(data.generatedAt))} · Quelle: Oberthurgauer Wetter · © swisstopo · MeteoSchweiz ICON-CH1 → ICON-CH2
           {data.warning ? ` · Hinweis: ${data.warning}` : ""}
         </p>
       )}
