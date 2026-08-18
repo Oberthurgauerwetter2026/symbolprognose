@@ -50,7 +50,11 @@ function EmbedLokalprognose() {
       <div className="embed-live">
         <EmbedErrorBoundary>
           <EmbedShell>
-            <WeatherWidget initialDayIdx={day} initialLocation={initialLocation} />
+            <WeatherWidget
+              initialDayIdx={day}
+              initialLocation={initialLocation}
+              requireExplicitLocation={!initialLocation}
+            />
           </EmbedShell>
         </EmbedErrorBoundary>
       </div>
