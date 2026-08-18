@@ -128,6 +128,7 @@ interface Product {
   height: number;
   description: string;
   variant?: "amriswil" | "auto-height";
+  frameId?: string;
   note?: string;
 }
 
