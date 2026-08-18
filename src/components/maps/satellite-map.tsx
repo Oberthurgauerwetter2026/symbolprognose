@@ -480,27 +480,27 @@ function FrameStack({
      */
     const ensureWindow = (center: number) => {
       if (cancelled || frames.length === 0) return;
-      const c = Math.min(Math.max(center, 0), frames.length - 1);
+      const n = frames.length;
+      const c = Math.min(Math.max(center, 0), n - 1);
+      // Ringförmig: am Ende der Zeitachse sind die ersten Zeitschritte schon
+      // vorgeladen, damit der Loop-Wrap kein leeres Bild zeigt.
+      const wrap = (i: number) => ((i % n) + n) % n;
       const keep = new Set<number>();
-      for (let d = -WINDOW_BACK; d <= WINDOW_AHEAD; d++) {
-        const i = c + d;
-        if (i >= 0 && i < frames.length) keep.add(i);
-      }
-      for (let i = 0; i < frames.length; i++) {
+      for (let d = -WINDOW_BACK; d <= WINDOW_AHEAD; d++) keep.add(wrap(c + d));
+      for (let i = 0; i < n; i++) {
         if (!keep.has(i)) unmountFrame(i);
       }
       // Reihenfolge: aktiver Frame, dann in Abspielrichtung, dann zurück.
       queue = [];
       const order = [c];
       for (let d = 1; d <= Math.max(WINDOW_AHEAD, WINDOW_BACK); d++) {
-        if (d <= WINDOW_AHEAD) order.push(c + d);
-        if (d <= WINDOW_BACK) order.push(c - d);
+        if (d <= WINDOW_AHEAD) order.push(wrap(c + d));
+        if (d <= WINDOW_BACK) order.push(wrap(c - d));
       }
       for (const i of order) {
-        if (i < 0 || i >= frames.length) continue;
         if (layersRef.current[i]) continue;
         if (i === c) mountFrame(i);
-        else queue.push(i);
+        else if (!queue.includes(i)) queue.push(i);
       }
       pump();
     };
@@ -514,6 +514,7 @@ function FrameStack({
     return () => {
       cancelled = true;
       ensureRef.current = null;
+      applyVisibilityRef.current = null;
       timers.forEach((t) => window.clearTimeout(t));
       timers.clear();
       layersRef.current.forEach((tl) => {
@@ -528,11 +529,12 @@ function FrameStack({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, provider, effectiveLayer, tileMatrixSet, framesKey, clampedInitialIndex, noSupersample]);
 
-  // Fenster mitziehen und Sichtbarkeit setzen.
+  // Fenster mitziehen; Sichtbarkeit erst wenn der Ziel-Frame geladen ist.
   useEffect(() => {
     lastCenterRef.current = clampedActiveIndex;
     ensureRef.current?.(clampedActiveIndex);
-    layersRef.current.forEach((tl, i) => tl?.setOpacity(i === clampedActiveIndex ? 1 : 0));
+    applyVisibilityRef.current?.();
+
   }, [clampedActiveIndex]);
 
   return null;
