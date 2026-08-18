@@ -33,6 +33,7 @@ import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
+import { Route as EmbedLokalprognoseRouteImport } from './routes/embed.lokalprognose'
 import { Route as EmbedLokalSucheRouteImport } from './routes/embed.lokal-suche'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
@@ -168,6 +169,11 @@ const EmbedRadarRoute = EmbedRadarRouteImport.update({
   path: '/embed/radar',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmbedLokalprognoseRoute = EmbedLokalprognoseRouteImport.update({
+  id: '/embed/lokalprognose',
+  path: '/embed/lokalprognose',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmbedLokalSucheRoute = EmbedLokalSucheRouteImport.update({
   id: '/embed/lokal-suche',
   path: '/embed/lokal-suche',
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
+  '/embed/lokalprognose': typeof EmbedLokalprognoseRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -297,6 +304,7 @@ export interface FileRoutesByTo {
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
+  '/embed/lokalprognose': typeof EmbedLokalprognoseRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -338,6 +346,7 @@ export interface FileRoutesById {
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
+  '/embed/lokalprognose': typeof EmbedLokalprognoseRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -380,6 +389,7 @@ export interface FileRouteTypes {
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/lokal-suche'
+    | '/embed/lokalprognose'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -420,6 +430,7 @@ export interface FileRouteTypes {
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/lokal-suche'
+    | '/embed/lokalprognose'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -460,6 +471,7 @@ export interface FileRouteTypes {
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/lokal-suche'
+    | '/embed/lokalprognose'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -501,6 +513,7 @@ export interface RootRouteChildren {
   EmbedAllRoute: typeof EmbedAllRoute
   EmbedLokalRoute: typeof EmbedLokalRoute
   EmbedLokalSucheRoute: typeof EmbedLokalSucheRoute
+  EmbedLokalprognoseRoute: typeof EmbedLokalprognoseRoute
   EmbedRadarRoute: typeof EmbedRadarRoute
   EmbedRegionRoute: typeof EmbedRegionRoute
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
@@ -702,6 +715,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedRadarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/embed/lokalprognose': {
+      id: '/embed/lokalprognose'
+      path: '/embed/lokalprognose'
+      fullPath: '/embed/lokalprognose'
+      preLoaderRoute: typeof EmbedLokalprognoseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/embed/lokal-suche': {
       id: '/embed/lokal-suche'
       path: '/embed/lokal-suche'
@@ -813,6 +833,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedAllRoute: EmbedAllRoute,
   EmbedLokalRoute: EmbedLokalRoute,
   EmbedLokalSucheRoute: EmbedLokalSucheRoute,
+  EmbedLokalprognoseRoute: EmbedLokalprognoseRoute,
   EmbedRadarRoute: EmbedRadarRoute,
   EmbedRegionRoute: EmbedRegionRoute,
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
