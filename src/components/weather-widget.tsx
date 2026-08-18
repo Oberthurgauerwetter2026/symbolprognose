@@ -192,7 +192,15 @@ function WeatherWidgetInner({
       },
       { timeout: 8000, maximumAge: 5 * 60_000 },
     );
-  }, [hydrated, location, locationSavedAt, detailOnly, lockedLocation, initialLocation]);
+  }, [
+    hydrated,
+    location,
+    locationSavedAt,
+    detailOnly,
+    lockedLocation,
+    initialLocation,
+    requireExplicitLocation,
+  ]);
 
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
