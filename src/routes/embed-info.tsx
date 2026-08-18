@@ -301,7 +301,14 @@ function EmbedInfo() {
               p.variant === "amriswil"
                 ? buildAmriswilSnippet(url, p.path, p.height)
                 : p.variant === "auto-height"
-                  ? buildAutoHeightSnippet(url, p.path, p.height, p.frameId ?? `otw-${p.id}`, p.label)
+                  ? buildAutoHeightSnippet(
+                      url,
+                      p.path,
+                      p.height,
+                      p.frameId ?? `otw-${p.id}`,
+                      p.label,
+                      p.id === "region" ? 520 : 200,
+                    )
                   : buildSimpleSnippet(url, p.path, p.height, p.path.startsWith("/embed/satellit"));
 
             return (
