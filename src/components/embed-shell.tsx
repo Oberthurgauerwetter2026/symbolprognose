@@ -10,9 +10,11 @@ import { useEffect, useRef, type ReactNode } from "react";
 export function EmbedShell({
   children,
   fillViewport = false,
+  flush = false,
 }: {
   children: ReactNode;
   fillViewport?: boolean;
+  flush?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
