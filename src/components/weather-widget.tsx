@@ -163,7 +163,8 @@ function WeatherWidgetInner({
   const didAutoLocate = useRef(false);
   useEffect(() => {
     if (!hydrated) return;
-    if (detailOnly || lockedLocation || initialLocation) return;
+    if (detailOnly || lockedLocation || initialLocation || requireExplicitLocation)
+      return;
     // Auto-Geolocate, wenn kein Ort vorhanden oder gespeicherter Ort älter als 24 h.
     const stale =
       locationSavedAt !== null && Date.now() - locationSavedAt > 24 * 60 * 60_000;
