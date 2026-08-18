@@ -198,6 +198,16 @@ const PRODUCTS: Product[] = [
     note: "Das Snippet enthält ein kleines Skript für die Höhenanpassung; in WordPress in einen Custom-HTML-Block einfügen (nicht in einen reinen iframe-Block).",
   },
   {
+    id: "lokalprognose",
+    label: "Lokalprognose (wie Original)",
+    path: "/embed/lokalprognose",
+    height: 280,
+    variant: "auto-height",
+    description:
+      "Die Lokalprognose genau wie auf der Website — Ortssuche, Tageskacheln mit „7 Tage“-Umschalter, Tagesbalken, Stundenverlauf und Fussleiste — nur ohne Wetterboard-Rahmen. Startet schlank mit dem Suchfeld, nach der Ortswahl klappt die volle Prognose auf.",
+    note: "Das Snippet enthält ein kleines Skript für die Höhenanpassung; in WordPress in einen Custom-HTML-Block einfügen (nicht in einen reinen iframe-Block).",
+  },
+  {
     id: "lokal",
     label: "Lokalprognose (Karte)",
     path: "/embed/lokal",
