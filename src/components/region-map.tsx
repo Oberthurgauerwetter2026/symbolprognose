@@ -340,7 +340,6 @@ function SpotMarker({
   mode,
   dayIdx,
   absoluteHour,
-  onClick,
   data,
   warning,
 }: {
@@ -348,7 +347,6 @@ function SpotMarker({
   mode: "hourly" | "daily";
   dayIdx: number;
   absoluteHour: number;
-  onClick: () => void;
   data: ForecastResponse | undefined;
   warning?: WarningDTO | null;
 }) {
