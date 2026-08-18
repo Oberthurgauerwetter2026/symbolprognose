@@ -116,6 +116,7 @@ function WeatherWidgetInner({
   lockedLocation,
   compact = false,
   initialExtended = false,
+  requireExplicitLocation = false,
 }: {
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
@@ -124,6 +125,11 @@ function WeatherWidgetInner({
   compact?: boolean;
   /** Startet direkt mit der 7-Tage-Kachelreihe (z. B. im Embed). */
   initialExtended?: boolean;
+  /**
+   * Embed-Modus: kein gespeicherter Ort und keine automatische Ortung beim Start —
+   * die Prognose klappt erst nach Suche oder Klick auf „Ortung“ auf.
+   */
+  requireExplicitLocation?: boolean;
 } = {}) {
   const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (lockedLocation) return lockedLocation;
@@ -133,7 +139,7 @@ function WeatherWidgetInner({
   const [hydrated, setHydrated] = useState(false);
   const [locationSavedAt, setLocationSavedAt] = useState<number | null>(null);
   useEffect(() => {
-    if (lockedLocation || initialLocation) {
+    if (lockedLocation || initialLocation || requireExplicitLocation) {
       setHydrated(true);
       return;
     }
@@ -157,7 +163,8 @@ function WeatherWidgetInner({
   const didAutoLocate = useRef(false);
   useEffect(() => {
     if (!hydrated) return;
-    if (detailOnly || lockedLocation || initialLocation) return;
+    if (detailOnly || lockedLocation || initialLocation || requireExplicitLocation)
+      return;
     // Auto-Geolocate, wenn kein Ort vorhanden oder gespeicherter Ort älter als 24 h.
     const stale =
       locationSavedAt !== null && Date.now() - locationSavedAt > 24 * 60 * 60_000;
@@ -185,7 +192,15 @@ function WeatherWidgetInner({
       },
       { timeout: 8000, maximumAge: 5 * 60_000 },
     );
-  }, [hydrated, location, locationSavedAt, detailOnly, lockedLocation, initialLocation]);
+  }, [
+    hydrated,
+    location,
+    locationSavedAt,
+    detailOnly,
+    lockedLocation,
+    initialLocation,
+    requireExplicitLocation,
+  ]);
 
   const [embedMinimal, setEmbedMinimal] = useState(false);
   useEffect(() => {
