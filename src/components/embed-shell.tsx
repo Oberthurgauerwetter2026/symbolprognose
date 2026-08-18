@@ -142,7 +142,11 @@ export function EmbedShell({
   return (
     <div
       ref={ref}
-      className="@container mx-auto min-h-[320px] w-full max-w-6xl p-0 @[360px]:p-2 @[520px]:p-4"
+      className={
+        flush
+          ? "@container mx-auto min-h-[320px] w-full max-w-6xl p-0"
+          : "@container mx-auto min-h-[320px] w-full max-w-6xl p-0 @[360px]:p-2 @[520px]:p-4"
+      }
     >
       {children}
     </div>
