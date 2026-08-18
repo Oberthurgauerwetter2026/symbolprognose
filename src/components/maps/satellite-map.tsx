@@ -315,7 +315,10 @@ function FrameStack({
   framesRef.current = frames;
   /** Nachschub-Funktion des aktiven Effekts (Fenster nachziehen). */
   const ensureRef = useRef<((center: number) => void) | null>(null);
+  /** Sichtbarkeit auf den aktiven Zeitschritt anwenden (nur wenn geladen). */
+  const applyVisibilityRef = useRef<(() => void) | null>(null);
   const lastCenterRef = useRef(clampedInitialIndex);
+
 
   useEffect(() => {
     setEffectiveLayer(layer);
