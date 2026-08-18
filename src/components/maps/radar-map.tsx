@@ -2166,7 +2166,7 @@ function RadarMapInner({
     <div className={cn("@container", bare ? "relative flex h-full w-full flex-col" : "space-y-3")}>
       <div
         className={cn(
-          "relative overflow-hidden shadow-lg",
+          "map-attrib-compact relative overflow-hidden shadow-lg",
           bare
             ? "h-full w-full min-h-0 flex-1"
             : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
