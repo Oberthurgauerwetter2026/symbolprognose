@@ -35,7 +35,7 @@ function EmbedLokalSuche() {
       <div className="embed-live">
         <EmbedErrorBoundary>
           <EmbedShell>
-            <WeatherWidget compact />
+            <WeatherWidget compact requireExplicitLocation />
           </EmbedShell>
         </EmbedErrorBoundary>
       </div>
