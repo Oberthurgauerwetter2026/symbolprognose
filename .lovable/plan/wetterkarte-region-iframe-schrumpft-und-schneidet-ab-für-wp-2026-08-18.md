@@ -1,4 +1,4 @@
-# Wetterkarte Region: iframe schrumpft und schneidet ab
+# Wetterkarte Region: iframe schrumpft und schneidet ab (für WP)
 
 ## Problem
 
@@ -9,17 +9,15 @@ Das Embed „Wetterkarte Region“ nutzt Auto-Höhe: das Widget meldet seine Hö
 Höhenmeldung und Höhenanwendung robust gegen kurzzeitige Einbrüche machen:
 
 1. **Widget-Seite (Höhe melden)**
-   - Höhe aus dem gesamten Dokumentinhalt statt nur aus dem Container ermitteln (verhindert Messungen von 0/klein während des Aufbaus).
-   - Messungen unter einer Mindesthöhe verwerfen, statt sie zu senden.
-   - Meldungen leicht entprellen und nach dem Laden von Karte/Bildern eine Nachmeldung senden.
-
+  - Höhe aus dem gesamten Dokumentinhalt statt nur aus dem Container ermitteln (verhindert Messungen von 0/klein während des Aufbaus).
+  - Messungen unter einer Mindesthöhe verwerfen, statt sie zu senden.
+  - Meldungen leicht entprellen und nach dem Laden von Karte/Bildern eine Nachmeldung senden.
 2. **Host-Snippet (Höhe anwenden)**
-   - Vergrösserungen sofort anwenden.
-   - Verkleinerungen nur übernehmen, wenn die kleinere Höhe ca. 500 ms stabil bleibt und der Unterschied relevant ist — so führt ein kurzer Einbruch nicht mehr zum Abschneiden.
-   - Untergrenze im Snippet (Startwert der Karte), damit das iframe nie unter Kartenhöhe fällt.
-
+  - Vergrösserungen sofort anwenden.
+  - Verkleinerungen nur übernehmen, wenn die kleinere Höhe ca. 500 ms stabil bleibt und der Unterschied relevant ist — so führt ein kurzer Einbruch nicht mehr zum Abschneiden.
+  - Untergrenze im Snippet (Startwert der Karte), damit das iframe nie unter Kartenhöhe fällt.
 3. **Regions-Embed selbst**
-   - Der Kartenbereich erhält eine Mindesthöhe (auch im Suspense-Zustand), damit beim Wechsel Karte ↔ Lokalprognose kein Nullhöhen-Moment entsteht.
+  - Der Kartenbereich erhält eine Mindesthöhe (auch im Suspense-Zustand), damit beim Wechsel Karte ↔ Lokalprognose kein Nullhöhen-Moment entsteht.
 
 ## Technisch
 

@@ -52,10 +52,13 @@ function EmbedRegion() {
           />
         </div>
       ) : (
-        <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
-          <RegionMap onSelectSpot={setSelected} />
-        </Suspense>
+        <div className="min-h-[480px]">
+          <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
+            <RegionMap onSelectSpot={setSelected} />
+          </Suspense>
+        </div>
       )}
+
     </EmbedShell>
   );
 }

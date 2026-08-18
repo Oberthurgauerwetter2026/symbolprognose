@@ -63,6 +63,7 @@ function buildAutoHeightSnippet(
   startHeight = 260,
   frameId = "otw-lokal-suche",
   title = "Lokalprognose mit Ortssuche",
+  minHeight = 200,
 ) {
   const full = `${url}${path}`;
   const origin = new URL(url).origin;
@@ -82,18 +83,37 @@ function buildAutoHeightSnippet(
 <script>
 (function () {
   var frame = document.getElementById('${frameId}');
+  var MIN = ${minHeight};
+  var current = ${startHeight};
+  var shrinkTimer = null;
+  function apply(h) {
+    current = h;
+    frame.style.height = h + 'px';
+  }
   window.addEventListener('message', function (e) {
     if (e.origin !== '${origin}') return;
     if (e.source !== frame.contentWindow) return;
     var d = e.data;
     if (!d || d.type !== 'lovable-weather:height') return;
-    var h = Number(d.height);
-    if (!isFinite(h) || h < 120 || h > 4000) return;
-    frame.style.height = Math.ceil(h) + 'px';
+    var h = Math.ceil(Number(d.height));
+    if (!isFinite(h) || h < MIN || h > 4000) return;
+    if (h > current) {
+      if (shrinkTimer) { clearTimeout(shrinkTimer); shrinkTimer = null; }
+      apply(h);
+      return;
+    }
+    if (current - h <= 40) return;
+    // Verkleinerung erst übernehmen, wenn sie stabil bleibt
+    if (shrinkTimer) clearTimeout(shrinkTimer);
+    shrinkTimer = setTimeout(function () {
+      shrinkTimer = null;
+      apply(h);
+    }, 500);
   });
 })();
 </script>`;
 }
+
 
 
 
@@ -281,7 +301,14 @@ function EmbedInfo() {
               p.variant === "amriswil"
                 ? buildAmriswilSnippet(url, p.path, p.height)
                 : p.variant === "auto-height"
-                  ? buildAutoHeightSnippet(url, p.path, p.height, p.frameId ?? `otw-${p.id}`, p.label)
+                  ? buildAutoHeightSnippet(
+                      url,
+                      p.path,
+                      p.height,
+                      p.frameId ?? `otw-${p.id}`,
+                      p.label,
+                      p.id === "region" ? 520 : 200,
+                    )
                   : buildSimpleSnippet(url, p.path, p.height, p.path.startsWith("/embed/satellit"));
 
             return (
