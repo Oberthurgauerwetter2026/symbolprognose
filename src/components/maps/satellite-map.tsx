@@ -713,11 +713,13 @@ function SatelliteMapInner({
     if (!playing || total < 2 || !ready || !visible) return;
     const t = window.setInterval(() => {
       setIndex((i) => {
-        // Nur auf bereits geladene Zeitschritte springen.
+        // Nur auf montierte und geladene Zeitschritte springen — sonst würde
+        // beim Wechsel kurz der leere Hintergrund erscheinen.
+        const mounted = mountedLoadedRef.current;
         let next = i;
         for (let step = 1; step <= total; step++) {
           const cand = (i + step) % total;
-          if (loadedSet.has(cand)) {
+          if (mounted.has(cand)) {
             next = cand;
             break;
           }
@@ -727,7 +729,8 @@ function SatelliteMapInner({
       });
     }, speedMs);
     return () => window.clearInterval(t);
-  }, [playing, speedMs, total, ready, frames, loadedSet, visible]);
+  }, [playing, speedMs, total, ready, frames, visible]);
+
 
 
 
