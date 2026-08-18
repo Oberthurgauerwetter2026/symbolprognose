@@ -281,6 +281,7 @@ function FrameStack({
   onProgress,
   onOutage,
   noSupersample = false,
+  mountedLoadedRef,
 }: {
   provider: "eumetsat-wms" | "gibs-wmts";
   layer: string;
@@ -292,12 +293,16 @@ function FrameStack({
   onProgress: (loadedIndices: number[], total: number) => void;
   onOutage?: (outage: boolean) => void;
   noSupersample?: boolean;
+  /** Aktuell montierte + geladene Zeitschritte (für Autoplay-Sprünge). */
+  mountedLoadedRef?: React.MutableRefObject<Set<number>>;
 }) {
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
-  const loadedRef = useRef<Set<number>>(new Set());
+  const fallbackLoadedRef = useRef<Set<number>>(new Set());
+  const loadedRef = mountedLoadedRef ?? fallbackLoadedRef;
   /** Einmal geladene Zeitschritte (bleiben im HTTP-Cache) — für Filmstrip/Autoplay. */
   const everLoadedRef = useRef<Set<number>>(new Set());
+
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
   const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
@@ -310,7 +315,10 @@ function FrameStack({
   framesRef.current = frames;
   /** Nachschub-Funktion des aktiven Effekts (Fenster nachziehen). */
   const ensureRef = useRef<((center: number) => void) | null>(null);
+  /** Sichtbarkeit auf den aktiven Zeitschritt anwenden (nur wenn geladen). */
+  const applyVisibilityRef = useRef<(() => void) | null>(null);
   const lastCenterRef = useRef(clampedInitialIndex);
+
 
   useEffect(() => {
     setEffectiveLayer(layer);
@@ -361,6 +369,20 @@ function FrameStack({
       }
     };
 
+    /**
+     * Nur einblenden, wenn der Ziel-Zeitschritt wirklich als geladene Ebene in
+     * der Karte hängt. Sonst bleibt das bisherige Bild stehen — vorher blitzte
+     * beim Loop-Ende der leere Hintergrund durch.
+     */
+    const applyVisibility = () => {
+      if (cancelled) return;
+      const c = lastCenterRef.current;
+      const tl = layersRef.current[c];
+      if (!tl || !loadedRef.current.has(c)) return;
+      layersRef.current.forEach((l, i) => l?.setOpacity(i === c ? 1 : 0));
+    };
+    applyVisibilityRef.current = applyVisibility;
+
     const settle = (i: number, loaded: boolean) => {
       if (cancelled) return;
       inFlight = Math.max(0, inFlight - 1);
@@ -373,7 +395,9 @@ function FrameStack({
           onProgress([...everLoadedRef.current], frames.length);
         }
         onOutage?.(false);
+        if (i === lastCenterRef.current) applyVisibility();
       } else {
+
         failStreak += 1;
         // Komplettausfall der Quelle: Laden abbrechen statt endlos anfragen.
         if (!anySuccess && failStreak >= OUTAGE_FAIL_STREAK) {
@@ -456,27 +480,27 @@ function FrameStack({
      */
     const ensureWindow = (center: number) => {
       if (cancelled || frames.length === 0) return;
-      const c = Math.min(Math.max(center, 0), frames.length - 1);
+      const n = frames.length;
+      const c = Math.min(Math.max(center, 0), n - 1);
+      // Ringförmig: am Ende der Zeitachse sind die ersten Zeitschritte schon
+      // vorgeladen, damit der Loop-Wrap kein leeres Bild zeigt.
+      const wrap = (i: number) => ((i % n) + n) % n;
       const keep = new Set<number>();
-      for (let d = -WINDOW_BACK; d <= WINDOW_AHEAD; d++) {
-        const i = c + d;
-        if (i >= 0 && i < frames.length) keep.add(i);
-      }
-      for (let i = 0; i < frames.length; i++) {
+      for (let d = -WINDOW_BACK; d <= WINDOW_AHEAD; d++) keep.add(wrap(c + d));
+      for (let i = 0; i < n; i++) {
         if (!keep.has(i)) unmountFrame(i);
       }
       // Reihenfolge: aktiver Frame, dann in Abspielrichtung, dann zurück.
       queue = [];
       const order = [c];
       for (let d = 1; d <= Math.max(WINDOW_AHEAD, WINDOW_BACK); d++) {
-        if (d <= WINDOW_AHEAD) order.push(c + d);
-        if (d <= WINDOW_BACK) order.push(c - d);
+        if (d <= WINDOW_AHEAD) order.push(wrap(c + d));
+        if (d <= WINDOW_BACK) order.push(wrap(c - d));
       }
       for (const i of order) {
-        if (i < 0 || i >= frames.length) continue;
         if (layersRef.current[i]) continue;
         if (i === c) mountFrame(i);
-        else queue.push(i);
+        else if (!queue.includes(i)) queue.push(i);
       }
       pump();
     };
@@ -490,6 +514,7 @@ function FrameStack({
     return () => {
       cancelled = true;
       ensureRef.current = null;
+      applyVisibilityRef.current = null;
       timers.forEach((t) => window.clearTimeout(t));
       timers.clear();
       layersRef.current.forEach((tl) => {
@@ -504,11 +529,12 @@ function FrameStack({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, provider, effectiveLayer, tileMatrixSet, framesKey, clampedInitialIndex, noSupersample]);
 
-  // Fenster mitziehen und Sichtbarkeit setzen.
+  // Fenster mitziehen; Sichtbarkeit erst wenn der Ziel-Frame geladen ist.
   useEffect(() => {
     lastCenterRef.current = clampedActiveIndex;
     ensureRef.current?.(clampedActiveIndex);
-    layersRef.current.forEach((tl, i) => tl?.setOpacity(i === clampedActiveIndex ? 1 : 0));
+    applyVisibilityRef.current?.();
+
   }, [clampedActiveIndex]);
 
   return null;
@@ -616,6 +642,8 @@ function SatelliteMapInner({
 
 
   const lastTimeRef = useRef<string | null>(null);
+  /** Vom FrameStack gepflegt: aktuell montierte + geladene Zeitschritte. */
+  const mountedLoadedRef = useRef<Set<number>>(new Set());
   const initialIndexRef = useRef<number>(0);
   const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
   const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
@@ -687,11 +715,13 @@ function SatelliteMapInner({
     if (!playing || total < 2 || !ready || !visible) return;
     const t = window.setInterval(() => {
       setIndex((i) => {
-        // Nur auf bereits geladene Zeitschritte springen.
+        // Nur auf montierte und geladene Zeitschritte springen — sonst würde
+        // beim Wechsel kurz der leere Hintergrund erscheinen.
+        const mounted = mountedLoadedRef.current;
         let next = i;
         for (let step = 1; step <= total; step++) {
           const cand = (i + step) % total;
-          if (loadedSet.has(cand)) {
+          if (mounted.has(cand)) {
             next = cand;
             break;
           }
@@ -701,7 +731,8 @@ function SatelliteMapInner({
       });
     }, speedMs);
     return () => window.clearInterval(t);
-  }, [playing, speedMs, total, ready, frames, loadedSet, visible]);
+  }, [playing, speedMs, total, ready, frames, visible]);
+
 
 
 
@@ -856,6 +887,7 @@ function SatelliteMapInner({
               onProgress={(indices) => setLoadedIdx(indices)}
               onOutage={setOutage}
               noSupersample={loop}
+              mountedLoadedRef={mountedLoadedRef}
             />
           )}
           {showSwiss && <SwissOutline />}
