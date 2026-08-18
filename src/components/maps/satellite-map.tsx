@@ -281,6 +281,7 @@ function FrameStack({
   onProgress,
   onOutage,
   noSupersample = false,
+  mountedLoadedRef,
 }: {
   provider: "eumetsat-wms" | "gibs-wmts";
   layer: string;
@@ -292,12 +293,16 @@ function FrameStack({
   onProgress: (loadedIndices: number[], total: number) => void;
   onOutage?: (outage: boolean) => void;
   noSupersample?: boolean;
+  /** Aktuell montierte + geladene Zeitschritte (für Autoplay-Sprünge). */
+  mountedLoadedRef?: React.MutableRefObject<Set<number>>;
 }) {
   const map = useMap();
   const layersRef = useRef<(L.TileLayer | null)[]>([]);
-  const loadedRef = useRef<Set<number>>(new Set());
+  const fallbackLoadedRef = useRef<Set<number>>(new Set());
+  const loadedRef = mountedLoadedRef ?? fallbackLoadedRef;
   /** Einmal geladene Zeitschritte (bleiben im HTTP-Cache) — für Filmstrip/Autoplay. */
   const everLoadedRef = useRef<Set<number>>(new Set());
+
   const [effectiveLayer, setEffectiveLayer] = useState(layer);
   const triedFallbackRef = useRef(false);
   const clampedActiveIndex = frames.length > 0 ? Math.min(Math.max(activeIndex, 0), frames.length - 1) : 0;
