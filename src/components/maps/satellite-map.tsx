@@ -369,6 +369,20 @@ function FrameStack({
       }
     };
 
+    /**
+     * Nur einblenden, wenn der Ziel-Zeitschritt wirklich als geladene Ebene in
+     * der Karte hängt. Sonst bleibt das bisherige Bild stehen — vorher blitzte
+     * beim Loop-Ende der leere Hintergrund durch.
+     */
+    const applyVisibility = () => {
+      if (cancelled) return;
+      const c = lastCenterRef.current;
+      const tl = layersRef.current[c];
+      if (!tl || !loadedRef.current.has(c)) return;
+      layersRef.current.forEach((l, i) => l?.setOpacity(i === c ? 1 : 0));
+    };
+    applyVisibilityRef.current = applyVisibility;
+
     const settle = (i: number, loaded: boolean) => {
       if (cancelled) return;
       inFlight = Math.max(0, inFlight - 1);
@@ -381,7 +395,9 @@ function FrameStack({
           onProgress([...everLoadedRef.current], frames.length);
         }
         onOutage?.(false);
+        if (i === lastCenterRef.current) applyVisibility();
       } else {
+
         failStreak += 1;
         // Komplettausfall der Quelle: Laden abbrechen statt endlos anfragen.
         if (!anySuccess && failStreak >= OUTAGE_FAIL_STREAK) {
