@@ -215,3 +215,29 @@ html.embed .embed-fallback {
 
 
 
+
+/* Karten mit überlagertem Bedienpanel (Filmstrip/Legende): auf schmalen
+   Bildschirmen darf die Leaflet-Quellenzeile nicht mehrzeilig werden und das
+   Panel überdecken. Sie bleibt einzeilig, wird bei Platzmangel gekürzt und
+   sitzt oberhalb des Panels. */
+.map-attrib-compact .leaflet-control-attribution {
+  max-width: calc(100% - 16px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 639px) {
+  .map-attrib-compact .leaflet-bottom.leaflet-right,
+  .map-attrib-compact .leaflet-bottom.leaflet-left {
+    bottom: 108px;
+  }
+  .map-attrib-compact .leaflet-control-attribution {
+    max-width: calc(100vw - 24px);
+    font-size: 9px;
+    line-height: 1.3;
+    padding: 1px 5px;
+    border-radius: 6px 0 0 0;
+    background: rgba(255, 255, 255, 0.82);
+  }
+}
