@@ -90,19 +90,19 @@ export function EmbedShell({
 
     const measure = () =>
       Math.ceil(
-        Math.max(
-          el.getBoundingClientRect().height,
-          document.documentElement.scrollHeight,
-        ),
+        // Nur den eigenen Inhalt messen. documentElement.scrollHeight enthält
+        // die iframe-Viewporthöhe und würde verhindern, dass das iframe je
+        // wieder schrumpft (typisch auf Mobile: unnötig lange Seite).
+        Math.max(el.getBoundingClientRect().height, el.scrollHeight),
       );
 
     const send = () => {
       const h = measure();
-      // Kurzzeitige Einbrüche (Neu-Mount, Chunk-Load) nicht melden — sonst
-      // schrumpft das iframe beim Host und die Karte wirkt abgeschnitten.
-      if (h < 200) return;
+      // Kurzzeitige Einbrüche (Neu-Mount, Chunk-Load) nicht melden.
+      if (h < 80) return;
       window.parent?.postMessage({ type: "lovable-weather:height", height: h }, "*");
     };
+
 
     const scheduleSend = () => {
       if (raf) cancelAnimationFrame(raf);
@@ -144,7 +144,7 @@ export function EmbedShell({
       ref={ref}
       className={
         flush
-          ? "@container mx-auto min-h-[320px] w-full max-w-6xl p-0"
+          ? "@container mx-auto w-full max-w-6xl p-0"
           : "@container mx-auto min-h-[320px] w-full max-w-6xl p-0 @[360px]:p-2 @[520px]:p-4"
       }
     >
