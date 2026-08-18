@@ -2168,7 +2168,7 @@ function RadarMapInner({
         className={cn(
           "map-attrib-compact relative overflow-hidden shadow-lg",
           bare
-            ? "map-attrib-lift h-full w-full min-h-0 flex-1"
+            ? "h-full w-full min-h-0 flex-1"
             : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
         )}
       >
@@ -2666,7 +2666,17 @@ function RadarMapInner({
       {/* Footnote unter der Karte */}
       {data && (
         <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
-          Aktualisiert am {fmtUpdatedAt(data.generatedAt)} · Quellen: MeteoSchweiz Radar (Messung &amp; Hagel-POH) · MeteoSchweiz ICON-CH1 (Nowcast) und ICON-seamless (Vorhersage bis +48 h)
+          Aktualisiert {fmtUpdatedAt(data.generatedAt)} · Quelle: Oberthurgauer Wetter · ©{" "}
+          <a
+            href="https://www.swisstopo.admin.ch/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            swisstopo
+          </a>{" "}
+          · MeteoSchweiz
+
           {LIGHTNING_ENABLED && (
             <>
               {" · "}
