@@ -388,7 +388,7 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
         </div>
       </div>
       <CardContent className="p-0">
-        <div className="relative h-[560px] w-full">
+        <div className="map-attrib-compact relative h-[560px] w-full">
           <style>{`
             .leaflet-tooltip.city-label {
               background: rgba(255,255,255,0.85);

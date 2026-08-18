@@ -472,7 +472,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
       >
         <div
           className={cn(
-            "relative aspect-[4/3] min-h-[280px] w-full overflow-hidden rounded-2xl shadow-lg",
+            "map-attrib-compact relative aspect-[4/3] min-h-[280px] w-full overflow-hidden rounded-2xl shadow-lg",
             bare
               ? "@md:aspect-auto @md:h-[clamp(420px,60vh,760px)] @lg:h-full"
               : "sm:aspect-auto sm:h-[clamp(420px,60vh,760px)] @lg:h-full",
