@@ -77,7 +77,7 @@ function buildAutoHeightSnippet(
   referrerpolicy="no-referrer-when-downgrade"
   scrolling="no"
   allow="geolocation"
-  style="width:100%;height:${startHeight}px;border:0;display:block;background:#f4f4f5;border-radius:8px;transition:height .25s ease"
+  style="width:100%;height:${startHeight}px;border:0;display:block;background:transparent;border-radius:8px;transition:height .25s ease"
   title="${title}"
 ></iframe>
 <script>
@@ -208,20 +208,10 @@ const PRODUCTS: Product[] = [
   },
 
   {
-    id: "lokal-suche",
-    label: "Lokalprognose mit Ortssuche (Auto-Höhe)",
-    path: "/embed/lokal-suche",
-    height: 260,
-    variant: "auto-height",
-    description:
-      "Startet schlank mit Suchfeld und Ortung. Sobald ein Ort gewählt ist, klappen Tagesleiste, Stundenverlauf und 7-Tage-Prognose auf — das iframe wächst automatisch mit.",
-    note: "Das Snippet enthält ein kleines Skript für die Höhenanpassung; in WordPress in einen Custom-HTML-Block einfügen (nicht in einen reinen iframe-Block).",
-  },
-  {
     id: "lokalprognose",
     label: "Lokalprognose (wie Original)",
     path: "/embed/lokalprognose",
-    height: 280,
+    height: 230,
     variant: "auto-height",
     description:
       "Die Lokalprognose genau wie auf der Website — Ortssuche, Tageskacheln mit „7 Tage“-Umschalter, Tagesbalken, Stundenverlauf und Fussleiste — nur ohne Wetterboard-Rahmen. Startet schlank mit dem Suchfeld, nach der Ortswahl klappt die volle Prognose auf.",

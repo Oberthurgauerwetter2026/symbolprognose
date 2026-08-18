@@ -54,6 +54,7 @@ function EmbedLokalprognose() {
               initialDayIdx={day}
               initialLocation={initialLocation}
               requireExplicitLocation={!initialLocation}
+              transparent
             />
           </EmbedShell>
         </EmbedErrorBoundary>

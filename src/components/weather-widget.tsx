@@ -117,6 +117,7 @@ function WeatherWidgetInner({
   compact = false,
   initialExtended = false,
   requireExplicitLocation = false,
+  transparent = false,
 }: {
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
@@ -130,6 +131,8 @@ function WeatherWidgetInner({
    * die Prognose klappt erst nach Suche oder Klick auf „Ortung“ auf.
    */
   requireExplicitLocation?: boolean;
+  /** Entfernt nur im eigenständigen iframe den Seitenhintergrund. */
+  transparent?: boolean;
 } = {}) {
   const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (lockedLocation) return lockedLocation;
@@ -243,24 +246,7 @@ function WeatherWidgetInner({
     }
   }, [location, detailOnly]);
 
-  // Post height to parent (for iframe embed auto-resize)
   const rootRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.parent === window) return; // not embedded
-    const el = rootRef.current;
-    if (!el) return;
-    const post = () => {
-      window.parent.postMessage(
-        { type: "lovable-weather:height", height: el.scrollHeight },
-        "*",
-      );
-    };
-    post();
-    const ro = new ResizeObserver(post);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const getForecast = useServerFn(getAggregatedForecast);
   const FORECAST_VERSION = "v11";
@@ -388,10 +374,12 @@ function WeatherWidgetInner({
   return (
     <div
       ref={rootRef}
-      className={`@container bg-zinc-100 text-zinc-900 antialiased font-medium ${
+      className={`@container ${transparent ? "bg-transparent" : "bg-zinc-100"} text-zinc-900 antialiased font-medium ${
         compact
           ? "py-2 px-2"
-          : "py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6"
+          : requireExplicitLocation && !location
+            ? "px-3 py-2 @[640px]:px-5 @[640px]:py-3"
+            : "py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6"
       }`}
     >
       <div className={`max-w-5xl mx-auto ${compact ? "space-y-3" : "space-y-5"}`}>
@@ -438,7 +426,7 @@ function WeatherWidgetInner({
               Gemeinde suchen oder „Ortung“ verwenden — die Prognose klappt danach auf.
             </p>
           ) : (
-            <div className="p-8 bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2">
+            <div className={`${requireExplicitLocation ? "p-4" : "p-8"} bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2`}>
               <div className="text-2xl" aria-hidden>↑</div>
               <p className="text-sm font-semibold text-zinc-900">
                 Gemeinde suchen oder „Ortung" verwenden,
