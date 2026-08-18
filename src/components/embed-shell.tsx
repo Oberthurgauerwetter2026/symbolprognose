@@ -83,20 +83,48 @@ export function EmbedShell({
     const el = ref.current;
     if (!el) return;
 
+    let raf = 0;
+    let timers: ReturnType<typeof setTimeout>[] = [];
+
+    const measure = () =>
+      Math.ceil(
+        Math.max(
+          el.getBoundingClientRect().height,
+          document.documentElement.scrollHeight,
+        ),
+      );
+
     const send = () => {
-      const h = Math.ceil(el.getBoundingClientRect().height);
+      const h = measure();
+      // Kurzzeitige Einbrüche (Neu-Mount, Chunk-Load) nicht melden — sonst
+      // schrumpft das iframe beim Host und die Karte wirkt abgeschnitten.
+      if (h < 200) return;
       window.parent?.postMessage({ type: "lovable-weather:height", height: h }, "*");
     };
 
-    send();
-    const ro = new ResizeObserver(send);
+    const scheduleSend = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        send();
+      });
+    };
+
+    scheduleSend();
+    // Nachmeldungen, sobald Karte/Bilder fertig sind
+    timers = [600, 1500, 3000].map((ms) => setTimeout(send, ms));
+
+    const ro = new ResizeObserver(scheduleSend);
     ro.observe(el);
     window.addEventListener("load", send);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
+      timers.forEach(clearTimeout);
       ro.disconnect();
       window.removeEventListener("load", send);
     };
   }, [fillViewport]);
+
 
   if (fillViewport) {
     return (
