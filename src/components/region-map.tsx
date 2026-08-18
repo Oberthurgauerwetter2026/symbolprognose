@@ -477,7 +477,7 @@ function SpotMarker({
         spot.lon + (spot.markerLonOffset ?? 0),
       ]}
       icon={icon}
-      eventHandlers={{ click: onClick }}
+      interactive={false}
     />
   );
 }
