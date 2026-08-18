@@ -887,6 +887,7 @@ function SatelliteMapInner({
               onProgress={(indices) => setLoadedIdx(indices)}
               onOutage={setOutage}
               noSupersample={loop}
+              mountedLoadedRef={mountedLoadedRef}
             />
           )}
           {showSwiss && <SwissOutline />}
