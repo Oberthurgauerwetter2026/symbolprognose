@@ -378,7 +378,7 @@ function SpotMarker({
                 fontWeight: 600,
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
-                cursor: "pointer",
+                cursor: "default",
                 whiteSpace: "nowrap",
               }}
             >
