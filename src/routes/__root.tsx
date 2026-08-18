@@ -120,8 +120,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 
 function RootShell({ children }: { children: React.ReactNode }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isEmbed = pathname.startsWith("/embed");
   return (
-    <html lang="en">
+    <html lang="en" className={isEmbed ? "embed" : undefined}>
+
       <head>
         <HeadContent />
       </head>
