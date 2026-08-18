@@ -642,6 +642,8 @@ function SatelliteMapInner({
 
 
   const lastTimeRef = useRef<string | null>(null);
+  /** Vom FrameStack gepflegt: aktuell montierte + geladene Zeitschritte. */
+  const mountedLoadedRef = useRef<Set<number>>(new Set());
   const initialIndexRef = useRef<number>(0);
   const safeIndex = total > 0 ? Math.min(Math.max(index, 0), total - 1) : 0;
   const safeInitialIndex = total > 0 ? Math.min(Math.max(initialIndexRef.current, 0), total - 1) : 0;
