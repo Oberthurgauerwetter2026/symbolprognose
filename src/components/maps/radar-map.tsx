@@ -2168,7 +2168,7 @@ function RadarMapInner({
         className={cn(
           "map-attrib-compact relative overflow-hidden shadow-lg",
           bare
-            ? "h-full w-full min-h-0 flex-1"
+            ? "map-attrib-lift h-full w-full min-h-0 flex-1"
             : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
         )}
       >
