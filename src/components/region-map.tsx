@@ -215,7 +215,7 @@ function MarkerPill({
         fontFamily: '"Figtree", system-ui, sans-serif',
         color: "#fff",
         lineHeight: 1.15,
-        cursor: "pointer",
+        cursor: "default",
         transition: "transform 120ms ease, box-shadow 150ms ease",
         whiteSpace: "nowrap",
       }}
