@@ -28,8 +28,14 @@ export function EmbedShell({
 
     const tryActivate = (attempt = 0) => {
       if (cancelled) return;
-      const h = ref.current?.getBoundingClientRect().height ?? 0;
-      if (h > 40) {
+      const el = ref.current;
+      const h = el?.getBoundingClientRect().height ?? 0;
+      // Solange .js-ok fehlt, ist .embed-live per CSS ausgeblendet — dann ist
+      // die gemessene Höhe immer 0. In diesem Fall genügt es zu prüfen, dass
+      // React tatsächlich Inhalt in den Live-Container gerendert hat.
+      const hiddenButRendered =
+        !!el && el.offsetParent === null && el.childElementCount > 0;
+      if (h > 40 || hiddenButRendered) {
         html.classList.add("js-ok");
         return;
       }
@@ -38,6 +44,7 @@ export function EmbedShell({
         setTimeout(() => tryActivate(attempt + 1), 50);
       }
     };
+
     requestAnimationFrame(() => requestAnimationFrame(() => tryActivate()));
 
     // Wenn ein dynamischer Chunk-Import fehlschlägt (typisch nach Re-Deploy
