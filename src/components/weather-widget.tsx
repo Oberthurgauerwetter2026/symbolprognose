@@ -139,7 +139,7 @@ function WeatherWidgetInner({
   const [hydrated, setHydrated] = useState(false);
   const [locationSavedAt, setLocationSavedAt] = useState<number | null>(null);
   useEffect(() => {
-    if (lockedLocation || initialLocation) {
+    if (lockedLocation || initialLocation || requireExplicitLocation) {
       setHydrated(true);
       return;
     }
