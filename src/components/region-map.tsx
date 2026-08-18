@@ -611,7 +611,7 @@ function RegionMapInner({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const router = useRouter();
+  
 
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
   const [baseHour, setBaseHour] = useState(() => currentBaseHour());
