@@ -2532,7 +2532,10 @@ function RadarMapInner({
                   {/* Play/Pause */}
                   <button
                     type="button"
-                    onClick={() => setPlaying((p) => !p)}
+                    onClick={() => {
+                      userInteractedRef.current = true;
+                      setPlaying((p) => !p);
+                    }}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
                     style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
                     aria-label={playing ? "Pause" : "Play"}
