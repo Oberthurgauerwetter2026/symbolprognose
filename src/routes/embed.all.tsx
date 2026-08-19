@@ -68,8 +68,8 @@ function EmbedAll() {
       </div>
 
       {active === "region" && (
-        <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
-          <RegionMap />
+        <Suspense fallback={<MapSkeleton />}>
+          <LazyRegionMap />
         </Suspense>
       )}
       {active === "lokal" && <WeatherWidget />}
