@@ -1878,6 +1878,31 @@ function RadarMapInner({
     }
   }, [nowIdx, frames, idx]);
 
+  // Hat der Nutzer selbst eine Zeit gewählt? Dann wird nicht nachgezogen.
+  const userInteractedRef = useRef(false);
+
+  /** Zeit der jüngsten Radarmessung — Anker für das automatische Nachziehen. */
+  const lastMeasMs = useMemo(() => {
+    for (let i = frames.length - 1; i >= 0; i--) {
+      if (frames[i].source === "radar") return Date.parse(frames[i].t);
+    }
+    return frames.length > 0 ? Date.parse(frames[frames.length - 1].t) : null;
+  }, [frames]);
+
+  // Neue Messung eingetroffen (Auto-Refetch alle 60 s): Anzeige folgt der
+  // aktuellen Messzeit, solange nicht gespielt/gescrubbt oder manuell gewählt.
+  useEffect(() => {
+    if (lastMeasMs === null || frames.length === 0 || idx === null) return;
+    if (playing || scrubVisualMs !== null) return;
+    if (!snapshot && userInteractedRef.current) return;
+    const targetMs = Date.parse(frames[nowIdx]?.t ?? frames[frames.length - 1].t);
+    if (!Number.isFinite(targetMs)) return;
+    setIdx(nowIdx);
+    setRenderMs(targetMs);
+    setPlayVisualMs(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMeasMs]);
+
   useEffect(() => {
     if (renderMs === null || frames.length === 0) return;
     const firstMs = Date.parse(frames[0].t);
