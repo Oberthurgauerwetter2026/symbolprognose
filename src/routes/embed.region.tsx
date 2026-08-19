@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useState } from "react";
+import { Suspense, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { EmbedShell } from "@/components/embed-shell";
 import { WeatherWidget } from "@/components/weather-widget";
-
-const RegionMap = lazy(() =>
-  import("@/components/region-map").then((module) => ({ default: module.RegionMap })),
-);
+import { LazyRegionMap, preloadRegionMap } from "@/components/maps/lazy-maps";
+import { MapSkeleton } from "@/components/maps/map-skeleton";
+import { regionForecastQuery, warningsQuery } from "@/lib/map-queries";
 
 export const Route = createFileRoute("/embed/region")({
   ssr: false,
+  loader: ({ context }) => {
+    // Karten-Chunk und Daten gleichzeitig starten, ohne das Rendern zu blockieren.
+    preloadRegionMap();
+    context.queryClient.prefetchQuery(regionForecastQuery());
+    context.queryClient.prefetchQuery(warningsQuery());
+  },
   component: EmbedRegion,
   head: () => ({
     meta: [
@@ -53,8 +58,8 @@ function EmbedRegion() {
         </div>
       ) : (
         <div className="min-h-[480px]">
-          <Suspense fallback={<div className="h-[620px] rounded-lg bg-muted" />}>
-            <RegionMap onSelectSpot={setSelected} />
+          <Suspense fallback={<MapSkeleton />}>
+            <LazyRegionMap onSelectSpot={setSelected} />
           </Suspense>
         </div>
       )}

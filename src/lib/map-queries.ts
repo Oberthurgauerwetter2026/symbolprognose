@@ -43,12 +43,16 @@ export const regionForecastQuery = () =>
     gcTime: 30 * 60_000,
   });
 
-/** Aktive Warnungen (Warnkarte, Regionskarte, Lokalprognose). */
+/**
+ * Aktive Warnungen (Warnkarte, Regionskarte, Lokalprognose).
+ * Kurzer staleTime, damit ein frisch geladenes Embed nicht sofort
+ * doppelt lädt; Änderungen kommen zusätzlich per Realtime.
+ */
 export const warningsQuery = () =>
   queryOptions({
     queryKey: ["warnings"],
     queryFn: () => listWarnings(),
-    staleTime: 0,
+    staleTime: 30_000,
     gcTime: 30 * 60_000,
   });
 

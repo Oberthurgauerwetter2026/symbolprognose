@@ -14,6 +14,8 @@ const importRadarMap = () => import("@/components/maps/radar-map");
 const importSatelliteMap = () => import("@/components/maps/satellite-map");
 const importPrecipAccumMap = () => import("@/components/maps/precip-accum-map");
 const importRegionMap = () => import("@/components/region-map");
+const importWindMap = () => import("@/components/maps/wind-map");
+const importWarnMap = () => import("@/components/maps/warn-map");
 
 export const LazyRadarMap = lazy(() =>
   importRadarMap().then((m) => ({ default: m.RadarMap })),
@@ -31,10 +33,20 @@ export const LazyRegionMap = lazy(() =>
   importRegionMap().then((m) => ({ default: m.RegionMap })),
 );
 
+export const LazyWindMap = lazy(() =>
+  importWindMap().then((m) => ({ default: m.WindMap })),
+);
+
+export const LazyWarnMap = lazy(() =>
+  importWarnMap().then((m) => ({ default: m.WarnMap })),
+);
+
 export const preloadRadarMap = () => void importRadarMap();
 export const preloadSatelliteMap = () => void importSatelliteMap();
 export const preloadPrecipAccumMap = () => void importPrecipAccumMap();
 export const preloadRegionMap = () => void importRegionMap();
+export const preloadWindMap = () => void importWindMap();
+export const preloadWarnMap = () => void importWarnMap();
 
 /** Chunk-Vorladen pro Karten-Id (Tabs, Übersichtskacheln). */
 export const MAP_CHUNK_PRELOADERS: Record<string, () => void> = {

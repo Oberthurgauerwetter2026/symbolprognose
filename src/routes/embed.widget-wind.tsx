@@ -1,15 +1,19 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
 import { EmbedShell } from "@/components/embed-shell";
-
-const WindMapLazy = lazy(() =>
-  import("@/components/maps/wind-map").then((m) => ({ default: m.WindMap })),
-);
+import { LazyWindMap, preloadWindMap } from "@/components/maps/lazy-maps";
+import { windFramesQuery } from "@/lib/map-queries";
 
 export const Route = createFileRoute("/embed/widget-wind")({
   component: EmbedWidgetWind,
-  loader: () => setEmbedCacheHeaders(),
+  loader: ({ context }) => {
+    setEmbedCacheHeaders();
+    if (typeof document !== "undefined") {
+      preloadWindMap();
+      context.queryClient.prefetchQuery(windFramesQuery());
+    }
+  },
   head: () => ({
     meta: [
       { title: "Windprognose aktuell (Widget)" },
@@ -19,16 +23,15 @@ export const Route = createFileRoute("/embed/widget-wind")({
 });
 
 function EmbedWidgetWind() {
+  const fallback = (
+    <div className="h-full min-h-[280px] w-full animate-pulse rounded-lg bg-muted" />
+  );
   return (
     <EmbedShell fillViewport>
       <div className="flex min-h-0 flex-1 flex-col">
-        <ClientOnly
-          fallback={<div className="h-full min-h-[280px] w-full animate-pulse rounded-lg bg-muted" />}
-        >
-          <Suspense
-            fallback={<div className="h-full min-h-[280px] w-full animate-pulse rounded-lg bg-muted" />}
-          >
-            <WindMapLazy bare snapshot />
+        <ClientOnly fallback={fallback}>
+          <Suspense fallback={fallback}>
+            <LazyWindMap bare snapshot />
           </Suspense>
         </ClientOnly>
       </div>
