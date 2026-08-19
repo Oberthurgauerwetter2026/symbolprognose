@@ -1,18 +1,20 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
+import { Suspense } from "react";
 import { EmbedShell } from "@/components/embed-shell";
-import { WarnMap } from "@/components/maps/warn-map";
+import { LazyWarnMap, preloadWarnMap } from "@/components/maps/lazy-maps";
+import { MapSkeleton } from "@/components/maps/map-skeleton";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
+import { warningsQuery } from "@/lib/map-queries";
 
 export const Route = createFileRoute("/embed/widget-warnungen")({
-  ssr: false,
-  loader: async () => {
-    await setEmbedCacheHeaders();
+  loader: ({ context }) => {
+    setEmbedCacheHeaders();
+    if (typeof document !== "undefined") {
+      preloadWarnMap();
+      context.queryClient.prefetchQuery(warningsQuery());
+    }
   },
-  component: () => (
-    <EmbedShell>
-      <WarnMap bare snapshot />
-    </EmbedShell>
-  ),
+  component: EmbedWidgetWarnungen,
   head: () => ({
     meta: [
       { title: "Warnungen aktuell (Widget)" },
@@ -20,3 +22,15 @@ export const Route = createFileRoute("/embed/widget-warnungen")({
     ],
   }),
 });
+
+function EmbedWidgetWarnungen() {
+  return (
+    <EmbedShell>
+      <ClientOnly fallback={<MapSkeleton height={480} />}>
+        <Suspense fallback={<MapSkeleton height={480} />}>
+          <LazyWarnMap bare snapshot />
+        </Suspense>
+      </ClientOnly>
+    </EmbedShell>
+  );
+}

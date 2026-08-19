@@ -1,15 +1,19 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
 import { EmbedShell } from "@/components/embed-shell";
-
-const SatelliteMapLazy = lazy(() =>
-  import("@/components/maps/satellite-map").then((m) => ({ default: m.SatelliteMap })),
-);
+import { LazySatelliteMap, preloadSatelliteMap } from "@/components/maps/lazy-maps";
+import { satelliteManifestQuery } from "@/lib/map-queries";
 
 export const Route = createFileRoute("/embed/satellit")({
   component: EmbedSatellit,
-  loader: () => setEmbedCacheHeaders(),
+  loader: ({ context }) => {
+    setEmbedCacheHeaders();
+    if (typeof document !== "undefined") {
+      preloadSatelliteMap();
+      context.queryClient.prefetchQuery(satelliteManifestQuery("alpen-ch"));
+    }
+  },
   head: () => ({
     meta: [
       { title: "Satellit (Embed)" },
@@ -19,16 +23,15 @@ export const Route = createFileRoute("/embed/satellit")({
 });
 
 function EmbedSatellit() {
+  const fallback = (
+    <div className="h-full min-h-[300px] w-full animate-pulse rounded-lg bg-muted" />
+  );
   return (
     <EmbedShell fillViewport>
       <div className="flex min-h-0 flex-1 flex-col">
-        <ClientOnly
-          fallback={<div className="h-full min-h-[300px] w-full animate-pulse rounded-lg bg-muted" />}
-        >
-          <Suspense
-            fallback={<div className="h-full min-h-[300px] w-full animate-pulse rounded-lg bg-muted" />}
-          >
-            <SatelliteMapLazy bare />
+        <ClientOnly fallback={fallback}>
+          <Suspense fallback={fallback}>
+            <LazySatelliteMap bare />
           </Suspense>
         </ClientOnly>
       </div>
