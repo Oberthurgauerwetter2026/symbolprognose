@@ -423,16 +423,16 @@ function WeatherWidgetInner({
         {!location &&
           (compact ? (
             <p className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-center text-xs font-semibold text-zinc-800">
-              Gemeinde suchen oder „Ortung“ verwenden — die Prognose klappt danach auf.
+              Gemeinde suchen oder „Ortung“ verwenden, um die 7-Tage-Prognose anzuzeigen.
             </p>
           ) : (
             <div className={`${requireExplicitLocation ? "p-4" : "p-8"} bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2`}>
               <div className="text-2xl" aria-hidden>↑</div>
               <p className="text-sm font-semibold text-zinc-900">
-                Gemeinde suchen oder „Ortung" verwenden,
+                Gemeinde suchen oder „Ortung“ verwenden,
               </p>
               <p className="text-sm text-zinc-700">
-                um die 5-Tage-Prognose anzuzeigen.
+                um die 7-Tage-Prognose anzuzeigen.
               </p>
             </div>
           ))}
