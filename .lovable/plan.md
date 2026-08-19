@@ -1,20 +1,27 @@
-# Hinweistext in der Lokalprognose anpassen
+# Embed-Snippet der Windprognose auf die echte Windkarte umstellen
+
+## Problem
+
+`/embed/wind` rendert weiterhin den Platzhalter `ComingSoonMap` — also den Stand vor der Fertigstellung der Windkarte. Nur das kompakte Widget `/embed/widget-wind` (Momentaufnahme ohne Zeitsteuerung) nutzt die echte Karte.
 
 ## Ziel
 
-Der Platzhalter-Hinweis, der erscheint solange kein Ort gewählt ist, soll lauten:
+Das Embed „Wind“ zeigt die vollständige Windprognose wie auf `/karten/wind` — Animation, Zeitsteuerung/Filmstrip, Quellenzeile — aber ohne Wetterboard-Rahmen (keine Sidebar, keine Seitenkopfzeile, keine Kartenreiter).
 
-„Gemeinde suchen oder „Ortung“ verwenden, um die 7-Tage-Prognose anzuzeigen.“
+## Umsetzung
 
-## Änderung
+1. `src/routes/embed/wind` (`src/routes/embed.wind.tsx`)
+   - Platzhalter `ComingSoonMap` entfernen.
+   - Stattdessen die Windkarte im randlosen Modus einsetzen: `LazyWindMap` mit `bare` (ohne `snapshot`, damit Animation und Zeitsteuerung erhalten bleiben), in `ClientOnly` + `Suspense` mit `MapSkeleton`-Fallback — analog `/embed/widget-wind`.
+   - Im Loader wie bei den anderen Karten-Embeds parallel vorwärmen: `setEmbedCacheHeaders()`, `preloadWindMap()` und `context.queryClient.prefetchQuery(windFramesQuery())`.
+   - `EmbedShell fillViewport` verwenden, damit die Karte die iframe-Höhe füllt; Titel/`robots: noindex` bleiben.
 
-In `src/components/weather-widget.tsx` im Block für „kein Ort gewählt“ (Zeilen 423–438):
+2. `src/routes/embed-info.tsx`
+   - Eintrag „Wind“ präzisieren: Label „Windprognose (wie Original)“, Beschreibung auf Animation/Zeitsteuerung ohne Wetterboard-Rahmen anpassen, Höhe 600px beibehalten.
+   - Der bestehende Eintrag „Widget: Windprognose aktuell“ bleibt unverändert als kompakte Variante.
 
-- Volle Variante: zweite Zeile von „um die 5-Tage-Prognose anzuzeigen.“ auf „um die 7-Tage-Prognose anzuzeigen.“ ändern; erste Zeile bleibt „Gemeinde suchen oder „Ortung“ verwenden,“ (typografische Anführungszeichen einheitlich).
-- Kompakte/Embed-Variante: Text auf denselben Wortlaut vereinheitlichen — „Gemeinde suchen oder „Ortung“ verwenden, um die 7-Tage-Prognose anzuzeigen.“
-
-Keine Logik-, Daten- oder Layoutänderungen.
+Keine Änderungen an Datenquellen, Ingest oder Datenbank.
 
 ## Prüfung
 
-`/karten/lokal` ohne gewählten Ort öffnen und den Text prüfen; ebenso das Lokalprognose-Embed.
+`/embed/wind` im Browser öffnen und per Screenshot bestätigen: Karte lädt, Windanimation läuft, Zeitsteuerung bedienbar, kein Rahmen/Platzhalter; Snippet-Liste in `/embed-info` prüfen.
