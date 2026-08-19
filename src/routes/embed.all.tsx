@@ -1,19 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense, useState } from "react";
+import { Suspense, useState } from "react";
 import { EmbedShell } from "@/components/embed-shell";
 
 import { MAPS, type MapId } from "@/lib/maps-config";
 import { WeatherWidget } from "@/components/weather-widget";
 import { ComingSoonMap } from "@/components/maps/coming-soon-map";
+import { LazyRegionMap, preloadRegionMap } from "@/components/maps/lazy-maps";
+import { MapSkeleton } from "@/components/maps/map-skeleton";
+import { regionForecastQuery, warningsQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 
 const BRAND = "#2561a1";
-const RegionMap = lazy(() =>
-  import("@/components/region-map").then((module) => ({ default: module.RegionMap })),
-);
 
 export const Route = createFileRoute("/embed/all")({
   ssr: false,
+  loader: ({ context }) => {
+    preloadRegionMap();
+    context.queryClient.prefetchQuery(regionForecastQuery());
+    context.queryClient.prefetchQuery(warningsQuery());
+  },
   component: EmbedAll,
   head: () => ({
     meta: [
