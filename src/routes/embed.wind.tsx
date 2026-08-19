@@ -1,26 +1,39 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Suspense } from "react";
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { setEmbedCacheHeaders } from "@/lib/embed-cache.functions";
 import { EmbedShell } from "@/components/embed-shell";
-
-import { ComingSoonMap } from "@/components/maps/coming-soon-map";
-import { getMap } from "@/lib/maps-config";
+import { LazyWindMap, preloadWindMap } from "@/components/maps/lazy-maps";
+import { MapSkeleton } from "@/components/maps/map-skeleton";
+import { windFramesQuery } from "@/lib/map-queries";
 
 export const Route = createFileRoute("/embed/wind")({
-  loader: () => setEmbedCacheHeaders(),
   component: EmbedWind,
+  loader: ({ context }) => {
+    setEmbedCacheHeaders();
+    if (typeof document !== "undefined") {
+      preloadWindMap();
+      context.queryClient.prefetchQuery(windFramesQuery());
+    }
+  },
   head: () => ({
     meta: [
-      { title: "Wind (Embed)" },
+      { title: "Windprognose (Embed)" },
       { name: "robots", content: "noindex" },
     ],
   }),
 });
 
 function EmbedWind() {
-  const def = getMap("wind");
+  const fallback = <MapSkeleton />;
   return (
-    <EmbedShell>
-      <ComingSoonMap icon={def.icon} title={def.label} description={def.description} />
+    <EmbedShell fillViewport>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <ClientOnly fallback={fallback}>
+          <Suspense fallback={fallback}>
+            <LazyWindMap bare />
+          </Suspense>
+        </ClientOnly>
+      </div>
     </EmbedShell>
   );
 }
