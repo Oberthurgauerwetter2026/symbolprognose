@@ -83,8 +83,7 @@ function buildAutoHeightSnippet(
 ) {
   const full = `${url}${path}`;
   const origin = new URL(url).origin;
-  return `<link rel="preconnect" href="${origin}" crossorigin>
-<link rel="dns-prefetch" href="${origin}">
+  return `${warmupLinks(origin, path)}
 <iframe
   id="${frameId}"
   src="${full}"
