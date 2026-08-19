@@ -2560,7 +2560,9 @@ function RadarMapInner({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      setTimelineToMs(timelineSteps[stripNowIdx]);
+                      setTimelineToMs(timelineSteps[stripNowIdx], false);
+                      // "Jetzt" heisst: wieder automatisch mitlaufen.
+                      userInteractedRef.current = false;
                     }}
                     disabled={stripIdx === stripNowIdx}
                     className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"
