@@ -19,8 +19,7 @@ export const Route = createFileRoute("/embed-info")({
 function buildSimpleSnippet(url: string, path: string, height = 600, lazy = false) {
   const full = `${url}${path}`;
   const origin = new URL(url).origin;
-  return `<link rel="preconnect" href="${origin}" crossorigin>
-<link rel="dns-prefetch" href="${origin}">
+  return `${warmupLinks(origin, path)}
 <iframe
   src="${full}"
   loading="${lazy ? "lazy" : "eager"}"
@@ -30,6 +29,23 @@ function buildSimpleSnippet(url: string, path: string, height = 600, lazy = fals
   style="width:100%;height:${height}px;border:0;display:block"
   title="Wetter-Karte"
 ></iframe>`;
+}
+
+/**
+ * Verbindungen vorwärmen: eigener Origin plus die Hosts der Kartenkacheln,
+ * damit DNS/TLS nicht erst nach dem Laden des Widgets aufgebaut wird.
+ */
+function warmupLinks(origin: string, path: string) {
+  const hosts = [origin];
+  const isMap = /^\/embed\/(region|radar|wind|warnungen|satellit|all|widget-)/.test(path);
+  if (isMap) hosts.push("https://wmts.geo.admin.ch");
+  if (path.startsWith("/embed/satellit")) hosts.push("https://view.eumetsat.int");
+  return hosts
+    .map(
+      (h) =>
+        `<link rel="preconnect" href="${h}" crossorigin>\n<link rel="dns-prefetch" href="${h}">`,
+    )
+    .join("\n");
 }
 
 
