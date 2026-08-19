@@ -1878,6 +1878,31 @@ function RadarMapInner({
     }
   }, [nowIdx, frames, idx]);
 
+  // Hat der Nutzer selbst eine Zeit gewählt? Dann wird nicht nachgezogen.
+  const userInteractedRef = useRef(false);
+
+  /** Zeit der jüngsten Radarmessung — Anker für das automatische Nachziehen. */
+  const lastMeasMs = useMemo(() => {
+    for (let i = frames.length - 1; i >= 0; i--) {
+      if (frames[i].source === "radar") return Date.parse(frames[i].t);
+    }
+    return frames.length > 0 ? Date.parse(frames[frames.length - 1].t) : null;
+  }, [frames]);
+
+  // Neue Messung eingetroffen (Auto-Refetch alle 60 s): Anzeige folgt der
+  // aktuellen Messzeit, solange nicht gespielt/gescrubbt oder manuell gewählt.
+  useEffect(() => {
+    if (lastMeasMs === null || frames.length === 0 || idx === null) return;
+    if (playing || scrubVisualMs !== null) return;
+    if (!snapshot && userInteractedRef.current) return;
+    const targetMs = Date.parse(frames[nowIdx]?.t ?? frames[frames.length - 1].t);
+    if (!Number.isFinite(targetMs)) return;
+    setIdx(nowIdx);
+    setRenderMs(targetMs);
+    setPlayVisualMs(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMeasMs]);
+
   useEffect(() => {
     if (renderMs === null || frames.length === 0) return;
     const firstMs = Date.parse(frames[0].t);
@@ -1983,8 +2008,9 @@ function RadarMapInner({
     return best;
   };
 
-  const setTimelineToMs = (targetMs: number | null | undefined) => {
+  const setTimelineToMs = (targetMs: number | null | undefined, byUser = true) => {
     if (typeof targetMs !== "number" || Number.isNaN(targetMs)) return;
+    if (byUser) userInteractedRef.current = true;
     setIdx(nearestFrameIndexForMs(frames, targetMs));
     setRenderMs(targetMs);
     setPlayVisualMs(null);
@@ -2506,7 +2532,10 @@ function RadarMapInner({
                   {/* Play/Pause */}
                   <button
                     type="button"
-                    onClick={() => setPlaying((p) => !p)}
+                    onClick={() => {
+                      userInteractedRef.current = true;
+                      setPlaying((p) => !p);
+                    }}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
                     style={{ background: BRAND, borderColor: BRAND, ['--tw-ring-color' as never]: BRAND }}
                     aria-label={playing ? "Pause" : "Play"}
@@ -2531,7 +2560,9 @@ function RadarMapInner({
                     type="button"
                     onClick={() => {
                       setPlaying(false);
-                      setTimelineToMs(timelineSteps[stripNowIdx]);
+                      setTimelineToMs(timelineSteps[stripNowIdx], false);
+                      // "Jetzt" heisst: wieder automatisch mitlaufen.
+                      userInteractedRef.current = false;
                     }}
                     disabled={stripIdx === stripNowIdx}
                     className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white sm:h-7 sm:px-2 sm:text-[10px]"

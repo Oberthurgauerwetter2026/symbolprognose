@@ -56,13 +56,22 @@ export const warningsQuery = () =>
     gcTime: 30 * 60_000,
   });
 
-/** Radarframes (Messung + Prognose). */
+/**
+ * Radarframes (Messung + Prognose).
+ * Radar liefert im 5-min-Takt: kurzer staleTime, Auto-Refetch und
+ * `refetchOnMount: "always"`, damit ein Embed nach dem Neuladen nie auf
+ * einem alten Messframe stehen bleibt.
+ */
 export const radarFramesQuery = () =>
   queryOptions({
     queryKey: ["radar-frames"],
     queryFn: () => getRadarFrames(),
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
     gcTime: 30 * 60_000,
+    refetchInterval: 60_000,
+    refetchOnMount: "always" as const,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
 /** Radarframes mit erweitertem Horizont für die Niederschlagssummen. */
