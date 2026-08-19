@@ -2008,8 +2008,9 @@ function RadarMapInner({
     return best;
   };
 
-  const setTimelineToMs = (targetMs: number | null | undefined) => {
+  const setTimelineToMs = (targetMs: number | null | undefined, byUser = true) => {
     if (typeof targetMs !== "number" || Number.isNaN(targetMs)) return;
+    if (byUser) userInteractedRef.current = true;
     setIdx(nearestFrameIndexForMs(frames, targetMs));
     setRenderMs(targetMs);
     setPlayVisualMs(null);
