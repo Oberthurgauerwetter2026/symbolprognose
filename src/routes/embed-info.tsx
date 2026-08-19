@@ -242,10 +242,11 @@ const PRODUCTS: Product[] = [
 
   {
     id: "wind",
-    label: "Wind",
+    label: "Windprognose (wie Original)",
     path: "/embed/wind",
     height: 600,
-    description: "Windrichtung, Windgeschwindigkeit und Böen auf der Regionskarte.",
+    description:
+      "Die vollständige Windprognose wie auf der Website — animierte Windströmung, Böen, Zeitsteuerung und Quellenzeile — nur ohne Wetterboard-Rahmen.",
   },
   {
     id: "radar",
