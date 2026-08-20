@@ -18,6 +18,7 @@ import {
   regionName,
   slugifyRegion,
   formatRange,
+  WP_WARN_URL,
   type HazardId,
 } from "@/lib/warnings-config";
 import { type WarningDTO } from "@/lib/warnings.functions";
