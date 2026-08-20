@@ -84,10 +84,10 @@ function compass(deg: number): string {
   return dirs[Math.round(((((deg % 360) + 360) % 360) / 45)) % 8];
 }
 
-function levelFor(mmh: number): 1 | 2 | 3 | 0 {
+/** Stufe aus der Flächenintensität; unter Stufe 2 warnt die Automatik nicht. */
+function levelFor(mmh: number): 2 | 3 | 0 {
   if (mmh >= THRESHOLDS[2]) return 3;
   if (mmh >= THRESHOLDS[1]) return 2;
-  if (mmh >= THRESHOLDS[0]) return 1;
   return 0;
 }
 
@@ -101,8 +101,9 @@ export interface AutoThunderResult {
   note?: string;
 }
 
-/** Wiederholsperre: pro Warnung höchstens alle 45 Minuten eine Push-Meldung. */
-const RENOTIFY_MS = 45 * 60_000;
+/** Wiederholsperre: pro Warnung höchstens alle 60 Minuten eine Push-Meldung. */
+const RENOTIFY_MS = 60 * 60_000;
+
 
 
 async function runAutoThunderCore(): Promise<AutoThunderResult> {
