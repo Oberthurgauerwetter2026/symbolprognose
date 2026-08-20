@@ -68,9 +68,23 @@ import { cn } from "@/lib/utils";
 import { SPOTS, type Spot } from "@/data/spots";
 import { useActiveWarnings } from "@/hooks/use-warnings";
 import { regionIdForPoint, topWarningFor, warningsForRegion } from "@/lib/warnings-lookup";
-import { getHazard, LEVELS, type HazardId, type WarnLevel } from "@/lib/warnings-config";
+import { getHazard, LEVELS, WP_WARN_URL, type HazardId, type WarnLevel } from "@/lib/warnings-config";
 import type { WarningDTO } from "@/lib/warnings.functions";
-import { SITE_URL } from "@/lib/site-url";
+
+/** Öffnet die WP-Warnseite: im Embed im übergeordneten Fenster, sonst neuer Tab. */
+function openWarnPage() {
+  if (typeof window === "undefined") return;
+  const embedded = window.self !== window.top;
+  if (embedded) {
+    try {
+      window.top!.location.href = WP_WARN_URL;
+      return;
+    } catch {
+      /* Cross-Origin: Fallback auf neuen Tab */
+    }
+  }
+  window.open(WP_WARN_URL, "_blank", "noopener,noreferrer");
+}
 
 
 
@@ -356,8 +370,9 @@ function SpotMarker({
   const icon = useMemo(() => {
     const ICON_W = 250;
     const ICON_H = 72;
+    const cursor = warning ? "pointer" : "default";
     const wrap = (inner: string) =>
-      `<div style="width:${ICON_W}px;height:${ICON_H}px;display:flex;align-items:center;justify-content:center;">${inner}</div>`;
+      `<div style="width:${ICON_W}px;height:${ICON_H}px;display:flex;align-items:center;justify-content:center;cursor:${cursor};">${inner}</div>`;
 
     if (!data) {
       return L.divIcon({
@@ -470,6 +485,7 @@ function SpotMarker({
 
 
 
+  const hasWarning = !!warning;
   return (
     <Marker
       position={[
@@ -477,7 +493,14 @@ function SpotMarker({
         spot.lon + (spot.markerLonOffset ?? 0),
       ]}
       icon={icon}
-      interactive={false}
+      interactive={hasWarning}
+      {...(hasWarning
+        ? {
+            eventHandlers: { click: () => openWarnPage() },
+            keyboard: false,
+            title: "Warnungen anzeigen",
+          }
+        : {})}
     />
   );
 }
@@ -821,20 +844,16 @@ function RegionMapInner({
               }
             : { background: def.color, color: def.textOnColor };
 
-          return bare ? (
+          return (
             <a
-              href={`${SITE_URL}/warnkarte`}
-              target="_blank"
+              href={WP_WARN_URL}
+              target={bare || fill ? "_top" : "_blank"}
               rel="noopener noreferrer"
               className={cls}
               style={style}
             >
               {inner}
             </a>
-          ) : (
-            <Link to="/karten/warnungen" className={cls} style={style}>
-              {inner}
-            </Link>
           );
         })()
       : null;
