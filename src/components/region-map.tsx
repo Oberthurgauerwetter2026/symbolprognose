@@ -370,8 +370,9 @@ function SpotMarker({
   const icon = useMemo(() => {
     const ICON_W = 250;
     const ICON_H = 72;
+    const cursor = warning ? "pointer" : "default";
     const wrap = (inner: string) =>
-      `<div style="width:${ICON_W}px;height:${ICON_H}px;display:flex;align-items:center;justify-content:center;">${inner}</div>`;
+      `<div style="width:${ICON_W}px;height:${ICON_H}px;display:flex;align-items:center;justify-content:center;cursor:${cursor};">${inner}</div>`;
 
     if (!data) {
       return L.divIcon({
