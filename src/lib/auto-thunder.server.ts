@@ -22,26 +22,35 @@ import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 /**
- * mm/h-Schwellen für Stufe 1/2/3 (25/50/80). Bewusst konservativer als die
- * MeteoSchweiz-Pixelkriterien, damit die Automatik nicht zu extrem beurteilt.
- * Massgebend ist die flächengestützte Intensität (mind. 8 Radar-Pixel),
- * nicht die Spitze eines einzelnen Pixels.
+ * mm/h-Schwellen für Stufe 1/2/3 (15/30/50) gemäss MeteoSchweiz-Gefahrenstufen.
+ * MeteoSchweiz (und damit auch SRF Meteo) warnt Gewitter erst ab Stufe 2;
+ * Stufe 1 dient nur manuellen Warnungen. Massgebend ist die flächengestützte
+ * Intensität (mind. `MIN_CELL_PIXELS` Radar-Pixel), nicht eine Pixelspitze.
  */
 const THRESHOLDS: [number, number, number] = THUNDER_RAIN_MMH;
+
+/** Automatik warnt erst ab dieser Stufe (MeteoSchweiz-Praxis: ab Stufe 2). */
+const AUTO_MIN_LEVEL = 2;
 
 /** Maximales Alter der Messung, damit sie noch warnt (min). */
 const MAX_AGE_MIN = 30;
 
 /**
- * Persistenz: eine neue Warnung (und jede Höherstufung) braucht die
- * Bestätigung eines vorangehenden Laufs innerhalb dieses Fensters.
+ * Persistenz: Bestätigung durch aufeinanderfolgende Läufe innerhalb dieses
+ * Fensters. Stufe 2 braucht 2 Läufe, Stufe 3 deren 3 (~15 Min.).
  */
 const CONFIRM_WINDOW_MS = 15 * 60_000;
+
+/** Nötige Läufe in Folge je Stufe. */
+function runsNeeded(level: number): number {
+  return level >= 3 ? 3 : 2;
+}
 
 /** Zustandszeile für die Kandidaten des letzten Laufs (kein Warnlauf-Protokoll). */
 const CAND_JOB = "auto-thunder-candidates";
 
-type Candidates = Record<string, { level: number; t: number }>;
+type Candidates = Record<string, { level: number; t: number; n?: number }>;
+
 
 async function loadCandidates(): Promise<Candidates> {
   try {
