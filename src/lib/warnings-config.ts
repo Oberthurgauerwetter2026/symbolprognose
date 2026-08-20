@@ -647,7 +647,7 @@ export const THRESHOLDS: Record<HazardId, HazardThresholds> = {
   regen: {
     unit: "mm",
     rows: [
-      { hours: 1, periodLabel: "in 1 Std.", limits: [15, 25, 45], own: true },
+      { hours: 1, periodLabel: "in 1 Std.", limits: [15, 30, 50], own: true },
       { hours: 12, periodLabel: "in 12 Std.", limits: [20, 35, 60] },
       { hours: 24, periodLabel: "in 24 Std.", limits: [30, 50, 80] },
       { hours: 48, periodLabel: "in 48 Std.", limits: [50, 80, 110] },
@@ -713,7 +713,7 @@ export const THRESHOLDS: Record<HazardId, HazardThresholds> = {
  * manuell erfassten Warnungen. Die Radar-Automatik nutzt Stufe 2/3 und
  * verlangt zusätzlich Fläche (mind. 12 Radar-Pixel) und Persistenz.
  */
-export const THUNDER_RAIN_MMH: [number, number, number] = [15, 30, 50];
+export const THUNDER_RAIN_MMH: [number, number, number] = [15, 25, 45];
 
 
 /** Passende Schwellenzeile zu einer Warndauer (nächstliegende Bezugsdauer). */
