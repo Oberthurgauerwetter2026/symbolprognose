@@ -233,6 +233,10 @@ export interface WarnMapProps {
 }
 
 function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProps) {
+  /** Links auf die WordPress-Warnseite: im Embed das ganze Fenster wechseln. */
+  const wpLinkProps = (bare || snapshot
+    ? { href: WP_WARN_URL, target: "_top" as const, rel: "noopener" }
+    : { href: WP_WARN_URL, target: "_blank" as const, rel: "noopener noreferrer" });
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
