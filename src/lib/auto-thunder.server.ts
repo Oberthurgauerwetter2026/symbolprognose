@@ -22,15 +22,53 @@ import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 /**
- * mm/h-Schwellen für Stufe 1/2/3 (20/40/60). Bewusst höher als die
- * MeteoSchweiz-Kriterien, damit die Automatik nicht zu häufig auslöst.
- * Massgebend ist die flächengestützte Intensität (mind. 3 Radar-Pixel),
+ * mm/h-Schwellen für Stufe 1/2/3 (25/50/80). Bewusst konservativer als die
+ * MeteoSchweiz-Pixelkriterien, damit die Automatik nicht zu extrem beurteilt.
+ * Massgebend ist die flächengestützte Intensität (mind. 8 Radar-Pixel),
  * nicht die Spitze eines einzelnen Pixels.
  */
 const THRESHOLDS: [number, number, number] = THUNDER_RAIN_MMH;
 
 /** Maximales Alter der Messung, damit sie noch warnt (min). */
 const MAX_AGE_MIN = 30;
+
+/**
+ * Persistenz: eine neue Warnung (und jede Höherstufung) braucht die
+ * Bestätigung eines vorangehenden Laufs innerhalb dieses Fensters.
+ */
+const CONFIRM_WINDOW_MS = 15 * 60_000;
+
+/** Zustandszeile für die Kandidaten des letzten Laufs (kein Warnlauf-Protokoll). */
+const CAND_JOB = "auto-thunder-candidates";
+
+type Candidates = Record<string, { level: number; t: number }>;
+
+async function loadCandidates(): Promise<Candidates> {
+  try {
+    const sb = await adminClient();
+    const { data } = await sb.from("job_runs").select("note").eq("job", CAND_JOB).maybeSingle();
+    const note = (data as { note: string | null } | null)?.note;
+    if (!note) return {};
+    const parsed = JSON.parse(note) as Candidates;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveCandidates(c: Candidates): Promise<void> {
+  try {
+    const sb = await adminClient();
+    await sb
+      .from("job_runs")
+      .upsert(
+        { job: CAND_JOB, ran_at: new Date().toISOString(), note: JSON.stringify(c) },
+        { onConflict: "job" },
+      );
+  } catch {
+    // Ohne Zustandszeile greift die Bestätigung im nächsten Lauf erneut.
+  }
+}
 
 function compass(deg: number): string {
   const dirs = ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"];
@@ -108,9 +146,45 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   let notified = 0;
   const warnedRegions: string[] = [];
 
+  /**
+   * Persistenz-Prüfung: Kandidaten des vorangehenden Laufs. Eine neue Warnung
+   * und jede Höherstufung brauchen zwei Läufe in Folge über der Schwelle.
+   */
+  const prevCands = await loadCandidates();
+  const nextCands: Candidates = {};
+  let pending = 0;
+
   for (const [regionId, v] of perRegion) {
-    const level = levelFor(v.area);
-    if (!level) continue;
+    const rawLevel = levelFor(v.area);
+    if (!rawLevel) continue;
+    nextCands[regionId] = { level: rawLevel, t: now };
+
+    const conf = prevCands[regionId];
+    const confirmed =
+      !!conf && now - conf.t <= CONFIRM_WINDOW_MS && conf.level >= rawLevel;
+
+    const autoKey = `auto-gewitter-${regionId}`;
+    const { data: existingData } = await sb
+      .from("warnings")
+      .select("id, active, level, notified_at")
+      .eq("auto_key", autoKey)
+      .maybeSingle();
+    const existing = existingData as
+      | { id: string; active: boolean; level: number; notified_at: string | null }
+      | null;
+    const running = existing?.active === true;
+
+    // Ohne Bestätigung: eine laufende Warnung wird weitergeführt (ohne
+    // Höherstufung), eine neue entsteht noch nicht.
+    if (!running && !confirmed) {
+      pending++;
+      continue;
+    }
+    const level: 1 | 2 | 3 =
+      running && !confirmed
+        ? (Math.min(rawLevel, existing!.level) as 1 | 2 | 3)
+        : rawLevel;
+
     warnedRegions.push(regionId);
 
     const validFrom = new Date(now).toISOString();
@@ -132,17 +206,8 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       params: { value: String(Math.round(v.peak)), auto: true, measured: true },
       active: true,
       source: "auto",
-      auto_key: `auto-gewitter-${regionId}`,
+      auto_key: autoKey,
     };
-
-    const { data: existingData } = await sb
-      .from("warnings")
-      .select("id, active, level, notified_at")
-      .eq("auto_key", row.auto_key)
-      .maybeSingle();
-    const existing = existingData as
-      | { id: string; active: boolean; level: number; notified_at: string | null }
-      | null;
 
     let id: string | null = existing?.id ?? null;
     if (id) {
@@ -182,8 +247,16 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     }
   }
 
+  await saveCandidates(nextCands);
   const closed = await closeStale(warnedRegions);
-  return { detected: warnedRegions.length, created, closed, notified, motion };
+  return {
+    detected: warnedRegions.length,
+    created,
+    closed,
+    notified,
+    motion,
+    note: pending > 0 ? `${pending} Zelle(n) warten auf Bestätigung` : undefined,
+  };
 
 }
 

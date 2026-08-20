@@ -708,10 +708,12 @@ export const THRESHOLDS: Record<HazardId, HazardThresholds> = {
 
 /**
  * mm/h-Schwellen für Gewitterregen (Radar-Autowarnung), Stufe 1/2/3.
- * Bewusst höher als die MeteoSchweiz-Kriterien (30–50 / über 50 mm/h),
- * damit die Automatik nicht zu häufig auslöst.
+ * MeteoSchweiz warnt Gewitter erst ab Stufe 2 (30–50 mm/h) bzw. Stufe 3
+ * (über 50 mm/h) und nur, wenn eine Zelle diese Intensität über eine
+ * relevante Fläche und mehrere Messzyklen hält. Unsere Automatik stuft
+ * darum bewusst konservativer ein als die reinen Pixelkriterien.
  */
-export const THUNDER_RAIN_MMH: [number, number, number] = [20, 40, 60];
+export const THUNDER_RAIN_MMH: [number, number, number] = [25, 50, 80];
 
 /** Passende Schwellenzeile zu einer Warndauer (nächstliegende Bezugsdauer). */
 export function thresholdRowFor(hazard: HazardId, hours?: number | null): ThresholdRow | null {
