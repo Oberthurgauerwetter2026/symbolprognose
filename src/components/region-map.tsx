@@ -835,20 +835,16 @@ function RegionMapInner({
               }
             : { background: def.color, color: def.textOnColor };
 
-          return bare ? (
+          return (
             <a
-              href={`${SITE_URL}/warnkarte`}
-              target="_blank"
+              href={WP_WARN_URL}
+              target={bare || fill ? "_top" : "_blank"}
               rel="noopener noreferrer"
               className={cls}
               style={style}
             >
               {inner}
             </a>
-          ) : (
-            <Link to="/karten/warnungen" className={cls} style={style}>
-              {inner}
-            </Link>
           );
         })()
       : null;
