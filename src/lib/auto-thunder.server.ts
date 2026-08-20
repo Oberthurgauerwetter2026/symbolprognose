@@ -22,7 +22,7 @@ import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 /**
- * mm/h-Schwellen für Stufe 1/2/3 (15/30/50) gemäss MeteoSchweiz-Gefahrenstufen.
+ * mm/h-Schwellen für Stufe 1/2/3 (15/25/45), angelehnt an die MeteoSchweiz-Gefahrenstufen.
  * MeteoSchweiz (und damit auch SRF Meteo) warnt Gewitter erst ab Stufe 2;
  * Stufe 1 dient nur manuellen Warnungen. Massgebend ist die flächengestützte
  * Intensität (mind. `MIN_CELL_PIXELS` Radar-Pixel), nicht eine Pixelspitze.
