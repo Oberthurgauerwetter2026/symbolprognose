@@ -134,7 +134,9 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   for (const r of measured) {
     const peak = typeof r.mmh === "number" ? r.mmh : 0;
     const area = typeof r.mmhArea === "number" ? r.mmhArea : peak;
-    if (area < THRESHOLDS[0]) continue;
+    // Unter der Stufe-2-Schwelle warnt die Automatik nicht (MeteoSchweiz-Praxis).
+    if (area < THRESHOLDS[AUTO_MIN_LEVEL - 1]) continue;
+
     const prev = perRegion.get(r.id);
     perRegion.set(r.id, {
       peak: Math.max(prev?.peak ?? 0, peak),
