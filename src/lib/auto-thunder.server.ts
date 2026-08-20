@@ -22,15 +22,53 @@ import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 /**
- * mm/h-Schwellen für Stufe 1/2/3 (20/40/60). Bewusst höher als die
- * MeteoSchweiz-Kriterien, damit die Automatik nicht zu häufig auslöst.
- * Massgebend ist die flächengestützte Intensität (mind. 3 Radar-Pixel),
+ * mm/h-Schwellen für Stufe 1/2/3 (25/50/80). Bewusst konservativer als die
+ * MeteoSchweiz-Pixelkriterien, damit die Automatik nicht zu extrem beurteilt.
+ * Massgebend ist die flächengestützte Intensität (mind. 8 Radar-Pixel),
  * nicht die Spitze eines einzelnen Pixels.
  */
 const THRESHOLDS: [number, number, number] = THUNDER_RAIN_MMH;
 
 /** Maximales Alter der Messung, damit sie noch warnt (min). */
 const MAX_AGE_MIN = 30;
+
+/**
+ * Persistenz: eine neue Warnung (und jede Höherstufung) braucht die
+ * Bestätigung eines vorangehenden Laufs innerhalb dieses Fensters.
+ */
+const CONFIRM_WINDOW_MS = 15 * 60_000;
+
+/** Zustandszeile für die Kandidaten des letzten Laufs (kein Warnlauf-Protokoll). */
+const CAND_JOB = "auto-thunder-candidates";
+
+type Candidates = Record<string, { level: number; t: number }>;
+
+async function loadCandidates(): Promise<Candidates> {
+  try {
+    const sb = await adminClient();
+    const { data } = await sb.from("job_runs").select("note").eq("job", CAND_JOB).maybeSingle();
+    const note = (data as { note: string | null } | null)?.note;
+    if (!note) return {};
+    const parsed = JSON.parse(note) as Candidates;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveCandidates(c: Candidates): Promise<void> {
+  try {
+    const sb = await adminClient();
+    await sb
+      .from("job_runs")
+      .upsert(
+        { job: CAND_JOB, ran_at: new Date().toISOString(), note: JSON.stringify(c) },
+        { onConflict: "job" },
+      );
+  } catch {
+    // Ohne Zustandszeile greift die Bestätigung im nächsten Lauf erneut.
+  }
+}
 
 function compass(deg: number): string {
   const dirs = ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"];
