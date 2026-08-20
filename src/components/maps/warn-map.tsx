@@ -715,16 +715,18 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                       const Icon = h?.icon;
                       const lv = LEVELS[w.level as 1 | 2 | 3];
                       return (
-                        <li
-                          key={w.id}
-                          className="flex items-start gap-2 rounded-lg px-2 py-1.5"
-                          style={{ background: lv.color, color: lv.textOnColor }}
-                        >
-                          {Icon && <Icon className="mt-0.5 h-5 w-5 shrink-0" />}
-                          <span className="text-sm font-semibold leading-snug">
-                            {h?.label ?? w.hazard} (Stufe {w.level})
-                            {w.advisory ? " · Vorinformation" : ""}
-                          </span>
+                        <li key={w.id}>
+                          <a
+                            {...wpLinkProps}
+                            className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:underline"
+                            style={{ background: lv.color, color: lv.textOnColor }}
+                          >
+                            {Icon && <Icon className="mt-0.5 h-5 w-5 shrink-0" />}
+                            <span className="text-sm font-semibold leading-snug">
+                              {h?.label ?? w.hazard} (Stufe {w.level})
+                              {w.advisory ? " · Vorinformation" : ""}
+                            </span>
+                          </a>
                         </li>
                       );
                     })}
