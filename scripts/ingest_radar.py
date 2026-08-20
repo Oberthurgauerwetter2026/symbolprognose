@@ -45,10 +45,10 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v27-area12"
+RADAR_INGEST_VERSION = "v28-area8"
 
 # Mindestanzahl Radar-Pixel über der Schwelle, damit eine Gemeinde gewarnt wird.
-MIN_CELL_PIXELS = 12
+MIN_CELL_PIXELS = 8
 STAC_BASE = "https://data.geo.admin.ch/api/stac/v1/collections"
 COLLECTIONS = {
     "precip": "ch.meteoschweiz.ogd-radar-precip",  # RZC instant rate, mm/h

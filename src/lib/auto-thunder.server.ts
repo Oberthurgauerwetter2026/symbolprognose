@@ -22,7 +22,7 @@ import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 /**
- * mm/h-Schwellen für Stufe 1/2/3 (15/30/50) gemäss MeteoSchweiz-Gefahrenstufen.
+ * mm/h-Schwellen für Stufe 1/2/3 (15/25/45), angelehnt an die MeteoSchweiz-Gefahrenstufen.
  * MeteoSchweiz (und damit auch SRF Meteo) warnt Gewitter erst ab Stufe 2;
  * Stufe 1 dient nur manuellen Warnungen. Massgebend ist die flächengestützte
  * Intensität (mind. `MIN_CELL_PIXELS` Radar-Pixel), nicht eine Pixelspitze.
@@ -101,8 +101,8 @@ export interface AutoThunderResult {
   note?: string;
 }
 
-/** Wiederholsperre: pro Warnung höchstens alle 60 Minuten eine Push-Meldung. */
-const RENOTIFY_MS = 60 * 60_000;
+/** Wiederholsperre: pro Warnung höchstens alle 30 Minuten eine Push-Meldung. */
+const RENOTIFY_MS = 30 * 60_000;
 
 
 
@@ -244,7 +244,7 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
      * - Zeile war vorher inaktiv (Reaktivierung = neues Gewitter)
      * - Warnstufe steigt gegenüber der laufenden Warnung
      * Reine Text-/Zeit-Aktualisierungen im 5-Minuten-Takt lösen keinen Push aus.
-     * Zusätzliche Wiederholsperre von 45 Minuten, ausser die Stufe steigt.
+     * Zusätzliche Wiederholsperre von 30 Minuten, ausser die Stufe steigt.
      */
     const escalated = !!existing && level > existing.level;
     const reactivated = !!existing && existing.active === false;
