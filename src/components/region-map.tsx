@@ -484,6 +484,7 @@ function SpotMarker({
 
 
 
+  const hasWarning = !!warning;
   return (
     <Marker
       position={[
@@ -491,7 +492,14 @@ function SpotMarker({
         spot.lon + (spot.markerLonOffset ?? 0),
       ]}
       icon={icon}
-      interactive={false}
+      interactive={hasWarning}
+      {...(hasWarning
+        ? {
+            eventHandlers: { click: () => openWarnPage() },
+            keyboard: false,
+            title: "Warnungen anzeigen",
+          }
+        : {})}
     />
   );
 }
