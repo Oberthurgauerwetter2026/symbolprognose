@@ -22,26 +22,35 @@ import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
 
 /**
- * mm/h-Schwellen für Stufe 1/2/3 (25/50/80). Bewusst konservativer als die
- * MeteoSchweiz-Pixelkriterien, damit die Automatik nicht zu extrem beurteilt.
- * Massgebend ist die flächengestützte Intensität (mind. 8 Radar-Pixel),
- * nicht die Spitze eines einzelnen Pixels.
+ * mm/h-Schwellen für Stufe 1/2/3 (15/30/50) gemäss MeteoSchweiz-Gefahrenstufen.
+ * MeteoSchweiz (und damit auch SRF Meteo) warnt Gewitter erst ab Stufe 2;
+ * Stufe 1 dient nur manuellen Warnungen. Massgebend ist die flächengestützte
+ * Intensität (mind. `MIN_CELL_PIXELS` Radar-Pixel), nicht eine Pixelspitze.
  */
 const THRESHOLDS: [number, number, number] = THUNDER_RAIN_MMH;
+
+/** Automatik warnt erst ab dieser Stufe (MeteoSchweiz-Praxis: ab Stufe 2). */
+const AUTO_MIN_LEVEL = 2;
 
 /** Maximales Alter der Messung, damit sie noch warnt (min). */
 const MAX_AGE_MIN = 30;
 
 /**
- * Persistenz: eine neue Warnung (und jede Höherstufung) braucht die
- * Bestätigung eines vorangehenden Laufs innerhalb dieses Fensters.
+ * Persistenz: Bestätigung durch aufeinanderfolgende Läufe innerhalb dieses
+ * Fensters. Stufe 2 braucht 2 Läufe, Stufe 3 deren 3 (~15 Min.).
  */
 const CONFIRM_WINDOW_MS = 15 * 60_000;
+
+/** Nötige Läufe in Folge je Stufe. */
+function runsNeeded(level: number): number {
+  return level >= 3 ? 3 : 2;
+}
 
 /** Zustandszeile für die Kandidaten des letzten Laufs (kein Warnlauf-Protokoll). */
 const CAND_JOB = "auto-thunder-candidates";
 
-type Candidates = Record<string, { level: number; t: number }>;
+type Candidates = Record<string, { level: number; t: number; n?: number }>;
+
 
 async function loadCandidates(): Promise<Candidates> {
   try {
@@ -75,10 +84,10 @@ function compass(deg: number): string {
   return dirs[Math.round(((((deg % 360) + 360) % 360) / 45)) % 8];
 }
 
-function levelFor(mmh: number): 1 | 2 | 3 | 0 {
+/** Stufe aus der Flächenintensität; unter Stufe 2 warnt die Automatik nicht. */
+function levelFor(mmh: number): 2 | 3 | 0 {
   if (mmh >= THRESHOLDS[2]) return 3;
   if (mmh >= THRESHOLDS[1]) return 2;
-  if (mmh >= THRESHOLDS[0]) return 1;
   return 0;
 }
 
@@ -92,8 +101,9 @@ export interface AutoThunderResult {
   note?: string;
 }
 
-/** Wiederholsperre: pro Warnung höchstens alle 45 Minuten eine Push-Meldung. */
-const RENOTIFY_MS = 45 * 60_000;
+/** Wiederholsperre: pro Warnung höchstens alle 60 Minuten eine Push-Meldung. */
+const RENOTIFY_MS = 60 * 60_000;
+
 
 
 async function runAutoThunderCore(): Promise<AutoThunderResult> {
@@ -124,7 +134,9 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   for (const r of measured) {
     const peak = typeof r.mmh === "number" ? r.mmh : 0;
     const area = typeof r.mmhArea === "number" ? r.mmhArea : peak;
-    if (area < THRESHOLDS[0]) continue;
+    // Unter der Stufe-2-Schwelle warnt die Automatik nicht (MeteoSchweiz-Praxis).
+    if (area < THRESHOLDS[AUTO_MIN_LEVEL - 1]) continue;
+
     const prev = perRegion.get(r.id);
     perRegion.set(r.id, {
       peak: Math.max(prev?.peak ?? 0, peak),
@@ -147,8 +159,9 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   const warnedRegions: string[] = [];
 
   /**
-   * Persistenz-Prüfung: Kandidaten des vorangehenden Laufs. Eine neue Warnung
-   * und jede Höherstufung brauchen zwei Läufe in Folge über der Schwelle.
+   * Persistenz-Prüfung: Kandidaten der vorangehenden Läufe. Eine neue Warnung
+   * (und jede Höherstufung) braucht mehrere Läufe in Folge über der Schwelle —
+   * Stufe 2 zwei Läufe, Stufe 3 drei Läufe.
    */
   const prevCands = await loadCandidates();
   const nextCands: Candidates = {};
@@ -157,11 +170,15 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   for (const [regionId, v] of perRegion) {
     const rawLevel = levelFor(v.area);
     if (!rawLevel) continue;
-    nextCands[regionId] = { level: rawLevel, t: now };
 
     const conf = prevCands[regionId];
-    const confirmed =
-      !!conf && now - conf.t <= CONFIRM_WINDOW_MS && conf.level >= rawLevel;
+    const inWindow = !!conf && now - conf.t <= CONFIRM_WINDOW_MS;
+    // Läufe in Folge: bei gleicher oder höherer Stufe weiterzählen.
+    const prevRuns = inWindow && conf!.level >= rawLevel ? (conf!.n ?? 1) : 0;
+    const runs = prevRuns + 1;
+    nextCands[regionId] = { level: rawLevel, t: now, n: runs };
+
+    const confirmed = runs >= runsNeeded(rawLevel);
 
     const autoKey = `auto-gewitter-${regionId}`;
     const { data: existingData } = await sb
@@ -180,10 +197,11 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       pending++;
       continue;
     }
-    const level: 1 | 2 | 3 =
+    const level: 2 | 3 =
       running && !confirmed
-        ? (Math.min(rawLevel, existing!.level) as 1 | 2 | 3)
+        ? (Math.max(AUTO_MIN_LEVEL, Math.min(rawLevel, existing!.level)) as 2 | 3)
         : rawLevel;
+
 
     warnedRegions.push(regionId);
 

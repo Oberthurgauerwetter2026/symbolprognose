@@ -1179,12 +1179,13 @@ function AutoThunderSection({ password }: { password: string }) {
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Automatik läuft alle 5 Minuten und warnt ab {THUNDER_RAIN_MMH[0]} mm/h (Stufe 1),{" "}
-        {THUNDER_RAIN_MMH[1]} mm/h (Stufe 2) und {THUNDER_RAIN_MMH[2]} mm/h (Stufe 3) — gemessen
-        über mindestens 8 km² Fläche und bestätigt durch zwei Läufe in Folge. Zum Vergleich:
-        MeteoSchweiz warnt Gewitter ab Stufe 2 bei 30–50 mm/h, ab Stufe 3 über 50 mm/h, ebenfalls
-        nur bei flächiger und andauernder Intensität.
+        Automatik läuft alle 5 Minuten und warnt — wie MeteoSchweiz und SRF Meteo — erst ab Stufe 2:
+        ab {THUNDER_RAIN_MMH[1]} mm/h (Stufe 2) bzw. ab {THUNDER_RAIN_MMH[2]} mm/h (Stufe 3),
+        gemessen über mindestens 12 km² Fläche. Stufe 2 braucht zwei, Stufe 3 drei Radarläufe in
+        Folge. Stufe 1 ({THUNDER_RAIN_MMH[0]} mm/h) bleibt manuellen Warnungen vorbehalten;
+        Push-Wiederholungen frühestens nach 60 Minuten, ausser die Stufe steigt.
       </p>
+
       <button
         type="button"
         disabled={busy}
