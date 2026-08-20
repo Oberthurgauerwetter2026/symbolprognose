@@ -68,9 +68,23 @@ import { cn } from "@/lib/utils";
 import { SPOTS, type Spot } from "@/data/spots";
 import { useActiveWarnings } from "@/hooks/use-warnings";
 import { regionIdForPoint, topWarningFor, warningsForRegion } from "@/lib/warnings-lookup";
-import { getHazard, LEVELS, type HazardId, type WarnLevel } from "@/lib/warnings-config";
+import { getHazard, LEVELS, WP_WARN_URL, type HazardId, type WarnLevel } from "@/lib/warnings-config";
 import type { WarningDTO } from "@/lib/warnings.functions";
-import { SITE_URL } from "@/lib/site-url";
+
+/** Öffnet die WP-Warnseite: im Embed im übergeordneten Fenster, sonst neuer Tab. */
+function openWarnPage() {
+  if (typeof window === "undefined") return;
+  const embedded = window.self !== window.top;
+  if (embedded) {
+    try {
+      window.top!.location.href = WP_WARN_URL;
+      return;
+    } catch {
+      /* Cross-Origin: Fallback auf neuen Tab */
+    }
+  }
+  window.open(WP_WARN_URL, "_blank", "noopener,noreferrer");
+}
 
 
 
