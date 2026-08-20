@@ -159,8 +159,9 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   const warnedRegions: string[] = [];
 
   /**
-   * Persistenz-Prüfung: Kandidaten des vorangehenden Laufs. Eine neue Warnung
-   * und jede Höherstufung brauchen zwei Läufe in Folge über der Schwelle.
+   * Persistenz-Prüfung: Kandidaten der vorangehenden Läufe. Eine neue Warnung
+   * (und jede Höherstufung) braucht mehrere Läufe in Folge über der Schwelle —
+   * Stufe 2 zwei Läufe, Stufe 3 drei Läufe.
    */
   const prevCands = await loadCandidates();
   const nextCands: Candidates = {};
@@ -169,11 +170,15 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   for (const [regionId, v] of perRegion) {
     const rawLevel = levelFor(v.area);
     if (!rawLevel) continue;
-    nextCands[regionId] = { level: rawLevel, t: now };
 
     const conf = prevCands[regionId];
-    const confirmed =
-      !!conf && now - conf.t <= CONFIRM_WINDOW_MS && conf.level >= rawLevel;
+    const inWindow = !!conf && now - conf.t <= CONFIRM_WINDOW_MS;
+    // Läufe in Folge: bei gleicher oder höherer Stufe weiterzählen.
+    const prevRuns = inWindow && conf!.level >= rawLevel ? (conf!.n ?? 1) : 0;
+    const runs = prevRuns + 1;
+    nextCands[regionId] = { level: rawLevel, t: now, n: runs };
+
+    const confirmed = runs >= runsNeeded(rawLevel);
 
     const autoKey = `auto-gewitter-${regionId}`;
     const { data: existingData } = await sb
@@ -192,10 +197,11 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       pending++;
       continue;
     }
-    const level: 1 | 2 | 3 =
+    const level: 2 | 3 =
       running && !confirmed
-        ? (Math.min(rawLevel, existing!.level) as 1 | 2 | 3)
+        ? (Math.max(AUTO_MIN_LEVEL, Math.min(rawLevel, existing!.level)) as 2 | 3)
         : rawLevel;
+
 
     warnedRegions.push(regionId);
 
