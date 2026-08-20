@@ -473,7 +473,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
         <div
           className={cn(
             "map-attrib-compact relative h-[560px] w-full overflow-hidden rounded-2xl shadow-lg",
-            bare ? "@md:h-[600px] @lg:h-full" : "sm:h-[600px] @lg:h-full",
+            bare ? "@md:h-[600px] @lg:h-[600px]" : "sm:h-[600px] @lg:h-[600px]",
 
           )}
         >
