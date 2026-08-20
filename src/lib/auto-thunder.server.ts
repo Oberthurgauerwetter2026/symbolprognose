@@ -247,8 +247,16 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     }
   }
 
+  await saveCandidates(nextCands);
   const closed = await closeStale(warnedRegions);
-  return { detected: warnedRegions.length, created, closed, notified, motion };
+  return {
+    detected: warnedRegions.length,
+    created,
+    closed,
+    notified,
+    motion,
+    note: pending > 0 ? `${pending} Zelle(n) warten auf Bestätigung` : undefined,
+  };
 
 }
 
