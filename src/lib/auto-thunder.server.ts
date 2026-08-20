@@ -146,9 +146,45 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
   let notified = 0;
   const warnedRegions: string[] = [];
 
+  /**
+   * Persistenz-Prüfung: Kandidaten des vorangehenden Laufs. Eine neue Warnung
+   * und jede Höherstufung brauchen zwei Läufe in Folge über der Schwelle.
+   */
+  const prevCands = await loadCandidates();
+  const nextCands: Candidates = {};
+  let pending = 0;
+
   for (const [regionId, v] of perRegion) {
-    const level = levelFor(v.area);
-    if (!level) continue;
+    const rawLevel = levelFor(v.area);
+    if (!rawLevel) continue;
+    nextCands[regionId] = { level: rawLevel, t: now };
+
+    const conf = prevCands[regionId];
+    const confirmed =
+      !!conf && now - conf.t <= CONFIRM_WINDOW_MS && conf.level >= rawLevel;
+
+    const autoKey = `auto-gewitter-${regionId}`;
+    const { data: existingData } = await sb
+      .from("warnings")
+      .select("id, active, level, notified_at")
+      .eq("auto_key", autoKey)
+      .maybeSingle();
+    const existing = existingData as
+      | { id: string; active: boolean; level: number; notified_at: string | null }
+      | null;
+    const running = existing?.active === true;
+
+    // Ohne Bestätigung: eine laufende Warnung wird weitergeführt (ohne
+    // Höherstufung), eine neue entsteht noch nicht.
+    if (!running && !confirmed) {
+      pending++;
+      continue;
+    }
+    const level: 1 | 2 | 3 =
+      running && !confirmed
+        ? (Math.min(rawLevel, existing!.level) as 1 | 2 | 3)
+        : rawLevel;
+
     warnedRegions.push(regionId);
 
     const validFrom = new Date(now).toISOString();
@@ -170,17 +206,8 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
       params: { value: String(Math.round(v.peak)), auto: true, measured: true },
       active: true,
       source: "auto",
-      auto_key: `auto-gewitter-${regionId}`,
+      auto_key: autoKey,
     };
-
-    const { data: existingData } = await sb
-      .from("warnings")
-      .select("id, active, level, notified_at")
-      .eq("auto_key", row.auto_key)
-      .maybeSingle();
-    const existing = existingData as
-      | { id: string; active: boolean; level: number; notified_at: string | null }
-      | null;
 
     let id: string | null = existing?.id ?? null;
     if (id) {
