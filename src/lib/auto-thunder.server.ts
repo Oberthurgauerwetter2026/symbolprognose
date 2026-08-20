@@ -101,8 +101,8 @@ export interface AutoThunderResult {
   note?: string;
 }
 
-/** Wiederholsperre: pro Warnung höchstens alle 60 Minuten eine Push-Meldung. */
-const RENOTIFY_MS = 60 * 60_000;
+/** Wiederholsperre: pro Warnung höchstens alle 30 Minuten eine Push-Meldung. */
+const RENOTIFY_MS = 30 * 60_000;
 
 
 
@@ -244,7 +244,7 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
      * - Zeile war vorher inaktiv (Reaktivierung = neues Gewitter)
      * - Warnstufe steigt gegenüber der laufenden Warnung
      * Reine Text-/Zeit-Aktualisierungen im 5-Minuten-Takt lösen keinen Push aus.
-     * Zusätzliche Wiederholsperre von 45 Minuten, ausser die Stufe steigt.
+     * Zusätzliche Wiederholsperre von 30 Minuten, ausser die Stufe steigt.
      */
     const escalated = !!existing && level > existing.level;
     const reactivated = !!existing && existing.active === false;
