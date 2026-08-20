@@ -685,7 +685,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             )}
             <div
               className={cn(
-                "overflow-y-auto pr-1",
+                "max-h-[300px] overflow-y-auto pr-1 sm:max-h-none",
                 bare ? "@lg:min-h-0 @lg:flex-1" : "@lg:min-h-0 @lg:flex-1",
               )}
             >
