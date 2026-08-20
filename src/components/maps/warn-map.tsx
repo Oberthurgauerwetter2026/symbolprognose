@@ -653,9 +653,8 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
         <aside
           className={cn(
             "space-y-3",
-            bare
-              ? "@lg:flex @lg:h-[clamp(420px,60vh,760px)] @lg:flex-col"
-              : "@lg:flex @lg:h-[clamp(420px,60vh,760px)] @lg:flex-col",
+            "@lg:flex @lg:h-[600px] @lg:flex-col",
+
 
           )}
         >
