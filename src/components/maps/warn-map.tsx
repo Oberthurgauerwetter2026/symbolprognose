@@ -472,10 +472,9 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
       >
         <div
           className={cn(
-            "map-attrib-compact relative aspect-[4/3] min-h-[280px] w-full overflow-hidden rounded-2xl shadow-lg",
-            bare
-              ? "@md:aspect-auto @md:h-[clamp(420px,60vh,760px)] @lg:h-full"
-              : "sm:aspect-auto sm:h-[clamp(420px,60vh,760px)] @lg:h-full",
+            "map-attrib-compact relative h-[560px] w-full overflow-hidden rounded-2xl shadow-lg",
+            bare ? "@md:h-[600px] @lg:h-full" : "sm:h-[600px] @lg:h-full",
+
           )}
         >
           {/* Schraffur-Muster für Vorinformationen (referenziert via fill="url(#…)") */}
