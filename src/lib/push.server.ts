@@ -106,7 +106,7 @@ export async function notifyWarning(warningId: string): Promise<number> {
     const ok = await sendPush(s, {
       title,
       body,
-      url: `${SITE_URL}/karten/warnungen`,
+      url: WP_WARN_URL,
       tag: warning.id,
       icon,
     });
