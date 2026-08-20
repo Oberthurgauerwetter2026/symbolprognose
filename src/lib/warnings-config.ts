@@ -749,3 +749,5 @@ export function suggestLevel(
 }
 
 
+/** Öffentliche WordPress-Seite mit der eingebetteten Warnkarte. */
+export const WP_WARN_URL = "https://www.oberthurgauerwetter.ch/warnkarte/";

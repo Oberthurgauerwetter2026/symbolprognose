@@ -18,6 +18,7 @@ import {
   regionName,
   slugifyRegion,
   formatRange,
+  WP_WARN_URL,
   type HazardId,
 } from "@/lib/warnings-config";
 import { type WarningDTO } from "@/lib/warnings.functions";
@@ -232,6 +233,10 @@ export interface WarnMapProps {
 }
 
 function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProps) {
+  /** Links auf die WordPress-Warnseite: im Embed das ganze Fenster wechseln. */
+  const wpLinkProps = (bare || snapshot
+    ? { href: WP_WARN_URL, target: "_top" as const, rel: "noopener" }
+    : { href: WP_WARN_URL, target: "_blank" as const, rel: "noopener noreferrer" });
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -668,7 +673,9 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             {selected && (
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-lg font-semibold text-foreground">
-                  {regionName(selected)}
+                  <a {...wpLinkProps} className="hover:underline">
+                    {regionName(selected)}
+                  </a>
                 </h2>
                 <button
                   type="button"
@@ -708,16 +715,18 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                       const Icon = h?.icon;
                       const lv = LEVELS[w.level as 1 | 2 | 3];
                       return (
-                        <li
-                          key={w.id}
-                          className="flex items-start gap-2 rounded-lg px-2 py-1.5"
-                          style={{ background: lv.color, color: lv.textOnColor }}
-                        >
-                          {Icon && <Icon className="mt-0.5 h-5 w-5 shrink-0" />}
-                          <span className="text-sm font-semibold leading-snug">
-                            {h?.label ?? w.hazard} (Stufe {w.level})
-                            {w.advisory ? " · Vorinformation" : ""}
-                          </span>
+                        <li key={w.id}>
+                          <a
+                            {...wpLinkProps}
+                            className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:underline"
+                            style={{ background: lv.color, color: lv.textOnColor }}
+                          >
+                            {Icon && <Icon className="mt-0.5 h-5 w-5 shrink-0" />}
+                            <span className="text-sm font-semibold leading-snug">
+                              {h?.label ?? w.hazard} (Stufe {w.level})
+                              {w.advisory ? " · Vorinformation" : ""}
+                            </span>
+                          </a>
                         </li>
                       );
                     })}
@@ -780,8 +789,9 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                       cut >= 0 ? impactRaw.slice(cut + "Empfohlenes Verhalten:".length).trim() : "";
                     return (
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
-                        <div
-                          className="flex items-start gap-2 px-3 py-2 text-base font-semibold"
+                        <a
+                          {...wpLinkProps}
+                          className="flex items-start gap-2 px-3 py-2 text-base font-semibold hover:underline"
                           style={
                             w.advisory
                               ? {
@@ -811,9 +821,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                               </div>
                             );
                           })()}
-
-
-                        </div>
+                        </a>
 
                         <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">

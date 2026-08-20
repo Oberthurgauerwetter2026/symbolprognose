@@ -5,7 +5,13 @@
 
 import { buildPushPayload, type PushSubscription } from "@block65/webcrypto-web-push";
 import { adminClient, type WarningRow } from "@/lib/warnings.server";
-import { formatRange, warningTitle, type HazardId, type WarnLevel } from "@/lib/warnings-config";
+import {
+  formatRange,
+  warningTitle,
+  WP_WARN_URL,
+  type HazardId,
+  type WarnLevel,
+} from "@/lib/warnings-config";
 
 interface SubRow {
   endpoint: string;
@@ -106,7 +112,7 @@ export async function notifyWarning(warningId: string): Promise<number> {
     const ok = await sendPush(s, {
       title,
       body,
-      url: `${SITE_URL}/karten/warnungen`,
+      url: WP_WARN_URL,
       tag: warning.id,
       icon,
     });

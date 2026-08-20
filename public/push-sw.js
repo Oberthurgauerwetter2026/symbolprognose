@@ -2,6 +2,8 @@
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
+const FALLBACK_URL = "https://www.oberthurgauerwetter.ch/warnkarte/";
+
 self.addEventListener("push", (event) => {
   let payload = {};
   try {
@@ -14,7 +16,7 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(title, {
       body: payload.body || "",
       tag: payload.tag || "wetterwarnung",
-      data: { url: payload.url || "/karten/warnungen" },
+      data: { url: payload.url || FALLBACK_URL },
       icon: payload.icon || "/icon-192.png",
       badge: "/icon-192.png",
     }),
@@ -23,7 +25,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/karten/warnungen";
+  const url = (event.notification.data && event.notification.data.url) || FALLBACK_URL;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const client of list) {
