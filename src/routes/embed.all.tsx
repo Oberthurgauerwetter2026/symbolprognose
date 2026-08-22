@@ -1,13 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { EmbedShell } from "@/components/embed-shell";
 
 import { MAPS, type MapId } from "@/lib/maps-config";
 import { WeatherWidget } from "@/components/weather-widget";
 import { ComingSoonMap } from "@/components/maps/coming-soon-map";
-import { LazyRegionMap, preloadRegionMap } from "@/components/maps/lazy-maps";
+import {
+  LazyPrecipAccumMap,
+  LazyRadarMap,
+  LazyRegionMap,
+  LazySatelliteMap,
+  LazyWarnMap,
+  LazyWindMap,
+  preloadMapChunk,
+  preloadRegionMap,
+} from "@/components/maps/lazy-maps";
 import { MapSkeleton } from "@/components/maps/map-skeleton";
-import { regionForecastQuery, warningsQuery } from "@/lib/map-queries";
+import { radarAccumQuery, regionForecastQuery, warningsQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 
 const BRAND = "#2561a1";
@@ -42,6 +52,7 @@ function EmbedAll() {
               key={m.id}
               type="button"
               onClick={() => setActive(m.id)}
+              onMouseEnter={() => preloadMapChunk(m.id)}
               className={cn(
                 "flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
                 isActive
@@ -67,19 +78,67 @@ function EmbedAll() {
         })}
       </div>
 
-      {active === "region" && (
-        <Suspense fallback={<MapSkeleton />}>
-          <LazyRegionMap />
-        </Suspense>
-      )}
-      {active === "lokal" && <WeatherWidget />}
-      {(active === "wind" || active === "radar") && (
-        <ComingSoonMap
-          icon={MAPS.find((m) => m.id === active)!.icon}
-          title={MAPS.find((m) => m.id === active)!.label}
-          description={MAPS.find((m) => m.id === active)!.description}
-        />
-      )}
+      <MapPanel active={active} />
     </EmbedShell>
+  );
+}
+
+/** Inhalt pro Tab — jede Live-Karte wird echt gerendert, nie leer. */
+function MapPanel({ active }: { active: MapId }) {
+  const def = MAPS.find((m) => m.id === active)!;
+  const fallback = <MapSkeleton />;
+
+  if (def.status === "coming-soon") {
+    return (
+      <ComingSoonMap icon={def.icon} title={def.label} description={def.description} />
+    );
+  }
+
+  if (active === "lokal") return <WeatherWidget />;
+
+  return (
+    <ClientOnly fallback={fallback}>
+      <Suspense fallback={fallback}>
+        {active === "region" && <LazyRegionMap />}
+        {active === "warnungen" && <LazyWarnMap />}
+        {active === "wind" && <LazyWindMap />}
+        {active === "radar" && <LazyRadarMap />}
+        {active === "satellit" && <LazySatelliteMap />}
+        {active === "niederschlag" && <PrecipAccumPanel />}
+      </Suspense>
+    </ClientOnly>
+  );
+}
+
+function PrecipAccumPanel() {
+  const { data, isLoading, error } = useQuery({
+    ...radarAccumQuery(),
+    refetchInterval: 60 * 60_000,
+  });
+
+  if (isLoading) return <MapSkeleton />;
+  if (error) {
+    return (
+      <p className="text-sm text-destructive">
+        Niederschlagssummen konnten nicht geladen werden: {(error as Error).message}
+      </p>
+    );
+  }
+  if (!data || data.frames.length === 0) {
+    return <p className="text-sm text-muted-foreground">Keine Prognosedaten verfügbar.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {[12, 24, 48].map((h) => (
+        <LazyPrecipAccumMap
+          key={h}
+          hours={h as 12 | 24 | 48}
+          frames={data.frames}
+          gridLat={data.gridLat}
+          gridLon={data.gridLon}
+        />
+      ))}
+    </div>
   );
 }
