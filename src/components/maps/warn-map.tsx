@@ -233,10 +233,13 @@ export interface WarnMapProps {
 }
 
 function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProps) {
+  /** Embed-/Widget-Modus: nur Karte, jeder Klick führt auf die WP-Warnseite. */
+  const embedMode = bare || snapshot;
   /** Links auf die WordPress-Warnseite: im Embed das ganze Fenster wechseln. */
-  const wpLinkProps = (bare || snapshot
+  const wpLinkProps = (embedMode
     ? { href: WP_WARN_URL, target: "_top" as const, rel: "noopener" }
     : { href: WP_WARN_URL, target: "_blank" as const, rel: "noopener noreferrer" });
+
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
@@ -397,7 +400,8 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
   return (
     <div className={cn("@container space-y-3", className)}>
       {/* Banner mit Gefahrenarten */}
-      {!snapshot && (
+      {!embedMode && (
+
       <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-sm sm:flex-wrap sm:overflow-visible">
         <button
           type="button"
@@ -470,11 +474,12 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
       <div
         className={cn(
           "grid gap-3",
-          bare
-            ? "grid-cols-1 @lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]"
+          embedMode
+            ? "grid-cols-1"
             : "@lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]",
         )}
       >
+
         <div
           className={cn(
             "map-attrib-compact relative h-[340px] w-full overflow-hidden rounded-2xl shadow-lg",
@@ -517,7 +522,12 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             zoomDelta={0.5}
             minZoom={9}
             maxZoom={15}
-            scrollWheelZoom
+            scrollWheelZoom={!embedMode}
+            dragging={!embedMode}
+            doubleClickZoom={!embedMode}
+            touchZoom={!embedMode}
+            keyboard={!embedMode}
+
             zoomControl={false}
             attributionControl
             style={{ height: "100%", width: "100%", background: "#ebefeb" }}
@@ -560,8 +570,10 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 geoRef.current = r;
               }}
               data={REGION_FC}
+              interactive={!embedMode}
               style={(f) => styleFor(f as Feature)}
               onEachFeature={(feature, layer) => {
+                if (embedMode) return;
                 const name = String((feature.properties as { name?: string } | null)?.name ?? "");
                 const id = slugifyRegion(name);
                 const path = layer as L.Path;
@@ -589,12 +601,23 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 keyboard={false}
               />
             ))}
-            <ZoomControl position="topright" />
+            {!embedMode && <ZoomControl position="topright" />}
           </MapContainer>
+
+          {/* Embed: gesamte Karte verlinkt auf die WP-Warnseite */}
+          {embedMode && (
+            <a
+              {...wpLinkProps}
+              aria-label="Alle Warnungen auf oberthurgauerwetter.ch ansehen"
+              title="Warnungen ansehen"
+              className="absolute inset-0 z-[800] block cursor-pointer"
+            />
+          )}
+
 
           {/* Legende – nur auf Klick */}
           {legendOpen ? (
-            <div className="absolute bottom-3 left-3 z-[400] w-[210px] rounded-lg bg-card/95 p-3 text-xs shadow-lg">
+            <div className="absolute bottom-3 left-3 z-[900] w-[210px] rounded-lg bg-card/95 p-3 text-xs shadow-lg">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="font-semibold text-foreground">Legende</span>
                 <button
@@ -646,16 +669,18 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
               onClick={() => setLegendOpen(true)}
               aria-label="Legende anzeigen"
               title="Legende"
-              className="absolute bottom-3 left-3 z-[400] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
+              className="absolute bottom-3 left-3 z-[900] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
             >
               <Info className="h-4 w-4" />
             </button>
           )}
         </div>
 
-        {/* Info-Panel */}
+        {/* Info-Panel – in Embeds ausgeblendet */}
 
+        {!embedMode && (
         <aside
+
           className={cn(
             "space-y-3",
             "@lg:flex @lg:h-[600px] @lg:flex-col",
@@ -884,6 +909,8 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
           )}
 
         </aside>
+        )}
+
 
       </div>
 
