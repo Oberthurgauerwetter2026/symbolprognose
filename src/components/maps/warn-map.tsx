@@ -474,11 +474,12 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
       <div
         className={cn(
           "grid gap-3",
-          bare
-            ? "grid-cols-1 @lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]"
+          embedMode
+            ? "grid-cols-1"
             : "@lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]",
         )}
       >
+
         <div
           className={cn(
             "map-attrib-compact relative h-[340px] w-full overflow-hidden rounded-2xl shadow-lg",
