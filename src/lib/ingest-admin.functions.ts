@@ -202,6 +202,8 @@ export interface PipelineHealth {
   runsChecked?: number;
   /** Daten deutlich älter als das Soll-Intervall (> 6×) — als Fehler behandeln. */
   stale?: true;
+  /** GitHub lehnt den Dispatch-Token ab (401 Bad credentials). */
+  tokenInvalid?: true;
   error?: string;
 
 }
@@ -231,6 +233,9 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
 
     const token = process.env.GITHUB_DISPATCH_TOKEN;
     const repo = process.env.GITHUB_REPO;
+    // Ein GitHub-401 ("Bad credentials") bedeutet: Token abgelaufen/ersetzt,
+    // aber die veröffentlichte Version arbeitet noch mit dem alten Wert.
+    let tokenInvalid = false;
 
     async function recentRuns(file: string) {
       if (!token || !repo) return null;
@@ -246,7 +251,10 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
             },
           },
         );
-        if (!res.ok) return null;
+        if (!res.ok) {
+          if (res.status === 401) tokenInvalid = true;
+          return null;
+        }
         const json = (await res.json()) as {
           workflow_runs?: Array<{
             id: number;
@@ -330,6 +338,13 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
           ...(runNote(run) ? { runNote: runNote(run)! } : {}),
           ...(runs ? { runnerFailures, runsChecked: runs.length } : {}),
           ...(age ? {} : { error: "keine Datei in R2 erreichbar" }),
+          ...(tokenInvalid
+            ? {
+                tokenInvalid: true as const,
+                runNote:
+                  "GitHub-Token ungültig — neuen GITHUB_DISPATCH_TOKEN hinterlegen und Projekt neu veröffentlichen",
+              }
+            : {}),
           ...(age?.ageMinutes != null && age.ageMinutes > d.expectedEveryMin * 6
             ? { stale: true as const }
             : {}),
