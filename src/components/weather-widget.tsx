@@ -422,18 +422,14 @@ function WeatherWidgetInner({
 
         {!location &&
           (compact ? (
-            <p className="rounded-md bg-[var(--accent-soft)] px-3 py-2 text-center text-xs font-semibold text-zinc-800">
-              Gemeinde suchen oder „Ortung“ verwenden, um die 7-Tage-Prognose anzuzeigen.
-            </p>
+            <div className="flex items-center justify-center gap-2 rounded-md bg-[var(--accent-soft)] px-3 py-2 text-center text-xs font-semibold text-zinc-800">
+              <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>Ort eingeben oder „Ortung" verwenden</span>
+            </div>
           ) : (
-            <div className={`${requireExplicitLocation ? "p-4" : "p-8"} bg-[var(--accent-soft)] border border-accent/20 rounded-md text-center space-y-2`}>
-              <div className="text-2xl" aria-hidden>↑</div>
-              <p className="text-sm font-semibold text-zinc-900">
-                Gemeinde suchen oder „Ortung“ verwenden,
-              </p>
-              <p className="text-sm text-zinc-700">
-                um die 7-Tage-Prognose anzuzeigen.
-              </p>
+            <div className="flex items-center justify-center gap-2 rounded-md bg-[var(--accent-soft)] px-4 py-2.5 text-center text-sm font-semibold text-zinc-900">
+              <MapPin className="h-4 w-4 shrink-0 text-zinc-700" aria-hidden />
+              <span>Ort eingeben oder „Ortung" verwenden</span>
             </div>
           ))}
 
