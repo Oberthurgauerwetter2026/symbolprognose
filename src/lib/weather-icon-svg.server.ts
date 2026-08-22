@@ -422,7 +422,7 @@ export const WX_ICON_CSS_VARS = `:root{
   --wx-moon:#fef3c7;--wx-moon-shade:#b45309;
   --wx-cloud:#cbd0d8;--wx-cloud-shade:#6b7280;
   --wx-cloud-dark:#4b5563;--wx-cloud-dark-shade:#1f2937;
-  --wx-rain:#38bdf8;--wx-rain-edge:#0c2a4a;
+  --wx-rain:#b8d0e3;--wx-rain-edge:#8fb4d2;
   --wx-snow:#ffffff;--wx-snow-edge:#3b4a5c;
   --wx-bolt:#facc15;--wx-bolt-edge:#b45309;
   --wx-fog:#4b5563;
