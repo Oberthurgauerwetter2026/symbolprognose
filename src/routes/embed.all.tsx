@@ -1,13 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
 import { Suspense, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { EmbedShell } from "@/components/embed-shell";
 
 import { MAPS, type MapId } from "@/lib/maps-config";
 import { WeatherWidget } from "@/components/weather-widget";
 import { ComingSoonMap } from "@/components/maps/coming-soon-map";
-import { LazyRegionMap, preloadRegionMap } from "@/components/maps/lazy-maps";
+import {
+  LazyPrecipAccumMap,
+  LazyRadarMap,
+  LazyRegionMap,
+  LazySatelliteMap,
+  LazyWarnMap,
+  LazyWindMap,
+  preloadMapChunk,
+  preloadRegionMap,
+} from "@/components/maps/lazy-maps";
 import { MapSkeleton } from "@/components/maps/map-skeleton";
-import { regionForecastQuery, warningsQuery } from "@/lib/map-queries";
+import { radarAccumQuery, regionForecastQuery, warningsQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 
 const BRAND = "#2561a1";
