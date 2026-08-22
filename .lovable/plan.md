@@ -1,22 +1,20 @@
-# Warnkarte auf dem Smartphone abrunden
+# Neuen GitHub-Token eintragen
 
-Ziel: Karte und Warntext sollen auf dem Handy gemeinsam ohne viel Scrollen lesbar sein.
+Der bisherige Token („Lovable Radar Trigger") läuft ab. Es muss nur der gespeicherte Wert erneuert werden – am Code ändert sich nichts.
 
-## Änderungen (nur mobile Darstellung)
+## Vorgehen
 
-1. Kartenhöhe mobil von 340 px auf 320 px reduzieren; ab Tablet/Desktop bleibt es bei 600 px.
-2. Das Info-Panel darf mobil etwas mehr Platz nutzen: Warnliste von max. 300 px auf max. 340 px, mit eigenem Scrollbereich.
-3. Ein dezenter Verlauf am unteren Panelrand zeigt an, dass die Liste weiterscrollt.
+1. Ich öffne das sichere Eingabefeld für `GITHUB_DISPATCH_TOKEN`; du fügst den neuen Token dort ein (er läuft nie über den Chat).
+2. Danach prüfe ich, ob die Ingest-Auslösung wieder funktioniert (Radar-Trigger-Aufruf, Rückmeldung `dispatched` bzw. `already-running` statt Auth-Fehler).
+3. Falls der Token auch im Cloudflare-Trigger-Worker als eigenes Secret liegt, weise ich dich darauf hin, wo er dort ebenfalls ersetzt werden muss.
 
-Desktop, Tablet, `bare`-Embeds und Widget-Snapshots behalten ihre bisherigen Höhen. Reine Layout-Änderung, keine Datenlogik.
+## Voraussetzungen am Token
+
+- Fine-grained PAT für das Repo dieses Projekts.
+- Berechtigung „Actions: Read and write" (für `workflow_dispatch` und das Abfragen laufender Runs), plus „Metadata: Read".
+- Laufzeit gern länger wählen (z. B. 1 Jahr), damit die Erneuerung nicht so schnell wieder ansteht.
 
 ## Technische Details
 
-- `src/components/maps/warn-map.tsx`
-  - Kartencontainer (Zeile 480): `h-[340px]` → `h-[320px]`, Breakpoint-Klassen unverändert.
-  - Warnlisten-Container (Zeile 695): `max-h-[300px]` → `max-h-[340px]`, `sm:max-h-none` bleibt.
-  - Scroll-Hinweis: absoluter Gradient-Overlay (`pointer-events-none`, `from-background`) am unteren Rand des mobilen Panels, ab `sm` ausgeblendet.
-
-## Prüfung
-
-Warnkarte im Handy-Hochformat (390×844) öffnen: Karte plus erster Warntext sichtbar, Liste scrollt intern. Desktop unverändert.
+- Genutzt wird `process.env.GITHUB_DISPATCH_TOKEN` in `src/lib/gh-dispatch.server.ts` (zusammen mit `GITHUB_REPO`); alle Dispatch-Module (Radar, AROME, Open-Meteo, MCH, Symbol, Blitze) laufen darüber.
+- Keine Code-Änderung, keine Datenbank- oder Workflow-Anpassung nötig.
