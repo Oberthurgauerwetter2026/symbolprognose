@@ -909,6 +909,8 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
           )}
 
         </aside>
+        )}
+
 
       </div>
 
