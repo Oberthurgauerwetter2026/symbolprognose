@@ -669,16 +669,18 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
               onClick={() => setLegendOpen(true)}
               aria-label="Legende anzeigen"
               title="Legende"
-              className="absolute bottom-3 left-3 z-[400] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
+              className="absolute bottom-3 left-3 z-[900] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
             >
               <Info className="h-4 w-4" />
             </button>
           )}
         </div>
 
-        {/* Info-Panel */}
+        {/* Info-Panel – in Embeds ausgeblendet */}
 
+        {!embedMode && (
         <aside
+
           className={cn(
             "space-y-3",
             "@lg:flex @lg:h-[600px] @lg:flex-col",
