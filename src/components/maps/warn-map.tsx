@@ -617,7 +617,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
 
           {/* Legende – nur auf Klick */}
           {legendOpen ? (
-            <div className="absolute bottom-3 left-3 z-[400] w-[210px] rounded-lg bg-card/95 p-3 text-xs shadow-lg">
+            <div className="absolute bottom-3 left-3 z-[900] w-[210px] rounded-lg bg-card/95 p-3 text-xs shadow-lg">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="font-semibold text-foreground">Legende</span>
                 <button
