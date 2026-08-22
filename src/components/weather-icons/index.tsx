@@ -143,18 +143,30 @@ function Cloud({
 }
 
 function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: number; tilt?: number }) {
-  // Schlanker Tropfen: pointed top, round bottom. ~4.4 breit × 9.5 hoch bei size=1.
+  // Wetterdienst-Tropfen (Variante C): schlanke Silhouette, oben spitz und lang
+  // auslaufend, unten rund. Helle Füllung mit weissem Kopf-Highlight und
+  // weichem blaugrauem Rand — kein cartooniger dunkler Kontur-Ring.
+  // Einheitlich ruhige Neigung von 10°, unabhängig von der übergebenen Neigung.
+  const t = tilt === 0 ? 0 : Math.sign(tilt) * 10;
+  const s = size * 0.82;
   return (
-    <path
-      transform={`translate(${x} ${y}) rotate(${tilt}) scale(${size})`}
-      d="M 0 -5 C 2.2 -1.6 3 1 3 2.7 C 3 5 1.5 6.5 0 6.5 C -1.5 6.5 -3 5 -3 2.7 C -3 1 -2.2 -1.6 0 -5 Z"
-      fill={C.rain}
-      stroke={C.rainEdge}
-      strokeWidth="1"
-      strokeLinejoin="round"
-    />
+    <g transform={`translate(${x} ${y}) rotate(${t}) scale(${s})`}>
+      <path
+        d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z"
+        fill={C.rain}
+        stroke={C.rainEdge}
+        strokeWidth="0.7"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M 0 -6.9 C 1.1 -3.6 2.0 -1.2 2.2 0.9 C 1.3 -0.6 0.6 -2.2 0 -3.4 C -0.6 -2.2 -1.3 -0.6 -2.2 0.9 C -2.0 -1.2 -1.1 -3.6 0 -6.9 Z"
+        fill="#ffffff"
+        opacity="0.9"
+      />
+    </g>
   );
 }
+
 
 function Flake({ x, y, size = 1 }: { x: number; y: number; size?: number }) {
   // 6-arm star with dark edge underneath for contrast
