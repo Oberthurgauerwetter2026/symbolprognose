@@ -1,22 +1,22 @@
-# Regentropfen im Referenz-Stil
+# Regentropfen: Variante C — weiss mit weichem Rand
 
-Die Tropfen in der Symbolprognose werden auf die Optik des hochgeladenen Referenzbildes umgestellt: schlanke, oben spitz auslaufende Tropfen mit weicher, heller Füllung und ohne harte dunkle Kontur. Alles andere an den Symbolen (Wolke, Sonne, Blitz, Schneeflocken, Nebel) bleibt exakt wie bisher.
+Die Tropfen in der Symbolprognose werden auf Variante C umgestellt: schlanker, oben spitz auslaufender Tropfen mit heller, fast weisser Füllung und weichem blaugrauem Rand — statt des heutigen kräftigblauen Tropfens mit dicker dunkler Kontur. Alles andere an den Symbolen (Wolke, Sonne, Blitz, Schneeflocken, Nebel) bleibt exakt wie bisher.
 
 ## Was sich ändert
 
-- **Form**: schlanker Tropfen, oben deutlich spitzer und länger auslaufend als heute, unten rund — Verhältnis Höhe zu Breite etwa 2,4 : 1.
-- **Füllung**: heller, leicht durchscheinender Verlauf (oben nahezu weiss, unten leicht blaugrau) statt flächigem Kräftigblau.
-- **Kontur**: keine dunkle Umrandung mehr. Stattdessen ein sehr feiner, halbtransparenter heller Rand, damit der Tropfen auch auf hellem Hintergrund lesbar bleibt.
-- **Neigung**: leichte, einheitliche Neigung von etwa 8–10 Grad, ruhiger als die heutigen 12–15 Grad.
-- **Anordnung**: gleiche Tropfen-Positionen und -Anzahl wie heute pro Symbol (Drizzle, Rain, SunShower, Thunderstorm, SunThunder) — nur die Glyphe selbst wird ersetzt, damit sich die Bildkomposition nicht verschiebt.
+- **Form**: schlanke Silhouette, oben deutlich spitzer und länger auslaufend, unten rund (Höhe zu Breite ca. 2,4 : 1).
+- **Füllung**: vertikaler Verlauf von weiss (oben) zu hellem Blaugrau (unten).
+- **Kontur**: dünner, weicher blaugrauer Rand (0,7) statt der heutigen dunklen 1er-Kontur.
+- **Neigung**: ruhige, einheitliche 10 Grad.
+- **Anordnung**: gleiche Tropfen-Positionen und -Anzahl wie heute in jedem Symbol (Drizzle, Rain, SunShower, Thunderstorm, SunThunder) — nur die Glyphe selbst wird ersetzt, damit sich die Bildkomposition nicht verschiebt.
 
-## Lesbarkeit klein und dunkel
+## Lesbarkeit
 
-Weil helle Tropfen auf hellem Hintergrund schwächer wirken, wird der Tropfen über die bestehenden Design-Tokens gesteuert: im Light-Theme etwas kräftigeres Blau im unteren Drittel, im Dark-Theme heller. Geprüft wird bei 24 px, 32 px und 64 px auf hellem und dunklem Grund.
+Geprüft wird bei 24 px, 32 px und 64 px auf hellem und dunklem Grund. Der Verlauf und der weiche Rand sorgen dafür, dass der Tropfen auf beiden Hintergründen gleich stabil bleibt.
 
 ## Technische Details
 
-- `src/components/weather-icons/index.tsx`: die `Drop`-Komponente erhält den neuen Pfad, einen SVG-Verlauf (`linearGradient`, einmalig in `defs`) und den feinen hellen Rand anstelle von `stroke={C.rainEdge}`.
-- `src/styles.css`: Tokens `--wx-rain` / `--wx-rain-edge` auf die neuen Werte (helle Spitze, weiche Basis) angepasst, je Theme.
+- `src/components/weather-icons/index.tsx`: die `Drop`-Komponente erhält den neuen Pfad, einen einmalig definierten `linearGradient` in `<defs>` und den feinen Rand; Aufrufer bleiben unverändert.
+- `src/styles.css`: Tokens `--wx-rain` / `--wx-rain-edge` auf die neuen Werte (weisse Spitze, weicher blaugrauer Rand) angepasst, je Theme.
 - Keine Änderung an Wolke, Sonne, Blitz, Flake, Nebel oder an der Icon-Auswahl-Logik.
-- Kontrolle über den Icon-Katalog (`/intern/icons`) mit Screenshots vorher/nachher.
+- Kontrolle über den Icon-Katalog (`/intern/icons`) mit Screenshot-Vergleich.
