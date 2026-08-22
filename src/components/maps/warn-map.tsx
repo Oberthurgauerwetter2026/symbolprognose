@@ -570,8 +570,10 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 geoRef.current = r;
               }}
               data={REGION_FC}
+              interactive={!embedMode}
               style={(f) => styleFor(f as Feature)}
               onEachFeature={(feature, layer) => {
+                if (embedMode) return;
                 const name = String((feature.properties as { name?: string } | null)?.name ?? "");
                 const id = slugifyRegion(name);
                 const path = layer as L.Path;
@@ -599,8 +601,19 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 keyboard={false}
               />
             ))}
-            <ZoomControl position="topright" />
+            {!embedMode && <ZoomControl position="topright" />}
           </MapContainer>
+
+          {/* Embed: gesamte Karte verlinkt auf die WP-Warnseite */}
+          {embedMode && (
+            <a
+              {...wpLinkProps}
+              aria-label="Alle Warnungen auf oberthurgauerwetter.ch ansehen"
+              title="Warnungen ansehen"
+              className="absolute inset-0 z-[800] block cursor-pointer"
+            />
+          )}
+
 
           {/* Legende – nur auf Klick */}
           {legendOpen ? (
