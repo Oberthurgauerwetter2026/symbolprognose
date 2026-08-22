@@ -1281,6 +1281,12 @@ function PipelineHealthSection({ password }: { password: string }) {
                   ↳ {r.runnerFailures} von {r.runsChecked} Läufen ohne Runner (GitHub)
                 </span>
               )}
+              {r.tokenInvalid && (
+                <span className="w-full font-medium text-destructive">
+                  ↳ GitHub-Token ungültig — neuen GITHUB_DISPATCH_TOKEN hinterlegen und
+                  Projekt neu veröffentlichen
+                </span>
+              )}
               {r.stale && (
                 <span className="w-full font-medium text-destructive">
                   ↳ Daten deutlich zu alt — Trigger prüfen (Cron-Worker-Deploy unten)
