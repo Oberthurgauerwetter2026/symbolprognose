@@ -49,6 +49,23 @@ function isRetryable(status: number): boolean {
   return status === 429 || status >= 500;
 }
 
+/** Eindeutige Kennung für einen ungültigen/abgelaufenen GitHub-Token. */
+export const GH_BAD_CREDENTIALS = "github-bad-credentials";
+
+export function isBadCredentials(error: string | null | undefined): boolean {
+  if (!error) return false;
+  return error.includes(GH_BAD_CREDENTIALS) || error.includes("Bad credentials");
+}
+
+/** Ergänzt GitHub-401-Antworten um eine klare Handlungsanweisung. */
+function annotateError(status: number, error: string): string {
+  if (status !== 401) return error;
+  return (
+    `${GH_BAD_CREDENTIALS}: GitHub-Token ungültig — neuen GITHUB_DISPATCH_TOKEN ` +
+    `hinterlegen und Projekt neu veröffentlichen. GitHub: ${error}`
+  );
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function postWorkflowDispatch(opts: {
