@@ -92,6 +92,11 @@
   --wx-cloud-dark-shade: #1f2937;
   --wx-rain: #38bdf8;
   --wx-rain-edge: #0c2a4a;
+  /* Regentropfen-Glyphe (Symbolprognose): helle Fuellung + weicher Rand */
+  --wx-drop: #7db8e0;
+  --wx-drop-hi: #ffffff;
+  --wx-drop-edge: #4d86b0;
+
   --wx-snow: #ffffff;
   --wx-snow-edge: #3b4a5c;
   --wx-snow-bar: #7dd3fc;

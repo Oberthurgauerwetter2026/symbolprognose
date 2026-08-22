@@ -83,12 +83,20 @@ function cloud({ x = 32, y = 38, scale = 1, dark = false }: { x?: number; y?: nu
 }
 
 function drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: number; tilt?: number }): string {
+  // Muss 1:1 zur React-Variante passen (Variante C: helle Füllung,
+  // weisses Kopf-Highlight, weicher Rand, ruhige 10°-Neigung).
+  const t = tilt === 0 ? 0 : Math.sign(tilt) * 10;
+  const s = size * 0.82;
   return (
-    `<path transform="translate(${x} ${y}) rotate(${tilt}) scale(${size})" ` +
-    `d="M 0 -5 C 2.2 -1.6 3 1 3 2.7 C 3 5 1.5 6.5 0 6.5 C -1.5 6.5 -3 5 -3 2.7 C -3 1 -2.2 -1.6 0 -5 Z" ` +
-    `fill="${C.rain}" stroke="${C.rainEdge}" stroke-width="1" stroke-linejoin="round"/>`
+    `<g transform="translate(${x} ${y}) rotate(${t}) scale(${s})">` +
+    `<path d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z" ` +
+    `fill="#7db8e0" stroke="#4d86b0" stroke-width="0.7" stroke-linejoin="round"/>` +
+    `<path d="M 0 -6.9 C 1.1 -3.6 2.0 -1.2 2.2 0.9 C 1.3 -0.6 0.6 -2.2 0 -3.4 C -0.6 -2.2 -1.3 -0.6 -2.2 0.9 C -2.0 -1.2 -1.1 -3.6 0 -6.9 Z" ` +
+    `fill="#ffffff" opacity="0.55"/>` +
+    `</g>`
   );
 }
+
 
 function flake({ x, y, size = 1 }: { x: number; y: number; size?: number }): string {
   const arms = [0, 60, 120];
@@ -414,7 +422,7 @@ export const WX_ICON_CSS_VARS = `:root{
   --wx-moon:#fef3c7;--wx-moon-shade:#b45309;
   --wx-cloud:#cbd0d8;--wx-cloud-shade:#6b7280;
   --wx-cloud-dark:#4b5563;--wx-cloud-dark-shade:#1f2937;
-  --wx-rain:#38bdf8;--wx-rain-edge:#0c2a4a;
+  --wx-rain:#38bdf8;--wx-rain-edge:#0c2a4a;--wx-drop:#7db8e0;--wx-drop-hi:#ffffff;--wx-drop-edge:#4d86b0;
   --wx-snow:#ffffff;--wx-snow-edge:#3b4a5c;
   --wx-bolt:#facc15;--wx-bolt-edge:#b45309;
   --wx-fog:#4b5563;
