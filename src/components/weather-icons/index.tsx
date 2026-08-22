@@ -153,15 +153,15 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
     <g transform={`translate(${x} ${y}) rotate(${t}) scale(${s})`}>
       <path
         d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z"
-        fill={C.rain}
-        stroke={C.rainEdge}
+        fill="var(--wx-drop, #7db8e0)"
+        stroke="var(--wx-drop-edge, #4d86b0)"
         strokeWidth="0.7"
         strokeLinejoin="round"
       />
       <path
         d="M 0 -6.9 C 1.1 -3.6 2.0 -1.2 2.2 0.9 C 1.3 -0.6 0.6 -2.2 0 -3.4 C -0.6 -2.2 -1.3 -0.6 -2.2 0.9 C -2.0 -1.2 -1.1 -3.6 0 -6.9 Z"
-        fill="#ffffff"
-        opacity="0.9"
+        fill="var(--wx-drop-hi, #ffffff)"
+        opacity="0.55"
       />
     </g>
   );
