@@ -678,9 +678,9 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
           )}
         </div>
 
-        {/* Info-Panel – in Embeds ausgeblendet */}
+        {/* Info-Panel – im Widget ausgeblendet */}
 
-        {!embedMode && (
+        {!widgetMode && (
         <aside
 
           className={cn(
