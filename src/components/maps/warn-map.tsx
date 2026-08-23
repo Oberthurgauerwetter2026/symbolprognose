@@ -820,39 +820,74 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                       cut >= 0 ? impactRaw.slice(cut + "Empfohlenes Verhalten:".length).trim() : "";
                     return (
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
-                        <a
-                          {...wpLinkProps}
-                          className="flex items-start gap-2 px-3 py-2 text-base font-semibold hover:underline"
-                          style={
-                            w.advisory
-                              ? {
-                                  background: `color-mix(in srgb, ${def.color} 22%, transparent)`,
-                                  color: "inherit",
-                                  boxShadow: `inset 4px 0 0 ${def.color}`,
-                                }
-                              : { background: def.color, color: def.textOnColor }
-                          }
-                        >
-                          <Icon className="h-6 w-6 shrink-0" />
-                          {(() => {
-                            const fallback = `${h.label} (Stufe ${w.level})`;
-                            const raw = (w.title || fallback).trim();
-                            const stripped = w.advisory
-                              ? raw.replace(/^vorinformation\s*[:–-]?\s*/i, "").trim()
-                              : raw;
-                            const titleText = stripped || fallback;
-                            return (
-                              <div className="min-w-0 flex-1">
-                                {w.advisory && (
-                                  <span className="mb-1 block w-fit rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
-                                    Vorinformation
-                                  </span>
-                                )}
-                                <span className="block truncate">{titleText}</span>
-                              </div>
-                            );
-                          })()}
-                        </a>
+                        {widgetMode && wpLinkProps ? (
+                          <a
+                            {...wpLinkProps}
+                            className="flex items-start gap-2 px-3 py-2 text-base font-semibold hover:underline"
+                            style={
+                              w.advisory
+                                ? {
+                                    background: `color-mix(in srgb, ${def.color} 22%, transparent)`,
+                                    color: "inherit",
+                                    boxShadow: `inset 4px 0 0 ${def.color}`,
+                                  }
+                                : { background: def.color, color: def.textOnColor }
+                            }
+                          >
+                            <Icon className="h-6 w-6 shrink-0" />
+                            {(() => {
+                              const fallback = `${h.label} (Stufe ${w.level})`;
+                              const raw = (w.title || fallback).trim();
+                              const stripped = w.advisory
+                                ? raw.replace(/^vorinformation\s*[:–-]?\s*/i, "").trim()
+                                : raw;
+                              const titleText = stripped || fallback;
+                              return (
+                                <div className="min-w-0 flex-1">
+                                  {w.advisory && (
+                                    <span className="mb-1 block w-fit rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
+                                      Vorinformation
+                                    </span>
+                                  )}
+                                  <span className="block truncate">{titleText}</span>
+                                </div>
+                              );
+                            })()}
+                          </a>
+                        ) : (
+                          <div
+                            className="flex items-start gap-2 px-3 py-2 text-base font-semibold"
+                            style={
+                              w.advisory
+                                ? {
+                                    background: `color-mix(in srgb, ${def.color} 22%, transparent)`,
+                                    color: "inherit",
+                                    boxShadow: `inset 4px 0 0 ${def.color}`,
+                                  }
+                                : { background: def.color, color: def.textOnColor }
+                            }
+                          >
+                            <Icon className="h-6 w-6 shrink-0" />
+                            {(() => {
+                              const fallback = `${h.label} (Stufe ${w.level})`;
+                              const raw = (w.title || fallback).trim();
+                              const stripped = w.advisory
+                                ? raw.replace(/^vorinformation\s*[:–-]?\s*/i, "").trim()
+                                : raw;
+                              const titleText = stripped || fallback;
+                              return (
+                                <div className="min-w-0 flex-1">
+                                  {w.advisory && (
+                                    <span className="mb-1 block w-fit rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
+                                      Vorinformation
+                                    </span>
+                                  )}
+                                  <span className="block truncate">{titleText}</span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
 
                         <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">
