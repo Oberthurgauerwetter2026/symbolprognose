@@ -26,8 +26,8 @@ export const Route = createFileRoute("/embed/widget-warnungen")({
 function EmbedWidgetWarnungen() {
   return (
     <EmbedShell>
-      <ClientOnly fallback={<MapSkeleton height={480} />}>
-        <Suspense fallback={<MapSkeleton height={480} />}>
+      <ClientOnly fallback={<MapSkeleton height={320} />}>
+        <Suspense fallback={<MapSkeleton height={320} />}>
           <LazyWarnMap bare snapshot />
         </Suspense>
       </ClientOnly>
