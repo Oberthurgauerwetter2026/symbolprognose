@@ -572,10 +572,10 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 geoRef.current = r;
               }}
               data={REGION_FC}
-              interactive={!embedMode}
+              interactive={!widgetMode}
               style={(f) => styleFor(f as Feature)}
               onEachFeature={(feature, layer) => {
-                if (embedMode) return;
+                if (widgetMode) return;
                 const name = String((feature.properties as { name?: string } | null)?.name ?? "");
                 const id = slugifyRegion(name);
                 const path = layer as L.Path;
