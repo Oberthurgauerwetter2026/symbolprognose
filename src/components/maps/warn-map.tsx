@@ -603,7 +603,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 keyboard={false}
               />
             ))}
-            {!embedMode && <ZoomControl position="topright" />}
+            {!widgetMode && <ZoomControl position="topright" />}
           </MapContainer>
 
           {/* Embed: gesamte Karte verlinkt auf die WP-Warnseite */}
