@@ -153,7 +153,7 @@ function WarnAdminPage() {
     <WarnAdminDashboard
       password={password}
       onLogout={() => {
-        sessionStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_KEY);
         setPassword(null);
         setPw("");
       }}
