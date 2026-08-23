@@ -173,9 +173,11 @@ const PRODUCTS: Product[] = [
     id: "widget-warnungen",
     label: "Widget: Warnungen aktuell",
     path: "/embed/widget-warnungen",
-    height: 560,
+    height: 320,
+    variant: "auto-height",
+    frameId: "otw-widget-warnungen",
     description:
-      "Kompaktes Widget mit der Warnkarte und einer Liste der derzeit aktiven Warnungen — ohne Gefahrenfilter und ohne Push-Bereich.",
+      "Kompaktes Widget mit der aktuellen Warnkarte — passt die Höhe automatisch an die Breite der Widget-Spalte an. Klick führt auf die Warnseite.",
   },
   {
     id: "widget-radar",
