@@ -700,9 +700,13 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             {selected && (
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-lg font-semibold text-foreground">
-                  <a {...wpLinkProps} className="hover:underline">
-                    {regionName(selected)}
-                  </a>
+                  {widgetMode && wpLinkProps ? (
+                    <a {...wpLinkProps} className="hover:underline">
+                      {regionName(selected)}
+                    </a>
+                  ) : (
+                    regionName(selected)
+                  )}
                 </h2>
                 <button
                   type="button"
