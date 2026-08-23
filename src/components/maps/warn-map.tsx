@@ -233,12 +233,14 @@ export interface WarnMapProps {
 }
 
 function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProps) {
-  /** Embed-/Widget-Modus: nur Karte, jeder Klick führt auf die WP-Warnseite. */
+  /** Widget-Modus: nur Karte, jeder Klick führt auf die WP-Warnseite. */
+  const widgetMode = snapshot;
+  /** Kompaktes Embed-Layout ohne Banner/Push, aber mit Region-Klick und Panel. */
   const embedMode = bare || snapshot;
-  /** Links auf die WordPress-Warnseite: im Embed das ganze Fenster wechseln. */
-  const wpLinkProps = (embedMode
+  /** Links auf die WordPress-Warnseite: im Widget das ganze Fenster wechseln. */
+  const wpLinkProps = widgetMode
     ? { href: WP_WARN_URL, target: "_top" as const, rel: "noopener" }
-    : { href: WP_WARN_URL, target: "_blank" as const, rel: "noopener noreferrer" });
+    : undefined;
 
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
@@ -474,7 +476,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
       <div
         className={cn(
           "grid gap-3",
-          embedMode
+          widgetMode
             ? "grid-cols-1"
             : "@lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]",
         )}
@@ -522,11 +524,11 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             zoomDelta={0.5}
             minZoom={9}
             maxZoom={15}
-            scrollWheelZoom={!embedMode}
-            dragging={!embedMode}
-            doubleClickZoom={!embedMode}
-            touchZoom={!embedMode}
-            keyboard={!embedMode}
+            scrollWheelZoom={!widgetMode}
+            dragging={!widgetMode}
+            doubleClickZoom={!widgetMode}
+            touchZoom={!widgetMode}
+            keyboard={!widgetMode}
 
             zoomControl={false}
             attributionControl
@@ -570,10 +572,10 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 geoRef.current = r;
               }}
               data={REGION_FC}
-              interactive={!embedMode}
+              interactive={!widgetMode}
               style={(f) => styleFor(f as Feature)}
               onEachFeature={(feature, layer) => {
-                if (embedMode) return;
+                if (widgetMode) return;
                 const name = String((feature.properties as { name?: string } | null)?.name ?? "");
                 const id = slugifyRegion(name);
                 const path = layer as L.Path;
@@ -601,11 +603,11 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 keyboard={false}
               />
             ))}
-            {!embedMode && <ZoomControl position="topright" />}
+            {!widgetMode && <ZoomControl position="topright" />}
           </MapContainer>
 
-          {/* Embed: gesamte Karte verlinkt auf die WP-Warnseite */}
-          {embedMode && (
+          {/* Widget: gesamte Karte verlinkt auf die WP-Warnseite */}
+          {widgetMode && wpLinkProps && (
             <a
               {...wpLinkProps}
               aria-label="Alle Warnungen auf oberthurgauerwetter.ch ansehen"
@@ -676,9 +678,9 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
           )}
         </div>
 
-        {/* Info-Panel – in Embeds ausgeblendet */}
+        {/* Info-Panel – im Widget ausgeblendet */}
 
-        {!embedMode && (
+        {!widgetMode && (
         <aside
 
           className={cn(
@@ -698,9 +700,13 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             {selected && (
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-lg font-semibold text-foreground">
-                  <a {...wpLinkProps} className="hover:underline">
-                    {regionName(selected)}
-                  </a>
+                  {widgetMode && wpLinkProps ? (
+                    <a {...wpLinkProps} className="hover:underline">
+                      {regionName(selected)}
+                    </a>
+                  ) : (
+                    regionName(selected)
+                  )}
                 </h2>
                 <button
                   type="button"
@@ -814,39 +820,74 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                       cut >= 0 ? impactRaw.slice(cut + "Empfohlenes Verhalten:".length).trim() : "";
                     return (
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
-                        <a
-                          {...wpLinkProps}
-                          className="flex items-start gap-2 px-3 py-2 text-base font-semibold hover:underline"
-                          style={
-                            w.advisory
-                              ? {
-                                  background: `color-mix(in srgb, ${def.color} 22%, transparent)`,
-                                  color: "inherit",
-                                  boxShadow: `inset 4px 0 0 ${def.color}`,
-                                }
-                              : { background: def.color, color: def.textOnColor }
-                          }
-                        >
-                          <Icon className="h-6 w-6 shrink-0" />
-                          {(() => {
-                            const fallback = `${h.label} (Stufe ${w.level})`;
-                            const raw = (w.title || fallback).trim();
-                            const stripped = w.advisory
-                              ? raw.replace(/^vorinformation\s*[:–-]?\s*/i, "").trim()
-                              : raw;
-                            const titleText = stripped || fallback;
-                            return (
-                              <div className="min-w-0 flex-1">
-                                {w.advisory && (
-                                  <span className="mb-1 block w-fit rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
-                                    Vorinformation
-                                  </span>
-                                )}
-                                <span className="block truncate">{titleText}</span>
-                              </div>
-                            );
-                          })()}
-                        </a>
+                        {widgetMode && wpLinkProps ? (
+                          <a
+                            {...wpLinkProps}
+                            className="flex items-start gap-2 px-3 py-2 text-base font-semibold hover:underline"
+                            style={
+                              w.advisory
+                                ? {
+                                    background: `color-mix(in srgb, ${def.color} 22%, transparent)`,
+                                    color: "inherit",
+                                    boxShadow: `inset 4px 0 0 ${def.color}`,
+                                  }
+                                : { background: def.color, color: def.textOnColor }
+                            }
+                          >
+                            <Icon className="h-6 w-6 shrink-0" />
+                            {(() => {
+                              const fallback = `${h.label} (Stufe ${w.level})`;
+                              const raw = (w.title || fallback).trim();
+                              const stripped = w.advisory
+                                ? raw.replace(/^vorinformation\s*[:–-]?\s*/i, "").trim()
+                                : raw;
+                              const titleText = stripped || fallback;
+                              return (
+                                <div className="min-w-0 flex-1">
+                                  {w.advisory && (
+                                    <span className="mb-1 block w-fit rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
+                                      Vorinformation
+                                    </span>
+                                  )}
+                                  <span className="block truncate">{titleText}</span>
+                                </div>
+                              );
+                            })()}
+                          </a>
+                        ) : (
+                          <div
+                            className="flex items-start gap-2 px-3 py-2 text-base font-semibold"
+                            style={
+                              w.advisory
+                                ? {
+                                    background: `color-mix(in srgb, ${def.color} 22%, transparent)`,
+                                    color: "inherit",
+                                    boxShadow: `inset 4px 0 0 ${def.color}`,
+                                  }
+                                : { background: def.color, color: def.textOnColor }
+                            }
+                          >
+                            <Icon className="h-6 w-6 shrink-0" />
+                            {(() => {
+                              const fallback = `${h.label} (Stufe ${w.level})`;
+                              const raw = (w.title || fallback).trim();
+                              const stripped = w.advisory
+                                ? raw.replace(/^vorinformation\s*[:–-]?\s*/i, "").trim()
+                                : raw;
+                              const titleText = stripped || fallback;
+                              return (
+                                <div className="min-w-0 flex-1">
+                                  {w.advisory && (
+                                    <span className="mb-1 block w-fit rounded border border-current px-1.5 py-0.5 text-[11px] font-semibold">
+                                      Vorinformation
+                                    </span>
+                                  )}
+                                  <span className="block truncate">{titleText}</span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
 
                         <div className="space-y-3 p-3">
                           <p className="text-base font-medium text-muted-foreground">
