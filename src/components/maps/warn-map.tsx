@@ -606,8 +606,8 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             {!widgetMode && <ZoomControl position="topright" />}
           </MapContainer>
 
-          {/* Embed: gesamte Karte verlinkt auf die WP-Warnseite */}
-          {embedMode && (
+          {/* Widget: gesamte Karte verlinkt auf die WP-Warnseite */}
+          {widgetMode && wpLinkProps && (
             <a
               {...wpLinkProps}
               aria-label="Alle Warnungen auf oberthurgauerwetter.ch ansehen"
