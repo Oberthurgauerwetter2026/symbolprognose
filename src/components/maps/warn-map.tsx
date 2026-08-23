@@ -524,11 +524,11 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             zoomDelta={0.5}
             minZoom={9}
             maxZoom={15}
-            scrollWheelZoom={!embedMode}
-            dragging={!embedMode}
-            doubleClickZoom={!embedMode}
-            touchZoom={!embedMode}
-            keyboard={!embedMode}
+            scrollWheelZoom={!widgetMode}
+            dragging={!widgetMode}
+            doubleClickZoom={!widgetMode}
+            touchZoom={!widgetMode}
+            keyboard={!widgetMode}
 
             zoomControl={false}
             attributionControl
