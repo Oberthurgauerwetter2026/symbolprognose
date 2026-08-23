@@ -313,7 +313,7 @@ function EmbedInfo() {
                       p.height,
                       p.frameId ?? `otw-${p.id}`,
                       p.label,
-                      p.id === "region" ? 520 : 120,
+                      p.id === "region" ? 520 : p.id === "widget-warnungen" ? 240 : 120,
                     )
                   : buildSimpleSnippet(url, p.path, p.height, p.path.startsWith("/embed/satellit"));
 
