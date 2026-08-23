@@ -484,9 +484,13 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
 
         <div
           className={cn(
-            "map-attrib-compact relative h-[340px] w-full overflow-hidden rounded-2xl shadow-lg",
-            bare ? "@md:h-[600px] @lg:h-[600px]" : "sm:h-[600px] @lg:h-[600px]",
-
+            "map-attrib-compact relative w-full overflow-hidden rounded-2xl shadow-lg",
+            widgetMode
+              ? // Widget: skaliert mit der Spaltenbreite (4:3), begrenzt nach oben/unten
+                "aspect-[4/3] h-auto min-h-[240px] max-h-[520px]"
+              : bare
+                ? "h-[340px] @md:h-[600px] @lg:h-[600px]"
+                : "h-[340px] sm:h-[600px] @lg:h-[600px]",
           )}
         >
           {/* Schraffur-Muster für Vorinformationen (referenziert via fill="url(#…)") */}
