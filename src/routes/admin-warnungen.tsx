@@ -66,10 +66,36 @@ function WarnAdminPage() {
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    if (stored) setPassword(stored);
+    let cancelled = false;
+    // Migration: bisher lag das Passwort nur in der Sitzung.
+    const legacy = sessionStorage.getItem(STORAGE_KEY);
+    if (legacy) {
+      localStorage.setItem(STORAGE_KEY, legacy);
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) {
+      setChecking(false);
+      return;
+    }
+    void (async () => {
+      try {
+        const { ok } = await checkAdminLogin({ data: { password: stored } });
+        if (cancelled) return;
+        if (ok) setPassword(stored);
+        else localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Netzwerkfehler: gespeichertes Passwort behalten, Login zeigen.
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const submit = async (e: FormEvent) => {
@@ -79,7 +105,7 @@ function WarnAdminPage() {
     try {
       const { ok } = await checkAdminLogin({ data: { password: pw } });
       if (!ok) throw new Error("Falsches Passwort.");
-      sessionStorage.setItem(STORAGE_KEY, pw);
+      localStorage.setItem(STORAGE_KEY, pw);
       setPassword(pw);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login fehlgeschlagen.");
@@ -87,6 +113,15 @@ function WarnAdminPage() {
       setBusy(false);
     }
   };
+
+  if (checking && !password) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+        <p className="text-sm text-muted-foreground">Prüfe Anmeldung…</p>
+      </div>
+    );
+  }
+
 
   if (!password) {
     return (
@@ -118,7 +153,7 @@ function WarnAdminPage() {
     <WarnAdminDashboard
       password={password}
       onLogout={() => {
-        sessionStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_KEY);
         setPassword(null);
         setPw("");
       }}
