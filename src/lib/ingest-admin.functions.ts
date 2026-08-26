@@ -286,8 +286,15 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
       run_started_at?: string;
       updated_at?: string;
     } | null): string | undefined {
-      if (!run || run.status !== "completed") return undefined;
+      if (!run) return undefined;
+      if (run.status !== "completed") {
+        if (run.status === "queued" && isStuckQueued(run)) {
+          return "Lauf hängt in der Warteschlange (GitHub-Störung) — nächster Takt bricht ihn ab und löst neu aus";
+        }
+        return undefined;
+      }
       if (!run.conclusion || run.conclusion === "success") return undefined;
+
       const started = Date.parse(run.run_started_at ?? run.created_at);
       const ended = Date.parse(run.updated_at ?? run.created_at);
       const shortRun =
