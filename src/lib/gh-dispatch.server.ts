@@ -27,6 +27,13 @@ export type WorkflowDispatchResponse = WorkflowDispatchOk | WorkflowDispatchErr;
 export interface WorkflowActivityOk {
   ok: true;
   active: boolean;
+  /** Ein Lauf hängt zu lange in `queued` (GitHub-Störung) — Dispatch trotzdem erlaubt. */
+  stuckQueued?: {
+    id: number;
+    htmlUrl: string;
+    createdAt: string;
+    queuedForMs: number;
+  };
   run?: {
     id: number;
     status: "queued" | "in_progress";
@@ -35,6 +42,7 @@ export interface WorkflowActivityOk {
   };
   attempts: number;
 }
+
 
 export interface WorkflowActivityErr {
   ok: false;
