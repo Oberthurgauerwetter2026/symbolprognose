@@ -204,6 +204,9 @@ export interface PipelineHealth {
   stale?: true;
   /** GitHub lehnt den Dispatch-Token ab (401 Bad credentials). */
   tokenInvalid?: true;
+  /** Lauf hängt zu lange in der Warteschlange (GitHub-Störung). */
+  stuckQueued?: true;
+
   error?: string;
 
 }
