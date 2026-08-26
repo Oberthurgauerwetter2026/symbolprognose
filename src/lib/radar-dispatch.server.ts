@@ -26,7 +26,14 @@ let lastDispatchAt = 0;
 const MIN_INTERVAL_MS = 4 * 60_000;
 
 export type DispatchResult =
-  | { ok: true; dispatchedAt: string; ref: string; retryAfterRunnerFailure?: true }
+  | {
+      ok: true;
+      dispatchedAt: string;
+      ref: string;
+      retryAfterRunnerFailure?: true;
+      cancelledStuckRun?: number;
+    }
+
   | {
       ok: false;
       alreadyRunning: true;
