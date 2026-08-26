@@ -1286,8 +1286,9 @@ function PipelineHealthSection({ password }: { password: string }) {
                   ? "bg-amber-500"
                   : "bg-red-500";
           const runInfo = r.runCreatedAt
-            ? `${r.runConclusion ?? r.runStatus ?? "?"} · ${new Date(r.runCreatedAt).toLocaleString("de-CH")}`
+            ? `${r.stuckQueued ? "hängt in Warteschlange" : (r.runConclusion ?? r.runStatus ?? "?")} · ${new Date(r.runCreatedAt).toLocaleString("de-CH")}`
             : "kein Run gefunden";
+
           return (
             <div key={r.id} className="flex flex-wrap items-center gap-2 text-xs">
               <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${dot}`} />

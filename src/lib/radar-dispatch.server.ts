@@ -9,11 +9,13 @@
  */
 
 import {
+  cancelWorkflowRun,
   getWorkflowActivity,
   githubDispatchEnv,
   lastRunWasInfraFailure,
   postWorkflowDispatch,
 } from "./gh-dispatch.server";
+
 
 let lastDispatchAt = 0;
 // 4 min: verhindert, dass GitHub Actions einen zweiten Run in die
@@ -24,7 +26,14 @@ let lastDispatchAt = 0;
 const MIN_INTERVAL_MS = 4 * 60_000;
 
 export type DispatchResult =
-  | { ok: true; dispatchedAt: string; ref: string; retryAfterRunnerFailure?: true }
+  | {
+      ok: true;
+      dispatchedAt: string;
+      ref: string;
+      retryAfterRunnerFailure?: true;
+      cancelledStuckRun?: number;
+    }
+
   | {
       ok: false;
       alreadyRunning: true;
@@ -76,12 +85,23 @@ export async function dispatchRadarIngest(): Promise<DispatchResult> {
       runUrl: activity.run.htmlUrl,
     };
   }
+  let cancelledStuckRun: number | undefined;
+  if (activity.stuckQueued) {
+    const cancelled = await cancelWorkflowRun({
+      repo: env.repo,
+      token: env.token,
+      runId: activity.stuckQueued.id,
+      userAgent: "lovable-radar-trigger",
+    });
+    if (cancelled) cancelledStuckRun = activity.stuckQueued.id;
+  }
 
   const res = await postWorkflowDispatch({
     ...env,
     workflowFile: "radar-ingest.yml",
     userAgent: "lovable-radar-trigger",
   });
+
 
   if (!res.ok) {
     // Throttle NICHT setzen — der nächste Cron-Tick darf sofort nachholen.
@@ -94,5 +114,7 @@ export async function dispatchRadarIngest(): Promise<DispatchResult> {
     dispatchedAt: new Date(now).toISOString(),
     ref: env.ref,
     ...(infraRetry ? { retryAfterRunnerFailure: true as const } : {}),
+    ...(cancelledStuckRun ? { cancelledStuckRun } : {}),
   };
+
 }

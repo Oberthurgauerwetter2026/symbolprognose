@@ -204,6 +204,9 @@ export interface PipelineHealth {
   stale?: true;
   /** GitHub lehnt den Dispatch-Token ab (401 Bad credentials). */
   tokenInvalid?: true;
+  /** Lauf hängt zu lange in der Warteschlange (GitHub-Störung). */
+  stuckQueued?: true;
+
   error?: string;
 
 }
@@ -220,7 +223,10 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("@/lib/warnings.server");
     assertAdmin(data.password);
     const { r2ObjectUrlCandidates } = await import("@/lib/r2-url.server");
-    const { isInfraFailureRun } = await import("@/lib/gh-dispatch.server");
+    const { isInfraFailureRun, STALE_QUEUED_AFTER_MS } = await import(
+      "@/lib/gh-dispatch.server"
+    );
+
 
     const defs = [
       { id: "radar", label: "Radar (CPC/POH)", file: "radar-ingest.yml", object: "radar/frames.json", expectedEveryMin: 5 },
@@ -272,10 +278,21 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
       }
     }
 
+    /** Lauf wartet deutlich länger als üblich auf einen Runner. */
+    function isStuckQueued(
+      run: { status: string; created_at: string } | null,
+    ): boolean {
+      if (!run || run.status !== "queued") return false;
+      const created = Date.parse(run.created_at);
+      if (!Number.isFinite(created)) return false;
+      return Date.now() - created > STALE_QUEUED_AFTER_MS;
+    }
+
     /**
      * Läufe, die ohne ausgeführten Schritt scheitern, sind GitHub-seitige
      * Infrastrukturfehler ("job was not acquired by Runner of type hosted").
      */
+
     function runNote(run: {
       status: string;
       conclusion: string | null;
@@ -283,8 +300,15 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
       run_started_at?: string;
       updated_at?: string;
     } | null): string | undefined {
-      if (!run || run.status !== "completed") return undefined;
+      if (!run) return undefined;
+      if (run.status !== "completed") {
+        if (run.status === "queued" && isStuckQueued(run)) {
+          return "Lauf hängt in der Warteschlange (GitHub-Störung) — nächster Takt bricht ihn ab und löst neu aus";
+        }
+        return undefined;
+      }
       if (!run.conclusion || run.conclusion === "success") return undefined;
+
       const started = Date.parse(run.run_started_at ?? run.created_at);
       const ended = Date.parse(run.updated_at ?? run.created_at);
       const shortRun =
@@ -336,6 +360,8 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
           runCreatedAt: run?.created_at ?? null,
           runUrl: run?.html_url ?? null,
           ...(runNote(run) ? { runNote: runNote(run)! } : {}),
+          ...(isStuckQueued(run) ? { stuckQueued: true as const } : {}),
+
           ...(runs ? { runnerFailures, runsChecked: runs.length } : {}),
           ...(age ? {} : { error: "keine Datei in R2 erreichbar" }),
           ...(tokenInvalid

@@ -27,6 +27,13 @@ export type WorkflowDispatchResponse = WorkflowDispatchOk | WorkflowDispatchErr;
 export interface WorkflowActivityOk {
   ok: true;
   active: boolean;
+  /** Ein Lauf hängt zu lange in `queued` (GitHub-Störung) — Dispatch trotzdem erlaubt. */
+  stuckQueued?: {
+    id: number;
+    htmlUrl: string;
+    createdAt: string;
+    queuedForMs: number;
+  };
   run?: {
     id: number;
     status: "queued" | "in_progress";
@@ -35,6 +42,7 @@ export interface WorkflowActivityOk {
   };
   attempts: number;
 }
+
 
 export interface WorkflowActivityErr {
   ok: false;
@@ -128,17 +136,26 @@ export async function postWorkflowDispatch(opts: {
   };
 }
 
+/** Ab dieser Wartezeit gilt ein `queued`-Lauf als verwaist (GitHub-Störung). */
+export const STALE_QUEUED_AFTER_MS = 12 * 60_000;
+
 /**
  * Prüft vor einem Dispatch, ob derselbe Workflow bereits läuft oder wartet.
  * GitHub ersetzt sonst bei mehr als einem wartenden Run den älteren Run trotz
  * `cancel-in-progress: false`.
+ *
+ * Ausnahme: Läufe, die deutlich länger als ein normaler Lauf in `queued`
+ * hängen (GitHub-Actions-Störung), blockieren nicht mehr — sonst fällt der
+ * Ingest über die Störung hinaus dauerhaft aus.
  */
 export async function getWorkflowActivity(opts: {
   repo: string;
   token: string;
   workflowFile: string;
   userAgent: string;
+  staleQueuedAfterMs?: number;
 }): Promise<WorkflowActivityResponse> {
+  const staleAfter = opts.staleQueuedAfterMs ?? STALE_QUEUED_AFTER_MS;
   const url =
     `https://api.github.com/repos/${opts.repo}/actions/workflows/` +
     `${opts.workflowFile}/runs?per_page=20`;
@@ -171,6 +188,29 @@ export async function getWorkflowActivity(opts: {
         if (!active || typeof active.id !== "number") {
           return { ok: true, active: false, attempts: attempt };
         }
+
+        const createdAt = active.created_at ?? "";
+        const createdMs = createdAt ? Date.parse(createdAt) : Number.NaN;
+        const queuedForMs = Number.isFinite(createdMs) ? Date.now() - createdMs : 0;
+        if (active.status === "queued" && queuedForMs > staleAfter) {
+          console.warn(
+            `[gh-dispatch] ${opts.workflowFile}: Lauf ${active.id} hängt seit ` +
+              `${Math.round(queuedForMs / 60_000)} Min in der Warteschlange — ` +
+              "wird als verwaist behandelt, Dispatch erlaubt",
+          );
+          return {
+            ok: true,
+            active: false,
+            stuckQueued: {
+              id: active.id,
+              htmlUrl: active.html_url ?? "",
+              createdAt,
+              queuedForMs,
+            },
+            attempts: attempt,
+          };
+        }
+
         return {
           ok: true,
           active: true,
@@ -178,11 +218,12 @@ export async function getWorkflowActivity(opts: {
             id: active.id,
             status: active.status === "queued" ? "queued" : "in_progress",
             htmlUrl: active.html_url ?? "",
-            createdAt: active.created_at ?? "",
+            createdAt,
           },
           attempts: attempt,
         };
       }
+
 
       lastStatus = res.status;
       lastError = (await res.text()).slice(0, 500);
@@ -215,6 +256,40 @@ export async function getWorkflowActivity(opts: {
     attempts: RETRY_DELAYS_MS.length + 1,
   };
 }
+
+/**
+ * Bricht einen hängenden Lauf ab, damit die Concurrency-Queue frei wird und
+ * GitHub den neu ausgelösten Lauf nicht sofort wieder cancelt.
+ */
+export async function cancelWorkflowRun(opts: {
+  repo: string;
+  token: string;
+  runId: number;
+  userAgent: string;
+}): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${opts.repo}/actions/runs/${opts.runId}/cancel`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${opts.token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": opts.userAgent,
+        },
+      },
+    );
+    // 202 = akzeptiert, 409 = bereits beendet/abgebrochen — beides ist ok.
+    return res.ok || res.status === 409;
+  } catch (err) {
+    console.warn(
+      `[gh-dispatch] Abbruch von Lauf ${opts.runId} fehlgeschlagen: ${(err as Error).message}`,
+    );
+    return false;
+  }
+}
+
 
 /** Minimaler Ausschnitt eines GitHub-Workflow-Runs. */
 export interface GhRunSummary {
