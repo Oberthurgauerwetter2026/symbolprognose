@@ -107,5 +107,7 @@ export async function dispatchRadarIngest(): Promise<DispatchResult> {
     dispatchedAt: new Date(now).toISOString(),
     ref: env.ref,
     ...(infraRetry ? { retryAfterRunnerFailure: true as const } : {}),
+    ...(cancelledStuckRun ? { cancelledStuckRun } : {}),
   };
+
 }
