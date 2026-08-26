@@ -136,17 +136,26 @@ export async function postWorkflowDispatch(opts: {
   };
 }
 
+/** Ab dieser Wartezeit gilt ein `queued`-Lauf als verwaist (GitHub-Störung). */
+export const STALE_QUEUED_AFTER_MS = 12 * 60_000;
+
 /**
  * Prüft vor einem Dispatch, ob derselbe Workflow bereits läuft oder wartet.
  * GitHub ersetzt sonst bei mehr als einem wartenden Run den älteren Run trotz
  * `cancel-in-progress: false`.
+ *
+ * Ausnahme: Läufe, die deutlich länger als ein normaler Lauf in `queued`
+ * hängen (GitHub-Actions-Störung), blockieren nicht mehr — sonst fällt der
+ * Ingest über die Störung hinaus dauerhaft aus.
  */
 export async function getWorkflowActivity(opts: {
   repo: string;
   token: string;
   workflowFile: string;
   userAgent: string;
+  staleQueuedAfterMs?: number;
 }): Promise<WorkflowActivityResponse> {
+  const staleAfter = opts.staleQueuedAfterMs ?? STALE_QUEUED_AFTER_MS;
   const url =
     `https://api.github.com/repos/${opts.repo}/actions/workflows/` +
     `${opts.workflowFile}/runs?per_page=20`;
@@ -179,6 +188,29 @@ export async function getWorkflowActivity(opts: {
         if (!active || typeof active.id !== "number") {
           return { ok: true, active: false, attempts: attempt };
         }
+
+        const createdAt = active.created_at ?? "";
+        const createdMs = createdAt ? Date.parse(createdAt) : Number.NaN;
+        const queuedForMs = Number.isFinite(createdMs) ? Date.now() - createdMs : 0;
+        if (active.status === "queued" && queuedForMs > staleAfter) {
+          console.warn(
+            `[gh-dispatch] ${opts.workflowFile}: Lauf ${active.id} hängt seit ` +
+              `${Math.round(queuedForMs / 60_000)} Min in der Warteschlange — ` +
+              "wird als verwaist behandelt, Dispatch erlaubt",
+          );
+          return {
+            ok: true,
+            active: false,
+            stuckQueued: {
+              id: active.id,
+              htmlUrl: active.html_url ?? "",
+              createdAt,
+              queuedForMs,
+            },
+            attempts: attempt,
+          };
+        }
+
         return {
           ok: true,
           active: true,
@@ -186,11 +218,12 @@ export async function getWorkflowActivity(opts: {
             id: active.id,
             status: active.status === "queued" ? "queued" : "in_progress",
             htmlUrl: active.html_url ?? "",
-            createdAt: active.created_at ?? "",
+            createdAt,
           },
           attempts: attempt,
         };
       }
+
 
       lastStatus = res.status;
       lastError = (await res.text()).slice(0, 500);
