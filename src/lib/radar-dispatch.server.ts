@@ -9,11 +9,13 @@
  */
 
 import {
+  cancelWorkflowRun,
   getWorkflowActivity,
   githubDispatchEnv,
   lastRunWasInfraFailure,
   postWorkflowDispatch,
 } from "./gh-dispatch.server";
+
 
 let lastDispatchAt = 0;
 // 4 min: verhindert, dass GitHub Actions einen zweiten Run in die
