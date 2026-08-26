@@ -237,10 +237,15 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
   const widgetMode = snapshot;
   /** Kompaktes Embed-Layout ohne Banner/Push, aber mit Region-Klick und Panel. */
   const embedMode = bare || snapshot;
-  /** Links auf die WordPress-Warnseite: im Widget das ganze Fenster wechseln. */
+  /**
+   * Links auf die WordPress-Warnseite: im Widget das ganze Fenster wechseln,
+   * auf der Website in einem neuen Tab. Im normalen Embed bleibt es reiner Text.
+   */
   const wpLinkProps = widgetMode
     ? { href: WP_WARN_URL, target: "_top" as const, rel: "noopener" }
-    : undefined;
+    : bare
+      ? undefined
+      : { href: WP_WARN_URL, target: "_blank" as const, rel: "noopener" };
 
   const [hazard, setHazard] = useState<HazardId | "alle">("alle");
   const [selected, setSelected] = useState<string | null>(null);
