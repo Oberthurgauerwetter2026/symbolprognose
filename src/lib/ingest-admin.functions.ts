@@ -360,6 +360,8 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
           runCreatedAt: run?.created_at ?? null,
           runUrl: run?.html_url ?? null,
           ...(runNote(run) ? { runNote: runNote(run)! } : {}),
+          ...(isStuckQueued(run) ? { stuckQueued: true as const } : {}),
+
           ...(runs ? { runnerFailures, runsChecked: runs.length } : {}),
           ...(age ? {} : { error: "keine Datei in R2 erreichbar" }),
           ...(tokenInvalid
