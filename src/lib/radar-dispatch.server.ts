@@ -78,12 +78,23 @@ export async function dispatchRadarIngest(): Promise<DispatchResult> {
       runUrl: activity.run.htmlUrl,
     };
   }
+  let cancelledStuckRun: number | undefined;
+  if (activity.stuckQueued) {
+    const cancelled = await cancelWorkflowRun({
+      repo: env.repo,
+      token: env.token,
+      runId: activity.stuckQueued.id,
+      userAgent: "lovable-radar-trigger",
+    });
+    if (cancelled) cancelledStuckRun = activity.stuckQueued.id;
+  }
 
   const res = await postWorkflowDispatch({
     ...env,
     workflowFile: "radar-ingest.yml",
     userAgent: "lovable-radar-trigger",
   });
+
 
   if (!res.ok) {
     // Throttle NICHT setzen — der nächste Cron-Tick darf sofort nachholen.
