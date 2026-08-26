@@ -275,10 +275,21 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
       }
     }
 
+    /** Lauf wartet deutlich länger als üblich auf einen Runner. */
+    function isStuckQueued(
+      run: { status: string; created_at: string } | null,
+    ): boolean {
+      if (!run || run.status !== "queued") return false;
+      const created = Date.parse(run.created_at);
+      if (!Number.isFinite(created)) return false;
+      return Date.now() - created > STALE_QUEUED_AFTER_MS;
+    }
+
     /**
      * Läufe, die ohne ausgeführten Schritt scheitern, sind GitHub-seitige
      * Infrastrukturfehler ("job was not acquired by Runner of type hosted").
      */
+
     function runNote(run: {
       status: string;
       conclusion: string | null;
