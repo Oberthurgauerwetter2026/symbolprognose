@@ -709,7 +709,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             {selected && (
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-lg font-semibold text-foreground">
-                  {widgetMode && wpLinkProps ? (
+                  {wpLinkProps ? (
                     <a {...wpLinkProps} className="hover:underline">
                       {regionName(selected)}
                     </a>
@@ -829,7 +829,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                       cut >= 0 ? impactRaw.slice(cut + "Empfohlenes Verhalten:".length).trim() : "";
                     return (
                       <li key={w.id} className="overflow-hidden rounded-lg border border-border">
-                        {widgetMode && wpLinkProps ? (
+                        {wpLinkProps ? (
                           <a
                             {...wpLinkProps}
                             className="flex items-start gap-2 px-3 py-2 text-base font-semibold hover:underline"
