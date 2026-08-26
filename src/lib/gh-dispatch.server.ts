@@ -257,6 +257,40 @@ export async function getWorkflowActivity(opts: {
   };
 }
 
+/**
+ * Bricht einen hängenden Lauf ab, damit die Concurrency-Queue frei wird und
+ * GitHub den neu ausgelösten Lauf nicht sofort wieder cancelt.
+ */
+export async function cancelWorkflowRun(opts: {
+  repo: string;
+  token: string;
+  runId: number;
+  userAgent: string;
+}): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${opts.repo}/actions/runs/${opts.runId}/cancel`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${opts.token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": opts.userAgent,
+        },
+      },
+    );
+    // 202 = akzeptiert, 409 = bereits beendet/abgebrochen — beides ist ok.
+    return res.ok || res.status === 409;
+  } catch (err) {
+    console.warn(
+      `[gh-dispatch] Abbruch von Lauf ${opts.runId} fehlgeschlagen: ${(err as Error).message}`,
+    );
+    return false;
+  }
+}
+
+
 /** Minimaler Ausschnitt eines GitHub-Workflow-Runs. */
 export interface GhRunSummary {
   id: number;
