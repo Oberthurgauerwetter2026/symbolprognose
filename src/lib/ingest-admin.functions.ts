@@ -223,7 +223,10 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("@/lib/warnings.server");
     assertAdmin(data.password);
     const { r2ObjectUrlCandidates } = await import("@/lib/r2-url.server");
-    const { isInfraFailureRun } = await import("@/lib/gh-dispatch.server");
+    const { isInfraFailureRun, STALE_QUEUED_AFTER_MS } = await import(
+      "@/lib/gh-dispatch.server"
+    );
+
 
     const defs = [
       { id: "radar", label: "Radar (CPC/POH)", file: "radar-ingest.yml", object: "radar/frames.json", expectedEveryMin: 5 },
