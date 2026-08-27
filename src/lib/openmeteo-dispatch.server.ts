@@ -16,7 +16,13 @@
 // Minuten; ein zweiter Dispatch innerhalb desselben Slots würde GitHub
 // veranlassen, einen wartenden Run mit "higher priority waiting request"
 // abzubrechen.
-import { isInfraFailureRun, postWorkflowDispatch } from "./gh-dispatch.server";
+import {
+  STALE_QUEUED_AFTER_MS,
+  cancelWorkflowRun,
+  isInfraFailureRun,
+  postWorkflowDispatch,
+} from "./gh-dispatch.server";
+
 
 /** Sperre nach erfolgreichem/laufendem Lauf (regulärer 30-Min-Takt). */
 const RECENT_RUN_GUARD_MS = 28 * 60_000;
@@ -42,7 +48,10 @@ export interface DispatchOk {
     conclusion: string | null;
     reason: "runner-unavailable" | "run-failed";
   };
+  /** Gesetzt, wenn ein in der Warteschlange hängender Lauf abgebrochen wurde. */
+  cancelledStuckRun?: number;
 }
+
 
 export type DispatchResult =
   | DispatchOk
@@ -122,24 +131,53 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
   // versucht werden.
   const runs = await fetchRecentRuns(repo, token);
   let retryOf: DispatchOk["retryOf"];
+  let cancelledStuckRun: number | undefined;
+
 
   if (runs) {
     const active = runs.find((r) => ACTIVE_STATUSES.has(r.status));
     if (active) {
-      return {
-        ok: false,
-        throttled: true,
-        reason: "active-run",
-        activeRun: {
-          id: active.id,
-          status: active.status,
-          htmlUrl: active.html_url,
-          createdAt: active.created_at,
-        },
+      // GitHub-Actions-Störungen lassen Läufe stundenlang in `queued` hängen.
+      // Ein solcher Lauf darf den Ingest nicht dauerhaft blockieren: nach
+      // STALE_QUEUED_AFTER_MS wird er abgebrochen und neu dispatcht.
+      const createdMs = Date.parse(active.created_at);
+      const queuedForMs = Number.isFinite(createdMs) ? now - createdMs : 0;
+      const stuck = active.status === "queued" && queuedForMs > STALE_QUEUED_AFTER_MS;
+      if (!stuck) {
+        return {
+          ok: false,
+          throttled: true,
+          reason: "active-run",
+          activeRun: {
+            id: active.id,
+            status: active.status,
+            htmlUrl: active.html_url,
+            createdAt: active.created_at,
+          },
+        };
+      }
+      console.warn(
+        `[openmeteo-dispatch] Lauf ${active.id} hängt seit ` +
+          `${Math.round(queuedForMs / 60_000)} Min in der Warteschlange — ` +
+          "wird abgebrochen und neu ausgelöst",
+      );
+      const cancelled = await cancelWorkflowRun({
+        repo,
+        token,
+        runId: active.id,
+        userAgent: "lovable-openmeteo-trigger",
+      });
+      if (cancelled) cancelledStuckRun = active.id;
+      retryOf = {
+        id: active.id,
+        conclusion: null,
+        reason: "runner-unavailable",
       };
     }
+
     const latest = runs[0];
-    if (latest) {
+    if (latest && !retryOf) {
+
       const ageMs = now - new Date(latest.created_at).getTime();
       const failed = latest.status === "completed" && latest.conclusion !== "success";
       const blocksRetry = !failed;
@@ -207,7 +245,14 @@ export async function dispatchOpenmeteoIngest(): Promise<DispatchResult> {
     );
   }
 
-  return { ok: true, dispatchedAt: new Date(now).toISOString(), ref, ...(retryOf ? { retryOf } : {}) };
+  return {
+    ok: true,
+    dispatchedAt: new Date(now).toISOString(),
+    ref,
+    ...(retryOf ? { retryOf } : {}),
+    ...(cancelledStuckRun ? { cancelledStuckRun } : {}),
+  };
+
 
 }
 

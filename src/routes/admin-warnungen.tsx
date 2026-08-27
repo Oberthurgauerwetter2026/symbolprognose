@@ -1328,6 +1328,25 @@ function PipelineHealthSection({ password }: { password: string }) {
                   ↳ Daten deutlich zu alt — Trigger prüfen (Cron-Worker-Deploy unten)
                 </span>
               )}
+              {r.forecastAgeMinutes !== undefined && (
+                <span
+                  className={`w-full ${
+                    r.forecastStale
+                      ? "font-medium text-destructive"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  ↳ Prognose-Manifest{" "}
+                  {r.forecastAgeMinutes == null
+                    ? "nicht erreichbar"
+                    : `${r.forecastAgeMinutes} min alt`}
+                  {r.forecastLastFrameAt
+                    ? ` · Prognose bis ${new Date(r.forecastLastFrameAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich" })}`
+                    : ""}
+                  {r.forecastStale ? " — Radar-Prognose eingefroren (Soll ≤ 90 min)" : ""}
+                </span>
+              )}
+
             </div>
 
           );
