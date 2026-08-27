@@ -375,14 +375,14 @@ function SpotMarker({
   dayIdx,
   absoluteHour,
   data,
-  warning,
+  warnings,
 }: {
   spot: Spot;
   mode: "hourly" | "daily";
   dayIdx: number;
   absoluteHour: number;
   data: ForecastResponse | undefined;
-  warning?: WarningDTO | null;
+  warnings?: WarningDTO[];
 }) {
 
 
@@ -390,7 +390,8 @@ function SpotMarker({
   const icon = useMemo(() => {
     const ICON_W = 250;
     const ICON_H = 72;
-    const cursor = warning ? "pointer" : "default";
+    const hasAnyWarning = !!warnings && warnings.length > 0;
+    const cursor = hasAnyWarning ? "pointer" : "default";
     const wrap = (inner: string) =>
       `<div style="width:${ICON_W}px;height:${ICON_H}px;display:flex;align-items:center;justify-content:center;cursor:${cursor};">${inner}</div>`;
 
@@ -489,7 +490,7 @@ function SpotMarker({
           cloudLow={cloudLow}
           cloudMid={cloudMid}
           cloudHigh={cloudHigh}
-          warning={warning}
+          warnings={warnings}
         />,
       ),
     );
@@ -501,11 +502,11 @@ function SpotMarker({
       iconSize: [ICON_W, ICON_H],
       iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
-  }, [data, mode, dayIdx, absoluteHour, spot, warning]);
+  }, [data, mode, dayIdx, absoluteHour, spot, warnings]);
 
 
 
-  const hasWarning = !!warning;
+  const hasWarning = !!warnings && warnings.length > 0;
   return (
     <Marker
       position={[
@@ -1010,7 +1011,7 @@ function RegionMapInner({
               absoluteHour={absoluteHour}
               
               data={forecasts?.[s.id]}
-              warning={spotWarnings[s.id]}
+              warnings={spotWarnings[s.id]}
 
             />
           ))}
