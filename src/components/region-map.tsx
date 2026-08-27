@@ -191,7 +191,7 @@ function MarkerPill({
   cloudLow,
   cloudMid,
   cloudHigh,
-  warning,
+  warnings,
 }: {
   name: string;
   mode: "hourly" | "daily";
@@ -210,10 +210,10 @@ function MarkerPill({
   cloudLow?: number;
   cloudMid?: number;
   cloudHigh?: number;
-  warning?: WarningDTO | null;
+  warnings?: WarningDTO[];
 }) {
-  const warnLevel = warning ? LEVELS[(Math.max(1, Math.min(3, warning.level)) as WarnLevel)] : null;
-  const WarnIcon = warning ? getHazard(warning.hazard as HazardId).icon : null;
+  const topWarning = warnings && warnings.length > 0 ? warnings[0] : null;
+  const warnLevel = topWarning ? LEVELS[(Math.max(1, Math.min(3, topWarning.level)) as WarnLevel)] : null;
   return (
     <div
       className={MARKER_PILL_CLASS}
