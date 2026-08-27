@@ -67,7 +67,7 @@ import { cn } from "@/lib/utils";
 
 import { SPOTS, type Spot } from "@/data/spots";
 import { useActiveWarnings } from "@/hooks/use-warnings";
-import { regionIdForPoint, topWarningFor, warningsForRegion } from "@/lib/warnings-lookup";
+import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
 import { getHazard, LEVELS, WP_WARN_URL, type HazardId, type WarnLevel } from "@/lib/warnings-config";
 import type { WarningDTO } from "@/lib/warnings.functions";
 
@@ -191,7 +191,7 @@ function MarkerPill({
   cloudLow,
   cloudMid,
   cloudHigh,
-  warning,
+  warnings,
 }: {
   name: string;
   mode: "hourly" | "daily";
@@ -210,10 +210,10 @@ function MarkerPill({
   cloudLow?: number;
   cloudMid?: number;
   cloudHigh?: number;
-  warning?: WarningDTO | null;
+  warnings?: WarningDTO[];
 }) {
-  const warnLevel = warning ? LEVELS[(Math.max(1, Math.min(3, warning.level)) as WarnLevel)] : null;
-  const WarnIcon = warning ? getHazard(warning.hazard as HazardId).icon : null;
+  const topWarning = warnings && warnings.length > 0 ? warnings[0] : null;
+  const warnLevel = topWarning ? LEVELS[(Math.max(1, Math.min(3, topWarning.level)) as WarnLevel)] : null;
   return (
     <div
       className={MARKER_PILL_CLASS}
@@ -234,25 +234,45 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
-      {warnLevel && WarnIcon && (
+      {warnings && warnings.length > 0 && (
         <span
           style={{
             position: "absolute",
             top: -10,
             right: -8,
-            width: 24,
-            height: 24,
-            borderRadius: 999,
-            background: warnLevel.color,
-            color: warnLevel.textOnColor,
-            border: "1.5px solid rgba(255,255,255,0.9)",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
             display: "inline-flex",
             alignItems: "center",
-            justifyContent: "center",
           }}
         >
-          <WarnIcon width={15} height={15} strokeWidth={2.4} />
+          {warnings.map((w, i) => {
+            const def = LEVELS[Math.max(1, Math.min(3, w.level)) as WarnLevel];
+            const Icon = getHazard(w.hazard as HazardId).icon;
+            const advisoryBg = `repeating-linear-gradient(45deg, ${def.color} 0 3px, rgba(255,255,255,0.92) 3px 7px)`;
+            return (
+              <span
+                key={w.id ?? `${w.hazard}-${w.level}`}
+                title={w.hazard}
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 999,
+                  background: def.color,
+                  backgroundImage: w.advisory ? advisoryBg : undefined,
+                  color: w.advisory ? def.color : def.textOnColor,
+                  border: "1.5px solid rgba(255,255,255,0.9)",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginLeft: i === 0 ? 0 : -6,
+                  zIndex: warnings.length - i,
+                  position: "relative",
+                }}
+              >
+                <Icon width={15} height={15} strokeWidth={2.4} />
+              </span>
+            );
+          })}
         </span>
       )}
 
@@ -355,14 +375,14 @@ function SpotMarker({
   dayIdx,
   absoluteHour,
   data,
-  warning,
+  warnings,
 }: {
   spot: Spot;
   mode: "hourly" | "daily";
   dayIdx: number;
   absoluteHour: number;
   data: ForecastResponse | undefined;
-  warning?: WarningDTO | null;
+  warnings?: WarningDTO[];
 }) {
 
 
@@ -370,7 +390,8 @@ function SpotMarker({
   const icon = useMemo(() => {
     const ICON_W = 250;
     const ICON_H = 72;
-    const cursor = warning ? "pointer" : "default";
+    const hasAnyWarning = !!warnings && warnings.length > 0;
+    const cursor = hasAnyWarning ? "pointer" : "default";
     const wrap = (inner: string) =>
       `<div style="width:${ICON_W}px;height:${ICON_H}px;display:flex;align-items:center;justify-content:center;cursor:${cursor};">${inner}</div>`;
 
@@ -469,7 +490,7 @@ function SpotMarker({
           cloudLow={cloudLow}
           cloudMid={cloudMid}
           cloudHigh={cloudHigh}
-          warning={warning}
+          warnings={warnings}
         />,
       ),
     );
@@ -481,11 +502,11 @@ function SpotMarker({
       iconSize: [ICON_W, ICON_H],
       iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
-  }, [data, mode, dayIdx, absoluteHour, spot, warning]);
+  }, [data, mode, dayIdx, absoluteHour, spot, warnings]);
 
 
 
-  const hasWarning = !!warning;
+  const hasWarning = !!warnings && warnings.length > 0;
   return (
     <Marker
       position={[
@@ -706,9 +727,16 @@ function RegionMapInner({
   }, [allWarnings, nowMs, viewMode, absoluteHour, selectedDayIdx]);
 
   const spotWarnings = useMemo(() => {
-    const out: Record<string, WarningDTO | null> = {};
+    const out: Record<string, WarningDTO[]> = {};
     for (const s of SPOTS) {
-      out[s.id] = topWarningFor(activeWarnings, regionIdForPoint(s.lat, s.lon));
+      const list = warningsForRegion(activeWarnings, regionIdForPoint(s.lat, s.lon));
+      // Pro Gefahr nur die höchste Stufe zeigen (keine Duplikat-Badges).
+      const byHazard = new Map<string, WarningDTO>();
+      for (const w of list) {
+        const cur = byHazard.get(w.hazard);
+        if (!cur || w.level > cur.level) byHazard.set(w.hazard, w);
+      }
+      out[s.id] = [...byHazard.values()].sort((a, b) => b.level - a.level);
     }
     return out;
   }, [activeWarnings]);
@@ -983,7 +1011,7 @@ function RegionMapInner({
               absoluteHour={absoluteHour}
               
               data={forecasts?.[s.id]}
-              warning={spotWarnings[s.id]}
+              warnings={spotWarnings[s.id]}
 
             />
           ))}
