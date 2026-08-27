@@ -234,25 +234,45 @@ function MarkerPill({
         whiteSpace: "nowrap",
       }}
     >
-      {warnLevel && WarnIcon && (
+      {warnings && warnings.length > 0 && (
         <span
           style={{
             position: "absolute",
             top: -10,
             right: -8,
-            width: 24,
-            height: 24,
-            borderRadius: 999,
-            background: warnLevel.color,
-            color: warnLevel.textOnColor,
-            border: "1.5px solid rgba(255,255,255,0.9)",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
             display: "inline-flex",
             alignItems: "center",
-            justifyContent: "center",
           }}
         >
-          <WarnIcon width={15} height={15} strokeWidth={2.4} />
+          {warnings.map((w, i) => {
+            const def = LEVELS[Math.max(1, Math.min(3, w.level)) as WarnLevel];
+            const Icon = getHazard(w.hazard as HazardId).icon;
+            const advisoryBg = `repeating-linear-gradient(45deg, ${def.color} 0 3px, rgba(255,255,255,0.92) 3px 7px)`;
+            return (
+              <span
+                key={w.id ?? `${w.hazard}-${w.level}`}
+                title={w.hazard}
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 999,
+                  background: def.color,
+                  backgroundImage: w.advisory ? advisoryBg : undefined,
+                  color: w.advisory ? def.color : def.textOnColor,
+                  border: "1.5px solid rgba(255,255,255,0.9)",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginLeft: i === 0 ? 0 : -6,
+                  zIndex: warnings.length - i,
+                  position: "relative",
+                }}
+              >
+                <Icon width={15} height={15} strokeWidth={2.4} />
+              </span>
+            );
+          })}
         </span>
       )}
 
