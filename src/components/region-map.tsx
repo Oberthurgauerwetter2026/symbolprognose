@@ -67,7 +67,7 @@ import { cn } from "@/lib/utils";
 
 import { SPOTS, type Spot } from "@/data/spots";
 import { useActiveWarnings } from "@/hooks/use-warnings";
-import { regionIdForPoint, topWarningFor, warningsForRegion } from "@/lib/warnings-lookup";
+import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
 import { getHazard, LEVELS, WP_WARN_URL, type HazardId, type WarnLevel } from "@/lib/warnings-config";
 import type { WarningDTO } from "@/lib/warnings.functions";
 
@@ -706,9 +706,16 @@ function RegionMapInner({
   }, [allWarnings, nowMs, viewMode, absoluteHour, selectedDayIdx]);
 
   const spotWarnings = useMemo(() => {
-    const out: Record<string, WarningDTO | null> = {};
+    const out: Record<string, WarningDTO[]> = {};
     for (const s of SPOTS) {
-      out[s.id] = topWarningFor(activeWarnings, regionIdForPoint(s.lat, s.lon));
+      const list = warningsForRegion(activeWarnings, regionIdForPoint(s.lat, s.lon));
+      // Pro Gefahr nur die höchste Stufe zeigen (keine Duplikat-Badges).
+      const byHazard = new Map<string, WarningDTO>();
+      for (const w of list) {
+        const cur = byHazard.get(w.hazard);
+        if (!cur || w.level > cur.level) byHazard.set(w.hazard, w);
+      }
+      out[s.id] = [...byHazard.values()].sort((a, b) => b.level - a.level);
     }
     return out;
   }, [activeWarnings]);
