@@ -206,6 +206,14 @@ export interface PipelineHealth {
   tokenInvalid?: true;
   /** Lauf hängt zu lange in der Warteschlange (GitHub-Störung). */
   stuckQueued?: true;
+  /** Nur ICON-CH1: Alter des Prognose-PNG-Manifests (radar/forecast-frames.json). */
+  forecastGeneratedAt?: string | null;
+  forecastAgeMinutes?: number | null;
+  /** Letzter Prognose-Zeitpunkt im Manifest — hier endet der Filmstrip. */
+  forecastLastFrameAt?: string | null;
+  /** Prognose-Manifest älter als 90 Min. — Radar-Prognose ist eingefroren. */
+  forecastStale?: true;
+
 
   error?: string;
 
@@ -344,8 +352,46 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
       return null;
     }
 
+    /**
+     * Prognose-PNG-Manifest: Alter + letzter Frame. Ein hängender Ingest-Lauf
+     * lässt die Radar-Prognose einfrieren; der Filmstrip endet dann sichtbar
+     * zu früh, ohne dass ein Lauf fehlgeschlagen aussieht.
+     */
+    async function forecastManifestInfo() {
+      const urls = [
+        ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, "radar/forecast-frames.json"),
+        ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "radar/forecast-frames.json"),
+      ].filter((u, i, a) => a.indexOf(u) === i);
+      for (const url of urls) {
+        try {
+          const res = await fetch(url, { headers: { "cache-control": "no-cache" } });
+          if (!res.ok) continue;
+          const json = (await res.json()) as {
+            generatedAt?: string;
+            frames?: Array<{ t?: string }>;
+          };
+          const gen = json.generatedAt ?? null;
+          const genMs = gen ? Date.parse(gen) : Number.NaN;
+          const frames = Array.isArray(json.frames) ? json.frames : [];
+          const lastFrame = frames.length ? (frames[frames.length - 1]?.t ?? null) : null;
+          return {
+            generatedAt: gen,
+            ageMinutes: Number.isFinite(genMs) ? Math.round((Date.now() - genMs) / 60000) : null,
+            lastFrameAt: lastFrame,
+          };
+        } catch {
+          // nächste URL
+        }
+      }
+      return null;
+    }
+
+    const forecastInfo = await forecastManifestInfo();
+    const FORECAST_STALE_AFTER_MIN = 90;
+
     return await Promise.all(
       defs.map(async (d): Promise<PipelineHealth> => {
+
         const [runs, age] = await Promise.all([recentRuns(d.file), objectAge(d.object)]);
         const run = runs?.[0] ?? null;
         const runnerFailures = (runs ?? []).filter((r) => isInfraFailureRun(r)).length;
@@ -374,6 +420,19 @@ export const getPipelineHealth = createServerFn({ method: "POST" })
           ...(age?.ageMinutes != null && age.ageMinutes > d.expectedEveryMin * 6
             ? { stale: true as const }
             : {}),
+          ...(d.id === "openmeteo"
+            ? {
+                forecastGeneratedAt: forecastInfo?.generatedAt ?? null,
+                forecastAgeMinutes: forecastInfo?.ageMinutes ?? null,
+                forecastLastFrameAt: forecastInfo?.lastFrameAt ?? null,
+                ...(forecastInfo?.ageMinutes != null &&
+                forecastInfo.ageMinutes > FORECAST_STALE_AFTER_MIN
+                  ? { forecastStale: true as const }
+                  : {}),
+              }
+            : {}),
+
+
 
 
         };

@@ -7,6 +7,8 @@
  */
 
 import {
+  cancelWorkflowRun,
+  getWorkflowActivity,
   githubDispatchEnv,
   lastRunWasInfraFailure,
   postWorkflowDispatch,
@@ -16,7 +18,20 @@ let lastDispatchAt = 0;
 const MIN_INTERVAL_MS = 30 * 60_000;
 
 export type DispatchResult =
-  | { ok: true; dispatchedAt: string; ref: string; retryAfterRunnerFailure?: true }
+  | {
+      ok: true;
+      dispatchedAt: string;
+      ref: string;
+      retryAfterRunnerFailure?: true;
+      cancelledStuckRun?: number;
+    }
+  | {
+      ok: false;
+      alreadyRunning: true;
+      runId: number;
+      runStatus: "queued" | "in_progress";
+      runUrl: string;
+    }
   | { ok: false; throttled: true; retryInMs: number }
   | { ok: false; status: number; error: string }
   | { ok: false; error: string };
@@ -44,11 +59,43 @@ export async function dispatchSymbolIngest(): Promise<DispatchResult> {
     return { ok: false, throttled: true, retryInMs: MIN_INTERVAL_MS - (now - lastDispatchAt) };
   }
 
+  // Läuft schon etwas? Hängt ein Lauf länger als STALE_QUEUED_AFTER_MS in
+  // `queued` (GitHub-Actions-Störung), wird er abgebrochen und neu ausgelöst.
+  const activity = await getWorkflowActivity({
+    repo: env.repo,
+    token: env.token,
+    workflowFile: "openmeteo-symbol.yml",
+    userAgent: "lovable-symbol-trigger",
+  });
+  if (!activity.ok) {
+    return { ok: false, status: activity.status, error: activity.error };
+  }
+  if (activity.active && activity.run) {
+    return {
+      ok: false,
+      alreadyRunning: true,
+      runId: activity.run.id,
+      runStatus: activity.run.status,
+      runUrl: activity.run.htmlUrl,
+    };
+  }
+  let cancelledStuckRun: number | undefined;
+  if (activity.stuckQueued) {
+    const cancelled = await cancelWorkflowRun({
+      repo: env.repo,
+      token: env.token,
+      runId: activity.stuckQueued.id,
+      userAgent: "lovable-symbol-trigger",
+    });
+    if (cancelled) cancelledStuckRun = activity.stuckQueued.id;
+  }
+
   const res = await postWorkflowDispatch({
     ...env,
     workflowFile: "openmeteo-symbol.yml",
     userAgent: "lovable-symbol-trigger",
   });
+
 
   if (!res.ok) {
     return { ok: false, status: res.status, error: res.error };
@@ -60,5 +107,7 @@ export async function dispatchSymbolIngest(): Promise<DispatchResult> {
     dispatchedAt: new Date(now).toISOString(),
     ref: env.ref,
     ...(infraRetry ? { retryAfterRunnerFailure: true as const } : {}),
+    ...(cancelledStuckRun ? { cancelledStuckRun } : {}),
   };
+
 }
