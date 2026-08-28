@@ -129,20 +129,35 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
    * Pro Gemeinde: Spitzenintensität (`peak`, für den Warntext) und die
    * flächengestützte Intensität (`area`, entscheidet über die Stufe). Fehlt
    * `mmhArea` (alter Ingest-Stand), gilt die Spitze als Rückfall.
+   * `leadMin` ist gesetzt, wenn die Warnung durch eine heranziehende Zelle
+   * ausgelöst wird (Anflug-Fenster des Radar-Ingests, Ziel ~30 Min. Vorlauf).
    */
-  const perRegion = new Map<string, { peak: number; area: number }>();
+  const perRegion = new Map<string, { peak: number; area: number; leadMin?: number }>();
   for (const r of measured) {
-    const peak = typeof r.mmh === "number" ? r.mmh : 0;
-    const area = typeof r.mmhArea === "number" ? r.mmhArea : peak;
+    const measuredPeak = typeof r.mmh === "number" ? r.mmh : 0;
+    const measuredArea = typeof r.mmhArea === "number" ? r.mmhArea : measuredPeak;
+    const leadArea = typeof r.mmhLead === "number" ? r.mmhLead : 0;
+    const leadPeak = typeof r.mmhLeadPeak === "number" ? r.mmhLeadPeak : leadArea;
+
+    // Massgebend ist der grössere der beiden Werte: aktuelle Messung über der
+    // Gemeinde oder die Zelle, die sie in wenigen Minuten erreicht.
+    const useLead = leadArea > measuredArea;
+    const area = useLead ? leadArea : measuredArea;
+    const peak = useLead ? Math.max(leadPeak, measuredPeak) : measuredPeak;
+    const leadMin = useLead && typeof r.leadMin === "number" ? r.leadMin : undefined;
+
     // Unter der Stufe-2-Schwelle warnt die Automatik nicht (MeteoSchweiz-Praxis).
     if (area < THRESHOLDS[AUTO_MIN_LEVEL - 1]) continue;
 
     const prev = perRegion.get(r.id);
+    const nextArea = Math.max(prev?.area ?? 0, area);
     perRegion.set(r.id, {
       peak: Math.max(prev?.peak ?? 0, peak),
-      area: Math.max(prev?.area ?? 0, area),
+      area: nextArea,
+      leadMin: nextArea === area ? leadMin : prev?.leadMin,
     });
   }
+
 
   // Verlagerung: der Radar-Ingest schätzt sie per Musterabgleich der beiden
   // letzten Radarbilder. Fehlt die Angabe, entfällt der Zugbahn-Satz.
@@ -206,23 +221,35 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     warnedRegions.push(regionId);
 
     const validFrom = new Date(now).toISOString();
-    const validTo = new Date(now + 45 * 60_000).toISOString();
+    // Vorlauf (bis ~35 Min.) plus Durchzug: 75 Minuten Gültigkeit.
+    const validTo = new Date(now + 75 * 60_000).toISOString();
     const tpl = TEMPLATES.gewitter[level];
 
     const base = fillTemplate(tpl.description);
     const motionText = motion
-      ? ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
+      ? v.leadMin
+        ? ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran und erreichen die Region in etwa ${v.leadMin} Minuten.`
+        : ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
       : "";
+    const intensityText = v.leadMin
+      ? `Im Anflug gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.`
+      : `Aktuell gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.`;
     const row = {
       hazard: "gewitter",
       level,
       valid_from: validFrom,
       valid_to: validTo,
       title: warningTitle("gewitter", level),
-      description: `${base} Aktuell gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.${motionText}`,
+      description: `${base} ${intensityText}${motionText}`,
       impact: templateImpact(tpl),
-      params: { value: String(Math.round(v.peak)), auto: true, measured: true },
+      params: {
+        value: String(Math.round(v.peak)),
+        auto: true,
+        measured: true,
+        ...(v.leadMin ? { leadMin: v.leadMin } : {}),
+      },
       active: true,
+
       source: "auto",
       auto_key: autoKey,
     };
