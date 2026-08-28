@@ -129,20 +129,35 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
    * Pro Gemeinde: Spitzenintensität (`peak`, für den Warntext) und die
    * flächengestützte Intensität (`area`, entscheidet über die Stufe). Fehlt
    * `mmhArea` (alter Ingest-Stand), gilt die Spitze als Rückfall.
+   * `leadMin` ist gesetzt, wenn die Warnung durch eine heranziehende Zelle
+   * ausgelöst wird (Anflug-Fenster des Radar-Ingests, Ziel ~30 Min. Vorlauf).
    */
-  const perRegion = new Map<string, { peak: number; area: number }>();
+  const perRegion = new Map<string, { peak: number; area: number; leadMin?: number }>();
   for (const r of measured) {
-    const peak = typeof r.mmh === "number" ? r.mmh : 0;
-    const area = typeof r.mmhArea === "number" ? r.mmhArea : peak;
+    const measuredPeak = typeof r.mmh === "number" ? r.mmh : 0;
+    const measuredArea = typeof r.mmhArea === "number" ? r.mmhArea : measuredPeak;
+    const leadArea = typeof r.mmhLead === "number" ? r.mmhLead : 0;
+    const leadPeak = typeof r.mmhLeadPeak === "number" ? r.mmhLeadPeak : leadArea;
+
+    // Massgebend ist der grössere der beiden Werte: aktuelle Messung über der
+    // Gemeinde oder die Zelle, die sie in wenigen Minuten erreicht.
+    const useLead = leadArea > measuredArea;
+    const area = useLead ? leadArea : measuredArea;
+    const peak = useLead ? Math.max(leadPeak, measuredPeak) : measuredPeak;
+    const leadMin = useLead && typeof r.leadMin === "number" ? r.leadMin : undefined;
+
     // Unter der Stufe-2-Schwelle warnt die Automatik nicht (MeteoSchweiz-Praxis).
     if (area < THRESHOLDS[AUTO_MIN_LEVEL - 1]) continue;
 
     const prev = perRegion.get(r.id);
+    const nextArea = Math.max(prev?.area ?? 0, area);
     perRegion.set(r.id, {
       peak: Math.max(prev?.peak ?? 0, peak),
-      area: Math.max(prev?.area ?? 0, area),
+      area: nextArea,
+      leadMin: nextArea === area ? leadMin : prev?.leadMin,
     });
   }
+
 
   // Verlagerung: der Radar-Ingest schätzt sie per Musterabgleich der beiden
   // letzten Radarbilder. Fehlt die Angabe, entfällt der Zugbahn-Satz.
