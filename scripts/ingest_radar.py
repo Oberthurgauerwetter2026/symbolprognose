@@ -45,7 +45,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v28-area8"
+RADAR_INGEST_VERSION = "v29-lead30"
 
 # Mindestanzahl Radar-Pixel über der Schwelle, damit eine Gemeinde gewarnt wird.
 MIN_CELL_PIXELS = 8
