@@ -838,6 +838,57 @@ def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | 
     }
 
 
+# Vorlaufstufen (Minuten) für die Anflug-Erkennung: gesucht wird die Zelle,
+# die die Gemeinde in dieser Zeit erreicht. Ziel ist ~30 Minuten Vorlauf; der
+# Korridor deckt 10–35 Minuten ab, damit ein leicht abweichender Winkel oder
+# eine Zwischenverlagerung die Warnung nicht verhindert.
+LEAD_MINUTES = (10, 20, 30, 35)
+
+
+def _lead_fields(precip: np.ndarray, motion: dict) -> list[tuple[int, np.ndarray]]:
+    """Verschobene Niederschlagsfelder je Vorlaufstufe.
+
+    `motion["dirFromDeg"]` ist die Richtung, aus der die Zellen kommen. Das
+    Feld wird so verschoben, dass über einer Gemeinde jener Bereich liegt, der
+    sie nach `lead_min` Minuten erreicht. Randbereiche, die beim Verschieben
+    „umlaufen“ würden, werden auf 0 gesetzt.
+    """
+    kmh = float(motion.get("kmh") or 0.0)
+    bearing = float(motion.get("dirFromDeg") or 0.0)
+    if not (5.0 <= kmh <= 120.0):
+        return []
+
+    mid_lat = (BBOX_WGS["minLat"] + BBOX_WGS["maxLat"]) / 2
+    km_per_px_x = (
+        (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / (OUT_W - 1) * 111.32 * math.cos(math.radians(mid_lat))
+    )
+    km_per_px_y = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / (OUT_H - 1) * 111.32
+
+    out: list[tuple[int, np.ndarray]] = []
+    for lead_min in LEAD_MINUTES:
+        dist_km = kmh * lead_min / 60.0
+        east_km = math.sin(math.radians(bearing)) * dist_km
+        north_km = math.cos(math.radians(bearing)) * dist_km
+        dcol = int(round(east_km / km_per_px_x))
+        drow = int(round(-north_km / km_per_px_y))
+        if dcol == 0 and drow == 0:
+            continue
+        if abs(dcol) >= OUT_W or abs(drow) >= OUT_H:
+            continue
+        shifted = np.roll(precip, shift=(-drow, -dcol), axis=(0, 1)).copy()
+        # Umlaufende Ränder neutralisieren.
+        if drow > 0:
+            shifted[-drow:, :] = 0.0
+        elif drow < 0:
+            shifted[: -drow, :] = 0.0
+        if dcol > 0:
+            shifted[:, -dcol:] = 0.0
+        elif dcol < 0:
+            shifted[:, : -dcol] = 0.0
+        out.append((lead_min, shifted))
+    return out
+
+
 
 def write_region_max(s3, since: datetime) -> None:
     """Schreibt `radar/region-max.json`: je Gemeinde die aktuell gemessene
