@@ -221,23 +221,35 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
     warnedRegions.push(regionId);
 
     const validFrom = new Date(now).toISOString();
-    const validTo = new Date(now + 45 * 60_000).toISOString();
+    // Vorlauf (bis ~35 Min.) plus Durchzug: 75 Minuten Gültigkeit.
+    const validTo = new Date(now + 75 * 60_000).toISOString();
     const tpl = TEMPLATES.gewitter[level];
 
     const base = fillTemplate(tpl.description);
     const motionText = motion
-      ? ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
+      ? v.leadMin
+        ? ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran und erreichen die Region in etwa ${v.leadMin} Minuten.`
+        : ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
       : "";
+    const intensityText = v.leadMin
+      ? `Im Anflug gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.`
+      : `Aktuell gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.`;
     const row = {
       hazard: "gewitter",
       level,
       valid_from: validFrom,
       valid_to: validTo,
       title: warningTitle("gewitter", level),
-      description: `${base} Aktuell gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.${motionText}`,
+      description: `${base} ${intensityText}${motionText}`,
       impact: templateImpact(tpl),
-      params: { value: String(Math.round(v.peak)), auto: true, measured: true },
+      params: {
+        value: String(Math.round(v.peak)),
+        auto: true,
+        measured: true,
+        ...(v.leadMin ? { leadMin: v.leadMin } : {}),
+      },
       active: true,
+
       source: "auto",
       auto_key: autoKey,
     };
