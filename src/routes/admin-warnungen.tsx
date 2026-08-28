@@ -1216,10 +1216,13 @@ function AutoThunderSection({ password }: { password: string }) {
       <p className="text-xs text-muted-foreground">
         Automatik läuft alle 5 Minuten und warnt — wie MeteoSchweiz und SRF Meteo — erst ab Stufe 2:
         ab {THUNDER_RAIN_MMH[1]} mm/h (Stufe 2) bzw. ab {THUNDER_RAIN_MMH[2]} mm/h (Stufe 3),
-        gemessen über mindestens 8 km² Fläche. Stufe 2 braucht zwei, Stufe 3 drei Radarläufe in
-        Folge. Stufe 1 ({THUNDER_RAIN_MMH[0]} mm/h) bleibt manuellen Warnungen vorbehalten;
-        Push-Wiederholungen frühestens nach 30 Minuten, ausser die Stufe steigt.
+        gemessen über mindestens 8 km² Fläche. Gewarnt wird rund 30 Minuten vor Eintreffen: geprüft
+        wird auch das Gebiet, aus dem die Zelle heranzieht (Zugrichtung und -geschwindigkeit aus dem
+        Radar). Stufe 2 braucht zwei, Stufe 3 drei Radarläufe in Folge. Stufe 1 (
+        {THUNDER_RAIN_MMH[0]} mm/h) bleibt manuellen Warnungen vorbehalten; Push-Wiederholungen
+        frühestens nach 30 Minuten, ausser die Stufe steigt.
       </p>
+
 
       <button
         type="button"
