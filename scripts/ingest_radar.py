@@ -884,25 +884,9 @@ def write_region_max(s3, since: datetime) -> None:
         if got:
             hail = np.nan_to_num(got[0], nan=0.0)
 
-    regions: list[dict] = []
-    for rid, name, mask in region_masks():
-        if not mask.any():
-            continue
-        vals = np.sort(precip[mask])[::-1]
-        # Flächengestützte Intensität: der MIN_CELL_PIXELS-höchste Wert. Damit
-        # löst ein einzelner Ausreisser-Pixel keine Autowarnung mehr aus.
-        mmh_area = float(vals[MIN_CELL_PIXELS - 1]) if vals.size >= MIN_CELL_PIXELS else 0.0
-        regions.append(
-            {
-                "id": rid,
-                "name": name,
-                "mmh": round(float(vals[0]), 1),
-                "mmhArea": round(mmh_area, 1),
-                "poh": round(float(hail[mask].max()), 0) if hail.shape == mask.shape else 0.0,
-            }
-        )
-
-    # Verlagerung per Musterabgleich der beiden letzten Radarbilder.
+    # Verlagerung per Musterabgleich der beiden letzten Radarbilder — wird
+    # sowohl für den Warntext als auch für das Anflug-Fenster gebraucht und
+    # deshalb vor der Gemeindeauswertung bestimmt.
     motion: dict | None = None
     if len(loaded) >= 2:
         dt_min = (loaded[-1][1] - loaded[-2][1]).total_seconds() / 60.0
@@ -916,7 +900,52 @@ def write_region_max(s3, since: datetime) -> None:
         else:
             print("region-max: no reliable motion estimate", flush=True)
 
+    # Anflug-Felder: das Niederschlagsfeld wird um die Strecke verschoben, die
+    # die Zelle in `LEAD_MINUTES` zurücklegt. Ein Blick in dieses verschobene
+    # Feld über dem Gemeinderaster zeigt, was die Gemeinde in dieser Zeit
+    # erreicht — dadurch warnt die Automatik vor Eintreffen der Zelle.
+    lead_fields: list[tuple[int, np.ndarray]] = []
+    if motion:
+        lead_fields = _lead_fields(precip, motion)
+
+    def area_value(field: np.ndarray, mask: np.ndarray) -> float:
+        vals = np.sort(field[mask])[::-1]
+        # Flächengestützte Intensität: der MIN_CELL_PIXELS-höchste Wert. Damit
+        # löst ein einzelner Ausreisser-Pixel keine Autowarnung mehr aus.
+        return float(vals[MIN_CELL_PIXELS - 1]) if vals.size >= MIN_CELL_PIXELS else 0.0
+
+    regions: list[dict] = []
+    for rid, name, mask in region_masks():
+        if not mask.any():
+            continue
+        vals = np.sort(precip[mask])[::-1]
+        mmh_area = area_value(precip, mask)
+        entry = {
+            "id": rid,
+            "name": name,
+            "mmh": round(float(vals[0]), 1),
+            "mmhArea": round(mmh_area, 1),
+            "poh": round(float(hail[mask].max()), 0) if hail.shape == mask.shape else 0.0,
+        }
+
+        # Stärkster Anflug im Korridor (Vorlaufstufen) — nur wenn er die
+        # aktuell gemessene Flächenintensität übertrifft, ist er relevant.
+        best_lead: tuple[float, float, int] | None = None
+        for lead_min, field in lead_fields:
+            area = area_value(field, mask)
+            if area <= mmh_area:
+                continue
+            if best_lead is None or area > best_lead[0]:
+                best_lead = (area, float(np.sort(field[mask])[::-1][0]), lead_min)
+        if best_lead:
+            entry["mmhLead"] = round(best_lead[0], 1)
+            entry["mmhLeadPeak"] = round(best_lead[1], 1)
+            entry["leadMin"] = best_lead[2]
+
+        regions.append(entry)
+
     ts = ts_iso
+
 
     body = {
         "t": ts,
