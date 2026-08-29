@@ -52,6 +52,9 @@ export const Route = createFileRoute("/api/public/symbol/ingest-trigger")({
         if (result.ok) {
           return Response.json(result, { status: 202, headers: CORS_HEADERS });
         }
+if ("alreadyRunning" in result) {
+          return Response.json(result, { status: 200, headers: CORS_HEADERS });
+        }
         if ("throttled" in result) {
           return Response.json(result, { status: 429, headers: CORS_HEADERS });
         }
