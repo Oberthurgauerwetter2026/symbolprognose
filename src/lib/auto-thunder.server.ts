@@ -232,7 +232,7 @@ async function runAutoThunderCore(): Promise<AutoThunderResult> {
         : ` Zellen ziehen mit rund ${motion.kmh} km/h aus ${motion.from} heran.`
       : "";
     const intensityText = v.leadMin
-      ? `Im Anflug gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.`
+      ? `Heranziehende Zelle mit Spitzenintensität ${Math.round(v.peak)} mm/h.`
       : `Aktuell gemessene Spitzenintensität ${Math.round(v.peak)} mm/h.`;
     const row = {
       hazard: "gewitter",
