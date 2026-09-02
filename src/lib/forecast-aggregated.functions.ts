@@ -610,7 +610,14 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
     const cached = directForecastCache.get(cacheKey);
     if (cached && Date.now() - cached.at < DIRECT_TTL_MS) return cached.fc;
     try {
-      const fc = await fetchForecastWithRetry(data.lat, data.lon);
+      let pending = directInFlight.get(cacheKey);
+      if (!pending) {
+        pending = fetchForecastWithRetry(data.lat, data.lon).finally(() => {
+          directInFlight.delete(cacheKey);
+        });
+        directInFlight.set(cacheKey, pending);
+      }
+      const fc = await pending;
       directForecastCache.set(cacheKey, { fc, at: Date.now() });
       if (directForecastCache.size > 128) {
         const firstKey = directForecastCache.keys().next().value;
