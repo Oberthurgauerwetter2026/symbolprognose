@@ -509,6 +509,12 @@ function setCdnCacheHeaders() {
 // In-Memory-Guard für direkte Open-Meteo-Calls (5 min TTL pro gerundetem Punkt).
 const DIRECT_TTL_MS = 5 * 60 * 1000;
 const directForecastCache = new Map<string, { fc: ForecastResponse; at: number }>();
+/**
+ * Laufende Direktabrufe je Koordinate. Mehrere gleichzeitige Besucher am
+ * selben Ort lösen so nur EINEN Open-Meteo-Call aus — das war die Ursache
+ * für gehäufte 429/„Keine Wettermodelle erreichbar" im selben Minutenfenster.
+ */
+const directInFlight = new Map<string, Promise<ForecastResponse>>();
 
 function emptyForecast(lat: number, lon: number): ForecastResponse {
   return sanitizeForecast({
