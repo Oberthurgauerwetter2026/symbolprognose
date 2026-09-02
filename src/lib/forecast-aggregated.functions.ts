@@ -509,6 +509,12 @@ function setCdnCacheHeaders() {
 // In-Memory-Guard für direkte Open-Meteo-Calls (5 min TTL pro gerundetem Punkt).
 const DIRECT_TTL_MS = 5 * 60 * 1000;
 const directForecastCache = new Map<string, { fc: ForecastResponse; at: number }>();
+/**
+ * Laufende Direktabrufe je Koordinate. Mehrere gleichzeitige Besucher am
+ * selben Ort lösen so nur EINEN Open-Meteo-Call aus — das war die Ursache
+ * für gehäufte 429/„Keine Wettermodelle erreichbar" im selben Minutenfenster.
+ */
+const directInFlight = new Map<string, Promise<ForecastResponse>>();
 
 function emptyForecast(lat: number, lon: number): ForecastResponse {
   return sanitizeForecast({
@@ -604,7 +610,14 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
     const cached = directForecastCache.get(cacheKey);
     if (cached && Date.now() - cached.at < DIRECT_TTL_MS) return cached.fc;
     try {
-      const fc = await fetchForecastWithRetry(data.lat, data.lon);
+      let pending = directInFlight.get(cacheKey);
+      if (!pending) {
+        pending = fetchForecastWithRetry(data.lat, data.lon).finally(() => {
+          directInFlight.delete(cacheKey);
+        });
+        directInFlight.set(cacheKey, pending);
+      }
+      const fc = await pending;
       directForecastCache.set(cacheKey, { fc, at: Date.now() });
       if (directForecastCache.size > 128) {
         const firstKey = directForecastCache.keys().next().value;
@@ -626,18 +639,23 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
   });
 
 /**
- * Kleiner Retry-Wrapper um `fetchForecast()`. Open-Meteo antwortet vom
- * Cloudflare-Worker-Egress hin und wieder mit 429/5xx; ein einzelner Retry
- * mit 400 ms Backoff reicht in der Praxis, um transiente Fehler zu glätten.
+ * Retry-Wrapper um `fetchForecast()`. Open-Meteo antwortet vom
+ * Cloudflare-Worker-Egress hin und wieder mit 429/5xx. Drei Versuche mit
+ * ansteigendem Backoff (500 / 1500 ms + Jitter) glätten auch kurze
+ * Rate-Limit-Fenster, in denen zwei Versuche zu wenig waren.
  */
 async function fetchForecastWithRetry(lat: number, lon: number): Promise<ForecastResponse> {
+  const backoffMs = [500, 1500];
   let lastErr: unknown = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await fetchForecast(lat, lon);
     } catch (err) {
       lastErr = err;
-      if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+      const wait = backoffMs[attempt];
+      if (wait != null) {
+        await new Promise((r) => setTimeout(r, wait + Math.random() * 250));
+      }
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
