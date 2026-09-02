@@ -146,14 +146,25 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
                 else:
                     last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
             else:
-                data = r.json()
-                return data if isinstance(data, list) else [data]
+                try:
+                    data = r.json()
+                except ValueError as e:
+                    # Abgebrochene/abgeschnittene Antwort (Open-Meteo liefert
+                    # unter Last gelegentlich unvollständiges JSON) — das ist
+                    # transient und muss wie ein Timeout neu versucht werden,
+                    # nicht den ganzen Lauf abbrechen.
+                    last_err = RuntimeError(f"unvollständige JSON-Antwort: {e}")
+                else:
+                    return data if isinstance(data, list) else [data]
         except (
             requests.exceptions.Timeout,
             requests.exceptions.ConnectionError,
             requests.exceptions.SSLError,
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.ContentDecodingError,
         ) as e:
             last_err = e
+
         base_wait = backoff_429[attempt] if last_was_429 else backoff_other[attempt]
         wait = base_wait * (0.8 + 0.4 * random.random())  # ±20 % jitter
         print(
