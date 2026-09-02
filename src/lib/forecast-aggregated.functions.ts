@@ -639,18 +639,23 @@ export const getAggregatedForecast = createServerFn({ method: "POST" })
   });
 
 /**
- * Kleiner Retry-Wrapper um `fetchForecast()`. Open-Meteo antwortet vom
- * Cloudflare-Worker-Egress hin und wieder mit 429/5xx; ein einzelner Retry
- * mit 400 ms Backoff reicht in der Praxis, um transiente Fehler zu glätten.
+ * Retry-Wrapper um `fetchForecast()`. Open-Meteo antwortet vom
+ * Cloudflare-Worker-Egress hin und wieder mit 429/5xx. Drei Versuche mit
+ * ansteigendem Backoff (500 / 1500 ms + Jitter) glätten auch kurze
+ * Rate-Limit-Fenster, in denen zwei Versuche zu wenig waren.
  */
 async function fetchForecastWithRetry(lat: number, lon: number): Promise<ForecastResponse> {
+  const backoffMs = [500, 1500];
   let lastErr: unknown = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await fetchForecast(lat, lon);
     } catch (err) {
       lastErr = err;
-      if (attempt === 0) await new Promise((r) => setTimeout(r, 400));
+      const wait = backoffMs[attempt];
+      if (wait != null) {
+        await new Promise((r) => setTimeout(r, wait + Math.random() * 250));
+      }
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
