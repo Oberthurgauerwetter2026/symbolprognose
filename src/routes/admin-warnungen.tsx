@@ -489,6 +489,117 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
             <Plus className="h-5 w-5" /> {form.id ? "Warnung bearbeiten" : "Neue Warnung"}
           </h2>
 
+          <div className="rounded-lg border border-border p-4">
+            <p className="mb-3 text-sm font-semibold">Gültigkeit</p>
+            <div className="mb-3 flex flex-wrap gap-2">
+              <span className="self-center text-sm text-muted-foreground">Beginn:</span>
+              {[
+                { label: "Jetzt", h: 0 },
+                { label: "in 1 Std.", h: 1 },
+                { label: "in 3 Std.", h: 3 },
+                { label: "Morgen 06:00", h: -1 },
+              ].map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={() => {
+                    if (c.h >= 0) setStart(new Date(Date.now() + c.h * 3600_000));
+                    else {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 1);
+                      d.setHours(6, 0, 0, 0);
+                      setStart(d);
+                    }
+                  }}
+                  className="rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <div className="mb-4 flex flex-wrap gap-2">
+              <span className="self-center text-sm text-muted-foreground">Dauer:</span>
+              {[3, 6, 12, 24, 48].map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setDuration(h)}
+                  className="rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  {h} Std.
+                </button>
+              ))}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-semibold">
+                Gültig von
+                <input
+                  type="datetime-local"
+                  required
+                  value={form.validFrom}
+                  onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                />
+              </label>
+              <label className="text-sm font-semibold">
+                Gültig bis
+                <input
+                  type="datetime-local"
+                  required
+                  value={form.validTo}
+                  onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
+                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-semibold">Betroffene Gemeinden</p>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {REGION_GROUPS.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, regionIds: g.regionIds }))}
+                  className="rounded-md border border-border px-3 py-2 text-sm"
+                >
+                  {g.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, regionIds: [] }))}
+                className="rounded-md border border-border px-3 py-2 text-sm"
+              >
+                Keine
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {REGIONS.map((r) => {
+                const on = form.regionIds.includes(r.id);
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        regionIds: on ? f.regionIds.filter((x) => x !== r.id) : [...f.regionIds, r.id],
+                      }))
+                    }
+                    className={
+                      "rounded px-3 py-2 text-sm " +
+                      (on ? "bg-foreground text-background" : "bg-muted text-muted-foreground")
+                    }
+                  >
+                    {r.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <p className="mb-2 text-sm font-semibold">Gefahrenart</p>
             <div className="flex flex-wrap gap-2">
@@ -692,117 +803,6 @@ function WarnAdminDashboard({ password, onLogout }: { password: string; onLogout
                   onChange={(e) =>
                     applyTemplate(form.hazard, form.level, form.valueFrom, e.target.value)
                   }
-                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
-                />
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 text-sm font-semibold">Betroffene Gemeinden</p>
-            <div className="mb-3 flex flex-wrap gap-2">
-              {REGION_GROUPS.map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, regionIds: g.regionIds }))}
-                  className="rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  {g.label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, regionIds: [] }))}
-                className="rounded-md border border-border px-3 py-2 text-sm"
-              >
-                Keine
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {REGIONS.map((r) => {
-                const on = form.regionIds.includes(r.id);
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        regionIds: on ? f.regionIds.filter((x) => x !== r.id) : [...f.regionIds, r.id],
-                      }))
-                    }
-                    className={
-                      "rounded px-3 py-2 text-sm " +
-                      (on ? "bg-foreground text-background" : "bg-muted text-muted-foreground")
-                    }
-                  >
-                    {r.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border p-4">
-            <p className="mb-3 text-sm font-semibold">Gültigkeit</p>
-            <div className="mb-3 flex flex-wrap gap-2">
-              <span className="self-center text-sm text-muted-foreground">Beginn:</span>
-              {[
-                { label: "Jetzt", h: 0 },
-                { label: "in 1 Std.", h: 1 },
-                { label: "in 3 Std.", h: 3 },
-                { label: "Morgen 06:00", h: -1 },
-              ].map((c) => (
-                <button
-                  key={c.label}
-                  type="button"
-                  onClick={() => {
-                    if (c.h >= 0) setStart(new Date(Date.now() + c.h * 3600_000));
-                    else {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 1);
-                      d.setHours(6, 0, 0, 0);
-                      setStart(d);
-                    }
-                  }}
-                  className="rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-            <div className="mb-4 flex flex-wrap gap-2">
-              <span className="self-center text-sm text-muted-foreground">Dauer:</span>
-              {[3, 6, 12, 24, 48].map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => setDuration(h)}
-                  className="rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  {h} Std.
-                </button>
-              ))}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm font-semibold">
-                Gültig von
-                <input
-                  type="datetime-local"
-                  required
-                  value={form.validFrom}
-                  onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
-                  className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
-                />
-              </label>
-              <label className="text-sm font-semibold">
-                Gültig bis
-                <input
-                  type="datetime-local"
-                  required
-                  value={form.validTo}
-                  onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
                   className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-base"
                 />
               </label>
