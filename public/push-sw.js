@@ -1,6 +1,16 @@
 /* Service Worker nur für Wetterwarn-Push (kein App-Caching). */
+/* Versionskennung: bei Änderung erneuert sich der Worker sofort. */
+const SW_VERSION = "2026-09-10-2";
+
 self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("activate", (event) =>
+  event.waitUntil(
+    (async () => {
+      await self.clients.claim();
+      console.info("[push-sw] aktiv", SW_VERSION);
+    })(),
+  ),
+);
 
 const FALLBACK_URL = "https://www.oberthurgauerwetter.ch/warnkarte/";
 
