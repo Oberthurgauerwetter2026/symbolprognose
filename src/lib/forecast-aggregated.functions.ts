@@ -448,7 +448,8 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
     const high = fin(h.cloud_cover_high?.[i]) ?? 0;
     h.weathercode[i] =
       low >= 60 ? 3 : mid >= 50 || low >= 30 ? 2 : high >= 40 || mid >= 25 ? 1 : 0;
-    if (h.n) h.n[i] = NaN;
+    const mchCodes = (h as { n?: number[] }).n;
+    if (mchCodes) mchCodes[i] = NaN;
   }
 }
 
