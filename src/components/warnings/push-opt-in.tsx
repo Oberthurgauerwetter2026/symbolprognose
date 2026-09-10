@@ -696,7 +696,9 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
                 Vorschaufenster) öffnen und prüfen, ob Benachrichtigungen für die Seite blockiert sind.
               </li>
             </ol>
+            <WhereList />
           </div>
+
         )}
       </div>
     </div>
