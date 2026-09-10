@@ -3,12 +3,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { WarnMap } from "@/components/maps/warn-map";
 import { SITE_URL } from "@/lib/site-url";
 import { WARN_MANIFEST_LINK, WARN_MANIFEST_HREF } from "@/lib/pwa-links";
+import { setNoStoreHeaders } from "@/lib/no-cache.functions";
 
 export const DESC =
   "Aktuelle Wetterwarnungen für alle Gemeinden im Oberthurgau – mit Push-Benachrichtigung für die eigene Region.";
 
 export const Route = createFileRoute("/warnkarte")({
   ssr: false,
+  loader: () => {
+    if (typeof document === "undefined") {
+      // Nur server-seitig: HTML nicht zwischenspeichern.
+      return setNoStoreHeaders().catch(() => null);
+    }
+    return null;
+  },
   component: WarnkartePage,
   head: () => ({
     meta: [
