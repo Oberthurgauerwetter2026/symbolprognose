@@ -375,18 +375,18 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   if (env?.isIos && !framed && !env.standalone) {
     if (env.version != null && env.version < 16.4) {
       return (
-        <IosPanel title="Benachrichtigungen brauchen iOS 16.4 oder neuer">
+        <HelpPanel title="Benachrichtigungen brauchen iOS 16.4 oder neuer">
           <p>
             Auf diesem Gerät ist iOS {env.version} installiert. Bitte iOS aktualisieren
             (Einstellungen → Allgemein → Softwareupdate), danach ist der Warn-Push möglich.
           </p>
           <WhereList />
-        </IosPanel>
+        </HelpPanel>
       );
     }
     if (env.browser === "inapp") {
       return (
-        <IosPanel title="Bitte im normalen Browser öffnen">
+        <HelpPanel title="Bitte im normalen Browser öffnen">
           <p>
             In App-Browsern (z. B. Facebook, Instagram, LinkedIn) sind Warn-Meldungen nicht möglich.
             Adresse kopieren, in Safari, Chrome, Edge oder Firefox öffnen und die Warnkarte dort auf
@@ -394,37 +394,38 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
           </p>
           <OpenElsewhere />
           <WhereList />
-        </IosPanel>
+        </HelpPanel>
       );
     }
     if (env.browser !== "safari") {
       const label = BROWSER_LABEL[env.browser];
       return (
-        <IosPanel title={`Erst zum Home-Bildschirm hinzufügen (${label})`}>
+        <HelpPanel title={`Erst zum Home-Bildschirm hinzufügen (${label})`}>
           <ol className="list-decimal space-y-0.5 pl-4">
             <li>In {label} das Menü öffnen (die drei Punkte).</li>
-            <li>„Teilen“ und danach „Zum Home-Bildschirm“ wählen.</li>
-            <li>Mit „Hinzufügen“ bestätigen.</li>
+            <li>„Teilen" und danach „Zum Home-Bildschirm" wählen.</li>
+            <li>Mit „Hinzufügen" bestätigen.</li>
             <li>Die neue App vom Home-Bildschirm öffnen.</li>
-            <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren“ antippen.</li>
+            <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren" antippen.</li>
           </ol>
           <p>
-            Findet sich der Punkt „Zum Home-Bildschirm“ nicht, die Warnkarte einmal in Safari öffnen
+            Findet sich der Punkt „Zum Home-Bildschirm" nicht, die Warnkarte einmal in Safari öffnen
             und dort über das Teilen-Symbol als{" "}
             <strong className="text-foreground">Web-App</strong> speichern.
           </p>
           <OpenElsewhere />
           <WhereList />
-        </IosPanel>
+        </HelpPanel>
       );
     }
     return (
-      <IosPanel title="Erst zum Home-Bildschirm hinzufügen">
+      <HelpPanel title="Erst zum Home-Bildschirm hinzufügen">
         <IosSteps />
         <WhereList />
-      </IosPanel>
+      </HelpPanel>
     );
   }
+
 
 
   if (env?.browser === "inapp" && !framed) {
