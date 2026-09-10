@@ -489,9 +489,14 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   // 3) Dauerregen – nur wenn Niederschlag den Tag wirklich dominiert.
   const dryHours = idxs.length - precipHours;
   const maxHourlyPrecip = precipFinite.length ? Math.max(...precipFinite) : 0;
+  // Gewitterstunden nur zählen, wenn dieselbe Stunde auch Niederschlag hat.
+  // Sonst prägte eine trockene "Gewitter"-Stunde (fehlerhaftes Pictogramm)
+  // den ganzen Tag als Gewittertag.
   const thunderHours = idxs.reduce((n, i) => {
     const c = h.weathercode?.[i];
-    return c === 95 || c === 96 || c === 99 ? n + 1 : n;
+    if (c !== 95 && c !== 96 && c !== 99) return n;
+    const p = h.precipitation?.[i];
+    return typeof p === "number" && Number.isFinite(p) && p >= 0.1 ? n + 1 : n;
   }, 0);
   const cloudLowMean = mean(finite(h.cloud_cover_low)) ?? 0;
   const cloudMidMean = mean(finite(h.cloud_cover_mid)) ?? 0;
@@ -519,7 +524,9 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     const dryCodes = idxs
       .filter((i) => !((h.precipitation?.[i] ?? 0) >= 0.1))
       .map((i) => h.weathercode?.[i])
-      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+      // Trockene Stunde kann kein Gewitter sein — solche Codes ausschliessen.
+      .filter((v) => v !== 95 && v !== 96 && v !== 99);
     weathercode = adjustForClouds(
       representativeWeathercode(dryCodes) ?? representativeWeathercode(finite(h.weathercode)),
     );

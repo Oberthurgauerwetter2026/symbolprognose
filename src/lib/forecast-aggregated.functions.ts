@@ -411,6 +411,49 @@ function overlayHourlyFromOpenMeteo(fc: ForecastResponse, omLoc: Loc | null): vo
 }
 
 /**
+ * Plausibilitätsfilter für Gewitter- und Niederschlagscodes.
+ * MCH-Pictogramme haben trockene Lagen (Hochnebel, Sturm) als Gewitter
+ * bzw. Schneesturm angezeigt. Ein Gewitter- oder Niederschlagscode wird
+ * nur übernommen, wenn dieselbe Stunde auch ein Niederschlagssignal hat
+ * (mm, 90 %-Quantil oder Wahrscheinlichkeit). Ohne Signal wird auf einen
+ * Bewölkungscode zurückgestuft und das MCH-Pictogramm (`n`) verworfen,
+ * damit auch die 1:1-Symbole nicht Gewitter/Schnee zeigen.
+ * Läuft nach dem Open-Meteo-Overlay, damit die Niederschlagswerte gefüllt sind.
+ */
+function dropImplausibleWetCodes(fc: ForecastResponse): void {
+  const h = fc.hourly;
+  const fin = (v: number | undefined): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const isThunder = (c: number) => c === 95 || c === 96 || c === 99;
+  const isWetCode = (c: number) =>
+    (c >= 51 && c <= 67) || (c >= 71 && c <= 86) || isThunder(c);
+  for (let i = 0; i < h.time.length; i++) {
+    const code = h.weathercode?.[i];
+    if (typeof code !== "number" || !Number.isFinite(code) || !isWetCode(code)) continue;
+    const p = fin(h.precipitation?.[i]);
+    const q90 = fin((h as { precipitation_q90?: number[] }).precipitation_q90?.[i]);
+    const prob = fin(h.precipitation_probability?.[i]);
+    const snow = fin(h.snowfall?.[i]);
+    // Gewitter braucht ein deutliches Signal, sonstiger Niederschlag ein leichtes.
+    const minMm = isThunder(code) ? 0.5 : 0.1;
+    const minProb = isThunder(code) ? 40 : 20;
+    const wet =
+      (p ?? 0) >= minMm ||
+      (snow ?? 0) > 0 ||
+      (q90 ?? 0) >= 1 ||
+      (prob ?? 0) >= minProb;
+    if (wet) continue;
+    const low = fin(h.cloud_cover_low?.[i]) ?? 0;
+    const mid = fin(h.cloud_cover_mid?.[i]) ?? 0;
+    const high = fin(h.cloud_cover_high?.[i]) ?? 0;
+    h.weathercode[i] =
+      low >= 60 ? 3 : mid >= 50 || low >= 30 ? 2 : high >= 40 || mid >= 25 ? 1 : 0;
+    const mchCodes = (h as { n?: number[] }).n;
+    if (mchCodes) mchCodes[i] = NaN;
+  }
+}
+
+/**
  * Versucht eine MCH-local-forecast-basierte Prognose für (lat,lon) zu
  * bauen. Gibt `null` zurück, wenn der MCH-Cache fehlt oder der nächste
  * Punkt eine leere Zeitreihe hat (z. B. STAC-Item ohne Asset).
@@ -445,6 +488,7 @@ async function forecastFromMchCache(
   const fc = buildForecastFromMchLoc(best);
   const omLoc = omLocs ? pickNearest(omLocs, lat, lon) : null;
   overlayHourlyFromOpenMeteo(fc, omLoc);
+  dropImplausibleWetCodes(fc);
   enrichDailyFromHourly(fc, best.latitude, best.longitude, best.utc_offset_seconds ?? 0);
   return { fc: sanitizeForecast(fc), loc: best };
 }
