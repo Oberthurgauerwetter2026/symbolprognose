@@ -273,7 +273,31 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     );
   }
 
+  /** Schritte, um die Warnkarte auf dem iPhone als Web-App zu speichern. */
+  function IosSteps() {
+    return (
+      <>
+        <ol className="list-decimal space-y-0.5 pl-4">
+          <li>Unten in Safari auf das Teilen-Symbol tippen.</li>
+          <li>„Zum Home-Bildschirm“ wählen.</li>
+          <li>
+            Oben <strong className="text-foreground">„Web-App“</strong> wählen (nicht
+            „Lesezeichen“), dann „Hinzufügen“.
+          </li>
+          <li>Die neue App vom Home-Bildschirm öffnen.</li>
+          <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren“ antippen.</li>
+        </ol>
+        <p>
+          Fehlt die Zeile „Web-App“, die Seite einmal neu laden (Safari muss die App-Angaben frisch
+          laden) und den Vorgang wiederholen. Ein bereits gespeichertes Lesezeichen bitte löschen
+          und neu als Web-App hinzufügen.
+        </p>
+      </>
+    );
+  }
+
   /** Übersicht, wo Warn-Meldungen möglich sind – für alle Geräte und Browser. */
+
   function WhereList() {
     return (
       <div>
