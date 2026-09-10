@@ -263,19 +263,35 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     }
   }
 
-  function IosPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  function HelpPanel({ title, children }: { title: string; children: React.ReactNode }) {
+    const [open, setOpen] = useState(false);
     return (
       <div className="mt-2 rounded-lg border border-border bg-muted/50 p-2">
-        <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-          <Info className="h-4 w-4 shrink-0" />
-          {title}
-        </p>
-        <div className="mt-1 space-y-1 text-xs leading-relaxed text-muted-foreground">
-          {children}
-        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <Info className="h-4 w-4 shrink-0" />
+            {title}
+          </span>
+          <ChevronDown
+            className={
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform " +
+              (open ? "rotate-180" : "")
+            }
+          />
+        </button>
+        {open && (
+          <div className="mt-1.5 space-y-1 text-xs leading-relaxed text-muted-foreground">
+            {children}
+          </div>
+        )}
       </div>
     );
   }
+
 
   /** Schritte, um die Warnkarte auf dem iPhone als Web-App zu speichern. */
   function IosSteps() {
