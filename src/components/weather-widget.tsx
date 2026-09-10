@@ -249,7 +249,7 @@ function WeatherWidgetInner({
   const rootRef = useRef<HTMLDivElement>(null);
 
   const getForecast = useServerFn(getAggregatedForecast);
-  const FORECAST_VERSION = "v11";
+  const FORECAST_VERSION = "v12";
   const forecast = useQuery({
     queryKey: ["forecast", FORECAST_VERSION, location?.latitude ?? 0, location?.longitude ?? 0],
     queryFn: () =>
