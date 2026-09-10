@@ -448,8 +448,10 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
     const high = fin(h.cloud_cover_high?.[i]) ?? 0;
     h.weathercode[i] =
       low >= 60 ? 3 : mid >= 50 || low >= 30 ? 2 : high >= 40 || mid >= 25 ? 1 : 0;
-    const mchCodes = (h as { n?: number[] }).n;
-    if (mchCodes) mchCodes[i] = NaN;
+    // MCH-Original-Pictogramm ebenfalls verwerfen — Stundenprognose und
+    // Regionskarte rendern es 1:1 und würden sonst weiter Gewitter/Schnee zeigen.
+    const mchCodes = (h as { weathercode_mch?: (number | null)[] }).weathercode_mch;
+    if (mchCodes) mchCodes[i] = null;
   }
 }
 
