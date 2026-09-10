@@ -263,19 +263,35 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     }
   }
 
-  function IosPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  function HelpPanel({ title, children }: { title: string; children: React.ReactNode }) {
+    const [open, setOpen] = useState(false);
     return (
       <div className="mt-2 rounded-lg border border-border bg-muted/50 p-2">
-        <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-          <Info className="h-4 w-4 shrink-0" />
-          {title}
-        </p>
-        <div className="mt-1 space-y-1 text-xs leading-relaxed text-muted-foreground">
-          {children}
-        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <Info className="h-4 w-4 shrink-0" />
+            {title}
+          </span>
+          <ChevronDown
+            className={
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform " +
+              (open ? "rotate-180" : "")
+            }
+          />
+        </button>
+        {open && (
+          <div className="mt-1.5 space-y-1 text-xs leading-relaxed text-muted-foreground">
+            {children}
+          </div>
+        )}
       </div>
     );
   }
+
 
   /** Schritte, um die Warnkarte auf dem iPhone als Web-App zu speichern. */
   function IosSteps() {
@@ -359,18 +375,18 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   if (env?.isIos && !framed && !env.standalone) {
     if (env.version != null && env.version < 16.4) {
       return (
-        <IosPanel title="Benachrichtigungen brauchen iOS 16.4 oder neuer">
+        <HelpPanel title="Benachrichtigungen brauchen iOS 16.4 oder neuer">
           <p>
             Auf diesem Gerät ist iOS {env.version} installiert. Bitte iOS aktualisieren
             (Einstellungen → Allgemein → Softwareupdate), danach ist der Warn-Push möglich.
           </p>
           <WhereList />
-        </IosPanel>
+        </HelpPanel>
       );
     }
     if (env.browser === "inapp") {
       return (
-        <IosPanel title="Bitte im normalen Browser öffnen">
+        <HelpPanel title="Bitte im normalen Browser öffnen">
           <p>
             In App-Browsern (z. B. Facebook, Instagram, LinkedIn) sind Warn-Meldungen nicht möglich.
             Adresse kopieren, in Safari, Chrome, Edge oder Firefox öffnen und die Warnkarte dort auf
@@ -378,51 +394,53 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
           </p>
           <OpenElsewhere />
           <WhereList />
-        </IosPanel>
+        </HelpPanel>
       );
     }
     if (env.browser !== "safari") {
       const label = BROWSER_LABEL[env.browser];
       return (
-        <IosPanel title={`Erst zum Home-Bildschirm hinzufügen (${label})`}>
+        <HelpPanel title={`Erst zum Home-Bildschirm hinzufügen (${label})`}>
           <ol className="list-decimal space-y-0.5 pl-4">
             <li>In {label} das Menü öffnen (die drei Punkte).</li>
-            <li>„Teilen“ und danach „Zum Home-Bildschirm“ wählen.</li>
-            <li>Mit „Hinzufügen“ bestätigen.</li>
+            <li>„Teilen" und danach „Zum Home-Bildschirm" wählen.</li>
+            <li>Mit „Hinzufügen" bestätigen.</li>
             <li>Die neue App vom Home-Bildschirm öffnen.</li>
-            <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren“ antippen.</li>
+            <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren" antippen.</li>
           </ol>
           <p>
-            Findet sich der Punkt „Zum Home-Bildschirm“ nicht, die Warnkarte einmal in Safari öffnen
+            Findet sich der Punkt „Zum Home-Bildschirm" nicht, die Warnkarte einmal in Safari öffnen
             und dort über das Teilen-Symbol als{" "}
             <strong className="text-foreground">Web-App</strong> speichern.
           </p>
           <OpenElsewhere />
           <WhereList />
-        </IosPanel>
+        </HelpPanel>
       );
     }
     return (
-      <IosPanel title="Erst zum Home-Bildschirm hinzufügen">
+      <HelpPanel title="Erst zum Home-Bildschirm hinzufügen">
         <IosSteps />
         <WhereList />
-      </IosPanel>
+      </HelpPanel>
     );
   }
 
 
+
   if (env?.browser === "inapp" && !framed) {
     return (
-      <IosPanel title="Bitte im normalen Browser öffnen">
+      <HelpPanel title="Bitte im normalen Browser öffnen">
         <p>
           In App-Browsern (z. B. Facebook, Instagram, LinkedIn) lassen sich keine Warn-Meldungen
           aktivieren. Adresse kopieren und die Warnkarte in Chrome, Edge, Firefox oder Safari öffnen.
         </p>
         <OpenElsewhere />
         <WhereList />
-      </IosPanel>
+      </HelpPanel>
     );
   }
+
 
 
   // Erst nach der Geräteprüfung rendern. So erscheint während der Hydrierung
@@ -431,7 +449,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
 
   if (!supported) {
     return (
-      <IosPanel
+      <HelpPanel
         title={env.isIos ? "Erst als Web-App öffnen" : "Warn-Meldungen hier nicht verfügbar"}
       >
         {env.isIos ? (
@@ -449,9 +467,10 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         )}
         {framed && <OpenElsewhere />}
         <WhereList />
-      </IosPanel>
+      </HelpPanel>
     );
   }
+
 
   const none = regionIds.length === 0;
 
@@ -491,15 +510,15 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             In eigenem Tab öffnen
           </a>
         )}
-        <div className="mt-2 space-y-1 text-xs leading-relaxed text-muted-foreground">
-          <p className="text-xs font-semibold text-foreground">Anleitung für dein Gerät</p>
+        <HelpPanel title="Anleitung für dein Gerät">
           {env?.isIos && <IosSteps />}
           <WhereList />
-        </div>
+        </HelpPanel>
       </div>
 
     );
   }
+
 
   return (
     <div className="mt-1 space-y-1.5">
