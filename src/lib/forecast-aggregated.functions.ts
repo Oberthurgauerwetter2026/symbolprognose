@@ -731,6 +731,7 @@ async function nearestCacheFallback(
         const omLocs = await loadSymbolLocs().catch(() => null);
         const fc = buildForecastFromMchLoc(best);
         overlayHourlyFromOpenMeteo(fc, omLocs ? pickNearest(omLocs, lat, lon) : null);
+        dropImplausibleWetCodes(fc);
         enrichDailyFromHourly(fc, best.latitude, best.longitude, best.utc_offset_seconds ?? 0);
         return sanitizeForecast(fc);
       }
