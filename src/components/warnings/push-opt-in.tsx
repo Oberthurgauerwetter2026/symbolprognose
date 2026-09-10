@@ -23,20 +23,48 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out;
 }
 
-/** Erkennt die iOS-Situation: Push braucht dort Safari + Home-Bildschirm-App. */
-type IosEnv = {
+/** Erkennt Gerät und Browser: iOS braucht eine Home-Bildschirm-Web-App. */
+type BrowserId = "safari" | "chrome" | "edge" | "firefox" | "opera" | "samsung" | "inapp" | "other";
+
+type PushEnv = {
   isIos: boolean;
+  isAndroid: boolean;
+  isMacSafari: boolean;
   version: number | null;
   standalone: boolean;
-  inAppBrowser: boolean;
-  otherBrowser: boolean;
+  browser: BrowserId;
 };
 
-function detectIosEnv(): IosEnv {
+const BROWSER_LABEL: Record<BrowserId, string> = {
+  safari: "Safari",
+  chrome: "Chrome",
+  edge: "Edge",
+  firefox: "Firefox",
+  opera: "Opera",
+  samsung: "Samsung Internet",
+  inapp: "App-Browser",
+  other: "Browser",
+};
+
+function detectBrowser(ua: string): BrowserId {
+  if (/FBAN|FBAV|Instagram|Line\/|Twitter|LinkedInApp|Snapchat|GSA\/|Threads|Pinterest|TikTok/.test(ua))
+    return "inapp";
+  if (/EdgiOS|Edg\//.test(ua)) return "edge";
+  if (/OPiOS|OPT\/|OPR\//.test(ua)) return "opera";
+  if (/CriOS/.test(ua)) return "chrome";
+  if (/FxiOS|Firefox/.test(ua)) return "firefox";
+  if (/SamsungBrowser/.test(ua)) return "samsung";
+  if (/Chrome\//.test(ua)) return "chrome";
+  if (/Safari\//.test(ua)) return "safari";
+  return "other";
+}
+
+function detectPushEnv(): PushEnv {
   const ua = navigator.userAgent || "";
   const isIpadOs =
     /Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document;
   const isIos = /iPad|iPhone|iPod/.test(ua) || isIpadOs;
+  const isAndroid = /Android/.test(ua);
   const m = /OS (\d+)[._](\d+)/.exec(ua);
   const version = m ? Number(`${m[1]}.${m[2]}`) : null;
   const standalone =
@@ -44,10 +72,11 @@ function detectIosEnv(): IosEnv {
       (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
     (typeof window !== "undefined" &&
       window.matchMedia?.("(display-mode: standalone)").matches === true);
-  const inAppBrowser = /FBAN|FBAV|Instagram|Line\/|Twitter|LinkedInApp|Snapchat|GSA\//.test(ua);
-  const otherBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua);
-  return { isIos, version, standalone, inAppBrowser, otherBrowser };
+  const browser = detectBrowser(ua);
+  const isMacSafari = !isIos && !isAndroid && /Macintosh/.test(ua) && browser === "safari";
+  return { isIos, isAndroid, isMacSafari, version, standalone, browser };
 }
+
 
 function bufToB64(buf: ArrayBuffer | null): string {
   if (!buf) return "";
