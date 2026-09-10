@@ -218,6 +218,89 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   }
 
 
+  async function copyPageUrl() {
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      note("Adresse konnte nicht kopiert werden – bitte manuell aus der Adressleiste kopieren.", "error");
+    }
+  }
+
+  function IosPanel({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+      <div className="mt-2 rounded-lg border border-border bg-muted/50 p-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <Info className="h-4 w-4 shrink-0" />
+          {title}
+        </p>
+        <div className="mt-1 space-y-1 text-xs leading-relaxed text-muted-foreground">
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  // iOS: Push funktioniert nur in Safari und nur aus der Home-Bildschirm-App.
+  if (ios?.isIos && !framed && !ios.standalone) {
+    if (ios.version != null && ios.version < 16.4) {
+      return (
+        <IosPanel title="Benachrichtigungen brauchen iOS 16.4 oder neuer">
+          <p>
+            Auf diesem Gerät ist iOS {ios.version} installiert. Bitte iOS aktualisieren
+            (Einstellungen → Allgemein → Softwareupdate), danach ist der Warn-Push möglich.
+          </p>
+        </IosPanel>
+      );
+    }
+    if (ios.inAppBrowser || ios.otherBrowser) {
+      return (
+        <IosPanel title="Bitte in Safari öffnen">
+          <p>
+            Auf dem iPhone und iPad sind Warn-Meldungen nur über Safari möglich. Adresse kopieren,
+            in Safari öffnen und dort die Warnkarte auf den Home-Bildschirm legen.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={copyPageUrl}
+              className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : null}
+              {copied ? "Adresse kopiert" : "Adresse kopieren"}
+            </button>
+            <a
+              href={pageUrl}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+            >
+              Warnkarte öffnen
+            </a>
+          </div>
+        </IosPanel>
+      );
+    }
+    return (
+      <IosPanel title="Erst zum Home-Bildschirm hinzufügen">
+        <ol className="list-decimal space-y-0.5 pl-4">
+          <li>Unten in Safari auf das Teilen-Symbol tippen.</li>
+          <li>„Zum Home-Bildschirm“ wählen.</li>
+          <li>
+            Oben <strong className="text-foreground">„Web-App“</strong> wählen (nicht
+            „Lesezeichen“), dann „Hinzufügen“.
+          </li>
+          <li>Die neue App vom Home-Bildschirm öffnen.</li>
+          <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren“ antippen.</li>
+        </ol>
+        <p>
+          Fehlt die Zeile „Web-App“, die Seite einmal neu laden (Safari muss die App-Angaben frisch
+          laden) und den Vorgang wiederholen. Ein bereits gespeichertes Lesezeichen bitte löschen
+          und neu als Web-App hinzufügen.
+        </p>
+      </IosPanel>
+    );
+  }
+
   if (!supported) {
     return (
       <p className="mt-3 text-sm text-muted-foreground">
