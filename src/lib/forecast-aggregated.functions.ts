@@ -411,6 +411,35 @@ function overlayHourlyFromOpenMeteo(fc: ForecastResponse, omLoc: Loc | null): vo
 }
 
 /**
+ * Plausibilitätsfilter für Gewittercodes (95/96/99).
+ * MCH-Pictogramme haben in der Vergangenheit trockene Lagen (Hochnebel,
+ * Sturm) als Gewitter angezeigt. Ein Gewitter wird nur übernommen, wenn
+ * dieselbe Stunde auch Niederschlagssignal zeigt (mm, 90 %-Quantil oder
+ * Wahrscheinlichkeit). Ohne Signal wird auf einen Bewölkungscode
+ * zurückgestuft. Läuft nach dem Open-Meteo-Overlay, damit die
+ * Niederschlagswerte gefüllt sind.
+ */
+function dropImplausibleThunder(fc: ForecastResponse): void {
+  const h = fc.hourly;
+  const fin = (v: number | undefined): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  for (let i = 0; i < h.time.length; i++) {
+    const code = h.weathercode?.[i];
+    if (code !== 95 && code !== 96 && code !== 99) continue;
+    const p = fin(h.precipitation?.[i]);
+    const q90 = fin((h as { precipitation_q90?: number[] }).precipitation_q90?.[i]);
+    const prob = fin(h.precipitation_probability?.[i]);
+    const wet = (p ?? 0) >= 0.5 || (q90 ?? 0) >= 1 || (prob ?? 0) >= 40;
+    if (wet) continue;
+    const low = fin(h.cloud_cover_low?.[i]) ?? 0;
+    const mid = fin(h.cloud_cover_mid?.[i]) ?? 0;
+    const high = fin(h.cloud_cover_high?.[i]) ?? 0;
+    h.weathercode[i] =
+      low >= 60 ? 3 : mid >= 50 || low >= 30 ? 2 : high >= 40 || mid >= 25 ? 1 : 0;
+  }
+}
+
+/**
  * Versucht eine MCH-local-forecast-basierte Prognose für (lat,lon) zu
  * bauen. Gibt `null` zurück, wenn der MCH-Cache fehlt oder der nächste
  * Punkt eine leere Zeitreihe hat (z. B. STAC-Item ohne Asset).
