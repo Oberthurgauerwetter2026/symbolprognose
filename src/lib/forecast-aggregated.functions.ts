@@ -849,6 +849,7 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
           const best = pickNearest(locs, p.lat, p.lon);
           if (best?.hourly?.time?.length) {
             const fc = buildForecastFromCacheLoc(best);
+            dropImplausibleWetCodes(fc);
             const mosmix = await getMosmix(p.lat, p.lon);
             out[p.id] = applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
             continue;
