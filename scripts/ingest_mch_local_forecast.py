@@ -84,8 +84,11 @@ MCH_ICON_TO_WMO = {
     21: 53, 22: 75, 23: 67,
     24: 95, 25: 95,
     26: 1, 27: 2, 28: 3, 29: 3,
-    30: 45, 31: 95, 32: 80, 33: 95,
-    34: 71, 35: 95,
+    # 30 Nebel, 31 Sturm, 32 Wind, 33 Hochnebel, 34 Bise, 35 Schneesturm.
+    # Wichtig: 31/33/35 sind KEINE Gewitter — früher fälschlich auf 95
+    # gemappt, was trockene Hochnebel-/Windlagen als Gewitter anzeigte.
+    30: 45, 31: 3, 32: 3, 33: 45,
+    34: 3, 35: 75,
 }
 
 
