@@ -430,16 +430,17 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
 
   if (env?.browser === "inapp" && !framed) {
     return (
-      <IosPanel title="Bitte im normalen Browser öffnen">
+      <HelpPanel title="Bitte im normalen Browser öffnen">
         <p>
           In App-Browsern (z. B. Facebook, Instagram, LinkedIn) lassen sich keine Warn-Meldungen
           aktivieren. Adresse kopieren und die Warnkarte in Chrome, Edge, Firefox oder Safari öffnen.
         </p>
         <OpenElsewhere />
         <WhereList />
-      </IosPanel>
+      </HelpPanel>
     );
   }
+
 
 
   // Erst nach der Geräteprüfung rendern. So erscheint während der Hydrierung
