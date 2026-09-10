@@ -565,8 +565,9 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         {howOpen && (
           <div className="mt-1 space-y-1">
             <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs font-medium leading-relaxed text-foreground">
-              iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert und
-              von dort geöffnet werden – sonst erlaubt iOS gar keine Push-Meldungen.
+              iPhone/iPad: nur in Safari möglich. Zuerst über „Teilen → Zum Home-Bildschirm“ als
+              <strong className="font-semibold"> Web-App</strong> (nicht als Lesezeichen) speichern
+              und die App vom Home-Bildschirm öffnen – sonst erlaubt iOS gar keine Push-Meldungen.
             </p>
             <ol className="list-decimal space-y-0.5 pl-5 text-xs leading-relaxed text-muted-foreground">
               <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
