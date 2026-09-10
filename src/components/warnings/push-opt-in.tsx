@@ -61,8 +61,12 @@ function detectBrowser(ua: string): BrowserId {
 
 function detectPushEnv(): PushEnv {
   const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const hasAppleTouch =
+    /MacIntel|Macintosh/.test(platform + ua) && (navigator.maxTouchPoints ?? 0) > 1;
   const isIpadOs =
-    /Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document;
+    /Macintosh/.test(ua) &&
+    (hasAppleTouch || (typeof document !== "undefined" && "ontouchend" in document));
   const isIos = /iPad|iPhone|iPod/.test(ua) || isIpadOs;
   const isAndroid = /Android/.test(ua);
   const m = /OS (\d+)[._](\d+)/.exec(ua);
@@ -87,7 +91,7 @@ function bufToB64(buf: ArrayBuffer | null): string {
 }
 
 export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null }) {
-  const [supported, setSupported] = useState(false);
+  const [supported, setSupported] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -421,11 +425,31 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   }
 
 
+  // Erst nach der Geräteprüfung rendern. So erscheint während der Hydrierung
+  // nicht kurz fälschlich der Hinweis für nicht unterstützte Browser.
+  if (supported == null || env == null) return null;
+
   if (!supported) {
     return (
-      <p className="mt-3 text-sm text-muted-foreground">
-        Dieser Browser unterstützt keine Push-Benachrichtigungen.
-      </p>
+      <IosPanel
+        title={env.isIos ? "Erst als Web-App öffnen" : "Warn-Meldungen hier nicht verfügbar"}
+      >
+        {env.isIos ? (
+          <IosSteps />
+        ) : framed ? (
+          <p>
+            In dieser eingebetteten Ansicht sind Warn-Meldungen nicht möglich. Bitte die Warnkarte
+            in einem eigenen Browser-Tab öffnen.
+          </p>
+        ) : (
+          <p>
+            Dieser Browser stellt die benötigte Benachrichtigungsfunktion nicht bereit. Bitte die
+            Warnkarte in einer aktuellen Version von Chrome, Edge, Firefox oder Safari öffnen.
+          </p>
+        )}
+        {framed && <OpenElsewhere />}
+        <WhereList />
+      </IosPanel>
     );
   }
 
