@@ -510,6 +510,7 @@ async function forecastFromCache(
     if (haversineKm(lat, lon, bLat, bLon) > PHASEA_MAX_KM) return null;
   }
   const fc = buildForecastFromCacheLoc(best);
+  dropImplausibleWetCodes(fc);
   const mosmix = await fetchMosmix({ data: { latitude: lat, longitude: lon } }).catch(
     (e) => {
       console.warn("[aggregated-forecast] MOSMIX nicht verfügbar:", e);
