@@ -23,6 +23,32 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out;
 }
 
+/** Erkennt die iOS-Situation: Push braucht dort Safari + Home-Bildschirm-App. */
+type IosEnv = {
+  isIos: boolean;
+  version: number | null;
+  standalone: boolean;
+  inAppBrowser: boolean;
+  otherBrowser: boolean;
+};
+
+function detectIosEnv(): IosEnv {
+  const ua = navigator.userAgent || "";
+  const isIpadOs =
+    /Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document;
+  const isIos = /iPad|iPhone|iPod/.test(ua) || isIpadOs;
+  const m = /OS (\d+)[._](\d+)/.exec(ua);
+  const version = m ? Number(`${m[1]}.${m[2]}`) : null;
+  const standalone =
+    (typeof navigator !== "undefined" &&
+      (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
+    (typeof window !== "undefined" &&
+      window.matchMedia?.("(display-mode: standalone)").matches === true);
+  const inAppBrowser = /FBAN|FBAV|Instagram|Line\/|Twitter|LinkedInApp|Snapchat|GSA\//.test(ua);
+  const otherBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua);
+  return { isIos, version, standalone, inAppBrowser, otherBrowser };
+}
+
 function bufToB64(buf: ArrayBuffer | null): string {
   if (!buf) return "";
   const bytes = new Uint8Array(buf);
