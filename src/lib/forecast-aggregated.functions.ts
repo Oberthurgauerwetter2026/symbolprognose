@@ -752,7 +752,9 @@ async function nearestCacheFallback(
             `${haversineKm(lat, lon, bLat, bLon).toFixed(1)} km`,
           );
         }
-        return buildForecastFromCacheLoc(best);
+        const fcA = buildForecastFromCacheLoc(best);
+        dropImplausibleWetCodes(fcA);
+        return fcA;
       }
     }
   } catch (err) {
