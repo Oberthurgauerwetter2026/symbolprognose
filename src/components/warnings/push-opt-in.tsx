@@ -510,15 +510,15 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             In eigenem Tab öffnen
           </a>
         )}
-        <div className="mt-2 space-y-1 text-xs leading-relaxed text-muted-foreground">
-          <p className="text-xs font-semibold text-foreground">Anleitung für dein Gerät</p>
+        <HelpPanel title="Anleitung für dein Gerät">
           {env?.isIos && <IosSteps />}
           <WhereList />
-        </div>
+        </HelpPanel>
       </div>
 
     );
   }
+
 
   return (
     <div className="mt-1 space-y-1.5">
