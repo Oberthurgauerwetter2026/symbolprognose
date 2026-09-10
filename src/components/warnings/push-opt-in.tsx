@@ -23,6 +23,32 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out;
 }
 
+/** Erkennt die iOS-Situation: Push braucht dort Safari + Home-Bildschirm-App. */
+type IosEnv = {
+  isIos: boolean;
+  version: number | null;
+  standalone: boolean;
+  inAppBrowser: boolean;
+  otherBrowser: boolean;
+};
+
+function detectIosEnv(): IosEnv {
+  const ua = navigator.userAgent || "";
+  const isIpadOs =
+    /Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document;
+  const isIos = /iPad|iPhone|iPod/.test(ua) || isIpadOs;
+  const m = /OS (\d+)[._](\d+)/.exec(ua);
+  const version = m ? Number(`${m[1]}.${m[2]}`) : null;
+  const standalone =
+    (typeof navigator !== "undefined" &&
+      (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
+    (typeof window !== "undefined" &&
+      window.matchMedia?.("(display-mode: standalone)").matches === true);
+  const inAppBrowser = /FBAN|FBAV|Instagram|Line\/|Twitter|LinkedInApp|Snapchat|GSA\//.test(ua);
+  const otherBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua);
+  return { isIos, version, standalone, inAppBrowser, otherBrowser };
+}
+
 function bufToB64(buf: ArrayBuffer | null): string {
   if (!buf) return "";
   const bytes = new Uint8Array(buf);
@@ -49,6 +75,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [blocked, setBlocked] = useState(false);
   const [framed, setFramed] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
+  const [ios, setIos] = useState<IosEnv | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setSupported(
@@ -59,6 +87,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     } catch {
       setFramed(true);
     }
+    setIos(detectIosEnv());
     setPageUrl(`${SITE_URL}/warnkarte`);
     if (typeof Notification !== "undefined") setBlocked(Notification.permission === "denied");
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
@@ -188,6 +217,89 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     }
   }
 
+
+  async function copyPageUrl() {
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      note("Adresse konnte nicht kopiert werden – bitte manuell aus der Adressleiste kopieren.", "error");
+    }
+  }
+
+  function IosPanel({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+      <div className="mt-2 rounded-lg border border-border bg-muted/50 p-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <Info className="h-4 w-4 shrink-0" />
+          {title}
+        </p>
+        <div className="mt-1 space-y-1 text-xs leading-relaxed text-muted-foreground">
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  // iOS: Push funktioniert nur in Safari und nur aus der Home-Bildschirm-App.
+  if (ios?.isIos && !framed && !ios.standalone) {
+    if (ios.version != null && ios.version < 16.4) {
+      return (
+        <IosPanel title="Benachrichtigungen brauchen iOS 16.4 oder neuer">
+          <p>
+            Auf diesem Gerät ist iOS {ios.version} installiert. Bitte iOS aktualisieren
+            (Einstellungen → Allgemein → Softwareupdate), danach ist der Warn-Push möglich.
+          </p>
+        </IosPanel>
+      );
+    }
+    if (ios.inAppBrowser || ios.otherBrowser) {
+      return (
+        <IosPanel title="Bitte in Safari öffnen">
+          <p>
+            Auf dem iPhone und iPad sind Warn-Meldungen nur über Safari möglich. Adresse kopieren,
+            in Safari öffnen und dort die Warnkarte auf den Home-Bildschirm legen.
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={copyPageUrl}
+              className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : null}
+              {copied ? "Adresse kopiert" : "Adresse kopieren"}
+            </button>
+            <a
+              href={pageUrl}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+            >
+              Warnkarte öffnen
+            </a>
+          </div>
+        </IosPanel>
+      );
+    }
+    return (
+      <IosPanel title="Erst zum Home-Bildschirm hinzufügen">
+        <ol className="list-decimal space-y-0.5 pl-4">
+          <li>Unten in Safari auf das Teilen-Symbol tippen.</li>
+          <li>„Zum Home-Bildschirm“ wählen.</li>
+          <li>
+            Oben <strong className="text-foreground">„Web-App“</strong> wählen (nicht
+            „Lesezeichen“), dann „Hinzufügen“.
+          </li>
+          <li>Die neue App vom Home-Bildschirm öffnen.</li>
+          <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren“ antippen.</li>
+        </ol>
+        <p>
+          Fehlt die Zeile „Web-App“, die Seite einmal neu laden (Safari muss die App-Angaben frisch
+          laden) und den Vorgang wiederholen. Ein bereits gespeichertes Lesezeichen bitte löschen
+          und neu als Web-App hinzufügen.
+        </p>
+      </IosPanel>
+    );
+  }
 
   if (!supported) {
     return (
@@ -453,8 +565,9 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         {howOpen && (
           <div className="mt-1 space-y-1">
             <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs font-medium leading-relaxed text-foreground">
-              iPhone/iPad: Die Seite muss zuerst über „Teilen → Zum Home-Bildschirm“ installiert und
-              von dort geöffnet werden – sonst erlaubt iOS gar keine Push-Meldungen.
+              iPhone/iPad: nur in Safari möglich. Zuerst über „Teilen → Zum Home-Bildschirm“ als
+              <strong className="font-semibold"> Web-App</strong> (nicht als Lesezeichen) speichern
+              und die App vom Home-Bildschirm öffnen – sonst erlaubt iOS gar keine Push-Meldungen.
             </p>
             <ol className="list-decimal space-y-0.5 pl-5 text-xs leading-relaxed text-muted-foreground">
               <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>

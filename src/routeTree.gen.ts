@@ -37,6 +37,7 @@ import { Route as EmbedLokalprognoseRouteImport } from './routes/embed.lokalprog
 import { Route as EmbedLokalSucheRouteImport } from './routes/embed.lokal-suche'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
+import { Route as ApiPublicWarnkarteManifestRouteImport } from './routes/api/public/warnkarte-manifest'
 import { Route as ApiPublicWarningsAutoThunderRouteImport } from './routes/api/public/warnings/auto-thunder'
 import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/public/symbol/ingest-trigger'
 import { Route as ApiPublicSnapshotMapRouteImport } from './routes/api/public/snapshot/$map'
@@ -189,6 +190,12 @@ const EmbedAllRoute = EmbedAllRouteImport.update({
   path: '/embed/all',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWarnkarteManifestRoute =
+  ApiPublicWarnkarteManifestRouteImport.update({
+    id: '/api/public/warnkarte-manifest',
+    path: '/api/public/warnkarte-manifest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWarningsAutoThunderRoute =
   ApiPublicWarningsAutoThunderRouteImport.update({
     id: '/api/public/warnings/auto-thunder',
@@ -282,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
@@ -323,6 +331,7 @@ export interface FileRoutesByTo {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
@@ -365,6 +374,7 @@ export interface FileRoutesById {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
@@ -408,6 +418,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
@@ -449,6 +460,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
@@ -490,6 +502,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
@@ -532,6 +545,7 @@ export interface RootRouteChildren {
   KartenSatellitRoute: typeof KartenSatellitRoute
   KartenWarnungenRoute: typeof KartenWarnungenRoute
   KartenWindRoute: typeof KartenWindRoute
+  ApiPublicWarnkarteManifestRoute: typeof ApiPublicWarnkarteManifestRoute
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
   ApiPublicEmbedRegionLokalStaticRoute: typeof ApiPublicEmbedRegionLokalStaticRoute
@@ -743,6 +757,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedAllRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/warnkarte-manifest': {
+      id: '/api/public/warnkarte-manifest'
+      path: '/api/public/warnkarte-manifest'
+      fullPath: '/api/public/warnkarte-manifest'
+      preLoaderRoute: typeof ApiPublicWarnkarteManifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/warnings/auto-thunder': {
       id: '/api/public/warnings/auto-thunder'
       path: '/api/public/warnings/auto-thunder'
@@ -852,6 +873,7 @@ const rootRouteChildren: RootRouteChildren = {
   KartenSatellitRoute: KartenSatellitRoute,
   KartenWarnungenRoute: KartenWarnungenRoute,
   KartenWindRoute: KartenWindRoute,
+  ApiPublicWarnkarteManifestRoute: ApiPublicWarnkarteManifestRoute,
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
   ApiPublicEmbedRegionLokalStaticRoute: ApiPublicEmbedRegionLokalStaticRoute,

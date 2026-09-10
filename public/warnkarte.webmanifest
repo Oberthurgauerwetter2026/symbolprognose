@@ -3,7 +3,7 @@
   "short_name": "Oberthurgauer Wetter",
   "description": "Aktuelle Wetterwarnungen für alle Gemeinden im Oberthurgau – mit Push-Benachrichtigung.",
   "start_url": "/warnkarte",
-  "scope": "/warnkarte",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f4f4f5",
   "theme_color": "#2561a1",
