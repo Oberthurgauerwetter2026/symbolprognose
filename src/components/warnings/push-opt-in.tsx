@@ -449,7 +449,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
 
   if (!supported) {
     return (
-      <IosPanel
+      <HelpPanel
         title={env.isIos ? "Erst als Web-App öffnen" : "Warn-Meldungen hier nicht verfügbar"}
       >
         {env.isIos ? (
@@ -467,9 +467,10 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         )}
         {framed && <OpenElsewhere />}
         <WhereList />
-      </IosPanel>
+      </HelpPanel>
     );
   }
+
 
   const none = regionIds.length === 0;
 
