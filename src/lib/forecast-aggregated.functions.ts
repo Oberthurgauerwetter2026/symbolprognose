@@ -474,6 +474,7 @@ async function forecastFromMchCache(
   const fc = buildForecastFromMchLoc(best);
   const omLoc = omLocs ? pickNearest(omLocs, lat, lon) : null;
   overlayHourlyFromOpenMeteo(fc, omLoc);
+  dropImplausibleThunder(fc);
   enrichDailyFromHourly(fc, best.latitude, best.longitude, best.utc_offset_seconds ?? 0);
   return { fc: sanitizeForecast(fc), loc: best };
 }
