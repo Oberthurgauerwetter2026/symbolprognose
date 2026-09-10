@@ -376,25 +376,12 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     }
     return (
       <IosPanel title="Erst zum Home-Bildschirm hinzufügen">
-        <ol className="list-decimal space-y-0.5 pl-4">
-          <li>Unten in Safari auf das Teilen-Symbol tippen.</li>
-          <li>„Zum Home-Bildschirm“ wählen.</li>
-          <li>
-            Oben <strong className="text-foreground">„Web-App“</strong> wählen (nicht
-            „Lesezeichen“), dann „Hinzufügen“.
-          </li>
-          <li>Die neue App vom Home-Bildschirm öffnen.</li>
-          <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren“ antippen.</li>
-        </ol>
-        <p>
-          Fehlt die Zeile „Web-App“, die Seite einmal neu laden (Safari muss die App-Angaben frisch
-          laden) und den Vorgang wiederholen. Ein bereits gespeichertes Lesezeichen bitte löschen
-          und neu als Web-App hinzufügen.
-        </p>
+        <IosSteps />
         <WhereList />
       </IosPanel>
     );
   }
+
 
   if (env?.browser === "inapp" && !framed) {
     return (
