@@ -524,7 +524,9 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     const dryCodes = idxs
       .filter((i) => !((h.precipitation?.[i] ?? 0) >= 0.1))
       .map((i) => h.weathercode?.[i])
-      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+      // Trockene Stunde kann kein Gewitter sein — solche Codes ausschliessen.
+      .filter((v) => v !== 95 && v !== 96 && v !== 99);
     weathercode = adjustForClouds(
       representativeWeathercode(dryCodes) ?? representativeWeathercode(finite(h.weathercode)),
     );
