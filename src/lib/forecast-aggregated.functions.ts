@@ -448,8 +448,10 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
     const high = fin(h.cloud_cover_high?.[i]) ?? 0;
     h.weathercode[i] =
       low >= 60 ? 3 : mid >= 50 || low >= 30 ? 2 : high >= 40 || mid >= 25 ? 1 : 0;
-    const mchCodes = (h as { n?: number[] }).n;
-    if (mchCodes) mchCodes[i] = NaN;
+    // MCH-Original-Pictogramm ebenfalls verwerfen — Stundenprognose und
+    // Regionskarte rendern es 1:1 und würden sonst weiter Gewitter/Schnee zeigen.
+    const mchCodes = (h as { weathercode_mch?: (number | null)[] }).weathercode_mch;
+    if (mchCodes) mchCodes[i] = null;
   }
 }
 
@@ -508,6 +510,7 @@ async function forecastFromCache(
     if (haversineKm(lat, lon, bLat, bLon) > PHASEA_MAX_KM) return null;
   }
   const fc = buildForecastFromCacheLoc(best);
+  dropImplausibleWetCodes(fc);
   const mosmix = await fetchMosmix({ data: { latitude: lat, longitude: lon } }).catch(
     (e) => {
       console.warn("[aggregated-forecast] MOSMIX nicht verfügbar:", e);
@@ -728,6 +731,7 @@ async function nearestCacheFallback(
         const omLocs = await loadSymbolLocs().catch(() => null);
         const fc = buildForecastFromMchLoc(best);
         overlayHourlyFromOpenMeteo(fc, omLocs ? pickNearest(omLocs, lat, lon) : null);
+        dropImplausibleWetCodes(fc);
         enrichDailyFromHourly(fc, best.latitude, best.longitude, best.utc_offset_seconds ?? 0);
         return sanitizeForecast(fc);
       }
@@ -748,7 +752,9 @@ async function nearestCacheFallback(
             `${haversineKm(lat, lon, bLat, bLon).toFixed(1)} km`,
           );
         }
-        return buildForecastFromCacheLoc(best);
+        const fcA = buildForecastFromCacheLoc(best);
+        dropImplausibleWetCodes(fcA);
+        return fcA;
       }
     }
   } catch (err) {
@@ -843,6 +849,7 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
           const best = pickNearest(locs, p.lat, p.lon);
           if (best?.hourly?.time?.length) {
             const fc = buildForecastFromCacheLoc(best);
+            dropImplausibleWetCodes(fc);
             const mosmix = await getMosmix(p.lat, p.lon);
             out[p.id] = applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
             continue;
