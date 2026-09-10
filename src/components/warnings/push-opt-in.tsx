@@ -104,7 +104,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [blocked, setBlocked] = useState(false);
   const [framed, setFramed] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
-  const [ios, setIos] = useState<IosEnv | null>(null);
+  const [env, setEnv] = useState<PushEnv | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -116,7 +116,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     } catch {
       setFramed(true);
     }
-    setIos(detectIosEnv());
+    setEnv(detectPushEnv());
     setPageUrl(`${SITE_URL}/warnkarte`);
     if (typeof Notification !== "undefined") setBlocked(Notification.permission === "denied");
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
