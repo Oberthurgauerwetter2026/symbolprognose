@@ -23,20 +23,48 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out;
 }
 
-/** Erkennt die iOS-Situation: Push braucht dort Safari + Home-Bildschirm-App. */
-type IosEnv = {
+/** Erkennt Gerät und Browser: iOS braucht eine Home-Bildschirm-Web-App. */
+type BrowserId = "safari" | "chrome" | "edge" | "firefox" | "opera" | "samsung" | "inapp" | "other";
+
+type PushEnv = {
   isIos: boolean;
+  isAndroid: boolean;
+  isMacSafari: boolean;
   version: number | null;
   standalone: boolean;
-  inAppBrowser: boolean;
-  otherBrowser: boolean;
+  browser: BrowserId;
 };
 
-function detectIosEnv(): IosEnv {
+const BROWSER_LABEL: Record<BrowserId, string> = {
+  safari: "Safari",
+  chrome: "Chrome",
+  edge: "Edge",
+  firefox: "Firefox",
+  opera: "Opera",
+  samsung: "Samsung Internet",
+  inapp: "App-Browser",
+  other: "Browser",
+};
+
+function detectBrowser(ua: string): BrowserId {
+  if (/FBAN|FBAV|Instagram|Line\/|Twitter|LinkedInApp|Snapchat|GSA\/|Threads|Pinterest|TikTok/.test(ua))
+    return "inapp";
+  if (/EdgiOS|Edg\//.test(ua)) return "edge";
+  if (/OPiOS|OPT\/|OPR\//.test(ua)) return "opera";
+  if (/CriOS/.test(ua)) return "chrome";
+  if (/FxiOS|Firefox/.test(ua)) return "firefox";
+  if (/SamsungBrowser/.test(ua)) return "samsung";
+  if (/Chrome\//.test(ua)) return "chrome";
+  if (/Safari\//.test(ua)) return "safari";
+  return "other";
+}
+
+function detectPushEnv(): PushEnv {
   const ua = navigator.userAgent || "";
   const isIpadOs =
     /Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document;
   const isIos = /iPad|iPhone|iPod/.test(ua) || isIpadOs;
+  const isAndroid = /Android/.test(ua);
   const m = /OS (\d+)[._](\d+)/.exec(ua);
   const version = m ? Number(`${m[1]}.${m[2]}`) : null;
   const standalone =
@@ -44,10 +72,11 @@ function detectIosEnv(): IosEnv {
       (navigator as Navigator & { standalone?: boolean }).standalone === true) ||
     (typeof window !== "undefined" &&
       window.matchMedia?.("(display-mode: standalone)").matches === true);
-  const inAppBrowser = /FBAN|FBAV|Instagram|Line\/|Twitter|LinkedInApp|Snapchat|GSA\//.test(ua);
-  const otherBrowser = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua);
-  return { isIos, version, standalone, inAppBrowser, otherBrowser };
+  const browser = detectBrowser(ua);
+  const isMacSafari = !isIos && !isAndroid && /Macintosh/.test(ua) && browser === "safari";
+  return { isIos, isAndroid, isMacSafari, version, standalone, browser };
 }
+
 
 function bufToB64(buf: ArrayBuffer | null): string {
   if (!buf) return "";
@@ -65,6 +94,8 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [msgKind, setMsgKind] = useState<"ok" | "error">("ok");
   const [howOpen, setHowOpen] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
+  const [whereOpen, setWhereOpen] = useState(false);
+
   const [pickOpen, setPickOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>([]);
   const [savedRegionIds, setSavedRegionIds] = useState<string[]>([]);
@@ -75,7 +106,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [blocked, setBlocked] = useState(false);
   const [framed, setFramed] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
-  const [ios, setIos] = useState<IosEnv | null>(null);
+  const [env, setEnv] = useState<PushEnv | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -87,7 +118,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     } catch {
       setFramed(true);
     }
-    setIos(detectIosEnv());
+    setEnv(detectPushEnv());
     setPageUrl(`${SITE_URL}/warnkarte`);
     if (typeof Notification !== "undefined") setBlocked(Notification.permission === "denied");
     navigator.serviceWorker?.getRegistration("/push-sw.js").then(async (reg) => {
@@ -242,41 +273,104 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
     );
   }
 
-  // iOS: Push funktioniert nur in Safari und nur aus der Home-Bildschirm-App.
-  if (ios?.isIos && !framed && !ios.standalone) {
-    if (ios.version != null && ios.version < 16.4) {
+  /** Übersicht, wo Warn-Meldungen möglich sind – für alle Geräte und Browser. */
+  function WhereList() {
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setWhereOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 pt-1 text-left text-xs font-medium text-foreground underline underline-offset-2"
+        >
+          Wo funktionieren Warn-Meldungen?
+          <ChevronDown
+            className={"h-4 w-4 shrink-0 transition-transform " + (whereOpen ? "rotate-180" : "")}
+          />
+        </button>
+        {whereOpen && (
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-muted-foreground">
+            <li>
+              iPhone/iPad (ab iOS 16.4): in Safari, Chrome, Edge oder Firefox – aber erst, nachdem
+              die Warnkarte auf dem Home-Bildschirm gespeichert und von dort geöffnet wurde.
+            </li>
+            <li>Android (Chrome, Edge, Samsung Internet, Firefox): direkt, ohne Installation.</li>
+            <li>Computer mit Chrome, Edge oder Firefox: direkt, ohne Installation.</li>
+            <li>Mac mit Safari: einmal über „Teilen → Zum Dock hinzufügen“ speichern.</li>
+            <li>
+              App-Browser (Facebook, Instagram, LinkedIn und ähnliche) und eingebettete Karten:
+              nicht möglich – dort die Warnkarte im normalen Browser öffnen.
+            </li>
+          </ul>
+        )}
+      </div>
+    );
+  }
+
+  function OpenElsewhere() {
+    return (
+      <div className="flex flex-wrap gap-1.5 pt-1">
+        <button
+          type="button"
+          onClick={copyPageUrl}
+          className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90"
+        >
+          {copied ? <Check className="h-3.5 w-3.5" /> : null}
+          {copied ? "Adresse kopiert" : "Adresse kopieren"}
+        </button>
+        <a
+          href={pageUrl}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+        >
+          Warnkarte öffnen
+        </a>
+      </div>
+    );
+  }
+
+  // iOS: Push braucht immer eine Web-App auf dem Home-Bildschirm.
+  if (env?.isIos && !framed && !env.standalone) {
+    if (env.version != null && env.version < 16.4) {
       return (
         <IosPanel title="Benachrichtigungen brauchen iOS 16.4 oder neuer">
           <p>
-            Auf diesem Gerät ist iOS {ios.version} installiert. Bitte iOS aktualisieren
+            Auf diesem Gerät ist iOS {env.version} installiert. Bitte iOS aktualisieren
             (Einstellungen → Allgemein → Softwareupdate), danach ist der Warn-Push möglich.
           </p>
+          <WhereList />
         </IosPanel>
       );
     }
-    if (ios.inAppBrowser || ios.otherBrowser) {
+    if (env.browser === "inapp") {
       return (
-        <IosPanel title="Bitte in Safari öffnen">
+        <IosPanel title="Bitte im normalen Browser öffnen">
           <p>
-            Auf dem iPhone und iPad sind Warn-Meldungen nur über Safari möglich. Adresse kopieren,
-            in Safari öffnen und dort die Warnkarte auf den Home-Bildschirm legen.
+            In App-Browsern (z. B. Facebook, Instagram, LinkedIn) sind Warn-Meldungen nicht möglich.
+            Adresse kopieren, in Safari, Chrome, Edge oder Firefox öffnen und die Warnkarte dort auf
+            den Home-Bildschirm legen.
           </p>
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            <button
-              type="button"
-              onClick={copyPageUrl}
-              className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90"
-            >
-              {copied ? <Check className="h-3.5 w-3.5" /> : null}
-              {copied ? "Adresse kopiert" : "Adresse kopieren"}
-            </button>
-            <a
-              href={pageUrl}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
-            >
-              Warnkarte öffnen
-            </a>
-          </div>
+          <OpenElsewhere />
+          <WhereList />
+        </IosPanel>
+      );
+    }
+    if (env.browser !== "safari") {
+      const label = BROWSER_LABEL[env.browser];
+      return (
+        <IosPanel title={`Erst zum Home-Bildschirm hinzufügen (${label})`}>
+          <ol className="list-decimal space-y-0.5 pl-4">
+            <li>In {label} das Menü öffnen (die drei Punkte).</li>
+            <li>„Teilen“ und danach „Zum Home-Bildschirm“ wählen.</li>
+            <li>Mit „Hinzufügen“ bestätigen.</li>
+            <li>Die neue App vom Home-Bildschirm öffnen.</li>
+            <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren“ antippen.</li>
+          </ol>
+          <p>
+            Findet sich der Punkt „Zum Home-Bildschirm“ nicht, die Warnkarte einmal in Safari öffnen
+            und dort über das Teilen-Symbol als{" "}
+            <strong className="text-foreground">Web-App</strong> speichern.
+          </p>
+          <OpenElsewhere />
+          <WhereList />
         </IosPanel>
       );
     }
@@ -297,9 +391,24 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
           laden) und den Vorgang wiederholen. Ein bereits gespeichertes Lesezeichen bitte löschen
           und neu als Web-App hinzufügen.
         </p>
+        <WhereList />
       </IosPanel>
     );
   }
+
+  if (env?.browser === "inapp" && !framed) {
+    return (
+      <IosPanel title="Bitte im normalen Browser öffnen">
+        <p>
+          In App-Browsern (z. B. Facebook, Instagram, LinkedIn) lassen sich keine Warn-Meldungen
+          aktivieren. Adresse kopieren und die Warnkarte in Chrome, Edge, Firefox oder Safari öffnen.
+        </p>
+        <OpenElsewhere />
+        <WhereList />
+      </IosPanel>
+    );
+  }
+
 
   if (!supported) {
     return (
@@ -565,10 +674,11 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         {howOpen && (
           <div className="mt-1 space-y-1">
             <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs font-medium leading-relaxed text-foreground">
-              iPhone/iPad: nur in Safari möglich. Zuerst über „Teilen → Zum Home-Bildschirm“ als
-              <strong className="font-semibold"> Web-App</strong> (nicht als Lesezeichen) speichern
-              und die App vom Home-Bildschirm öffnen – sonst erlaubt iOS gar keine Push-Meldungen.
+              {env?.isMacSafari
+                ? "Mac mit Safari: die Warnkarte einmal über „Teilen → Zum Dock hinzufügen“ speichern und von dort öffnen, danach sind Warn-Meldungen möglich."
+                : "iPhone/iPad: die Warnkarte zuerst über „Teilen → Zum Home-Bildschirm“ speichern (in Safari als Web-App, nicht als Lesezeichen) und die App von dort öffnen. Auf Android und am Computer geht es direkt."}
             </p>
+
             <ol className="list-decimal space-y-0.5 pl-5 text-xs leading-relaxed text-muted-foreground">
               <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
               <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis, dort „Erlauben“ wählen.</li>
@@ -586,7 +696,9 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
                 Vorschaufenster) öffnen und prüfen, ob Benachrichtigungen für die Seite blockiert sind.
               </li>
             </ol>
+            <WhereList />
           </div>
+
         )}
       </div>
     </div>
