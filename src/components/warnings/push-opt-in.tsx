@@ -674,10 +674,11 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
         {howOpen && (
           <div className="mt-1 space-y-1">
             <p className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs font-medium leading-relaxed text-foreground">
-              iPhone/iPad: nur in Safari möglich. Zuerst über „Teilen → Zum Home-Bildschirm“ als
-              <strong className="font-semibold"> Web-App</strong> (nicht als Lesezeichen) speichern
-              und die App vom Home-Bildschirm öffnen – sonst erlaubt iOS gar keine Push-Meldungen.
+              {env?.isMacSafari
+                ? "Mac mit Safari: die Warnkarte einmal über „Teilen → Zum Dock hinzufügen“ speichern und von dort öffnen, danach sind Warn-Meldungen möglich."
+                : "iPhone/iPad: die Warnkarte zuerst über „Teilen → Zum Home-Bildschirm“ speichern (in Safari als Web-App, nicht als Lesezeichen) und die App von dort öffnen. Auf Android und am Computer geht es direkt."}
             </p>
+
             <ol className="list-decimal space-y-0.5 pl-5 text-xs leading-relaxed text-muted-foreground">
               <li>Gemeinden antippen (angefärbt mit Häkchen = ausgewählt).</li>
               <li>„Benachrichtigungen aktivieren“ – der Browser fragt nach Erlaubnis, dort „Erlauben“ wählen.</li>
