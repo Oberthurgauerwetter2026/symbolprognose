@@ -90,6 +90,135 @@ function bufToB64(buf: ArrayBuffer | null): string {
   return btoa(s);
 }
 
+/** Ausklappbares Hilfepanel – auf Modulebene, damit der Open-Zustand
+ *  bei Zustandsänderungen der Elternkomponente erhalten bleibt. */
+function HelpPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-2 rounded-lg border border-border bg-muted/50 p-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+          <Info className="h-4 w-4 shrink-0" />
+          {title}
+        </span>
+        <ChevronDown
+          className={
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform " +
+            (open ? "rotate-180" : "")
+          }
+        />
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1 text-xs leading-relaxed text-muted-foreground">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Schritte, um die Warnkarte auf dem iPhone als Web-App zu speichern. */
+function IosSteps() {
+  return (
+    <>
+      <ol className="list-decimal space-y-0.5 pl-4">
+        <li>Unten in Safari auf das Teilen-Symbol tippen.</li>
+        <li>„Zum Home-Bildschirm“ wählen.</li>
+        <li>
+          Oben <strong className="text-foreground">„Web-App“</strong> wählen (nicht
+          „Lesezeichen“), dann „Hinzufügen“.
+        </li>
+        <li>Die neue App vom Home-Bildschirm öffnen.</li>
+        <li>Dort Gemeinden wählen und „Benachrichtigungen aktivieren“ antippen.</li>
+      </ol>
+      <p>
+        Fehlt die Zeile „Web-App“, die Seite einmal neu laden (Safari muss die App-Angaben frisch
+        laden) und den Vorgang wiederholen. Ein bereits gespeichertes Lesezeichen bitte löschen
+        und neu als Web-App hinzufügen.
+      </p>
+    </>
+  );
+}
+
+/** Übersicht, wo Warn-Meldungen möglich sind – für alle Geräte und Browser. */
+function WhereList() {
+  const [whereOpen, setWhereOpen] = useState(false);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setWhereOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 pt-1 text-left text-xs font-medium text-foreground underline underline-offset-2"
+      >
+        Wo funktionieren Warn-Meldungen?
+        <ChevronDown
+          className={"h-4 w-4 shrink-0 transition-transform " + (whereOpen ? "rotate-180" : "")}
+        />
+      </button>
+      {whereOpen && (
+        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-muted-foreground">
+          <li>
+            iPhone/iPad (ab iOS 16.4): in Safari, Chrome, Edge oder Firefox – aber erst, nachdem
+            die Warnkarte auf dem Home-Bildschirm gespeichert und von dort geöffnet wurde.
+          </li>
+          <li>Android (Chrome, Edge, Samsung Internet, Firefox): direkt, ohne Installation.</li>
+          <li>Computer mit Chrome, Edge oder Firefox: direkt, ohne Installation.</li>
+          <li>Mac mit Safari: einmal über „Teilen → Zum Dock hinzufügen“ speichern.</li>
+          <li>
+            App-Browser (Facebook, Instagram, LinkedIn und ähnliche) und eingebettete Karten:
+            nicht möglich – dort die Warnkarte im normalen Browser öffnen.
+          </li>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function OpenElsewhere({
+  pageUrl,
+  onCopyError,
+}: {
+  pageUrl: string;
+  onCopyError: (message: string) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyPageUrl() {
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      onCopyError(
+        "Adresse konnte nicht kopiert werden – bitte manuell aus der Adressleiste kopieren.",
+      );
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5 pt-1">
+      <button
+        type="button"
+        onClick={copyPageUrl}
+        className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-semibold text-background hover:bg-foreground/90"
+      >
+        {copied ? <Check className="h-3.5 w-3.5" /> : null}
+        {copied ? "Adresse kopiert" : "Adresse kopieren"}
+      </button>
+      <a
+        href={pageUrl}
+        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+      >
+        Warnkarte öffnen
+      </a>
+    </div>
+  );
+}
+
 export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null }) {
   const [supported, setSupported] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
