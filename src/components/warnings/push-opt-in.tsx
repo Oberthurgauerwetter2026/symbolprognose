@@ -400,7 +400,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             Adresse kopieren, in Safari, Chrome, Edge oder Firefox öffnen und die Warnkarte dort auf
             den Home-Bildschirm legen.
           </p>
-          <OpenElsewhere />
+          <OpenElsewhere pageUrl={pageUrl} onCopyError={(m) => note(m, "error")} />
           <WhereList />
         </HelpPanel>
       );
@@ -421,7 +421,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             und dort über das Teilen-Symbol als{" "}
             <strong className="text-foreground">Web-App</strong> speichern.
           </p>
-          <OpenElsewhere />
+          <OpenElsewhere pageUrl={pageUrl} onCopyError={(m) => note(m, "error")} />
           <WhereList />
         </HelpPanel>
       );
@@ -443,7 +443,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
           In App-Browsern (z. B. Facebook, Instagram, LinkedIn) lassen sich keine Warn-Meldungen
           aktivieren. Adresse kopieren und die Warnkarte in Chrome, Edge, Firefox oder Safari öffnen.
         </p>
-        <OpenElsewhere />
+        <OpenElsewhere pageUrl={pageUrl} onCopyError={(m) => note(m, "error")} />
         <WhereList />
       </HelpPanel>
     );
@@ -473,7 +473,7 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
             Warnkarte in einer aktuellen Version von Chrome, Edge, Firefox oder Safari öffnen.
           </p>
         )}
-        {framed && <OpenElsewhere />}
+        {framed && <OpenElsewhere pageUrl={pageUrl} onCopyError={(m) => note(m, "error")} />}
         <WhereList />
       </HelpPanel>
     );
