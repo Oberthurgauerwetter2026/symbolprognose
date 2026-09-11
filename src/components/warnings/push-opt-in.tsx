@@ -227,8 +227,6 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
   const [msgKind, setMsgKind] = useState<"ok" | "error">("ok");
   const [howOpen, setHowOpen] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
-  const [whereOpen, setWhereOpen] = useState(false);
-
   const [pickOpen, setPickOpen] = useState(false);
   const [regionIds, setRegionIds] = useState<string[]>([]);
   const [savedRegionIds, setSavedRegionIds] = useState<string[]>([]);
