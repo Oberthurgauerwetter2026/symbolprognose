@@ -1,32 +1,31 @@
-Scroll-Schatten für Panels
+Horizontale Scroll-Schatten für Prognosen
 
 ## Ziel
-Beim Scrollen innerhalb von Panels soll ein schwacher Schatten-Effekt erscheinen, der signalisiert, dass noch Inhalt folgt bzw. dass Inhalt oberhalb/unterhalb des sichtbaren Bereichs liegt. Der Effekt soll dezent sein und nicht die eigentliche Inhaltsdarstellung überlagern.
+Beim horizontalen Wischen soll an der Kante, unter der bereits gescrollter Inhalt verschwindet, ein schwacher Schatten erscheinen – wie im gezeigten Referenzbeispiel. Die gegenüberliegende Kante weist dezent auf weiteren Inhalt hin.
 
-## Betroffene Panels
-- Warnkarten-Detail-Panel (`src/components/maps/warn-map.tsx`, Zeile ~733): Liste/Details zu einer gewählten Gemeinde, aktuell `max-h-[300px] overflow-y-auto`.
-- Push-Abonnement-Regionenliste (`src/components/warnings/push-opt-in.tsx`, Zeile ~570): Gemeinde-Auswahl, aktuell `max-h-44 overflow-y-auto`.
-- Optional: Ortssuch-Dropdown (`src/components/location-search.tsx`, Zeile ~234), falls der Effekt dort ebenfalls gewünscht ist.
+## Betroffene Bereiche
+- Tageskarten der Lokalprognose.
+- Stündliche Detailprognose mit Wetterwerten und Diagrammen.
+- Horizontal scrollbare Tagesauswahl der Wetterkarte Region.
 
-## Umsetzung
-1. Wiederverwendbare CSS-Utility in `src/styles.css` ergänzen:
-   - Klasse `.scroll-shadow` für Container mit `overflow-y-auto`.
-   - Verwendet ggf. `background-attachment: local, scroll` mit zwei schwachen Verläufen (oben und unten) oder sticky Pseudo-Elemente.
-   - Schattenfarbe: `var(--color-border)` oder `rgba(0,0,0,0.05)` bei hellem Theme, sehr dezent.
-   - Kein hartes `box-shadow`, sondern ein weicher Farbverlauf, der nur sichtbar ist, wenn Scrollen möglich ist.
+## Verhalten
+- Am Anfang erscheint nur rechts ein sehr dezenter Hinweis auf weitere Inhalte.
+- Nach dem ersten Verschieben erscheint links der gewünschte Schatten über dem verschwindenden Inhalt.
+- Vor dem Ende bleiben beide Kanten sichtbar; ganz am Ende verschwindet der rechte Schatten.
+- Ohne horizontalen Überlauf erscheinen keine Schatten.
+- Wischen, Scroll-Snap, automatische Positionierung und bestehende Inhalte bleiben unverändert.
 
-2. Komponenten anpassen:
-   - `warn-map.tsx`: Scroll-Container um `.scroll-shadow` erweitern.
-   - `push-opt-in.tsx`: Scroll-Container um `.scroll-shadow` erweitern.
-   - `location-search.tsx`: Dropdown-Liste optional mit `.scroll-shadow` erweitern.
+## Technische Umsetzung
+- Eine kleine wiederverwendbare Scroll-Rand-Komponente beziehungsweise ein Hook ermittelt `scrollLeft`, sichtbare Breite und Gesamtbreite.
+- Die Schatten werden als nicht anklickbare, überlagerte Farbverläufe an den Kanten gerendert. Dadurch bleiben sie auch über den verschiedenfarbigen Prognosekacheln zuverlässig sichtbar.
+- Größenänderungen und nachgeladene Prognosedaten aktualisieren den Zustand automatisch.
+- Farben und Stärke verwenden die vorhandenen Designwerte; keine neue Abhängigkeit.
 
-3. Verhalten:
-   - Schatten oben erscheint, wenn nicht ganz oben gescrollt ist.
-   - Schatten unten erscheint, wenn nicht ganz unten gescrollt ist.
-   - Bei vollständig sichtbarem Inhalt (kein Overflow) kein Schatten.
-   - Auf Touch- und Desktop-Geräten gleich.
+## Prüfung
+- Lokalprognose und Wetterkarte Region auf Smartphone-Breite sowie Desktop testen.
+- Anfang, Zwischenposition, Ende und Bereiche ohne Überlauf kontrollieren.
+- Sicherstellen, dass Tippen, horizontales Wischen und automatische Sprünge weiterhin funktionieren.
 
-## Nicht im Scope
-- Keine Änderung an Scroll-Position, Scroll-Snap oder Momentum.
-- Keine Änderung an Panel-Inhalt, Layoutbreiten oder Höhen.
-- Keine neuen Abhängigkeiten.
+## Nicht im Umfang
+- Keine vertikalen Schatten in Warnungs- oder Push-Panels.
+- Keine Änderung an Daten, Prognoselogik, Abständen oder Panelgrößen.
