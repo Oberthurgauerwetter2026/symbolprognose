@@ -70,6 +70,7 @@ export function LocationSearch({
   const [open, setOpen] = useState(false);
   const [debounced, setDebounced] = useState("");
   const [recent, setRecent] = useState<RecentPlace[]>([]);
+  const { favorites, remove: removeFavorite } = useFavoritePlaces();
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setRecent(readRecentPlaces()), []);
