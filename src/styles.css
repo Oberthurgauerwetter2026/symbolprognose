@@ -240,11 +240,11 @@ html.embed .embed-fallback {
 }
 .scroll-shadow-x::before {
   left: 0;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.05), transparent);
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.07), transparent);
 }
 .scroll-shadow-x::after {
   right: 0;
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.05), transparent);
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.07), transparent);
 }
 .scroll-shadow-x[data-shadow-left="true"]::before,
 .scroll-shadow-x[data-shadow-right="true"]::after {
