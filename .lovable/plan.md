@@ -1,32 +1,35 @@
-Scroll-Schatten für Panels
+Schwacher Schatten am horizontal scrollbaren Tages-Strip
 
 ## Ziel
-Beim Scrollen innerhalb von Panels soll ein schwacher Schatten-Effekt erscheinen, der signalisiert, dass noch Inhalt folgt bzw. dass Inhalt oberhalb/unterhalb des sichtbaren Bereichs liegt. Der Effekt soll dezent sein und nicht die eigentliche Inhaltsdarstellung überlagern.
+Im Lokalprognose-Widget soll der horizontal scrollbare Tages-Strip (`DayStrip` in `src/components/weather-widget.tsx`, Zeile ~700) am linken und rechten Rand einen schwachen Schatten zeigen, sobald Inhalt in diese Richtung verschwindet. Das gibt visuelles Feedback, dass weitere Tage scrollbar sind.
 
-## Betroffene Panels
-- Warnkarten-Detail-Panel (`src/components/maps/warn-map.tsx`, Zeile ~733): Liste/Details zu einer gewählten Gemeinde, aktuell `max-h-[300px] overflow-y-auto`.
-- Push-Abonnement-Regionenliste (`src/components/warnings/push-opt-in.tsx`, Zeile ~570): Gemeinde-Auswahl, aktuell `max-h-44 overflow-y-auto`.
-- Optional: Ortssuch-Dropdown (`src/components/location-search.tsx`, Zeile ~234), falls der Effekt dort ebenfalls gewünscht ist.
+## Betroffene Stelle
+- `src/components/weather-widget.tsx`, `DayStrip`-Komponente, Container-Zeile 700:
+  ```
+  <div className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
+  ```
 
 ## Umsetzung
-1. Wiederverwendbare CSS-Utility in `src/styles.css` ergänzen:
-   - Klasse `.scroll-shadow` für Container mit `overflow-y-auto`.
-   - Verwendet ggf. `background-attachment: local, scroll` mit zwei schwachen Verläufen (oben und unten) oder sticky Pseudo-Elemente.
-   - Schattenfarbe: `var(--color-border)` oder `rgba(0,0,0,0.05)` bei hellem Theme, sehr dezent.
-   - Kein hartes `box-shadow`, sondern ein weicher Farbverlauf, der nur sichtbar ist, wenn Scrollen möglich ist.
+1. Scroll-Shadow-Utility in `src/styles.css` ergänzen:
+   - Neue CSS-Klasse `.scroll-shadow-x` für horizontal scrollbare Container.
+   - Verwendet `background-attachment: local, scroll` mit zwei sehr schwachen Gradienten:
+     - linker Verlauf: von `var(--color-border)` / schwachem Schwarz zu transparent
+     - rechter Verlauf: von transparent zu `var(--color-border)` / schwachem Schwarz
+   - Die Gradienten werden nur sichtbar, wenn der Inhalt in die jeweilige Richtung scrollt (durch `background-attachment: local, scroll` realisiert).
+   - Stärke: sehr dezent, z. B. `rgba(0,0,0,0.04)` oder `var(--color-border)` mit niedriger Opazität, damit es nicht auffällt.
 
-2. Komponenten anpassen:
-   - `warn-map.tsx`: Scroll-Container um `.scroll-shadow` erweitern.
-   - `push-opt-in.tsx`: Scroll-Container um `.scroll-shadow` erweitern.
-   - `location-search.tsx`: Dropdown-Liste optional mit `.scroll-shadow` erweitern.
+2. `DayStrip`-Container anpassen:
+   - Klasse `scroll-shadow-x` zum scrollbaren Wrapper hinzufügen.
+   - Bestehende Klassen (`overflow-x-auto snap-x snap-mandatory no-scrollbar`) bleiben erhalten.
+   - Optional: gleiches Verhalten auch für den stündlichen Verlauf (Zeile ~1153) prüfen und anwenden, falls gewünscht.
 
-3. Verhalten:
-   - Schatten oben erscheint, wenn nicht ganz oben gescrollt ist.
-   - Schatten unten erscheint, wenn nicht ganz unten gescrollt ist.
-   - Bei vollständig sichtbarem Inhalt (kein Overflow) kein Schatten.
-   - Auf Touch- und Desktop-Geräten gleich.
+## Verhalten
+- Kein Schatten, wenn der Strip ganz links oder ganz rechts ist und kein Overflow besteht.
+- Schatten am linken Rand, wenn nach rechts gescrollt wurde.
+- Schatten am rechten Rand, wenn weiterer Inhalt rechts folgt.
+- Der Schatten liegt über dem Inhalt, ohne ihn zu blockieren (nur visueller Hinweis).
 
 ## Nicht im Scope
-- Keine Änderung an Scroll-Position, Scroll-Snap oder Momentum.
-- Keine Änderung an Panel-Inhalt, Layoutbreiten oder Höhen.
+- Keine Änderung an Scroll-Logik, Snap-Verhalten oder Tagesauswahl.
+- Keine Änderung an Grösse, Abstand oder Inhalt der Tageskarten.
 - Keine neuen Abhängigkeiten.
