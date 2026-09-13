@@ -39,7 +39,11 @@ function KartenLokalPage() {
     <DashboardLayout title="Lokalprognose" subtitle="5-Tage-Prognose · MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX">
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="lokal" />
-        <WeatherWidget initialDayIdx={day} initialLocation={initialLocation} />
+        <WeatherWidget
+          initialDayIdx={day}
+          initialLocation={initialLocation}
+          compactAutoLocation
+        />
       </div>
     </DashboardLayout>
   );

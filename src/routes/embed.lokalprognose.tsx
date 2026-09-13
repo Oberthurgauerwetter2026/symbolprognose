@@ -53,7 +53,7 @@ function EmbedLokalprognose() {
             <WeatherWidget
               initialDayIdx={day}
               initialLocation={initialLocation}
-              requireExplicitLocation={!initialLocation}
+              compactAutoLocation
               transparent
             />
           </EmbedShell>
