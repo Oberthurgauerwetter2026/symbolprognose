@@ -168,7 +168,7 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
   // Einheitlich ruhige Neigung von 10°, unabhängig von der übergebenen Neigung.
   const t = tilt === 0 ? 0 : Math.sign(tilt) * 10;
   const sy = size * 0.82;
-  const sx = sy * 0.72; // schlank genug, damit benachbarte Tropfen klar getrennt bleiben
+  const sx = sy * 0.58; // noch schlanker, damit benachbarte Tropfen klar getrennt bleiben
   return (
     <g
       className="wx-drop-anim"
