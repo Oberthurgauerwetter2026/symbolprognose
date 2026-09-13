@@ -19,6 +19,7 @@ import { useFavoritePlaces } from "@/lib/favorites";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
+import { ScrollEdgeShadows } from "@/components/ui/scroll-edge-shadows";
 import { MapPin, Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon, Star } from "lucide-react";
 import { useActiveWarnings } from "@/hooks/use-warnings";
 import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
@@ -693,12 +694,16 @@ function DayStrip({
   extended: boolean;
 }) {
   const d = forecast.daily;
-
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const h = forecast.hourly;
   return (
     <div className="space-y-2">
-      <div className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
-        {days.map((day, i) => {
+      <div className="relative overflow-hidden rounded-md">
+        <div
+          ref={scrollerRef}
+          className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar"
+        >
+          {days.map((day, i) => {
           const selected = i === selectedIdx;
           const di = day.idx;
           const prob = d.precipitation_probability_max?.[di] ?? 0;
@@ -771,7 +776,9 @@ function DayStrip({
               </div>
             </button>
           );
-        })}
+          })}
+        </div>
+        <ScrollEdgeShadows scrollRef={scrollerRef} className="rounded-md" />
       </div>
     </div>
   );
@@ -1148,11 +1155,12 @@ function DetailPanel({
           )}
         </div>
         {/* Scroll area: slots on top, precipitation bars below */}
-        <div
-          ref={scrollerRef}
-          className="flex-1 overflow-x-auto no-scrollbar scroll-smooth snap-x"
-        >
-          <div className="inline-flex flex-col min-w-full">
+        <div className="relative min-w-0 flex-1 overflow-hidden">
+          <div
+            ref={scrollerRef}
+            className="h-full overflow-x-auto no-scrollbar scroll-smooth snap-x"
+          >
+            <div className="inline-flex min-w-full flex-col">
             {/* Hour slots */}
             <div className="flex">
               {hourlyIndices.map((s, i) => {
@@ -1516,7 +1524,9 @@ function DetailPanel({
                 })}
               </div>
             )}
+            </div>
           </div>
+          <ScrollEdgeShadows scrollRef={scrollerRef} />
         </div>
       </div>
       <div className="px-4 py-2 border-t border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] text-[11px] text-zinc-800 font-bold flex flex-wrap items-center gap-x-4 gap-y-1">
