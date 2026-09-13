@@ -218,6 +218,8 @@ function WeatherWidgetInner({
     if (params.get("embed") === "minimal") setEmbedMinimal(true);
   }, []);
   const [extended, setExtended] = useState(initialExtended);
+  const canCollapseToCompact =
+    compactAutoLocation && !initialLocation && !lockedLocation;
   const [showFullForecast, setShowFullForecast] = useState(
     () => !compactAutoLocation || Boolean(initialLocation || lockedLocation),
   );
