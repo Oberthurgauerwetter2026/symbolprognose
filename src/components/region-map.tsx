@@ -63,6 +63,7 @@ import { searchLocations } from "@/lib/weather";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
+import { ScrollEdgeShadows } from "@/components/ui/scroll-edge-shadows";
 import { cn } from "@/lib/utils";
 
 import { SPOTS, type Spot } from "@/data/spots";
@@ -574,24 +575,25 @@ function DayTabs({
   }, [activeIndex, days.length]);
 
   return (
-    <div
-      ref={containerRef}
-      className="no-scrollbar relative flex w-full gap-1 overflow-x-auto rounded-full bg-muted p-1"
-    >
-      {indicator && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute top-1 bottom-1 rounded-full shadow"
-          style={{
-            left: indicator.left,
-            width: indicator.width,
-            background: BRAND,
-            transition:
-              "left 260ms cubic-bezier(0.22, 1, 0.36, 1), width 260ms cubic-bezier(0.22, 1, 0.36, 1)",
-          }}
-        />
-      )}
-      <button
+    <div className="relative w-full overflow-hidden rounded-full">
+      <div
+        ref={containerRef}
+        className="no-scrollbar relative flex w-full gap-1 overflow-x-auto rounded-full bg-muted p-1"
+      >
+        {indicator && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-1 bottom-1 rounded-full shadow"
+            style={{
+              left: indicator.left,
+              width: indicator.width,
+              background: BRAND,
+              transition:
+                "left 260ms cubic-bezier(0.22, 1, 0.36, 1), width 260ms cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          />
+        )}
+        <button
         ref={(el) => {
           btnRefs.current[0] = el;
         }}
@@ -609,8 +611,8 @@ function DayTabs({
           <polyline points="12 7 12 12 15 14" />
         </svg>
         <span className="hidden leading-tight sm:inline">Stündlich</span>
-      </button>
-      {days.map((d, i) => {
+        </button>
+        {days.map((d, i) => {
         const { top, sub } = formatDayLabel(d, i);
         const active = viewMode === "daily" && i === selectedDayIdx;
         return (
@@ -637,7 +639,9 @@ function DayTabs({
             </span>
           </button>
         );
-      })}
+        })}
+      </div>
+      <ScrollEdgeShadows scrollRef={containerRef} className="rounded-full" />
     </div>
   );
 }
