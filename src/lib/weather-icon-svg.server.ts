@@ -89,7 +89,7 @@ function drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
   // weisses Kopf-Highlight, weicher Rand, ruhige 10°-Neigung).
   const t = tilt === 0 ? 0 : Math.sign(tilt) * 10;
   const sy = size * 0.82;
-  const sx = sy * 0.72;
+  const sx = sy * 0.58;
   const delay = dropDelay(x, y);
   return (
     `<g class="wx-drop-anim" style="animation-delay:${delay}s">` +
