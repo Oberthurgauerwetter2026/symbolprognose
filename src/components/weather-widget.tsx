@@ -1451,22 +1451,6 @@ function DetailPanel({
 
 
                     </div>
-                    <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
-                      <div className="font-bold flex justify-around px-1">
-                        {perHour.map(({ mm }, k) => (
-                          <span key={k} className={cadence === "1h" ? "w-full" : "w-1/3"}>
-                            {mm > 0 ? mm.toFixed(1) : "–"}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="text-zinc-700 font-semibold flex justify-around px-1">
-                        {perHour.map(({ prob }, k) => (
-                          <span key={k} className={cadence === "1h" ? "w-full" : "w-1/3"}>
-                            {prob}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 );
               })}
