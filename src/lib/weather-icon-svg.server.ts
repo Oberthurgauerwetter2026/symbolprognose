@@ -397,8 +397,17 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
 
   if (isSnow && !wmoIsWet) return ISnow(size);
 
+  // Wie im Client-Renderer: Der Tages-Override darf nicht feuern, wenn die
+  // Niederschlagsstunden bekannt sind und eine trockene Mehrheit (<8) vorliegt.
+  const precipHoursKnown =
+    scope === "daily" &&
+    typeof precipHours === "number" &&
+    Number.isFinite(precipHours);
   const dayHasRain =
-    scope === "daily" && !isSnow && ((precipHours ?? 0) >= 1 || (precip ?? 0) >= 0.5);
+    scope === "daily" &&
+    !isSnow &&
+    !precipHoursKnown &&
+    ((precipHours ?? 0) >= 1 || (precip ?? 0) >= 0.5);
   if (dayHasRain && !wmoIsWet) {
     return pickWetDaily({ size, sunshineRatio, precipHours, precip, isSnow });
   }
