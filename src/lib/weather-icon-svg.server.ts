@@ -9,6 +9,8 @@
  * define them (see src/styles.css :root tokens).
  */
 
+import { DROP_ANIM_CSS, dropDelay } from "@/components/weather-icons";
+
 const C = {
   sun: "var(--wx-sun)",
   sunCore: "var(--wx-sun-core)",
@@ -34,7 +36,7 @@ function nextMaskId(): string {
 }
 
 function svg(size: number, body: string): string {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none" aria-hidden="true">${body}</svg>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none" aria-hidden="true"><style>${DROP_ANIM_CSS}</style>${body}</svg>`;
 }
 
 function sun({ cx = 32, cy = 32, r = 11, rays = true }: { cx?: number; cy?: number; r?: number; rays?: boolean } = {}): string {
@@ -95,7 +97,7 @@ function drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
     `fill="#7db8e0" stroke="#4d86b0" stroke-width="0.7" stroke-linejoin="round"/>` +
     `<path d="M 0 -6.9 C 1.1 -3.6 2.0 -1.2 2.2 0.9 C 1.3 -0.6 0.6 -2.2 0 -3.4 C -0.6 -2.2 -1.3 -0.6 -2.2 0.9 C -2.0 -1.2 -1.1 -3.6 0 -6.9 Z" ` +
     `fill="#ffffff" opacity="0.55"/>` +
-    `</g>`
+    `</g></g>`
   );
 }
 
