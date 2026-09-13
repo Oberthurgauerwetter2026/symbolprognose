@@ -237,12 +237,46 @@ export function LocationSearch({
                 : "inset-x-0 top-[calc(100%+4px)] z-20 rounded-md",
             )}
           >
-            {debounced.trim().length < 2 && (
+            {!searching && favItems.length > 0 && (
+              <>
+                <li className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Star className="h-3 w-3 fill-current" aria-hidden />
+                  Favoriten
+                </li>
+                {favItems.map((r) => (
+                  <li key={r.key} className="group relative">
+                    <button
+                      type="button"
+                      onClick={() => go(r)}
+                      className="flex w-full items-baseline justify-between gap-3 px-3 py-2 pr-9 text-left text-sm hover:bg-muted"
+                    >
+                      <span className="font-semibold text-foreground">{r.name}</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {r.admin1 ?? "CH"}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFavorite(r);
+                      }}
+                      title="Favorit entfernen"
+                      aria-label={`${r.name} aus Favoriten entfernen`}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:bg-muted-foreground/10 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </>
+            )}
+            {!searching && recentItems.length > 0 && (
               <li className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Zuletzt gesucht
               </li>
             )}
-            {list.map((r) => (
+            {(searching ? searchItems : recentItems).map((r) => (
               <li key={r.key}>
                 <button
                   type="button"
