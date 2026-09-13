@@ -801,7 +801,7 @@ function DayStrip({
               key={day.iso}
               type="button"
               onClick={() => onSelect(i)}
-              className={`relative text-left p-2 @[640px]:p-4 @[1000px]:p-3 space-y-2 @[640px]:space-y-3 snap-start shrink-0 basis-[70%] @[420px]:basis-[45%] @[640px]:basis-[calc(100%/4-1px)] @[820px]:basis-[calc(100%/5-1px)] @[1000px]:basis-[calc(100%/7-1px)] transition-colors ${
+              className={`relative text-left p-2 @[640px]:p-3 space-y-1 @[640px]:space-y-1.5 snap-start shrink-0 basis-[70%] @[420px]:basis-[45%] @[640px]:basis-[calc(100%/4-1px)] @[820px]:basis-[calc(100%/5-1px)] @[1000px]:basis-[calc(100%/7-1px)] transition-colors ${
                 selected
                   ? "bg-[var(--accent-soft)]"
                   : "bg-zinc-50 hover:bg-zinc-100"
@@ -812,24 +812,24 @@ function DayStrip({
               )}
               <div className="flex flex-col items-center text-center">
                 <span
-                  className={`text-base font-bold font-[family-name:var(--font-display)] ${
+                  className={`text-sm @[640px]:text-base font-bold font-[family-name:var(--font-display)] ${
                     selected ? "text-accent" : "text-zinc-900"
                   }`}
                 >
                   {i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
                 </span>
-                <span className="text-xs text-zinc-700 font-semibold">
+                <span className="text-[11px] @[640px]:text-xs text-zinc-700 font-semibold">
                   {formatDateShort(day.date)}
                 </span>
               </div>
               <div
-                className="py-1 select-none text-zinc-900 flex justify-center [&_svg]:h-14 [&_svg]:w-14 @[640px]:[&_svg]:h-20 @[640px]:[&_svg]:w-20"
+                className="py-0.5 select-none text-zinc-900 flex justify-center [&_svg]:h-10 [&_svg]:w-10 @[640px]:[&_svg]:h-12 @[640px]:[&_svg]:w-12"
                 aria-label={weatherLabel(d.weathercode[di])}
                 title={weatherLabel(d.weathercode[di])}
               >
                 <WeatherIcon
                   code={d.weathercode[di]}
-                  size={80}
+                  size={56}
                   scope="daily"
                   precip={d.precipitation_sum[di]}
                   precipProb={d.precipitation_probability_max?.[di]}
@@ -844,21 +844,21 @@ function DayStrip({
                   cloudHigh={d.cloud_cover_high_mean?.[di]}
                 />
               </div>
-              <div className="flex items-baseline justify-center gap-2 tabular-nums font-[family-name:var(--font-display)]">
-                <span className="text-base @[640px]:text-lg font-semibold text-zinc-700">
+              <div className="flex items-baseline justify-center gap-1.5 tabular-nums font-[family-name:var(--font-display)]">
+                <span className="text-sm @[640px]:text-base font-semibold text-zinc-700">
                   {Number.isFinite(d.temperature_2m_min[di]) ? `${Math.round(d.temperature_2m_min[di])}°` : "–"}
                 </span>
                 <span className="text-zinc-400 font-normal">|</span>
-                <span className="text-lg @[640px]:text-xl @[1100px]:text-2xl font-bold text-zinc-900">
+                <span className="text-base @[640px]:text-lg @[1100px]:text-xl font-bold text-zinc-900">
                   {Number.isFinite(d.temperature_2m_max[di]) ? `${Math.round(d.temperature_2m_max[di])}°` : "–"}
                 </span>
               </div>
-              <div className="pt-2 border-t border-zinc-200/70 space-y-1">
+              <div className="pt-1 border-t border-zinc-200/70 space-y-0.5">
                 <div className="flex items-baseline justify-between tabular-nums">
-                  <span className="text-sm font-bold text-zinc-900">
+                  <span className="text-xs @[640px]:text-sm font-bold text-zinc-900">
                     {Number.isFinite(d.precipitation_sum[di]) ? `${d.precipitation_sum[di].toFixed(1)} mm` : "– mm"}
                   </span>
-                  <span className="text-xs font-semibold text-zinc-700">{probLabel}</span>
+                  <span className="text-[11px] @[640px]:text-xs font-semibold text-zinc-700">{probLabel}</span>
                 </div>
                 <DayRainSparkline hourly={h} dayIso={day.iso} />
               </div>
@@ -896,7 +896,7 @@ function DayRainSparkline({
   const scale = Math.max(2, maxMm * 1.1);
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="flex h-8 w-full items-end gap-px">
+      <div className="flex h-6 w-full items-end gap-px">
         {buckets.map((b, k) => {
           const hasMm = b.mm > 0;
           const mmHeight = hasMm ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
