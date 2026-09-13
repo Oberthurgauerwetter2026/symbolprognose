@@ -23,6 +23,24 @@ const C = {
   fog: "var(--wx-fog)",
 };
 
+// Sanftes Fallen der Regentropfen: kurze Fallstrecke, Ein-/Ausblenden,
+// gestaffelt über negative Delays. Bei reduzierter Bewegung statisch.
+export const DROP_ANIM_CSS = `
+@keyframes wx-drop-fall {
+  0% { transform: translateY(0); opacity: 0; }
+  18% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { transform: translateY(7px); opacity: 0; }
+}
+.wx-drop-anim { animation: wx-drop-fall 1.5s ease-in infinite; }
+@media (prefers-reduced-motion: reduce) { .wx-drop-anim { animation: none; } }
+`;
+
+// Deterministischer Startversatz pro Tropfenposition, damit sie versetzt fallen.
+export function dropDelay(x: number, y: number): number {
+  return -(((Math.round(x) * 7 + Math.round(y) * 13) % 15) / 10);
+}
+
 function Svg({
   size = 48,
   children,
@@ -37,6 +55,7 @@ function Svg({
       aria-hidden
       {...rest}
     >
+      <style>{DROP_ANIM_CSS}</style>
       {children}
     </svg>
   );
@@ -150,19 +169,24 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
   const t = tilt === 0 ? 0 : Math.sign(tilt) * 10;
   const s = size * 0.82;
   return (
-    <g transform={`translate(${x} ${y}) rotate(${t}) scale(${s})`}>
-      <path
-        d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z"
-        fill="var(--wx-drop, #7db8e0)"
-        stroke="var(--wx-drop-edge, #4d86b0)"
-        strokeWidth="0.7"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M 0 -6.9 C 1.1 -3.6 2.0 -1.2 2.2 0.9 C 1.3 -0.6 0.6 -2.2 0 -3.4 C -0.6 -2.2 -1.3 -0.6 -2.2 0.9 C -2.0 -1.2 -1.1 -3.6 0 -6.9 Z"
-        fill="var(--wx-drop-hi, #ffffff)"
-        opacity="0.55"
-      />
+    <g
+      className="wx-drop-anim"
+      style={{ animationDelay: `${dropDelay(x, y)}s` }}
+    >
+      <g transform={`translate(${x} ${y}) rotate(${t}) scale(${s})`}>
+        <path
+          d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z"
+          fill="var(--wx-drop, #7db8e0)"
+          stroke="var(--wx-drop-edge, #4d86b0)"
+          strokeWidth="0.7"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M 0 -6.9 C 1.1 -3.6 2.0 -1.2 2.2 0.9 C 1.3 -0.6 0.6 -2.2 0 -3.4 C -0.6 -2.2 -1.3 -0.6 -2.2 0.9 C -2.0 -1.2 -1.1 -3.6 0 -6.9 Z"
+          fill="var(--wx-drop-hi, #ffffff)"
+          opacity="0.55"
+        />
+      </g>
     </g>
   );
 }
