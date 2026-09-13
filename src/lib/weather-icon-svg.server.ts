@@ -234,6 +234,26 @@ function pickWetDaily(opts: {
   return IDrizzle(opts.size);
 }
 
+function pickDryDaily(opts: {
+  size: number;
+  sunshineRatio?: number;
+  cloudLow?: number;
+  cloudMid?: number;
+  cloudHigh?: number;
+}): string {
+  const low = opts.cloudLow ?? 0;
+  const mid = opts.cloudMid ?? 0;
+  const high = opts.cloudHigh ?? 0;
+  if (low >= 60) return ICloudy(opts.size);
+  if ((opts.sunshineRatio ?? 0) >= 0.55 && low < 30 && mid < 40) {
+    return IMostlyClear(opts.size, true);
+  }
+  if ((opts.sunshineRatio ?? 0) >= 0.25 || mid >= 40 || high >= 40) {
+    return IPartlyCloudy(opts.size, true);
+  }
+  return ICloudy(opts.size);
+}
+
 // ---------- MCH → existing icon set mapping (mirrors mchToIcon) ----------
 
 function renderMchIconSvg(mchCode: number, size: number, isDayOverride?: boolean, temp?: number): string {
@@ -340,6 +360,15 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
 
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
   const wmoIsThunder = code === 95 || code === 96 || code === 99;
+  const dailyHasDryMajority =
+    scope === "daily" &&
+    typeof precipHours === "number" &&
+    Number.isFinite(precipHours) &&
+    precipHours < 8;
+
+  if (dailyHasDryMajority && (wmoIsWet || isSnow || (thunderHours ?? 0) > 0)) {
+    return pickDryDaily({ size, sunshineRatio, cloudLow, cloudMid, cloudHigh });
+  }
 
 
   if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {

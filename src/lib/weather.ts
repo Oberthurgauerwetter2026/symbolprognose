@@ -511,7 +511,11 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
     return code;
   };
 
-  const isDry = precipHours <= 1 && precipSum < 1;
+  // Ein Niederschlagssymbol darf den Tag nur prägen, wenn mindestens die
+  // Hälfte der betrachteten Tagesstunden nass ist. Einzelne Schauer bleiben
+  // in der Stundenprognose und in der Niederschlagsmenge sichtbar.
+  const hasWetMajority = precipHours * 2 >= idxs.length;
+  const isDry = !hasWetMajority;
   const isPersistentRain =
     precipHours >= 8 || (precipHours >= 6 && sunshineRatio < 0.15);
   const isShowerDay =
@@ -525,10 +529,11 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
       .filter((i) => !((h.precipitation?.[i] ?? 0) >= 0.1))
       .map((i) => h.weathercode?.[i])
       .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
-      // Trockene Stunde kann kein Gewitter sein — solche Codes ausschliessen.
-      .filter((v) => v !== 95 && v !== 96 && v !== 99);
+      // Bei trockener Mehrheit darf kein Niederschlagscode den Tag bestimmen.
+      .filter((v) => v < 50);
+    const allDryCodes = finite(h.weathercode).filter((v) => v < 50);
     weathercode = adjustForClouds(
-      representativeWeathercode(dryCodes) ?? representativeWeathercode(finite(h.weathercode)),
+      representativeWeathercode(dryCodes) ?? representativeWeathercode(allDryCodes) ?? 3,
     );
   } else if (isShowerDay) {
     if (thunderHours >= 1) {
