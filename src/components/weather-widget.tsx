@@ -18,9 +18,10 @@ import { LocationSearch } from "@/components/location-search";
 import { useFavoritePlaces } from "@/lib/favorites";
 
 import { WeatherIcon } from "@/components/weather-icons";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ScrollEdgeShadows } from "@/components/ui/scroll-edge-shadows";
-import { MapPin, Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon, Star } from "lucide-react";
+import { ChevronDown, MapPin, Sun, Snowflake, Droplet, Sunrise, Sunset, Star } from "lucide-react";
 import { useActiveWarnings } from "@/hooks/use-warnings";
 import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
 import { WarningBadge } from "@/components/warnings/warning-badge";
@@ -119,6 +120,7 @@ function WeatherWidgetInner({
   compact = false,
   initialExtended = false,
   requireExplicitLocation = false,
+  compactAutoLocation = false,
   transparent = false,
 }: {
   initialDayIdx?: number;
@@ -133,6 +135,8 @@ function WeatherWidgetInner({
    * die Prognose klappt erst nach Suche oder Klick auf „Ortung“ auf.
    */
   requireExplicitLocation?: boolean;
+  /** Zeigt automatisch geladene/gespeicherte Orte zuerst als kurze Vorschau. */
+  compactAutoLocation?: boolean;
   /** Entfernt nur im eigenständigen iframe den Seitenhintergrund. */
   transparent?: boolean;
 } = {}) {
@@ -214,6 +218,9 @@ function WeatherWidgetInner({
     if (params.get("embed") === "minimal") setEmbedMinimal(true);
   }, []);
   const [extended, setExtended] = useState(initialExtended);
+  const [showFullForecast, setShowFullForecast] = useState(
+    () => !compactAutoLocation || Boolean(initialLocation || lockedLocation),
+  );
   const [snow, setSnow] = useState(false);
   const [selectedDayIdx, setSelectedDayIdx] = useState(initialDayIdx ?? 0);
   const [panelTarget, setPanelTarget] = useState<{ idx: number; tick: number }>({ idx: initialDayIdx ?? 0, tick: 0 });
@@ -397,6 +404,7 @@ function WeatherWidgetInner({
               longitude: loc.longitude,
             });
             setSelectedDayIdx(0);
+            setShowFullForecast(true);
           }}
           onGeolocate={async () => {
             if (!navigator.geolocation) return;
@@ -411,6 +419,7 @@ function WeatherWidgetInner({
                 longitude: pos.coords.longitude,
               });
               setSelectedDayIdx(0);
+              setShowFullForecast(true);
             });
           }}
           extended={extended}
@@ -457,31 +466,45 @@ function WeatherWidgetInner({
               extended={extended}
             />
 
-            <DaySummaryBar
-              forecast={forecast.data}
-              selectedDayIdx={days[selectedDayIdx]?.idx ?? 0}
-            />
+            {!showFullForecast ? (
+              <>
+                <CompactHourlyStrip forecast={forecast.data} hourlyIndices={allHourly} />
+                <div className="flex justify-center pt-1">
+                  <Button type="button" onClick={() => setShowFullForecast(true)}>
+                    Ganze Prognose anzeigen
+                    <ChevronDown aria-hidden />
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <DaySummaryBar
+                  forecast={forecast.data}
+                  selectedDayIdx={days[selectedDayIdx]?.idx ?? 0}
+                />
 
-            <DetailPanel
-              forecast={forecast.data}
-              hourlyIndices={allHourly}
-              days={days}
-              selectedDayIdx={selectedDayIdx}
-              onVisibleDayChange={setSelectedDayIdx}
-              targetDayIdx={panelTarget.idx}
-              targetTick={panelTarget.tick}
-              now={now}
-              extended={extended}
-              snow={snow}
-            />
+                <DetailPanel
+                  forecast={forecast.data}
+                  hourlyIndices={allHourly}
+                  days={days}
+                  selectedDayIdx={selectedDayIdx}
+                  onVisibleDayChange={setSelectedDayIdx}
+                  targetDayIdx={panelTarget.idx}
+                  targetTick={panelTarget.tick}
+                  now={now}
+                  extended={extended}
+                  snow={snow}
+                />
 
-            <Footer
-              forecast={forecast.data}
-              selectedDayIdx={selectedDayIdx}
-              extended={extended}
-            />
+                <Footer
+                  forecast={forecast.data}
+                  selectedDayIdx={selectedDayIdx}
+                  extended={extended}
+                />
 
-            <DataStamp updatedAt={forecast.dataUpdatedAt} />
+                <DataStamp updatedAt={forecast.dataUpdatedAt} />
+              </>
+            )}
           </>
         )}
       </div>
@@ -649,14 +672,6 @@ function Header({
       </div>
 
       <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
-        <a
-          href="/karte"
-          className="h-10 px-3 inline-flex items-center gap-1.5 bg-white border border-zinc-200 text-zinc-900 text-sm font-semibold rounded-md shadow-sm transition-all hover:bg-zinc-50 hover:border-zinc-300 hover:shadow"
-          title="Wetterkarte der Region"
-        >
-          <MapIcon className="w-4 h-4 text-accent" aria-hidden />
-          <span>Karte</span>
-        </a>
         <label className="flex items-center gap-2 cursor-pointer" title="Sonnenschein">
           <Switch
             checked={extended}
@@ -675,6 +690,61 @@ function Header({
         </label>
       </div>
     </header>
+  );
+}
+
+/* ---------------- Kompakte Stundenübersicht ---------------- */
+
+function CompactHourlyStrip({
+  forecast,
+  hourlyIndices,
+}: {
+  forecast: import("@/lib/weather").ForecastResponse;
+  hourlyIndices: { idx: number; cadence: "1h" | "3h" }[];
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const h = forecast.hourly;
+  const slots = hourlyIndices.slice(0, 8);
+  if (!slots.length) return null;
+
+  return (
+    <section className="overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
+      <div className="border-b border-zinc-200 px-3 py-2 text-sm font-bold text-zinc-900">
+        Nächste Stunden
+      </div>
+      <div className="relative overflow-hidden">
+        <div ref={scrollerRef} className="flex overflow-x-auto no-scrollbar">
+          {slots.map(({ idx }) => {
+            const precipitation = h.precipitation?.[idx] ?? 0;
+            return (
+              <div
+                key={h.time[idx]}
+                className="flex w-[76px] shrink-0 flex-col items-center gap-1 border-r border-zinc-200 px-2 py-2.5 text-center last:border-r-0"
+              >
+                <span className="text-xs font-semibold text-zinc-600">
+                  {formatTimeHHMM(h.time[idx])}
+                </span>
+                <span className="text-zinc-900 [&_svg]:h-9 [&_svg]:w-9">
+                  <WeatherIcon
+                    code={h.weathercode[idx]}
+                    size={40}
+                    temp={h.temperature_2m[idx]}
+                    precip={precipitation}
+                  />
+                </span>
+                <span className="text-base font-bold tabular-nums text-zinc-900">
+                  {Math.round(h.temperature_2m[idx])}°
+                </span>
+                <span className="text-[11px] font-semibold tabular-nums text-zinc-600">
+                  {precipitation > 0 ? `${precipitation.toFixed(1)} mm` : "trocken"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <ScrollEdgeShadows scrollRef={scrollerRef} />
+      </div>
+    </section>
   );
 }
 
