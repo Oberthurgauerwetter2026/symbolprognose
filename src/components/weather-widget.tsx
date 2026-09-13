@@ -1167,7 +1167,7 @@ function DetailPanel({
         <div className="w-10 shrink-0 border-r border-zinc-200 bg-[color-mix(in_oklab,var(--accent)_10%,white)] flex flex-col justify-end">
           <div className="flex-1" />
           {/* Precipitation axis */}
-          <div className="relative h-[72px] text-[10px] text-zinc-900 font-bold tabular-nums">
+          <div className="relative h-[48px] text-[10px] text-zinc-900 font-bold tabular-nums">
             {[5, 2.5, 0].map((v) => (
               <div
                 key={v}
@@ -1191,7 +1191,7 @@ function DetailPanel({
           </div>
           {extended && (
             <>
-              <div className="relative h-[72px] text-[10px] text-zinc-900 font-bold tabular-nums border-t border-zinc-200">
+              <div className="relative h-[48px] text-[10px] text-zinc-900 font-bold tabular-nums border-t border-zinc-200">
                 {[60, 30, 0].map((v) => (
                   <div
                     key={v}
@@ -1217,7 +1217,7 @@ function DetailPanel({
           )}
           {snow && (
             <>
-              <div className="relative h-[72px] text-[10px] text-zinc-900 font-bold tabular-nums border-t border-zinc-200">
+              <div className="relative h-[48px] text-[10px] text-zinc-900 font-bold tabular-nums border-t border-zinc-200">
                 {[2, 1, 0].map((v) => (
                   <div
                     key={v}
@@ -1376,7 +1376,7 @@ function DetailPanel({
                     key={iso}
                     className={`flex-shrink-0 ${slotWidthClass(cadence)} flex flex-col`}
                   >
-                    <div className="relative h-[72px] w-full">
+                    <div className="relative h-[48px] w-full">
                       {[0, 2.5, 5].map((v) => (
                         <div
                           key={v}
@@ -1451,22 +1451,6 @@ function DetailPanel({
 
 
                     </div>
-                    <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
-                      <div className="font-bold flex justify-around px-1">
-                        {perHour.map(({ mm }, k) => (
-                          <span key={k} className={cadence === "1h" ? "w-full" : "w-1/3"}>
-                            {mm > 0 ? mm.toFixed(1) : "–"}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="text-zinc-700 font-semibold flex justify-around px-1">
-                        {perHour.map(({ prob }, k) => (
-                          <span key={k} className={cadence === "1h" ? "w-full" : "w-1/3"}>
-                            {prob}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 );
               })}
@@ -1499,7 +1483,7 @@ function DetailPanel({
                       key={iso}
                       className={`flex-shrink-0 ${slotWidthClass(cadence)} flex flex-col`}
                     >
-                      <div className="relative h-[72px] w-full">
+                      <div className="relative h-[48px] w-full">
                         {[0, 30, 60].map((v) => (
                           <div
                             key={v}
@@ -1584,7 +1568,7 @@ function DetailPanel({
                       key={iso}
                       className={`flex-shrink-0 ${slotWidthClass(cadence)} flex flex-col`}
                     >
-                      <div className="relative h-[72px] w-full">
+                      <div className="relative h-[48px] w-full">
                         {[0, 1, 2].map((v) => (
                           <div
                             key={v}
