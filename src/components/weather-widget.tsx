@@ -786,7 +786,23 @@ function DayStrip({
 }) {
   const d = forecast.daily;
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const tileRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
   const h = forecast.hourly;
+
+  // Scrollt die gewählte Tageskachel ins Bild, wenn sie (z. B. nach dem
+  // Scrollen der Stundenprognose auf einen neuen Tag) nicht vollständig
+  // sichtbar ist. Bereits sichtbare Kacheln lösen keinen Scroll aus.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const tile = tileRefs.current.get(selectedIdx);
+    if (!scroller || !tile) return;
+    const left = tile.offsetLeft - scroller.offsetLeft;
+    const right = left + tile.offsetWidth;
+    const viewLeft = scroller.scrollLeft;
+    const viewRight = viewLeft + scroller.clientWidth;
+    if (left >= viewLeft && right <= viewRight) return;
+    tile.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
+  }, [selectedIdx]);
   return (
     <div className="space-y-2">
       <div className="relative overflow-hidden rounded-md">
@@ -803,6 +819,10 @@ function DayStrip({
             <button
               key={day.iso}
               type="button"
+              ref={(el) => {
+                if (el) tileRefs.current.set(i, el);
+                else tileRefs.current.delete(i);
+              }}
               onClick={() => onSelect(i)}
               className={`relative text-left p-2.5 @[640px]:p-3.5 space-y-1.5 snap-start shrink-0 basis-[70%] @[420px]:basis-[45%] @[640px]:basis-[calc(100%/4-1px)] @[820px]:basis-[calc(100%/5-1px)] @[1000px]:basis-[calc(100%/7-1px)] transition-colors ${
                 selected
