@@ -693,37 +693,11 @@ function DayStrip({
   extended: boolean;
 }) {
   const d = forecast.daily;
+
   const h = forecast.hourly;
-  const stripRef = useRef<HTMLDivElement>(null);
-  const [shadowLeft, setShadowLeft] = useState(false);
-  const [shadowRight, setShadowRight] = useState(false);
-
-  useEffect(() => {
-    const el = stripRef.current;
-    if (!el) return;
-    const update = () => {
-      const left = el.scrollLeft > 2;
-      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
-      setShadowLeft(left);
-      setShadowRight(right);
-    };
-    update();
-    el.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    return () => {
-      el.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-    };
-  }, []);
-
   return (
     <div className="space-y-2">
-      <div
-        ref={stripRef}
-        data-shadow-left={shadowLeft}
-        data-shadow-right={shadowRight}
-        className="scroll-shadow-x flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar"
-      >
+      <div className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto snap-x snap-mandatory no-scrollbar">
         {days.map((day, i) => {
           const selected = i === selectedIdx;
           const di = day.idx;

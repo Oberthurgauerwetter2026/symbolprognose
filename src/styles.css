@@ -221,36 +221,6 @@ html.embed .embed-fallback {
 
 
 
-/* Horizontal scrollbare Panels: schwache Schatten am linken/rechten Rand,
-   wenn Inhalt in diese Richtung scrollt. */
-.scroll-shadow-x {
-  position: relative;
-}
-.scroll-shadow-x::before,
-.scroll-shadow-x::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 28px;
-  pointer-events: none;
-  z-index: 10;
-  opacity: 0;
-  transition: opacity 180ms ease;
-}
-.scroll-shadow-x::before {
-  left: 0;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.07), transparent);
-}
-.scroll-shadow-x::after {
-  right: 0;
-  background: linear-gradient(to left, rgba(0, 0, 0, 0.07), transparent);
-}
-.scroll-shadow-x[data-shadow-left="true"]::before,
-.scroll-shadow-x[data-shadow-right="true"]::after {
-  opacity: 1;
-}
-
 /* Karten mit überlagertem Bedienpanel (Filmstrip/Legende): auf schmalen
    Bildschirmen darf die Leaflet-Quellenzeile nicht mehrzeilig werden und das
    Panel überdecken. Sie bleibt einzeilig, wird bei Platzmangel gekürzt und
