@@ -665,10 +665,21 @@ export function WeatherIcon({
   // Schnee-Override (gilt für beide Scopes — robustes Tagessignal).
   if (isSnow && !wmoIsWet) return <IconSnow {...props} />;
 
-  // Tages-Override: jeder Niederschlag im 06–21-Fenster muss sichtbar sein,
-  // auch wenn der Modus-Code trocken ist.
+  // Tages-Override: Niederschlag im 06–21-Fenster soll sichtbar sein, auch
+  // wenn der Modus-Code trocken ist — ABER nur, solange keine trockene
+  // Mehrheit bekannt ist. Sind die Niederschlagsstunden bekannt und unter 8,
+  // hat die Mehrheitsregel oben bereits ein trockenes Symbol bestimmt; ein
+  // kurzer Abendschauer darf das Tagessymbol dann nicht überstimmen
+  // (Menge und Risiko bleiben in den Kacheln sichtbar).
+  const precipHoursKnown =
+    scope === "daily" &&
+    typeof precipHours === "number" &&
+    Number.isFinite(precipHours);
   const dayHasRain =
-    scope === "daily" && !isSnow && ((precipHours ?? 0) >= 1 || (precip ?? 0) >= 0.5);
+    scope === "daily" &&
+    !isSnow &&
+    !precipHoursKnown &&
+    ((precipHours ?? 0) >= 1 || (precip ?? 0) >= 0.5);
   if (dayHasRain && !wmoIsWet) {
     return pickWetDailyIcon({ sunshineRatio, precipHours, precip, isSnow, size, className });
   }
