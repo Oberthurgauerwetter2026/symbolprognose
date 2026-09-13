@@ -21,7 +21,7 @@ import { WeatherIcon } from "@/components/weather-icons";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ScrollEdgeShadows } from "@/components/ui/scroll-edge-shadows";
-import { ChevronDown, MapPin, Sun, Snowflake, Droplet, Sunrise, Sunset, Star } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, Sun, Snowflake, Droplet, Sunrise, Sunset, Star } from "lucide-react";
 import { useActiveWarnings } from "@/hooks/use-warnings";
 import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
 import { WarningBadge } from "@/components/warnings/warning-badge";
@@ -218,6 +218,8 @@ function WeatherWidgetInner({
     if (params.get("embed") === "minimal") setEmbedMinimal(true);
   }, []);
   const [extended, setExtended] = useState(initialExtended);
+  const canCollapseToCompact =
+    compactAutoLocation && !initialLocation && !lockedLocation;
   const [showFullForecast, setShowFullForecast] = useState(
     () => !compactAutoLocation || Boolean(initialLocation || lockedLocation),
   );
@@ -506,6 +508,19 @@ function WeatherWidgetInner({
                 />
 
                 <DataStamp updatedAt={forecast.dataUpdatedAt} />
+
+                {canCollapseToCompact && (
+                  <div className="flex justify-center pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setShowFullForecast(false)}
+                    >
+                      <ChevronUp aria-hidden />
+                      Kompakte Übersicht
+                    </Button>
+                  </div>
+                )}
               </>
             )}
           </>
