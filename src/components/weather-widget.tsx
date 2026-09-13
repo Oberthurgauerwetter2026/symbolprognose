@@ -1293,14 +1293,14 @@ function DetailPanel({
                       </div>
                     )}
                     <div
-                      className={`text-sm font-bold tabular-nums ${
+                      className={`flex h-5 items-center justify-center text-sm font-bold tabular-nums ${
                         isCurrent ? "text-accent" : "text-zinc-900"
                       }`}
                     >
                       {String(t.getHours()).padStart(2, "0")}:00
                     </div>
                     <div
-                      className="flex items-center justify-center"
+                      className="flex h-16 items-center justify-center"
                       title={weatherLabel(h.weathercode?.[idx] ?? 0)}
                     >
                       <WeatherIcon
@@ -1317,15 +1317,13 @@ function DetailPanel({
                         cloudHigh={h.cloud_cover_high?.[idx]}
                         temp={h.temperature_2m?.[idx]}
                       />
-
-
                     </div>
-                    <div className={`${cadence === "1h" ? "text-base" : "text-xl"} font-bold tabular-nums text-zinc-900`}>
+                    <div className="flex h-6 items-center justify-center text-lg font-bold tabular-nums text-zinc-900">
                       {Number.isFinite(h.temperature_2m?.[idx])
                         ? `${h.temperature_2m[idx].toFixed(1)}°`
                         : "–"}
                     </div>
-                    <div className="space-y-2">
+                    <div className="flex min-h-[2rem] items-center justify-center">
                       <div className="flex items-center gap-1.5 text-xs">
                         <WindArrow deg={h.winddirection_10m?.[idx] ?? 0} size="lg" />
                         <span className="tabular-nums">
