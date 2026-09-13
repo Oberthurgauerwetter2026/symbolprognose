@@ -167,13 +167,14 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
   // weichem blaugrauem Rand — kein cartooniger dunkler Kontur-Ring.
   // Einheitlich ruhige Neigung von 10°, unabhängig von der übergebenen Neigung.
   const t = tilt === 0 ? 0 : Math.sign(tilt) * 10;
-  const s = size * 0.82;
+  const sy = size * 0.82;
+  const sx = sy * 0.9; // etwas schmaler, damit benachbarte Tropfen nicht überlappen
   return (
     <g
       className="wx-drop-anim"
       style={{ animationDelay: `${dropDelay(x, y)}s` }}
     >
-      <g transform={`translate(${x} ${y}) rotate(${t}) scale(${s})`}>
+      <g transform={`translate(${x} ${y}) rotate(${t}) scale(${sx} ${sy})`}>
         <path
           d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z"
           fill="var(--wx-drop, #7db8e0)"
