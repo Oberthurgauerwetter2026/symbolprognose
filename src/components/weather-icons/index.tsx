@@ -23,6 +23,24 @@ const C = {
   fog: "var(--wx-fog)",
 };
 
+// Sanftes Fallen der Regentropfen: kurze Fallstrecke, Ein-/Ausblenden,
+// gestaffelt über negative Delays. Bei reduzierter Bewegung statisch.
+export const DROP_ANIM_CSS = `
+@keyframes wx-drop-fall {
+  0% { transform: translateY(0); opacity: 0; }
+  18% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { transform: translateY(7px); opacity: 0; }
+}
+.wx-drop-anim { animation: wx-drop-fall 1.5s ease-in infinite; }
+@media (prefers-reduced-motion: reduce) { .wx-drop-anim { animation: none; } }
+`;
+
+// Deterministischer Startversatz pro Tropfenposition, damit sie versetzt fallen.
+export function dropDelay(x: number, y: number): number {
+  return -(((Math.round(x) * 7 + Math.round(y) * 13) % 15) / 10);
+}
+
 function Svg({
   size = 48,
   children,
@@ -37,6 +55,7 @@ function Svg({
       aria-hidden
       {...rest}
     >
+      <style>{DROP_ANIM_CSS}</style>
       {children}
     </svg>
   );
