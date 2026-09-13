@@ -129,22 +129,40 @@ export function LocationSearch({
       .catch(() => window.location.assign(`/karten/lokal?${qs.toString()}`));
   };
 
-  const list =
-    debounced.trim().length >= 2
-      ? (results.data ?? []).map((r) => ({
-          key: String(r.id),
-          name: r.name,
-          admin1: r.admin1,
-          latitude: r.latitude,
-          longitude: r.longitude,
-        }))
-      : recent.map((r, i) => ({
-          key: `recent-${i}-${r.name}`,
-          name: r.name,
-          admin1: r.admin1,
-          latitude: r.latitude,
-          longitude: r.longitude,
-        }));
+  const searching = debounced.trim().length >= 2;
+
+  const toItem = (
+    r: { name: string; latitude: number; longitude: number; admin1?: string },
+    key: string,
+  ) => ({
+    key,
+    name: r.name,
+    admin1: r.admin1,
+    latitude: r.latitude,
+    longitude: r.longitude,
+  });
+
+  const searchItems = searching
+    ? (results.data ?? []).map((r) => toItem(r, String(r.id)))
+    : [];
+  const favItems = searching
+    ? []
+    : favorites.map((f, i) => toItem(f, `fav-${i}-${f.name}`));
+  // Zuletzt gesuchte Orte, die bereits Favorit sind, nicht doppelt anzeigen.
+  const recentItems = searching
+    ? []
+    : recent
+        .filter(
+          (r) =>
+            !favorites.some(
+              (f) =>
+                Math.abs(f.latitude - r.latitude) <= 1e-3 &&
+                Math.abs(f.longitude - r.longitude) <= 1e-3,
+            ),
+        )
+        .map((r, i) => toItem(r, `recent-${i}-${r.name}`));
+
+  const list = searching ? searchItems : [...favItems, ...recentItems];
 
   const showList = open && list.length > 0;
   const overlay = variant === "overlay";
