@@ -168,7 +168,7 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
   // Einheitlich ruhige Neigung von 10°, unabhängig von der übergebenen Neigung.
   const t = tilt === 0 ? 0 : Math.sign(tilt) * 10;
   const sy = size * 0.82;
-  const sx = sy * 0.9; // etwas schmaler, damit benachbarte Tropfen nicht überlappen
+  const sx = sy * 0.72; // schlank genug, damit benachbarte Tropfen klar getrennt bleiben
   return (
     <g
       className="wx-drop-anim"
@@ -177,8 +177,8 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
       <g transform={`translate(${x} ${y}) rotate(${t}) scale(${sx} ${sy})`}>
         <path
           d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z"
-          fill="var(--wx-drop, #7db8e0)"
-          stroke="var(--wx-drop-edge, #4d86b0)"
+          fill="var(--wx-drop, #69b7e8)"
+          stroke="var(--wx-drop-edge, #3d84b8)"
           strokeWidth="0.7"
           strokeLinejoin="round"
         />
