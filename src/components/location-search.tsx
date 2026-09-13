@@ -1,13 +1,15 @@
 /**
  * Gemeinsames Ortssuchfeld für Regionskarte (Overlay) und Lokalprognose (Inline).
- * Teilt den Verlauf der letzten 3 Suchen über localStorage.
+ * Teilt Favoriten und den Verlauf der letzten 3 Suchen über localStorage.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+import { Star, X } from "lucide-react";
 import { searchLocations, type GeoLocation } from "@/lib/weather";
 import { SITE_URL } from "@/lib/site-url";
+import { useFavoritePlaces } from "@/lib/favorites";
 import { cn } from "@/lib/utils";
 
 const RECENT_KEY = "otw:lokal-recent";
@@ -68,6 +70,7 @@ export function LocationSearch({
   const [open, setOpen] = useState(false);
   const [debounced, setDebounced] = useState("");
   const [recent, setRecent] = useState<RecentPlace[]>([]);
+  const { favorites, remove: removeFavorite } = useFavoritePlaces();
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setRecent(readRecentPlaces()), []);
@@ -126,22 +129,40 @@ export function LocationSearch({
       .catch(() => window.location.assign(`/karten/lokal?${qs.toString()}`));
   };
 
-  const list =
-    debounced.trim().length >= 2
-      ? (results.data ?? []).map((r) => ({
-          key: String(r.id),
-          name: r.name,
-          admin1: r.admin1,
-          latitude: r.latitude,
-          longitude: r.longitude,
-        }))
-      : recent.map((r, i) => ({
-          key: `recent-${i}-${r.name}`,
-          name: r.name,
-          admin1: r.admin1,
-          latitude: r.latitude,
-          longitude: r.longitude,
-        }));
+  const searching = debounced.trim().length >= 2;
+
+  const toItem = (
+    r: { name: string; latitude: number; longitude: number; admin1?: string },
+    key: string,
+  ) => ({
+    key,
+    name: r.name,
+    admin1: r.admin1,
+    latitude: r.latitude,
+    longitude: r.longitude,
+  });
+
+  const searchItems = searching
+    ? (results.data ?? []).map((r) => toItem(r, String(r.id)))
+    : [];
+  const favItems = searching
+    ? []
+    : favorites.map((f, i) => toItem(f, `fav-${i}-${f.name}`));
+  // Zuletzt gesuchte Orte, die bereits Favorit sind, nicht doppelt anzeigen.
+  const recentItems = searching
+    ? []
+    : recent
+        .filter(
+          (r) =>
+            !favorites.some(
+              (f) =>
+                Math.abs(f.latitude - r.latitude) <= 1e-3 &&
+                Math.abs(f.longitude - r.longitude) <= 1e-3,
+            ),
+        )
+        .map((r, i) => toItem(r, `recent-${i}-${r.name}`));
+
+  const list = searching ? searchItems : [...favItems, ...recentItems];
 
   const showList = open && list.length > 0;
   const overlay = variant === "overlay";
@@ -216,12 +237,46 @@ export function LocationSearch({
                 : "inset-x-0 top-[calc(100%+4px)] z-20 rounded-md",
             )}
           >
-            {debounced.trim().length < 2 && (
+            {!searching && favItems.length > 0 && (
+              <>
+                <li className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <Star className="h-3 w-3 fill-current" aria-hidden />
+                  Favoriten
+                </li>
+                {favItems.map((r) => (
+                  <li key={r.key} className="group relative">
+                    <button
+                      type="button"
+                      onClick={() => go(r)}
+                      className="flex w-full items-baseline justify-between gap-3 px-3 py-2 pr-9 text-left text-sm hover:bg-muted"
+                    >
+                      <span className="font-semibold text-foreground">{r.name}</span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {r.admin1 ?? "CH"}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFavorite(r);
+                      }}
+                      title="Favorit entfernen"
+                      aria-label={`${r.name} aus Favoriten entfernen`}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground focus-visible:bg-muted-foreground/10 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </>
+            )}
+            {!searching && recentItems.length > 0 && (
               <li className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Zuletzt gesucht
               </li>
             )}
-            {list.map((r) => (
+            {(searching ? searchItems : recentItems).map((r) => (
               <li key={r.key}>
                 <button
                   type="button"

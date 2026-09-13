@@ -15,10 +15,11 @@ import {
 } from "@/lib/weather";
 import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 import { LocationSearch } from "@/components/location-search";
+import { useFavoritePlaces } from "@/lib/favorites";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Switch } from "@/components/ui/switch";
-import { MapPin, Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon } from "lucide-react";
+import { MapPin, Sun, Snowflake, Droplet, Sunrise, Sunset, Map as MapIcon, Star } from "lucide-react";
 import { useActiveWarnings } from "@/hooks/use-warnings";
 import { regionIdForPoint, warningsForRegion } from "@/lib/warnings-lookup";
 import { WarningBadge } from "@/components/warnings/warning-badge";
@@ -386,6 +387,7 @@ function WeatherWidgetInner({
 
         <Header
           locationName={location?.name ?? null}
+          locationCoords={location}
           hideSearch={embedMinimal}
           onSelectLocation={(loc) => {
             setLocation({
@@ -570,6 +572,7 @@ function DataStamp({ updatedAt }: { updatedAt: number }) {
 
 function Header({
   locationName,
+  locationCoords,
   hideSearch,
   onSelectLocation,
   onGeolocate,
@@ -579,6 +582,7 @@ function Header({
   onToggleSnow,
 }: {
   locationName: string | null;
+  locationCoords: { name: string; latitude: number; longitude: number } | null;
   hideSearch: boolean;
   onSelectLocation: (loc: GeoLocation) => void;
   onGeolocate: () => void;
@@ -587,6 +591,8 @@ function Header({
   snow: boolean;
   onToggleSnow: (v: boolean) => void;
 }) {
+  const { toggle: toggleFavorite, isFavorite } = useFavoritePlaces();
+  const favorite = locationCoords ? isFavorite(locationCoords) : false;
   return (
     <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-4 border-b border-zinc-200">
       <div className="space-y-2 w-full @[640px]:max-w-[56ch]">
@@ -618,6 +624,25 @@ function Header({
               <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
               {locationName}
             </span>
+            {locationCoords && (
+              <button
+                type="button"
+                onClick={() => toggleFavorite(locationCoords)}
+                aria-pressed={favorite}
+                title={favorite ? "Favorit entfernen" : "Als Favorit speichern"}
+                aria-label={
+                  favorite
+                    ? `${locationName} aus Favoriten entfernen`
+                    : `${locationName} als Favorit speichern`
+                }
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 shadow-sm transition-colors hover:border-accent/50 hover:text-accent"
+              >
+                <Star
+                  className={`h-4 w-4 ${favorite ? "fill-accent text-accent" : ""}`}
+                  aria-hidden
+                />
+              </button>
+            )}
           </div>
         )}
       </div>
