@@ -740,7 +740,7 @@ function CompactHourlyStrip({
             return (
               <div
                 key={h.time[idx]}
-                className="flex w-[76px] shrink-0 flex-col items-center gap-1 border-r border-zinc-200 px-2 py-2.5 text-center last:border-r-0"
+                className="flex min-w-[76px] flex-1 flex-col items-center gap-1 border-r border-zinc-200 px-2 py-2.5 text-center last:border-r-0"
               >
                 <span className="text-xs font-semibold text-zinc-600">
                   {formatTimeHHMM(h.time[idx])}
