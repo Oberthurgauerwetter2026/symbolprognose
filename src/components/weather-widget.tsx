@@ -733,7 +733,7 @@ function CompactHourlyStrip({
       <div className="relative overflow-hidden">
         <div
           ref={scrollerRef}
-          className="flex touch-pan-x overflow-x-auto overscroll-x-contain no-scrollbar"
+          className="flex touch-pan-x overflow-x-auto overscroll-x-contain overscroll-y-none no-scrollbar"
         >
           {slots.map(({ idx }) => {
             const precipitation = h.precipitation?.[idx] ?? 0;
@@ -1249,7 +1249,7 @@ function DetailPanel({
         <div className="relative min-w-0 flex-1 overflow-hidden">
           <div
             ref={scrollerRef}
-            className="h-full touch-pan-x overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth snap-x"
+            className="h-full touch-pan-x overflow-x-auto overscroll-x-contain overscroll-y-none no-scrollbar scroll-smooth snap-x"
           >
             <div className="inline-flex min-w-full flex-col">
             {/* Hour slots */}
