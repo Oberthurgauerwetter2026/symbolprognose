@@ -896,7 +896,7 @@ function DayRainSparkline({
   const scale = Math.max(2, maxMm * 1.1);
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="flex h-8 w-full items-end gap-px">
+      <div className="flex h-6 w-full items-end gap-px">
         {buckets.map((b, k) => {
           const hasMm = b.mm > 0;
           const mmHeight = hasMm ? Math.max(6, Math.min(100, (b.mm / scale) * 100)) : 0;
