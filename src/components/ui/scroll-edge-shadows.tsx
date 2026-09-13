@@ -54,13 +54,13 @@ export function ScrollEdgeShadows({
     >
       <div
         className={cn(
-          "absolute inset-y-0 left-0 w-5 bg-gradient-to-r from-foreground/15 to-transparent transition-opacity duration-150",
+          "absolute inset-y-0 left-0 w-4 bg-gradient-to-r from-foreground/7 to-transparent transition-opacity duration-150",
           edges.left ? "opacity-100" : "opacity-0",
         )}
       />
       <div
         className={cn(
-          "absolute inset-y-0 right-0 w-5 bg-gradient-to-l from-foreground/15 to-transparent transition-opacity duration-150",
+          "absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-foreground/7 to-transparent transition-opacity duration-150",
           edges.right ? "opacity-100" : "opacity-0",
         )}
       />
