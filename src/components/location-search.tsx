@@ -1,13 +1,15 @@
 /**
  * Gemeinsames Ortssuchfeld für Regionskarte (Overlay) und Lokalprognose (Inline).
- * Teilt den Verlauf der letzten 3 Suchen über localStorage.
+ * Teilt Favoriten und den Verlauf der letzten 3 Suchen über localStorage.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
+import { Star, X } from "lucide-react";
 import { searchLocations, type GeoLocation } from "@/lib/weather";
 import { SITE_URL } from "@/lib/site-url";
+import { useFavoritePlaces } from "@/lib/favorites";
 import { cn } from "@/lib/utils";
 
 const RECENT_KEY = "otw:lokal-recent";
