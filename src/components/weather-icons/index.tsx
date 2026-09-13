@@ -410,6 +410,35 @@ function pickWetDailyIcon({
   return <IconDrizzle {...props} />;
 }
 
+function pickDryDailyIcon({
+  sunshineRatio,
+  cloudLow,
+  cloudMid,
+  cloudHigh,
+  size,
+  className,
+}: {
+  sunshineRatio?: number;
+  cloudLow?: number;
+  cloudMid?: number;
+  cloudHigh?: number;
+  size?: number;
+  className?: string;
+}) {
+  const props = { size, className };
+  const low = cloudLow ?? 0;
+  const mid = cloudMid ?? 0;
+  const high = cloudHigh ?? 0;
+  if (low >= 60) return <IconCloudy {...props} />;
+  if ((sunshineRatio ?? 0) >= 0.55 && low < 30 && mid < 40) {
+    return <IconMostlyClear isDay {...props} />;
+  }
+  if ((sunshineRatio ?? 0) >= 0.25 || mid >= 40 || high >= 40) {
+    return <IconPartlyCloudy isDay {...props} />;
+  }
+  return <IconCloudy {...props} />;
+}
+
 /* ---------- MCH → existing icon set mapping ---------- */
 
 function mchToIcon(
@@ -573,6 +602,25 @@ export function WeatherIcon({
   // aber den weathercode auf „bedeckt/teils bewölkt" stehen lässt, das Niederschlags-Icon erzwingen.
   const wmoIsWet = (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
   const wmoIsThunder = code === 95 || code === 96 || code === 99;
+  const dailyHasDryMajority =
+    scope === "daily" &&
+    typeof precipHours === "number" &&
+    Number.isFinite(precipHours) &&
+    precipHours < 8;
+
+  // 06–21 Uhr umfasst 15 Tagesstunden: Unter acht nassen Stunden ist der Tag
+  // mehrheitlich trocken. Ein widersprüchlicher Tagescode darf dann kein
+  // Regen-, Schnee- oder Gewittersymbol erzwingen.
+  if (dailyHasDryMajority && (wmoIsWet || isSnow || (thunderHours ?? 0) > 0)) {
+    return pickDryDailyIcon({
+      sunshineRatio,
+      cloudLow,
+      cloudMid,
+      cloudHigh,
+      size,
+      className,
+    });
+  }
   // Daily-Gewitter, dreistufig:
   //  - Vollgewitter (dunkles Symbol) bei breitem/heftigem Signal
   //  - Sonne+Gewitter-Schauer bei lokal begrenztem Signal mit Sonne
