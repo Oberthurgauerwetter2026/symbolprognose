@@ -462,6 +462,9 @@ function WeatherWidgetInner({
               onSelect={(i) => {
                 setSelectedDayIdx(i);
                 setPanelTarget((p) => ({ idx: i, tick: p.tick + 1 }));
+                // In der kompakten Startansicht öffnet die Tageswahl direkt
+                // die vollständige Prognose des gewählten Tags.
+                if (!showFullForecast) setShowFullForecast(true);
               }}
               extended={extended}
             />
