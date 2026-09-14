@@ -240,9 +240,8 @@ export function removeFavoritePlace(p: {
  */
 export function useFavoritePlaces() {
   const [favorites, setFavorites] = useState<FavoritePlace[]>([]);
-  const [storage, setStorage] = useState<FavoritesStorageMode>(() =>
-    favoritesStorageMode(),
-  );
+  // null = noch nicht ermittelt; dann keinen Hinweis zeigen.
+  const [storage, setStorage] = useState<FavoritesStorageMode | null>(() => mode);
 
   useEffect(() => {
     let alive = true;
@@ -280,6 +279,6 @@ export function useFavoritePlaces() {
     remove,
     isFavorite,
     /** true, wenn Favoriten das Neuladen überleben. */
-    persistent: storage !== "memory",
+    persistent: storage === null || storage !== "memory",
   };
 }

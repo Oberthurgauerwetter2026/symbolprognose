@@ -16,6 +16,7 @@ import {
 import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 import { LocationSearch } from "@/components/location-search";
 import { useFavoritePlaces } from "@/lib/favorites";
+import { SITE_URL } from "@/lib/site-url";
 import { getPrecisePosition } from "@/lib/precise-geolocation";
 
 import { WeatherIcon } from "@/components/weather-icons";
