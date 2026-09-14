@@ -193,6 +193,7 @@ function MarkerPill({
   cloudMid,
   cloudHigh,
   warnings,
+  compact,
 }: {
   name: string;
   mode: "hourly" | "daily";
@@ -212,6 +213,7 @@ function MarkerPill({
   cloudMid?: number;
   cloudHigh?: number;
   warnings?: WarningDTO[];
+  compact: boolean;
 }) {
   const topWarning = warnings && warnings.length > 0 ? warnings[0] : null;
   const warnLevel = topWarning ? LEVELS[(Math.max(1, Math.min(3, topWarning.level)) as WarnLevel)] : null;
@@ -222,7 +224,7 @@ function MarkerPill({
         position: "relative",
         display: "inline-flex",
         alignItems: "center",
-        padding: "8px 16px 8px 28px",
+        padding: compact ? "6px 12px 6px 22px" : "8px 16px 8px 28px",
         borderRadius: 999,
         background: BRAND,
         border: warnLevel ? `2px solid ${warnLevel.color}` : "1px solid rgba(255,255,255,0.25)",
@@ -280,15 +282,15 @@ function MarkerPill({
       <span
         style={{
           position: "absolute",
-          left: -44,
+          left: compact ? -34 : -44,
           top: "50%",
           transform: "translateY(-50%)",
           pointerEvents: "none",
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          width: 71,
-          height: 71,
+          width: compact ? 56 : 71,
+          height: compact ? 56 : 71,
         }}
       >
         <span style={{ display: "inline-flex", filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.45)) drop-shadow(0 1px 2px rgba(0,0,0,0.35))" }}>
@@ -296,7 +298,7 @@ function MarkerPill({
             code={code}
             mchCode={mchCode}
             isDay={isDay}
-            size={71}
+            size={compact ? 56 : 71}
             scope={mode}
             precip={precip}
             precipProb={precipProb}
@@ -317,7 +319,7 @@ function MarkerPill({
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span
           style={{
-            fontSize: 12,
+            fontSize: compact ? 10 : 12,
             fontWeight: 600,
             color: "rgba(255,255,255,0.85)",
             letterSpacing: "0.04em",
@@ -330,16 +332,16 @@ function MarkerPill({
         <div style={{ display: "flex", gap: 4, alignItems: "baseline" }}>
           {mode === "daily" ? (
             <>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
+              <span style={{ fontSize: compact ? 12 : 14, fontWeight: 600, color: "rgba(255,255,255,0.75)" }}>
                 {Number.isFinite(tMin) ? `${Math.round(tMin)}°` : "–"}
               </span>
-              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.45)" }}>/</span>
-              <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
+              <span style={{ fontSize: compact ? 10 : 12, color: "rgba(255,255,255,0.45)" }}>/</span>
+              <span style={{ fontSize: compact ? 14 : 16, fontWeight: 700, color: "#fff" }}>
                 {Number.isFinite(tMax) ? `${Math.round(tMax)}°` : "–"}
               </span>
             </>
           ) : (
-            <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>
+            <span style={{ fontSize: compact ? 14 : 16, fontWeight: 700, color: "#fff" }}>
               {Number.isFinite(tNow) ? `${Math.round(tNow)}°` : "–"}
             </span>
           )}
@@ -377,6 +379,7 @@ function SpotMarker({
   absoluteHour,
   data,
   warnings,
+  compact,
 }: {
   spot: Spot;
   mode: "hourly" | "daily";
@@ -384,13 +387,14 @@ function SpotMarker({
   absoluteHour: number;
   data: ForecastResponse | undefined;
   warnings?: WarningDTO[];
+  compact: boolean;
 }) {
 
 
 
   const icon = useMemo(() => {
-    const ICON_W = 250;
-    const ICON_H = 72;
+    const ICON_W = compact ? 205 : 250;
+    const ICON_H = compact ? 62 : 72;
     const hasAnyWarning = !!warnings && warnings.length > 0;
     const cursor = hasAnyWarning ? "pointer" : "default";
     const wrap = (inner: string) =>
@@ -492,6 +496,7 @@ function SpotMarker({
           cloudMid={cloudMid}
           cloudHigh={cloudHigh}
           warnings={warnings}
+          compact={compact}
         />,
       ),
     );
@@ -503,17 +508,27 @@ function SpotMarker({
       iconSize: [ICON_W, ICON_H],
       iconAnchor: [ICON_W / 2, ICON_H / 2],
     });
-  }, [data, mode, dayIdx, absoluteHour, spot, warnings]);
+  }, [data, mode, dayIdx, absoluteHour, spot, warnings, compact]);
 
 
 
   const hasWarning = !!warnings && warnings.length > 0;
   return (
     <Marker
-      position={[
-        spot.lat + (spot.markerLatOffset ?? 0),
-        spot.lon + (spot.markerLonOffset ?? 0),
-      ]}
+      position={(() => {
+        const mobileOffsets: Partial<Record<string, [number, number]>> = {
+          muensterlingen: [0.004, -0.008],
+          romanshorn: [0.004, 0.008],
+          amriswil: [-0.005, 0],
+          bischofszell: [-0.005, -0.01],
+          horn: [-0.004, 0.01],
+        };
+        const mobile = compact ? mobileOffsets[spot.id] : undefined;
+        return [
+          spot.lat + (spot.markerLatOffset ?? 0) + (mobile?.[0] ?? 0),
+          spot.lon + (spot.markerLonOffset ?? 0) + (mobile?.[1] ?? 0),
+        ];
+      })()}
       icon={icon}
       interactive={hasWarning}
       {...(hasWarning
@@ -667,6 +682,18 @@ function RegionMapInner({
   const [viewMode, setViewMode] = useState<"hourly" | "daily">("daily");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const [zoom, setZoom] = useState(11);
+  const mapFrameRef = useRef<HTMLDivElement>(null);
+  const [compactMarkers, setCompactMarkers] = useState(false);
+
+  useLayoutEffect(() => {
+    const frame = mapFrameRef.current;
+    if (!frame) return;
+    const update = () => setCompactMarkers(frame.clientWidth < 480);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [mounted]);
 
   // Nachrücken: jede Minute prüfen, ob eine neue Stunde begonnen hat.
   useEffect(() => {
@@ -906,8 +933,9 @@ function RegionMapInner({
             ? "h-full w-full min-h-0 flex-1"
             : bare
               ? "w-full rounded-lg @[420px]:rounded-xl @[640px]:rounded-2xl aspect-[5/4] @[420px]:aspect-[4/3] @[640px]:aspect-[16/10] @[820px]:aspect-[16/9] min-h-[180px] max-h-[420px]"
-              : "-mx-3 h-[560px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
+              : "-mx-3 h-[440px] w-auto sm:mx-0 sm:h-[600px] sm:w-full sm:rounded-2xl",
         )}
+        ref={mapFrameRef}
       >
         <LocationSearch
           variant="overlay"
@@ -1016,6 +1044,7 @@ function RegionMapInner({
               
               data={forecasts?.[s.id]}
               warnings={spotWarnings[s.id]}
+              compact={compactMarkers}
 
             />
           ))}

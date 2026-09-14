@@ -40,7 +40,7 @@ function KartenRegionPage() {
     <DashboardLayout title="Wetterkarte Region" subtitle="Symbolprognose · aktualisiert jede Stunde">
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="region" />
-        <Suspense fallback={<MapSkeleton />}>
+        <Suspense fallback={<MapSkeleton regionHeight />}>
           <LazyRegionMap />
         </Suspense>
       </div>

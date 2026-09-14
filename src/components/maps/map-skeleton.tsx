@@ -4,11 +4,21 @@
  * und nicht wie zwei getrennte Ladevorgänge wirken.
  */
 
-export function MapSkeleton({ height = 620 }: { height?: number }) {
+export function MapSkeleton({
+  height = 620,
+  regionHeight = false,
+}: {
+  height?: number;
+  regionHeight?: boolean;
+}) {
   return (
     <div
-      className="relative w-full overflow-hidden rounded-lg bg-muted"
-      style={{ height }}
+      className={
+        regionHeight
+          ? "relative h-[440px] w-full overflow-hidden rounded-lg bg-muted sm:h-[600px]"
+          : "relative w-full overflow-hidden rounded-lg bg-muted"
+      }
+      style={regionHeight ? undefined : { height }}
       aria-busy="true"
       aria-label="Karte wird geladen"
     >
