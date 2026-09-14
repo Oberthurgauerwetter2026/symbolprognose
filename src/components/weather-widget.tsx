@@ -627,6 +627,7 @@ function Header({
   onToggleExtended,
   snow,
   onToggleSnow,
+  showFullForecast,
 }: {
   locationName: string | null;
   locationCoords: { name: string; latitude: number; longitude: number } | null;
@@ -637,6 +638,7 @@ function Header({
   onToggleExtended: (v: boolean) => void;
   snow: boolean;
   onToggleSnow: (v: boolean) => void;
+  showFullForecast: boolean;
 }) {
   const { toggle: toggleFavorite, isFavorite, persistent } = useFavoritePlaces();
   const favorite = locationCoords ? isFavorite(locationCoords) : false;
