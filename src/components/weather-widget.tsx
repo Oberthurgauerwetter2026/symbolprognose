@@ -433,6 +433,7 @@ function WeatherWidgetInner({
           onToggleExtended={setExtended}
           snow={snow}
           onToggleSnow={setSnow}
+          showFullForecast={showFullForecast}
         />
 
         <WarningStrip warnings={localWarnings} />
@@ -627,6 +628,7 @@ function Header({
   onToggleExtended,
   snow,
   onToggleSnow,
+  showFullForecast,
 }: {
   locationName: string | null;
   locationCoords: { name: string; latitude: number; longitude: number } | null;
@@ -637,6 +639,7 @@ function Header({
   onToggleExtended: (v: boolean) => void;
   snow: boolean;
   onToggleSnow: (v: boolean) => void;
+  showFullForecast: boolean;
 }) {
   const { toggle: toggleFavorite, isFavorite, persistent } = useFavoritePlaces();
   const favorite = locationCoords ? isFavorite(locationCoords) : false;
@@ -708,24 +711,26 @@ function Header({
       </div>
 
 
-      <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
-        <label className="flex items-center gap-2 cursor-pointer" title="Sonnenschein">
-          <Switch
-            checked={extended}
-            onCheckedChange={onToggleExtended}
-            aria-label="Sonnenschein"
-          />
-          <Sun className="w-5 h-5 text-zinc-900" aria-hidden />
-        </label>
-        <label className="flex items-center gap-2 cursor-pointer" title="Schnee">
-          <Switch
-            checked={snow}
-            onCheckedChange={onToggleSnow}
-            aria-label="Schnee"
-          />
-          <Snowflake className="w-5 h-5 text-zinc-900" aria-hidden />
-        </label>
-      </div>
+      {showFullForecast && (
+        <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
+          <label className="flex items-center gap-2 cursor-pointer" title="Sonnenschein">
+            <Switch
+              checked={extended}
+              onCheckedChange={onToggleExtended}
+              aria-label="Sonnenschein"
+            />
+            <Sun className="w-5 h-5 text-zinc-900" aria-hidden />
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer" title="Schnee">
+            <Switch
+              checked={snow}
+              onCheckedChange={onToggleSnow}
+              aria-label="Schnee"
+            />
+            <Snowflake className="w-5 h-5 text-zinc-900" aria-hidden />
+          </label>
+        </div>
+      )}
     </header>
   );
 }
