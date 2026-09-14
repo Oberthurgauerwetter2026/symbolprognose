@@ -32,6 +32,7 @@ function BoundsFitter({ bounds }: { bounds: L.LatLngBoundsExpression }) {
       const padX = isNarrow ? 70 : 130;
       const padY = isNarrow ? 44 : 48;
       map.fitBounds(bounds, { padding: [padX, padY] });
+      if (isNarrow) map.panBy([0, -18], { animate: false });
     };
     fit();
     window.addEventListener("resize", fit);
@@ -828,7 +829,7 @@ function RegionMapInner({
 
   if (!mounted) {
     return (
-      <div className="flex h-[500px] w-full items-center justify-center rounded-2xl bg-muted/30 text-sm text-muted-foreground shadow-lg">
+      <div className="flex h-[440px] w-full items-center justify-center rounded-2xl bg-muted/30 text-sm text-muted-foreground shadow-lg sm:h-[600px]">
         Karte wird geladen …
       </div>
     );
