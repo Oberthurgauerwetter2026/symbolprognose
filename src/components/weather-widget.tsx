@@ -1209,9 +1209,6 @@ function DetailPanel({
               </div>
             ))}
           </div>
-          <div className="text-[10px] text-zinc-900 font-bold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
-            <Droplet className="w-3.5 h-3.5 text-[var(--wx-rain)] fill-[var(--wx-rain)]" aria-label="Regen" /> mm/3h
-          </div>
           {extended && (
             <>
               <div className="relative h-[48px] text-[10px] text-zinc-900 font-bold tabular-nums border-t border-zinc-200">
@@ -1233,7 +1230,7 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-900 font-bold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
+              <div className="flex h-[33px] items-center justify-end gap-1 pr-1 text-right text-[10px] font-bold leading-tight text-zinc-900">
                 <Sun className="w-3.5 h-3.5" aria-label="Sonne" /> min/h
               </div>
             </>
@@ -1259,7 +1256,7 @@ function DetailPanel({
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-zinc-900 font-bold text-right pr-1 pb-1 leading-tight flex items-center justify-end gap-1">
+              <div className="flex h-[33px] items-center justify-end gap-1 pr-1 text-right text-[10px] font-bold leading-tight text-zinc-900">
                 <Snowflake className="w-3.5 h-3.5" aria-label="Schnee" /> cm/3h
               </div>
             </>
@@ -1553,7 +1550,7 @@ function DetailPanel({
                           </div>
                         )}
                       </div>
-                      <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
+                      <div className="flex h-[33px] flex-col justify-center text-center text-[10px] leading-tight tabular-nums text-zinc-900">
                         <div className="font-bold flex justify-around px-1">
                           {perHour.map((m, k) => (
                             <span key={k} className={cadence === "1h" ? "w-full" : "w-1/3"}>
@@ -1606,7 +1603,7 @@ function DetailPanel({
                           title={`${cm.toFixed(1)} cm Neuschnee`}
                         />
                       </div>
-                      <div className="text-[10px] text-center text-zinc-900 tabular-nums py-1 leading-tight">
+                      <div className="flex h-[33px] flex-col justify-center text-center text-[10px] leading-tight tabular-nums text-zinc-900">
                         <div className="font-bold">
                           {cm > 0 ? cm.toFixed(1) : "–"}
                         </div>
