@@ -16,6 +16,7 @@ import {
 import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 import { LocationSearch } from "@/components/location-search";
 import { useFavoritePlaces } from "@/lib/favorites";
+import { SITE_URL } from "@/lib/site-url";
 import { getPrecisePosition } from "@/lib/precise-geolocation";
 
 import { WeatherIcon } from "@/components/weather-icons";
@@ -637,7 +638,7 @@ function Header({
   snow: boolean;
   onToggleSnow: (v: boolean) => void;
 }) {
-  const { toggle: toggleFavorite, isFavorite } = useFavoritePlaces();
+  const { toggle: toggleFavorite, isFavorite, persistent } = useFavoritePlaces();
   const favorite = locationCoords ? isFavorite(locationCoords) : false;
   return (
     <header className="flex flex-col @[640px]:flex-row @[640px]:items-end justify-between gap-4 @[640px]:gap-6 pb-4 border-b border-zinc-200">
@@ -691,7 +692,21 @@ function Header({
             )}
           </div>
         )}
+        {locationName && !persistent && (
+          <p className="text-xs text-zinc-500">
+            In diesem Fenster nicht dauerhaft speicherbar —{" "}
+            <a
+              href={`${SITE_URL}/karten/lokal`}
+              target="_blank"
+              rel="noopener"
+              className="font-semibold text-accent underline"
+            >
+              Karte in eigenem Tab öffnen
+            </a>
+          </p>
+        )}
       </div>
+
 
       <div className="flex flex-wrap items-center gap-4 self-start @[640px]:self-auto">
         <label className="flex items-center gap-2 cursor-pointer" title="Sonnenschein">

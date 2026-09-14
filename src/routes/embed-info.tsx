@@ -105,11 +105,27 @@ function buildAutoHeightSnippet(
     current = h;
     frame.style.height = h + 'px';
   }
+  var FAV_KEY = 'otw:lokal-favorites';
+  function favRead() {
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch (err) { return []; }
+  }
   window.addEventListener('message', function (e) {
     if (e.origin !== '${origin}') return;
     if (e.source !== frame.contentWindow) return;
     var d = e.data;
-    if (!d || d.type !== 'lovable-weather:height') return;
+    if (!d) return;
+    // Favoriten der Lokalprognose in dieser Seite speichern (Safari/iOS blockiert
+    // den Speicher im eingebetteten Fenster).
+    if (d.type === 'otw:fav:get') {
+      frame.contentWindow.postMessage({ type: 'otw:fav:value', value: favRead() }, '${origin}');
+      return;
+    }
+    if (d.type === 'otw:fav:set') {
+      if (!Array.isArray(d.value)) return;
+      try { localStorage.setItem(FAV_KEY, JSON.stringify(d.value.slice(0, 12))); } catch (err) {}
+      return;
+    }
+    if (d.type !== 'lovable-weather:height') return;
     var h = Math.ceil(Number(d.height));
     if (!isFinite(h) || h < MIN || h > 4000) return;
     if (h > current) {
