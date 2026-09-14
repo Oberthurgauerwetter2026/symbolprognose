@@ -433,6 +433,7 @@ function WeatherWidgetInner({
           onToggleExtended={setExtended}
           snow={snow}
           onToggleSnow={setSnow}
+          showFullForecast={showFullForecast}
         />
 
         <WarningStrip warnings={localWarnings} />
