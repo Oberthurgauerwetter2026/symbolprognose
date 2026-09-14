@@ -16,6 +16,7 @@ import {
 import { getAggregatedForecast } from "@/lib/forecast-aggregated.functions";
 import { LocationSearch } from "@/components/location-search";
 import { useFavoritePlaces } from "@/lib/favorites";
+import { getPrecisePosition } from "@/lib/precise-geolocation";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Button } from "@/components/ui/button";
@@ -181,8 +182,8 @@ function WeatherWidgetInner({
     if (didAutoLocate.current) return;
     if (typeof window === "undefined" || !navigator.geolocation) return;
     didAutoLocate.current = true;
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+    void getPrecisePosition()
+      .then(async (pos) => {
         try {
           const name = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
           setLocation({
@@ -195,12 +196,10 @@ function WeatherWidgetInner({
         } catch {
           /* ignore */
         }
-      },
-      () => {
+      })
+      .catch(() => {
         /* permission denied / error – user can choose manually */
-      },
-      { timeout: 8000, maximumAge: 5 * 60_000 },
-    );
+      });
   }, [
     hydrated,
     location,
@@ -250,12 +249,12 @@ function WeatherWidgetInner({
     try {
       localStorage.setItem(
         "weather:location",
-        JSON.stringify({ ...location, savedAt: Date.now() }),
+        JSON.stringify({ ...location, savedAt: locationSavedAt ?? Date.now() }),
       );
     } catch {
       /* ignore */
     }
-  }, [location, detailOnly]);
+  }, [location, locationSavedAt, detailOnly]);
 
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -405,12 +404,14 @@ function WeatherWidgetInner({
               latitude: loc.latitude,
               longitude: loc.longitude,
             });
+            setLocationSavedAt(Date.now());
             setSelectedDayIdx(0);
             setShowFullForecast(true);
           }}
           onGeolocate={async () => {
             if (!navigator.geolocation) return;
-            navigator.geolocation.getCurrentPosition(async (pos) => {
+            try {
+              const pos = await getPrecisePosition();
               const name = await reverseGeocode(
                 pos.coords.latitude,
                 pos.coords.longitude,
@@ -420,9 +421,12 @@ function WeatherWidgetInner({
                 latitude: pos.coords.latitude,
                 longitude: pos.coords.longitude,
               });
+              setLocationSavedAt(Date.now());
               setSelectedDayIdx(0);
               setShowFullForecast(true);
-            });
+            } catch {
+              /* permission denied / error – user can choose manually */
+            }
           }}
           extended={extended}
           onToggleExtended={setExtended}
