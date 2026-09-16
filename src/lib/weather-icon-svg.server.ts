@@ -376,7 +376,12 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   }
 
 
-  if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
+  // Wie im Client: Blitz im Tagessymbol erst ab zwei Gewitterstunden.
+  if (
+    scope === "daily" &&
+    ((thunderHours ?? 0) >= 2 ||
+      (wmoIsThunder && (thunderHours == null || thunderHours >= 2)))
+  ) {
     const th = thunderHours ?? 0;
     const sunny = (sunshineRatio ?? 0) >= 0.10 && (precipHours ?? 0) < 10;
     const heavyThunder =

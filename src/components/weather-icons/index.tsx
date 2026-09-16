@@ -650,7 +650,13 @@ export function WeatherIcon({
   //  - Vollgewitter (dunkles Symbol) bei breitem/heftigem Signal
   //  - Sonne+Gewitter-Schauer bei lokal begrenztem Signal mit Sonne
   //  - sonstige Gewitterstunden ohne Sonne → Vollgewitter
-  if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
+  // Blitzsymbol im Tagessymbol erst ab zwei Gewitterstunden; ein einzelner
+  // Gewittercode ohne Gewitterstunden prägt den Tag nicht mehr.
+  if (
+    scope === "daily" &&
+    ((thunderHours ?? 0) >= 2 ||
+      (wmoIsThunder && (thunderHours == null || thunderHours >= 2)))
+  ) {
     const th = thunderHours ?? 0;
     const sunny = (sunshineRatio ?? 0) >= 0.10 && (precipHours ?? 0) < 10;
 

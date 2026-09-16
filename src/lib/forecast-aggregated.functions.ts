@@ -7,6 +7,8 @@ import {
   alignMosmixToTimeline,
   computeSunTimesLocal,
   overwriteFromIndex,
+  thunderPlausibleAt,
+  downgradeThunderCode,
   type DailyData,
   type ForecastResponse,
   type HourlyData,
@@ -196,6 +198,8 @@ function buildForecastFromCacheLoc(loc: Loc): ForecastResponse {
     cloud_cover_low: padNum(mergeArr(h, "cloud_cover_low", "cloudcover_low") as number[], hLen),
     cloud_cover_mid: padNum(mergeArr(h, "cloud_cover_mid", "cloudcover_mid") as number[], hLen),
     cloud_cover_high: padNum(mergeArr(h, "cloud_cover_high", "cloudcover_high") as number[], hLen),
+    cape: padNum(mergeArr(h, "cape") as number[], hLen),
+    lifted_index: padNum(mergeArr(h, "lifted_index") as number[], hLen),
   };
 
   const dTime = pickStrArr(d, "time");
@@ -408,6 +412,17 @@ function overlayHourlyFromOpenMeteo(fc: ForecastResponse, omLoc: Loc | null): vo
   fillIfMissing(h.precipitation, om.hourly.precipitation);
   fillIfMissing(h.precipitation_probability, om.hourly.precipitation_probability);
   fillIfMissing(h.snowfall, om.hourly.snowfall);
+  // Labilität (CAPE / Lifted Index) liefert MCH nicht — aus Open-Meteo
+  // übernehmen, damit das Gewitter-Gate greifen kann.
+  const copyLayer = (key: "cape" | "lifted_index") => {
+    const src = om.hourly[key];
+    if (!src) return;
+    const target = h[key] ?? new Array(h.time.length).fill(NaN);
+    h[key] = target;
+    fillIfMissing(target, src);
+  };
+  copyLayer("cape");
+  copyLayer("lifted_index");
 }
 
 /**
@@ -422,6 +437,7 @@ function overlayHourlyFromOpenMeteo(fc: ForecastResponse, omLoc: Loc | null): vo
  */
 function dropImplausibleWetCodes(fc: ForecastResponse): void {
   const h = fc.hourly;
+  let dbgDown = 0;
   const fin = (v: number | undefined): number | null =>
     typeof v === "number" && Number.isFinite(v) ? v : null;
   const isThunder = (c: number) => c === 95 || c === 96 || c === 99;
@@ -430,6 +446,21 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
   for (let i = 0; i < h.time.length; i++) {
     const code = h.weathercode?.[i];
     if (typeof code !== "number" || !Number.isFinite(code) || !isWetCode(code)) continue;
+    const mchAll = (h as { weathercode_mch?: (number | null)[] }).weathercode_mch;
+    // Gewitter-Gate: ohne Labilität und konvektives Signal auf Schauer
+    // zurückstufen — Blitzsymbole nur bei echtem Gewitterpotenzial.
+    if (isThunder(code) && !thunderPlausibleAt(h, i)) {
+      dbgDown++;
+      h.weathercode[i] = downgradeThunderCode(h.precipitation?.[i]);
+      if (mchAll) {
+        const prev = mchAll[i];
+        const night = typeof prev === "number" && prev >= 100;
+        const t = fin(h.temperature_2m?.[i]);
+        const snowy = t != null && t <= 2;
+        mchAll[i] = (snowy ? 10 : 9) + (night ? 100 : 0);
+      }
+      continue;
+    }
     const p = fin(h.precipitation?.[i]);
     const q90 = fin((h as { precipitation_q90?: number[] }).precipitation_q90?.[i]);
     const prob = fin(h.precipitation_probability?.[i]);
@@ -453,6 +484,10 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
     const mchCodes = (h as { weathercode_mch?: (number | null)[] }).weathercode_mch;
     if (mchCodes) mchCodes[i] = null;
   }
+  const thunderLeft = (h.weathercode ?? []).filter((c) => c === 95 || c === 96 || c === 99).length;
+  const mchThunder = ((h as { weathercode_mch?: (number|null)[] }).weathercode_mch ?? []).filter((c) => c != null && [12,13,24,25,112,113,124,125].includes(c as number)).length;
+  console.log("[dbg-codes]", h.time.slice(0,30).map((t,i)=>`${t}|${h.weathercode?.[i]}|${(h as any).weathercode_mch?.[i]}|${h.precipitation?.[i]}|${h.cape?.[i]}`).join(" "));
+  console.log("[dbg-thunder] downgraded", dbgDown, "wmoThunderLeft", thunderLeft, "mchThunder", mchThunder, "cape?", !!h.cape?.some((v)=>Number.isFinite(v)));
 }
 
 /**

@@ -946,6 +946,8 @@ def main() -> None:
             "pressure_msl",
             "snowfall",
             "sunshine_duration",
+            "cape",
+            "lifted_index",
         ]),
         "daily": ",".join([
             "weathercode",
