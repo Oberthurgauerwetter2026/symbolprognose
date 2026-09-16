@@ -783,7 +783,7 @@ function CompactHourlyStrip({
                 </span>
                 <span className="text-zinc-900 [&_svg]:h-9 [&_svg]:w-9">
                   <WeatherIcon
-                    code={h.weathercode[idx]}
+                    code={code}
                     size={40}
                     temp={h.temperature_2m[idx]}
                     precip={precipitation}
@@ -793,7 +793,7 @@ function CompactHourlyStrip({
                   {Math.round(h.temperature_2m[idx])}°
                 </span>
                 <span className="text-[11px] font-semibold tabular-nums text-zinc-600">
-                  {precipitation > 0 ? `${precipitation.toFixed(1)} mm` : "trocken"}
+                  {statusText}
                 </span>
               </div>
             );
