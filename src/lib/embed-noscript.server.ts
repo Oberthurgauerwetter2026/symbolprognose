@@ -7,6 +7,8 @@
  */
 import type { LokalNoscriptData } from "@/components/embeds/lokal-noscript";
 import { getAggregatedForecast } from "./forecast-aggregated.functions";
+import { isDayAtIso } from "./weather";
+
 import { readActiveWarnings } from "./warnings.server";
 import { regionIdForPoint } from "./warnings-lookup";
 import {
@@ -52,11 +54,13 @@ function emptyData(name: string): LokalNoscriptData {
   return { locationName: name, hourly: [], daily: [] };
 }
 
-function isDayHour(iso: string): boolean {
-  const h = zurichHour(iso);
-  if (h == null) return true;
-  return h >= 6 && h < 20;
+function isDayHour(
+  iso: string,
+  daily?: { time?: string[]; sunrise?: string[]; sunset?: string[] },
+): boolean {
+  return isDayAtIso(iso, daily);
 }
+
 
 export async function buildLokalNoscriptData({
   name,
