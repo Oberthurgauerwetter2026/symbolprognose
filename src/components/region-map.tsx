@@ -60,7 +60,7 @@ import switzerlandData from "@/data/switzerland.json";
 import { useServerFn } from "@tanstack/react-start";
 import { regionForecastQuery } from "@/lib/map-queries";
 import type { ForecastResponse } from "@/lib/weather";
-import { searchLocations } from "@/lib/weather";
+import { isDayAtIso, searchLocations } from "@/lib/weather";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
