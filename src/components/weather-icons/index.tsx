@@ -486,8 +486,9 @@ function mchToIcon(
   const pureSnow = new Set([10, 14, 15, 16]);
   const showerSnow = new Set([11, 19, 20, 22, 23]);
   if (t !== null) {
+    // 35 = Schneesturm (kein Gewitter): bei Plusgraden Regen, sonst Schnee.
     if (code === 35 && t > 2) {
-      return <IconThunderstorm {...p} />;
+      return <IconRain {...p} />;
     }
     if (mixCodes.has(code) && t > 2) {
       return showerSnow.has(code) && isDay ? <IconSunShower {...p} /> : <IconRain {...p} />;
