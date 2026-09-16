@@ -437,7 +437,6 @@ function overlayHourlyFromOpenMeteo(fc: ForecastResponse, omLoc: Loc | null): vo
  */
 function dropImplausibleWetCodes(fc: ForecastResponse): void {
   const h = fc.hourly;
-  let dbgDown = 0;
   const fin = (v: number | undefined): number | null =>
     typeof v === "number" && Number.isFinite(v) ? v : null;
   const isThunder = (c: number) => c === 95 || c === 96 || c === 99;
@@ -450,7 +449,6 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
     // Gewitter-Gate: ohne Labilität und konvektives Signal auf Schauer
     // zurückstufen — Blitzsymbole nur bei echtem Gewitterpotenzial.
     if (isThunder(code) && !thunderPlausibleAt(h, i)) {
-      dbgDown++;
       h.weathercode[i] = downgradeThunderCode(h.precipitation?.[i]);
       if (mchAll) {
         const prev = mchAll[i];
@@ -484,9 +482,6 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
     const mchCodes = (h as { weathercode_mch?: (number | null)[] }).weathercode_mch;
     if (mchCodes) mchCodes[i] = null;
   }
-  const thunderLeft = (h.weathercode ?? []).filter((c) => c === 95 || c === 96 || c === 99).length;
-  const mchThunder = ((h as { weathercode_mch?: (number|null)[] }).weathercode_mch ?? []).filter((c) => c != null && [12,13,24,25,112,113,124,125].includes(c as number)).length;
-  console.log("[dbg-codes]", h.time.slice(0,30).map((t,i)=>`${t}|${h.weathercode?.[i]}|${(h as any).weathercode_mch?.[i]}|${h.precipitation?.[i]}|${h.cape?.[i]}`).join(" "));
   console.log("[dbg-thunder] downgraded", dbgDown, "wmoThunderLeft", thunderLeft, "mchThunder", mchThunder, "cape?", !!h.cape?.some((v)=>Number.isFinite(v)));
 }
 
