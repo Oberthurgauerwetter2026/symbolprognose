@@ -7,6 +7,8 @@
  */
 import type { LokalNoscriptData } from "@/components/embeds/lokal-noscript";
 import { getAggregatedForecast } from "./forecast-aggregated.functions";
+import { isDayAtIso } from "./weather";
+
 import { readActiveWarnings } from "./warnings.server";
 import { regionIdForPoint } from "./warnings-lookup";
 import {
@@ -52,11 +54,13 @@ function emptyData(name: string): LokalNoscriptData {
   return { locationName: name, hourly: [], daily: [] };
 }
 
-function isDayHour(iso: string): boolean {
-  const h = zurichHour(iso);
-  if (h == null) return true;
-  return h >= 6 && h < 20;
+function isDayHour(
+  iso: string,
+  daily?: { time?: string[]; sunrise?: string[]; sunset?: string[] },
+): boolean {
+  return isDayAtIso(iso, daily);
 }
+
 
 export async function buildLokalNoscriptData({
   name,
@@ -99,7 +103,7 @@ export async function buildLokalNoscriptData({
       precipitation: num(h.precipitation, i),
       precipProb: num(h.precipitation_probability, i),
       windSpeed: num(h.windspeed_10m, i),
-      isDay: isDayHour(h.time[i] ?? ""),
+      isDay: isDayHour(h.time[i] ?? "", d),
       isSnow: (h.snowfall?.[i] ?? 0) > 0.05 && (num(h.temperature_2m, i) ?? -99) <= 2,
       cloudLow: num(h.cloud_cover_low, i),
       cloudMid: num(h.cloud_cover_mid, i),
@@ -115,7 +119,7 @@ export async function buildLokalNoscriptData({
           precipitation: num(h.precipitation, startIdx),
           windSpeed: num(h.windspeed_10m, startIdx),
           windDirection: num(h.winddirection_10m, startIdx),
-          isDay: isDayHour(h.time[startIdx] ?? ""),
+          isDay: isDayHour(h.time[startIdx] ?? "", d),
           isSnow: (h.snowfall?.[startIdx] ?? 0) > 0.05 && (num(h.temperature_2m, startIdx) ?? -99) <= 2,
           cloudLow: num(h.cloud_cover_low, startIdx),
           cloudMid: num(h.cloud_cover_mid, startIdx),

@@ -60,7 +60,7 @@ import switzerlandData from "@/data/switzerland.json";
 import { useServerFn } from "@tanstack/react-start";
 import { regionForecastQuery } from "@/lib/map-queries";
 import type { ForecastResponse } from "@/lib/weather";
-import { searchLocations } from "@/lib/weather";
+import { isDayAtIso, searchLocations } from "@/lib/weather";
 
 import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
@@ -358,20 +358,21 @@ function computeIsDayFromSun(
   dayIdx: number,
   daily: ForecastResponse["daily"] | undefined,
 ): boolean {
-  const sr = daily?.sunrise?.[dayIdx];
-  const ss = daily?.sunset?.[dayIdx];
-  const hourOfDay = ((absoluteHour % 24) + 24) % 24;
-  if (!sr || !ss) return hourOfDay >= 6 && hourOfDay < 20;
   const base = new Date();
   base.setHours(0, 0, 0, 0);
-  const t = base.getTime() + absoluteHour * 3600_000;
-  const srT = new Date(sr).getTime();
-  const ssT = new Date(ss).getTime();
-  if (!Number.isFinite(srT) || !Number.isFinite(ssT)) {
-    return hourOfDay >= 6 && hourOfDay < 20;
-  }
-  return t >= srT && t < ssT;
+  const t = new Date(base.getTime() + absoluteHour * 3600_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const iso = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
+  const sr = daily?.sunrise?.[dayIdx];
+  const ss = daily?.sunset?.[dayIdx];
+  const dayKey = iso.slice(0, 10);
+  const localDaily =
+    sr && ss && sr.slice(0, 10) === dayKey
+      ? { time: [dayKey], sunrise: [sr], sunset: [ss] }
+      : daily;
+  return isDayAtIso(iso, localDaily);
 }
+
 
 function SpotMarker({
   spot,

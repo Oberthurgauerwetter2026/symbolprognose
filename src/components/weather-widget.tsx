@@ -6,7 +6,8 @@ import {
   formatDateShort,
   formatTimeHHMM,
   reverseGeocode,
-  
+  isDayAtIso,
+
   weatherLabel,
   weekdayLong,
   
@@ -784,11 +785,14 @@ function CompactHourlyStrip({
                 <span className="text-zinc-900 [&_svg]:h-9 [&_svg]:w-9">
                   <WeatherIcon
                     code={code}
+                    mchCode={h.weathercode_mch?.[idx]}
+                    isDay={isDayAtIso(h.time[idx], forecast.daily)}
                     size={40}
                     temp={h.temperature_2m[idx]}
                     precip={precipitation}
                   />
                 </span>
+
                 <span className="text-base font-bold tabular-nums text-zinc-900">
                   {Math.round(h.temperature_2m[idx])}°
                 </span>
@@ -1362,7 +1366,7 @@ function DetailPanel({
                       <WeatherIcon
                         code={h.weathercode?.[idx] ?? 0}
                         mchCode={h.weathercode_mch?.[idx]}
-                        isDay={t.getHours() >= 6 && t.getHours() < 20}
+                        isDay={isDayAtIso(iso, forecast.daily)}
                         size={cadence === "1h" ? 48 : 64}
                         precip={h.precipitation?.[idx]}
                         precipProb={h.precipitation_probability?.[idx]}
