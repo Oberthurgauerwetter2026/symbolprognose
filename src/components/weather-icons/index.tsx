@@ -545,14 +545,16 @@ function mchToIcon(
     case 30:
       return <IconFog {...p} />;
     case 31:
-      return <IconThunderstorm {...p} />;
+      // 31 = Sturm (Wind), kein Gewitter.
+      return <IconCloudy {...p} />;
     case 32:
       return <IconCloudy {...p} />;
     case 33:
     case 34:
       return <IconFog {...p} />;
     case 35:
-      return <IconSnowThunder {...p} />;
+      // 35 = Schneesturm, kein Gewitter.
+      return <IconSnow {...p} />;
     default:
       return <IconCloudy {...p} />;
   }
