@@ -1362,7 +1362,7 @@ function DetailPanel({
                       <WeatherIcon
                         code={h.weathercode?.[idx] ?? 0}
                         mchCode={h.weathercode_mch?.[idx]}
-                        isDay={t.getHours() >= 6 && t.getHours() < 20}
+                        isDay={isDayAtIso(iso, forecast.daily)}
                         size={cadence === "1h" ? 48 : 64}
                         precip={h.precipitation?.[idx]}
                         precipProb={h.precipitation_probability?.[idx]}
