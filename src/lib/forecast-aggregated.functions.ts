@@ -482,7 +482,6 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
     const mchCodes = (h as { weathercode_mch?: (number | null)[] }).weathercode_mch;
     if (mchCodes) mchCodes[i] = null;
   }
-  console.log("[dbg-thunder] downgraded", dbgDown, "wmoThunderLeft", thunderLeft, "mchThunder", mchThunder, "cape?", !!h.cape?.some((v)=>Number.isFinite(v)));
 }
 
 /**
