@@ -918,3 +918,38 @@ export function computeSunTimesLocal(
   };
   return { sunrise: compute(true), sunset: compute(false) };
 }
+
+/**
+ * Bestimmt anhand der Tages-Sonnenzeiten, ob ein Stundenzeitpunkt hell ist.
+ * Sucht den zum Zeitstempel passenden Kalendertag; ohne Sonnenzeiten greift
+ * eine saisonale Näherung statt einer starren 06–20-Uhr-Regel.
+ */
+export function isDayAtIso(
+  iso: string | undefined,
+  daily?: { time?: string[]; sunrise?: string[]; sunset?: string[] },
+): boolean {
+  if (!iso) return true;
+  const day = iso.slice(0, 10);
+  const hm = (s: string): number | null => {
+    const m = /T(\d{2}):(\d{2})/.exec(s);
+    return m ? +m[1] * 60 + +m[2] : null;
+  };
+  const cur = hm(iso);
+  const times = daily?.time ?? [];
+  let di = times.findIndex((t) => (t ?? "").slice(0, 10) === day);
+  if (di < 0 && times.length === 0) di = -1;
+  const sr = di >= 0 ? daily?.sunrise?.[di] : undefined;
+  const ss = di >= 0 ? daily?.sunset?.[di] : undefined;
+  const srM = sr ? hm(sr) : null;
+  const ssM = ss ? hm(ss) : null;
+  if (cur != null && srM != null && ssM != null) return cur >= srM && cur < ssM;
+  // Saisonale Näherung (Mitteleuropa): Sonnenauf/-untergang je Monat.
+  const month = Number(day.slice(5, 7)) || 6;
+  const approx: [number, number][] = [
+    [8.2, 16.8], [7.6, 17.6], [6.7, 18.4], [6.6, 20.3], [5.7, 21.0], [5.4, 21.4],
+    [5.7, 21.2], [6.3, 20.5], [7.1, 19.4], [7.8, 18.3], [7.6, 16.8], [8.1, 16.6],
+  ];
+  const [rise, set] = approx[Math.min(11, Math.max(0, month - 1))];
+  const hours = cur != null ? cur / 60 : 12;
+  return hours >= rise && hours < set;
+}
