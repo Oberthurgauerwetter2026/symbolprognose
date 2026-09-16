@@ -270,7 +270,7 @@ function renderMchIconSvg(mchCode: number, size: number, isDayOverride?: boolean
   const pureSnow = new Set([10, 14, 15, 16]);
   const showerSnow = new Set([11, 19, 20, 22, 23]);
   if (t !== null) {
-    if (code === 35 && t > 2) return IThunderstorm(size);
+    if (code === 35 && t > 2) return IRain(size); // 35 = Schneesturm, kein Gewitter
     if (mixCodes.has(code) && t > 2) return showerSnow.has(code) && isDay ? ISunShower(size) : IRain(size);
     if (pureSnow.has(code) && t > 3) return IRain(size);
   }
@@ -295,11 +295,11 @@ function renderMchIconSvg(mchCode: number, size: number, isDayOverride?: boolean
     case 28: return ICloudy(size);
     case 29: return IDrizzle(size);
     case 30: return IFog(size);
-    case 31: return IThunderstorm(size);
+    case 31: return ICloudy(size); // Sturm (Wind), kein Gewitter
     case 32: return ICloudy(size);
     case 33:
     case 34: return IFog(size);
-    case 35: return ISnowThunder(size);
+    case 35: return ISnow(size); // Schneesturm, kein Gewitter
     default: return ICloudy(size);
   }
 }
@@ -376,7 +376,12 @@ export function renderWeatherIconSvg(o: RenderIconOpts): string {
   }
 
 
-  if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
+  // Wie im Client: Blitz im Tagessymbol erst ab zwei Gewitterstunden.
+  if (
+    scope === "daily" &&
+    ((thunderHours ?? 0) >= 2 ||
+      (wmoIsThunder && (thunderHours == null || thunderHours >= 2)))
+  ) {
     const th = thunderHours ?? 0;
     const sunny = (sunshineRatio ?? 0) >= 0.10 && (precipHours ?? 0) < 10;
     const heavyThunder =

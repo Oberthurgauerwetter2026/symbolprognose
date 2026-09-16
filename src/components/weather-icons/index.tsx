@@ -486,8 +486,9 @@ function mchToIcon(
   const pureSnow = new Set([10, 14, 15, 16]);
   const showerSnow = new Set([11, 19, 20, 22, 23]);
   if (t !== null) {
+    // 35 = Schneesturm (kein Gewitter): bei Plusgraden Regen, sonst Schnee.
     if (code === 35 && t > 2) {
-      return <IconThunderstorm {...p} />;
+      return <IconRain {...p} />;
     }
     if (mixCodes.has(code) && t > 2) {
       return showerSnow.has(code) && isDay ? <IconSunShower {...p} /> : <IconRain {...p} />;
@@ -544,14 +545,16 @@ function mchToIcon(
     case 30:
       return <IconFog {...p} />;
     case 31:
-      return <IconThunderstorm {...p} />;
+      // 31 = Sturm (Wind), kein Gewitter.
+      return <IconCloudy {...p} />;
     case 32:
       return <IconCloudy {...p} />;
     case 33:
     case 34:
       return <IconFog {...p} />;
     case 35:
-      return <IconSnowThunder {...p} />;
+      // 35 = Schneesturm, kein Gewitter.
+      return <IconSnow {...p} />;
     default:
       return <IconCloudy {...p} />;
   }
@@ -650,7 +653,13 @@ export function WeatherIcon({
   //  - Vollgewitter (dunkles Symbol) bei breitem/heftigem Signal
   //  - Sonne+Gewitter-Schauer bei lokal begrenztem Signal mit Sonne
   //  - sonstige Gewitterstunden ohne Sonne → Vollgewitter
-  if (scope === "daily" && ((thunderHours ?? 0) >= 1 || wmoIsThunder)) {
+  // Blitzsymbol im Tagessymbol erst ab zwei Gewitterstunden; ein einzelner
+  // Gewittercode ohne Gewitterstunden prägt den Tag nicht mehr.
+  if (
+    scope === "daily" &&
+    ((thunderHours ?? 0) >= 2 ||
+      (wmoIsThunder && (thunderHours == null || thunderHours >= 2)))
+  ) {
     const th = thunderHours ?? 0;
     const sunny = (sunshineRatio ?? 0) >= 0.10 && (precipHours ?? 0) < 10;
 

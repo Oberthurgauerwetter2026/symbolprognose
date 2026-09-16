@@ -54,6 +54,41 @@ export interface HourlyData {
   cloud_cover_low?: number[];
   cloud_cover_mid?: number[];
   cloud_cover_high?: number[];
+  /** CAPE (J/kg) — Labilität, Gate für Gewittersymbole. */
+  cape?: number[];
+  /** Lifted Index (K) — negativ = labil. Gate für Gewittersymbole. */
+  lifted_index?: number[];
+}
+
+const fin1 = (v: number | undefined | null): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+
+/**
+ * Prüft, ob eine Stunde überhaupt Gewitterpotenzial hat: Labilität (CAPE
+ * bzw. Lifted Index) UND ein konvektives Niederschlagssignal.
+ * Fehlen die Labilitätswerte, gilt ein strenges Niederschlagskriterium —
+ * eine hohe Regenwahrscheinlichkeit allein macht noch kein Gewitter.
+ */
+export function thunderPlausibleAt(h: HourlyData, i: number): boolean {
+  const p = fin1(h.precipitation?.[i]) ?? 0;
+  const q90 = fin1((h as { precipitation_q90?: number[] }).precipitation_q90?.[i]) ?? 0;
+  const cape = fin1(h.cape?.[i]);
+  const li = fin1(h.lifted_index?.[i]);
+  if (cape == null && li == null) {
+    // Konvektive Schauerintensität statt reiner Wahrscheinlichkeit.
+    return p >= 1.5 || q90 >= 4;
+  }
+  const unstable = (cape != null && cape >= 150) || (li != null && li <= -1);
+  const wet = p >= 0.5 || q90 >= 1.5;
+  return unstable && wet;
+}
+
+/** Ersatzcode, wenn ein Gewittercode zurückgestuft wird (Schauer statt Blitz). */
+export function downgradeThunderCode(precipMm: number | null | undefined): number {
+  const p = fin1(precipMm) ?? 0;
+  if (p >= 7.5) return 82;
+  if (p >= 2.5) return 81;
+  return 80;
 }
 
 
@@ -149,6 +184,8 @@ const HOURLY_VARS = [
   "cloud_cover_low",
   "cloud_cover_mid",
   "cloud_cover_high",
+  "cape",
+  "lifted_index",
 ] as const;
 
 
@@ -224,6 +261,8 @@ function fillGaps(
     cloud_cover_low: mergeArr(h?.cloud_cover_low, fh?.cloud_cover_low),
     cloud_cover_mid: mergeArr(h?.cloud_cover_mid, fh?.cloud_cover_mid),
     cloud_cover_high: mergeArr(h?.cloud_cover_high, fh?.cloud_cover_high),
+    cape: mergeArr(h?.cape, fh?.cape),
+    lifted_index: mergeArr(h?.lifted_index, fh?.lifted_index),
   };
 
 
@@ -489,14 +528,13 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
   // 3) Dauerregen – nur wenn Niederschlag den Tag wirklich dominiert.
   const dryHours = idxs.length - precipHours;
   const maxHourlyPrecip = precipFinite.length ? Math.max(...precipFinite) : 0;
-  // Gewitterstunden nur zählen, wenn dieselbe Stunde auch Niederschlag hat.
-  // Sonst prägte eine trockene "Gewitter"-Stunde (fehlerhaftes Pictogramm)
-  // den ganzen Tag als Gewittertag.
+  // Gewitterstunden nur zählen, wenn dieselbe Stunde ein echtes Gewitter-
+  // potenzial hat (Labilität + konvektiver Niederschlag). Sonst prägte eine
+  // schwache "Gewitter"-Stunde den ganzen Tag als Gewittertag.
   const thunderHours = idxs.reduce((n, i) => {
     const c = h.weathercode?.[i];
     if (c !== 95 && c !== 96 && c !== 99) return n;
-    const p = h.precipitation?.[i];
-    return typeof p === "number" && Number.isFinite(p) && p >= 0.1 ? n + 1 : n;
+    return thunderPlausibleAt(h, i) ? n + 1 : n;
   }, 0);
   const cloudLowMean = mean(finite(h.cloud_cover_low)) ?? 0;
   const cloudMidMean = mean(finite(h.cloud_cover_mid)) ?? 0;
@@ -536,7 +574,8 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
       representativeWeathercode(dryCodes) ?? representativeWeathercode(allDryCodes) ?? 3,
     );
   } else if (isShowerDay) {
-    if (thunderHours >= 1) {
+    // Gewitter als Tagessymbol erst ab zwei plausiblen Gewitterstunden.
+    if (thunderHours >= 2) {
       weathercode = 95;
     } else if (maxHourlyPrecip >= 7.5) {
       weathercode = 82;
@@ -550,6 +589,10 @@ export function aggregateDailyFromHourly(h: HourlyData, dayIso: string) {
       preferShower: false,
     });
     if (weathercode == null || weathercode < 50) {
+      weathercode = precipSum >= 15 ? 65 : precipSum >= 5 ? 63 : 61;
+    }
+    // Auch am Dauerregentag braucht das Blitzsymbol zwei plausible Stunden.
+    if (weathercode >= 95 && thunderHours < 2) {
       weathercode = precipSum >= 15 ? 65 : precipSum >= 5 ? 63 : 61;
     }
   }
@@ -624,31 +667,43 @@ export async function fetchForecast(
 
 
 
-  // Gewitter-Override: Ensemble-Mittel glättet seltene Gewittercodes (95/96/99) weg.
-  // Wenn best_match oder MOSMIX an einer Stunde Gewitter sehen, in merged.hourly.weathercode
-  // hochstufen — alle anderen Felder bleiben unverändert.
+  // Gewitter-Override mit Quellen-Konsens: Ein einzelnes Modell darf eine
+  // Stunde nicht mehr auf Gewitter hochstufen. Nötig sind zwei Quellen (oder
+  // die Hauptquelle selbst) plus echtes Gewitterpotenzial (Labilität).
   const isThunder = (c: unknown): boolean =>
     c === 95 || c === 96 || c === 99;
   const timeIndex = new Map<string, number>();
   for (let i = 0; i < merged.hourly.time.length; i++) {
     timeIndex.set(merged.hourly.time[i] ?? "", i);
   }
-  const overlayThunder = (src: ForecastResponse | null) => {
+  const votes = new Map<number, { count: number; code: number }>();
+  const collectThunder = (src: ForecastResponse | null) => {
     if (!src?.hourly?.time || !src.hourly.weathercode) return;
     for (let j = 0; j < src.hourly.time.length; j++) {
-      if (!isThunder(src.hourly.weathercode[j])) continue;
+      const c = src.hourly.weathercode[j];
+      if (!isThunder(c)) continue;
       const i = timeIndex.get(src.hourly.time[j] ?? "");
       if (i == null) continue;
-      // Geisterblitze vermeiden: nur übernehmen, wenn auch leichter Niederschlag vorliegt.
-      const p = src.hourly.precipitation?.[j] ?? merged.hourly.precipitation?.[i] ?? 0;
-      if (p < 0.5) continue;
-      merged.hourly.weathercode[i] = src.hourly.weathercode[j] as number;
+      const prev = votes.get(i);
+      votes.set(i, { count: (prev?.count ?? 0) + 1, code: Math.max(prev?.code ?? 0, c as number) });
     }
   };
-  overlayThunder(bestMatch ?? null);
+  collectThunder(bestMatch ?? null);
   if (mosmixRaw) {
     const mosmixFc = alignMosmixToTimeline(mosmixRaw, merged.hourly.time, offsetSec, 0);
-    overlayThunder(mosmixFc);
+    collectThunder(mosmixFc);
+  }
+  for (const [i, v] of votes) {
+    const primaryThunder = isThunder(merged.hourly.weathercode[i]);
+    if (!primaryThunder && v.count < 2) continue;
+    if (!thunderPlausibleAt(merged.hourly, i)) continue;
+    merged.hourly.weathercode[i] = v.code;
+  }
+  // Gewittercodes der Hauptquelle ohne Potenzial auf Schauer zurückstufen.
+  for (let i = 0; i < merged.hourly.weathercode.length; i++) {
+    if (!isThunder(merged.hourly.weathercode[i])) continue;
+    if (thunderPlausibleAt(merged.hourly, i)) continue;
+    merged.hourly.weathercode[i] = downgradeThunderCode(merged.hourly.precipitation?.[i]);
   }
 
 
@@ -745,6 +800,8 @@ export function sanitizeForecast(data: ForecastResponse): ForecastResponse {
     cloud_cover_low: fixNumArr(h?.cloud_cover_low as (number | null)[] | undefined),
     cloud_cover_mid: fixNumArr(h?.cloud_cover_mid as (number | null)[] | undefined),
     cloud_cover_high: fixNumArr(h?.cloud_cover_high as (number | null)[] | undefined),
+    cape: fixNumArr(h?.cape as (number | null)[] | undefined),
+    lifted_index: fixNumArr(h?.lifted_index as (number | null)[] | undefined),
   };
   // MCH-Original-Icon-Codes als NaN-für-fehlt durchreichen, damit das Frontend
   // pro Stunde entscheiden kann: vorhanden → Tag/Nacht aus MCH; sonst Fallback.
