@@ -761,6 +761,18 @@ function CompactHourlyStrip({
         >
           {slots.map(({ idx }) => {
             const precipitation = h.precipitation?.[idx] ?? 0;
+            const code = h.weathercode[idx] ?? 0;
+            const wmoIsWet =
+              (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
+            const prob = h.precipitation_probability?.[idx] ?? 0;
+            const statusText =
+              precipitation > 0
+                ? `${precipitation.toFixed(1)} mm`
+                : wmoIsWet
+                  ? prob > 0
+                    ? `${Math.round(prob)} %`
+                    : "leicht"
+                  : "trocken";
             return (
               <div
                 key={h.time[idx]}
@@ -771,7 +783,7 @@ function CompactHourlyStrip({
                 </span>
                 <span className="text-zinc-900 [&_svg]:h-9 [&_svg]:w-9">
                   <WeatherIcon
-                    code={h.weathercode[idx]}
+                    code={code}
                     size={40}
                     temp={h.temperature_2m[idx]}
                     precip={precipitation}
@@ -781,7 +793,7 @@ function CompactHourlyStrip({
                   {Math.round(h.temperature_2m[idx])}°
                 </span>
                 <span className="text-[11px] font-semibold tabular-nums text-zinc-600">
-                  {precipitation > 0 ? `${precipitation.toFixed(1)} mm` : "trocken"}
+                  {statusText}
                 </span>
               </div>
             );
