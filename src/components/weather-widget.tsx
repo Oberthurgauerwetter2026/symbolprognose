@@ -763,13 +763,23 @@ function CompactHourlyStrip({
           {slots.map(({ idx }) => {
             const precipitation = h.precipitation?.[idx] ?? 0;
             const code = h.weathercode[idx] ?? 0;
+            const mchCode = h.weathercode_mch?.[idx];
             const wmoIsWet =
               (code >= 51 && code <= 67) || (code >= 71 && code <= 86) || code >= 95;
+            const mchBase =
+              typeof mchCode === "number" && Number.isFinite(mchCode)
+                ? mchCode >= 100
+                  ? mchCode - 100
+                  : mchCode
+                : null;
+            const mchIsWet =
+              mchBase != null &&
+              ((mchBase >= 6 && mchBase <= 25) || mchBase === 29 || mchBase === 35);
             const prob = h.precipitation_probability?.[idx] ?? 0;
             const statusText =
               precipitation > 0
                 ? `${precipitation.toFixed(1)} mm`
-                : wmoIsWet
+                : wmoIsWet || mchIsWet
                   ? prob > 0
                     ? `${Math.round(prob)} %`
                     : "leicht"
@@ -785,7 +795,7 @@ function CompactHourlyStrip({
                 <span className="text-zinc-900 [&_svg]:h-9 [&_svg]:w-9">
                   <WeatherIcon
                     code={code}
-                    mchCode={h.weathercode_mch?.[idx]}
+                    mchCode={mchCode}
                     isDay={isDayAtIso(h.time[idx], forecast.daily)}
                     size={40}
                     temp={h.temperature_2m[idx]}

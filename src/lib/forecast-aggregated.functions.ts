@@ -442,14 +442,36 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
   const isThunder = (c: number) => c === 95 || c === 96 || c === 99;
   const isWetCode = (c: number) =>
     (c >= 51 && c <= 67) || (c >= 71 && c <= 86) || isThunder(c);
+  const dryCloudCode = (i: number): number => {
+    const low = fin(h.cloud_cover_low?.[i]) ?? 0;
+    const mid = fin(h.cloud_cover_mid?.[i]) ?? 0;
+    const high = fin(h.cloud_cover_high?.[i]) ?? 0;
+    return low >= 60 ? 3 : mid >= 50 || low >= 30 ? 2 : high >= 40 || mid >= 25 ? 1 : 0;
+  };
   for (let i = 0; i < h.time.length; i++) {
     const code = h.weathercode?.[i];
     if (typeof code !== "number" || !Number.isFinite(code) || !isWetCode(code)) continue;
     const mchAll = (h as { weathercode_mch?: (number | null)[] }).weathercode_mch;
+    const p = fin(h.precipitation?.[i]);
+    const q90 = fin((h as { precipitation_q90?: number[] }).precipitation_q90?.[i]);
+    const prob = fin(h.precipitation_probability?.[i]);
+    const snow = fin(h.snowfall?.[i]);
+    const hasWetSignal =
+      (p ?? 0) >= 0.1 ||
+      (snow ?? 0) > 0 ||
+      (q90 ?? 0) >= 1 ||
+      (prob ?? 0) >= 20;
     // Gewitter-Gate: ohne Labilität und konvektives Signal auf Schauer
-    // zurückstufen — Blitzsymbole nur bei echtem Gewitterpotenzial.
+    // zurückstufen — aber nur, wenn überhaupt ein Niederschlagssignal da ist.
+    // Trockene Gewitter-Ausreisser werden direkt auf Bewölkung gesetzt, damit
+    // nie ein Schauer-Pictogramm neben „trocken" steht.
     if (isThunder(code) && !thunderPlausibleAt(h, i)) {
-      h.weathercode[i] = downgradeThunderCode(h.precipitation?.[i]);
+      if (!hasWetSignal) {
+        h.weathercode[i] = dryCloudCode(i);
+        if (mchAll) mchAll[i] = null;
+        continue;
+      }
+      h.weathercode[i] = downgradeThunderCode(p);
       if (mchAll) {
         const prev = mchAll[i];
         const night = typeof prev === "number" && prev >= 100;
@@ -459,10 +481,6 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
       }
       continue;
     }
-    const p = fin(h.precipitation?.[i]);
-    const q90 = fin((h as { precipitation_q90?: number[] }).precipitation_q90?.[i]);
-    const prob = fin(h.precipitation_probability?.[i]);
-    const snow = fin(h.snowfall?.[i]);
     // Gewitter braucht ein deutliches Signal, sonstiger Niederschlag ein leichtes.
     const minMm = isThunder(code) ? 0.5 : 0.1;
     const minProb = isThunder(code) ? 40 : 20;
@@ -472,11 +490,7 @@ function dropImplausibleWetCodes(fc: ForecastResponse): void {
       (q90 ?? 0) >= 1 ||
       (prob ?? 0) >= minProb;
     if (wet) continue;
-    const low = fin(h.cloud_cover_low?.[i]) ?? 0;
-    const mid = fin(h.cloud_cover_mid?.[i]) ?? 0;
-    const high = fin(h.cloud_cover_high?.[i]) ?? 0;
-    h.weathercode[i] =
-      low >= 60 ? 3 : mid >= 50 || low >= 30 ? 2 : high >= 40 || mid >= 25 ? 1 : 0;
+    h.weathercode[i] = dryCloudCode(i);
     // MCH-Original-Pictogramm ebenfalls verwerfen — Stundenprognose und
     // Regionskarte rendern es 1:1 und würden sonst weiter Gewitter/Schnee zeigen.
     const mchCodes = (h as { weathercode_mch?: (number | null)[] }).weathercode_mch;
