@@ -939,16 +939,6 @@ function RegionMapInner({
         )}
         ref={mapFrameRef}
       >
-        <LocationSearch
-          variant="overlay"
-          bare={bare}
-          onSelect={
-            onSelectSpot
-              ? (loc) =>
-                  onSelectSpot({ name: loc.name, lat: loc.latitude, lon: loc.longitude })
-              : undefined
-          }
-        />
         <MapContainer
           center={center}
           zoom={11}
