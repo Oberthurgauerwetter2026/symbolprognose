@@ -1,7 +1,6 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { LocationSearch } from "@/components/location-search";
 import { Link } from "@tanstack/react-router";
 import {
   MapContainer,
@@ -939,16 +938,6 @@ function RegionMapInner({
         )}
         ref={mapFrameRef}
       >
-        <LocationSearch
-          variant="overlay"
-          bare={bare}
-          onSelect={
-            onSelectSpot
-              ? (loc) =>
-                  onSelectSpot({ name: loc.name, lat: loc.latitude, lon: loc.longitude })
-              : undefined
-          }
-        />
         <MapContainer
           center={center}
           zoom={11}
