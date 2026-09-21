@@ -703,7 +703,20 @@ export async function fetchForecast(
   for (let i = 0; i < merged.hourly.weathercode.length; i++) {
     if (!isThunder(merged.hourly.weathercode[i])) continue;
     if (thunderPlausibleAt(merged.hourly, i)) continue;
-    merged.hourly.weathercode[i] = downgradeThunderCode(merged.hourly.precipitation?.[i]);
+    const p = fin1(merged.hourly.precipitation?.[i]) ?? 0;
+    const q90 = fin1(merged.hourly.precipitation_q90?.[i]) ?? 0;
+    const prob = fin1(merged.hourly.precipitation_probability?.[i]) ?? 0;
+    const snow = fin1(merged.hourly.snowfall?.[i]) ?? 0;
+    const hasWetSignal = p >= 0.1 || q90 >= 1 || prob >= 20 || snow > 0;
+    if (hasWetSignal) {
+      merged.hourly.weathercode[i] = downgradeThunderCode(p);
+      continue;
+    }
+    const low = fin1(merged.hourly.cloud_cover_low?.[i]) ?? 0;
+    const mid = fin1(merged.hourly.cloud_cover_mid?.[i]) ?? 0;
+    const high = fin1(merged.hourly.cloud_cover_high?.[i]) ?? 0;
+    merged.hourly.weathercode[i] =
+      low >= 60 ? 3 : mid >= 50 || low >= 30 ? 2 : high >= 40 || mid >= 25 ? 1 : 0;
   }
 
 
