@@ -898,12 +898,37 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
             continue;
           }
         }
-        // 3) Direkter Open-Meteo-Call als letzte Reissleine
+        // 3) Direkter Open-Meteo-Call mit Retry, danach stale-Cache bzw.
+        //    nächster Cachepunkt — nie leer, solange irgendein Cache lebt.
+        const cacheKey = `${p.lat.toFixed(4)},${p.lon.toFixed(4)}`;
+        const cachedDirect = directForecastCache.get(cacheKey);
+        if (cachedDirect && Date.now() - cachedDirect.at < DIRECT_TTL_MS) {
+          out[p.id] = cachedDirect.fc;
+          continue;
+        }
         try {
-          out[p.id] = await fetchForecast(p.lat, p.lon);
+          let pending = directInFlight.get(cacheKey);
+          if (!pending) {
+            pending = fetchForecastWithRetry(p.lat, p.lon).finally(() => {
+              directInFlight.delete(cacheKey);
+            });
+            directInFlight.set(cacheKey, pending);
+          }
+          const fc = await pending;
+          directForecastCache.set(cacheKey, { fc, at: Date.now() });
+          if (directForecastCache.size > 128) {
+            const firstKey = directForecastCache.keys().next().value;
+            if (firstKey) directForecastCache.delete(firstKey);
+          }
+          out[p.id] = fc;
         } catch (err) {
           console.error("[aggregated-forecast-batch] direct fail", p.id, err);
-          out[p.id] = emptyForecast(p.lat, p.lon);
+          if (cachedDirect) {
+            out[p.id] = cachedDirect.fc;
+            continue;
+          }
+          const nearest = await nearestCacheFallback(p.lat, p.lon);
+          out[p.id] = nearest ?? emptyForecast(p.lat, p.lon);
         }
       }
       return out;
