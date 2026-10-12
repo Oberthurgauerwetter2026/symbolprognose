@@ -16,7 +16,7 @@ function DefaultErrorComponent({
           This page didn't load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {error?.message ?? "Something went wrong on our end."}
+          {(error as Error | undefined)?.message ?? "Something went wrong on our end."}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
