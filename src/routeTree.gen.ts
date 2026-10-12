@@ -9,65 +9,50 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WarnkarteRouteImport } from './routes/warnkarte'
-import { Route as KarteRouteImport } from './routes/karte'
-import { Route as EmbedInfoRouteImport } from './routes/embed-info'
-import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as KartenWindRouteImport } from './routes/karten.wind'
-import { Route as KartenWarnungenRouteImport } from './routes/karten.warnungen'
-import { Route as KartenSatellitRouteImport } from './routes/karten.satellit'
-import { Route as KartenRegionRouteImport } from './routes/karten.region'
-import { Route as KartenRadarRouteImport } from './routes/karten.radar'
-import { Route as KartenNiederschlagRouteImport } from './routes/karten.niederschlag'
-import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
-import { Route as InternIconsRouteImport } from './routes/intern.icons'
-import { Route as EmbedWindRouteImport } from './routes/embed.wind'
-import { Route as EmbedWidgetWindRouteImport } from './routes/embed.widget-wind'
-import { Route as EmbedWidgetWarnungenRouteImport } from './routes/embed.widget-warnungen'
-import { Route as EmbedWidgetRadarRouteImport } from './routes/embed.widget-radar'
-import { Route as EmbedWarnungenRouteImport } from './routes/embed.warnungen'
-import { Route as EmbedSatellitLoopRouteImport } from './routes/embed.satellit-loop'
-import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
-import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
-import { Route as EmbedRegionRouteImport } from './routes/embed.region'
-import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
-import { Route as EmbedLokalprognoseRouteImport } from './routes/embed.lokalprognose'
-import { Route as EmbedLokalSucheRouteImport } from './routes/embed.lokal-suche'
-import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
+import { Route as EmbedInfoRouteImport } from './routes/embed-info'
+import { Route as KarteRouteImport } from './routes/karte'
+import { Route as WarnkarteRouteImport } from './routes/warnkarte'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
+import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
+import { Route as EmbedLokalSucheRouteImport } from './routes/embed.lokal-suche'
+import { Route as EmbedLokalprognoseRouteImport } from './routes/embed.lokalprognose'
+import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
+import { Route as EmbedRegionRouteImport } from './routes/embed.region'
+import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
+import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
+import { Route as EmbedSatellitLoopRouteImport } from './routes/embed.satellit-loop'
+import { Route as EmbedWarnungenRouteImport } from './routes/embed.warnungen'
+import { Route as EmbedWidgetRadarRouteImport } from './routes/embed.widget-radar'
+import { Route as EmbedWidgetWarnungenRouteImport } from './routes/embed.widget-warnungen'
+import { Route as EmbedWidgetWindRouteImport } from './routes/embed.widget-wind'
+import { Route as EmbedWindRouteImport } from './routes/embed.wind'
+import { Route as InternIconsRouteImport } from './routes/intern.icons'
+import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
+import { Route as KartenNiederschlagRouteImport } from './routes/karten.niederschlag'
+import { Route as KartenRadarRouteImport } from './routes/karten.radar'
+import { Route as KartenRegionRouteImport } from './routes/karten.region'
+import { Route as KartenSatellitRouteImport } from './routes/karten.satellit'
+import { Route as KartenWarnungenRouteImport } from './routes/karten.warnungen'
+import { Route as KartenWindRouteImport } from './routes/karten.wind'
 import { Route as ApiPublicWarnkarteManifestRouteImport } from './routes/api/public/warnkarte-manifest'
-import { Route as ApiPublicWarningsAutoThunderRouteImport } from './routes/api/public/warnings/auto-thunder'
-import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/public/symbol/ingest-trigger'
-import { Route as ApiPublicSnapshotMapRouteImport } from './routes/api/public/snapshot/$map'
-import { Route as ApiPublicRadarProxyRouteImport } from './routes/api/public/radar/proxy'
-import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
-import { Route as ApiPublicOpenmeteoIngestTriggerRouteImport } from './routes/api/public/openmeteo/ingest-trigger'
-import { Route as ApiPublicMchIngestTriggerRouteImport } from './routes/api/public/mch/ingest-trigger'
-import { Route as ApiPublicLightningIngestTriggerRouteImport } from './routes/api/public/lightning/ingest-trigger'
-import { Route as ApiPublicEmbedRegionLokalStaticRouteImport } from './routes/api/public/embed/region-lokal-static'
-import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 import { Route as ApiPublicAromeIngestTriggerRouteImport } from './routes/api/public/arome/ingest-trigger'
+import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
+import { Route as ApiPublicEmbedRegionLokalStaticRouteImport } from './routes/api/public/embed/region-lokal-static'
+import { Route as ApiPublicLightningIngestTriggerRouteImport } from './routes/api/public/lightning/ingest-trigger'
+import { Route as ApiPublicMchIngestTriggerRouteImport } from './routes/api/public/mch/ingest-trigger'
+import { Route as ApiPublicOpenmeteoIngestTriggerRouteImport } from './routes/api/public/openmeteo/ingest-trigger'
+import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
+import { Route as ApiPublicRadarProxyRouteImport } from './routes/api/public/radar/proxy'
+import { Route as ApiPublicSnapshotMapRouteImport } from './routes/api/public/snapshot/$map'
+import { Route as ApiPublicSymbolIngestTriggerRouteImport } from './routes/api/public/symbol/ingest-trigger'
+import { Route as ApiPublicWarningsAutoThunderRouteImport } from './routes/api/public/warnings/auto-thunder'
 
-const WarnkarteRoute = WarnkarteRouteImport.update({
-  id: '/warnkarte',
-  path: '/warnkarte',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KarteRoute = KarteRouteImport.update({
-  id: '/karte',
-  path: '/karte',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedInfoRoute = EmbedInfoRouteImport.update({
-  id: '/embed-info',
-  path: '/embed-info',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminWarnungenRoute = AdminWarnungenRouteImport.update({
-  id: '/admin-warnungen',
-  path: '/admin-warnungen',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -75,109 +60,29 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AdminWarnungenRoute = AdminWarnungenRouteImport.update({
+  id: '/admin-warnungen',
+  path: '/admin-warnungen',
   getParentRoute: () => rootRouteImport,
 } as any)
-const KartenWindRoute = KartenWindRouteImport.update({
-  id: '/karten/wind',
-  path: '/karten/wind',
+const EmbedInfoRoute = EmbedInfoRouteImport.update({
+  id: '/embed-info',
+  path: '/embed-info',
   getParentRoute: () => rootRouteImport,
 } as any)
-const KartenWarnungenRoute = KartenWarnungenRouteImport.update({
-  id: '/karten/warnungen',
-  path: '/karten/warnungen',
+const KarteRoute = KarteRouteImport.update({
+  id: '/karte',
+  path: '/karte',
   getParentRoute: () => rootRouteImport,
 } as any)
-const KartenSatellitRoute = KartenSatellitRouteImport.update({
-  id: '/karten/satellit',
-  path: '/karten/satellit',
+const WarnkarteRoute = WarnkarteRouteImport.update({
+  id: '/warnkarte',
+  path: '/warnkarte',
   getParentRoute: () => rootRouteImport,
 } as any)
-const KartenRegionRoute = KartenRegionRouteImport.update({
-  id: '/karten/region',
-  path: '/karten/region',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KartenRadarRoute = KartenRadarRouteImport.update({
-  id: '/karten/radar',
-  path: '/karten/radar',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KartenNiederschlagRoute = KartenNiederschlagRouteImport.update({
-  id: '/karten/niederschlag',
-  path: '/karten/niederschlag',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const KartenLokalRoute = KartenLokalRouteImport.update({
-  id: '/karten/lokal',
-  path: '/karten/lokal',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InternIconsRoute = InternIconsRouteImport.update({
-  id: '/intern/icons',
-  path: '/intern/icons',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedWindRoute = EmbedWindRouteImport.update({
-  id: '/embed/wind',
-  path: '/embed/wind',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedWidgetWindRoute = EmbedWidgetWindRouteImport.update({
-  id: '/embed/widget-wind',
-  path: '/embed/widget-wind',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedWidgetWarnungenRoute = EmbedWidgetWarnungenRouteImport.update({
-  id: '/embed/widget-warnungen',
-  path: '/embed/widget-warnungen',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedWidgetRadarRoute = EmbedWidgetRadarRouteImport.update({
-  id: '/embed/widget-radar',
-  path: '/embed/widget-radar',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedWarnungenRoute = EmbedWarnungenRouteImport.update({
-  id: '/embed/warnungen',
-  path: '/embed/warnungen',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedSatellitLoopRoute = EmbedSatellitLoopRouteImport.update({
-  id: '/embed/satellit-loop',
-  path: '/embed/satellit-loop',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedSatellitRoute = EmbedSatellitRouteImport.update({
-  id: '/embed/satellit',
-  path: '/embed/satellit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedRegionLokalRoute = EmbedRegionLokalRouteImport.update({
-  id: '/embed/region-lokal',
-  path: '/embed/region-lokal',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedRegionRoute = EmbedRegionRouteImport.update({
-  id: '/embed/region',
-  path: '/embed/region',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedRadarRoute = EmbedRadarRouteImport.update({
-  id: '/embed/radar',
-  path: '/embed/radar',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedLokalprognoseRoute = EmbedLokalprognoseRouteImport.update({
-  id: '/embed/lokalprognose',
-  path: '/embed/lokalprognose',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmbedLokalSucheRoute = EmbedLokalSucheRouteImport.update({
-  id: '/embed/lokal-suche',
-  path: '/embed/lokal-suche',
+const EmbedAllRoute = EmbedAllRouteImport.update({
+  id: '/embed/all',
+  path: '/embed/all',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedLokalRoute = EmbedLokalRouteImport.update({
@@ -185,9 +90,104 @@ const EmbedLokalRoute = EmbedLokalRouteImport.update({
   path: '/embed/lokal',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EmbedAllRoute = EmbedAllRouteImport.update({
-  id: '/embed/all',
-  path: '/embed/all',
+const EmbedLokalSucheRoute = EmbedLokalSucheRouteImport.update({
+  id: '/embed/lokal-suche',
+  path: '/embed/lokal-suche',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedLokalprognoseRoute = EmbedLokalprognoseRouteImport.update({
+  id: '/embed/lokalprognose',
+  path: '/embed/lokalprognose',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedRadarRoute = EmbedRadarRouteImport.update({
+  id: '/embed/radar',
+  path: '/embed/radar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedRegionRoute = EmbedRegionRouteImport.update({
+  id: '/embed/region',
+  path: '/embed/region',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedRegionLokalRoute = EmbedRegionLokalRouteImport.update({
+  id: '/embed/region-lokal',
+  path: '/embed/region-lokal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedSatellitRoute = EmbedSatellitRouteImport.update({
+  id: '/embed/satellit',
+  path: '/embed/satellit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedSatellitLoopRoute = EmbedSatellitLoopRouteImport.update({
+  id: '/embed/satellit-loop',
+  path: '/embed/satellit-loop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedWarnungenRoute = EmbedWarnungenRouteImport.update({
+  id: '/embed/warnungen',
+  path: '/embed/warnungen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedWidgetRadarRoute = EmbedWidgetRadarRouteImport.update({
+  id: '/embed/widget-radar',
+  path: '/embed/widget-radar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedWidgetWarnungenRoute = EmbedWidgetWarnungenRouteImport.update({
+  id: '/embed/widget-warnungen',
+  path: '/embed/widget-warnungen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedWidgetWindRoute = EmbedWidgetWindRouteImport.update({
+  id: '/embed/widget-wind',
+  path: '/embed/widget-wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedWindRoute = EmbedWindRouteImport.update({
+  id: '/embed/wind',
+  path: '/embed/wind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InternIconsRoute = InternIconsRouteImport.update({
+  id: '/intern/icons',
+  path: '/intern/icons',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenLokalRoute = KartenLokalRouteImport.update({
+  id: '/karten/lokal',
+  path: '/karten/lokal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenNiederschlagRoute = KartenNiederschlagRouteImport.update({
+  id: '/karten/niederschlag',
+  path: '/karten/niederschlag',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenRadarRoute = KartenRadarRouteImport.update({
+  id: '/karten/radar',
+  path: '/karten/radar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenRegionRoute = KartenRegionRouteImport.update({
+  id: '/karten/region',
+  path: '/karten/region',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenSatellitRoute = KartenSatellitRouteImport.update({
+  id: '/karten/satellit',
+  path: '/karten/satellit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenWarnungenRoute = KartenWarnungenRouteImport.update({
+  id: '/karten/warnungen',
+  path: '/karten/warnungen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KartenWindRoute = KartenWindRouteImport.update({
+  id: '/karten/wind',
+  path: '/karten/wind',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWarnkarteManifestRoute =
@@ -196,44 +196,21 @@ const ApiPublicWarnkarteManifestRoute =
     path: '/api/public/warnkarte-manifest',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicWarningsAutoThunderRoute =
-  ApiPublicWarningsAutoThunderRouteImport.update({
-    id: '/api/public/warnings/auto-thunder',
-    path: '/api/public/warnings/auto-thunder',
+const ApiPublicAromeIngestTriggerRoute =
+  ApiPublicAromeIngestTriggerRouteImport.update({
+    id: '/api/public/arome/ingest-trigger',
+    path: '/api/public/arome/ingest-trigger',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicSymbolIngestTriggerRoute =
-  ApiPublicSymbolIngestTriggerRouteImport.update({
-    id: '/api/public/symbol/ingest-trigger',
-    path: '/api/public/symbol/ingest-trigger',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicSnapshotMapRoute = ApiPublicSnapshotMapRouteImport.update({
-  id: '/api/public/snapshot/$map',
-  path: '/api/public/snapshot/$map',
+const ApiPublicDebugR2CacheRoute = ApiPublicDebugR2CacheRouteImport.update({
+  id: '/api/public/debug/r2-cache',
+  path: '/api/public/debug/r2-cache',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicRadarProxyRoute = ApiPublicRadarProxyRouteImport.update({
-  id: '/api/public/radar/proxy',
-  path: '/api/public/radar/proxy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicRadarIngestTriggerRoute =
-  ApiPublicRadarIngestTriggerRouteImport.update({
-    id: '/api/public/radar/ingest-trigger',
-    path: '/api/public/radar/ingest-trigger',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicOpenmeteoIngestTriggerRoute =
-  ApiPublicOpenmeteoIngestTriggerRouteImport.update({
-    id: '/api/public/openmeteo/ingest-trigger',
-    path: '/api/public/openmeteo/ingest-trigger',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicMchIngestTriggerRoute =
-  ApiPublicMchIngestTriggerRouteImport.update({
-    id: '/api/public/mch/ingest-trigger',
-    path: '/api/public/mch/ingest-trigger',
+const ApiPublicEmbedRegionLokalStaticRoute =
+  ApiPublicEmbedRegionLokalStaticRouteImport.update({
+    id: '/api/public/embed/region-lokal-static',
+    path: '/api/public/embed/region-lokal-static',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicLightningIngestTriggerRoute =
@@ -242,21 +219,44 @@ const ApiPublicLightningIngestTriggerRoute =
     path: '/api/public/lightning/ingest-trigger',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicEmbedRegionLokalStaticRoute =
-  ApiPublicEmbedRegionLokalStaticRouteImport.update({
-    id: '/api/public/embed/region-lokal-static',
-    path: '/api/public/embed/region-lokal-static',
+const ApiPublicMchIngestTriggerRoute =
+  ApiPublicMchIngestTriggerRouteImport.update({
+    id: '/api/public/mch/ingest-trigger',
+    path: '/api/public/mch/ingest-trigger',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicDebugR2CacheRoute = ApiPublicDebugR2CacheRouteImport.update({
-  id: '/api/public/debug/r2-cache',
-  path: '/api/public/debug/r2-cache',
+const ApiPublicOpenmeteoIngestTriggerRoute =
+  ApiPublicOpenmeteoIngestTriggerRouteImport.update({
+    id: '/api/public/openmeteo/ingest-trigger',
+    path: '/api/public/openmeteo/ingest-trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicRadarIngestTriggerRoute =
+  ApiPublicRadarIngestTriggerRouteImport.update({
+    id: '/api/public/radar/ingest-trigger',
+    path: '/api/public/radar/ingest-trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicRadarProxyRoute = ApiPublicRadarProxyRouteImport.update({
+  id: '/api/public/radar/proxy',
+  path: '/api/public/radar/proxy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicAromeIngestTriggerRoute =
-  ApiPublicAromeIngestTriggerRouteImport.update({
-    id: '/api/public/arome/ingest-trigger',
-    path: '/api/public/arome/ingest-trigger',
+const ApiPublicSnapshotMapRoute = ApiPublicSnapshotMapRouteImport.update({
+  id: '/api/public/snapshot/$map',
+  path: '/api/public/snapshot/$map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicSymbolIngestTriggerRoute =
+  ApiPublicSymbolIngestTriggerRouteImport.update({
+    id: '/api/public/symbol/ingest-trigger',
+    path: '/api/public/symbol/ingest-trigger',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWarningsAutoThunderRoute =
+  ApiPublicWarningsAutoThunderRouteImport.update({
+    id: '/api/public/warnings/auto-thunder',
+    path: '/api/public/warnings/auto-thunder',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -561,32 +561,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/warnkarte': {
-      id: '/warnkarte'
-      path: '/warnkarte'
-      fullPath: '/warnkarte'
-      preLoaderRoute: typeof WarnkarteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/karte': {
-      id: '/karte'
-      path: '/karte'
-      fullPath: '/karte'
-      preLoaderRoute: typeof KarteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed-info': {
-      id: '/embed-info'
-      path: '/embed-info'
-      fullPath: '/embed-info'
-      preLoaderRoute: typeof EmbedInfoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin-warnungen': {
-      id: '/admin-warnungen'
-      path: '/admin-warnungen'
-      fullPath: '/admin-warnungen'
-      preLoaderRoute: typeof AdminWarnungenRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -596,158 +575,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/admin-warnungen': {
+      id: '/admin-warnungen'
+      path: '/admin-warnungen'
+      fullPath: '/admin-warnungen'
+      preLoaderRoute: typeof AdminWarnungenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/karten/wind': {
-      id: '/karten/wind'
-      path: '/karten/wind'
-      fullPath: '/karten/wind'
-      preLoaderRoute: typeof KartenWindRouteImport
+    '/embed-info': {
+      id: '/embed-info'
+      path: '/embed-info'
+      fullPath: '/embed-info'
+      preLoaderRoute: typeof EmbedInfoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/karten/warnungen': {
-      id: '/karten/warnungen'
-      path: '/karten/warnungen'
-      fullPath: '/karten/warnungen'
-      preLoaderRoute: typeof KartenWarnungenRouteImport
+    '/karte': {
+      id: '/karte'
+      path: '/karte'
+      fullPath: '/karte'
+      preLoaderRoute: typeof KarteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/karten/satellit': {
-      id: '/karten/satellit'
-      path: '/karten/satellit'
-      fullPath: '/karten/satellit'
-      preLoaderRoute: typeof KartenSatellitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/karten/region': {
-      id: '/karten/region'
-      path: '/karten/region'
-      fullPath: '/karten/region'
-      preLoaderRoute: typeof KartenRegionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/karten/radar': {
-      id: '/karten/radar'
-      path: '/karten/radar'
-      fullPath: '/karten/radar'
-      preLoaderRoute: typeof KartenRadarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/karten/niederschlag': {
-      id: '/karten/niederschlag'
-      path: '/karten/niederschlag'
-      fullPath: '/karten/niederschlag'
-      preLoaderRoute: typeof KartenNiederschlagRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/karten/lokal': {
-      id: '/karten/lokal'
-      path: '/karten/lokal'
-      fullPath: '/karten/lokal'
-      preLoaderRoute: typeof KartenLokalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/intern/icons': {
-      id: '/intern/icons'
-      path: '/intern/icons'
-      fullPath: '/intern/icons'
-      preLoaderRoute: typeof InternIconsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/wind': {
-      id: '/embed/wind'
-      path: '/embed/wind'
-      fullPath: '/embed/wind'
-      preLoaderRoute: typeof EmbedWindRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/widget-wind': {
-      id: '/embed/widget-wind'
-      path: '/embed/widget-wind'
-      fullPath: '/embed/widget-wind'
-      preLoaderRoute: typeof EmbedWidgetWindRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/widget-warnungen': {
-      id: '/embed/widget-warnungen'
-      path: '/embed/widget-warnungen'
-      fullPath: '/embed/widget-warnungen'
-      preLoaderRoute: typeof EmbedWidgetWarnungenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/widget-radar': {
-      id: '/embed/widget-radar'
-      path: '/embed/widget-radar'
-      fullPath: '/embed/widget-radar'
-      preLoaderRoute: typeof EmbedWidgetRadarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/warnungen': {
-      id: '/embed/warnungen'
-      path: '/embed/warnungen'
-      fullPath: '/embed/warnungen'
-      preLoaderRoute: typeof EmbedWarnungenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/satellit-loop': {
-      id: '/embed/satellit-loop'
-      path: '/embed/satellit-loop'
-      fullPath: '/embed/satellit-loop'
-      preLoaderRoute: typeof EmbedSatellitLoopRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/satellit': {
-      id: '/embed/satellit'
-      path: '/embed/satellit'
-      fullPath: '/embed/satellit'
-      preLoaderRoute: typeof EmbedSatellitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/region-lokal': {
-      id: '/embed/region-lokal'
-      path: '/embed/region-lokal'
-      fullPath: '/embed/region-lokal'
-      preLoaderRoute: typeof EmbedRegionLokalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/region': {
-      id: '/embed/region'
-      path: '/embed/region'
-      fullPath: '/embed/region'
-      preLoaderRoute: typeof EmbedRegionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/radar': {
-      id: '/embed/radar'
-      path: '/embed/radar'
-      fullPath: '/embed/radar'
-      preLoaderRoute: typeof EmbedRadarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/lokalprognose': {
-      id: '/embed/lokalprognose'
-      path: '/embed/lokalprognose'
-      fullPath: '/embed/lokalprognose'
-      preLoaderRoute: typeof EmbedLokalprognoseRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/lokal-suche': {
-      id: '/embed/lokal-suche'
-      path: '/embed/lokal-suche'
-      fullPath: '/embed/lokal-suche'
-      preLoaderRoute: typeof EmbedLokalSucheRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/embed/lokal': {
-      id: '/embed/lokal'
-      path: '/embed/lokal'
-      fullPath: '/embed/lokal'
-      preLoaderRoute: typeof EmbedLokalRouteImport
+    '/warnkarte': {
+      id: '/warnkarte'
+      path: '/warnkarte'
+      fullPath: '/warnkarte'
+      preLoaderRoute: typeof WarnkarteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/all': {
@@ -757,6 +610,153 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmbedAllRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/embed/lokal': {
+      id: '/embed/lokal'
+      path: '/embed/lokal'
+      fullPath: '/embed/lokal'
+      preLoaderRoute: typeof EmbedLokalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/lokal-suche': {
+      id: '/embed/lokal-suche'
+      path: '/embed/lokal-suche'
+      fullPath: '/embed/lokal-suche'
+      preLoaderRoute: typeof EmbedLokalSucheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/lokalprognose': {
+      id: '/embed/lokalprognose'
+      path: '/embed/lokalprognose'
+      fullPath: '/embed/lokalprognose'
+      preLoaderRoute: typeof EmbedLokalprognoseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/radar': {
+      id: '/embed/radar'
+      path: '/embed/radar'
+      fullPath: '/embed/radar'
+      preLoaderRoute: typeof EmbedRadarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/region': {
+      id: '/embed/region'
+      path: '/embed/region'
+      fullPath: '/embed/region'
+      preLoaderRoute: typeof EmbedRegionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/region-lokal': {
+      id: '/embed/region-lokal'
+      path: '/embed/region-lokal'
+      fullPath: '/embed/region-lokal'
+      preLoaderRoute: typeof EmbedRegionLokalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/satellit': {
+      id: '/embed/satellit'
+      path: '/embed/satellit'
+      fullPath: '/embed/satellit'
+      preLoaderRoute: typeof EmbedSatellitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/satellit-loop': {
+      id: '/embed/satellit-loop'
+      path: '/embed/satellit-loop'
+      fullPath: '/embed/satellit-loop'
+      preLoaderRoute: typeof EmbedSatellitLoopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/warnungen': {
+      id: '/embed/warnungen'
+      path: '/embed/warnungen'
+      fullPath: '/embed/warnungen'
+      preLoaderRoute: typeof EmbedWarnungenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/widget-radar': {
+      id: '/embed/widget-radar'
+      path: '/embed/widget-radar'
+      fullPath: '/embed/widget-radar'
+      preLoaderRoute: typeof EmbedWidgetRadarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/widget-warnungen': {
+      id: '/embed/widget-warnungen'
+      path: '/embed/widget-warnungen'
+      fullPath: '/embed/widget-warnungen'
+      preLoaderRoute: typeof EmbedWidgetWarnungenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/widget-wind': {
+      id: '/embed/widget-wind'
+      path: '/embed/widget-wind'
+      fullPath: '/embed/widget-wind'
+      preLoaderRoute: typeof EmbedWidgetWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/wind': {
+      id: '/embed/wind'
+      path: '/embed/wind'
+      fullPath: '/embed/wind'
+      preLoaderRoute: typeof EmbedWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/intern/icons': {
+      id: '/intern/icons'
+      path: '/intern/icons'
+      fullPath: '/intern/icons'
+      preLoaderRoute: typeof InternIconsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/lokal': {
+      id: '/karten/lokal'
+      path: '/karten/lokal'
+      fullPath: '/karten/lokal'
+      preLoaderRoute: typeof KartenLokalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/niederschlag': {
+      id: '/karten/niederschlag'
+      path: '/karten/niederschlag'
+      fullPath: '/karten/niederschlag'
+      preLoaderRoute: typeof KartenNiederschlagRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/radar': {
+      id: '/karten/radar'
+      path: '/karten/radar'
+      fullPath: '/karten/radar'
+      preLoaderRoute: typeof KartenRadarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/region': {
+      id: '/karten/region'
+      path: '/karten/region'
+      fullPath: '/karten/region'
+      preLoaderRoute: typeof KartenRegionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/satellit': {
+      id: '/karten/satellit'
+      path: '/karten/satellit'
+      fullPath: '/karten/satellit'
+      preLoaderRoute: typeof KartenSatellitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/warnungen': {
+      id: '/karten/warnungen'
+      path: '/karten/warnungen'
+      fullPath: '/karten/warnungen'
+      preLoaderRoute: typeof KartenWarnungenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karten/wind': {
+      id: '/karten/wind'
+      path: '/karten/wind'
+      fullPath: '/karten/wind'
+      preLoaderRoute: typeof KartenWindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/warnkarte-manifest': {
       id: '/api/public/warnkarte-manifest'
       path: '/api/public/warnkarte-manifest'
@@ -764,67 +764,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWarnkarteManifestRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/warnings/auto-thunder': {
-      id: '/api/public/warnings/auto-thunder'
-      path: '/api/public/warnings/auto-thunder'
-      fullPath: '/api/public/warnings/auto-thunder'
-      preLoaderRoute: typeof ApiPublicWarningsAutoThunderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/symbol/ingest-trigger': {
-      id: '/api/public/symbol/ingest-trigger'
-      path: '/api/public/symbol/ingest-trigger'
-      fullPath: '/api/public/symbol/ingest-trigger'
-      preLoaderRoute: typeof ApiPublicSymbolIngestTriggerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/snapshot/$map': {
-      id: '/api/public/snapshot/$map'
-      path: '/api/public/snapshot/$map'
-      fullPath: '/api/public/snapshot/$map'
-      preLoaderRoute: typeof ApiPublicSnapshotMapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/radar/proxy': {
-      id: '/api/public/radar/proxy'
-      path: '/api/public/radar/proxy'
-      fullPath: '/api/public/radar/proxy'
-      preLoaderRoute: typeof ApiPublicRadarProxyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/radar/ingest-trigger': {
-      id: '/api/public/radar/ingest-trigger'
-      path: '/api/public/radar/ingest-trigger'
-      fullPath: '/api/public/radar/ingest-trigger'
-      preLoaderRoute: typeof ApiPublicRadarIngestTriggerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/openmeteo/ingest-trigger': {
-      id: '/api/public/openmeteo/ingest-trigger'
-      path: '/api/public/openmeteo/ingest-trigger'
-      fullPath: '/api/public/openmeteo/ingest-trigger'
-      preLoaderRoute: typeof ApiPublicOpenmeteoIngestTriggerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/mch/ingest-trigger': {
-      id: '/api/public/mch/ingest-trigger'
-      path: '/api/public/mch/ingest-trigger'
-      fullPath: '/api/public/mch/ingest-trigger'
-      preLoaderRoute: typeof ApiPublicMchIngestTriggerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/lightning/ingest-trigger': {
-      id: '/api/public/lightning/ingest-trigger'
-      path: '/api/public/lightning/ingest-trigger'
-      fullPath: '/api/public/lightning/ingest-trigger'
-      preLoaderRoute: typeof ApiPublicLightningIngestTriggerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/embed/region-lokal-static': {
-      id: '/api/public/embed/region-lokal-static'
-      path: '/api/public/embed/region-lokal-static'
-      fullPath: '/api/public/embed/region-lokal-static'
-      preLoaderRoute: typeof ApiPublicEmbedRegionLokalStaticRouteImport
+    '/api/public/arome/ingest-trigger': {
+      id: '/api/public/arome/ingest-trigger'
+      path: '/api/public/arome/ingest-trigger'
+      fullPath: '/api/public/arome/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicAromeIngestTriggerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/debug/r2-cache': {
@@ -834,11 +778,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicDebugR2CacheRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/arome/ingest-trigger': {
-      id: '/api/public/arome/ingest-trigger'
-      path: '/api/public/arome/ingest-trigger'
-      fullPath: '/api/public/arome/ingest-trigger'
-      preLoaderRoute: typeof ApiPublicAromeIngestTriggerRouteImport
+    '/api/public/embed/region-lokal-static': {
+      id: '/api/public/embed/region-lokal-static'
+      path: '/api/public/embed/region-lokal-static'
+      fullPath: '/api/public/embed/region-lokal-static'
+      preLoaderRoute: typeof ApiPublicEmbedRegionLokalStaticRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/lightning/ingest-trigger': {
+      id: '/api/public/lightning/ingest-trigger'
+      path: '/api/public/lightning/ingest-trigger'
+      fullPath: '/api/public/lightning/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicLightningIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/mch/ingest-trigger': {
+      id: '/api/public/mch/ingest-trigger'
+      path: '/api/public/mch/ingest-trigger'
+      fullPath: '/api/public/mch/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicMchIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/openmeteo/ingest-trigger': {
+      id: '/api/public/openmeteo/ingest-trigger'
+      path: '/api/public/openmeteo/ingest-trigger'
+      fullPath: '/api/public/openmeteo/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicOpenmeteoIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/radar/ingest-trigger': {
+      id: '/api/public/radar/ingest-trigger'
+      path: '/api/public/radar/ingest-trigger'
+      fullPath: '/api/public/radar/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicRadarIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/radar/proxy': {
+      id: '/api/public/radar/proxy'
+      path: '/api/public/radar/proxy'
+      fullPath: '/api/public/radar/proxy'
+      preLoaderRoute: typeof ApiPublicRadarProxyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/snapshot/$map': {
+      id: '/api/public/snapshot/$map'
+      path: '/api/public/snapshot/$map'
+      fullPath: '/api/public/snapshot/$map'
+      preLoaderRoute: typeof ApiPublicSnapshotMapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/symbol/ingest-trigger': {
+      id: '/api/public/symbol/ingest-trigger'
+      path: '/api/public/symbol/ingest-trigger'
+      fullPath: '/api/public/symbol/ingest-trigger'
+      preLoaderRoute: typeof ApiPublicSymbolIngestTriggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/warnings/auto-thunder': {
+      id: '/api/public/warnings/auto-thunder'
+      path: '/api/public/warnings/auto-thunder'
+      fullPath: '/api/public/warnings/auto-thunder'
+      preLoaderRoute: typeof ApiPublicWarningsAutoThunderRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
