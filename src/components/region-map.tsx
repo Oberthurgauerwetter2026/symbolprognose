@@ -777,8 +777,13 @@ function RegionMapInner({
   const { maxWarnLevel, maxAdvisoryLevel } = useMemo(() => {
     let warn = 0;
     let adv = 0;
+    // Banner: ab Erstellung sichtbar (auch vor Gültigkeitsbeginn), bis Ablauf.
+    const notExpired = allWarnings.filter((w) => {
+      const to = new Date(w.validTo).getTime();
+      return !Number.isNaN(to) && to > nowMs;
+    });
     for (const id of new Set(SPOTS.map((s) => regionIdForPoint(s.lat, s.lon)))) {
-      for (const w of warningsForRegion(activeWarnings, id)) {
+      for (const w of warningsForRegion(notExpired, id)) {
         const lvl = Math.min(3, Math.max(1, w.level));
         if (w.advisory) adv = Math.max(adv, lvl);
         else warn = Math.max(warn, lvl);
@@ -788,7 +793,7 @@ function RegionMapInner({
       maxWarnLevel: warn as 0 | WarnLevel,
       maxAdvisoryLevel: adv as 0 | WarnLevel,
     };
-  }, [activeWarnings]);
+  }, [allWarnings, nowMs]);
 
 
 
