@@ -1,15 +1,12 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createRouter, useRouter } from "@tanstack/react-router";
+import { createRouter, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { setupQueryPersistence } from "./lib/query-persist";
 
 function DefaultErrorComponent({
   error,
   reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
+}: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
   return (
