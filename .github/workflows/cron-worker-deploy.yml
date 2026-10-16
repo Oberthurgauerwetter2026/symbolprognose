@@ -17,23 +17,12 @@ concurrency:
   group: cron-worker-deploy
   cancel-in-progress: false
 
-permissions:
-  contents: read
-  actions: write
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
-      # Verhindert, dass GitHub den Zeitplan nach 60 Tagen ohne Commits
-      # deaktiviert (API-basiert, erzeugt keine Commits).
-      - name: Keepalive
-        if: github.event_name == 'schedule'
-        uses: gautamkrishnar/keepalive-workflow@v2
-        continue-on-error: true
 
 
       - uses: oven-sh/setup-bun@v2
