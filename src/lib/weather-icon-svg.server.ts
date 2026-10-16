@@ -95,7 +95,7 @@ function drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
     `<g class="wx-drop-anim" style="animation-delay:${delay}s">` +
     `<g transform="translate(${x} ${y}) rotate(${t}) scale(${sx} ${sy})">` +
     `<path d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z" ` +
-    `fill="#69b7e8" stroke="#3d84b8" stroke-width="0.7" stroke-linejoin="round"/>` +
+    `fill="#2f8fe0" stroke="#0b3a6b" stroke-width="1" stroke-linejoin="round"/>` +
     `<path d="M 0 -6.9 C 1.1 -3.6 2.0 -1.2 2.2 0.9 C 1.3 -0.6 0.6 -2.2 0 -3.4 C -0.6 -2.2 -1.3 -0.6 -2.2 0.9 C -2.0 -1.2 -1.1 -3.6 0 -6.9 Z" ` +
     `fill="#ffffff" opacity="0.55"/>` +
     `</g></g>`
@@ -470,7 +470,7 @@ export const WX_ICON_CSS_VARS = `:root{
   --wx-moon:#fef3c7;--wx-moon-shade:#b45309;
   --wx-cloud:#cbd0d8;--wx-cloud-shade:#6b7280;
   --wx-cloud-dark:#4b5563;--wx-cloud-dark-shade:#1f2937;
-  --wx-rain:#38bdf8;--wx-rain-edge:#0c2a4a;--wx-drop:#69b7e8;--wx-drop-hi:#ffffff;--wx-drop-edge:#3d84b8;
+  --wx-rain:#38bdf8;--wx-rain-edge:#0c2a4a;--wx-drop:#2f8fe0;--wx-drop-hi:#ffffff;--wx-drop-edge:#0b3a6b;
   --wx-snow:#ffffff;--wx-snow-edge:#3b4a5c;
   --wx-bolt:#facc15;--wx-bolt-edge:#b45309;
   --wx-fog:#4b5563;
