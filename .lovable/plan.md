@@ -1,16 +1,16 @@
 # Regentropfen besser sichtbar machen
 
-The drops are light blue (#69b7e8) with a thin, mid-blue outline. On grey clouds they barely stand out.
+Die Tropfen sind hellblau (#69b7e8) mit dünnem, mittelblauem Rand und gehen auf grauen Wolken unter.
 
-## Fix
-- Make the drop color a deeper, more saturated blue (about #2f8fe0) so it stands out from grey.
-- Give the outline a dark navy color (about #0b3a6b) and make it slightly thicker (0.7 → 1.0).
-- Keep the small white shine on each drop, which reads like a highlight.
-- Make the change the same everywhere: in the app, on all embeds and in the server-drawn symbols (push messages and embeds without scripts).
+## Lösung
+- Tropfenfarbe kräftiger und satter (ca. #2f8fe0), damit sie sich klar vom Grau abhebt.
+- Dunkelblauer Rand (ca. #0b3a6b), etwas dicker (0,7 → 1,0).
+- Kleiner weisser Glanzpunkt bleibt als Lichtreflex.
+- Gleich überall: App, alle Einbettungen und die serverseitig gezeichneten Symbole (Push, Einbettungen ohne Skript).
 
-Drop shape, size and the falling animation stay unchanged.
+Form, Grösse und Fallanimation bleiben unverändert.
 
-## Technical
+## Technisch
 - `src/styles.css`: `--wx-drop`, `--wx-drop-edge`
-- `src/components/weather-icons/index.tsx`: fallback colors, stroke-width
-- `src/lib/weather-icon-svg.server.ts`: line 98 and the CSS variables on line 473
+- `src/components/weather-icons/index.tsx`: Fallback-Farben, stroke-width
+- `src/lib/weather-icon-svg.server.ts`: Zeile 98 und CSS-Variablen Zeile 473
