@@ -33,12 +33,26 @@ export const DROP_ANIM_CSS = `
   100% { transform: translateY(7px); opacity: 0; }
 }
 .wx-drop-anim { animation: wx-drop-fall 1.5s ease-in infinite; }
-@media (prefers-reduced-motion: reduce) { .wx-drop-anim { animation: none; } }
+@keyframes wx-flake-fall {
+  0% { transform: translate(0, 0); opacity: 0; }
+  15% { opacity: 1; }
+  30% { transform: translate(1.5px, 1.8px); }
+  55% { transform: translate(-1.5px, 3.3px); }
+  80% { transform: translate(1px, 4.8px); opacity: 1; }
+  100% { transform: translate(0, 6px); opacity: 0; }
+}
+.wx-flake-anim { animation: wx-flake-fall 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .wx-drop-anim, .wx-flake-anim { animation: none; } }
 `;
 
 // Deterministischer Startversatz pro Tropfenposition, damit sie versetzt fallen.
 export function dropDelay(x: number, y: number): number {
   return -(((Math.round(x) * 7 + Math.round(y) * 13) % 15) / 10);
+}
+
+// Startversatz für Schneeflocken (0 bis -3 s), versetztes Schweben.
+export function flakeDelay(x: number, y: number): number {
+  return -(((Math.round(x) * 7 + Math.round(y) * 13) % 30) / 10);
 }
 
 function Svg({
@@ -197,6 +211,7 @@ function Flake({ x, y, size = 1 }: { x: number; y: number; size?: number }) {
   // 6-arm star with dark edge underneath for contrast
   const arms = [0, 60, 120];
   return (
+    <g className="wx-flake-anim" style={{ animationDelay: `${flakeDelay(x, y)}s` }}>
     <g transform={`translate(${x} ${y}) scale(${size})`}>
       {arms.map((deg) => (
         <line
@@ -225,6 +240,7 @@ function Flake({ x, y, size = 1 }: { x: number; y: number; size?: number }) {
         />
       ))}
       <circle cx="0" cy="0" r="1.6" fill={C.snow} stroke={C.snowEdge} strokeWidth="0.6" />
+    </g>
     </g>
   );
 }
