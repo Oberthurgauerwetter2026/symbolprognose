@@ -9,7 +9,7 @@
  * define them (see src/styles.css :root tokens).
  */
 
-import { DROP_ANIM_CSS, dropDelay } from "@/components/weather-icons";
+import { DROP_ANIM_CSS, dropDelay, flakeDelay } from "@/components/weather-icons";
 
 const C = {
   sun: "var(--wx-sun)",
@@ -105,7 +105,7 @@ function drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
 
 function flake({ x, y, size = 1 }: { x: number; y: number; size?: number }): string {
   const arms = [0, 60, 120];
-  let out = `<g transform="translate(${x} ${y}) scale(${size})">`;
+  let out = `<g class="wx-flake-anim" style="animation-delay:${flakeDelay(x, y)}s"><g transform="translate(${x} ${y}) scale(${size})">`;
   for (const deg of arms) {
     out += `<line x1="-5" y1="0" x2="5" y2="0" stroke="${C.snowEdge}" stroke-width="3.6" stroke-linecap="round" transform="rotate(${deg})"/>`;
   }
@@ -113,7 +113,7 @@ function flake({ x, y, size = 1 }: { x: number; y: number; size?: number }): str
     out += `<line x1="-5" y1="0" x2="5" y2="0" stroke="${C.snow}" stroke-width="2.4" stroke-linecap="round" transform="rotate(${deg})"/>`;
   }
   out += `<circle cx="0" cy="0" r="1.6" fill="${C.snow}" stroke="${C.snowEdge}" stroke-width="0.6"/>`;
-  return out + "</g>";
+  return out + "</g></g>";
 }
 
 function bolt(): string {
