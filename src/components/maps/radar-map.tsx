@@ -55,7 +55,7 @@ const THURGAU = thurgauData as unknown as FeatureCollection;
 // identisch aussehen. Alpha hier 0..1; die finale Deckkraft setzt die
 // einheitliche ImageOverlay-/Canvas-`opacity` im Frontend.
 const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1,   rgb: [150, 195, 235], a: 235 / 255 },
+  { mmh: 0.1,   rgb: [120, 180, 235], a: 245 / 255 },
   { mmh: 0.3,   rgb: [ 95, 155, 220], a: 255 / 255 },
   { mmh: 0.8,   rgb: [ 40,  90, 195], a: 255 / 255 },
   { mmh: 2,     rgb: [ 55, 170,  75], a: 255 / 255 },
@@ -1035,7 +1035,7 @@ function MeasurementCanvasOverlay({
         cv.style.pointerEvents = "none";
         cv.style.willChange = "transform";
         cv.style.zIndex = "460";
-        cv.style.filter = "contrast(1.1)";
+        cv.style.filter = "contrast(1.15) saturate(1.1)";
 
 
         pane.appendChild(cv);
@@ -2299,7 +2299,7 @@ function RadarMapInner({
               const hasGrid = Array.isArray(overlayFrame?.values) && overlayFrame.values.length > 0;
               const nextHasGrid = Array.isArray(overlayNext?.values) && overlayNext.values.length > 0;
               const ib = overlayFrame?.imageBbox ?? data.imageBbox;
-              const opacityVal = 0.6;
+              const opacityVal = 0.8;
 
               // DAUERHAFTE VORGABE: Die Radar-Prognose wird NIE aus dem
               // Sparse-Grid gerendert (ergibt Rechteckblöcke). Prognoseframes
