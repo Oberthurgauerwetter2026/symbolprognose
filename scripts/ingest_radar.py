@@ -89,7 +89,7 @@ RETENTION = int(os.environ.get("RADAR_RETENTION_HOURS", "24"))
 # auf meteoschweiz.ch; die finale Deckkraft wird per Leaflet-`opacity`
 # einmalig im Frontend gesetzt.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.1,   (150, 195, 235, 235)),   # sehr leicht — klar sichtbar
+    (0.1,   (120, 180, 235, 245)),   # sehr leicht — klar sichtbar
     (0.3,   ( 95, 155, 220, 255)),   # blau
     (0.8,   ( 40,  90, 195, 255)),   # tiefes blau
     (2.0,   ( 55, 170,  75, 255)),   # grün (SRF: bereits ab ~1–2 mm/h)
