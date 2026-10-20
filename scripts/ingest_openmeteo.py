@@ -607,16 +607,24 @@ def rasterize_forecast_pngs(
             continue
         frame_vals: list[float] = [0.0] * n_pts
         any_positive = False
+        n_valid = 0
         for pi in range(n_pts):
             arr = per_pt_precip[pi]
             v = arr[ti] if ti < len(arr) else None
             if v is None:
                 frame_vals[pi] = 0.0
             else:
+                n_valid += 1
                 fv = float(v) * 4.0  # mm/15min → mm/h
                 if fv > 0.05:
                     any_positive = True
                 frame_vals[pi] = fv
+        # ICON-CH1-Horizont erreicht: Slots mit (fast) nur fehlenden Werten
+        # nie als trocken rendern — sonst entsteht vor dem CH2-Anschluss ein
+        # künstliches Trockenloch. CH2 übernimmt ab hier.
+        if n_valid < 0.9 * n_pts:
+            print(f"forecast-pngs: CH1-Ende bei {t_iso} ({n_valid}/{n_pts} gültig) — Übergabe an CH2")
+            break
 
         grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
         grid = _fill_missing_values(grid, miss_mask)
