@@ -91,8 +91,9 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
   { mmh: 2, rgb: [150, 60, 200], label: "stark" },
 ];
 
-// Schneeregen (Mischphase, 30–70 % Schneeanteil): Türkis.
-const SLEET_RGB: [number, number, number] = [80, 200, 200];
+// Schneeregen (Mischphase, 30–70 % Schneeanteil): Indigo/Blaulila —
+// zwischen Regen-Blau und Schnee-Violett, aber klar unterscheidbar.
+const SLEET_RGB: [number, number, number] = [124, 111, 230];
 const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
 
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
