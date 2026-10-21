@@ -427,6 +427,19 @@ def _render_frame_png(
     for thresh, color in PRECIP_SCALE:
         mask = np.isfinite(arr) & (arr >= thresh)
         rgba[mask] = color
+
+    # Phase (Regen/Schneeregen/Schnee) im Alpha-Kanal — glatt hochgerechnet,
+    # damit Phasengrenzen nie blockig sind.
+    if snow_cm_row_major is not None and len(snow_cm_row_major) == n_lat * n_lon:
+        from _phase import apply_phase_alpha, snow_fraction
+        raw_p = np.flipud(np.asarray(mmh_row_major, dtype=np.float32).reshape(n_lat, n_lon))
+        raw_s = np.flipud(np.asarray(snow_cm_row_major, dtype=np.float32).reshape(n_lat, n_lon))
+        if float(np.nanmax(raw_s)) > 0.0:
+            p_up = _upsample_smooth(np.nan_to_num(raw_p), FORECAST_OUT_H, FORECAST_OUT_W)
+            s_up = _upsample_smooth(np.nan_to_num(raw_s), FORECAST_OUT_H, FORECAST_OUT_W)
+            frac = snow_fraction(p_up, s_up)
+            if frac.shape == rgba.shape[:2]:
+                rgba = apply_phase_alpha(rgba, frac)
     img = Image.fromarray(rgba, mode="RGBA")
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
