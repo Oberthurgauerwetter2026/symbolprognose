@@ -114,6 +114,21 @@ function isFlakePixel(x: number, y: number, cell = 11, arm = 2): boolean {
   return dx === 0 || dy === 0 || ax === ay;
 }
 
+// Schneeregen: kleine blaue Tropfen in der Indigo-Fläche (Mischung aus
+// Flocken und Tropfen). Gleicher Ein/Aus-Zustand wie die Flocken.
+const DROP_RGB: [number, number, number] = [40, 90, 195];
+function isDropPixel(x: number, y: number, cell = 14): boolean {
+  if (!FLAKES_ON) return false;
+  const cy = Math.floor(y / cell);
+  const xs = x + (cy & 1 ? Math.floor(cell / 2) : 0);
+  const cx = Math.floor(xs / cell);
+  const c = Math.floor(cell / 2);
+  const dx = (xs - cx * cell) - c;
+  const dy = (y - cy * cell) - c;
+  // Tropfen: 1 px breit, 2 px hoch (heller Kern + Ansatz unten).
+  return dx === 0 && (dy === 0 || dy === 1);
+}
+
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
 // 245/255 = Regen, 230 = Schneeregen, 215 = Schnee.
 // Nur exakte Codes (±3) zählen — 235/245/255 sind Regenstufen (sonst
