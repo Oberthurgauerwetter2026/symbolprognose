@@ -93,8 +93,15 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
 
 // Schneeregen (Mischphase, 30–70 % Schneeanteil): Indigo/Blaulila —
 // zwischen Regen-Blau und Schnee-Violett, aber klar unterscheidbar.
-const SLEET_RGB: [number, number, number] = [124, 111, 230];
+const SLEET_RGB: [number, number, number] = [166, 160, 216]; // #A6A0D8
 const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
+
+// Testweise: kleine Flocken (helle Punkte, pseudo-zufällig, ortsfest) in Schneeflächen.
+const FLAKE_RGB: [number, number, number] = [255, 255, 255];
+function isFlakePixel(x: number, y: number): boolean {
+  const h = ((x * 374761393) ^ (y * 668265263)) >>> 0;
+  return ((h ^ (h >>> 13)) * 1274126177 >>> 0) % 37 === 0;
+}
 
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
 // 245/255 = Regen, 230 = Schneeregen, 215 = Schnee.
@@ -730,7 +737,7 @@ function PrecipOverlay({
           }
 
           const [r, g, b, a] = snowFrac > 0.7
-            ? snowColorFor(v)
+            ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
             : snowFrac > 0.3
               ? SLEET_COLOR
               : colorFor(v);
@@ -842,7 +849,7 @@ function PrecipOverlay({
           if (v >= 0.1 && sv >= 0.05) snowFrac = Math.max(0, Math.min(1, sv / 0.7 / v));
         }
         const [r, g, b, a] = snowFrac > 0.7
-          ? snowColorFor(v)
+          ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
           : snowFrac > 0.3
             ? SLEET_COLOR
             : colorFor(v);
@@ -1423,7 +1430,9 @@ function MeasurementCanvasOverlay({
             if (px >= 0 && px < pf.w && py >= 0 && py < pf.h) ph = pf.phase?.[py * pf.w + px] ?? 0;
           }
           const [r, g, b] =
-            ph === 2 ? snowColorFor(s.mmh) : ph === 1 ? SLEET_RGB : s.rgb;
+            ph === 2
+              ? isFlakePixel(lx, ly) ? FLAKE_RGB : snowColorFor(s.mmh)
+              : ph === 1 ? SLEET_RGB : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
