@@ -42,7 +42,7 @@ API = "https://api.open-meteo.com/v1/forecast"
 # scripts/ingest_radar.py::PRECIP_SCALE und SCALE in
 # src/components/maps/radar-map.tsx übereinstimmen.
 PRECIP_SCALE: list[tuple[float, tuple[int, int, int, int]]] = [
-    (0.1,   (150, 195, 235, 235)),
+    (0.1,   (120, 180, 235, 245)),
     (0.3,   ( 95, 155, 220, 255)),
     (0.8,   ( 40,  90, 195, 255)),
     (2.0,   ( 55, 170,  75, 255)),
