@@ -95,6 +95,15 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
 const SLEET_RGB: [number, number, number] = [80, 200, 200];
 const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
 
+// Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
+// 245/255 = Regen, 230 = Schneeregen, 215 = Schnee.
+function phaseFromAlpha(a: number): number {
+  if (a >= 238) return 0;
+  if (a >= 222) return 1;
+  if (a >= 200) return 2;
+  return 0;
+}
+
 function snowColorFor(mmh: number): [number, number, number, number] {
   if (mmh < SNOW_SCALE[0].mmh) return [0, 0, 0, 0];
   for (let i = SNOW_SCALE.length - 1; i >= 0; i--) {
@@ -988,6 +997,8 @@ function MeasurementCanvasOverlay({
     h: number;
     mmh: Float32Array;
     band: Float32Array;
+    /** 0 = Regen, 1 = Schneeregen, 2 = Schnee (aus PNG-Alpha, siehe scripts/_phase.py). */
+    phase: Uint8Array;
     smoothBand?: Float32Array;
   };
   const sourceRef = useRef<DecodedRadar | null>(null);
@@ -1109,6 +1120,7 @@ function MeasurementCanvasOverlay({
         }
         const mmh = new Float32Array(cw * ch);
         const band = new Float32Array(cw * ch);
+        const phase = new Uint8Array(cw * ch);
         for (let i = 0; i < cw * ch; i++) {
           const o = i * 4;
           const a = data[o + 3];
@@ -1137,8 +1149,9 @@ function MeasurementCanvasOverlay({
           }
           mmh[i] = bestMmh;
           band[i] = bestBand;
+          phase[i] = phaseFromAlpha(a);
         }
-        const entry = { w: cw, h: ch, mmh, band };
+        const entry = { w: cw, h: ch, mmh, band, phase };
         cacheRef.current.set(u, entry);
         while (cacheRef.current.size > DECODE_CACHE_MAX) {
           const firstKey = cacheRef.current.keys().next().value;
@@ -1217,6 +1230,7 @@ function MeasurementCanvasOverlay({
         }
         const mmh = new Float32Array(cw * ch);
         const band = new Float32Array(cw * ch);
+        const phase = new Uint8Array(cw * ch);
         for (let i = 0; i < cw * ch; i++) {
           const o = i * 4;
           const a = data[o + 3];
@@ -1245,8 +1259,9 @@ function MeasurementCanvasOverlay({
           }
           mmh[i] = bestMmh;
           band[i] = bestBand;
+          phase[i] = phaseFromAlpha(a);
         }
-        cacheRef.current.set(u, { w: cw, h: ch, mmh, band });
+        cacheRef.current.set(u, { w: cw, h: ch, mmh, band, phase });
         while (cacheRef.current.size > DECODE_CACHE_MAX) {
           const firstKey = cacheRef.current.keys().next().value;
           if (firstKey === undefined) break;
@@ -1397,7 +1412,16 @@ function MeasurementCanvasOverlay({
           if (v < 0.5) continue;
           const bandIdx = Math.min(SCALE.length, Math.max(1, Math.round(v))) - 1;
           const s = SCALE[bandIdx];
-          const [r, g, b] = s.rgb;
+          // Phase vom dominanten Feld (nächstes Pixel) — keine Mischfarben.
+          const pf = wA >= wB ? fieldA : fieldB;
+          let ph = 0;
+          if (pf) {
+            const px = Math.round(((ll.lng - minLon) / lonSpan) * (pf.w - 1));
+            const py = Math.round(((maxLat - ll.lat) / latSpan) * (pf.h - 1));
+            if (px >= 0 && px < pf.w && py >= 0 && py < pf.h) ph = pf.phase?.[py * pf.w + px] ?? 0;
+          }
+          const [r, g, b] =
+            ph === 2 ? snowColorFor(s.mmh) : ph === 1 ? SLEET_RGB : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
