@@ -64,14 +64,15 @@ def point_fraction(
     Mit Modellniederschlag: Verhältnis Schnee/Niederschlag + Temperatur-Gate.
     Ohne Modellniederschlag (Radar misst trotzdem etwas): Phase allein aus der
     Temperatur — ≤1 °C Schnee, 1–2.5 °C Schneeregen, sonst Regen.
-    Ohne Temperatur: konservativ Regen."""
+    Ohne Temperatur: nur das punkteigene Schnee/Niederschlag-Verhältnis."""
     p = np.asarray(precip_mm, dtype=np.float32)
     t = np.asarray(temp_c, dtype=np.float32)
     f = snow_fraction(p, snow_cm, t)
     dry = ~(p >= P_MIN_MM)
     by_t = np.where(t <= T_SNOW_MAX, 1.0, np.where(t <= T_RAIN_ONLY, 0.5, 0.0))
     f = np.where(dry & np.isfinite(t), by_t, f)
-    f = np.where(np.isfinite(t), f, 0.0)
+    # Ohne Temperatur: Verhältnis Schnee/Niederschlag des Punkts selbst
+    # (warme Punkte haben dort 0 cm Schnee → Regen).
     return np.clip(f, 0.0, 1.0).astype(np.float32)
 
 
