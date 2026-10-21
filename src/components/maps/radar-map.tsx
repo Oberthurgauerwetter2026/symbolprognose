@@ -91,8 +91,9 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
   { mmh: 2, rgb: [150, 60, 200], label: "stark" },
 ];
 
-// Schneeregen (Mischphase, 30–70 % Schneeanteil): Türkis.
-const SLEET_RGB: [number, number, number] = [80, 200, 200];
+// Schneeregen (Mischphase, 30–70 % Schneeanteil): Indigo/Blaulila —
+// zwischen Regen-Blau und Schnee-Violett, aber klar unterscheidbar.
+const SLEET_RGB: [number, number, number] = [124, 111, 230];
 const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
 
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
@@ -724,7 +725,7 @@ function PrecipOverlay({
           if (snowVals) {
             let sv = sampleAt(snowVals, sx, sy);
             if (nextSnow) sv = sv * (1 - blendW) + sampleAt(nextSnow, sx, sy) * blendW;
-            if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+            if (v >= 0.1 && sv >= 0.05) snowFrac = Math.max(0, Math.min(1, sv / 0.7 / v));
           }
 
           const [r, g, b, a] = snowFrac > 0.7
@@ -837,7 +838,7 @@ function PrecipOverlay({
         let snowFrac = 0;
         if (snowVals) {
           const sv = sampleAt(snowVals, sx, sy);
-          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+          if (v >= 0.1 && sv >= 0.05) snowFrac = Math.max(0, Math.min(1, sv / 0.7 / v));
         }
         const [r, g, b, a] = snowFrac > 0.7
           ? snowColorFor(v)

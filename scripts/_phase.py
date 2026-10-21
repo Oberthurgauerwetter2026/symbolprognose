@@ -19,17 +19,61 @@ ALPHA_SLEET = 230
 ALPHA_SNOW = 215
 SLEET_MIN = 0.3
 SNOW_MIN = 0.7
-# Open-Meteo `snowfall` ist cm Neuschnee; 1 cm ≈ 0.7 mm Wasser.
-SNOW_CM_TO_MM = 0.7
+# Open-Meteo `snowfall` ist cm Neuschnee; das Modell rechnet 1 mm Wasser
+# ≈ 0.7 cm Schnee. Reiner Schneefall (1 mm → 0.7 cm) ergibt damit 100 %.
+SNOW_CM_TO_MM = 1.0 / 0.7
+# Temperatur-Gate (2 m): darüber physikalisch kein Schnee/Schneeregen.
+T_RAIN_ONLY = 2.5
+# Darunter reiner Schnee möglich; dazwischen höchstens Schneeregen.
+T_SNOW_MAX = 1.0
+# Schwache Ränder / Interpolationsreste nie als Mischphase einfärben.
+P_MIN_MM = 0.1
+S_MIN_CM = 0.05
 
 
-def snow_fraction(precip_mm: np.ndarray, snow_cm: np.ndarray) -> np.ndarray:
-    """Schneeanteil 0..1 aus Niederschlag (mm) und Schneefall (cm)."""
+def snow_fraction(
+    precip_mm: np.ndarray,
+    snow_cm: np.ndarray,
+    temp_c: np.ndarray | None = None,
+) -> np.ndarray:
+    """Schneeanteil 0..1 aus Niederschlag (mm), Schneefall (cm) und optional
+    2-m-Temperatur (°C). Über T_RAIN_ONLY immer 0 (Regen)."""
     p = np.asarray(precip_mm, dtype=np.float32)
-    s = np.asarray(snow_cm, dtype=np.float32) * SNOW_CM_TO_MM
+    s_cm = np.asarray(snow_cm, dtype=np.float32)
+    s = s_cm * SNOW_CM_TO_MM
     with np.errstate(invalid="ignore", divide="ignore"):
-        f = np.where(p > 0.005, s / np.maximum(p, 1e-6), 0.0)
-    return np.clip(np.nan_to_num(f, nan=0.0), 0.0, 1.0).astype(np.float32)
+        f = np.where((p >= P_MIN_MM) & (s_cm >= S_MIN_CM), s / np.maximum(p, 1e-6), 0.0)
+    f = np.clip(np.nan_to_num(f, nan=0.0), 0.0, 1.0).astype(np.float32)
+    if temp_c is not None:
+        t = np.asarray(temp_c, dtype=np.float32)
+        if t.shape == f.shape:
+            warm = np.isfinite(t) & (t > T_RAIN_ONLY)
+            f[warm] = 0.0
+            mild = np.isfinite(t) & (t > T_SNOW_MAX) & (t <= T_RAIN_ONLY)
+            # Schmelzzone: höchstens Schneeregen.
+            f[mild] = np.minimum(f[mild], SNOW_MIN - 0.01)
+    return f
+
+
+def point_fraction(
+    precip_mm: np.ndarray,
+    snow_cm: np.ndarray,
+    temp_c: np.ndarray,
+) -> np.ndarray:
+    """Schneeanteil pro Modellpunkt (vor jeder Interpolation).
+    Mit Modellniederschlag: Verhältnis Schnee/Niederschlag + Temperatur-Gate.
+    Ohne Modellniederschlag (Radar misst trotzdem etwas): Phase allein aus der
+    Temperatur — ≤1 °C Schnee, 1–2.5 °C Schneeregen, sonst Regen.
+    Ohne Temperatur: nur das punkteigene Schnee/Niederschlag-Verhältnis."""
+    p = np.asarray(precip_mm, dtype=np.float32)
+    t = np.asarray(temp_c, dtype=np.float32)
+    f = snow_fraction(p, snow_cm, t)
+    dry = ~(p >= P_MIN_MM)
+    by_t = np.where(t <= T_SNOW_MAX, 1.0, np.where(t <= T_RAIN_ONLY, 0.5, 0.0))
+    f = np.where(dry & np.isfinite(t), by_t, f)
+    # Ohne Temperatur: Verhältnis Schnee/Niederschlag des Punkts selbst
+    # (warme Punkte haben dort 0 cm Schnee → Regen).
+    return np.clip(f, 0.0, 1.0).astype(np.float32)
 
 
 def apply_phase_alpha(rgba: np.ndarray, frac: np.ndarray | None) -> np.ndarray:
