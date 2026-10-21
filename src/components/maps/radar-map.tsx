@@ -116,7 +116,7 @@ function isFlakePixel(x: number, y: number, cell = 11, arm = 2): boolean {
 // Schneeregen: weisse Tropfen in der Türkis-Fläche (Mischung aus
 // Flocken und Tropfen). Gleicher Ein/Aus-Zustand wie die Flocken.
 const DROP_RGB: [number, number, number] = [255, 255, 255];
-function isDropPixel(x: number, y: number, cell = 14): boolean {
+function isDropPixel(x: number, y: number, cell = 18): boolean {
   if (!FLAKES_ON) return false;
   const cy = Math.floor(y / cell);
   const xs = x + (cy & 1 ? Math.floor(cell / 2) : 0);
@@ -124,9 +124,12 @@ function isDropPixel(x: number, y: number, cell = 14): boolean {
   const c = Math.floor(cell / 2);
   const dx = (xs - cx * cell) - c;
   const dy = (y - cy * cell) - c;
-  // Tropfen: Spitze oben (1 px), Bauch 3 px breit, 4 px hoch.
-  if (dy === -1) return dx === 0;
-  if (dy >= 0 && dy <= 2) return Math.abs(dx) <= 1;
+  // Tropfen mit klarer Silhouette: schlanke Spitze oben, runder Bauch —
+  // ca. 5 px breit und 7 px hoch, damit er als Tropfen erkennbar ist.
+  if (dy === -3 || dy === -2) return dx === 0;
+  if (dy === -1 || dy === 0) return Math.abs(dx) <= 1;
+  if (dy === 1 || dy === 2) return Math.abs(dx) <= 2;
+  if (dy === 3) return Math.abs(dx) <= 1;
   return false;
 }
 
