@@ -100,21 +100,18 @@ const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
 // Ein/Aus über Button; Modulvariable, Overlays werden beim Umschalten neu gemountet.
 let FLAKES_ON = true;
 const FLAKE_RGB: [number, number, number] = [255, 255, 255];
-function isFlakePixel(x: number, y: number, cell = 16, arm = 4): boolean {
+function isFlakePixel(x: number, y: number, cell = 11, arm = 2): boolean {
   if (!FLAKES_ON) return false;
-  const cx = Math.floor(x / cell);
+  // Regelmässiges, versetztes Raster (jede zweite Reihe um halbe Zelle verschoben).
   const cy = Math.floor(y / cell);
-  const h = ((cx * 374761393) ^ (cy * 668265263)) >>> 0;
-  const hh = (Math.imul(h ^ (h >>> 13), 1274126177) >>> 0);
-  if (hh % 3 === 0) return false; // nicht jede Zelle
-  const off = cell - 2 * arm - 2;
-  const ox = arm + 1 + (off > 0 ? hh % off : 0);
-  const oy = arm + 1 + (off > 0 ? (hh >>> 8) % off : 0);
-  const dx = (x - cx * cell) - ox;
-  const dy = (y - cy * cell) - oy;
+  const xs = x + (cy & 1 ? Math.floor(cell / 2) : 0);
+  const cx = Math.floor(xs / cell);
+  const c = Math.floor(cell / 2);
+  const dx = (xs - cx * cell) - c;
+  const dy = (y - cy * cell) - c;
   const ax = Math.abs(dx), ay = Math.abs(dy);
   if (Math.max(ax, ay) > arm) return false;
-  return dx === 0 || dy === 0 || (ax === ay && ax < arm);
+  return dx === 0 || dy === 0 || ax === ay;
 }
 
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
@@ -1445,7 +1442,7 @@ function MeasurementCanvasOverlay({
           }
           const [r, g, b] =
             ph === 2
-              ? isFlakePixel(lx, ly, 28, 6) ? FLAKE_RGB : snowColorFor(s.mmh)
+              ? isFlakePixel(lx, ly, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
               : ph === 1 ? SLEET_RGB : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
