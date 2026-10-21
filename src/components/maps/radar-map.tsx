@@ -16,7 +16,7 @@ import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import { boltJitter, boltSvg, BOLT_RADAR, LIGHTNING_ENABLED } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap, Snowflake } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
@@ -95,6 +95,27 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
 // zwischen Regen-Blau und Schnee-Violett, aber klar unterscheidbar.
 const SLEET_RGB: [number, number, number] = [166, 160, 216]; // #A6A0D8
 const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
+
+// Testweise: gut sichtbare Schneeflocken (Stern mit 8 Armen) in Schneeflächen.
+// Ein/Aus über Button; Modulvariable, Overlays werden beim Umschalten neu gemountet.
+let FLAKES_ON = true;
+const FLAKE_RGB: [number, number, number] = [255, 255, 255];
+function isFlakePixel(x: number, y: number, cell = 16, arm = 4): boolean {
+  if (!FLAKES_ON) return false;
+  const cx = Math.floor(x / cell);
+  const cy = Math.floor(y / cell);
+  const h = ((cx * 374761393) ^ (cy * 668265263)) >>> 0;
+  const hh = (Math.imul(h ^ (h >>> 13), 1274126177) >>> 0);
+  if (hh % 3 === 0) return false; // nicht jede Zelle
+  const off = cell - 2 * arm - 2;
+  const ox = arm + 1 + (off > 0 ? hh % off : 0);
+  const oy = arm + 1 + (off > 0 ? (hh >>> 8) % off : 0);
+  const dx = (x - cx * cell) - ox;
+  const dy = (y - cy * cell) - oy;
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if (Math.max(ax, ay) > arm) return false;
+  return dx === 0 || dy === 0 || (ax === ay && ax < arm);
+}
 
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
 // 245/255 = Regen, 230 = Schneeregen, 215 = Schnee.
@@ -730,7 +751,7 @@ function PrecipOverlay({
           }
 
           const [r, g, b, a] = snowFrac > 0.7
-            ? snowColorFor(v)
+            ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
             : snowFrac > 0.3
               ? SLEET_COLOR
               : colorFor(v);
@@ -842,7 +863,7 @@ function PrecipOverlay({
           if (v >= 0.1 && sv >= 0.05) snowFrac = Math.max(0, Math.min(1, sv / 0.7 / v));
         }
         const [r, g, b, a] = snowFrac > 0.7
-          ? snowColorFor(v)
+          ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
           : snowFrac > 0.3
             ? SLEET_COLOR
             : colorFor(v);
@@ -1424,7 +1445,7 @@ function MeasurementCanvasOverlay({
           }
           const [r, g, b] =
             ph === 2
-              ? snowColorFor(s.mmh)
+              ? isFlakePixel(lx, ly, 28, 6) ? FLAKE_RGB : snowColorFor(s.mmh)
               : ph === 1 ? SLEET_RGB : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
@@ -1879,6 +1900,18 @@ function RadarMapInner({
   });
   // Blitze sind global deaktiviert; die Einstellung bleibt gespeichert.
   const showLightning = LIGHTNING_ENABLED && lightningPref;
+  const [flakesOn, setFlakesOn] = useState(true);
+  useEffect(() => {
+    const v = window.localStorage.getItem("radar.flakes") !== "0";
+    FLAKES_ON = v;
+    setFlakesOn(v);
+  }, []);
+  const toggleFlakes = () => {
+    const v = !flakesOn;
+    FLAKES_ON = v;
+    window.localStorage.setItem("radar.flakes", v ? "1" : "0");
+    setFlakesOn(v);
+  };
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("radar.lightning", lightningPref ? "1" : "0");
@@ -2358,6 +2391,7 @@ function RadarMapInner({
                 <>
                   {gridFrame && (
                     <PrecipOverlay
+                      key={flakesOn ? "f1" : "f0"}
                       payload={data}
                       frame={gridFrame}
                       nextFrame={showGrid ? overlayNext : null}
@@ -2368,6 +2402,7 @@ function RadarMapInner({
                   )}
                   {showPng && (
                     <CrossfadePrecipOverlay
+                      key={flakesOn ? "f1" : "f0"}
                       url={overlayFrame.precipUrl as string}
                       nextUrl={overlayNext?.precipUrl ?? null}
                       blend={fadeW}
@@ -2502,6 +2537,24 @@ function RadarMapInner({
             <Info className="h-4 w-4" />
           </button>
         )}
+
+        {/* Schneeflocken ein-/ausblenden */}
+        <button
+          type="button"
+          onClick={toggleFlakes}
+          aria-pressed={flakesOn}
+          aria-label={flakesOn ? "Schneeflocken ausblenden" : "Schneeflocken einblenden"}
+          title={flakesOn ? "Schneeflocken ausblenden" : "Schneeflocken einblenden"}
+          className={cn(
+            "absolute right-3 z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
+            LIGHTNING_ENABLED ? "top-[11rem]" : "top-[8.5rem]",
+            flakesOn
+              ? "bg-primary text-primary-foreground"
+              : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
+          )}
+        >
+          <Snowflake className="h-4 w-4" />
+        </button>
 
         {/* Blitze ein-/ausblenden */}
         {LIGHTNING_ENABLED && (
