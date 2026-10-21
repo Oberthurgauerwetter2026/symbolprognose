@@ -396,6 +396,7 @@ def _render_frame_png(
     mmh_row_major: list[float],
     min_area_px: int = 14,
     snow_cm_row_major: list[float] | None = None,
+    temp_c_row_major: list[float] | None = None,
 ) -> bytes:
     """`mmh_row_major` ist [lat_asc * lon_asc] mit len = n_lat*n_lon.
     Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat.
@@ -437,7 +438,14 @@ def _render_frame_png(
         if float(np.nanmax(raw_s)) > 0.0:
             p_up = _upsample_smooth(np.nan_to_num(raw_p), FORECAST_OUT_H, FORECAST_OUT_W)
             s_up = _upsample_smooth(np.nan_to_num(raw_s), FORECAST_OUT_H, FORECAST_OUT_W)
-            frac = snow_fraction(p_up, s_up)
+            t_up = None
+            if temp_c_row_major is not None and len(temp_c_row_major) == n_lat * n_lon:
+                raw_t = np.flipud(np.asarray(temp_c_row_major, dtype=np.float32).reshape(n_lat, n_lon))
+                # Fehlende Temperatur = warm (konservativ: dann nur Regen).
+                raw_t = np.where(np.isfinite(raw_t), raw_t, 99.0)
+                # _upsample_smooth schneidet negative Werte ab → Offset.
+                t_up = _upsample_smooth(raw_t + 60.0, FORECAST_OUT_H, FORECAST_OUT_W) - 60.0
+            frac = snow_fraction(p_up, s_up, t_up)
             if frac.shape == rgba.shape[:2]:
                 rgba = apply_phase_alpha(rgba, frac)
     img = Image.fromarray(rgba, mode="RGBA")
