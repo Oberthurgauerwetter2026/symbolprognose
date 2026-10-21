@@ -114,6 +114,21 @@ function isFlakePixel(x: number, y: number, cell = 11, arm = 2): boolean {
   return dx === 0 || dy === 0 || ax === ay;
 }
 
+// Schneeregen: kleine blaue Tropfen in der Indigo-Fläche (Mischung aus
+// Flocken und Tropfen). Gleicher Ein/Aus-Zustand wie die Flocken.
+const DROP_RGB: [number, number, number] = [40, 90, 195];
+function isDropPixel(x: number, y: number, cell = 14): boolean {
+  if (!FLAKES_ON) return false;
+  const cy = Math.floor(y / cell);
+  const xs = x + (cy & 1 ? Math.floor(cell / 2) : 0);
+  const cx = Math.floor(xs / cell);
+  const c = Math.floor(cell / 2);
+  const dx = (xs - cx * cell) - c;
+  const dy = (y - cy * cell) - c;
+  // Tropfen: 1 px breit, 2 px hoch (heller Kern + Ansatz unten).
+  return dx === 0 && (dy === 0 || dy === 1);
+}
+
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
 // 245/255 = Regen, 230 = Schneeregen, 215 = Schnee.
 // Nur exakte Codes (±3) zählen — 235/245/255 sind Regenstufen (sonst
@@ -750,7 +765,7 @@ function PrecipOverlay({
           const [r, g, b, a] = snowFrac > 0.7
             ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
             : snowFrac > 0.3
-              ? SLEET_COLOR
+              ? isDropPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
               : colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
@@ -862,7 +877,7 @@ function PrecipOverlay({
         const [r, g, b, a] = snowFrac > 0.7
           ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
           : snowFrac > 0.3
-            ? SLEET_COLOR
+            ? isDropPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
             : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
@@ -1443,7 +1458,9 @@ function MeasurementCanvasOverlay({
           const [r, g, b] =
             ph === 2
               ? isFlakePixel(lx, ly, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
-              : ph === 1 ? SLEET_RGB : s.rgb;
+              : ph === 1
+                ? isDropPixel(lx, ly, 20) ? DROP_RGB : SLEET_RGB
+                : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
@@ -2535,13 +2552,13 @@ function RadarMapInner({
           </button>
         )}
 
-        {/* Schneeflocken ein-/ausblenden */}
+        {/* Flocken (Schnee) und Tropfen (Schneeregen) ein-/ausblenden */}
         <button
           type="button"
           onClick={toggleFlakes}
           aria-pressed={flakesOn}
-          aria-label={flakesOn ? "Schneeflocken ausblenden" : "Schneeflocken einblenden"}
-          title={flakesOn ? "Schneeflocken ausblenden" : "Schneeflocken einblenden"}
+          aria-label={flakesOn ? "Flocken und Tropfen ausblenden" : "Flocken und Tropfen einblenden"}
+          title={flakesOn ? "Flocken und Tropfen ausblenden" : "Flocken und Tropfen einblenden"}
           className={cn(
             "absolute right-3 z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
             LIGHTNING_ENABLED ? "top-[11rem]" : "top-[8.5rem]",
