@@ -10,6 +10,7 @@ import {
   IconDrizzle,
   IconRain,
   IconSnow,
+  IconSleet,
   IconThunderstorm,
   IconSunShower,
   IconSunThunder,
@@ -134,6 +135,9 @@ function IconsPage() {
       <Section title="Winter / Schnee">
         <Tile label="IconSnow" hint="WMO 71–77, 85, 86">
           <IconSnow size={SIZE} />
+        </Tile>
+        <Tile label="IconSleet" hint="Schneeregen · MCH 17–23">
+          <IconSleet size={SIZE} />
         </Tile>
         <Tile label="IconSnowThunder" hint="Wintergewitter">
           <IconSnowThunder size={SIZE} />

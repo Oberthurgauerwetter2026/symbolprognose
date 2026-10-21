@@ -359,6 +359,20 @@ export function IconSnow({ size, ...rest }: IconProps) {
   );
 }
 
+/** Schneeregen: abwechselnd Regentropfen und Schneeflocken. */
+export function IconSleet({ size, ...rest }: IconProps) {
+  return (
+    <Svg size={size} {...rest}>
+      <Cloud x={32} y={23} scale={1} />
+      <Drop x={18} y={45} size={1.2} tilt={-15} />
+      <Flake x={32} y={47} size={1.1} />
+      <Drop x={46} y={45} size={1.2} tilt={-15} />
+      <Flake x={25} y={55} size={1} />
+      <Drop x={40} y={55} size={1.2} tilt={-15} />
+    </Svg>
+  );
+}
+
 export function IconThunderstorm({ size, ...rest }: IconProps) {
   return (
     <Svg size={size} {...rest}>
@@ -532,11 +546,6 @@ function mchToIcon(
       return <IconRain {...p} />;
     case 9:
       return isDay ? <IconSunShower {...p} /> : <IconRain {...p} />;
-    case 10:
-    case 11:
-    case 14:
-    case 15:
-    case 16:
     case 17:
     case 18:
     case 19:
@@ -544,6 +553,12 @@ function mchToIcon(
     case 21:
     case 22:
     case 23:
+      return <IconSleet {...p} />;
+    case 10:
+    case 11:
+    case 14:
+    case 15:
+    case 16:
       return <IconSnow {...p} />;
     case 12:
     case 13:
