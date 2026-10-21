@@ -765,7 +765,7 @@ function PrecipOverlay({
           const [r, g, b, a] = snowFrac > 0.7
             ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
             : snowFrac > 0.3
-              ? SLEET_COLOR
+              ? isDropPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
               : colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
