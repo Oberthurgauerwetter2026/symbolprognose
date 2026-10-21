@@ -29,6 +29,60 @@ T_SNOW_MAX = 1.0
 # Schwache Ränder / Interpolationsreste nie als Mischphase einfärben.
 P_MIN_MM = 0.1
 S_MIN_CM = 0.05
+# Standard-Temperaturgradient (°C pro m) unterhalb der Nullgradgrenze.
+LAPSE = 0.0065
+# Niederschlagsabkühlung: ab dieser Rate (mm/h) kühlt Schmelzen die Luft ab.
+P_COOL_MIN = 2.0
+P_COOL_PER_MM = 0.25
+P_COOL_MAX = 1.2
+
+
+def wet_bulb(temp_c, dew_c) -> np.ndarray:
+    """Feuchtkugeltemperatur nach Stull (2011) aus T und Taupunkt (°C).
+    Ohne Taupunkt bleibt T unverändert."""
+    t = np.asarray(temp_c, dtype=np.float32)
+    td = np.asarray(dew_c, dtype=np.float32)
+    with np.errstate(all="ignore"):
+        es = np.exp(17.625 * t / (243.04 + t))
+        e = np.exp(17.625 * td / (243.04 + td))
+        rh = np.clip(100.0 * e / es, 1.0, 100.0)
+        tw = (
+            t * np.arctan(0.151977 * np.sqrt(rh + 8.313659))
+            + np.arctan(t + rh) - np.arctan(rh - 1.676331)
+            + 0.00391838 * rh ** 1.5 * np.arctan(0.023101 * rh)
+            - 4.686035
+        )
+    tw = np.minimum(tw, t)  # Feuchtkugel nie wärmer als Luft
+    return np.where(np.isfinite(tw), tw, t).astype(np.float32)
+
+
+def phase_temp(temp_c, dew_c=None, fzl_m=None, elev_m=None, precip_mmh=None) -> np.ndarray:
+    """Effektive Phasentemperatur pro Modellpunkt, wie bei Wetterdiensten:
+    1) Feuchtkugeltemperatur (Verdunstungskälte bei trockener Luft),
+    2) Nullgradgrenze relativ zur Geländehöhe (Schmelzschicht),
+    3) Niederschlagsabkühlung bei kräftigem Niederschlag.
+    Fehlende Grössen werden übersprungen (Fallback: 2-m-Temperatur)."""
+    t = np.asarray(temp_c, dtype=np.float32)
+    eff = t.copy()
+    if dew_c is not None:
+        td = np.asarray(dew_c, dtype=np.float32)
+        if td.shape == t.shape:
+            ok = np.isfinite(td) & np.isfinite(t)
+            eff = np.where(ok, wet_bulb(t, np.where(ok, td, t)), eff)
+    if fzl_m is not None and elev_m is not None:
+        fz = np.asarray(fzl_m, dtype=np.float32)
+        el = np.broadcast_to(np.asarray(elev_m, dtype=np.float32), t.shape)
+        if fz.shape == t.shape:
+            ok = np.isfinite(fz) & np.isfinite(el)
+            t_fzl = (fz - el) * LAPSE  # Temperatur aus Abstand zur 0-°C-Höhe
+            # Nur verschärfen (kälter), nie wärmer machen als die Messung.
+            eff = np.where(ok & np.isfinite(eff), np.minimum(eff, np.maximum(t_fzl, eff - 2.0)), eff)
+    if precip_mmh is not None:
+        p = np.asarray(precip_mmh, dtype=np.float32)
+        if p.shape == t.shape:
+            cool = np.clip((np.nan_to_num(p) - P_COOL_MIN) * P_COOL_PER_MM, 0.0, P_COOL_MAX)
+            eff = np.where(eff < 4.0, eff - cool, eff)
+    return eff.astype(np.float32)
 
 
 def snow_fraction(
@@ -71,6 +125,10 @@ def point_fraction(
     dry = ~(p >= P_MIN_MM)
     by_t = np.where(t <= T_SNOW_MAX, 1.0, np.where(t <= T_RAIN_ONLY, 0.5, 0.0))
     f = np.where(dry & np.isfinite(t), by_t, f)
+    # Mit Feuchtkugel-/Phasentemperatur: klar kalte Punkte mindestens als
+    # Schnee bzw. Schneeregen, auch wenn das Modell weniger Schnee rechnet.
+    floor = np.where(t <= 0.5, 1.0, np.where(t <= 1.5, 0.5, 0.0))
+    f = np.where(np.isfinite(t), np.maximum(f, floor), f)
     # Ohne Temperatur: Verhältnis Schnee/Niederschlag des Punkts selbst
     # (warme Punkte haben dort 0 cm Schnee → Regen).
     return np.clip(f, 0.0, 1.0).astype(np.float32)

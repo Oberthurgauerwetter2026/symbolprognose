@@ -605,12 +605,19 @@ def rasterize_forecast_pngs(
     per_pt_precip: list[list[float | None]] = []
     per_pt_snow: list[list[float | None]] = []
     per_pt_temp: list[list[float | None]] = []
+    per_pt_dew: list[list[float | None]] = []
+    per_pt_fzl: list[list[float | None]] = []
+    per_pt_elev: list[float] = []
     for loc in phase1_dense:
         m = (loc or {}).get("minutely_15") or {}
         precip = m.get("precipitation") or []
         per_pt_precip.append(precip)
         per_pt_snow.append(m.get("snowfall") or [])
         per_pt_temp.append(m.get("temperature_2m") or [])
+        per_pt_dew.append(m.get("dew_point_2m") or [])
+        per_pt_fzl.append(m.get("freezing_level_height") or [])
+        ev = (loc or {}).get("elevation")
+        per_pt_elev.append(float(ev) if isinstance(ev, (int, float)) else float("nan"))
 
     # ISO in UTC. Open-Meteo minutely_15 kommt ohne Timezone-Suffix.
     now = datetime.now(tz=timezone.utc)
@@ -634,6 +641,8 @@ def rasterize_forecast_pngs(
         frame_vals: list[float] = [0.0] * n_pts
         snow_vals: list[float] = [0.0] * n_pts
         temp_vals: list[float] = [float("nan")] * n_pts
+        dew_vals: list[float] = [float("nan")] * n_pts
+        fzl_vals: list[float] = [float("nan")] * n_pts
         any_positive = False
         n_valid = 0
         for pi in range(n_pts):
@@ -654,12 +663,20 @@ def rasterize_forecast_pngs(
             tv = tarr[ti] if ti < len(tarr) else None
             if isinstance(tv, (int, float)):
                 temp_vals[pi] = float(tv)
+            darr = per_pt_dew[pi]
+            dv = darr[ti] if ti < len(darr) else None
+            dew_vals[pi] = float(dv) if isinstance(dv, (int, float)) else float("nan")
+            farr = per_pt_fzl[pi]
+            fv2 = farr[ti] if ti < len(farr) else None
+            fzl_vals[pi] = float(fv2) if isinstance(fv2, (int, float)) else float("nan")
         # ICON-CH1-Horizont erreicht: Slots mit (fast) nur fehlenden Werten
         # nie als trocken rendern — sonst entsteht vor dem CH2-Anschluss ein
         # künstliches Trockenloch. CH2 übernimmt ab hier.
         if n_valid < 0.9 * n_pts:
             print(f"forecast-pngs: CH1-Ende bei {t_iso} ({n_valid}/{n_pts} gültig) — Übergabe an CH2")
             break
+        from _phase import phase_temp
+        temp_vals = phase_temp(temp_vals, dew_vals, fzl_vals, per_pt_elev, frame_vals).tolist()
 
         grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
         grid = _fill_missing_values(grid, miss_mask)
@@ -803,6 +820,16 @@ def rasterize_forecast_hourly_pngs(
     per_pt_temp_h: list[list] = [
         (((loc or {}).get("hourly") or {}).get("temperature_2m") or []) for loc in phase2
     ]
+    per_pt_dew_h: list[list] = [
+        (((loc or {}).get("hourly") or {}).get("dew_point_2m") or []) for loc in phase2
+    ]
+    per_pt_fzl_h: list[list] = [
+        (((loc or {}).get("hourly") or {}).get("freezing_level_height") or []) for loc in phase2
+    ]
+    per_pt_elev_h: list[float] = [
+        float((loc or {}).get("elevation")) if isinstance((loc or {}).get("elevation"), (int, float)) else float("nan")
+        for loc in phase2
+    ]
 
     now = datetime.now(tz=timezone.utc)
     horizon = now + timedelta(hours=48)
@@ -839,6 +866,8 @@ def rasterize_forecast_hourly_pngs(
         frame_vals: list[float] = [0.0] * n_pts
         snow_vals: list[float] = [0.0] * n_pts
         temp_vals: list[float] = [float("nan")] * n_pts
+        dew_vals: list[float] = [float("nan")] * n_pts
+        fzl_vals: list[float] = [float("nan")] * n_pts
         any_positive = False
         for pi in range(n_pts):
             arr = per_pt_precip[pi] if pi < len(per_pt_precip) else []
@@ -854,6 +883,15 @@ def rasterize_forecast_hourly_pngs(
             tv = tarr[ti] if ti < len(tarr) else None
             if isinstance(tv, (int, float)):
                 temp_vals[pi] = float(tv)
+            darr = per_pt_dew_h[pi] if pi < len(per_pt_dew_h) else []
+            dv = darr[ti] if ti < len(darr) else None
+            dew_vals[pi] = float(dv) if isinstance(dv, (int, float)) else float("nan")
+            farr = per_pt_fzl_h[pi] if pi < len(per_pt_fzl_h) else []
+            zv = farr[ti] if ti < len(farr) else None
+            fzl_vals[pi] = float(zv) if isinstance(zv, (int, float)) else float("nan")
+        from _phase import phase_temp
+        elev_h = (per_pt_elev_h + [float("nan")] * n_pts)[:n_pts]
+        temp_vals = phase_temp(temp_vals, dew_vals, fzl_vals, elev_h, frame_vals).tolist()
 
         grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
         grid = _fill_missing_values(grid, hourly_mask)
@@ -971,7 +1009,7 @@ def main() -> None:
     # nur bei CH1), zusätzlich hourly Wind-Felder für die nahtlose
     # CH1→CH2-Verkettung der Windanimation (+0…+33h).
     p1 = {
-        "minutely_15": "precipitation,snowfall,temperature_2m",
+        "minutely_15": "precipitation,snowfall,temperature_2m,dew_point_2m,freezing_level_height",
         "past_minutely_15": 48,
         "forecast_minutely_15": 132,
         "hourly": "wind_speed_10m,wind_direction_10m,wind_gusts_10m",
@@ -985,7 +1023,7 @@ def main() -> None:
     # icon_seamless, damit Radar-Prognose ausschliesslich aus dem ICON-CH-Stack
     # kommt (kein Übergang nach ICON-EU/global im Sichtfenster).
     p2 = {
-        "hourly": "precipitation,snowfall,temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,wind_speed_700hPa,wind_direction_700hPa",
+        "hourly": "precipitation,snowfall,temperature_2m,dew_point_2m,freezing_level_height,wind_speed_10m,wind_direction_10m,wind_gusts_10m,wind_speed_700hPa,wind_direction_700hPa",
         "past_hours": 12,
         "forecast_hours": 120,
         "timezone": "UTC",
