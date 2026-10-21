@@ -91,9 +91,8 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
   { mmh: 2, rgb: [150, 60, 200], label: "stark" },
 ];
 
-// Schneeregen (Mischphase, 30–70 % Schneeanteil): Indigo/Blaulila —
-// zwischen Regen-Blau und Schnee-Violett, aber klar unterscheidbar.
-const SLEET_RGB: [number, number, number] = [166, 160, 216]; // #A6A0D8
+// Schneeregen (Mischphase, 30–70 % Schneeanteil): Türkis.
+const SLEET_RGB: [number, number, number] = [80, 200, 200]; // #50C8C8
 const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
 
 // Testweise: gut sichtbare Schneeflocken (Stern mit 8 Armen) in Schneeflächen.
@@ -114,9 +113,9 @@ function isFlakePixel(x: number, y: number, cell = 11, arm = 2): boolean {
   return dx === 0 || dy === 0 || ax === ay;
 }
 
-// Schneeregen: kleine blaue Tropfen in der Indigo-Fläche (Mischung aus
+// Schneeregen: weisse Tropfen in der Türkis-Fläche (Mischung aus
 // Flocken und Tropfen). Gleicher Ein/Aus-Zustand wie die Flocken.
-const DROP_RGB: [number, number, number] = [40, 90, 195];
+const DROP_RGB: [number, number, number] = [255, 255, 255];
 function isDropPixel(x: number, y: number, cell = 14): boolean {
   if (!FLAKES_ON) return false;
   const cy = Math.floor(y / cell);
@@ -125,8 +124,10 @@ function isDropPixel(x: number, y: number, cell = 14): boolean {
   const c = Math.floor(cell / 2);
   const dx = (xs - cx * cell) - c;
   const dy = (y - cy * cell) - c;
-  // Tropfen: 1 px breit, 2 px hoch (heller Kern + Ansatz unten).
-  return dx === 0 && (dy === 0 || dy === 1);
+  // Tropfen: Spitze oben (1 px), Bauch 3 px breit, 4 px hoch.
+  if (dy === -1) return dx === 0;
+  if (dy >= 0 && dy <= 2) return Math.abs(dx) <= 1;
+  return false;
 }
 
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
@@ -2567,7 +2568,10 @@ function RadarMapInner({
               : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
           )}
         >
-          <Snowflake className="h-4 w-4" />
+          <span className="relative h-4 w-4">
+            <Snowflake className="h-4 w-4" />
+            <Droplet className="absolute -bottom-1 -right-1.5 h-2.5 w-2.5 fill-current" />
+          </span>
         </button>
 
         {/* Blitze ein-/ausblenden */}
