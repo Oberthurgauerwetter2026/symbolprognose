@@ -441,10 +441,14 @@ def _render_frame_png(
             t_up = None
             if temp_c_row_major is not None and len(temp_c_row_major) == n_lat * n_lon:
                 raw_t = np.flipud(np.asarray(temp_c_row_major, dtype=np.float32).reshape(n_lat, n_lon))
-                # Fehlende Temperatur = warm (konservativ: dann nur Regen).
-                raw_t = np.where(np.isfinite(raw_t), raw_t, 99.0)
-                # _upsample_smooth schneidet negative Werte ab → Offset.
-                t_up = _upsample_smooth(raw_t + 60.0, FORECAST_OUT_H, FORECAST_OUT_W) - 60.0
+                finite = np.isfinite(raw_t)
+                # Nur gaten, wenn genug echte Temperaturen vorhanden sind;
+                # sonst entscheidet das Schneefallsignal des Modells allein.
+                if finite.mean() >= 0.5:
+                    fill = float(np.nanmedian(raw_t))
+                    raw_t = np.where(finite, raw_t, fill)
+                    # _upsample_smooth schneidet negative Werte ab → Offset.
+                    t_up = _upsample_smooth(raw_t + 60.0, FORECAST_OUT_H, FORECAST_OUT_W) - 60.0
             frac = snow_fraction(p_up, s_up, t_up)
             if frac.shape == rgba.shape[:2]:
                 rgba = apply_phase_alpha(rgba, frac)
