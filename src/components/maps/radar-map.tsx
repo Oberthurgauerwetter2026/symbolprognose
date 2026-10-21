@@ -725,7 +725,7 @@ function PrecipOverlay({
           if (snowVals) {
             let sv = sampleAt(snowVals, sx, sy);
             if (nextSnow) sv = sv * (1 - blendW) + sampleAt(nextSnow, sx, sy) * blendW;
-            if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+            if (v >= 0.1 && sv >= 0.05) snowFrac = Math.max(0, Math.min(1, sv / 0.7 / v));
           }
 
           const [r, g, b, a] = snowFrac > 0.7
@@ -838,7 +838,7 @@ function PrecipOverlay({
         let snowFrac = 0;
         if (snowVals) {
           const sv = sampleAt(snowVals, sx, sy);
-          if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
+          if (v >= 0.1 && sv >= 0.05) snowFrac = Math.max(0, Math.min(1, sv / 0.7 / v));
         }
         const [r, g, b, a] = snowFrac > 0.7
           ? snowColorFor(v)
