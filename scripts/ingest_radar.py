@@ -45,7 +45,7 @@ from pyproj import Transformer
 # Config
 # ---------------------------------------------------------------------------
 
-RADAR_INGEST_VERSION = "v30-phase-gate"
+RADAR_INGEST_VERSION = "v31-wetbulb-fzl"
 
 # Mindestanzahl Radar-Pixel über der Schwelle, damit eine Gemeinde gewarnt wird.
 MIN_CELL_PIXELS = 8
@@ -535,7 +535,7 @@ def _load_phase_model() -> dict:
         )
         r.raise_for_status()
         locs = r.json().get("phase1") or []
-        lats, lons, precs, snows, temps = [], [], [], [], []
+        lats, lons, precs, snows, temps, dews, fzls, elevs = [], [], [], [], [], [], [], []
         times: list[str] | None = None
         for loc in locs:
             m = (loc or {}).get("minutely_15") or {}
@@ -557,6 +557,11 @@ def _load_phase_model() -> dict:
                 temps.append([float(v) if v is not None else np.nan for v in tc])
             else:
                 temps.append([np.nan] * len(t))
+            for src, dst in (("dew_point_2m", dews), ("freezing_level_height", fzls)):
+                arr = m.get(src) or []
+                dst.append([float(v) if v is not None else np.nan for v in arr] if len(arr) == len(t) else [np.nan] * len(t))
+            ev = loc.get("elevation")
+            elevs.append(float(ev) if isinstance(ev, (int, float)) else np.nan)
         if times and lats:
             tms = np.array(
                 [datetime.fromisoformat(x).replace(tzinfo=timezone.utc).timestamp() for x in times]
@@ -568,6 +573,9 @@ def _load_phase_model() -> dict:
                 "p": np.array(precs, dtype=np.float32),
                 "s": np.array(snows, dtype=np.float32),
                 "tc": np.array(temps, dtype=np.float32),
+                "td": np.array(dews, dtype=np.float32),
+                "fz": np.array(fzls, dtype=np.float32),
+                "el": np.array(elevs, dtype=np.float32),
             }
             print(f"phase: model loaded ({len(lats)} pts, {len(times)} slots)", flush=True)
     except Exception as exc:  # noqa: BLE001
@@ -581,7 +589,7 @@ def phase_fraction_at(ts: datetime) -> np.ndarray | None:
     Wie bei Wetterdiensten wird die Phase PRO MODELLPUNKT bestimmt (mit dessen
     eigener Temperatur/Höhe) und erst danach glatt interpoliert — so streut
     Berg-Schnee nicht in warme Täler und schwache Feldränder kippen nicht."""
-    from _phase import idw_to_grid, point_fraction
+    from _phase import idw_to_grid, phase_temp, point_fraction
 
     m = _load_phase_model()
     if not m:
@@ -594,6 +602,10 @@ def phase_fraction_at(ts: datetime) -> np.ndarray | None:
     s = np.nansum(m["s"][:, sel], axis=1)
     with np.errstate(all="ignore"):
         tc = np.nanmean(m["tc"][:, sel], axis=1)
+        td = np.nanmean(m["td"][:, sel], axis=1)
+        fz = np.nanmean(m["fz"][:, sel], axis=1)
+    # p = Summe ±30 min (≈ mm/h) → Feuchtkugel, Nullgradgrenze, Abkühlung.
+    tc = phase_temp(tc, td, fz, m["el"], p)
     f_pt = point_fraction(p, s, tc)
     if float(np.nanmax(f_pt)) < 0.3:
         return None  # nirgends Schnee/Schneeregen → reiner Regen
