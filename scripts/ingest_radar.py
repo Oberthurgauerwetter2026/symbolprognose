@@ -517,8 +517,89 @@ def sample_to_bbox(values: np.ndarray, meta: dict) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def render_png(values: np.ndarray, scale: list[tuple[float, tuple[int, int, int, int]]]) -> bytes:
+_PHASE_CACHE: dict | None = None
+
+
+def _load_phase_model() -> dict:
+    """ICON-CH1 minutely_15 (Niederschlag + Schneefall) aus dem R2-Cache.
+    Liefert {} wenn nicht verfügbar → Messung bleibt reiner Regen."""
+    global _PHASE_CACHE
+    if _PHASE_CACHE is not None:
+        return _PHASE_CACHE
+    _PHASE_CACHE = {}
+    try:
+        r = requests.get(
+            f"{PUBLIC_URL}/openmeteo/forecast.json",
+            timeout=60,
+            headers={"User-Agent": "oberthurgau-radar-ingest/1.0"},
+        )
+        r.raise_for_status()
+        locs = r.json().get("phase1") or []
+        lats, lons, precs, snows = [], [], [], []
+        times: list[str] | None = None
+        for loc in locs:
+            m = (loc or {}).get("minutely_15") or {}
+            t = m.get("time") or []
+            p = m.get("precipitation") or []
+            s = m.get("snowfall") or []
+            if not t or len(p) != len(t) or len(s) != len(t):
+                continue
+            if times is None:
+                times = t
+            if len(t) != len(times):
+                continue
+            lats.append(float(loc["latitude"]))
+            lons.append(float(loc["longitude"]))
+            precs.append([float(v) if v is not None else np.nan for v in p])
+            snows.append([float(v) if v is not None else np.nan for v in s])
+        if times and lats:
+            tms = np.array(
+                [datetime.fromisoformat(x).replace(tzinfo=timezone.utc).timestamp() for x in times]
+            )
+            _PHASE_CACHE = {
+                "t": tms,
+                "lat": np.array(lats),
+                "lon": np.array(lons),
+                "p": np.array(precs, dtype=np.float32),
+                "s": np.array(snows, dtype=np.float32),
+            }
+            print(f"phase: model loaded ({len(lats)} pts, {len(times)} slots)", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"phase: model unavailable ({exc!r}) — rain only", flush=True)
+    return _PHASE_CACHE
+
+
+def phase_fraction_at(ts: datetime) -> np.ndarray | None:
+    """Schneeanteil-Feld (OUT_H×OUT_W) für den Messzeitpunkt, aus ±30 min
+    Modell-Niederschlag/Schneefall, glatt interpoliert."""
+    from _phase import idw_to_grid, snow_fraction
+
+    m = _load_phase_model()
+    if not m:
+        return None
+    t = ts.timestamp()
+    sel = np.abs(m["t"] - t) <= 30 * 60 + 1
+    if not sel.any():
+        return None
+    p = np.nansum(m["p"][:, sel], axis=1)
+    s = np.nansum(m["s"][:, sel], axis=1)
+    if float(np.nanmax(s)) <= 0.0:
+        return None  # nirgends Schnee → keine Arbeit
+    lons = np.linspace(BBOX_WGS["minLon"], BBOX_WGS["maxLon"], OUT_W)
+    lats = np.linspace(BBOX_WGS["maxLat"], BBOX_WGS["minLat"], OUT_H)
+    lon_g, lat_g = np.meshgrid(lons, lats)
+    p_g = idw_to_grid(m["lat"], m["lon"], p, lat_g, lon_g)
+    s_g = idw_to_grid(m["lat"], m["lon"], s, lat_g, lon_g)
+    return snow_fraction(p_g, s_g)
+
+
+def render_png(
+    values: np.ndarray,
+    scale: list[tuple[float, tuple[int, int, int, int]]],
+    snow_frac: np.ndarray | None = None,
+) -> bytes:
     from _morph import clean_precip_field
+    from _phase import apply_phase_alpha
     # Bereinige Speckles/Löcher pro Intensitätsband, bevor gefärbt wird.
     values = clean_precip_field(values, scale, min_area_px=9, hole_area_px=9)
     h, w = values.shape
@@ -526,6 +607,7 @@ def render_png(values: np.ndarray, scale: list[tuple[float, tuple[int, int, int,
     for thresh, color in scale:
         mask = (~np.isnan(values)) & (values >= thresh)
         rgba[mask] = color
+    rgba = apply_phase_alpha(rgba, snow_frac)
     img = Image.fromarray(rgba, mode="RGBA")
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
@@ -638,7 +720,8 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     converted, _applied = _to_mmh(values, meta, asset.product)
     cropped = sample_to_bbox(converted, meta)
     scale = PRECIP_SCALE if asset.product == "precip" else HAIL_SCALE
-    png = render_png(cropped, scale)
+    frac = phase_fraction_at(asset.ts) if asset.product == "precip" else None
+    png = render_png(cropped, scale, frac)
     upload_png(s3, key, png)
     print(f"  uploaded {key} ({len(png)} bytes)", flush=True)
     return key
