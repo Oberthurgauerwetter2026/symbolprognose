@@ -535,13 +535,14 @@ def _load_phase_model() -> dict:
         )
         r.raise_for_status()
         locs = r.json().get("phase1") or []
-        lats, lons, precs, snows = [], [], [], []
+        lats, lons, precs, snows, temps = [], [], [], [], []
         times: list[str] | None = None
         for loc in locs:
             m = (loc or {}).get("minutely_15") or {}
             t = m.get("time") or []
             p = m.get("precipitation") or []
             s = m.get("snowfall") or []
+            tc = m.get("temperature_2m") or []
             if not t or len(p) != len(t) or len(s) != len(t):
                 continue
             if times is None:
@@ -552,6 +553,10 @@ def _load_phase_model() -> dict:
             lons.append(float(loc["longitude"]))
             precs.append([float(v) if v is not None else np.nan for v in p])
             snows.append([float(v) if v is not None else np.nan for v in s])
+            if len(tc) == len(t):
+                temps.append([float(v) if v is not None else np.nan for v in tc])
+            else:
+                temps.append([np.nan] * len(t))
         if times and lats:
             tms = np.array(
                 [datetime.fromisoformat(x).replace(tzinfo=timezone.utc).timestamp() for x in times]
@@ -562,6 +567,7 @@ def _load_phase_model() -> dict:
                 "lon": np.array(lons),
                 "p": np.array(precs, dtype=np.float32),
                 "s": np.array(snows, dtype=np.float32),
+                "tc": np.array(temps, dtype=np.float32),
             }
             print(f"phase: model loaded ({len(lats)} pts, {len(times)} slots)", flush=True)
     except Exception as exc:  # noqa: BLE001
@@ -570,9 +576,12 @@ def _load_phase_model() -> dict:
 
 
 def phase_fraction_at(ts: datetime) -> np.ndarray | None:
-    """Schneeanteil-Feld (OUT_H×OUT_W) für den Messzeitpunkt, aus ±30 min
-    Modell-Niederschlag/Schneefall, glatt interpoliert."""
-    from _phase import idw_to_grid, snow_fraction
+    """Schneeanteil-Feld (OUT_H×OUT_W) für den Messzeitpunkt.
+
+    Wie bei Wetterdiensten wird die Phase PRO MODELLPUNKT bestimmt (mit dessen
+    eigener Temperatur/Höhe) und erst danach glatt interpoliert — so streut
+    Berg-Schnee nicht in warme Täler und schwache Feldränder kippen nicht."""
+    from _phase import idw_to_grid, point_fraction
 
     m = _load_phase_model()
     if not m:
@@ -583,14 +592,15 @@ def phase_fraction_at(ts: datetime) -> np.ndarray | None:
         return None
     p = np.nansum(m["p"][:, sel], axis=1)
     s = np.nansum(m["s"][:, sel], axis=1)
-    if float(np.nanmax(s)) <= 0.0:
-        return None  # nirgends Schnee → keine Arbeit
+    with np.errstate(all="ignore"):
+        tc = np.nanmean(m["tc"][:, sel], axis=1)
+    f_pt = point_fraction(p, s, tc)
+    if float(np.nanmax(f_pt)) < 0.3:
+        return None  # nirgends Schnee/Schneeregen → reiner Regen
     lons = np.linspace(BBOX_WGS["minLon"], BBOX_WGS["maxLon"], OUT_W)
     lats = np.linspace(BBOX_WGS["maxLat"], BBOX_WGS["minLat"], OUT_H)
     lon_g, lat_g = np.meshgrid(lons, lats)
-    p_g = idw_to_grid(m["lat"], m["lon"], p, lat_g, lon_g)
-    s_g = idw_to_grid(m["lat"], m["lon"], s, lat_g, lon_g)
-    return snow_fraction(p_g, s_g)
+    return idw_to_grid(m["lat"], m["lon"], f_pt, lat_g, lon_g, k=4)
 
 
 def render_png(

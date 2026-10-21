@@ -55,6 +55,26 @@ def snow_fraction(
     return f
 
 
+def point_fraction(
+    precip_mm: np.ndarray,
+    snow_cm: np.ndarray,
+    temp_c: np.ndarray,
+) -> np.ndarray:
+    """Schneeanteil pro Modellpunkt (vor jeder Interpolation).
+    Mit Modellniederschlag: Verhältnis Schnee/Niederschlag + Temperatur-Gate.
+    Ohne Modellniederschlag (Radar misst trotzdem etwas): Phase allein aus der
+    Temperatur — ≤1 °C Schnee, 1–2.5 °C Schneeregen, sonst Regen.
+    Ohne Temperatur: konservativ Regen."""
+    p = np.asarray(precip_mm, dtype=np.float32)
+    t = np.asarray(temp_c, dtype=np.float32)
+    f = snow_fraction(p, snow_cm, t)
+    dry = ~(p >= P_MIN_MM)
+    by_t = np.where(t <= T_SNOW_MAX, 1.0, np.where(t <= T_RAIN_ONLY, 0.5, 0.0))
+    f = np.where(dry & np.isfinite(t), by_t, f)
+    f = np.where(np.isfinite(t), f, 0.0)
+    return np.clip(f, 0.0, 1.0).astype(np.float32)
+
+
 def apply_phase_alpha(rgba: np.ndarray, frac: np.ndarray | None) -> np.ndarray:
     """Setzt die Phasen-Alphacodes auf allen gefärbten Pixeln."""
     if frac is None or frac.shape != rgba.shape[:2]:
