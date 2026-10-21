@@ -125,6 +125,10 @@ def point_fraction(
     dry = ~(p >= P_MIN_MM)
     by_t = np.where(t <= T_SNOW_MAX, 1.0, np.where(t <= T_RAIN_ONLY, 0.5, 0.0))
     f = np.where(dry & np.isfinite(t), by_t, f)
+    # Mit Feuchtkugel-/Phasentemperatur: klar kalte Punkte mindestens als
+    # Schnee bzw. Schneeregen, auch wenn das Modell weniger Schnee rechnet.
+    floor = np.where(t <= 0.5, 1.0, np.where(t <= 1.5, 0.5, 0.0))
+    f = np.where(np.isfinite(t), np.maximum(f, floor), f)
     # Ohne Temperatur: Verhältnis Schnee/Niederschlag des Punkts selbst
     # (warme Punkte haben dort 0 cm Schnee → Regen).
     return np.clip(f, 0.0, 1.0).astype(np.float32)
