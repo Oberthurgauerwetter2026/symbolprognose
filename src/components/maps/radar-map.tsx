@@ -877,7 +877,7 @@ function PrecipOverlay({
         const [r, g, b, a] = snowFrac > 0.7
           ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
           : snowFrac > 0.3
-            ? SLEET_COLOR
+            ? isDropPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
             : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
@@ -1458,7 +1458,9 @@ function MeasurementCanvasOverlay({
           const [r, g, b] =
             ph === 2
               ? isFlakePixel(lx, ly, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
-              : ph === 1 ? SLEET_RGB : s.rgb;
+              : ph === 1
+                ? isDropPixel(lx, ly, 20) ? DROP_RGB : SLEET_RGB
+                : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
