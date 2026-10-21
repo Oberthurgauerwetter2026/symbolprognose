@@ -91,6 +91,10 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
   { mmh: 2, rgb: [150, 60, 200], label: "stark" },
 ];
 
+// Schneeregen (Mischphase, 30–70 % Schneeanteil): Türkis.
+const SLEET_RGB: [number, number, number] = [80, 200, 200];
+const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
+
 function snowColorFor(mmh: number): [number, number, number, number] {
   if (mmh < SNOW_SCALE[0].mmh) return [0, 0, 0, 0];
   for (let i = SNOW_SCALE.length - 1; i >= 0; i--) {
@@ -714,9 +718,11 @@ function PrecipOverlay({
             if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
           }
 
-          const [r, g, b, a] = snowFrac > 0.3
+          const [r, g, b, a] = snowFrac > 0.7
             ? snowColorFor(v)
-            : colorFor(v);
+            : snowFrac > 0.3
+              ? SLEET_COLOR
+              : colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
           if (alpha === 0) continue;
@@ -824,9 +830,11 @@ function PrecipOverlay({
           const sv = sampleAt(snowVals, sx, sy);
           if (v > 0.01) snowFrac = Math.max(0, Math.min(1, sv / v));
         }
-        const [r, g, b, a] = snowFrac > 0.3
+        const [r, g, b, a] = snowFrac > 0.7
           ? snowColorFor(v)
-          : colorFor(v);
+          : snowFrac > 0.3
+            ? SLEET_COLOR
+            : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -2404,6 +2412,14 @@ function RadarMapInner({
                 <span className="tabular-nums text-muted-foreground">{s.mmh}</span>
               </div>
             ))}
+            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schneeregen</span>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                style={{ background: `rgb(${SLEET_RGB.join(",")})` }}
+              />
+              <span className="text-muted-foreground">Mischung</span>
+            </div>
             <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
             {SNOW_SCALE.map((s) => (
               <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
