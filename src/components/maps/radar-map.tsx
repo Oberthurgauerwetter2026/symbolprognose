@@ -98,10 +98,11 @@ const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
 
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
 // 245/255 = Regen, 230 = Schneeregen, 215 = Schnee.
+// Nur exakte Codes (±3) zählen — 235/245/255 sind Regenstufen (sonst
+// würde die schwächste Prognose-Stufe als Schneeregen-Saum erscheinen).
 function phaseFromAlpha(a: number): number {
-  if (a >= 238) return 0;
-  if (a >= 222) return 1;
-  if (a >= 200) return 2;
+  if (Math.abs(a - 230) <= 3) return 1;
+  if (Math.abs(a - 215) <= 3) return 2;
   return 0;
 }
 
