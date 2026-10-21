@@ -2552,13 +2552,13 @@ function RadarMapInner({
           </button>
         )}
 
-        {/* Schneeflocken ein-/ausblenden */}
+        {/* Flocken (Schnee) und Tropfen (Schneeregen) ein-/ausblenden */}
         <button
           type="button"
           onClick={toggleFlakes}
           aria-pressed={flakesOn}
-          aria-label={flakesOn ? "Schneeflocken ausblenden" : "Schneeflocken einblenden"}
-          title={flakesOn ? "Schneeflocken ausblenden" : "Schneeflocken einblenden"}
+          aria-label={flakesOn ? "Flocken und Tropfen ausblenden" : "Flocken und Tropfen einblenden"}
+          title={flakesOn ? "Flocken und Tropfen ausblenden" : "Flocken und Tropfen einblenden"}
           className={cn(
             "absolute right-3 z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
             LIGHTNING_ENABLED ? "top-[11rem]" : "top-[8.5rem]",
