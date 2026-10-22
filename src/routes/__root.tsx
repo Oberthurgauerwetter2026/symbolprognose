@@ -14,6 +14,7 @@ import {
 import appCss from "../styles.css?url";
 import { AppErrorBoundary } from "@/components/app-error-boundary";
 import { installClientErrorReporter } from "@/lib/client-error-reporter";
+import { Toaster } from "@/components/ui/sonner";
 
 
 function NotFoundComponent() {
@@ -168,6 +169,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AppErrorBoundary label="Die Seite" height={320}>
         <Outlet />
+        <Toaster />
       </AppErrorBoundary>
     </QueryClientProvider>
   );
