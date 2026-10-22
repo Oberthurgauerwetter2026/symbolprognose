@@ -66,13 +66,28 @@ const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
   { mmh: 80,    rgb: [170,  40, 180], a: 255 / 255 },
 ];
 
+// Weichere Anzeige-Palette (gleiche Schwellen/Alpha wie SCALE, aber weniger
+// gesättigt — Stilvorlage: pastellige Schneefarben wie in der MCH-App).
+// SCALE bleibt die Decode-Referenz zu den PNG-Farben; nur die Darstellung
+// wird über DISPLAY_SCALE gefärbt.
+const DISPLAY_SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
+  { mmh: 0.1,   rgb: [145, 195, 238], a: 245 / 255 },
+  { mmh: 0.3,   rgb: [120, 170, 225], a: 255 / 255 },
+  { mmh: 0.8,   rgb: [ 85, 128, 205], a: 255 / 255 },
+  { mmh: 2,     rgb: [100, 185, 115], a: 255 / 255 },
+  { mmh: 5,     rgb: [240, 212, 105], a: 255 / 255 },
+  { mmh: 15,    rgb: [238, 162,  85], a: 255 / 255 },
+  { mmh: 40,    rgb: [225, 100,  90], a: 255 / 255 },
+  { mmh: 80,    rgb: [185, 100, 195], a: 255 / 255 },
+];
+
 function colorFor(mmh: number): [number, number, number, number] {
   // Quantisierte harte Bänder — gibt scharfe Iso-Konturen wie auf MCH-CombiPrecip.
-  if (mmh < SCALE[0].mmh) return [0, 0, 0, 0];
-  let band = SCALE[0];
-  for (let i = SCALE.length - 1; i >= 0; i--) {
-    if (mmh >= SCALE[i].mmh) {
-      band = SCALE[i];
+  if (mmh < DISPLAY_SCALE[0].mmh) return [0, 0, 0, 0];
+  let band = DISPLAY_SCALE[0];
+  for (let i = DISPLAY_SCALE.length - 1; i >= 0; i--) {
+    if (mmh >= DISPLAY_SCALE[i].mmh) {
+      band = DISPLAY_SCALE[i];
       break;
     }
   }
@@ -86,14 +101,15 @@ function colorFor(mmh: number): [number, number, number, number] {
 
 
 
-// Schnee-Farbskala (mm/h Wasser-Äquivalent) — MeteoSchweiz: leicht / stark.
+// Schnee-Farbskala (mm/h Wasser-Äquivalent) — pastellig wie MCH-App:
+// zartes Flieder für leicht, gedämpftes Violett für stark.
 const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
-  { mmh: 0.1, rgb: [205, 195, 230], label: "leicht" },
-  { mmh: 2, rgb: [150, 60, 200], label: "stark" },
+  { mmh: 0.1, rgb: [210, 188, 222], label: "leicht" },
+  { mmh: 2, rgb: [170, 100, 192], label: "stark" },
 ];
 
-// Schneeregen (Mischphase, 30–70 % Schneeanteil): Türkis.
-const SLEET_RGB: [number, number, number] = [80, 200, 200]; // #50C8C8
+// Schneeregen (Mischphase, 30–70 % Schneeanteil): weiches Türkis.
+const SLEET_RGB: [number, number, number] = [115, 205, 205]; // #73CDCD
 const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
 
 // Testweise: gut sichtbare Schneeflocken (Stern mit 8 Armen) in Schneeflächen.
@@ -542,7 +558,7 @@ function PrecipOverlay({
         // Beide Layer (Messung-Fallback und Prognose) bekommen denselben
         // leichten Kontrast wie das MCH-PNG (.mch-precip), damit Farbskala
         // und Wahrnehmung über alle Quellen hinweg konsistent bleiben.
-        cv.style.filter = "contrast(1.1)";
+        cv.style.filter = "contrast(1.05)";
         (cv.style as unknown as { imageRendering: string }).imageRendering = "auto";
 
         pane.appendChild(cv);
@@ -1104,7 +1120,7 @@ function MeasurementCanvasOverlay({
         cv.style.pointerEvents = "none";
         cv.style.willChange = "transform";
         cv.style.zIndex = "460";
-        cv.style.filter = "contrast(1.15) saturate(1.1)";
+        cv.style.filter = "contrast(1.05)";
 
 
         pane.appendChild(cv);
@@ -1506,8 +1522,8 @@ function MeasurementCanvasOverlay({
           // über die gerundete Stufe — dadurch entstehen keine einzelnen
           // Pixel der Nachbarfarbe innerhalb einer Fläche.
           if (v < 0.5) continue;
-          const bandIdx = Math.min(SCALE.length, Math.max(1, Math.round(v))) - 1;
-          const s = SCALE[bandIdx];
+          const bandIdx = Math.min(DISPLAY_SCALE.length, Math.max(1, Math.round(v))) - 1;
+          const s = DISPLAY_SCALE[bandIdx];
           // Phase vom dominanten Feld, bilinear geglättet — keine Mischfarben.
           const pf = wA >= wB ? fieldA : fieldB;
           let ph = 0;
@@ -2546,7 +2562,7 @@ function RadarMapInner({
                 <X className="h-3 w-3" />
               </button>
             </div>
-            {[...SCALE].reverse().map((s) => (
+            {[...DISPLAY_SCALE].reverse().map((s) => (
               <div key={s.mmh} className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
