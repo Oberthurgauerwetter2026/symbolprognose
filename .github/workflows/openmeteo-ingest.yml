@@ -13,7 +13,7 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +39,7 @@ jobs:
           R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
           CHUNK_PHASE1: "60"
           CHUNK_PHASEC: "60"
-          BATCH_SLEEP_S: "20"
+          BATCH_SLEEP_S: "12"
           OM_CONNECT_TIMEOUT: "30"
           OM_READ_TIMEOUT: "60"
           FETCH_WORKERS: "1"

@@ -25,6 +25,7 @@ ENV (optional):
 from __future__ import annotations
 
 import io
+import hashlib
 import json
 import os
 import sys
@@ -244,16 +245,17 @@ def chunk_fetch(
 
     pending: list[int] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [ex.submit(run, bi) for bi in range(n_batches)]
-        for idx, fut in enumerate(futures):
-            bi, sub_label, res, _batch_len = fut.result()
-            if res is None:
-                pending.append(bi)
-                print(f"WARN: {sub_label} FAILED — für Nachlauf vorgemerkt")
-            else:
-                results[bi] = res
-                print(f"  {sub_label} ok")
-            if batch_sleep > 0 and idx < len(futures) - 1:
+        for start in range(0, n_batches, workers):
+            futures = [ex.submit(run, bi) for bi in range(start, min(start + workers, n_batches))]
+            for fut in futures:
+                bi, sub_label, res, _batch_len = fut.result()
+                if res is None:
+                    pending.append(bi)
+                    print(f"WARN: {sub_label} FAILED — für Nachlauf vorgemerkt")
+                else:
+                    results[bi] = res
+                    print(f"  {sub_label} ok")
+            if batch_sleep > 0 and start + workers < n_batches:
                 time.sleep(batch_sleep)
 
     # ---- Nachlauf: gescheiterte Batches sequentiell erneut versuchen ----
@@ -459,11 +461,23 @@ def _render_frame_png(
 
 
 
-def _purge_forecast_pngs(s3, bucket: str) -> int:
+def forecast_png_key(stamp: str, png: bytes) -> str:
+    return f"radar/forecast/{stamp}-{hashlib.sha256(png).hexdigest()[:20]}.png"
+
+
+def _purge_forecast_pngs(s3, bucket: str, frames: list[dict]) -> int:
+    """Clean only old unreferenced images after a successful manifest switch."""
+    keep = {f["precipUrl"].split("/radar/forecast/", 1)[-1] for f in frames}
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=6)
     paginator = s3.get_paginator("list_objects_v2")
     purged = 0
     for page in paginator.paginate(Bucket=bucket, Prefix="radar/forecast/"):
         for obj in page.get("Contents", []) or []:
+            if obj["Key"].removeprefix("radar/forecast/") in keep:
+                continue
+            modified = obj.get("LastModified")
+            if modified is None or modified >= cutoff:
+                continue
             s3.delete_object(Bucket=bucket, Key=obj["Key"])
             purged += 1
     return purged
@@ -632,8 +646,7 @@ def rasterize_forecast_pngs(
 
     miss_mask = np.asarray(missing_flags, dtype=bool).reshape(n_lat, n_lon)
 
-    # Erst alles rendern, dann alte PNGs löschen und neu hochladen — so bleibt
-    # bei einem Fehler die letzte gute Prognose in R2 bestehen.
+    # Eigene URLs für neue Inhalte; alte Bilder bleiben unverändert erreichbar.
     rendered: list[tuple[str, bytes, dict]] = []
     for ti, t_iso in enumerate(ref_times):
         try:
@@ -690,7 +703,7 @@ def rasterize_forecast_pngs(
             temp_c_row_major=temp_vals,
         )
         stamp = t_dt.strftime("%Y%m%dT%H%M")
-        key = f"radar/forecast/{stamp}.png"
+        key = forecast_png_key(stamp, png)
         rendered.append((
             key,
             png,
@@ -705,10 +718,6 @@ def rasterize_forecast_pngs(
     if not rendered:
         print("forecast-pngs: keine Frames gerendert — alte Prognose bleibt bestehen")
         return []
-
-    _purged = _purge_forecast_pngs(s3, bucket)
-    if _purged:
-        print(f"forecast-pngs: purged {_purged} old objects")
 
     manifest_entries: list[dict] = []
     for key, png, entry in rendered:
@@ -901,7 +910,6 @@ def rasterize_forecast_hourly_pngs(
         grid = _fill_missing_values(grid, hourly_mask)
 
         stamp = t_dt.strftime("%Y%m%dT%H%M")
-        key = f"radar/forecast/{stamp}.png"
         try:
             png = _render_frame_png(
                 n_lat, n_lon, grid.reshape(-1).tolist(), min_area_px=24,
@@ -909,6 +917,7 @@ def rasterize_forecast_hourly_pngs(
                 temp_c_row_major=temp_vals,
             )
 
+            key = forecast_png_key(stamp, png)
             s3.put_object(
                 Bucket=bucket,
                 Key=key,
@@ -933,6 +942,8 @@ def rasterize_forecast_hourly_pngs(
     )
     if uploaded == 0:
         print("forecast-hourly-pngs: WARN — keine Stundenframes erzeugt (Prognose endet früher)")
+    if failed:
+        raise RuntimeError(f"{failed} hourly PNG uploads failed; retaining previous manifest")
     return manifest_entries
 
 
@@ -941,6 +952,17 @@ def rasterize_forecast_hourly_pngs(
 
 
 def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
+    # Refuse shortened or gapped forecasts before touching the active manifest.
+    times = sorted(datetime.fromisoformat(f["t"].replace("Z", "+00:00")) for f in frames)
+    now = datetime.now(timezone.utc)
+    if not times or times[0] > now + timedelta(hours=1) or times[-1] < now + timedelta(hours=47):
+        raise ValueError("Incomplete forecast horizon; retaining previous manifest")
+    if any(b - a > timedelta(hours=1) for a, b in zip(times, times[1:])):
+        raise ValueError("Gap in forecast timeline; retaining previous manifest")
+    for frame in frames:
+        key = "radar/forecast/" + frame["precipUrl"].split("/radar/forecast/", 1)[1]
+        if s3.head_object(Bucket=bucket, Key=key).get("ContentLength", 0) <= 0:
+            raise ValueError(f"Missing forecast PNG: {key}")
     bb = _bbox()
     body: dict = {
         "bbox": {
@@ -966,6 +988,10 @@ def write_forecast_manifest(s3, bucket: str, frames: list[dict]) -> None:
         f"forecast-manifest: {len(frames)} entries, "
         f"coverage={FORECAST_STATS.get('coverage')}",
     )
+    try:
+        print(f"forecast-pngs: cleaned {_purge_forecast_pngs(s3, bucket, frames)} expired objects")
+    except Exception as exc:
+        print(f"WARN: forecast cleanup deferred: {exc!r}")
 
 
 

@@ -25,11 +25,11 @@ const EMPTY_PNG = Uint8Array.from(
 );
 
 function emptyPng() {
-  return new Response(EMPTY_PNG, {
-    status: 200,
+  return new Response("Radar frame unavailable", {
+    status: 503,
     headers: {
-      "Content-Type": "image/png",
-      "Cache-Control": "public, max-age=60",
+      "Content-Type": "text/plain",
+      "Cache-Control": "no-store",
       "X-Radar-Frame": "missing",
       ...CORS,
     },

@@ -1144,7 +1144,7 @@ function MeasurementCanvasOverlay({
         if (cancelled) return;
         const cw = img.naturalWidth;
         const ch = img.naturalHeight;
-        if (cw === 0 || ch === 0) return;
+        if (cw <= 1 || ch <= 1) return;
         const c = document.createElement("canvas");
         c.width = cw;
         c.height = ch;
@@ -1200,6 +1200,7 @@ function MeasurementCanvasOverlay({
         if (u === url) sourceRef.current = entry;
         redraw();
       };
+      img.onerror = () => { if (!cancelled) redraw(); };
       img.src = u;
     };
     decode(url);
@@ -1247,7 +1248,7 @@ function MeasurementCanvasOverlay({
         }
         const cw = img.naturalWidth;
         const ch = img.naturalHeight;
-        if (cw === 0 || ch === 0) {
+        if (cw <= 1 || ch <= 1) {
           done();
           return;
         }
@@ -1338,7 +1339,8 @@ function MeasurementCanvasOverlay({
   redrawRef.current = () => {
     const cv = canvasRef.current;
     if (!cv) return;
-    const srcA = cacheRef.current.get(url) ?? sourceRef.current ?? null;
+    const cachedA = cacheRef.current.get(url);
+    const srcA = cachedA ?? sourceRef.current ?? null;
     const srcBRaw = nextUrl && nextUrl !== url ? cacheRef.current.get(nextUrl) ?? null : null;
     if (!srcA && !srcBRaw) return;
 
@@ -1378,7 +1380,9 @@ function MeasurementCanvasOverlay({
     const cacheKey = `${fieldA ? url : ""}>${fieldB ? nextUrl : ""}@${
       fieldA && fieldB ? w : 0
     }|${viewKey}`;
-    let off = frameCanvasCacheRef.current.get(cacheKey) ?? null;
+    // A fallback belongs to a different timestamp, not to the requested URL.
+    const canCache = Boolean(cachedA);
+    let off = canCache ? frameCanvasCacheRef.current.get(cacheKey) ?? null : null;
 
     if (!off) {
       // STEP=2 halbiert den Pixel-Loop bei praktisch unveränderter Optik.
