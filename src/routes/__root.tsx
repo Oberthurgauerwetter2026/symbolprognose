@@ -133,7 +133,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{localStorage.removeItem('wx-rq-cache-v1');sessionStorage.removeItem('wx-rq-cache-v1')}catch(e){}",
+              "try{localStorage.removeItem('wx-rq-cache-v1');sessionStorage.removeItem('wx-rq-cache-v1')}catch(e){}" +
+              // Nach einem neuen Deploy fehlen alte Datei-Teile (CSS/JS). Statt
+              // weisser Seite einmalig neu laden; Sperre verhindert Endlosschleife.
+              ";window.addEventListener('vite:preloadError',function(e){try{var k='wx-reload-at',t=+sessionStorage.getItem(k)||0;if(Date.now()-t>30000){sessionStorage.setItem(k,String(Date.now()));e.preventDefault();location.reload();}}catch(_){location.reload();}});",
           }}
         />
         {children}
