@@ -1479,7 +1479,7 @@ function MeasurementCanvasOverlay({
         }
       }
       offCtx.putImageData(img, 0, 0);
-      frameCanvasCacheRef.current.set(cacheKey, off);
+      if (canCache) frameCanvasCacheRef.current.set(cacheKey, off);
       while (frameCanvasCacheRef.current.size > FRAME_CACHE_MAX) {
         const firstKey = frameCanvasCacheRef.current.keys().next().value;
         if (firstKey === undefined) break;
