@@ -780,7 +780,7 @@ function PrecipOverlay({
           const [r, g, b, a] = snowFrac > 0.7
             ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
             : snowFrac > 0.3
-              ? isDropPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
+              ? isSleetMarkPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
               : colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
@@ -892,7 +892,7 @@ function PrecipOverlay({
         const [r, g, b, a] = snowFrac > 0.7
           ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
           : snowFrac > 0.3
-            ? isDropPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
+            ? isSleetMarkPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
             : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
@@ -1491,7 +1491,7 @@ function MeasurementCanvasOverlay({
             ph === 2
               ? isFlakePixel(lx, ly, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
               : ph === 1
-                ? isDropPixel(lx, ly, 20) ? DROP_RGB : SLEET_RGB
+                ? isSleetMarkPixel(lx, ly, 20) ? DROP_RGB : SLEET_RGB
                 : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
@@ -2527,7 +2527,7 @@ function RadarMapInner({
                 className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
                 style={{ background: `rgb(${SLEET_RGB.join(",")})` }}
               />
-              <span className="text-muted-foreground">Mischung</span>
+              <span className="text-muted-foreground">Schneeregen</span>
             </div>
             <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
             {SNOW_SCALE.map((s) => (
