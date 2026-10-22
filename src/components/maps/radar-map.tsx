@@ -2561,7 +2561,7 @@ function RadarMapInner({
                 className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
                 style={{ background: `rgb(${SLEET_RGB.join(",")})` }}
               />
-              <span className="text-muted-foreground">Schneeregen</span>
+              <span className="text-muted-foreground">Tropfen/Flocken</span>
             </div>
             <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
             {SNOW_SCALE.map((s) => (
