@@ -1409,8 +1409,8 @@ function MeasurementCanvasOverlay({
     let off = canCache ? frameCanvasCacheRef.current.get(cacheKey) ?? null : null;
 
     if (!off) {
-      // STEP=2 halbiert den Pixel-Loop bei praktisch unveränderter Optik.
-      const STEP = 2;
+      // Volle Bildschirmauflösung für scharfe Ränder (keine "Würste").
+      const STEP = 1;
       const lowW = Math.max(1, Math.ceil(size.x / STEP));
       const lowH = Math.max(1, Math.ceil(size.y / STEP));
       off = document.createElement("canvas");
@@ -1454,10 +1454,39 @@ function MeasurementCanvasOverlay({
       const wA = fieldA && fieldB ? 1 - w : fieldA ? 1 : 0;
       const wB = fieldA && fieldB ? w : fieldB ? 1 : 0;
 
+      // Mercator ist separabel: Länge hängt nur von x, Breite nur von y ab.
+      const colLng = new Float64Array(lowW);
+      const rowLat = new Float64Array(lowH);
+      for (let lx = 0; lx < lowW; lx++) colLng[lx] = map.containerPointToLatLng([lx * STEP, 0]).lng;
+      for (let ly = 0; ly < lowH; ly++) rowLat[ly] = map.containerPointToLatLng([0, ly * STEP]).lat;
+      // Muster-Koordinaten in 2-px-Einheiten, damit Flocken/Tropfen gleich gross bleiben.
+      const PAT = 2 / STEP;
+      const phaseScore = (pf: DecodedRadar, fx: number, fy: number) => {
+        // Bilineare Interpolation eines Phasen-Indikators (0 Regen, 0.5
+        // Schneeregen, 1 Schnee) → glatte, fein aufgelöste Phasengrenzen.
+        const ph = pf.phase;
+        if (!ph) return 0;
+        const x0 = Math.max(0, Math.min(pf.w - 1, Math.floor(fx)));
+        const y0 = Math.max(0, Math.min(pf.h - 1, Math.floor(fy)));
+        const x1 = Math.min(pf.w - 1, x0 + 1);
+        const y1 = Math.min(pf.h - 1, y0 + 1);
+        const tx = Math.max(0, Math.min(1, fx - x0));
+        const ty = Math.max(0, Math.min(1, fy - y0));
+        const s = (p: number) => (p === 2 ? 1 : p === 1 ? 0.5 : 0);
+        return (
+          s(ph[y0 * pf.w + x0]) * (1 - tx) * (1 - ty) +
+          s(ph[y0 * pf.w + x1]) * tx * (1 - ty) +
+          s(ph[y1 * pf.w + x0]) * (1 - tx) * ty +
+          s(ph[y1 * pf.w + x1]) * tx * ty
+        );
+      };
+
       for (let ly = 0; ly < lowH; ly++) {
+        const lat = rowLat[ly];
+        if (lat < minLat || lat > maxLat) continue;
         for (let lx = 0; lx < lowW; lx++) {
-          const ll = map.containerPointToLatLng([lx * STEP, ly * STEP]);
-          if (ll.lat < minLat || ll.lat > maxLat || ll.lng < minLon || ll.lng > maxLon) continue;
+          const ll = { lat, lng: colLng[lx] };
+          if (ll.lng < minLon || ll.lng > maxLon) continue;
           let v = 0;
           if (fieldA && smoothA) {
             const fx = ((ll.lng - minLon) / lonSpan) * (fieldA.w - 1);
@@ -1479,19 +1508,24 @@ function MeasurementCanvasOverlay({
           if (v < 0.5) continue;
           const bandIdx = Math.min(SCALE.length, Math.max(1, Math.round(v))) - 1;
           const s = SCALE[bandIdx];
-          // Phase vom dominanten Feld (nächstes Pixel) — keine Mischfarben.
+          // Phase vom dominanten Feld, bilinear geglättet — keine Mischfarben.
           const pf = wA >= wB ? fieldA : fieldB;
           let ph = 0;
           if (pf) {
-            const px = Math.round(((ll.lng - minLon) / lonSpan) * (pf.w - 1));
-            const py = Math.round(((maxLat - ll.lat) / latSpan) * (pf.h - 1));
-            if (px >= 0 && px < pf.w && py >= 0 && py < pf.h) ph = pf.phase?.[py * pf.w + px] ?? 0;
+            const score = phaseScore(
+              pf,
+              ((ll.lng - minLon) / lonSpan) * (pf.w - 1),
+              ((maxLat - ll.lat) / latSpan) * (pf.h - 1),
+            );
+            ph = score >= 0.75 ? 2 : score >= 0.25 ? 1 : 0;
           }
+          const mx = Math.floor(lx / PAT);
+          const my = Math.floor(ly / PAT);
           const [r, g, b] =
             ph === 2
-              ? isFlakePixel(lx, ly, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
+              ? isFlakePixel(mx, my, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
               : ph === 1
-                ? isSleetMarkPixel(lx, ly, 20) ? DROP_RGB : SLEET_RGB
+                ? isSleetMarkPixel(mx, my, 20) ? DROP_RGB : SLEET_RGB
                 : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
@@ -2332,7 +2366,7 @@ function RadarMapInner({
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
-            opacity={0.55}
+            opacity={0.9}
             attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz'
           />
           <GeoJSON
