@@ -1,6 +1,7 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "sonner";
 
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -1127,13 +1128,22 @@ function MeasurementCanvasOverlay({
   // Nachladepause (und damit ohne Aufblitzen) läuft.
   useEffect(() => {
     let cancelled = false;
-    const decode = (u: string) => {
+    const retryTimers: ReturnType<typeof setTimeout>[] = [];
+    const decode = (u: string, attempt = 0) => {
+      const failed = () => {
+        if (cancelled) return;
+        if (u === url) toast.error("Bild für diese Zeit fehlt – letzte verfügbare Darstellung bleibt sichtbar.", { id: "radar-frame-missing" });
+        if (attempt < 2) retryTimers.push(setTimeout(() => decode(u, attempt + 1), 3000));
+      };
       const cached = cacheRef.current.get(u);
       if (cached) {
         // Reinsert to mark as recent.
         cacheRef.current.delete(u);
         cacheRef.current.set(u, cached);
-        if (u === url) sourceRef.current = cached;
+        if (u === url) {
+          sourceRef.current = cached;
+          toast.dismiss("radar-frame-missing");
+        }
         redraw();
         return;
       }
@@ -1144,7 +1154,7 @@ function MeasurementCanvasOverlay({
         if (cancelled) return;
         const cw = img.naturalWidth;
         const ch = img.naturalHeight;
-        if (cw <= 1 || ch <= 1) return;
+        if (cw <= 1 || ch <= 1) { failed(); return; }
         const c = document.createElement("canvas");
         c.width = cw;
         c.height = ch;
@@ -1197,16 +1207,20 @@ function MeasurementCanvasOverlay({
           if (firstKey === undefined) break;
           cacheRef.current.delete(firstKey);
         }
-        if (u === url) sourceRef.current = entry;
+        if (u === url) {
+          sourceRef.current = entry;
+          toast.dismiss("radar-frame-missing");
+        }
         redraw();
       };
-      img.onerror = () => { if (!cancelled) redraw(); };
+      img.onerror = failed;
       img.src = u;
     };
     decode(url);
     if (nextUrl && nextUrl !== url) decode(nextUrl);
     return () => {
       cancelled = true;
+      retryTimers.forEach(clearTimeout);
     };
   }, [url, nextUrl]);
 
