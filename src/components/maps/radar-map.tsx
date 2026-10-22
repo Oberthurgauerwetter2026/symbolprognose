@@ -134,6 +134,16 @@ function isDropPixel(x: number, y: number, cell = 18): boolean {
   return false;
 }
 
+// Schneeregen als Gemisch: Tropfen und Flocken abwechselnd im versetzten
+// Raster (Schachbrett der Zellen).
+function isSleetMarkPixel(x: number, y: number, cell = 18): boolean {
+  if (!FLAKES_ON) return false;
+  const cy = Math.floor(y / cell);
+  const xs = x + (cy & 1 ? Math.floor(cell / 2) : 0);
+  const cx = Math.floor(xs / cell);
+  return (cx + cy) & 1 ? isFlakePixel(x, y, cell, 2) : isDropPixel(x, y, cell);
+}
+
 // Phasen-Kodierung im PNG-Alpha — MUSS zu scripts/_phase.py passen.
 // 245/255 = Regen, 230 = Schneeregen, 215 = Schnee.
 // Nur exakte Codes (±3) zählen — 235/245/255 sind Regenstufen (sonst
