@@ -15,21 +15,13 @@ function bad(status: number, msg: string) {
   });
 }
 
-// 1x1 fully transparent PNG — used when a frame is not (yet) in R2, so the map
-// layer simply renders nothing instead of the app surfacing a 502.
-const EMPTY_PNG = Uint8Array.from(
-  atob(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==",
-  ),
-  (c) => c.charCodeAt(0),
-);
-
-function emptyPng() {
-  return new Response(EMPTY_PNG, {
-    status: 200,
+// Missing data must not be decoded or cached as a dry precipitation field.
+function unavailableFrame() {
+  return new Response("Radar frame unavailable", {
+    status: 503,
     headers: {
-      "Content-Type": "image/png",
-      "Cache-Control": "public, max-age=60",
+      "Content-Type": "text/plain",
+      "Cache-Control": "no-store",
       "X-Radar-Frame": "missing",
       ...CORS,
     },
@@ -53,7 +45,7 @@ export const Route = createFileRoute("/api/public/radar/proxy")({
           ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, path),
           ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, path),
         ].filter((u, i, a) => a.indexOf(u) === i);
-        if (candidates.length === 0) return emptyPng();
+        if (candidates.length === 0) return unavailableFrame();
 
         for (const target of candidates) {
           try {
@@ -73,7 +65,7 @@ export const Route = createFileRoute("/api/public/radar/proxy")({
             // try next
           }
         }
-        return emptyPng();
+        return unavailableFrame();
       },
     },
   },

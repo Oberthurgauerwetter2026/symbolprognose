@@ -20,6 +20,10 @@ export const Route = createFileRoute("/karten/radar")({
     meta: [
       { title: "Niederschlagsradar Oberthurgau · Niederschlags-Animation" },
       { name: "description", content: getMap("radar").description },
+      { property: "og:title", content: "Niederschlagsradar Oberthurgau · Niederschlags-Animation" },
+      { property: "og:description", content: getMap("radar").description },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [APP_MANIFEST_LINK],
   }),

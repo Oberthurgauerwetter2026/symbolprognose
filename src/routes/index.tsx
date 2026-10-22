@@ -9,7 +9,11 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
   head: () => ({
     meta: [
-      { title: "Wetter-Board · Übersicht" },
+      { title: "Oberthurgauer Wetter · Kartenübersicht" },
+      { property: "og:title", content: "Oberthurgauer Wetter · Kartenübersicht" },
+      { property: "og:description", content: "Wetterkarten und Lokalprognosen für den Oberthurgau mit Radar, Wind, Satellitenbildern und Warnungen." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       {
         name: "description",
         content:
