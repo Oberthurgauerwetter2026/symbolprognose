@@ -882,9 +882,12 @@ def rasterize_forecast_hourly_pngs(
         dew_vals: list[float] = [float("nan")] * n_pts
         fzl_vals: list[float] = [float("nan")] * n_pts
         any_positive = False
+        n_valid = 0
         for pi in range(n_pts):
             arr = per_pt_precip[pi] if pi < len(per_pt_precip) else []
             v = arr[ti] if ti < len(arr) else None
+            if isinstance(v, (int, float)):
+                n_valid += 1
             fv = float(v) if isinstance(v, (int, float)) else 0.0  # hourly = mm/h
             if fv > 0.05:
                 any_positive = True
@@ -902,6 +905,8 @@ def rasterize_forecast_hourly_pngs(
             farr = per_pt_fzl_h[pi] if pi < len(per_pt_fzl_h) else []
             zv = farr[ti] if ti < len(farr) else None
             fzl_vals[pi] = float(zv) if isinstance(zv, (int, float)) else float("nan")
+        if n_valid < 0.9 * n_pts:
+            raise ValueError(f"Missing hourly values at {t_iso}; retaining previous manifest")
         from _phase import phase_temp
         elev_h = (per_pt_elev_h + [float("nan")] * n_pts)[:n_pts]
         temp_vals = phase_temp(temp_vals, dew_vals, fzl_vals, elev_h, frame_vals).tolist()
@@ -1167,12 +1172,15 @@ def main() -> None:
         print("forecast-pngs: using sparse cache fallback for forecast manifest")
 
     forecast_frames: list[dict] = []
+    forecast_published = False
+    forecast_failed = False
     if raster_phase1 and r2_public_url:
         try:
             forecast_frames = rasterize_forecast_pngs(
                 s3, bucket, r2_public_url, raster_lats, raster_lons, raster_phase1
             )
         except Exception as exc:
+            forecast_failed = True
             print(f"WARN: forecast PNG rasterization failed: {exc!r}")
     elif raster_phase1 and not r2_public_url:
         print("WARN: R2_PUBLIC_URL not set — skipping forecast PNG rasterization")
@@ -1212,6 +1220,7 @@ def main() -> None:
         except Exception as exc:
             import traceback
 
+            forecast_failed = True
             print(f"WARN: hourly forecast PNG rasterization failed: {exc!r}")
             traceback.print_exc()
 
@@ -1220,9 +1229,10 @@ def main() -> None:
                 "forecast-manifest: SKIP — Prognose unvollständig (Lückenprüfung "
                 "fehlgeschlagen); letztes gültiges Manifest bleibt aktiv",
             )
-        elif forecast_frames:
+        elif forecast_frames and not forecast_failed:
             try:
                 write_forecast_manifest(s3, bucket, forecast_frames)
+                forecast_published = True
             except Exception as exc:
                 print(f"WARN: forecast manifest write failed: {exc!r}")
 
@@ -1279,6 +1289,8 @@ def main() -> None:
         CacheControl="public, max-age=60, s-maxage=120",
     )
     print(f"uploaded {key} ({len(body)} bytes)")
+    if not only_phaseA and not forecast_published:
+        sys.exit("Forecast publication failed; previous images retained")
     print("done")
 
 
