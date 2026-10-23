@@ -381,7 +381,7 @@ export function FilmstripTimeline({
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        className={`relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none transition-all duration-200 active:cursor-grabbing focus-visible:ring-2 ${
+        className={`relative h-[52px] cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none transition-all duration-200 active:cursor-grabbing focus-visible:ring-2 ${
           dragging ? "bg-gradient-to-b from-neutral-100 to-white shadow-lg" : ""
         }`}
       >
@@ -431,11 +431,11 @@ export function FilmstripTimeline({
           )}
 
           {/* 10-min-Ticks */}
-          {ticks10.map((l, i) => (
+          {ticks10.map((tk, i) => (
             <span
               key={`m10-${i}`}
-              className="absolute top-7 h-2 w-px bg-white/45"
-              style={{ left: l }}
+              className={`absolute w-px ${tk.major ? "top-[26px] h-3 bg-white/75" : "top-7 h-2 bg-white/45"}`}
+              style={{ left: tk.left }}
             />
           ))}
 
