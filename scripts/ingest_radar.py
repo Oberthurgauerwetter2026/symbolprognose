@@ -73,7 +73,7 @@ ASSET_PREFIX_FALLBACK = {
 BBOX_WGS = {"minLon": 7.4, "maxLon": 11.6, "minLat": 46.6, "maxLat": 48.6}
 
 # Output PNG resolution — native CombiPrecip-Auflösung (~1 km/Pixel) für die Bbox
-# 8.15°–10.55° E × 46.85°–48.30° N, damit die MCH-typischen quadratischen
+# 7.4°–11.6° E × 46.6°–48.6° N (Basel–Ulm–Tirol), damit die MCH-typischen quadratischen
 # 1km-Rasterzellen sichtbar bleiben (statt geglätteter Heatmap).
 OUT_W, OUT_H = 420, 200
 
