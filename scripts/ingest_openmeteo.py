@@ -1238,6 +1238,45 @@ def main() -> None:
     chunk_pa = envi("CHUNK_PHASEA", 20)
     chunk_pc = envi("CHUNK_PHASEC", 40)
 
+    try:
+        max_fail_pct = float(os.environ.get("PHASE1_DENSE_MAX_FAIL_PCT", "20"))
+    except ValueError:
+        max_fail_pct = 20.0
+
+    # ---- Shard-Modus: nur einen Block der dichten Punkte holen, lokal ablegen ----
+    shard_index_env = os.environ.get("SHARD_INDEX")
+    if shard_index_env not in (None, ""):
+        shard_index = int(shard_index_env)
+        shard_count = envi("SHARD_COUNT", 3)
+        out_dir = os.environ.get("SHARD_OUT_DIR", "shards")
+        start, end = shard_bounds(len(dense_pts), shard_index, shard_count)
+        print(
+            f"SHARD {shard_index + 1}/{shard_count}: phase1 dense points {start}…{end - 1} "
+            f"({end - start} pts) in chunks of {chunk_p1} …"
+        )
+        data = chunk_fetch(
+            "phase1", p1, dense_pts[start:end], chunk_p1,
+            optional=True, max_fail_pct=max_fail_pct,
+        )
+        if data is None:
+            sys.exit(f"shard {shard_index}: phase1 fetch failed — nothing written")
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, f"phase1_shard_{shard_index}.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(shard_payload(shard_index, shard_count, dense_pts, data), fh,
+                      separators=(",", ":"))
+        print(f"wrote {path} ({os.path.getsize(path)} bytes)")
+        return
+
+    merge_dir = os.environ.get("MERGE_SHARDS_DIR") or ""
+    merged_dense: list | None = None
+    if merge_dir and not only_phaseA:
+        try:
+            merged_dense = merge_shards(load_shards_dir(merge_dir), dense_pts)
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            sys.exit(f"shard merge failed ({exc}) — nothing published, previous forecast retained")
+        print(f"merged {len(merged_dense)} dense locations from shards in {merge_dir}")
+
     key = os.environ.get("OPENMETEO_OUT_KEY", "openmeteo/forecast.json")
     s3 = make_s3()
     bucket = env("R2_BUCKET")
@@ -1253,17 +1292,16 @@ def main() -> None:
         phase1_dense = None
         print(f"phase1 übernommen aus Cache: {len(phase1)} locations")
     else:
-        print(
-            f"fetch phase1 dense (ICON-CH1 minutely_15, {len(dense_pts)} pts) "
-            f"in chunks of {chunk_p1} …"
-        )
-        try:
-            max_fail_pct = float(os.environ.get("PHASE1_DENSE_MAX_FAIL_PCT", "20"))
-        except ValueError:
-            max_fail_pct = 20.0
-        phase1_dense = chunk_fetch(
-            "phase1", p1, dense_pts, chunk_p1, optional=True, max_fail_pct=max_fail_pct,
-        )
+        if merged_dense is not None:
+            phase1_dense = merged_dense
+        else:
+            print(
+                f"fetch phase1 dense (ICON-CH1 minutely_15, {len(dense_pts)} pts) "
+                f"in chunks of {chunk_p1} …"
+            )
+            phase1_dense = chunk_fetch(
+                "phase1", p1, dense_pts, chunk_p1, optional=True, max_fail_pct=max_fail_pct,
+            )
 
         if phase1_dense is None:
             print("phase1 dense failed — versuche Fallback auf bestehenden R2-Cache …")
