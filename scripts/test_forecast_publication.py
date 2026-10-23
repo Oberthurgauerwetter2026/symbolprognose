@@ -162,3 +162,18 @@ class ImportWithoutBoto3Test(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class EdgeRoughenTest(unittest.TestCase):
+    def test_edges_rougher_and_mass_kept(self):
+        import numpy as np
+        import ingest_openmeteo as m
+        h, w = 200, 420
+        yy, xx = np.mgrid[0:h, 0:w]
+        field = np.clip(3.0 - np.hypot(yy - 100, xx - 210) / 25.0, 0, None).astype(np.float32)
+        def perim(a):
+            b = a > 0.2
+            return int((b[1:] != b[:-1]).sum() + (b[:, 1:] != b[:, :-1]).sum())
+        rough = m._edge_roughen(field)
+        self.assertGreater(perim(rough), perim(field) * 1.3)
+        self.assertAlmostEqual(float(rough.sum()) / float(field.sum()), 1.0, delta=0.05)
+        np.testing.assert_array_equal(rough, m._edge_roughen(field))
