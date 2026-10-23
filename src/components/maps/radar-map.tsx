@@ -1404,9 +1404,11 @@ function MeasurementCanvasOverlay({
       frameCanvasCacheRef.current.clear();
       viewKeyRef.current = viewKey;
     }
+    // Nowcast-Schritte teilen dieselbe URL und unterscheiden sich nur durch
+    // die verschobene Bbox — sie muss Teil des Schlüssels sein.
     const cacheKey = `${fieldA ? url : ""}>${fieldB ? nextUrl : ""}@${
       fieldA && fieldB ? w : 0
-    }|${viewKey}`;
+    }|${viewKey}|${minLat.toFixed(5)},${maxLat.toFixed(5)},${minLon.toFixed(5)},${maxLon.toFixed(5)}`;
     // A fallback belongs to a different timestamp, not to the requested URL.
     const canCache = Boolean(cachedA);
     let off = canCache ? frameCanvasCacheRef.current.get(cacheKey) ?? null : null;
