@@ -2205,7 +2205,7 @@ function RadarMapInner({
       return;
     }
 
-    const FRAME_MS = 1800 / speed;
+    const FRAME_MS = 800 / speed;
     // Jeder Timeline-Schritt dauert gleich lang, egal ob 5-min-Messung oder
     // gröberer Prognoseschritt. Die lokale Schrittweite wird zur Laufzeit aus
     // dem Raster gelesen, damit die Prognose nicht durchrast.
@@ -2492,8 +2492,10 @@ function RadarMapInner({
               // Prognosefelder halten den Grossteil des Schritts stabil und
               // gehen nur im letzten Abschnitt weich ins nächste Feld über.
               // Messframes bleiben wie bisher harte Frame-Wechsel.
-              const isForecast = overlayFrame.source !== "radar";
-              const fadeW = isForecast ? fadeWeight(overlayProg) : 0;
+              // Wie SRF Meteo: harte Frame-Wechsel auch in der Prognose.
+              void fadeWeight;
+              void overlayProg;
+              const fadeW = 0;
 
               return (
                 <>
