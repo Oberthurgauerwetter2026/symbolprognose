@@ -71,14 +71,14 @@ const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
 // SCALE bleibt die Decode-Referenz zu den PNG-Farben; nur die Darstellung
 // wird über DISPLAY_SCALE gefärbt.
 const DISPLAY_SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1,   rgb: [138, 190, 236], a: 245 / 255 },
-  { mmh: 0.3,   rgb: [112, 164, 223], a: 255 / 255 },
-  { mmh: 0.8,   rgb: [ 72, 116, 202], a: 255 / 255 },
-  { mmh: 2,     rgb: [ 86, 180, 102], a: 255 / 255 },
-  { mmh: 5,     rgb: [242, 214,  88], a: 255 / 255 },
-  { mmh: 15,    rgb: [239, 155,  68], a: 255 / 255 },
-  { mmh: 40,    rgb: [223,  80,  72], a: 255 / 255 },
-  { mmh: 80,    rgb: [179,  80, 189], a: 255 / 255 },
+  { mmh: 0.1,   rgb: [134, 188, 236], a: 245 / 255 },
+  { mmh: 0.3,   rgb: [109, 162, 222], a: 255 / 255 },
+  { mmh: 0.8,   rgb: [ 66, 111, 200], a: 255 / 255 },
+  { mmh: 2,     rgb: [ 80, 178,  96], a: 255 / 255 },
+  { mmh: 5,     rgb: [243, 215,  81], a: 255 / 255 },
+  { mmh: 15,    rgb: [239, 152,  61], a: 255 / 255 },
+  { mmh: 40,    rgb: [222,  72,  66], a: 255 / 255 },
+  { mmh: 80,    rgb: [177,  72, 187], a: 255 / 255 },
 ];
 
 function colorFor(mmh: number): [number, number, number, number] {
@@ -104,12 +104,12 @@ function colorFor(mmh: number): [number, number, number, number] {
 // Schnee-Farbskala (mm/h Wasser-Äquivalent) — pastellig wie MCH-App:
 // zartes Flieder für leicht, gedämpftes Violett für stark.
 const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
-  { mmh: 0.1, rgb: [202, 176, 218], label: "leicht" },
-  { mmh: 2, rgb: [160, 84, 186], label: "stark" },
+  { mmh: 0.1, rgb: [196, 168, 215], label: "leicht" },
+  { mmh: 2, rgb: [152, 72, 181], label: "stark" },
 ];
 
 // Schneeregen (Mischphase, 30–70 % Schneeanteil): weiches Türkis.
-const SLEET_RGB: [number, number, number] = [100, 197, 198]; // #64C5C6
+const SLEET_RGB: [number, number, number] = [92, 192, 193]; // #5CC0C1
 const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
 
 // Testweise: gut sichtbare Schneeflocken (Stern mit 8 Armen) in Schneeflächen.
