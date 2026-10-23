@@ -2226,10 +2226,6 @@ function RadarMapInner({
     return () => {
       cancelAnimationFrame(raf);
       playbackBlendRef.current = 0;
-      // Pausing settles on the same real frame as the filmstrip.
-      const stoppedMs = timelineSteps[position.index];
-      renderMsRef.current = stoppedMs;
-      setRenderMs(stoppedMs);
       setPlayVisualMs(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2690,6 +2686,7 @@ function RadarMapInner({
                     type="button"
                     onClick={() => {
                       userInteractedRef.current = true;
+                      if (playing) setTimelineToMs(timelineSteps[stripIdx]);
                       setPlaying((p) => !p);
                     }}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-white shadow-sm transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 sm:h-7 sm:w-7"
