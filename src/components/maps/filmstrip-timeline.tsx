@@ -58,7 +58,8 @@ export function FilmstripTimeline({
     return () => ro.disconnect();
   }, []);
 
-  const PX_PER_HOUR = isMobile ? 56 : 72;
+  // Breiter Massstab: 5-min-Schritt ≈ 8 px (mobil), 15-min ≈ 24 px.
+  const PX_PER_HOUR = isMobile ? 96 : 120;
   const times = useMemo(() => frames.map((f) => f.ms), [frames]);
   const tMin = times[0] ?? 0;
   const tMax = times[times.length - 1] ?? 1;
@@ -78,14 +79,17 @@ export function FilmstripTimeline({
     return out;
   }, [tMin, tMax, PX_PER_HOUR]);
 
+  // Teilstriche genau an den echten Rastpunkten (5 min Messung/Nowcast,
+  // 15 min Prognose); volle Stunden haben eigene Striche.
   const ticks10 = useMemo(() => {
-    const start = Math.ceil(tMin / 600_000) * 600_000;
-    const out: number[] = [];
-    for (let t = start; t <= tMax; t += 600_000) {
-      out.push(((t - tMin) / 3_600_000) * PX_PER_HOUR);
+    const out: { left: number; major: boolean }[] = [];
+    for (const t of times) {
+      const min = new Date(t).getMinutes();
+      if (min === 0) continue;
+      out.push({ left: ((t - tMin) / 3_600_000) * PX_PER_HOUR, major: min % 15 === 0 });
     }
     return out;
-  }, [tMin, tMax, PX_PER_HOUR]);
+  }, [times, tMin, PX_PER_HOUR]);
 
   const dayBreaks = hours.filter((h) => h.hour === 0);
 
@@ -377,7 +381,7 @@ export function FilmstripTimeline({
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        className={`relative h-12 cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none transition-all duration-200 active:cursor-grabbing focus-visible:ring-2 ${
+        className={`relative h-[52px] cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none transition-all duration-200 active:cursor-grabbing focus-visible:ring-2 ${
           dragging ? "bg-gradient-to-b from-neutral-100 to-white shadow-lg" : ""
         }`}
       >
@@ -427,11 +431,11 @@ export function FilmstripTimeline({
           )}
 
           {/* 10-min-Ticks */}
-          {ticks10.map((l, i) => (
+          {ticks10.map((tk, i) => (
             <span
               key={`m10-${i}`}
-              className="absolute top-7 h-2 w-px bg-white/45"
-              style={{ left: l }}
+              className={`absolute w-px ${tk.major ? "top-[26px] h-3 bg-white/75" : "top-7 h-2 bg-white/45"}`}
+              style={{ left: tk.left }}
             />
           ))}
 
