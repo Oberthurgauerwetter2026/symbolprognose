@@ -32,6 +32,7 @@ import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.funct
 import { radarFramesQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
+import { advancePlayback, playbackSample, type PlaybackPosition } from "./radar-playback";
 import { CityMarkers } from "./city-markers";
 
 
@@ -482,20 +483,6 @@ function bracketFramesForMs(
 
   const idx = nearestFrameIndexForMs(eligible, targetMs);
   return { frame: eligible[idx], nextFrame: eligible[idx + 1] ?? null, progress: 0 };
-}
-
-/**
- * Fade-Gewichtung innerhalb eines Zeitschritts: Das Feld hält den Grossteil
- * des Schritts unverändert (Gewicht 0) und geht erst im letzten Abschnitt
- * weich (höherwertiger Smoothstep) in das nächste Feld über. Grösseres
- * Blend-Fenster als früher, damit der Stundenwechsel ruhiger wirkt.
- */
-function fadeWeight(progress: number, frac = 0.55): number {
-  const p = Math.max(0, Math.min(1, progress));
-  if (frac <= 0) return p >= 1 ? 1 : 0;
-  const t = Math.max(0, Math.min(1, (p - (1 - frac)) / frac));
-  // Höherwertiger Smoothstep (Perlin): flachere Anfangs-/End-Phase, ruhigerer Übergang.
-  return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
 function timelineStateForMs(
@@ -2195,91 +2182,54 @@ function RadarMapInner({
   };
 
 
-  // Play-Loop: kontinuierliche Zeitachse. Kein Quellen-Sonderfall am Seam;
-  // Play und Scrub werden später über denselben Timeline-Sampler gerendert.
-  const playTimeRef = useRef<number | null>(null);
+  // Labels stay on a real frame; only the final micro-transition interpolates.
+  const playbackBlendRef = useRef(0);
   useEffect(() => {
-    if (!playing || timelineSteps.length === 0 || frames.length === 0) {
-      playTimeRef.current = null;
+    if (!playing || timelineSteps.length < 2 || frames.length === 0) {
+      playbackBlendRef.current = 0;
       setPlayVisualMs(null);
       return;
     }
-
-    const FRAME_MS = 800 / speed;
-    // Jeder Timeline-Schritt dauert gleich lang, egal ob 5-min-Messung oder
-    // gröberer Prognoseschritt. Die lokale Schrittweite wird zur Laufzeit aus
-    // dem Raster gelesen, damit die Prognose nicht durchrast.
-    const gapAtMs = (ms: number): number => {
-      if (timelineSteps.length < 2) return 5 * 60_000;
-      let i = 0;
-      while (i < timelineSteps.length - 2 && timelineSteps[i + 1] <= ms) i++;
-      return Math.max(60_000, timelineSteps[i + 1] - timelineSteps[i]);
+    const nowIndex = cursorForMs(Date.now());
+    const selected = cursorForMs(scrubVisualMs ?? renderMsRef.current);
+    let position: PlaybackPosition = {
+      index: selected === timelineSteps.length - 1 ? 0 : selected,
+      elapsed: 0,
     };
-
     let raf = 0;
     let last = performance.now();
-    const firstMs = timelineSteps[0];
-    const lastMs = timelineSteps[timelineSteps.length - 1];
-    const idxMs =
-      timelineSteps[cursorForMs(renderMsRef.current)] ??
-      Date.parse(frames[idxRef.current ?? 0]?.t ?? frames[0].t);
-    const rawStart = scrubVisualMs ?? renderMsRef.current ?? idxMs;
-    const clamped = Math.max(firstMs, Math.min(lastMs, rawStart));
-    // Steht der Cursor praktisch am Ende (z. B. nach einem Durchlauf), von
-    // vorne starten, sonst würde Play sofort wieder stoppen.
-    const startMs = lastMs - clamped <= gapAtMs(clamped) * 0.5 ? firstMs : clamped;
-
-    playTimeRef.current = startMs;
-    // Playback hat Vorrang: eine hängengebliebene Scrub-Zeit würde die Anzeige
-    // sonst dauerhaft einfrieren.
+    let lastPublished = -1;
+    let lastBlend = -1;
+    const publish = () => {
+      const sample = playbackSample(position, timelineSteps, nowIndex, speed);
+      if (lastPublished === position.index && sample.blend === lastBlend) return;
+      lastPublished = position.index;
+      lastBlend = sample.blend;
+      playbackBlendRef.current = sample.blend;
+      renderMsRef.current = sample.renderMs;
+      setPlayVisualMs(sample.frameMs);
+      setRenderMs(sample.renderMs);
+      const frameIndex = nearestFrameIndexForMs(frames, sample.frameMs);
+      idxRef.current = frameIndex;
+      setIdx(frameIndex);
+    };
     setScrubVisualMs(null);
-    setPlayVisualMs(startMs);
-    setRenderMs(startMs);
-
-    let lastFlush = performance.now();
-    const FLUSH_MS = 60;
+    publish();
     const tick = (now: number) => {
-      const dt = now - last;
+      // Do not race through unseen frames after a background tab resumes.
+      position = advancePlayback(position, Math.min(100, now - last), timelineSteps.length, nowIndex, speed);
       last = now;
-      const prevMs = playTimeRef.current ?? startMs;
-      let nextMs = prevMs + (dt * gapAtMs(prevMs)) / FRAME_MS;
-      if (nextMs >= lastMs) {
-        // Endlosschleife: am Ende wieder von vorne beginnen.
-        nextMs = firstMs;
-        playTimeRef.current = nextMs;
-        renderMsRef.current = nextMs;
-        lastFlush = now;
-        setPlayVisualMs(nextMs);
-        setRenderMs(nextMs);
-        const wrapIdx = nearestFrameIndexForMs(frames, nextMs);
-        idxRef.current = wrapIdx;
-        setIdx(wrapIdx);
-        raf = requestAnimationFrame(tick);
-        return;
-      }
-
-      playTimeRef.current = nextMs;
-      renderMsRef.current = nextMs;
-      // React-State nur gedrosselt anfassen: Overlays lesen aus Props, die
-      // sich pro Tick sonst ändern und teure Redraws auslösen würden. Im
-      // Prognoseteil verändert sich das Bild nun kontinuierlich, daher ein
-      // etwas dichterer Flush (~16 Hz) für Bubble/Label/Idx.
-      if (now - lastFlush >= FLUSH_MS) {
-        lastFlush = now;
-        setPlayVisualMs(nextMs);
-        setRenderMs(nextMs);
-        const nextIdx = nearestFrameIndexForMs(frames, nextMs);
-        if (nextIdx !== idxRef.current) {
-          idxRef.current = nextIdx;
-          setIdx(nextIdx);
-        }
-      }
+      publish();
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
-      playTimeRef.current = null;
+      playbackBlendRef.current = 0;
+      // Pausing settles on the same real frame as the filmstrip.
+      const stoppedMs = timelineSteps[position.index];
+      renderMsRef.current = stoppedMs;
+      setRenderMs(stoppedMs);
       setPlayVisualMs(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2431,11 +2381,11 @@ function RadarMapInner({
           {data &&
             currentFrame &&
             (() => {
-              const rtMs = scrubVisualMs ?? playVisualMs ?? renderMs ?? Date.parse(currentFrame.t);
+              const rtMs = scrubVisualMs ?? renderMs ?? Date.parse(currentFrame.t);
               const timelineState = timelineStateForMs(frames, rtMs);
               let overlayFrame = timelineState.frame ?? currentFrame;
               let overlayNext = timelineState.nextFrame;
-              let overlayProg = timelineState.progress;
+              
 
               // Prognose: Übergang aus dem angezeigten Zeitraster (Stundenschritt)
               // ableiten statt aus dem Feldabstand der Rohdaten — sonst blendet
@@ -2456,7 +2406,7 @@ function RadarMapInner({
                   if (a && b) {
                     overlayFrame = a;
                     overlayNext = b;
-                    overlayProg = Math.max(0, Math.min(1, (rtMs - aMs) / Math.max(1, bMs - aMs)));
+
                   }
                 } else {
                   const lastStep = timelineSteps[timelineSteps.length - 1];
@@ -2465,7 +2415,7 @@ function RadarMapInner({
                     if (a) {
                       overlayFrame = a;
                       overlayNext = null;
-                      overlayProg = 0;
+
                     }
                   }
                 }
@@ -2489,13 +2439,9 @@ function RadarMapInner({
               const gridFrame = showGrid ? overlayFrame : warmGrid ? overlayNext : null;
 
 
-              // Prognosefelder halten den Grossteil des Schritts stabil und
-              // gehen nur im letzten Abschnitt weich ins nächste Feld über.
-              // Messframes bleiben wie bisher harte Frame-Wechsel.
-              // Wie SRF Meteo: harte Frame-Wechsel auch in der Prognose.
-              void fadeWeight;
-              void overlayProg;
-              const fadeW = 0;
+              // Only playback blends, for the final 50 ms at default speed.
+              // Manual scrubbing is always an exact real image.
+              const fadeW = playing ? playbackBlendRef.current : 0;
 
               return (
                 <>
@@ -2796,8 +2742,9 @@ function RadarMapInner({
                       ariaLabel="Radar-Zeit"
                       formatBubble={(d) => fmtBubble(d, d.getTime() <= Date.now())}
                       onScrubMs={(ms) => {
-                        setScrubVisualMs(ms);
-                        if (ms !== null) setRenderMs(ms);
+                        const snapped = ms === null ? null : timelineSteps[cursorForMs(ms)];
+                        setScrubVisualMs(snapped);
+                        if (snapped != null) setRenderMs(snapped);
                       }}
                       onChange={(i: number) => {
                         setTimelineToMs(timelineSteps[i]);
