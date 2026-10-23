@@ -1,4 +1,5 @@
 # Radar forecast reliability
+- [ ] Tune and verify radar playback: 220 ms steps, 50 ms transitions, orientation and loop pauses.
 - [x] Safely publish forecast images and retain previous images during interrupted runs.
 - [x] Shorten batch pauses and extend workflow timeout, preserving grid resolution.
 - [x] Reject missing images instead of displaying artificial dry frames.
