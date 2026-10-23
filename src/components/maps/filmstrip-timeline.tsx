@@ -434,7 +434,7 @@ export function FilmstripTimeline({
           {ticks10.map((tk, i) => (
             <span
               key={`m10-${i}`}
-              className={`absolute w-px ${tk.major ? "top-[27px] h-2.5 bg-white/35" : "top-7 h-2 bg-white/25"}`}
+              className={`absolute w-px bg-white/75 ${tk.major ? "top-[27px] h-2.5" : "top-7 h-2"}`}
               style={{ left: tk.left }}
             />
           ))}
