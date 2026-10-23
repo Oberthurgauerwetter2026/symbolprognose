@@ -2344,7 +2344,7 @@ function RadarMapInner({
           zoomDelta={0.5}
           maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
-          minZoom={7.5}
+          minZoom={9}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
