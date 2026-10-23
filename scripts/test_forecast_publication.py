@@ -105,5 +105,44 @@ class ForecastPublicationTests(unittest.TestCase):
         self.assertEqual(events, ["fetch", 12.0, "fetch", 12.0, "fetch"])
 
 
+class ShardTests(unittest.TestCase):
+    def setUp(self):
+        # 66×96-Gitter wie im Workflow, 3 Shards.
+        lats = [46.6 + 2.0 * i / 65 for i in range(66)]
+        lons = [7.4 + 4.2 * j / 95 for j in range(96)]
+        self.pts = [(la, lo) for la in lats for lo in lons]
+        self.data = [{"idx": i} for i in range(len(self.pts))]
+
+    def shards(self, count=3):
+        out = []
+        for i in range(count):
+            start, end = ingest.shard_bounds(len(self.pts), i, count)
+            out.append(json.loads(json.dumps(
+                ingest.shard_payload(i, count, self.pts, self.data[start:end]))))
+        return out
+
+    def test_three_shards_stay_under_hourly_limit(self):
+        sizes = [e - s for s, e in (ingest.shard_bounds(len(self.pts), i, 3) for i in range(3))]
+        self.assertEqual(sum(sizes), 6336)
+        self.assertTrue(all(n < 5000 for n in sizes))
+        # Auch zwei Shards auf derselben IP bleiben unter 5000.
+        self.assertLess(sizes[0] + sizes[1], 5000)
+
+    def test_merge_restores_exact_point_order(self):
+        shards = self.shards()
+        merged = ingest.merge_shards(list(reversed(shards)), self.pts)
+        self.assertEqual(merged, self.data)
+
+    def test_missing_shard_aborts_merge(self):
+        with self.assertRaises(ValueError):
+            ingest.merge_shards(self.shards()[:2], self.pts)
+
+    def test_shard_from_other_grid_aborts_merge(self):
+        shards = self.shards()
+        shards[1]["points"][0] = [0.0, 0.0]
+        with self.assertRaises(ValueError):
+            ingest.merge_shards(shards, self.pts)
+
+
 if __name__ == "__main__":
     unittest.main()
