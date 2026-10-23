@@ -33,7 +33,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
-import boto3
 import requests
 
 VERSION = "oberthurgau-openmeteo-cache-v5-ch1-native-pngs"
@@ -70,6 +69,8 @@ def envi(name: str, default: int) -> int:
 
 
 def make_s3():
+    import boto3  # lazy: Shard-Runner brauchen kein R2
+
     return boto3.client(
         "s3",
         endpoint_url=f"https://{env('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",

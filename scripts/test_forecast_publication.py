@@ -144,5 +144,21 @@ class ShardTests(unittest.TestCase):
             ingest.merge_shards(shards, self.pts)
 
 
+class ImportWithoutBoto3Test(unittest.TestCase):
+    def test_module_imports_without_boto3(self):
+        import importlib, sys
+        saved = sys.modules.get("boto3")
+        sys.modules["boto3"] = None
+        try:
+            mod = importlib.reload(ingest)
+            self.assertTrue(hasattr(mod, "shard_payload"))
+        finally:
+            if saved is not None:
+                sys.modules["boto3"] = saved
+            else:
+                del sys.modules["boto3"]
+            importlib.reload(ingest)
+
+
 if __name__ == "__main__":
     unittest.main()
