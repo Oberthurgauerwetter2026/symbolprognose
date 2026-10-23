@@ -291,6 +291,12 @@ def chunk_fetch(
         pending = still_failed
 
     failed = len(pending)
+    print(
+        f"[{label}] Zusammenfassung: {n_batches - failed}/{n_batches} Batches ok, "
+        f"{failed} fehlend · bisher {FETCH_STATS['requests']} Anfragen, "
+        f"{FETCH_STATS['http429']}× HTTP 429, {FETCH_STATS['timeouts']}× Timeout, "
+        f"{FETCH_STATS['otherErrors']}× sonstige Fehler"
+    )
     if failed > 0:
         if not optional or max_fail_pct <= 0:
             print(f"WARN: {label} skipped due to {failed} batch failure(s)")
@@ -311,6 +317,83 @@ def chunk_fetch(
             return None
         out.extend(r)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Sharding: Der dichte phase1-Abruf wird auf mehrere GitHub-Runner (= eigene
+# IP-Adressen) verteilt, damit jeder unter dem Open-Meteo-Stundenlimit
+# (5000 Abfragen/IP) bleibt. Zusammenhängende Blöcke erhalten die
+# row-major-Reihenfolge, auf der die PNG-Rasterung beruht.
+# ---------------------------------------------------------------------------
+
+def shard_bounds(total: int, index: int, count: int) -> tuple[int, int]:
+    """Zusammenhängender Block [start, end) für Shard `index` von `count`."""
+    if count < 1 or not (0 <= index < count):
+        raise ValueError(f"invalid shard {index}/{count}")
+    base, rest = divmod(total, count)
+    start = index * base + min(index, rest)
+    end = start + base + (1 if index < rest else 0)
+    return start, end
+
+
+def shard_payload(index: int, count: int, pts: list, data: list) -> dict:
+    start, end = shard_bounds(len(pts), index, count)
+    if len(data) != end - start:
+        raise ValueError(f"shard {index}: {len(data)} results for {end - start} points")
+    return {
+        "version": VERSION,
+        "shard": index,
+        "count": count,
+        "total": len(pts),
+        "start": start,
+        "points": [[round(p[0], 4), round(p[1], 4)] for p in pts[start:end]],
+        "data": data,
+    }
+
+
+def merge_shards(shards: list[dict], pts: list) -> list:
+    """Setzt Shards zur vollständigen phase1_dense-Liste zusammen. Wirft bei
+    fehlenden, doppelten oder nicht passenden Shards — eine lückenhafte
+    Prognose darf nie veröffentlicht werden."""
+    if not shards:
+        raise ValueError("no shards found")
+    count = shards[0].get("count")
+    if not isinstance(count, int) or count < 1:
+        raise ValueError("invalid shard count")
+    by_index: dict[int, dict] = {}
+    for s in shards:
+        if s.get("count") != count or s.get("total") != len(pts):
+            raise ValueError(f"shard {s.get('shard')} belongs to a different grid/run layout")
+        if s.get("version") != VERSION:
+            raise ValueError(f"shard {s.get('shard')} has version {s.get('version')} != {VERSION}")
+        idx = s.get("shard")
+        if idx in by_index:
+            raise ValueError(f"duplicate shard {idx}")
+        by_index[idx] = s
+    missing = [i for i in range(count) if i not in by_index]
+    if missing:
+        raise ValueError(f"missing shard(s): {missing}")
+    out: list = []
+    for i in range(count):
+        s = by_index[i]
+        start, end = shard_bounds(len(pts), i, count)
+        if s.get("start") != start or len(s.get("data") or []) != end - start:
+            raise ValueError(f"shard {i} has wrong range")
+        expected = [[round(p[0], 4), round(p[1], 4)] for p in pts[start:end]]
+        if s.get("points") != expected:
+            raise ValueError(f"shard {i} coordinates do not match the grid")
+        out.extend(s["data"])
+    return out
+
+
+def load_shards_dir(directory: str) -> list[dict]:
+    shards: list[dict] = []
+    for root, _dirs, files in os.walk(directory):
+        for name in sorted(files):
+            if name.startswith("phase1_shard_") and name.endswith(".json"):
+                with open(os.path.join(root, name), "r", encoding="utf-8") as fh:
+                    shards.append(json.load(fh))
+    return shards
 
 
 
