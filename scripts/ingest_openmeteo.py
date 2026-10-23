@@ -120,6 +120,11 @@ def grid_axes_from_points(pts: list[tuple[float, float]]) -> tuple[list[float], 
 
 
 
+#: Zähler für die Abschluss-Zusammenfassung — macht den Abbruchgrund
+#: (Rate-Limit vs. Timeout) im GitHub-Log sofort sichtbar.
+FETCH_STATS: dict = {"requests": 0, "http429": 0, "timeouts": 0, "otherErrors": 0}
+
+
 def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     # 429 = Minutenlimit -> volle Minute warten (API sagt explizit "try again in one minute").
     backoff_429 = [65, 65, 70, 90, 120, 150, 180]
@@ -132,10 +137,12 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     last_was_429 = False
     for attempt in range(max_attempts):
         last_was_429 = False
+        FETCH_STATS["requests"] += 1
         try:
             r = requests.get(API, params=params, timeout=(connect_to, read_to))
             if not r.ok:
                 if r.status_code == 429:
+                    FETCH_STATS["http429"] += 1
                     last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
                     last_was_429 = True
                 elif 400 <= r.status_code < 500:
@@ -145,6 +152,7 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
                         return None
                     sys.exit(msg)
                 else:
+                    FETCH_STATS["otherErrors"] += 1
                     last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
             else:
                 try:
@@ -154,6 +162,7 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
                     # unter Last gelegentlich unvollständiges JSON) — das ist
                     # transient und muss wie ein Timeout neu versucht werden,
                     # nicht den ganzen Lauf abbrechen.
+                    FETCH_STATS["otherErrors"] += 1
                     last_err = RuntimeError(f"unvollständige JSON-Antwort: {e}")
                 else:
                     return data if isinstance(data, list) else [data]
@@ -164,6 +173,10 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
             requests.exceptions.ChunkedEncodingError,
             requests.exceptions.ContentDecodingError,
         ) as e:
+            if isinstance(e, requests.exceptions.Timeout):
+                FETCH_STATS["timeouts"] += 1
+            else:
+                FETCH_STATS["otherErrors"] += 1
             last_err = e
 
         base_wait = backoff_429[attempt] if last_was_429 else backoff_other[attempt]
@@ -278,6 +291,12 @@ def chunk_fetch(
         pending = still_failed
 
     failed = len(pending)
+    print(
+        f"[{label}] Zusammenfassung: {n_batches - failed}/{n_batches} Batches ok, "
+        f"{failed} fehlend · bisher {FETCH_STATS['requests']} Anfragen, "
+        f"{FETCH_STATS['http429']}× HTTP 429, {FETCH_STATS['timeouts']}× Timeout, "
+        f"{FETCH_STATS['otherErrors']}× sonstige Fehler"
+    )
     if failed > 0:
         if not optional or max_fail_pct <= 0:
             print(f"WARN: {label} skipped due to {failed} batch failure(s)")
@@ -298,6 +317,83 @@ def chunk_fetch(
             return None
         out.extend(r)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Sharding: Der dichte phase1-Abruf wird auf mehrere GitHub-Runner (= eigene
+# IP-Adressen) verteilt, damit jeder unter dem Open-Meteo-Stundenlimit
+# (5000 Abfragen/IP) bleibt. Zusammenhängende Blöcke erhalten die
+# row-major-Reihenfolge, auf der die PNG-Rasterung beruht.
+# ---------------------------------------------------------------------------
+
+def shard_bounds(total: int, index: int, count: int) -> tuple[int, int]:
+    """Zusammenhängender Block [start, end) für Shard `index` von `count`."""
+    if count < 1 or not (0 <= index < count):
+        raise ValueError(f"invalid shard {index}/{count}")
+    base, rest = divmod(total, count)
+    start = index * base + min(index, rest)
+    end = start + base + (1 if index < rest else 0)
+    return start, end
+
+
+def shard_payload(index: int, count: int, pts: list, data: list) -> dict:
+    start, end = shard_bounds(len(pts), index, count)
+    if len(data) != end - start:
+        raise ValueError(f"shard {index}: {len(data)} results for {end - start} points")
+    return {
+        "version": VERSION,
+        "shard": index,
+        "count": count,
+        "total": len(pts),
+        "start": start,
+        "points": [[round(p[0], 4), round(p[1], 4)] for p in pts[start:end]],
+        "data": data,
+    }
+
+
+def merge_shards(shards: list[dict], pts: list) -> list:
+    """Setzt Shards zur vollständigen phase1_dense-Liste zusammen. Wirft bei
+    fehlenden, doppelten oder nicht passenden Shards — eine lückenhafte
+    Prognose darf nie veröffentlicht werden."""
+    if not shards:
+        raise ValueError("no shards found")
+    count = shards[0].get("count")
+    if not isinstance(count, int) or count < 1:
+        raise ValueError("invalid shard count")
+    by_index: dict[int, dict] = {}
+    for s in shards:
+        if s.get("count") != count or s.get("total") != len(pts):
+            raise ValueError(f"shard {s.get('shard')} belongs to a different grid/run layout")
+        if s.get("version") != VERSION:
+            raise ValueError(f"shard {s.get('shard')} has version {s.get('version')} != {VERSION}")
+        idx = s.get("shard")
+        if idx in by_index:
+            raise ValueError(f"duplicate shard {idx}")
+        by_index[idx] = s
+    missing = [i for i in range(count) if i not in by_index]
+    if missing:
+        raise ValueError(f"missing shard(s): {missing}")
+    out: list = []
+    for i in range(count):
+        s = by_index[i]
+        start, end = shard_bounds(len(pts), i, count)
+        if s.get("start") != start or len(s.get("data") or []) != end - start:
+            raise ValueError(f"shard {i} has wrong range")
+        expected = [[round(p[0], 4), round(p[1], 4)] for p in pts[start:end]]
+        if s.get("points") != expected:
+            raise ValueError(f"shard {i} coordinates do not match the grid")
+        out.extend(s["data"])
+    return out
+
+
+def load_shards_dir(directory: str) -> list[dict]:
+    shards: list[dict] = []
+    for root, _dirs, files in os.walk(directory):
+        for name in sorted(files):
+            if name.startswith("phase1_shard_") and name.endswith(".json"):
+                with open(os.path.join(root, name), "r", encoding="utf-8") as fh:
+                    shards.append(json.load(fh))
+    return shards
 
 
 
@@ -1142,6 +1238,45 @@ def main() -> None:
     chunk_pa = envi("CHUNK_PHASEA", 20)
     chunk_pc = envi("CHUNK_PHASEC", 40)
 
+    try:
+        max_fail_pct = float(os.environ.get("PHASE1_DENSE_MAX_FAIL_PCT", "20"))
+    except ValueError:
+        max_fail_pct = 20.0
+
+    # ---- Shard-Modus: nur einen Block der dichten Punkte holen, lokal ablegen ----
+    shard_index_env = os.environ.get("SHARD_INDEX")
+    if shard_index_env not in (None, ""):
+        shard_index = int(shard_index_env)
+        shard_count = envi("SHARD_COUNT", 3)
+        out_dir = os.environ.get("SHARD_OUT_DIR", "shards")
+        start, end = shard_bounds(len(dense_pts), shard_index, shard_count)
+        print(
+            f"SHARD {shard_index + 1}/{shard_count}: phase1 dense points {start}…{end - 1} "
+            f"({end - start} pts) in chunks of {chunk_p1} …"
+        )
+        data = chunk_fetch(
+            "phase1", p1, dense_pts[start:end], chunk_p1,
+            optional=True, max_fail_pct=max_fail_pct,
+        )
+        if data is None:
+            sys.exit(f"shard {shard_index}: phase1 fetch failed — nothing written")
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, f"phase1_shard_{shard_index}.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(shard_payload(shard_index, shard_count, dense_pts, data), fh,
+                      separators=(",", ":"))
+        print(f"wrote {path} ({os.path.getsize(path)} bytes)")
+        return
+
+    merge_dir = os.environ.get("MERGE_SHARDS_DIR") or ""
+    merged_dense: list | None = None
+    if merge_dir and not only_phaseA:
+        try:
+            merged_dense = merge_shards(load_shards_dir(merge_dir), dense_pts)
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            sys.exit(f"shard merge failed ({exc}) — nothing published, previous forecast retained")
+        print(f"merged {len(merged_dense)} dense locations from shards in {merge_dir}")
+
     key = os.environ.get("OPENMETEO_OUT_KEY", "openmeteo/forecast.json")
     s3 = make_s3()
     bucket = env("R2_BUCKET")
@@ -1157,17 +1292,16 @@ def main() -> None:
         phase1_dense = None
         print(f"phase1 übernommen aus Cache: {len(phase1)} locations")
     else:
-        print(
-            f"fetch phase1 dense (ICON-CH1 minutely_15, {len(dense_pts)} pts) "
-            f"in chunks of {chunk_p1} …"
-        )
-        try:
-            max_fail_pct = float(os.environ.get("PHASE1_DENSE_MAX_FAIL_PCT", "20"))
-        except ValueError:
-            max_fail_pct = 20.0
-        phase1_dense = chunk_fetch(
-            "phase1", p1, dense_pts, chunk_p1, optional=True, max_fail_pct=max_fail_pct,
-        )
+        if merged_dense is not None:
+            phase1_dense = merged_dense
+        else:
+            print(
+                f"fetch phase1 dense (ICON-CH1 minutely_15, {len(dense_pts)} pts) "
+                f"in chunks of {chunk_p1} …"
+            )
+            phase1_dense = chunk_fetch(
+                "phase1", p1, dense_pts, chunk_p1, optional=True, max_fail_pct=max_fail_pct,
+            )
 
         if phase1_dense is None:
             print("phase1 dense failed — versuche Fallback auf bestehenden R2-Cache …")
