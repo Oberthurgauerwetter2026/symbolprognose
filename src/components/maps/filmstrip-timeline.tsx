@@ -79,17 +79,18 @@ export function FilmstripTimeline({
     return out;
   }, [tMin, tMax, PX_PER_HOUR]);
 
-  // Teilstriche genau an den echten Rastpunkten (5 min Messung/Nowcast,
-  // 15 min Prognose); volle Stunden haben eigene Striche.
+  // Feste 10-min-Teilstriche (auch im stündlichen Prognoseteil);
+  // volle Stunden haben eigene Striche.
   const ticks10 = useMemo(() => {
-    const out: { left: number; major: boolean }[] = [];
-    for (const t of times) {
-      const min = new Date(t).getMinutes();
-      if (min === 0) continue;
-      out.push({ left: ((t - tMin) / 3_600_000) * PX_PER_HOUR, major: min % 15 === 0 });
+    const out: { left: number }[] = [];
+    const step = 600_000;
+    const start = Math.ceil(tMin / step) * step;
+    for (let t = start; t <= tMax; t += step) {
+      if (new Date(t).getMinutes() === 0) continue;
+      out.push({ left: ((t - tMin) / 3_600_000) * PX_PER_HOUR });
     }
     return out;
-  }, [times, tMin, PX_PER_HOUR]);
+  }, [tMin, tMax, PX_PER_HOUR]);
 
   const dayBreaks = hours.filter((h) => h.hour === 0);
 
@@ -409,7 +410,7 @@ export function FilmstripTimeline({
         >
           {showMeasurementBand && (
             <div
-              className="absolute top-6 h-4 rounded-sm"
+              className="absolute bottom-0 top-6"
               style={{
                 left: 0,
                 width: measurementWidth,
@@ -420,7 +421,7 @@ export function FilmstripTimeline({
           )}
           {showForecastBand && (
             <div
-              className="absolute top-6 h-4 rounded-sm"
+              className="absolute bottom-0 top-6"
               style={{
                 left: forecastLeft,
                 width: forecastWidth,
@@ -434,7 +435,7 @@ export function FilmstripTimeline({
           {ticks10.map((tk, i) => (
             <span
               key={`m10-${i}`}
-              className={`absolute w-px bg-white/75 ${tk.major ? "top-[27px] h-2.5" : "top-7 h-2"}`}
+              className="absolute top-[34px] h-2.5 w-px bg-white/75"
               style={{ left: tk.left }}
             />
           ))}
@@ -445,10 +446,8 @@ export function FilmstripTimeline({
               <span className="absolute top-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-neutral-600">
                 {String(h.hour).padStart(2, "0")}:00
               </span>
-              <span
-                className="absolute top-5 z-10 h-6 w-[2px] -translate-x-1/2 rounded-full bg-white"
-                style={{ boxShadow: "0 0 0 0.75px rgba(15,23,42,0.55)" }}
-              />
+              <span className="absolute bottom-0 top-6 w-px -translate-x-1/2 bg-neutral-900/40" />
+
             </div>
           ))}
 
