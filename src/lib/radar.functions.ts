@@ -509,7 +509,10 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   // ---- Radar-Nowcast: letztes Messbild entlang der gemessenen Verlagerung
   // im 5-Minuten-Takt bis +60 min verschieben. Ersetzt in diesem Fenster die
   // Modellframes (wie MeteoSchweiz/SRF: Nowcast vor Modell).
-  try {
+  // Abgeschaltet: reines Verschieben ohne Wachsen/Zerfallen bringt wenig;
+  // ab "Jetzt" übernimmt die ICON-Prognose. Auf true setzen, um zu reaktivieren.
+  const NOWCAST_ENABLED = false;
+  if (NOWCAST_ENABLED) try {
     const lastRadar = [...frames].reverse().find((f) => f.source === "radar" && f.precipUrl);
     if (lastRadar) {
       const regionMax = await getRadarRegionMax();
