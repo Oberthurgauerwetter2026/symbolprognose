@@ -333,6 +333,28 @@ def _index_minutely_times(loc: dict) -> dict[str, int]:
 FORECAST_OUT_W, FORECAST_OUT_H = 240, 144
 
 
+_GRAIN_CACHE: dict = {}
+
+
+def _radar_grain(shape, amp: float = 0.28):
+    """Ortsfestes Körnungsfeld (Faktor um 1.0) im Ausgaberaster.
+    Mischung aus Pixelrauschen und 3-px-Clustern → radarähnliche Ränder."""
+    import numpy as np
+
+    key = (tuple(shape), amp)
+    g = _GRAIN_CACHE.get(key)
+    if g is None:
+        rng = np.random.default_rng(20261023)
+        h, w = shape
+        fine = rng.standard_normal((h, w))
+        coarse = rng.standard_normal((h // 3 + 1, w // 3 + 1))
+        coarse = np.kron(coarse, np.ones((3, 3)))[:h, :w]
+        n = 0.55 * fine + 0.45 * coarse
+        g = np.exp(np.clip(n, -2.5, 2.5) * amp).astype(np.float32)
+        _GRAIN_CACHE[key] = g
+    return g
+
+
 def _upsample_smooth(arr, out_h: int, out_w: int):
     """Glatte Neurasterung eines 2-D-Feldes auf (out_h, out_w).
 
@@ -419,10 +441,13 @@ def _render_frame_png(
     # Wertinterpolation, damit die Bandkanten organisch statt blockig laufen.
     arr = _upsample_smooth(arr, FORECAST_OUT_H, FORECAST_OUT_W)
 
-    # Speckles/Löcher bandweise entfernen. Mindestflächen etwas grösser als in
-    # der Messung (9 px), damit durch die Interpolation keine dünnen
-    # Ein-Pixel-Säume zwischen zwei Bändern stehen bleiben.
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min_area_px, hole_area_px=min_area_px)
+    # Radar-Körnung: multiplikatives, ortsfestes Rauschen im 1-km-Raster, damit
+    # die Bandkanten wie in der Messung leicht pixelig/zerfranst wirken statt
+    # vektorglatt. Ortsfest (fixer Seed) → kein Flimmern zwischen Frames.
+    arr = arr * _radar_grain(arr.shape)
+
+    # Nur echte Einzelpixel entfernen; kleine Buchten/Fransen bleiben erhalten.
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min(min_area_px, 3), hole_area_px=3)
 
 
 
