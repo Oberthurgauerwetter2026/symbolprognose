@@ -330,7 +330,7 @@ def _index_minutely_times(loc: dict) -> dict[str, int]:
 
 #: Zielraster der Prognose-PNGs — exakt identisch zum Messungs-Ingest
 #: (scripts/ingest_radar.py: OUT_W, OUT_H = 240, 144 auf die Oberthurgau-BBox).
-FORECAST_OUT_W, FORECAST_OUT_H = 240, 144
+FORECAST_OUT_W, FORECAST_OUT_H = 420, 200  # = Messraster ingest_radar.py
 
 
 _GRAIN_CACHE: dict = {}
