@@ -468,6 +468,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       if (Number.isNaN(tMs)) continue;
       if (tMs <= now) continue;
       if (tMs > forecastCutoff) continue;
+      if (!isModelSlot(tMs)) continue;
 
       let values: number[] = [];
       let snowValues: number[] | undefined;
@@ -557,6 +558,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
         if (Number.isNaN(tMs)) continue;
         if (tMs <= now) continue;
         if (tMs > forecastCutoff) continue;
+        if (!isModelSlot(tMs)) continue;
 
         const values = new Array<number>(pts.length);
         const snowValues = hasSnow ? new Array<number>(pts.length) : undefined;
@@ -628,6 +630,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
         const tMs = Date.parse(`${ref.time[ti]}Z`);
         if (Number.isNaN(tMs)) continue;
         if (tMs > forecastCutoff) continue;
+        if (!isModelSlot(tMs)) continue;
 
         const png = findPngFrame(tMs);
         if (!png && tMs <= latestWithValuesMs + 10 * 60_000) continue;
