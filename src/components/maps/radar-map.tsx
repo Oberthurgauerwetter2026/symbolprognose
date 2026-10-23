@@ -1428,8 +1428,11 @@ function MeasurementCanvasOverlay({
       const latSpan = maxLat - minLat;
       const lonSpan = maxLon - minLon;
 
-      const smoothA = fieldA ? ensureSmooth(fieldA) : null;
-      const smoothB = fieldB ? ensureSmooth(fieldB) : null;
+      // Prognosebilder tragen bereits Radar-Körnung aus dem Ingest — kein
+      // zusätzlicher 3×3-Weichzeichner, sonst entstehen glatte „Würste“.
+      const isForecastUrl = (u?: string | null) => !!u && u.includes("/forecast/");
+      const smoothA = fieldA ? (isForecastUrl(url) ? fieldA.band : ensureSmooth(fieldA)) : null;
+      const smoothB = fieldB ? (isForecastUrl(nextUrl) ? fieldB.band : ensureSmooth(fieldB)) : null;
       const sampleField = (
         field: DecodedRadar,
         arr: Float32Array,
