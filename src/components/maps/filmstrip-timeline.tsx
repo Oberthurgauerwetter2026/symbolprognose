@@ -434,7 +434,7 @@ export function FilmstripTimeline({
           {ticks10.map((tk, i) => (
             <span
               key={`m10-${i}`}
-              className={`absolute w-px ${tk.major ? "top-[27px] h-2.5 bg-white/45" : "top-7 h-2 bg-white/30"}`}
+              className={`absolute w-px ${tk.major ? "top-[27px] h-2.5 bg-white/35" : "top-7 h-2 bg-white/25"}`}
               style={{ left: tk.left }}
             />
           ))}
@@ -446,8 +446,8 @@ export function FilmstripTimeline({
                 {String(h.hour).padStart(2, "0")}:00
               </span>
               <span
-                className="absolute top-6 h-4 w-[2px] -translate-x-1/2 bg-white"
-                style={{ boxShadow: "0 0 0 0.5px rgba(15,23,42,0.35)" }}
+                className="absolute top-5 z-10 h-6 w-[2px] -translate-x-1/2 rounded-full bg-white"
+                style={{ boxShadow: "0 0 0 0.75px rgba(15,23,42,0.55)" }}
               />
             </div>
           ))}
