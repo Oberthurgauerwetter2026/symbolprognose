@@ -152,6 +152,7 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
                         return None
                     sys.exit(msg)
                 else:
+                    FETCH_STATS["otherErrors"] += 1
                     last_err = RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
             else:
                 try:
@@ -161,6 +162,7 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
                     # unter Last gelegentlich unvollständiges JSON) — das ist
                     # transient und muss wie ein Timeout neu versucht werden,
                     # nicht den ganzen Lauf abbrechen.
+                    FETCH_STATS["otherErrors"] += 1
                     last_err = RuntimeError(f"unvollständige JSON-Antwort: {e}")
                 else:
                     return data if isinstance(data, list) else [data]
@@ -171,6 +173,10 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
             requests.exceptions.ChunkedEncodingError,
             requests.exceptions.ContentDecodingError,
         ) as e:
+            if isinstance(e, requests.exceptions.Timeout):
+                FETCH_STATS["timeouts"] += 1
+            else:
+                FETCH_STATS["otherErrors"] += 1
             last_err = e
 
         base_wait = backoff_429[attempt] if last_was_429 else backoff_other[attempt]
