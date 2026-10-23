@@ -102,11 +102,11 @@ function colorFor(mmh: number): [number, number, number, number] {
 
 
 
-// Schnee-Farbskala (mm/h Wasser-Äquivalent) — pastellig wie MCH-App:
-// zartes Flieder für leicht, gedämpftes Violett für stark.
+// Schnee-Farbskala (mm/h Wasser-Äquivalent) — stark entsättigt, damit
+// Schnee nicht mit dem Violett bei Starkregen (≥80 mm/h) verwechselt wird.
 const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
-  { mmh: 0.1, rgb: [196, 168, 215], label: "leicht" },
-  { mmh: 2, rgb: [152, 72, 181], label: "stark" },
+  { mmh: 0.1, rgb: [214, 208, 222], label: "leicht" },
+  { mmh: 2, rgb: [168, 158, 184], label: "stark" },
 ];
 
 // Schneeregen (Mischphase, 30–70 % Schneeanteil): weiches Türkis.
