@@ -2112,15 +2112,26 @@ function RadarMapInner({
       if (i !== null) push(times[i]);
     }
 
+    // Nowcast (verschobenes Radarbild): 5-min-Schritte bis ca. +60 min.
+    let nowcastEnd = nowMs;
+    for (const f of frames) {
+      if (f.source !== "nowcast") continue;
+      const ms = Date.parse(f.t);
+      if (ms > nowMs) {
+        push(ms);
+        nowcastEnd = Math.max(nowcastEnd, ms);
+      }
+    }
+
     // Prognoseteil: 15-min-Raster, solange echte 15-min-Felder (ICON-CH1)
     // existieren; danach Stundenraster (ICON-CH2). Nur echte Frames.
     const QUARTER = 15 * 60_000;
     const Q_TOL = 2 * 60_000;
     const HOUR = 60 * 60_000;
     const HOUR_TOL = 4 * 60_000;
-    let t = Math.ceil((nowMs + 1) / QUARTER) * QUARTER;
+    let t = Math.ceil((nowcastEnd + 1) / QUARTER) * QUARTER;
     let misses = 0;
-    let lastQuarterHit = nowMs;
+    let lastQuarterHit = nowcastEnd;
     for (; t <= lastMs; t += QUARTER) {
       const i = pickNearest(t, Q_TOL);
       if (i !== null && times[i] > nowMs) {

@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
-import { getOpenMeteoCache, type OpenMeteoCachePayload } from "./openmeteo-cache.server";
+import {
+  getOpenMeteoCache,
+  getRadarRegionMax,
+  type OpenMeteoCachePayload,
+} from "./openmeteo-cache.server";
+import { isUsableMotion, nowcastSteps } from "./radar-nowcast";
 import { r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
@@ -70,7 +75,7 @@ function cacheGridLooksStale(points: { lat: number; lon: number }[] | undefined)
 
 export interface RadarFrame {
   t: string; // ISO UTC — Zeitpunkt, der auf der Timeline angezeigt wird
-  source: "radar" | "icon-ch1" | "icon-ch2";
+  source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2";
   /** Tatsächlicher Zeitstempel des PNG-Bildes (identisch mit `t`, kein Forward-Fill). */
   sourceT?: string;
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei reinen `precipUrl`-Frames leer. */
@@ -495,6 +500,43 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       `[radar] forecast pngs: ${ch1Count} frames (${ch1WithValues} mit Grid-Werten)`,
     );
   }
+
+  // ---- Radar-Nowcast: letztes Messbild entlang der gemessenen Verlagerung
+  // im 5-Minuten-Takt bis +60 min verschieben. Ersetzt in diesem Fenster die
+  // Modellframes (wie MeteoSchweiz/SRF: Nowcast vor Modell).
+  try {
+    const lastRadar = [...frames].reverse().find((f) => f.source === "radar" && f.precipUrl);
+    if (lastRadar) {
+      const regionMax = await getRadarRegionMax();
+      const motion = regionMax?.motion;
+      const motionFresh =
+        !!regionMax && Math.abs(Date.parse(regionMax.t) - Date.parse(lastRadar.t)) <= 15 * 60_000;
+      if (motionFresh && isUsableMotion(motion)) {
+        const steps = nowcastSteps(Date.parse(lastRadar.t), now, motion, imageBbox);
+        if (steps.length > 0) {
+          const endMs = steps[steps.length - 1].tMs;
+          for (let i = frames.length - 1; i >= 0; i--) {
+            const f = frames[i];
+            if (f.source !== "radar" && Date.parse(f.t) <= endMs) frames.splice(i, 1);
+          }
+          for (const s of steps) {
+            frames.push({
+              t: new Date(s.tMs).toISOString().replace(/\.\d{3}Z$/, "Z"),
+              source: "nowcast",
+              sourceT: lastRadar.t,
+              values: [],
+              precipUrl: lastRadar.precipUrl,
+              imageBbox: s.bbox,
+            });
+          }
+          frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn(`[radar] nowcast skipped: ${(e as Error).message}`);
+  }
+
 
   // ---- Fallback: Modell-Prognose direkt aus openmeteo/forecast.json ----
   // Wenn das vorgerasterte Forecast-Manifest noch fehlt, darf die Timeline
