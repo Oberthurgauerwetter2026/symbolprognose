@@ -105,8 +105,8 @@ function colorFor(mmh: number): [number, number, number, number] {
 // Schnee-Farbskala (mm/h Wasser-Äquivalent) — stark entsättigt, damit
 // Schnee nicht mit dem Violett bei Starkregen (≥80 mm/h) verwechselt wird.
 const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
-  { mmh: 0.1, rgb: [214, 208, 222], label: "leicht" },
-  { mmh: 2, rgb: [168, 158, 184], label: "stark" },
+  { mmh: 0.1, rgb: [210, 194, 232], label: "leicht" },
+  { mmh: 2, rgb: [164, 134, 214], label: "stark" },
 ];
 
 // Schneeregen (Mischphase, 30–70 % Schneeanteil): weiches Türkis.
