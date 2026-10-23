@@ -336,7 +336,7 @@ FORECAST_OUT_W, FORECAST_OUT_H = 240, 144
 _GRAIN_CACHE: dict = {}
 
 
-def _radar_grain(shape, amp: float = 0.28):
+def _radar_grain(shape, amp: float = 0.14):
     """Ortsfestes Körnungsfeld (Faktor um 1.0) im Ausgaberaster.
     Mischung aus Pixelrauschen und 3-px-Clustern → radarähnliche Ränder."""
     import numpy as np
@@ -447,7 +447,7 @@ def _render_frame_png(
     arr = arr * _radar_grain(arr.shape)
 
     # Nur echte Einzelpixel entfernen; kleine Buchten/Fransen bleiben erhalten.
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min(min_area_px, 3), hole_area_px=3)
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min(min_area_px, 5), hole_area_px=5)
 
 
 
