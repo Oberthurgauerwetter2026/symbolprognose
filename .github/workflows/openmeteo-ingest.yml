@@ -15,7 +15,8 @@ concurrency:
 env:
   CHUNK_PHASE1: "60"
   CHUNK_PHASEC: "60"
-  BATCH_SLEEP_S: "12"
+  CHUNK_PHASE2: "60"
+  BATCH_SLEEP_S: "6"
   OM_CONNECT_TIMEOUT: "30"
   OM_READ_TIMEOUT: "60"
   FETCH_WORKERS: "1"
@@ -28,10 +29,10 @@ env:
   GRID_LON: "36"
   # Dense-Grid für die Prognose-PNGs (66×96 = 6336 Punkte). Zu viel für das
   # Open-Meteo-Stundenlimit einer IP (5000) — darum auf SHARD_COUNT Runner
-  # verteilt (~2100 Punkte je Runner).
+  # verteilt (~1060 Punkte je Runner, kurze Laufzeit).
   GRID_LAT_DENSE: "66"
   GRID_LON_DENSE: "96"
-  SHARD_COUNT: "3"
+  SHARD_COUNT: "6"
   # Streng: eine lückenhafte Prognose darf nie publiziert werden.
   PHASE1_DENSE_MAX_FAIL_PCT: "1"
   FORECAST_MAX_MISSING_PCT: "1"
@@ -42,11 +43,11 @@ env:
 jobs:
   fetch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 25
     strategy:
       fail-fast: true
       matrix:
-        shard: [0, 1, 2]
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
 
