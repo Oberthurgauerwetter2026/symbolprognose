@@ -2125,14 +2125,26 @@ function RadarMapInner({
       if (i !== null) push(times[i]);
     }
 
-    // Prognoseteil: Stundenraster. ICON-CH1 liefert keine echten 15-min-Felder
-    // (die 15-min-Reihe wiederholt den Stundenwert), darum ein Schritt pro
-    // Stunde — nur wenn dazu ein echtes Feld existiert.
+    // Prognoseteil: 15-min-Raster, solange echte 15-min-Felder (ICON-CH1)
+    // existieren; danach Stundenraster (ICON-CH2). Nur echte Frames.
+    const QUARTER = 15 * 60_000;
+    const Q_TOL = 2 * 60_000;
     const HOUR = 60 * 60_000;
     const HOUR_TOL = 4 * 60_000;
-    const startFc = Math.ceil((nowMs + 1) / HOUR) * HOUR;
-    for (let t = startFc; t <= lastMs; t += HOUR) {
-      const i = pickNearest(t, HOUR_TOL);
+    let t = Math.ceil((nowMs + 1) / QUARTER) * QUARTER;
+    let misses = 0;
+    let lastQuarterHit = nowMs;
+    for (; t <= lastMs; t += QUARTER) {
+      const i = pickNearest(t, Q_TOL);
+      if (i !== null && times[i] > nowMs) {
+        push(times[i]);
+        lastQuarterHit = times[i];
+        misses = 0;
+      } else if (++misses >= 3) break;
+    }
+    const startFc = Math.ceil((lastQuarterHit + 1) / HOUR) * HOUR;
+    for (let h = startFc; h <= lastMs; h += HOUR) {
+      const i = pickNearest(h, HOUR_TOL);
       if (i !== null && times[i] > nowMs) push(times[i]);
     }
 
