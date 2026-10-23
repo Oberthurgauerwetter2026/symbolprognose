@@ -452,6 +452,56 @@ def _radar_grain(shape, amp: float = 0.14):
     return g
 
 
+def _smooth_noise(rng, h: int, w: int, cell: int):
+    """Glattes Wertrauschen (bilinear aus grobem Gitter), Std ~1."""
+    import numpy as np
+    gh, gw = h // cell + 2, w // cell + 2
+    g = rng.standard_normal((gh, gw)).astype(np.float32)
+    ys = np.linspace(0, gh - 2, h, dtype=np.float32)
+    xs = np.linspace(0, gw - 2, w, dtype=np.float32)
+    y0 = np.minimum(ys.astype(np.int32), gh - 2); x0 = np.minimum(xs.astype(np.int32), gw - 2)
+    ty = (ys - y0)[:, None]; tx = (xs - x0)[None, :]
+    a = g[y0][:, x0]; b = g[y0][:, x0 + 1]
+    c = g[y0 + 1][:, x0]; d = g[y0 + 1][:, x0 + 1]
+    out = (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
+    return out / max(float(out.std()), 1e-6)
+
+
+def _edge_roughen(arr, amp: float = 0.30, warp_px: float = 1.8):
+    """Bricht glatte Prognosekonturen radarähnlich auf (ortsfest, kein Flimmern).
+
+    1. Domain-Warp: leichte Verschiebung (≤ ~2 px) → Buchten/Ausfransungen.
+    2. Zweistufige Körnung (fein 1–2 px + mittel ~8 px), gewichtet auf schwache
+       Ränder; starke Kerne bleiben nahezu unverändert. Summe bleibt erhalten."""
+    import numpy as np
+    h, w = arr.shape
+    key = ("rough", h, w, amp, warp_px)
+    cached = _GRAIN_CACHE.get(key)
+    if cached is None:
+        rng = np.random.default_rng(20261023)
+        dy = _smooth_noise(rng, h, w, 7) * warp_px
+        dx = _smooth_noise(rng, h, w, 7) * warp_px
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        iy = np.clip(np.rint(yy + dy), 0, h - 1).astype(np.int32)
+        ix = np.clip(np.rint(xx + dx), 0, w - 1).astype(np.int32)
+        fine = rng.standard_normal((h, w)).astype(np.float32)
+        fine2 = np.kron(rng.standard_normal((h // 2 + 1, w // 2 + 1)), np.ones((2, 2)))[:h, :w]
+        mid = _smooth_noise(rng, h, w, 8)
+        noise = 0.35 * fine + 0.25 * fine2.astype(np.float32) + 0.40 * mid
+        cached = (iy, ix, noise.astype(np.float32))
+        _GRAIN_CACHE[key] = cached
+    iy, ix, noise = cached
+    src = np.nan_to_num(arr.astype(np.float32))
+    warped = src[iy, ix]
+    # Randgewicht: stark bei schwachem Niederschlag, gegen 0.1 in Kernen.
+    weight = np.clip(1.0 - warped / 4.0, 0.1, 1.0)
+    out = warped * np.exp(np.clip(noise, -2.5, 2.5) * amp * weight)
+    s_in, s_out = float(src.sum()), float(out.sum())
+    if s_out > 0 and s_in > 0:
+        out *= s_in / s_out
+    return out.astype(np.float32)
+
+
 def _upsample_smooth(arr, out_h: int, out_w: int):
     """Glatte Neurasterung eines 2-D-Feldes auf (out_h, out_w).
 
@@ -541,10 +591,10 @@ def _render_frame_png(
     # Radar-Körnung: multiplikatives, ortsfestes Rauschen im 1-km-Raster, damit
     # die Bandkanten wie in der Messung leicht pixelig/zerfranst wirken statt
     # vektorglatt. Ortsfest (fixer Seed) → kein Flimmern zwischen Frames.
-    arr = arr * _radar_grain(arr.shape)
+    arr = _edge_roughen(arr)
 
     # Nur echte Einzelpixel entfernen; kleine Buchten/Fransen bleiben erhalten.
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min(min_area_px, 5), hole_area_px=5)
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min(min_area_px, 2), hole_area_px=2)
 
 
 
