@@ -81,10 +81,10 @@ def make_s3():
 
 def _bbox():
     return {
-        "min_lat": envf("BBOX_MIN_LAT", 46.85),
-        "max_lat": envf("BBOX_MAX_LAT", 48.30),
-        "min_lon": envf("BBOX_MIN_LON", 8.15),
-        "max_lon": envf("BBOX_MAX_LON", 10.55),
+        "min_lat": envf("BBOX_MIN_LAT", 46.6),
+        "max_lat": envf("BBOX_MAX_LAT", 48.6),
+        "min_lon": envf("BBOX_MIN_LON", 7.4),
+        "max_lon": envf("BBOX_MAX_LON", 11.6),
     }
 
 
@@ -104,8 +104,8 @@ def build_grid_dense():
     Ausschliesslich für die PNG-Rasterung genutzt; Werte werden NICHT als
     grosse Zahlenlisten an den Client geschickt."""
     bb = _bbox()
-    n_lat = envi("GRID_LAT_DENSE", 120)
-    n_lon = envi("GRID_LON_DENSE", 140)
+    n_lat = envi("GRID_LAT_DENSE", 140)
+    n_lon = envi("GRID_LON_DENSE", 180)
     lats = [bb["min_lat"] + (bb["max_lat"] - bb["min_lat"]) * i / (n_lat - 1) for i in range(n_lat)]
     lons = [bb["min_lon"] + (bb["max_lon"] - bb["min_lon"]) * j / (n_lon - 1) for j in range(n_lon)]
     pts = [(la, lo) for la in lats for lo in lons]

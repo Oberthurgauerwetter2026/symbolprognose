@@ -11,7 +11,7 @@ import { getOpenMeteoCache } from "./openmeteo-cache.server";
  * Horizont: +0 … +48 h, stündlich. Keine Messdaten.
  */
 
-const BBOX = { minLat: 46.85, maxLat: 48.30, minLon: 8.15, maxLon: 10.55 } as const;
+const BBOX = { minLat: 46.6, maxLat: 48.6, minLon: 7.4, maxLon: 11.6 } as const;
 const GRID_LON = 36;
 const GRID_LAT = 22;
 const FORECAST_HOURS = 48;

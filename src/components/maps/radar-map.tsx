@@ -321,8 +321,8 @@ const regionBounds: L.LatLngBoundsExpression = [
 // Exakt die Daten-Bbox: so liegt die harte Datenkante immer knapp aussen am
 // Kartenrand und wirkt nicht abgeschnitten.
 const maxBoundsExt: L.LatLngBoundsExpression = [
-  [46.85, 8.15],
-  [48.3, 10.55],
+  [46.6, 7.4],
+  [48.6, 11.6],
 ];
 
 
@@ -2339,7 +2339,7 @@ function RadarMapInner({
           zoomDelta={0.5}
           maxBounds={maxBoundsExt}
           maxBoundsViscosity={1.0}
-          minZoom={8.5}
+          minZoom={7.5}
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}

@@ -25,7 +25,7 @@ import { r2ObjectUrlCandidates } from "./r2-url.server";
  * Keine Wind-Advektion, kein Nowcast, keine künstliche Zell-Extrapolation.
  */
 
-const BBOX = { minLat: 46.85, maxLat: 48.30, minLon: 8.15, maxLon: 10.55 } as const;
+const BBOX = { minLat: 46.6, maxLat: 48.6, minLon: 7.4, maxLon: 11.6 } as const;
 const GRID_LON = 36;
 const GRID_LAT = 22;
 
