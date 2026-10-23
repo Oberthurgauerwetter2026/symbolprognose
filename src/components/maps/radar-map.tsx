@@ -471,7 +471,7 @@ function bracketFramesForMs(
     const b = eligible[i + 1];
     const aMs = Date.parse(a.t);
     const bMs = Date.parse(b.t);
-    if (targetMs >= aMs && targetMs <= bMs) {
+    if (targetMs >= aMs && targetMs < bMs) {
       const span = Math.max(1, bMs - aMs);
       return {
         frame: a,
@@ -2389,7 +2389,7 @@ function RadarMapInner({
               if (rtMs > Date.now() && timelineSteps.length > 1) {
                 let bi = -1;
                 for (let k = 0; k < timelineSteps.length - 1; k++) {
-                  if (rtMs >= timelineSteps[k] && rtMs <= timelineSteps[k + 1]) {
+                  if (rtMs >= timelineSteps[k] && rtMs < timelineSteps[k + 1]) {
                     bi = k;
                     break;
                   }
