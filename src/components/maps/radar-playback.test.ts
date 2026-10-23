@@ -1,3 +1,4 @@
+/// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 import { advancePlayback, playbackDuration, playbackSample } from "./radar-playback";
 
