@@ -120,6 +120,11 @@ def grid_axes_from_points(pts: list[tuple[float, float]]) -> tuple[list[float], 
 
 
 
+#: Zähler für die Abschluss-Zusammenfassung — macht den Abbruchgrund
+#: (Rate-Limit vs. Timeout) im GitHub-Log sofort sichtbar.
+FETCH_STATS: dict = {"requests": 0, "http429": 0, "timeouts": 0, "otherErrors": 0}
+
+
 def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     # 429 = Minutenlimit -> volle Minute warten (API sagt explizit "try again in one minute").
     backoff_429 = [65, 65, 70, 90, 120, 150, 180]
@@ -132,10 +137,12 @@ def fetch(label: str, params: dict, optional: bool = False) -> list | None:
     last_was_429 = False
     for attempt in range(max_attempts):
         last_was_429 = False
+        FETCH_STATS["requests"] += 1
         try:
             r = requests.get(API, params=params, timeout=(connect_to, read_to))
             if not r.ok:
                 if r.status_code == 429:
+                    FETCH_STATS["http429"] += 1
                     last_err = RuntimeError(f"HTTP 429 rate-limited: {r.text[:200]}")
                     last_was_429 = True
                 elif 400 <= r.status_code < 500:
