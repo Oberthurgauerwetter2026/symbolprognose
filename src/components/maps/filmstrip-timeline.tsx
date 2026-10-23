@@ -58,7 +58,8 @@ export function FilmstripTimeline({
     return () => ro.disconnect();
   }, []);
 
-  const PX_PER_HOUR = isMobile ? 56 : 72;
+  // Breiter Massstab: 5-min-Schritt ≈ 8 px (mobil), 15-min ≈ 24 px.
+  const PX_PER_HOUR = isMobile ? 96 : 120;
   const times = useMemo(() => frames.map((f) => f.ms), [frames]);
   const tMin = times[0] ?? 0;
   const tMax = times[times.length - 1] ?? 1;
@@ -78,14 +79,17 @@ export function FilmstripTimeline({
     return out;
   }, [tMin, tMax, PX_PER_HOUR]);
 
+  // Teilstriche genau an den echten Rastpunkten (5 min Messung/Nowcast,
+  // 15 min Prognose); volle Stunden haben eigene Striche.
   const ticks10 = useMemo(() => {
-    const start = Math.ceil(tMin / 600_000) * 600_000;
-    const out: number[] = [];
-    for (let t = start; t <= tMax; t += 600_000) {
-      out.push(((t - tMin) / 3_600_000) * PX_PER_HOUR);
+    const out: { left: number; major: boolean }[] = [];
+    for (const t of times) {
+      const min = new Date(t).getMinutes();
+      if (min === 0) continue;
+      out.push({ left: ((t - tMin) / 3_600_000) * PX_PER_HOUR, major: min % 15 === 0 });
     }
     return out;
-  }, [tMin, tMax, PX_PER_HOUR]);
+  }, [times, tMin, PX_PER_HOUR]);
 
   const dayBreaks = hours.filter((h) => h.hour === 0);
 
