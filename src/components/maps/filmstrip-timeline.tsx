@@ -382,7 +382,7 @@ export function FilmstripTimeline({
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onUp}
-        className={`relative h-[52px] cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none transition-all duration-200 active:cursor-grabbing focus-visible:ring-2 ${
+        className={`relative h-[42px] cursor-grab touch-none overflow-hidden rounded-lg border border-neutral-200 bg-gradient-to-b from-neutral-50 to-neutral-100 shadow-inner outline-none transition-all duration-200 active:cursor-grabbing focus-visible:ring-2 ${
           dragging ? "bg-gradient-to-b from-neutral-100 to-white shadow-lg" : ""
         }`}
       >
@@ -410,7 +410,7 @@ export function FilmstripTimeline({
         >
           {showMeasurementBand && (
             <div
-              className="absolute bottom-0 top-6"
+              className="absolute bottom-0 top-5"
               style={{
                 left: 0,
                 width: measurementWidth,
@@ -421,7 +421,7 @@ export function FilmstripTimeline({
           )}
           {showForecastBand && (
             <div
-              className="absolute bottom-0 top-6"
+              className="absolute bottom-0 top-5"
               style={{
                 left: forecastLeft,
                 width: forecastWidth,
@@ -435,7 +435,7 @@ export function FilmstripTimeline({
           {ticks10.map((tk, i) => (
             <span
               key={`m10-${i}`}
-              className="absolute top-[34px] h-2.5 w-px bg-white/75"
+              className="absolute top-[28px] h-2 w-px bg-white/75"
               style={{ left: tk.left }}
             />
           ))}
@@ -443,10 +443,10 @@ export function FilmstripTimeline({
           {/* Stunden-Ticks + Labels */}
           {hours.map((h) => (
             <div key={`h-${h.ms}`} className="absolute top-0 h-full" style={{ left: h.left }}>
-              <span className="absolute top-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-neutral-600">
+              <span className="absolute top-0.5 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-neutral-600">
                 {String(h.hour).padStart(2, "0")}:00
               </span>
-              <span className="absolute bottom-0 top-6 w-px -translate-x-1/2 bg-neutral-900/40" />
+              <span className="absolute bottom-0 top-5 w-px -translate-x-1/2 bg-neutral-900/40" />
 
             </div>
           ))}
@@ -455,14 +455,14 @@ export function FilmstripTimeline({
           {dayBreaks.map((b) => (
             <span
               key={`db-${b.ms}`}
-              className="absolute top-6 h-4 w-[2px] bg-neutral-900/70"
+              className="absolute top-5 h-4 w-[2px] bg-neutral-900/70"
               style={{ left: b.left }}
             />
           ))}
 
           {/* "Jetzt"-Marker im Strip (nur wenn nowMs innerhalb liegt) */}
           {bandMode === "measurement-forecast" && nowLeft > 0 && nowLeft < totalWidth && (
-            <span className="absolute top-5 h-6 w-[2px] bg-neutral-950" style={{ left: nowLeft }} />
+            <span className="absolute top-4 h-6 w-[2px] bg-neutral-950" style={{ left: nowLeft }} />
           )}
         </div>
       </div>
