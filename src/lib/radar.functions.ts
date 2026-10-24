@@ -463,17 +463,35 @@ export const getRadarFrames = createServerFn({ method: "GET" })
 
     let ch1Count = 0;
     let ch1WithValues = 0;
-    for (const mf of forecastManifest!.frames) {
-      const tMs = Date.parse(mf.t);
-      if (Number.isNaN(tMs)) continue;
-      if (tMs <= now) continue;
+    // Brückenframe: Liegt vor der nächsten vollen Stunde kein Modellbild,
+    // füllt das letzte vorhandene Bild (laufende Stunde) die Lücke nach "Jetzt".
+    const QUARTER_MS = 15 * 60_000;
+    const nextHour = Math.ceil((now + 1) / 3_600_000) * 3_600_000;
+    const fcList = forecastManifest!.frames
+      .map((mf) => ({ mf, tMs: Date.parse(mf.t) }))
+      .filter((x) => !Number.isNaN(x.tMs));
+    const hasGapFill = fcList.some((x) => x.tMs > now && x.tMs < nextHour && isModelSlot(x.tMs));
+    let bridge: { mf: (typeof fcList)[number]["mf"]; tMs: number; srcMs: number } | null = null;
+    if (!hasGapFill) {
+      const prev = fcList.filter((x) => x.tMs <= now && x.mf.precipUrl).sort((a, b) => b.tMs - a.tMs)[0];
+      const slot = Math.ceil((now + 1) / QUARTER_MS) * QUARTER_MS;
+      if (prev && slot < nextHour && now - prev.tMs <= 3_600_000) {
+        bridge = { mf: prev.mf, tMs: slot, srcMs: prev.tMs };
+      }
+    }
+    const loopList = bridge ? [bridge, ...fcList] : fcList;
+    for (const entry of loopList) {
+      const mf = entry.mf;
+      const isBridge = entry === bridge;
+      const tMs = entry.tMs;
+      if (!isBridge && tMs <= now) continue;
       if (tMs > forecastCutoff) continue;
-      if (!isModelSlot(tMs)) continue;
+      if (!isBridge && !isModelSlot(tMs)) continue;
 
       let values: number[] = [];
       let snowValues: number[] | undefined;
       if (r1 && fcTimeIdx.size > 0) {
-        const ti = findFcIdx(tMs);
+        const ti = findFcIdx(isBridge ? bridge!.srcMs : tMs);
         if (ti >= 0) {
           values = new Array(pts.length);
           if (hasFcSnow) snowValues = new Array(pts.length);
@@ -491,7 +509,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       }
 
       frames.push({
-        t: mf.t,
+        t: isBridge ? new Date(tMs).toISOString() : mf.t,
         source: mf.source ?? "icon-ch1",
         sourceT: mf.t,
         values,
