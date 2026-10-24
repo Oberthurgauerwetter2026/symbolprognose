@@ -491,7 +491,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       let values: number[] = [];
       let snowValues: number[] | undefined;
       if (r1 && fcTimeIdx.size > 0) {
-        const ti = findFcIdx(tMs);
+        const ti = findFcIdx(isBridge ? bridge!.srcMs : tMs);
         if (ti >= 0) {
           values = new Array(pts.length);
           if (hasFcSnow) snowValues = new Array(pts.length);
@@ -509,7 +509,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       }
 
       frames.push({
-        t: mf.t,
+        t: isBridge ? new Date(tMs).toISOString() : mf.t,
         source: mf.source ?? "icon-ch1",
         sourceT: mf.t,
         values,
