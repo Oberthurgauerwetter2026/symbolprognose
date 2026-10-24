@@ -21,7 +21,12 @@ export const Route = createFileRoute("/embed/radar")({
   },
   head: () => ({
     meta: [
-      { title: "Radar (Embed)" },
+      { title: "Oberthurgauer Wetter · Radar-Einbettung" },
+      { name: "description", content: "Niederschlagsradar und Modellprognose für den Oberthurgau als eingebettete Wetterkarte." },
+      { property: "og:title", content: "Oberthurgauer Wetter · Radar-Einbettung" },
+      { property: "og:description", content: "Niederschlagsradar und Modellprognose für den Oberthurgau als eingebettete Wetterkarte." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { name: "robots", content: "noindex" },
     ],
   }),
