@@ -109,9 +109,17 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
   { mmh: 2, rgb: [164, 134, 214], label: "stark" },
 ];
 
-// Schneeregen (Mischphase, 30–70 % Schneeanteil): weiches Türkis.
-const SLEET_RGB: [number, number, number] = [92, 192, 193]; // #5CC0C1
-const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
+// Schneeregen (Mischphase, 30–70 % Schneeanteil): Graublau, nach Intensität.
+const SLEET_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
+  { mmh: 0.1, rgb: [176, 192, 212], label: "leicht" },
+  { mmh: 2, rgb: [112, 134, 166], label: "stark" },
+];
+function sleetRgbFor(mmh: number): [number, number, number] {
+  return mmh >= SLEET_SCALE[1].mmh ? SLEET_SCALE[1].rgb : SLEET_SCALE[0].rgb;
+}
+function sleetColorFor(mmh: number): [number, number, number, number] {
+  return [...sleetRgbFor(mmh), 0.85];
+}
 
 // Testweise: gut sichtbare Schneeflocken (Stern mit 8 Armen) in Schneeflächen.
 // Ein/Aus über Button; Modulvariable, Overlays werden beim Umschalten neu gemountet.
