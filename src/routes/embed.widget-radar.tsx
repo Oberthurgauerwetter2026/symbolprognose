@@ -16,7 +16,12 @@ export const Route = createFileRoute("/embed/widget-radar")({
   },
   head: () => ({
     meta: [
-      { title: "Radar aktuell (Widget)" },
+      { title: "Oberthurgauer Wetter · Aktuelles Radar-Widget" },
+      { name: "description", content: "Die aktuelle Niederschlagsmessung im Oberthurgau als kompaktes Radar-Widget." },
+      { property: "og:title", content: "Oberthurgauer Wetter · Aktuelles Radar-Widget" },
+      { property: "og:description", content: "Die aktuelle Niederschlagsmessung im Oberthurgau als kompaktes Radar-Widget." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
       { name: "robots", content: "noindex" },
     ],
   }),
