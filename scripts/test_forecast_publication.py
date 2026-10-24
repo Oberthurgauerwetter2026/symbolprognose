@@ -160,9 +160,6 @@ class ImportWithoutBoto3Test(unittest.TestCase):
             importlib.reload(ingest)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 class EdgeRoughenTest(unittest.TestCase):
     def test_edges_rougher_and_mass_kept(self):
         import numpy as np
@@ -177,3 +174,20 @@ class EdgeRoughenTest(unittest.TestCase):
         self.assertGreater(perim(rough), perim(field) * 1.3)
         self.assertAlmostEqual(float(rough.sum()) / float(field.sum()), 1.0, delta=0.05)
         np.testing.assert_array_equal(rough, m._edge_roughen(field))
+
+    def test_strong_cores_are_not_changed(self):
+        import numpy as np
+        yy, xx = np.mgrid[0:200, 0:420]
+        field = np.clip(20.0 - np.hypot(yy - 100, xx - 210) / 4.0, 0, None).astype(np.float32)
+        rough = ingest._edge_roughen(field)
+        np.testing.assert_array_equal(rough[field >= 4.0], field[field >= 4.0])
+        self.assertAlmostEqual(float(rough.sum()) / float(field.sum()), 1.0, delta=0.05)
+
+    def test_dry_field_stays_dry(self):
+        import numpy as np
+        field = np.zeros((200, 420), dtype=np.float32)
+        np.testing.assert_array_equal(ingest._edge_roughen(field), field)
+
+
+if __name__ == "__main__":
+    unittest.main()
