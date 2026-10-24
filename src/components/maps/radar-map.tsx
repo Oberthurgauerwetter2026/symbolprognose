@@ -142,12 +142,10 @@ function isDropPixel(x: number, y: number, cell = 18): boolean {
   const c = Math.floor(cell / 2);
   const dx = (xs - cx * cell) - c;
   const dy = (y - cy * cell) - c;
-  // Tropfen mit klarer Silhouette: schlanke Spitze oben, runder Bauch —
-  // ca. 5 px breit und 7 px hoch, damit er als Tropfen erkennbar ist.
-  if (dy === -3 || dy === -2) return dx === 0;
-  if (dy === -1 || dy === 0) return Math.abs(dx) <= 1;
-  if (dy === 1 || dy === 2) return Math.abs(dx) <= 2;
-  if (dy === 3) return Math.abs(dx) <= 1;
+  // Tropfen: schlanke Spitze oben, runder Bauch — ca. 3 px breit, 5 px hoch.
+  if (dy === -2 || dy === -1) return dx === 0;
+  if (dy === 0 || dy === 1) return Math.abs(dx) <= 1;
+  if (dy === 2) return dx === 0;
   return false;
 }
 
