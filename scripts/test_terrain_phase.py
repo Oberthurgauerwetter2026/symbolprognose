@@ -16,7 +16,7 @@ class TerrainPhaseTest(unittest.TestCase):
 
     def test_peak_snow_valley_rain(self):
         # Modellpunkt auf 1200 m mit 3 °C: Gipfel 2400 m → Schnee, Tal 400 m → Regen
-        t = terrain_temp(np.array([3.0, 3.0, 3.0]), np.array([1200.0] * 3), np.array([2400.0, 1400.0, 400.0]))
+        t = terrain_temp(np.array([3.0, 3.0, 3.0]), np.array([1200.0] * 3), np.array([2400.0, 1500.0, 400.0]))
         f = terrain_fraction(np.zeros(3), t)
         self.assertEqual(f[0], 1.0)           # Schnee
         self.assertTrue(0.3 <= f[1] < 0.7)    # Schneeregen am Hang
