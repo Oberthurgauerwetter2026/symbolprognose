@@ -109,9 +109,17 @@ const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[
   { mmh: 2, rgb: [164, 134, 214], label: "stark" },
 ];
 
-// Schneeregen (Mischphase, 30–70 % Schneeanteil): weiches Türkis.
-const SLEET_RGB: [number, number, number] = [92, 192, 193]; // #5CC0C1
-const SLEET_COLOR: [number, number, number, number] = [...SLEET_RGB, 0.85];
+// Schneeregen (Mischphase, 30–70 % Schneeanteil): Graublau, nach Intensität.
+const SLEET_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
+  { mmh: 0.1, rgb: [176, 192, 212], label: "leicht" },
+  { mmh: 2, rgb: [112, 134, 166], label: "stark" },
+];
+function sleetRgbFor(mmh: number): [number, number, number] {
+  return mmh >= SLEET_SCALE[1].mmh ? SLEET_SCALE[1].rgb : SLEET_SCALE[0].rgb;
+}
+function sleetColorFor(mmh: number): [number, number, number, number] {
+  return [...sleetRgbFor(mmh), 0.85];
+}
 
 // Testweise: gut sichtbare Schneeflocken (Stern mit 8 Armen) in Schneeflächen.
 // Ein/Aus über Button; Modulvariable, Overlays werden beim Umschalten neu gemountet.
@@ -781,7 +789,7 @@ function PrecipOverlay({
           const [r, g, b, a] = snowFrac > 0.7
             ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
             : snowFrac > 0.3
-              ? isSleetMarkPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
+              ? isSleetMarkPixel(lx, ly) ? [...DROP_RGB, 0.95] : sleetColorFor(v)
               : colorFor(v);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
@@ -893,7 +901,7 @@ function PrecipOverlay({
         const [r, g, b, a] = snowFrac > 0.7
           ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
           : snowFrac > 0.3
-            ? isSleetMarkPixel(lx, ly) ? [...DROP_RGB, 0.95] : SLEET_COLOR
+            ? isSleetMarkPixel(lx, ly) ? [...DROP_RGB, 0.95] : sleetColorFor(v)
             : colorFor(v);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
@@ -1531,7 +1539,7 @@ function MeasurementCanvasOverlay({
             ph === 2
               ? isFlakePixel(mx, my, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
               : ph === 1
-                ? isSleetMarkPixel(mx, my, 20) ? DROP_RGB : SLEET_RGB
+                ? isSleetMarkPixel(mx, my, 20) ? DROP_RGB : sleetRgbFor(s.mmh)
                 : s.rgb;
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
@@ -2542,13 +2550,15 @@ function RadarMapInner({
               </div>
             ))}
             <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schneeregen</span>
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
-                style={{ background: `rgb(${SLEET_RGB.join(",")})` }}
-              />
-              <span className="text-muted-foreground">Tropfen/Flocken</span>
-            </div>
+            {SLEET_SCALE.map((s) => (
+              <div key={`sleet-${s.mmh}`} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  style={{ background: `rgb(${s.rgb.join(",")})` }}
+                />
+                <span className="text-muted-foreground">{s.label}</span>
+              </div>
+            ))}
             <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
             {SNOW_SCALE.map((s) => (
               <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
