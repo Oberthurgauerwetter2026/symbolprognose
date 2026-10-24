@@ -2752,6 +2752,7 @@ function RadarMapInner({
                       visualMs={stripMs}
                       color={timelineColorForMs(stripMs ?? timelineSteps[stripIdx] ?? Date.now())}
                       bandMode="measurement-forecast"
+                      compressAfterMs={Math.ceil((Date.now() + 3_600_000) / 3_600_000) * 3_600_000}
                       ariaLabel="Radar-Zeit"
                       formatBubble={(d) => fmtBubble(d, d.getTime() <= Date.now())}
                       onScrubMs={(ms) => {
