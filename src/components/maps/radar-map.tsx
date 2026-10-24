@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
 import { advancePlayback, playbackSample, type PlaybackPosition } from "./radar-playback";
 import { CityMarkers } from "./city-markers";
+import { sampleRadarBand } from "./forecast-edge-sampling";
 
 
 
@@ -1444,25 +1445,9 @@ function MeasurementCanvasOverlay({
         arr: Float32Array,
         fx: number,
         fy: number,
+        forecast: boolean,
       ) => {
-        const sw = field.w;
-        const sh = field.h;
-        const x0 = Math.max(0, Math.min(sw - 1, Math.floor(fx)));
-        const y0 = Math.max(0, Math.min(sh - 1, Math.floor(fy)));
-        const x1 = Math.min(sw - 1, x0 + 1);
-        const y1 = Math.min(sh - 1, y0 + 1);
-        const tx = Math.max(0, Math.min(1, fx - x0));
-        const ty = Math.max(0, Math.min(1, fy - y0));
-        const v00 = arr[y0 * sw + x0];
-        const v01 = arr[y0 * sw + x1];
-        const v10 = arr[y1 * sw + x0];
-        const v11 = arr[y1 * sw + x1];
-        return (
-          v00 * (1 - tx) * (1 - ty) +
-          v01 * tx * (1 - ty) +
-          v10 * (1 - tx) * ty +
-          v11 * tx * ty
-        );
+        return sampleRadarBand(arr, field.w, field.h, fx, fy, forecast);
       };
 
       const wA = fieldA && fieldB ? 1 - w : fieldA ? 1 : 0;
@@ -1506,14 +1491,14 @@ function MeasurementCanvasOverlay({
             const fx = ((ll.lng - minLon) / lonSpan) * (fieldA.w - 1);
             const fy = ((maxLat - ll.lat) / latSpan) * (fieldA.h - 1);
             if (fx >= 0 && fx <= fieldA.w - 1 && fy >= 0 && fy <= fieldA.h - 1) {
-              v += wA * sampleField(fieldA, smoothA, fx, fy);
+              v += wA * sampleField(fieldA, smoothA, fx, fy, isForecastUrl(url));
             }
           }
           if (fieldB && smoothB) {
             const fx = ((ll.lng - minLon) / lonSpan) * (fieldB.w - 1);
             const fy = ((maxLat - ll.lat) / latSpan) * (fieldB.h - 1);
             if (fx >= 0 && fx <= fieldB.w - 1 && fy >= 0 && fy <= fieldB.h - 1) {
-              v += wB * sampleField(fieldB, smoothB, fx, fy);
+              v += wB * sampleField(fieldB, smoothB, fx, fy, isForecastUrl(nextUrl));
             }
           }
           // `v` ist ein kontinuierlicher Bandindex (0 = trocken). Einfärbung

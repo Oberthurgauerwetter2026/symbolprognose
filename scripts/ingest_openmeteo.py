@@ -467,38 +467,43 @@ def _smooth_noise(rng, h: int, w: int, cell: int):
     return out / max(float(out.std()), 1e-6)
 
 
-def _edge_roughen(arr, amp: float = 0.30, warp_px: float = 1.8):
+def _edge_roughen(arr, amp: float = 0.45, warp_px: float = 3.2):
     """Bricht glatte Prognosekonturen radarähnlich auf (ortsfest, kein Flimmern).
 
-    1. Domain-Warp: leichte Verschiebung (≤ ~2 px) → Buchten/Ausfransungen.
+    1. Domain-Warp: begrenzte Verschiebung (≤ 3.2 px) → Buchten/Ausfransungen.
     2. Zweistufige Körnung (fein 1–2 px + mittel ~8 px), gewichtet auf schwache
-       Ränder; starke Kerne bleiben nahezu unverändert. Summe bleibt erhalten."""
+       Ränder; starke Kerne bleiben exakt unverändert. Summe bleibt erhalten."""
     import numpy as np
     h, w = arr.shape
     key = ("rough", h, w, amp, warp_px)
     cached = _GRAIN_CACHE.get(key)
     if cached is None:
         rng = np.random.default_rng(20261023)
-        dy = _smooth_noise(rng, h, w, 7) * warp_px
-        dx = _smooth_noise(rng, h, w, 7) * warp_px
+        dy = np.clip(_smooth_noise(rng, h, w, 5), -1, 1) * warp_px
+        dx = np.clip(_smooth_noise(rng, h, w, 5), -1, 1) * warp_px
         yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
-        iy = np.clip(np.rint(yy + dy), 0, h - 1).astype(np.int32)
-        ix = np.clip(np.rint(xx + dx), 0, w - 1).astype(np.int32)
+        # Bilineare Abtastung im feinen PNG-Raster, keine Pixelblock-Verschiebung.
+        py = np.clip(yy + dy, 0, h - 1)
+        px = np.clip(xx + dx, 0, w - 1)
         fine = rng.standard_normal((h, w)).astype(np.float32)
         fine2 = np.kron(rng.standard_normal((h // 2 + 1, w // 2 + 1)), np.ones((2, 2)))[:h, :w]
         mid = _smooth_noise(rng, h, w, 8)
         noise = 0.35 * fine + 0.25 * fine2.astype(np.float32) + 0.40 * mid
-        cached = (iy, ix, noise.astype(np.float32))
+        cached = (py, px, noise.astype(np.float32))
         _GRAIN_CACHE[key] = cached
-    iy, ix, noise = cached
-    src = np.nan_to_num(arr.astype(np.float32))
-    warped = src[iy, ix]
-    # Randgewicht: stark bei schwachem Niederschlag, gegen 0.1 in Kernen.
-    weight = np.clip(1.0 - warped / 4.0, 0.1, 1.0)
-    out = warped * np.exp(np.clip(noise, -2.5, 2.5) * amp * weight)
-    s_in, s_out = float(src.sum()), float(out.sum())
+    py, px, noise = cached
+    src = np.maximum(0, np.nan_to_num(arr.astype(np.float32), nan=0, posinf=0, neginf=0))
+    y0 = py.astype(np.int32); x0 = px.astype(np.int32)
+    y1 = np.minimum(y0 + 1, h - 1); x1 = np.minimum(x0 + 1, w - 1)
+    ty = py - y0; tx = px - x0
+    warped = ((src[y0, x0] * (1 - tx) + src[y0, x1] * tx) * (1 - ty)
+              + (src[y1, x0] * (1 - tx) + src[y1, x1] * tx) * ty)
+    weight = np.clip(1.0 - src / 4.0, 0.0, 1.0)
+    out = src * (1 - weight) + warped * np.exp(np.clip(noise, -2.5, 2.5) * amp) * weight
+    weak = src < 4.0
+    s_in, s_out = float(src[weak].sum()), float(out[weak].sum())
     if s_out > 0 and s_in > 0:
-        out *= s_in / s_out
+        out[weak] *= s_in / s_out
     return out.astype(np.float32)
 
 

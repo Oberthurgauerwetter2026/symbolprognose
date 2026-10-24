@@ -5,3 +5,4 @@
 - [x] Reject missing images instead of displaying artificial dry frames.
 - [x] Run regression tests and verify the forecast map.
 - [ ] Verify a complete live ingest with the new version: waiting for GitHub source synchronization and a subsequent successful run.
+- [ ] Strengthen stationary forecast-edge texture and retain it in map sampling; verify tests and the forecast view.
