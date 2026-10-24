@@ -568,6 +568,7 @@ def _render_frame_png(
     min_area_px: int = 14,
     snow_cm_row_major: list[float] | None = None,
     temp_c_row_major: list[float] | None = None,
+    elev_row_major: list[float] | None = None,
 ) -> bytes:
     """`mmh_row_major` ist [lat_asc * lon_asc] mit len = n_lat*n_lon.
     Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat.
@@ -1100,7 +1101,7 @@ def rasterize_forecast_hourly_pngs(
             png = _render_frame_png(
                 n_lat, n_lon, grid.reshape(-1).tolist(), min_area_px=24,
                 snow_cm_row_major=snow_vals,
-                temp_c_row_major=temp_vals,
+                temp_c_row_major=temp_vals, elev_row_major=elev_h,
             )
 
             key = forecast_png_key(stamp, png)
