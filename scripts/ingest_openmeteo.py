@@ -568,6 +568,7 @@ def _render_frame_png(
     min_area_px: int = 14,
     snow_cm_row_major: list[float] | None = None,
     temp_c_row_major: list[float] | None = None,
+    elev_row_major: list[float] | None = None,
 ) -> bytes:
     """`mmh_row_major` ist [lat_asc * lon_asc] mit len = n_lat*n_lon.
     Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat.
@@ -609,7 +610,7 @@ def _render_frame_png(
         from _phase import apply_phase_alpha, snow_fraction
         raw_p = np.flipud(np.asarray(mmh_row_major, dtype=np.float32).reshape(n_lat, n_lon))
         raw_s = np.flipud(np.asarray(snow_cm_row_major, dtype=np.float32).reshape(n_lat, n_lon))
-        if float(np.nanmax(raw_s)) > 0.0:
+        if float(np.nanmax(raw_s)) > 0.0 or temp_c_row_major is not None:
             p_up = _upsample_smooth(np.nan_to_num(raw_p), FORECAST_OUT_H, FORECAST_OUT_W)
             s_up = _upsample_smooth(np.nan_to_num(raw_s), FORECAST_OUT_H, FORECAST_OUT_W)
             t_up = None
@@ -624,6 +625,15 @@ def _render_frame_png(
                     # _upsample_smooth schneidet negative Werte ab → Offset.
                     t_up = _upsample_smooth(raw_t + 60.0, FORECAST_OUT_H, FORECAST_OUT_W) - 60.0
             frac = snow_fraction(p_up, s_up, t_up)
+            # Relief: Pixeltemperatur nach echter Geländehöhe statt Modellberg.
+            if t_up is not None and elev_row_major is not None and len(elev_row_major) == n_lat * n_lon:
+                from _phase import load_dem, terrain_fraction, terrain_temp
+                dem = load_dem(frac.shape)
+                raw_e = np.flipud(np.asarray(elev_row_major, dtype=np.float32).reshape(n_lat, n_lon))
+                if dem is not None and np.isfinite(raw_e).mean() >= 0.5:
+                    raw_e = np.where(np.isfinite(raw_e), raw_e, float(np.nanmedian(raw_e)))
+                    e_up = _upsample_smooth(raw_e, FORECAST_OUT_H, FORECAST_OUT_W)
+                    frac = terrain_fraction(frac, terrain_temp(t_up, e_up, dem))
             if frac.shape == rgba.shape[:2]:
                 rgba = apply_phase_alpha(rgba, frac)
     img = Image.fromarray(rgba, mode="RGBA")
@@ -872,7 +882,7 @@ def rasterize_forecast_pngs(
 
         png = _render_frame_png(
             n_lat, n_lon, grid.reshape(-1).tolist(), snow_cm_row_major=snow_vals,
-            temp_c_row_major=temp_vals,
+            temp_c_row_major=temp_vals, elev_row_major=per_pt_elev,
         )
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         key = forecast_png_key(stamp, png)
@@ -1091,7 +1101,7 @@ def rasterize_forecast_hourly_pngs(
             png = _render_frame_png(
                 n_lat, n_lon, grid.reshape(-1).tolist(), min_area_px=24,
                 snow_cm_row_major=snow_vals,
-                temp_c_row_major=temp_vals,
+                temp_c_row_major=temp_vals, elev_row_major=elev_h,
             )
 
             key = forecast_png_key(stamp, png)

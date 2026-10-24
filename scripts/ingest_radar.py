@@ -607,12 +607,24 @@ def phase_fraction_at(ts: datetime) -> np.ndarray | None:
     # p = Summe ±30 min (≈ mm/h) → Feuchtkugel, Nullgradgrenze, Abkühlung.
     tc = phase_temp(tc, td, fz, m["el"], p)
     f_pt = point_fraction(p, s, tc)
-    if float(np.nanmax(f_pt)) < 0.3:
+    # Relief: Gipfel können Schnee haben, obwohl der geglättete Modellpunkt
+    # zu warm ist → nur abbrechen, wenn es auch auf 3500 m zu warm wäre.
+    el_ok = np.isfinite(m["el"]) & np.isfinite(tc)
+    if float(np.nanmax(f_pt)) < 0.3 and not (
+        el_ok.any() and float(np.nanmin(tc[el_ok] - (3500.0 - m["el"][el_ok]) * 0.0065)) <= 2.5
+    ):
         return None  # nirgends Schnee/Schneeregen → reiner Regen
     lons = np.linspace(BBOX_WGS["minLon"], BBOX_WGS["maxLon"], OUT_W)
     lats = np.linspace(BBOX_WGS["maxLat"], BBOX_WGS["minLat"], OUT_H)
     lon_g, lat_g = np.meshgrid(lons, lats)
-    return idw_to_grid(m["lat"], m["lon"], f_pt, lat_g, lon_g, k=4)
+    frac = idw_to_grid(m["lat"], m["lon"], f_pt, lat_g, lon_g, k=4)
+    from _phase import load_dem, terrain_fraction, terrain_temp
+    dem = load_dem(frac.shape)
+    if dem is not None and el_ok.sum() >= 10:
+        t_g = idw_to_grid(m["lat"][el_ok], m["lon"][el_ok], tc[el_ok], lat_g, lon_g, k=4)
+        e_g = idw_to_grid(m["lat"][el_ok], m["lon"][el_ok], m["el"][el_ok], lat_g, lon_g, k=4)
+        frac = terrain_fraction(frac, terrain_temp(t_g, e_g, dem))
+    return frac
 
 
 def render_png(

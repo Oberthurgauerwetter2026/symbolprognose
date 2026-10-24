@@ -173,3 +173,49 @@ def idw_to_grid(
         vk = pt_vals[idx]
         out[i:i + chunk] = (w * vk).sum(axis=1) / w.sum(axis=1)
     return out.reshape(grid_lat.shape)
+
+
+# ---------------------------------------------------------------------------
+# Relief-Verfeinerung: Phase pro Kartenpixel nach realer Geländehöhe.
+# ---------------------------------------------------------------------------
+_DEM_CACHE: dict = {}
+
+
+def load_dem(shape: tuple[int, int]) -> np.ndarray | None:
+    """Reales Höhenmodell (m) im Kartenraster (Basel–Tirol, 420×200)."""
+    if shape in _DEM_CACHE:
+        return _DEM_CACHE[shape]
+    import os
+    path = os.path.join(os.path.dirname(__file__), "terrain_elev_420x200.npy")
+    dem = None
+    try:
+        d = np.load(path).astype(np.float32)
+        if d.shape == shape:
+            dem = d
+    except Exception:  # noqa: BLE001
+        dem = None
+    _DEM_CACHE[shape] = dem
+    return dem
+
+
+def terrain_temp(t_model, elev_model, dem) -> np.ndarray:
+    """Phasentemperatur auf die echte Pixelhöhe umgerechnet: Gipfel kälter,
+    Täler wärmer als der geglättete Modellberg (0.65 °C / 100 m)."""
+    t = np.asarray(t_model, dtype=np.float32)
+    dz = np.asarray(elev_model, dtype=np.float32) - np.asarray(dem, dtype=np.float32)
+    dz = np.clip(np.nan_to_num(dz), -1500.0, 1500.0)
+    return (t + dz * LAPSE).astype(np.float32)
+
+
+def terrain_fraction(frac, t_pix) -> np.ndarray:
+    """Schneeanteil an die Pixeltemperatur anpassen: über 2.5 °C Regen,
+    1–2.5 °C höchstens Schneeregen, ≤1.5 °C mind. Schneeregen, ≤0.5 °C Schnee."""
+    f = np.asarray(frac, dtype=np.float32).copy()
+    t = np.asarray(t_pix, dtype=np.float32)
+    ok = np.isfinite(t)
+    f[ok & (t > T_RAIN_ONLY)] = 0.0
+    mild = ok & (t > T_SNOW_MAX) & (t <= T_RAIN_ONLY)
+    f[mild] = np.minimum(f[mild], SNOW_MIN - 0.01)
+    f[ok & (t <= 1.5)] = np.maximum(f[ok & (t <= 1.5)], 0.5)
+    f[ok & (t <= 0.5)] = 1.0
+    return np.clip(f, 0.0, 1.0)
