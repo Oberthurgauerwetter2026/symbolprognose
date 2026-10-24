@@ -30,6 +30,8 @@ export function FilmstripTimeline({
   bandColors,
   formatBubble,
   ariaLabel,
+  compressAfterMs,
+  compressedPxPerHour,
 }: {
   frames: FilmstripFrame[];
   idx: number;
@@ -43,6 +45,9 @@ export function FilmstripTimeline({
   bandColors?: { measurement?: string; forecast?: string };
   formatBubble: (d: Date) => string;
   ariaLabel: string;
+  /** Ab dieser Zeit wird der Strip enger (z. B. reine Stundenprognose). */
+  compressAfterMs?: number;
+  compressedPxPerHour?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerW, setContainerW] = useState(0);
@@ -64,20 +69,27 @@ export function FilmstripTimeline({
   const tMin = times[0] ?? 0;
   const tMax = times[times.length - 1] ?? 1;
   const nowMs = Date.now();
-  const totalWidth = ((tMax - tMin) / 3_600_000) * PX_PER_HOUR;
+  const H = 3_600_000;
+  const cAt =
+    compressAfterMs != null ? Math.max(tMin, Math.min(tMax, compressAfterMs)) : tMax;
+  const C_PX = compressedPxPerHour ?? (isMobile ? 36 : 44);
+  const xAtC = ((cAt - tMin) / H) * PX_PER_HOUR;
+  const msToX = (ms: number) =>
+    ms <= cAt ? ((ms - tMin) / H) * PX_PER_HOUR : xAtC + ((ms - cAt) / H) * C_PX;
+  const xToMs = (x: number) =>
+    x <= xAtC ? tMin + (x / PX_PER_HOUR) * H : cAt + ((x - xAtC) / C_PX) * H;
+  const totalWidth = msToX(tMax);
 
   const hours = useMemo(() => {
     const start = Math.ceil(tMin / 3_600_000) * 3_600_000;
-    const out: { ms: number; left: number; hour: number }[] = [];
+    const out: { ms: number; left: number; hour: number; label: boolean }[] = [];
     for (let t = start; t <= tMax; t += 3_600_000) {
-      out.push({
-        ms: t,
-        left: ((t - tMin) / 3_600_000) * PX_PER_HOUR,
-        hour: new Date(t).getHours(),
-      });
+      const hour = new Date(t).getHours();
+      out.push({ ms: t, left: msToX(t), hour, label: t <= cAt || hour % 2 === 0 });
     }
     return out;
-  }, [tMin, tMax, PX_PER_HOUR]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tMin, tMax, PX_PER_HOUR, cAt, C_PX]);
 
   // Feste 10-min-Teilstriche (auch im stündlichen Prognoseteil);
   // volle Stunden haben eigene Striche.
@@ -85,12 +97,13 @@ export function FilmstripTimeline({
     const out: { left: number }[] = [];
     const step = 600_000;
     const start = Math.ceil(tMin / step) * step;
-    for (let t = start; t <= tMax; t += step) {
+    for (let t = start; t <= Math.min(tMax, cAt); t += step) {
       if (new Date(t).getMinutes() === 0) continue;
-      out.push({ left: ((t - tMin) / 3_600_000) * PX_PER_HOUR });
+      out.push({ left: msToX(t) });
     }
     return out;
-  }, [tMin, tMax, PX_PER_HOUR]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tMin, tMax, PX_PER_HOUR, cAt]);
 
   const dayBreaks = hours.filter((h) => h.hour === 0);
 
@@ -127,8 +140,8 @@ export function FilmstripTimeline({
     : visualMs != null
       ? (times[nearestIndexForMs(visualMs)] ?? frameMs)
       : frameMs;
-  const translateX = containerW / 2 - ((motionMs - tMin) / 3_600_000) * PX_PER_HOUR;
-  const nowLeft = Math.max(0, Math.min(totalWidth, ((nowMs - tMin) / 3_600_000) * PX_PER_HOUR));
+  const translateX = containerW / 2 - msToX(motionMs);
+  const nowLeft = Math.max(0, Math.min(totalWidth, msToX(nowMs)));
   const bubbleLabel = formatBubble(new Date(motionMs));
 
   const measurementColor = bandColors?.measurement ?? DEFAULT_MEASUREMENT_COLOR;
@@ -229,7 +242,7 @@ export function FilmstripTimeline({
       const dt = now - last.t;
       if (dt > 4) {
         // px/ms -> Zeitachse ms pro Realzeit-ms (Ziehen nach links = vorwärts)
-        const v = ((-(e.clientX - last.x) / PX_PER_HOUR) * 3_600_000) / dt;
+        const v = -(e.clientX - last.x) / dt;
         velRef.current = velRef.current * 0.8 + v * 0.2;
         lastMoveRef.current = { x: e.clientX, t: now };
       }
@@ -237,8 +250,10 @@ export function FilmstripTimeline({
       lastMoveRef.current = { x: e.clientX, t: now };
     }
     const dx = e.clientX - dragStartRef.current.x;
-    const dMs = (-dx / PX_PER_HOUR) * 3_600_000;
-    const target = Math.max(tMin, Math.min(tMax, dragStartRef.current.ms + dMs));
+    const target = Math.max(
+      tMin,
+      Math.min(tMax, xToMs(msToX(dragStartRef.current.ms) - dx)),
+    );
     pendingTargetRef.current = target;
     if (rafPendingRef.current !== null) return;
     rafPendingRef.current = requestAnimationFrame(() => {
@@ -253,11 +268,12 @@ export function FilmstripTimeline({
 
   const startMomentum = (fromMs: number) => {
     let ms = fromMs;
+    let x = msToX(fromMs);
     let v = velRef.current;
     let prev = performance.now();
     const FRICTION = 0.95;
     // Schwelle: unter ~1 Sekunde Zeitachse pro Sekunde Realzeit ist der Schwung aus.
-    const MIN_V = 1.5;
+    const MIN_V = 0.02; // px pro ms
     momentumMsRef.current = ms;
 
     const finish = () => {
@@ -273,7 +289,8 @@ export function FilmstripTimeline({
       const now = performance.now();
       const dt = Math.min(48, now - prev);
       prev = now;
-      ms += v * dt;
+      x += v * dt;
+      ms = xToMs(Math.max(0, Math.min(totalWidth, x)));
       v *= Math.pow(FRICTION, dt / 16.67);
       momentumMsRef.current = ms;
       if (ms <= tMin) {
@@ -317,7 +334,7 @@ export function FilmstripTimeline({
       /* ignore */
     }
     const from = lastTarget ?? dragMs ?? start?.ms ?? motionMs;
-    if (Math.abs(velRef.current) > 3 && from > tMin && from < tMax) {
+    if (Math.abs(velRef.current) > 0.1 && from > tMin && from < tMax) {
       startMomentum(from);
       return;
     }
@@ -443,9 +460,11 @@ export function FilmstripTimeline({
           {/* Stunden-Ticks + Labels */}
           {hours.map((h) => (
             <div key={`h-${h.ms}`} className="absolute top-0 h-full" style={{ left: h.left }}>
-              <span className="absolute top-0.5 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-neutral-600">
-                {String(h.hour).padStart(2, "0")}:00
-              </span>
+              {h.label && (
+                <span className="absolute top-0.5 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tabular-nums text-neutral-600">
+                  {String(h.hour).padStart(2, "0")}:00
+                </span>
+              )}
               <span className="absolute bottom-0 top-5 w-px -translate-x-1/2 bg-neutral-900/40" />
 
             </div>
