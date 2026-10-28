@@ -61,5 +61,4 @@ export const REFERENCE_PEAKS: Peak[] = [
   { name: "Speer", lat: 47.1997, lon: 9.1308, elev: 1950, minZoom: 9 },
   { name: "Churfirsten", lat: 47.1525, lon: 9.2733, elev: 2306, minZoom: 9 },
   { name: "Rigi", lat: 47.0567, lon: 8.4853, elev: 1798, minZoom: 9 },
-  { name: "Schesaplana", lat: 47.0547, lon: 9.7083, elev: 2964, minZoom: 9 },
 ];
