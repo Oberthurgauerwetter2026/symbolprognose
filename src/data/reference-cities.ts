@@ -57,7 +57,6 @@ export const REFERENCE_PEAKS: Peak[] = [
   { name: "Säntis", lat: 47.2493, lon: 9.3433, elev: 2502, minZoom: 8 },
   { name: "Tödi", lat: 46.8115, lon: 8.9145, elev: 3614, minZoom: 8 },
   { name: "Zugspitze", lat: 47.4211, lon: 10.9853, elev: 2962, minZoom: 8 },
-  { name: "Pfänder", lat: 47.5086, lon: 9.7806, elev: 1064, minZoom: 9 },
   { name: "Hoher Kasten", lat: 47.2846, lon: 9.4864, elev: 1795, minZoom: 9 },
   { name: "Speer", lat: 47.1997, lon: 9.1308, elev: 1950, minZoom: 9 },
   { name: "Churfirsten", lat: 47.1525, lon: 9.2733, elev: 2306, minZoom: 9 },
