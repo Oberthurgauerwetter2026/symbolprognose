@@ -70,7 +70,7 @@ describe("map label decluttering", () => {
   it("shows more names when the map is zoomed in", () => {
     const pair = [
       cand("Säntis", 47.2493, 9.3433, 1, peakLabelWidth("Säntis", 2502)),
-      cand("Herisau", 47.3861, 9.2792, 2),
+      cand("Gais", 47.2493, 9.4933, 2, cityLabelWidth("Gais", "local")),
     ];
     assert.equal(declutterLabels(pair, 8).length, 1);
     assert.equal(declutterLabels(pair, 11).length, 2);
