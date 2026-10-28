@@ -11,6 +11,9 @@
  *
  * Orte, die bereits in OBERTHURGAU_PLACES enthalten sind (z. B. Amriswil,
  * Arbon, Romanshorn), werden hier absichtlich nicht wiederholt.
+ *
+ * Die deutsche Seite (Bodensee, Allgäu, Oberschwaben, Hochrhein) ist
+ * bewusst mit vertreten — sie liegt im gleichen Radarausschnitt.
  */
 
 export type CityTier = "large" | "medium";
@@ -36,6 +39,8 @@ export const REFERENCE_CITIES: ReferenceCity[] = [
   { name: "Ulm", lat: 48.4011, lon: 9.9876, minZoom: 8, tier: "large" },
   { name: "Chur", lat: 46.8508, lon: 9.532, minZoom: 8, tier: "large" },
   { name: "Innsbruck", lat: 47.2692, lon: 11.4041, minZoom: 8, tier: "large" },
+  { name: "Freiburg i. Br.", lat: 47.9961, lon: 7.8497, minZoom: 8, tier: "large" },
+  { name: "Ravensburg", lat: 47.7834, lon: 9.6163, minZoom: 8, tier: "large" },
 
   // --- medium: ab Zoom 9 ---
   { name: "Frauenfeld", lat: 47.5578, lon: 8.8989, minZoom: 9, tier: "medium" },
@@ -43,11 +48,27 @@ export const REFERENCE_CITIES: ReferenceCity[] = [
   { name: "Wil", lat: 47.4625, lon: 9.0405, minZoom: 9, tier: "medium" },
   { name: "Herisau", lat: 47.3861, lon: 9.2792, minZoom: 9, tier: "medium" },
   { name: "Appenzell", lat: 47.3313, lon: 9.4096, minZoom: 9, tier: "medium" },
+  { name: "Vaduz", lat: 47.141, lon: 9.5209, minZoom: 9, tier: "medium" },
+  { name: "Altstätten", lat: 47.3777, lon: 9.5475, minZoom: 9, tier: "medium" },
+
+  // deutsche Seite: Bodensee
   { name: "Lindau", lat: 47.5459, lon: 9.6839, minZoom: 9, tier: "medium" },
   { name: "Überlingen", lat: 47.7671, lon: 9.1593, minZoom: 9, tier: "medium" },
   { name: "Singen", lat: 47.7594, lon: 8.84, minZoom: 9, tier: "medium" },
-  { name: "Vaduz", lat: 47.141, lon: 9.5209, minZoom: 9, tier: "medium" },
-  { name: "Altstätten", lat: 47.3777, lon: 9.5475, minZoom: 9, tier: "medium" },
+  { name: "Friedrichshafen", lat: 47.6539, lon: 9.4794, minZoom: 9, tier: "medium" },
+  { name: "Stockach", lat: 47.8519, lon: 9.0119, minZoom: 9, tier: "medium" },
+
+  // deutsche Seite: Allgäu / Oberschwaben
+  { name: "Wangen", lat: 47.6843, lon: 9.9477, minZoom: 9, tier: "medium" },
+  { name: "Isny", lat: 47.5833, lon: 10.0333, minZoom: 9, tier: "medium" },
+  { name: "Kempten", lat: 47.715, lon: 10.3214, minZoom: 9, tier: "medium" },
+  { name: "Memmingen", lat: 47.9872, lon: 10.1891, minZoom: 9, tier: "medium" },
+  { name: "Biberach", lat: 48.0987, lon: 9.7877, minZoom: 9, tier: "medium" },
+  { name: "Sigmaringen", lat: 48.0864, lon: 9.2256, minZoom: 9, tier: "medium" },
+  { name: "Pfullendorf", lat: 47.9167, lon: 9.2167, minZoom: 9, tier: "medium" },
+
+  // deutsche Seite: Hochrhein
+  { name: "Waldshut", lat: 47.6564, lon: 8.2249, minZoom: 9, tier: "medium" },
 ];
 
 export type Peak = { name: string; lat: number; lon: number; elev: number; minZoom: number };
@@ -61,4 +82,5 @@ export const REFERENCE_PEAKS: Peak[] = [
   { name: "Speer", lat: 47.1997, lon: 9.1308, elev: 1950, minZoom: 9 },
   { name: "Churfirsten", lat: 47.1525, lon: 9.2733, elev: 2306, minZoom: 9 },
   { name: "Rigi", lat: 47.0567, lon: 8.4853, elev: 1798, minZoom: 9 },
+  { name: "Feldberg", lat: 47.8786, lon: 8.0044, elev: 1493, minZoom: 9 },
 ];
