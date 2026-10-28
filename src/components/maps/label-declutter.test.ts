@@ -4,6 +4,7 @@ import {
   cityLabelWidth,
   declutterLabels,
   peakLabelWidth,
+  PEAK_ANCHOR_X,
   type DeclutterCandidate,
 } from "./label-declutter";
 
@@ -15,8 +16,9 @@ function cand(
   lon: number,
   priority: number,
   width = 40,
+  anchorX?: number,
 ): DeclutterCandidate<Place> {
-  return { item: { name, lat, lon }, lat, lon, width, priority };
+  return { item: { name, lat, lon }, lat, lon, width, priority, anchorX };
 }
 
 describe("map label decluttering", () => {
@@ -88,5 +90,33 @@ describe("map label decluttering", () => {
       ["Kempten", "Isny", "Memmingen"],
     );
     assert.deepEqual(declutterLabels(items, 9), kept);
+  });
+
+  it("keeps a peak whose name is shifted past a crowded neighbour", () => {
+    // Frauenfeld und Ottenberg liegen im Standardfokus (Zoom 9) fast auf
+    // einer Linie: ohne Versatz streift der Ottenberg das Frauenfeld-Label.
+    const women = cand(
+      "Frauenfeld",
+      47.5578,
+      8.8989,
+      1,
+      cityLabelWidth("Frauenfeld", "medium"),
+    );
+    const ohenVersatz = cand(
+      "Ottenberg",
+      47.5826,
+      9.1377,
+      2,
+      peakLabelWidth("Ottenberg", 680),
+    );
+    const mitVersatz = { ...ohenVersatz, anchorX: PEAK_ANCHOR_X + 18 };
+
+    assert.deepEqual(declutterLabels([women, ohenVersatz], 9).map((k) => k.name), [
+      "Frauenfeld",
+    ]);
+    assert.deepEqual(declutterLabels([women, mitVersatz], 9).map((k) => k.name), [
+      "Frauenfeld",
+      "Ottenberg",
+    ]);
   });
 });
