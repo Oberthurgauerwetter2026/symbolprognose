@@ -104,7 +104,7 @@ export function CityMarkers() {
           c.lon,
           c.tier,
           "city",
-          c.tier === "large" ? 0 : 2,
+          c.tier === "large" ? 0 : 1,
           cityLabelWidth(c.name, c.tier),
         );
       }
@@ -118,7 +118,7 @@ export function CityMarkers() {
           p.lon,
           "local",
           "peak",
-          1,
+          2,
           peakLabelWidth(p.name, p.elev),
           p.elev,
         );
