@@ -7,6 +7,7 @@ import {
   cityLabelWidth,
   declutterLabels,
   peakLabelWidth,
+  PEAK_ANCHOR_X,
   type DeclutterCandidate,
 } from "./label-declutter";
 
