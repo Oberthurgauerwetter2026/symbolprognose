@@ -132,6 +132,7 @@ export function CityMarkers() {
           2,
           peakLabelWidth(p.name, p.elev),
           p.elev,
+          p.labelDx,
         );
       }
     }
@@ -160,7 +161,7 @@ export function CityMarkers() {
           <Marker
             key={`peak-${c.name}`}
             position={[c.lat, c.lon]}
-            icon={peakIcon(c.name, c.elev ?? 0)}
+            icon={peakIcon(c.name, c.elev ?? 0, c.dx ?? 0)}
             interactive={false}
             keyboard={false}
           />
@@ -178,14 +179,14 @@ export function CityMarkers() {
   );
 }
 
-function peakIcon(name: string, elev: number): L.DivIcon {
+function peakIcon(name: string, elev: number, dx = 0): L.DivIcon {
   const shadow = "text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff,0 0 4px #fff;";
   const tri = `font:700 11px/1 ${CITY_FONT};color:#6b3f1d;${shadow}margin-right:3px;`;
   const label = `font:italic 600 11px/1 ${CITY_FONT};color:#4a2c14;${shadow}white-space:nowrap;`;
   const sub = `font:500 10px/1 ${CITY_FONT};color:#6b4a2e;${shadow}margin-left:3px;`;
   return L.divIcon({
     className: "peak-marker",
-    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-5px,-6px);"><span style="${tri}">▲</span><span style="${label}">${name}</span><span style="${sub}">${elev}</span></div>`,
+    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(${PEAK_ANCHOR_X + dx}px,-6px);"><span style="${tri}">▲</span><span style="${label}">${name}</span><span style="${sub}">${elev}</span></div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
