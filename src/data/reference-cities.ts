@@ -67,10 +67,11 @@ export type Peak = {
   elev: number;
   minZoom: number;
   /**
-   * Waagrechter Versatz des Namens in CSS-Pixeln. Nur nötig, wenn ein
-   * Nachbarname sonst direkt am Dreieck anliesst.
+   * Versatz des Namens in CSS-Pixeln. Nur nötig, wenn ein Nachbarname sonst
+   * direkt am Dreieck anlässt oder den Namen kreuzt.
    */
   labelDx?: number;
+  labelDy?: number;
 };
 
 /** Markante Gipfel als Orientierung, mit Höhe in m ü. M. */

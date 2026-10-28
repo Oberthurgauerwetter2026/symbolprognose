@@ -21,6 +21,8 @@ export type DeclutterCandidate<T> = {
    * vorbeizuschieben, ohne ihn geografisch zu versetzen.
    */
   anchorX?: number;
+  /** Senkrechter Versatz des Labels in CSS-Pixeln (siehe anchorX). */
+  anchorY?: number;
 };
 
 const TILE = 256;
@@ -29,8 +31,9 @@ export const LABEL_HEIGHT = 15;
 /** Versatz des Labels gegenüber der Markierung (transform: translate). */
 const ANCHOR_X = -3;
 const ANCHOR_Y = -7;
-/** Waagrechter Versatz eines Gipfellabels (Dreieck steht links der Markierung). */
+/** Versatz eines Gipfellabels: Dreieck steht links, Name eine Zeile höher. */
 export const PEAK_ANCHOR_X = -5;
+export const PEAK_ANCHOR_Y = -6;
 
 function worldPx(zoom: number): number {
   return TILE * Math.pow(2, zoom);
