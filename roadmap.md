@@ -10,4 +10,4 @@
 # Map orientation labels
 - [x] Supplement the German side of the map (Lake Constance, Allgäu, Upper Swabia, High Rhine) with Ravensburg, Friedrichshafen, Wangen, Isny, Kempten, Memmingen, Biberach, Sigmaringen, Pfullendorf, Stockach, Waldshut and Freiburg i. Br., plus Feldberg as a peak; radar map checked in the browser — 39 of 42 names shown, no overlaps.
 - [x] Keep only genuinely larger German cities on the map (Freiburg i. Br., Ulm, Ravensburg, Kempten, Friedrichshafen, Memmingen, Singen); small spa and district towns removed.
-- [x] Add Ottenberg (680 m, Weinfelden) to the peaks as a regional orientation point.
+- [x] Add Ottenberg (680 m, Weinfelden) to the peaks as a regional orientation point; it needed a small label offset to clear Frauenfeld and Romanshorn at the standard zoom — six declutter tests pass and the radar map was checked in the browser.
