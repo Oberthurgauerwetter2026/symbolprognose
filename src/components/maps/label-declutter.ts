@@ -69,11 +69,12 @@ export function declutterLabels<T>(
     const x = xFor(c.lon, world);
     const y = yFor(c.lat, world);
     const anchorX = c.anchorX ?? ANCHOR_X;
+    const anchorY = c.anchorY ?? ANCHOR_Y;
     const box = {
       x0: x + anchorX - padding,
       x1: x + anchorX + c.width + padding,
-      y0: y + ANCHOR_Y - padding,
-      y1: y + ANCHOR_Y + LABEL_HEIGHT + padding,
+      y0: y + anchorY - padding,
+      y1: y + anchorY + LABEL_HEIGHT + padding,
     };
 
     const hits = boxes.some(
