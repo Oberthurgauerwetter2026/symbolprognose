@@ -29,6 +29,8 @@ export const LABEL_HEIGHT = 15;
 /** Versatz des Labels gegenüber der Markierung (transform: translate). */
 const ANCHOR_X = -3;
 const ANCHOR_Y = -7;
+/** Waagrechter Versatz eines Gipfellabels (Dreieck steht links der Markierung). */
+export const PEAK_ANCHOR_X = -5;
 
 function worldPx(zoom: number): number {
   return TILE * Math.pow(2, zoom);

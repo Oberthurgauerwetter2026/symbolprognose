@@ -60,7 +60,18 @@ export const REFERENCE_CITIES: ReferenceCity[] = [
   { name: "Memmingen", lat: 47.9872, lon: 10.1891, minZoom: 9, tier: "medium" },
 ];
 
-export type Peak = { name: string; lat: number; lon: number; elev: number; minZoom: number };
+export type Peak = {
+  name: string;
+  lat: number;
+  lon: number;
+  elev: number;
+  minZoom: number;
+  /**
+   * Waagrechter Versatz des Namens in CSS-Pixeln. Nur nötig, wenn ein
+   * Nachbarname sonst direkt am Dreieck anliesst.
+   */
+  labelDx?: number;
+};
 
 /** Markante Gipfel als Orientierung, mit Höhe in m ü. M. */
 export const REFERENCE_PEAKS: Peak[] = [
