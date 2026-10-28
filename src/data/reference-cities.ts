@@ -12,8 +12,10 @@
  * Orte, die bereits in OBERTHURGAU_PLACES enthalten sind (z. B. Amriswil,
  * Arbon, Romanshorn), werden hier absichtlich nicht wiederholt.
  *
- * Die deutsche Seite (Bodensee, Allgäu, Oberschwaben, Hochrhein) ist
- * bewusst mit vertreten — sie liegt im gleichen Radarausschnitt.
+ * Die deutsche Seite ist mit vertreten — aber nur mit Städten, die dort
+ * wirklich zu den grösseren zählen (rund 40'000 Einwohnende aufwärts).
+ * Kleine Kur- und Bezirksorte wie Wangen, Isny, Biberach, Sigmaringen,
+ * Pfullendorf, Stockach oder Waldshut fehlen bewusst.
  */
 
 export type CityTier = "large" | "medium";
