@@ -8,6 +8,7 @@ import {
   declutterLabels,
   peakLabelWidth,
   PEAK_ANCHOR_X,
+  PEAK_ANCHOR_Y,
   type DeclutterCandidate,
 } from "./label-declutter";
 
