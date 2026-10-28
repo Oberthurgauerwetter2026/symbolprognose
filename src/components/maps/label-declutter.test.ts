@@ -5,6 +5,7 @@ import {
   declutterLabels,
   peakLabelWidth,
   PEAK_ANCHOR_X,
+  PEAK_ANCHOR_Y,
   type DeclutterCandidate,
 } from "./label-declutter";
 
@@ -92,9 +93,9 @@ describe("map label decluttering", () => {
     assert.deepEqual(declutterLabels(items, 9), kept);
   });
 
-  it("keeps a peak whose name is shifted past a crowded neighbour", () => {
-    // Frauenfeld und Ottenberg liegen im Standardfokus (Zoom 9) fast auf
-    // einer Linie: ohne Versatz streift der Ottenberg das Frauenfeld-Label.
+  it("keeps a peak that is shifted past its crowded neighbours", () => {
+    // Frauenfeld, Ottenberg und Romanshorn liegen im Standardfokus (Zoom 9)
+    // beinahe auf einer Linie: ohne Versatz fiele der Ottenberg raus.
     const women = cand(
       "Frauenfeld",
       47.5578,
@@ -102,21 +103,33 @@ describe("map label decluttering", () => {
       1,
       cityLabelWidth("Frauenfeld", "medium"),
     );
-    const ohenVersatz = cand(
+    const romanshorn = cand(
+      "Romanshorn",
+      47.56545,
+      9.3776,
+      3,
+      cityLabelWidth("Romanshorn", "local"),
+    );
+    const ohneVersatz = cand(
       "Ottenberg",
       47.5826,
       9.1377,
       2,
       peakLabelWidth("Ottenberg", 680),
     );
-    const mitVersatz = { ...ohenVersatz, anchorX: PEAK_ANCHOR_X + 18 };
+    const mitVersatz = {
+      ...ohneVersatz,
+      anchorX: PEAK_ANCHOR_X + 16,
+      anchorY: PEAK_ANCHOR_Y - 18,
+    };
 
-    assert.deepEqual(declutterLabels([women, ohenVersatz], 9).map((k) => k.name), [
-      "Frauenfeld",
-    ]);
-    assert.deepEqual(declutterLabels([women, mitVersatz], 9).map((k) => k.name), [
-      "Frauenfeld",
-      "Ottenberg",
-    ]);
+    assert.deepEqual(
+      declutterLabels([women, ohneVersatz, romanshorn], 9).map((k) => k.name),
+      ["Frauenfeld", "Romanshorn"],
+    );
+    assert.deepEqual(
+      declutterLabels([women, mitVersatz, romanshorn], 9).map((k) => k.name),
+      ["Frauenfeld", "Ottenberg", "Romanshorn"],
+    );
   });
 });
