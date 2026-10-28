@@ -3,6 +3,12 @@ import { Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
 import { REFERENCE_CITIES, REFERENCE_PEAKS } from "@/data/reference-cities";
+import {
+  cityLabelWidth,
+  declutterLabels,
+  peakLabelWidth,
+  type DeclutterCandidate,
+} from "./label-declutter";
 
 export { REFERENCE_CITIES };
 
@@ -10,7 +16,18 @@ export { REFERENCE_CITIES };
 const CITY_FONT =
   "system-ui,-apple-system,Segoe UI,Roboto,sans-serif";
 
-function cityIcon(name: string, tier: "large" | "medium" | "local"): L.DivIcon {
+type Tier = "large" | "medium" | "local";
+
+type Label = {
+  name: string;
+  lat: number;
+  lon: number;
+  tier: Tier;
+  kind: "city" | "peak";
+  elev?: number;
+};
+
+function cityIcon(name: string, tier: Tier): L.DivIcon {
   const isLarge = tier === "large";
   const isMedium = tier === "medium";
 
@@ -52,67 +69,100 @@ function useMapZoom(): number {
   return z;
 }
 
-
-
 /**
  * Einheitliche Orts-Label für Karten im Standardfokus.
- * Kombiniert Referenzstädte (gross/medium) mit den Oberthurgau-Orten.
+ * Kombiniert Referenzstädte (gross/medium), Gipfel und die Oberthurgau-Orte
+ * und lässt Namen weg, die sonst übereinanderliegen würden.
  */
 export function CityMarkers() {
   const z = useMapZoom();
 
-  const items = useMemo(() => {
+  const labels = useMemo<Label[]>(() => {
     const seen = new Set<string>();
-    const out: { name: string; lat: number; lon: number; tier: "large" | "medium" | "local" }[] = [];
+    const out: DeclutterCandidate<Label>[] = [];
 
     const add = (
       name: string,
       lat: number,
       lon: number,
-      tier: "large" | "medium" | "local",
+      tier: Tier,
+      kind: Label["kind"],
+      priority: number,
+      width: number,
+      elev?: number,
     ) => {
       if (seen.has(name)) return;
       seen.add(name);
-      out.push({ name, lat, lon, tier });
+      out.push({ item: { name, lat, lon, tier, kind, elev }, lat, lon, width, priority });
     };
 
     for (const c of REFERENCE_CITIES) {
       if (z >= c.minZoom) {
-        add(c.name, c.lat, c.lon, c.tier);
+        add(
+          c.name,
+          c.lat,
+          c.lon,
+          c.tier,
+          "city",
+          c.tier === "large" ? 0 : 1,
+          cityLabelWidth(c.name, c.tier),
+        );
+      }
+    }
+
+    for (const p of REFERENCE_PEAKS) {
+      if (z >= p.minZoom) {
+        add(
+          p.name,
+          p.lat,
+          p.lon,
+          "local",
+          "peak",
+          2,
+          peakLabelWidth(p.name, p.elev),
+          p.elev,
+        );
       }
     }
 
     for (const p of OBERTHURGAU_PLACES) {
       if (z >= (p.minZoom ?? 10.5)) {
-        add(p.name, p.lat, p.lon, "local");
+        add(
+          p.name,
+          p.lat,
+          p.lon,
+          "local",
+          "city",
+          3,
+          cityLabelWidth(p.name, "local"),
+        );
       }
     }
 
-    return out;
+    return declutterLabels(out, z);
   }, [z]);
-
-  const peaks = REFERENCE_PEAKS.filter((p) => z >= p.minZoom);
 
   return (
     <>
-      {items.map((c) => (
-        <Marker
-          key={c.name}
-          position={[c.lat, c.lon]}
-          icon={cityIcon(c.name, c.tier)}
-          interactive={false}
-          keyboard={false}
-        />
-      ))}
-      {peaks.map((p) => (
-        <Marker
-          key={`peak-${p.name}`}
-          position={[p.lat, p.lon]}
-          icon={peakIcon(p.name, p.elev)}
-          interactive={false}
-          keyboard={false}
-        />
-      ))}
+      {labels.map((c) =>
+        c.kind === "peak" ? (
+          <Marker
+            key={`peak-${c.name}`}
+            position={[c.lat, c.lon]}
+            icon={peakIcon(c.name, c.elev ?? 0)}
+            interactive={false}
+            keyboard={false}
+          />
+        ) : (
+          <Marker
+            key={c.name}
+            position={[c.lat, c.lon]}
+            icon={cityIcon(c.name, c.tier)}
+            interactive={false}
+            keyboard={false}
+          />
+        ),
+      )}
     </>
   );
 }
