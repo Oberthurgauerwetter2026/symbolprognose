@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import { OBERTHURGAU_PLACES } from "@/data/oberthurgau-places";
-import { REFERENCE_CITIES } from "@/data/reference-cities";
+import { REFERENCE_CITIES, REFERENCE_PEAKS } from "@/data/reference-cities";
 
 export { REFERENCE_CITIES };
 
@@ -91,6 +91,8 @@ export function CityMarkers() {
     return out;
   }, [z]);
 
+  const peaks = REFERENCE_PEAKS.filter((p) => z >= p.minZoom);
+
   return (
     <>
       {items.map((c) => (
@@ -102,6 +104,28 @@ export function CityMarkers() {
           keyboard={false}
         />
       ))}
+      {peaks.map((p) => (
+        <Marker
+          key={`peak-${p.name}`}
+          position={[p.lat, p.lon]}
+          icon={peakIcon(p.name, p.elev)}
+          interactive={false}
+          keyboard={false}
+        />
+      ))}
     </>
   );
+}
+
+function peakIcon(name: string, elev: number): L.DivIcon {
+  const shadow = "text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff,0 0 4px #fff;";
+  const tri = `font:700 11px/1 ${CITY_FONT};color:#6b3f1d;${shadow}margin-right:3px;`;
+  const label = `font:italic 600 11px/1 ${CITY_FONT};color:#4a2c14;${shadow}white-space:nowrap;`;
+  const sub = `font:500 10px/1 ${CITY_FONT};color:#6b4a2e;${shadow}margin-left:3px;`;
+  return L.divIcon({
+    className: "peak-marker",
+    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-5px,-6px);"><span style="${tri}">▲</span><span style="${label}">${name}</span><span style="${sub}">${elev}</span></div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
 }
