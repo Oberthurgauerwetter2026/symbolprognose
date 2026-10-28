@@ -15,6 +15,12 @@ export type DeclutterCandidate<T> = {
   width: number;
   /** Kleinere Zahl = wichtiger und bleibt stehen. */
   priority: number;
+  /**
+   * Waagrechter Versatz des Labels gegenüber der Markierung in CSS-Pixeln.
+   * Erlaubt es, einen Namen an einer eng stehenden Nachbarbeschriftung
+   * vorbeizuschieben, ohne ihn geografisch zu versetzen.
+   */
+  anchorX?: number;
 };
 
 const TILE = 256;
@@ -57,9 +63,10 @@ export function declutterLabels<T>(
   for (const { c, i } of order) {
     const x = xFor(c.lon, world);
     const y = yFor(c.lat, world);
+    const anchorX = c.anchorX ?? ANCHOR_X;
     const box = {
-      x0: x + ANCHOR_X - padding,
-      x1: x + ANCHOR_X + c.width + padding,
+      x0: x + anchorX - padding,
+      x1: x + anchorX + c.width + padding,
       y0: y + ANCHOR_Y - padding,
       y1: y + ANCHOR_Y + LABEL_HEIGHT + padding,
     };
