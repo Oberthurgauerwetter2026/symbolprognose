@@ -15,6 +15,14 @@ export type DeclutterCandidate<T> = {
   width: number;
   /** Kleinere Zahl = wichtiger und bleibt stehen. */
   priority: number;
+  /**
+   * Waagrechter Versatz des Labels gegenüber der Markierung in CSS-Pixeln.
+   * Erlaubt es, einen Namen an einer eng stehenden Nachbarbeschriftung
+   * vorbeizuschieben, ohne ihn geografisch zu versetzen.
+   */
+  anchorX?: number;
+  /** Senkrechter Versatz des Labels in CSS-Pixeln (siehe anchorX). */
+  anchorY?: number;
 };
 
 const TILE = 256;
@@ -23,6 +31,9 @@ export const LABEL_HEIGHT = 15;
 /** Versatz des Labels gegenüber der Markierung (transform: translate). */
 const ANCHOR_X = -3;
 const ANCHOR_Y = -7;
+/** Versatz eines Gipfellabels: Dreieck steht links, Name eine Zeile höher. */
+export const PEAK_ANCHOR_X = -5;
+export const PEAK_ANCHOR_Y = -6;
 
 function worldPx(zoom: number): number {
   return TILE * Math.pow(2, zoom);
@@ -57,11 +68,13 @@ export function declutterLabels<T>(
   for (const { c, i } of order) {
     const x = xFor(c.lon, world);
     const y = yFor(c.lat, world);
+    const anchorX = c.anchorX ?? ANCHOR_X;
+    const anchorY = c.anchorY ?? ANCHOR_Y;
     const box = {
-      x0: x + ANCHOR_X - padding,
-      x1: x + ANCHOR_X + c.width + padding,
-      y0: y + ANCHOR_Y - padding,
-      y1: y + ANCHOR_Y + LABEL_HEIGHT + padding,
+      x0: x + anchorX - padding,
+      x1: x + anchorX + c.width + padding,
+      y0: y + anchorY - padding,
+      y1: y + anchorY + LABEL_HEIGHT + padding,
     };
 
     const hits = boxes.some(

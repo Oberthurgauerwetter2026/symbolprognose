@@ -7,6 +7,8 @@ import {
   cityLabelWidth,
   declutterLabels,
   peakLabelWidth,
+  PEAK_ANCHOR_X,
+  PEAK_ANCHOR_Y,
   type DeclutterCandidate,
 } from "./label-declutter";
 
@@ -25,6 +27,9 @@ type Label = {
   tier: Tier;
   kind: "city" | "peak";
   elev?: number;
+  /** Versatz des Namens in CSS-Pixeln (nur Gipfel). */
+  dx?: number;
+  dy?: number;
 };
 
 function cityIcon(name: string, tier: Tier): L.DivIcon {
@@ -90,10 +95,20 @@ export function CityMarkers() {
       priority: number,
       width: number,
       elev?: number,
+      dx?: number,
+      dy?: number,
     ) => {
       if (seen.has(name)) return;
       seen.add(name);
-      out.push({ item: { name, lat, lon, tier, kind, elev }, lat, lon, width, priority });
+      out.push({
+        item: { name, lat, lon, tier, kind, elev, dx, dy },
+        lat,
+        lon,
+        width,
+        priority,
+        anchorX: kind === "peak" ? PEAK_ANCHOR_X + (dx ?? 0) : undefined,
+        anchorY: kind === "peak" ? PEAK_ANCHOR_Y + (dy ?? 0) : undefined,
+      });
     };
 
     for (const c of REFERENCE_CITIES) {
@@ -121,6 +136,8 @@ export function CityMarkers() {
           2,
           peakLabelWidth(p.name, p.elev),
           p.elev,
+          p.labelDx,
+          p.labelDy,
         );
       }
     }
@@ -149,7 +166,7 @@ export function CityMarkers() {
           <Marker
             key={`peak-${c.name}`}
             position={[c.lat, c.lon]}
-            icon={peakIcon(c.name, c.elev ?? 0)}
+            icon={peakIcon(c.name, c.elev ?? 0, c.dx ?? 0, c.dy ?? 0)}
             interactive={false}
             keyboard={false}
           />
@@ -167,14 +184,14 @@ export function CityMarkers() {
   );
 }
 
-function peakIcon(name: string, elev: number): L.DivIcon {
+function peakIcon(name: string, elev: number, dx = 0, dy = 0): L.DivIcon {
   const shadow = "text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff,0 0 4px #fff;";
   const tri = `font:700 11px/1 ${CITY_FONT};color:#6b3f1d;${shadow}margin-right:3px;`;
   const label = `font:italic 600 11px/1 ${CITY_FONT};color:#4a2c14;${shadow}white-space:nowrap;`;
   const sub = `font:500 10px/1 ${CITY_FONT};color:#6b4a2e;${shadow}margin-left:3px;`;
   return L.divIcon({
     className: "peak-marker",
-    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(-5px,-6px);"><span style="${tri}">▲</span><span style="${label}">${name}</span><span style="${sub}">${elev}</span></div>`,
+    html: `<div style="display:flex;align-items:center;pointer-events:none;transform:translate(${PEAK_ANCHOR_X + dx}px,${PEAK_ANCHOR_Y + dy}px);"><span style="${tri}">▲</span><span style="${label}">${name}</span><span style="${sub}">${elev}</span></div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
