@@ -12,8 +12,10 @@
  * Orte, die bereits in OBERTHURGAU_PLACES enthalten sind (z. B. Amriswil,
  * Arbon, Romanshorn), werden hier absichtlich nicht wiederholt.
  *
- * Die deutsche Seite (Bodensee, Allgäu, Oberschwaben, Hochrhein) ist
- * bewusst mit vertreten — sie liegt im gleichen Radarausschnitt.
+ * Die deutsche Seite ist mit vertreten — aber nur mit Städten, die dort
+ * wirklich zu den grösseren zählen (rund 40'000 Einwohnende aufwärts).
+ * Kleine Kur- und Bezirksorte wie Wangen, Isny, Biberach, Sigmaringen,
+ * Pfullendorf, Stockach oder Waldshut fehlen bewusst.
  */
 
 export type CityTier = "large" | "medium";
@@ -51,24 +53,11 @@ export const REFERENCE_CITIES: ReferenceCity[] = [
   { name: "Vaduz", lat: 47.141, lon: 9.5209, minZoom: 9, tier: "medium" },
   { name: "Altstätten", lat: 47.3777, lon: 9.5475, minZoom: 9, tier: "medium" },
 
-  // deutsche Seite: Bodensee
-  { name: "Lindau", lat: 47.5459, lon: 9.6839, minZoom: 9, tier: "medium" },
-  { name: "Überlingen", lat: 47.7671, lon: 9.1593, minZoom: 9, tier: "medium" },
+  // deutsche Seite: nur wirklich grössere Städte (rund 40'000 aufwärts)
   { name: "Singen", lat: 47.7594, lon: 8.84, minZoom: 9, tier: "medium" },
   { name: "Friedrichshafen", lat: 47.6539, lon: 9.4794, minZoom: 9, tier: "medium" },
-  { name: "Stockach", lat: 47.8519, lon: 9.0119, minZoom: 9, tier: "medium" },
-
-  // deutsche Seite: Allgäu / Oberschwaben
-  { name: "Wangen", lat: 47.6843, lon: 9.9477, minZoom: 9, tier: "medium" },
-  { name: "Isny", lat: 47.5833, lon: 10.0333, minZoom: 9, tier: "medium" },
   { name: "Kempten", lat: 47.715, lon: 10.3214, minZoom: 9, tier: "medium" },
   { name: "Memmingen", lat: 47.9872, lon: 10.1891, minZoom: 9, tier: "medium" },
-  { name: "Biberach", lat: 48.0987, lon: 9.7877, minZoom: 9, tier: "medium" },
-  { name: "Sigmaringen", lat: 48.0864, lon: 9.2256, minZoom: 9, tier: "medium" },
-  { name: "Pfullendorf", lat: 47.9167, lon: 9.2167, minZoom: 9, tier: "medium" },
-
-  // deutsche Seite: Hochrhein
-  { name: "Waldshut", lat: 47.6564, lon: 8.2249, minZoom: 9, tier: "medium" },
 ];
 
 export type Peak = { name: string; lat: number; lon: number; elev: number; minZoom: number };
