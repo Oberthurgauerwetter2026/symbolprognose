@@ -26,6 +26,8 @@ type Label = {
   tier: Tier;
   kind: "city" | "peak";
   elev?: number;
+  /** Waagrechter Versatz des Namens in CSS-Pixeln (nur Gipfel). */
+  dx?: number;
 };
 
 function cityIcon(name: string, tier: Tier): L.DivIcon {
@@ -91,10 +93,18 @@ export function CityMarkers() {
       priority: number,
       width: number,
       elev?: number,
+      dx?: number,
     ) => {
       if (seen.has(name)) return;
       seen.add(name);
-      out.push({ item: { name, lat, lon, tier, kind, elev }, lat, lon, width, priority });
+      out.push({
+        item: { name, lat, lon, tier, kind, elev, dx },
+        lat,
+        lon,
+        width,
+        priority,
+        anchorX: kind === "peak" ? PEAK_ANCHOR_X + (dx ?? 0) : undefined,
+      });
     };
 
     for (const c of REFERENCE_CITIES) {
