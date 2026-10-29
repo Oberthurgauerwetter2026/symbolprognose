@@ -1012,9 +1012,9 @@ function RegionMapInner({
           <GeoJSON
             data={LAKE}
             style={() => ({
-              color: "#7ec8e3",
-              weight: 0.6,
-              fillColor: "#7ec8e3",
+              color: "#5ba8c8",
+              weight: 1.2,
+              fillColor: "#d7e9ee",
               fillOpacity: 1,
             })}
             interactive={false}
