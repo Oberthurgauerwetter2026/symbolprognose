@@ -972,7 +972,7 @@ function RegionMapInner({
             style={() => ({
               stroke: false,
               fillColor: "#3a4148",
-              fillOpacity: 0.4,
+              fillOpacity: 0.3,
             })}
             interactive={false}
           />
