@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
@@ -2344,6 +2345,7 @@ function RadarMapInner({
         >
           <InvalidateOnResize />
           
+          <ForeignReliefLayers />
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
             maxZoom={18}
@@ -2352,7 +2354,7 @@ function RadarMapInner({
           />
           <GeoJSON
             data={OUTSIDE_CH_MASK}
-            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.4 })}
+            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
             interactive={false}
           />
           <GeoJSON

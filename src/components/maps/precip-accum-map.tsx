@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { Download } from "lucide-react";
@@ -420,6 +421,7 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
             attributionControl
             style={{ height: "100%", width: "100%", background: "#ebefeb" }}
           >
+            <ForeignReliefLayers />
             <TileLayer
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
               maxZoom={18}
