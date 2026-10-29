@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { ForeignReliefLayers } from "@/components/maps/foreign-relief-layers";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -957,6 +958,7 @@ function RegionMapInner({
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <BoundsFitter bounds={regionBounds} />
+          <ForeignReliefLayers />
           {/* Swisstopo Relief-Basiskarte (nur Reliefschattierung, keine Labels/Strassen) */}
           <TileLayer
             url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
