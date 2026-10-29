@@ -563,11 +563,6 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
               interactive={false}
             />
             <GeoJSON
-              data={LAKE}
-              style={() => ({ color: "#5ba8c8", weight: 1.2, fillColor: "#7ec8e3", fillOpacity: 0.25 })}
-              interactive={false}
-            />
-            <GeoJSON
               data={SWITZERLAND}
               style={() => ({ color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })}
               interactive={false}
