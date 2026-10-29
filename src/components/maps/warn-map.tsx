@@ -573,6 +573,12 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
               interactive={false}
 
             />
+            {/* See deckend über den Grenzen: keine Grenzlinien im Wasser */}
+            <GeoJSON
+              data={LAKE}
+              style={() => ({ color: "#5ba8c8", weight: 1.2, fillColor: "#d7e9ee", fillOpacity: 1 })}
+              interactive={false}
+            />
             <GeoJSON
               ref={(r) => {
                 geoRef.current = r;

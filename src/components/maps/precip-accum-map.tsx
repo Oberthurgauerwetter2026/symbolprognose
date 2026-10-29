@@ -429,11 +429,6 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
               crossOrigin="anonymous"
               attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz ICON-CH1 → ICON-CH2'
             />
-            <GeoJSON
-              data={LAKE}
-              style={() => ({ color: "#5ba8c8", weight: 1.2, fillColor: "#7ec8e3", fillOpacity: 0.25 })}
-              interactive={false}
-            />
             {overlay && (
               <ImageOverlay
                 key={`accum-${hours}-${overlay.url.length}`}
@@ -451,6 +446,12 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
             <GeoJSON
               data={THURGAU}
               style={() => ({ color: "#0f172a", weight: 2.2, opacity: 0.95, fill: false })}
+              interactive={false}
+            />
+            {/* See deckend über den Grenzen: keine Grenzlinien im Wasser */}
+            <GeoJSON
+              data={LAKE}
+              style={() => ({ color: "#5ba8c8", weight: 1.2, fillColor: "#d7e9ee", fillOpacity: 1 })}
               interactive={false}
             />
             <CityMarkers />
