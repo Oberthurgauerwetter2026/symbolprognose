@@ -116,6 +116,16 @@ function sleetColorFor(mmh: number): [number, number, number, number] {
   return [...sleetRgbFor(mmh), 0.85];
 }
 
+// Gefrierender Regen (Glatteis): kräftiges Rosa-Rot mit weissen Tropfen,
+// damit die Gefahr sofort auffällt.
+const FZRA_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
+  { mmh: 0.1, rgb: [244, 114, 182], label: "leicht" },
+  { mmh: 2, rgb: [219, 39, 119], label: "stark" },
+];
+function fzraRgbFor(mmh: number): [number, number, number] {
+  return mmh >= FZRA_SCALE[1].mmh ? FZRA_SCALE[1].rgb : FZRA_SCALE[0].rgb;
+}
+
 // Testweise: gut sichtbare Schneeflocken (Stern mit 8 Armen) in Schneeflächen.
 // Ein/Aus über Button; Modulvariable, Overlays werden beim Umschalten neu gemountet.
 let FLAKES_ON = true;
@@ -167,6 +177,7 @@ function isSleetMarkPixel(x: number, y: number, cell = 18): boolean {
 // Nur exakte Codes (±3) zählen — 235/245/255 sind Regenstufen (sonst
 // würde die schwächste Prognose-Stufe als Schneeregen-Saum erscheinen).
 function phaseFromAlpha(a: number): number {
+  if (Math.abs(a - 200) <= 3) return 3;
   if (Math.abs(a - 230) <= 3) return 1;
   if (Math.abs(a - 215) <= 3) return 2;
   return 0;
@@ -922,7 +933,7 @@ function MeasurementCanvasOverlay({
     h: number;
     mmh: Float32Array;
     band: Float32Array;
-    /** 0 = Regen, 1 = Schneeregen, 2 = Schnee (aus PNG-Alpha, siehe scripts/_phase.py). */
+    /** 0 = Regen, 1 = Schneeregen, 2 = Schnee, 3 = gefrierender Regen (aus PNG-Alpha, siehe scripts/_phase.py). */
     phase: Uint8Array;
     smoothBand?: Float32Array;
   };
@@ -1345,6 +1356,24 @@ function MeasurementCanvasOverlay({
         );
       };
 
+      const fzraScore = (pf: DecodedRadar, fx: number, fy: number) => {
+        const ph = pf.phase;
+        if (!ph) return 0;
+        const x0 = Math.max(0, Math.min(pf.w - 1, Math.floor(fx)));
+        const y0 = Math.max(0, Math.min(pf.h - 1, Math.floor(fy)));
+        const x1 = Math.min(pf.w - 1, x0 + 1);
+        const y1 = Math.min(pf.h - 1, y0 + 1);
+        const tx = Math.max(0, Math.min(1, fx - x0));
+        const ty = Math.max(0, Math.min(1, fy - y0));
+        const s = (p: number) => (p === 3 ? 1 : 0);
+        return (
+          s(ph[y0 * pf.w + x0]) * (1 - tx) * (1 - ty) +
+          s(ph[y0 * pf.w + x1]) * tx * (1 - ty) +
+          s(ph[y1 * pf.w + x0]) * (1 - tx) * ty +
+          s(ph[y1 * pf.w + x1]) * tx * ty
+        );
+      };
+
       for (let ly = 0; ly < lowH; ly++) {
         const lat = rowLat[ly];
         if (lat < minLat || lat > maxLat) continue;
@@ -1382,11 +1411,16 @@ function MeasurementCanvasOverlay({
               ((maxLat - ll.lat) / latSpan) * (pf.h - 1),
             );
             ph = score >= 0.75 ? 2 : score >= 0.25 ? 1 : 0;
+            const fzx = ((ll.lng - minLon) / lonSpan) * (pf.w - 1);
+            const fzy = ((maxLat - ll.lat) / latSpan) * (pf.h - 1);
+            if (fzraScore(pf, fzx, fzy) >= 0.5) ph = 3;
           }
           const mx = Math.floor(lx / PAT);
           const my = Math.floor(ly / PAT);
           const [r, g, b] =
-            ph === 2
+            ph === 3
+              ? isDropPixel(mx, my, 20) ? DROP_RGB : fzraRgbFor(s.mmh)
+              : ph === 2
               ? isFlakePixel(mx, my, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
               : ph === 1
                 ? isSleetMarkPixel(mx, my, 20) ? DROP_RGB : sleetRgbFor(s.mmh)
@@ -2403,6 +2437,16 @@ function RadarMapInner({
             <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schneeregen</span>
             {SLEET_SCALE.map((s) => (
               <div key={`sleet-${s.mmh}`} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  style={{ background: `rgb(${s.rgb.join(",")})` }}
+                />
+                <span className="text-muted-foreground">{s.label}</span>
+              </div>
+            ))}
+            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Gefrierender Regen</span>
+            {FZRA_SCALE.map((s) => (
+              <div key={`fzra-${s.mmh}`} className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
                   style={{ background: `rgb(${s.rgb.join(",")})` }}
