@@ -255,3 +255,80 @@ def terrain_fraction(frac, t_pix) -> np.ndarray:
     f[ok & (t <= 1.5)] = np.maximum(f[ok & (t <= 1.5)], 0.5)
     f[ok & (t <= 0.5)] = 1.0
     return np.clip(f, 0.0, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# Messwert-Korrektur: Boden- und Höhenstationen (Pseudo-Sondierung).
+# ---------------------------------------------------------------------------
+# Unterhalb dieser Höhe gilt eine Station als Bodenstation (2-m-Feld).
+OBS_GROUND_MAX_M = 900.0
+# Ab dieser Höhe gilt eine Station als Höhenstation (Warmnasen-Check).
+OBS_ALOFT_MIN_M = 700.0
+OBS_RADIUS_KM = 15.0
+OBS_DZ_M = 300.0
+OBS_RESID_MAX = 5.0
+# Warmnase gilt als gemessen ab dieser Höhenstations-Temperatur.
+OBS_WARM_C = 0.5
+OBS_COLD_C = -0.5
+
+
+def _km(lat1, lon1, lat2, lon2):
+    coslat = np.cos(np.deg2rad(47.5))
+    return np.hypot((lat1 - lat2) * 111.0, (lon1 - lon2) * 111.0 * coslat)
+
+
+def station_correct(m_lat, m_lon, m_el, m_val, obs) -> np.ndarray:
+    """Korrigiert ein bodennahes Modellfeld (2-m-Temperatur oder Taupunkt) mit
+    Stationsmessungen. `obs` = Liste (lat, lon, alt, wert). Pro Station wird
+    das Residuum Messung − Modell (höhenkorrigiert) bestimmt und mit Distanz-
+    und Höhengewicht auf nahe, tiefe Modellpunkte verteilt. Weit weg bleibt
+    das Modell unverändert; Höhenpunkte (>900 m) werden nie verändert."""
+    v = np.asarray(m_val, dtype=np.float32).copy()
+    lat = np.asarray(m_lat, dtype=np.float32)
+    lon = np.asarray(m_lon, dtype=np.float32)
+    el = np.asarray(m_el, dtype=np.float32)
+    ok = np.isfinite(v) & np.isfinite(el)
+    if not ok.any():
+        return v
+    num = np.zeros_like(v)
+    den = np.zeros_like(v)
+    for s_lat, s_lon, s_alt, s_val in obs:
+        if s_val is None or not np.isfinite(s_val) or s_alt > OBS_GROUND_MAX_M:
+            continue
+        d = _km(lat, lon, s_lat, s_lon)
+        near = ok & (d < 3 * OBS_RADIUS_KM)
+        if near.sum() == 0:
+            continue
+        idx = np.argsort(np.where(near, d, np.inf))[:4]
+        idx = idx[near[idx]]
+        w = 1.0 / np.maximum(d[idx], 0.5) ** 2
+        model_at = float(((v[idx] + (el[idx] - s_alt) * LAPSE) * w).sum() / w.sum())
+        r = float(np.clip(s_val - model_at, -OBS_RESID_MAX, OBS_RESID_MAX))
+        wt = np.exp(-(d / OBS_RADIUS_KM) ** 2) * np.exp(-((el - s_alt) / OBS_DZ_M) ** 2)
+        wt = np.where(ok & (el <= OBS_GROUND_MAX_M), wt, 0.0)
+        num += wt * r
+        den += wt
+    # +0.3: Einzelstation am Rand wirkt nur teilweise (sanfter Übergang).
+    return (v + num / (den + 0.3)).astype(np.float32)
+
+
+def observed_freezing_level(m_el, m_fzl, obs) -> np.ndarray:
+    """Nullgradgrenze mit Höhenstationen (Hörnli, Säntis, …) abgleichen.
+    Misst eine Höhenstation > +0.5 °C, liegt die 0-°C-Grenze mindestens dort
+    (+ T/Gradient) → gemessene Warmnase. Messen alle Höhenstationen < −0.5 °C,
+    gibt es unterhalb der höchsten keine Warmschicht → Nullgradgrenze höchstens
+    knapp über Grund (Schnee statt Glatteis)."""
+    fz = np.asarray(m_fzl, dtype=np.float32).copy()
+    el = np.broadcast_to(np.asarray(m_el, dtype=np.float32), fz.shape)
+    aloft = [(a, t) for _la, _lo, a, t in obs
+             if a >= OBS_ALOFT_MIN_M and t is not None and np.isfinite(t)]
+    if not aloft:
+        return fz
+    warm = [a + t / LAPSE for a, t in aloft if t > OBS_WARM_C]
+    if warm:
+        h = float(max(warm))
+        return np.where(np.isfinite(fz), np.maximum(fz, h), h).astype(np.float32)
+    if all(t < OBS_COLD_C for _a, t in aloft) and max(a for a, _t in aloft) >= 2000:
+        cap = el + 100.0
+        return np.where(np.isfinite(fz), np.minimum(fz, cap), fz).astype(np.float32)
+    return fz
