@@ -31,7 +31,7 @@ const LAT_MIN = 47.15;
 const LAT_MAX = 47.85;
 const LON_MIN = 8.6;
 const LON_MAX = 9.8;
-const STEP = 0.05;
+const STEP = 0.1;
 
 export type PastSums = {
   gridLat: number[];
@@ -136,7 +136,11 @@ async function load(): Promise<PastSums> {
     batches.push(
       (async () => {
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);
+        if (!res.ok) {
+          // Modell ist nur Fallback/Schnee: Limit darf Radar + Stationen nicht blockieren.
+          console.warn(`[past-sums] Open-Meteo ${res.status}`);
+          return;
+        }
         const json = await res.json();
         const arr: unknown[] = Array.isArray(json) ? json : [json];
         arr.forEach((loc, k) => {
@@ -157,7 +161,7 @@ async function load(): Promise<PastSums> {
   const now = Date.now();
   const { loadOwnStations } = await import("./own-stations.server");
   const [, radar, mchStations, ownStations] = await Promise.all([
-    Promise.all(batches),
+    Promise.all(batches.map((b) => b.catch((e) => console.warn(`[past-sums] model: ${(e as Error).message}`)))),
     loadRadarSums().catch(() => null),
     loadStations(now).catch(() => [] as StationPoint[]),
     loadOwnStations(now).catch(() => [] as StationPoint[]),
