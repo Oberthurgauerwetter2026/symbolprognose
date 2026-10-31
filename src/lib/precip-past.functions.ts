@@ -12,6 +12,8 @@ export type StationPoint = {
   rain: Record<string, number | null>;
   /** cm Neuschnee je Fenster (null = keine Schneehöhe gemessen) */
   snow: Record<string, number | null>;
+  /** mch = MeteoSchweiz, own = eigene Weather-Hub-Station */
+  source: "mch" | "own";
 };
 
 export type RadarSums = {
@@ -92,7 +94,7 @@ async function loadStations(now: number): Promise<StationPoint[]> {
           rain[w] = r.rain;
           snow[w] = r.snow;
         }
-        return { ...st, rain, snow } satisfies StationPoint;
+        return { ...st, rain, snow, source: "mch" } satisfies StationPoint;
       } catch (e) {
         console.warn(`[past-sums] station ${st.id}: ${(e as Error).message}`);
         return null;
@@ -153,11 +155,14 @@ async function load(): Promise<PastSums> {
     );
   }
   const now = Date.now();
-  const [, radar, stations] = await Promise.all([
+  const { loadOwnStations } = await import("./own-stations.server");
+  const [, radar, mchStations, ownStations] = await Promise.all([
     Promise.all(batches),
     loadRadarSums().catch(() => null),
     loadStations(now).catch(() => [] as StationPoint[]),
+    loadOwnStations(now).catch(() => [] as StationPoint[]),
   ]);
+  const stations: StationPoint[] = [...mchStations, ...ownStations];
   const rain: Record<string, number[]> = {};
   const snow: Record<string, number[]> = {};
   for (const w of PAST_WINDOWS) {
