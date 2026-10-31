@@ -1,4 +1,6 @@
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+const expect = (v: number) => ({ toBe: (e: number) => assert.equal(v, e) });
 import { sumPastHours } from "./precip-past";
 
 const H = 3_600_000;
