@@ -14,7 +14,6 @@ import "leaflet/dist/leaflet.css";
 import { LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, OUTSIDE_CH_MASK, REGION_OUTLINE } from "./radar-base-geo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { RadarFrame } from "@/lib/radar.functions";
 
 
 // Gleiche Karte wie Radar, aber näher auf den Oberthurgau gezoomt.
