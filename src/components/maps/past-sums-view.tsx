@@ -43,7 +43,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
           ? `Fläche: ${data.radar!.source}${missing ? ` (${missing} h fehlen)` : ""} · Punkte: MeteoSchweiz- und eigene Stationen · Stand ${stand}`
           : `Fläche: ${data.source} · Punkte: MeteoSchweiz- und eigene Stationen · Stand ${stand}`;
         const stations = data.stations
-          .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, value: (mode === "snow" ? s.snow : s.rain)[hours], own: s.source === "own" }))
+          .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, value: (mode === "snow" ? s.snow : s.rain)[hours], own: s.source === "own" || s.id.includes("-") }))
           .filter((s) => s.value !== null) as { id: string; name: string; lat: number; lon: number; value: number; own: boolean }[];
         return (
         <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
