@@ -11,21 +11,18 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 
-import thurgauData from "@/data/thurgau.json";
-import lakeData from "@/data/lake.json";
-import switzerlandData from "@/data/switzerland.json";
+import { LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, OUTSIDE_CH_MASK, REGION_OUTLINE } from "./radar-base-geo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { RadarFrame } from "@/lib/radar.functions";
 
-const THURGAU = thurgauData as unknown as FeatureCollection;
-const LAKE = lakeData as unknown as FeatureCollection;
-const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
 
-const MAP_CENTER: [number, number] = [47.575, 9.35];
+// Gleiche Karte wie Radar, aber näher auf den Oberthurgau gezoomt.
+const MAP_CENTER: [number, number] = [47.56, 9.32];
+const MAP_ZOOM = 10;
 const MAP_BOUNDS: [[number, number], [number, number]] = [
-  [47.25, 8.65],
-  [47.90, 9.95],
+  [46.6, 7.4],
+  [48.6, 11.6],
 ];
 
 import { CityMarkers } from "./city-markers";
@@ -409,10 +406,10 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
           <MapContainer
             key={mapKeyRef.current}
             center={MAP_CENTER}
-            zoom={9.5}
+            zoom={MAP_ZOOM}
             zoomSnap={0.5}
             zoomDelta={0.5}
-            minZoom={8}
+            minZoom={9}
             maxZoom={15}
             maxBounds={MAP_BOUNDS}
             maxBoundsViscosity={1.0}
@@ -425,9 +422,39 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
             <TileLayer
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
               maxZoom={18}
-              opacity={0.85}
+              opacity={0.9}
               crossOrigin="anonymous"
               attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz ICON-CH1 → ICON-CH2'
+            />
+            <GeoJSON
+              data={OUTSIDE_CH_MASK}
+              style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
+              interactive={false}
+            />
+            <GeoJSON
+              data={OUTSIDE_MASK}
+              style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
+              interactive={false}
+            />
+            <GeoJSON
+              data={SWITZERLAND}
+              style={() => ({ color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })}
+              interactive={false}
+            />
+            <GeoJSON
+              data={THURGAU}
+              style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })}
+              interactive={false}
+            />
+            <GeoJSON
+              data={LAKE}
+              style={() => ({ color: "#5ba8c8", weight: 1.2, fillColor: "#d7e9ee", fillOpacity: 1 })}
+              interactive={false}
+            />
+            <GeoJSON
+              data={REGION_OUTLINE}
+              style={() => ({ color: "#1f4d80", weight: 2, opacity: 0.9, fill: false })}
+              interactive={false}
             />
             {overlay && (
               <ImageOverlay
@@ -438,22 +465,6 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
                 zIndex={460}
               />
             )}
-            <GeoJSON
-              data={SWITZERLAND}
-              style={() => ({ color: "#0f172a", weight: 1.4, opacity: 0.85, fill: false })}
-              interactive={false}
-            />
-            <GeoJSON
-              data={THURGAU}
-              style={() => ({ color: "#0f172a", weight: 2.2, opacity: 0.95, fill: false })}
-              interactive={false}
-            />
-            {/* See deckend über den Grenzen: keine Grenzlinien im Wasser */}
-            <GeoJSON
-              data={LAKE}
-              style={() => ({ color: "#5ba8c8", weight: 1.2, fillColor: "#d7e9ee", fillOpacity: 1 })}
-              interactive={false}
-            />
             <CityMarkers />
             <ZoomControl position="topright" />
           </MapContainer>
