@@ -583,6 +583,26 @@ def _load_phase_model() -> dict:
     return _PHASE_CACHE
 
 
+def _apply_obs(ts: datetime, m: dict, tc, td, fz):
+    """Boden- und Höhenstationen in Modell-T/Td/Nullgradgrenze einrechnen.
+    Soft-fail: ohne Messungen bleibt das Modell unverändert."""
+    try:
+        from _obs import observations_at
+        from _phase import observed_freezing_level, station_correct
+        obs = observations_at(ts)
+        if not obs:
+            return tc, td, fz
+        t_obs = [(a, b, c, t) for a, b, c, t, _d in obs]
+        d_obs = [(a, b, c, d) for a, b, c, _t, d in obs if d is not None]
+        tc = station_correct(m["lat"], m["lon"], m["el"], tc, t_obs)
+        if td is not None:
+            td = np.minimum(station_correct(m["lat"], m["lon"], m["el"], td, d_obs), tc)
+        fz = observed_freezing_level(m["el"], fz, t_obs)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  obs: Korrektur übersprungen ({exc!r})", flush=True)
+    return tc, td, fz
+
+
 def freezing_rain_at(ts: datetime) -> np.ndarray | None:
     """Gefrierender-Regen-Feld (0..1, OUT_H×OUT_W) für den Messzeitpunkt."""
     from _phase import freezing_rain_point, idw_to_grid
@@ -598,6 +618,7 @@ def freezing_rain_at(ts: datetime) -> np.ndarray | None:
     with np.errstate(all="ignore"):
         tc = np.nanmean(m["tc"][:, sel], axis=1)
         fz = np.nanmean(m["fz"][:, sel], axis=1)
+    tc, _td, fz = _apply_obs(ts, m, tc, None, fz)
     pt = freezing_rain_point(p, s, tc, fz, m["el"])
     if not pt.any():
         return None
@@ -629,6 +650,7 @@ def phase_fraction_at(ts: datetime) -> np.ndarray | None:
         tc = np.nanmean(m["tc"][:, sel], axis=1)
         td = np.nanmean(m["td"][:, sel], axis=1)
         fz = np.nanmean(m["fz"][:, sel], axis=1)
+    tc, td, fz = _apply_obs(ts, m, tc, td, fz)
     # p = Summe ±30 min (≈ mm/h) → Feuchtkugel, Nullgradgrenze, Abkühlung.
     tc = phase_temp(tc, td, fz, m["el"], p)
     f_pt = point_fraction(p, s, tc)
