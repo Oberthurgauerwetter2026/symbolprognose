@@ -33,18 +33,32 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
       </div>
       {isLoading && <div className="h-[420px] rounded-lg bg-muted animate-pulse" />}
       {error && <div className="text-sm text-destructive">Summen konnten nicht geladen werden.</div>}
-      {data && (
+      {data && (() => {
+        const useRadar = mode === "rain" && !!data.radar;
+        const grid = useRadar ? data.radar! : data;
+        const values = useRadar ? data.radar!.rain[hours] : (mode === "snow" ? data.snow : data.rain)[hours];
+        const stand = new Date(useRadar ? data.radar!.t : data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
+        const missing = useRadar ? data.radar!.missingHours[hours] ?? 0 : 0;
+        const label = useRadar
+          ? `Fläche: ${data.radar!.source}${missing ? ` (${missing} h fehlen)` : ""} · Punkte: MeteoSchweiz-Stationen · Stand ${stand}`
+          : `Fläche: ${data.source} · Punkte: MeteoSchweiz-Stationen · Stand ${stand}`;
+        const stations = data.stations
+          .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, value: (mode === "snow" ? s.snow : s.rain)[hours] }))
+          .filter((s) => s.value !== null) as { id: string; name: string; lat: number; lon: number; value: number }[];
+        return (
         <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
           <LazyPrecipAccumMap
-            values={(mode === "snow" ? data.snow : data.rain)[hours]}
-            gridLat={data.gridLat}
-            gridLon={data.gridLon}
+            values={values}
+            gridLat={grid.gridLat}
+            gridLon={grid.gridLon}
+            stations={stations}
             mode={mode}
             hours={hours}
-            sourceLabel={`${data.source} · Stand ${new Date(data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" })}`}
+            sourceLabel={label}
           />
         </Suspense>
-      )}
+        );
+      })()}
       {embed && (
         <a href="https://oberthurgauer-wetter.lovable.app/karten/niederschlag" target="_blank" rel="noopener" className="block text-xs text-muted-foreground underline">
           Mehr auf Oberthurgauer Wetter
