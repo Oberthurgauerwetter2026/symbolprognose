@@ -18,15 +18,12 @@ import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import { boltJitter, boltSvg, BOLT_RADAR, LIGHTNING_ENABLED } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
+import { REGION, LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, REGION_OUTLINE, OUTSIDE_CH_MASK } from "./radar-base-geo";
 import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap, Snowflake, Droplet } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
 
-import regionData from "@/data/region.json";
-import lakeData from "@/data/lake.json";
-import switzerlandData from "@/data/switzerland.json";
-import thurgauData from "@/data/thurgau.json";
 
 import { type RadarPayload, type RadarFrame } from "@/lib/radar.functions";
 import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
@@ -46,10 +43,6 @@ const MEASUREMENT_COLOR = "#1f7a3a";
 const FORECAST_COLOR = BRAND;
 const FILMSTRIP_MEASUREMENT_COLOR = "#9ca3af";
 const FILMSTRIP_FORECAST_COLOR = BRAND;
-const REGION = regionData as unknown as FeatureCollection;
-const LAKE = lakeData as unknown as FeatureCollection;
-const SWITZERLAND = switzerlandData as unknown as FeatureCollection;
-const THURGAU = thurgauData as unknown as FeatureCollection;
 
 
 
@@ -191,135 +184,6 @@ function snowColorFor(mmh: number): [number, number, number, number] {
   return [0, 0, 0, 0];
 }
 
-const OUTSIDE_MASK: FeatureCollection = (() => {
-  const holes: number[][][] = [];
-  const collect = (fc: FeatureCollection) => {
-    for (const f of fc.features) {
-      const g = f.geometry;
-      if (!g) continue;
-      if (g.type === "Polygon" && g.coordinates[0]) holes.push(g.coordinates[0]);
-      else if (g.type === "MultiPolygon") for (const p of g.coordinates) if (p[0]) holes.push(p[0]);
-    }
-  };
-  collect(REGION);
-  collect(LAKE);
-  const world = [
-    [-180, -85],
-    [180, -85],
-    [180, 85],
-    [-180, 85],
-    [-180, -85],
-  ];
-  const feat: Feature<Polygon> = {
-    type: "Feature",
-    properties: {},
-    geometry: { type: "Polygon", coordinates: [world, ...holes] },
-  };
-  return { type: "FeatureCollection", features: [feat] };
-})();
-
-const REGION_OUTLINE: FeatureCollection = (() => {
-  const rings: number[][][] = [];
-  for (const f of REGION.features) {
-    const g = f.geometry;
-    if (!g) continue;
-    if (g.type === "Polygon") for (const r of g.coordinates) rings.push(r);
-    else if (g.type === "MultiPolygon")
-      for (const p of g.coordinates) for (const r of p) rings.push(r);
-  }
-  const key = (p: number[]) => `${p[0].toFixed(6)},${p[1].toFixed(6)}`;
-  const segKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
-  const count = new Map<string, number>();
-  for (const r of rings) {
-    for (let i = 0; i < r.length - 1; i++) {
-      const k = segKey(key(r[i]), key(r[i + 1]));
-      count.set(k, (count.get(k) ?? 0) + 1);
-    }
-  }
-  // outer edges = count === 1; build adjacency on point keys
-  const adj = new Map<string, Map<string, number[]>>();
-  const pt = new Map<string, number[]>();
-  for (const r of rings) {
-    for (let i = 0; i < r.length - 1; i++) {
-      const a = r[i];
-      const b = r[i + 1];
-      const ka = key(a);
-      const kb = key(b);
-      if (count.get(segKey(ka, kb)) !== 1) continue;
-      pt.set(ka, a);
-      pt.set(kb, b);
-      if (!adj.has(ka)) adj.set(ka, new Map());
-      if (!adj.has(kb)) adj.set(kb, new Map());
-      adj.get(ka)!.set(kb, b);
-      adj.get(kb)!.set(ka, a);
-    }
-  }
-  const lines: number[][][] = [];
-  const visited = new Set<string>();
-  const edgeKey = (a: string, b: string) => segKey(a, b);
-  for (const start of adj.keys()) {
-    for (const [next] of adj.get(start)!) {
-      const ek = edgeKey(start, next);
-      if (visited.has(ek)) continue;
-      const line: number[][] = [pt.get(start)!];
-      let prev = start;
-      let cur = next;
-      visited.add(ek);
-      line.push(pt.get(cur)!);
-      while (true) {
-        const neighbors = adj.get(cur);
-        if (!neighbors) break;
-        let nx: string | null = null;
-        for (const [n] of neighbors) {
-          if (n === prev) continue;
-          if (visited.has(edgeKey(cur, n))) continue;
-          nx = n;
-          break;
-        }
-        if (!nx) break;
-        visited.add(edgeKey(cur, nx));
-        line.push(pt.get(nx)!);
-        prev = cur;
-        cur = nx;
-        if (cur === start) break;
-      }
-      lines.push(line);
-    }
-  }
-  const feat: Feature = {
-    type: "Feature",
-    properties: {},
-    geometry: { type: "MultiLineString", coordinates: lines },
-  };
-  return { type: "FeatureCollection", features: [feat] };
-})();
-
-const OUTSIDE_CH_MASK: FeatureCollection = (() => {
-  const holes: number[][][] = [];
-  const collect = (fc: FeatureCollection) => {
-    for (const f of fc.features) {
-      const g = f.geometry;
-      if (!g) continue;
-      if (g.type === "Polygon" && g.coordinates[0]) holes.push(g.coordinates[0]);
-      else if (g.type === "MultiPolygon") for (const p of g.coordinates) if (p[0]) holes.push(p[0]);
-    }
-  };
-  collect(SWITZERLAND);
-  collect(LAKE);
-  const world = [
-    [-180, -85],
-    [180, -85],
-    [180, 85],
-    [-180, 85],
-    [-180, -85],
-  ];
-  const feat: Feature<Polygon> = {
-    type: "Feature",
-    properties: {},
-    geometry: { type: "Polygon", coordinates: [world, ...holes] },
-  };
-  return { type: "FeatureCollection", features: [feat] };
-})();
 
 const regionBounds: L.LatLngBoundsExpression = [
   [47.4744785, 9.1771913],
