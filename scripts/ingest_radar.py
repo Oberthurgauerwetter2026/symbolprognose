@@ -583,6 +583,31 @@ def _load_phase_model() -> dict:
     return _PHASE_CACHE
 
 
+def freezing_rain_at(ts: datetime) -> np.ndarray | None:
+    """Gefrierender-Regen-Feld (0..1, OUT_H×OUT_W) für den Messzeitpunkt."""
+    from _phase import freezing_rain_point, idw_to_grid
+
+    m = _load_phase_model()
+    if not m:
+        return None
+    sel = np.abs(m["t"] - ts.timestamp()) <= 30 * 60 + 1
+    if not sel.any():
+        return None
+    p = np.nansum(m["p"][:, sel], axis=1)
+    s = np.nansum(m["s"][:, sel], axis=1)
+    with np.errstate(all="ignore"):
+        tc = np.nanmean(m["tc"][:, sel], axis=1)
+        fz = np.nanmean(m["fz"][:, sel], axis=1)
+    pt = freezing_rain_point(p, s, tc, fz, m["el"])
+    if not pt.any():
+        return None
+    lons = np.linspace(BBOX_WGS["minLon"], BBOX_WGS["maxLon"], OUT_W)
+    lats = np.linspace(BBOX_WGS["maxLat"], BBOX_WGS["minLat"], OUT_H)
+    lon_g, lat_g = np.meshgrid(lons, lats)
+    print(f"  phase: gefrierender Regen an {int(pt.sum())} Modellpunkten", flush=True)
+    return idw_to_grid(m["lat"], m["lon"], pt, lat_g, lon_g, k=4)
+
+
 def phase_fraction_at(ts: datetime) -> np.ndarray | None:
     """Schneeanteil-Feld (OUT_H×OUT_W) für den Messzeitpunkt.
 
@@ -631,6 +656,7 @@ def render_png(
     values: np.ndarray,
     scale: list[tuple[float, tuple[int, int, int, int]]],
     snow_frac: np.ndarray | None = None,
+    fzra: np.ndarray | None = None,
 ) -> bytes:
     from _morph import clean_precip_field
     from _phase import apply_phase_alpha
@@ -641,7 +667,7 @@ def render_png(
     for thresh, color in scale:
         mask = (~np.isnan(values)) & (values >= thresh)
         rgba[mask] = color
-    rgba = apply_phase_alpha(rgba, snow_frac)
+    rgba = apply_phase_alpha(rgba, snow_frac, fzra)
     img = Image.fromarray(rgba, mode="RGBA")
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
@@ -755,7 +781,8 @@ def process_asset(s3, asset: AssetRef) -> str | None:
     cropped = sample_to_bbox(converted, meta)
     scale = PRECIP_SCALE if asset.product == "precip" else HAIL_SCALE
     frac = phase_fraction_at(asset.ts) if asset.product == "precip" else None
-    png = render_png(cropped, scale, frac)
+    fzra = freezing_rain_at(asset.ts) if asset.product == "precip" else None
+    png = render_png(cropped, scale, frac, fzra)
     upload_png(s3, key, png)
     print(f"  uploaded {key} ({len(png)} bytes)", flush=True)
     return key
