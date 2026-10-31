@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { WarnMap } from "@/components/maps/warn-map";
+import { Suspense as __WarnSuspense } from "react";
+import { LazyWarnMap } from "@/components/maps/lazy-maps";
 import { SITE_URL } from "@/lib/site-url";
 import { WARN_MANIFEST_LINK, WARN_MANIFEST_HREF } from "@/lib/pwa-links";
 import { setNoStoreHeaders } from "@/lib/no-cache.functions";
@@ -77,7 +78,7 @@ function WarnkartePage() {
           </h1>
         </header>
 
-        <WarnMap />
+        <__WarnSuspense fallback={null}><LazyWarnMap /></__WarnSuspense>
       </div>
     </main>
   );

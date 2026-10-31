@@ -46,7 +46,8 @@ import {
   type CronWorkerStatus,
 
 } from "@/lib/ingest-admin.functions";
-import { WarnMap } from "@/components/maps/warn-map";
+import { Suspense as __WarnSuspense } from "react";
+import { LazyWarnMap } from "@/components/maps/lazy-maps";
 
 const STORAGE_KEY = "wx_warn_admin_pw";
 
@@ -1065,7 +1066,7 @@ function MapPreviewSection({ refreshKey }: { refreshKey: number }) {
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Vorschau Warnkarte
       </h2>
-      <WarnMap key={refreshKey} bare />
+      <__WarnSuspense fallback={null}><LazyWarnMap key={refreshKey} bare /></__WarnSuspense>
       <p className="text-xs text-muted-foreground">
         {updatedAt ? `Aktualisiert: ${updatedAt}` : "\u00a0"}
       </p>

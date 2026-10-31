@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { MapTabs } from "@/components/map-tabs";
-import { WarnMap } from "@/components/maps/warn-map";
+import { Suspense as __WarnSuspense } from "react";
+import { LazyWarnMap } from "@/components/maps/lazy-maps";
 import { warningsQuery } from "@/lib/map-queries";
 import { getMap } from "@/lib/maps-config";
 import { APP_MANIFEST_LINK } from "@/lib/pwa-links";
@@ -36,7 +37,7 @@ function KartenWarnungenPage() {
     <DashboardLayout title={def.label}>
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="warnungen" />
-        <WarnMap />
+        <__WarnSuspense fallback={null}><LazyWarnMap /></__WarnSuspense>
       </div>
     </DashboardLayout>
   );
