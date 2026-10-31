@@ -122,7 +122,7 @@ async function load(): Promise<PastSums> {
 
   type Loc = { hourly?: { time: string[]; precipitation?: (number | null)[]; snowfall?: (number | null)[] } };
   const results: Loc[] = new Array(pts.length);
-  const BATCH = 100;
+  const BATCH = 150;
   const batches: Promise<void>[] = [];
   for (let i = 0; i < pts.length; i += BATCH) {
     const slice = pts.slice(i, i + BATCH);
