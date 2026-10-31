@@ -17,7 +17,8 @@ import {
   preloadRegionMap,
 } from "@/components/maps/lazy-maps";
 import { MapSkeleton } from "@/components/maps/map-skeleton";
-import { radarAccumQuery, regionForecastQuery, warningsQuery } from "@/lib/map-queries";
+import { PastSumsView } from "@/components/maps/past-sums-view";
+import { regionForecastQuery, warningsQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 
 const BRAND = "#2561a1";
@@ -111,34 +112,5 @@ function MapPanel({ active }: { active: MapId }) {
 }
 
 function PrecipAccumPanel() {
-  const { data, isLoading, error } = useQuery({
-    ...radarAccumQuery(),
-    refetchInterval: 60 * 60_000,
-  });
-
-  if (isLoading) return <MapSkeleton />;
-  if (error) {
-    return (
-      <p className="text-sm text-destructive">
-        Niederschlagssummen konnten nicht geladen werden: {(error as Error).message}
-      </p>
-    );
-  }
-  if (!data || data.frames.length === 0) {
-    return <p className="text-sm text-muted-foreground">Keine Prognosedaten verfügbar.</p>;
-  }
-
-  return (
-    <div className="space-y-6">
-      {[12, 24, 48].map((h) => (
-        <LazyPrecipAccumMap
-          key={h}
-          hours={h as 12 | 24 | 48}
-          frames={data.frames}
-          gridLat={data.gridLat}
-          gridLon={data.gridLon}
-        />
-      ))}
-    </div>
-  );
+  return <PastSumsView />;
 }
