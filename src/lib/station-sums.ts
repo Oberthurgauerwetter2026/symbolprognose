@@ -18,7 +18,7 @@ export const SUM_STATIONS: StationDef[] = [
   { id: "OBR", name: "Oberriet", lat: 47.3766, lon: 9.6127, alt: 409 },
 ];
 
-export type Sample = { t: number; precip: number | null; snowDepth: number | null };
+export type Sample = { t: number; precip: number | null; snowDepth: number | null; /** Intervall in ms (Standard 1 h) */ dur?: number };
 
 /** "31.10.2026 14:10" (UTC) → ms */
 function parseTs(s: string): number {
@@ -54,6 +54,7 @@ export function parseSmnCsv(csv: string, stepMin: number): Sample[] {
       t: t + stepMin * 60_000,
       precip: iP >= 0 ? num(c[iP]) : null,
       snowDepth: iS >= 0 ? num(c[iS]) : null,
+      dur: stepMin * 60_000,
     });
   }
   return out;
@@ -77,14 +78,12 @@ export function stationWindowSum(samples: Sample[], nowMs: number, hours: number
   let rain = 0;
   let covered = 0;
   const depth: { t: number; d: number }[] = [];
-  let prevT = start;
   const sorted = samples.filter((s) => s.t > start && s.t <= nowMs).sort((a, b) => a.t - b.t);
   for (const s of sorted) {
     if (s.precip !== null) {
       rain += s.precip;
-      covered += s.t - Math.max(prevT, start);
+      covered += s.dur ?? 3_600_000;
     }
-    prevT = s.t;
     if (s.snowDepth !== null) depth.push({ t: s.t, d: s.snowDepth });
   }
   const rainOk = covered >= hours * 3_600_000 * 0.9;
