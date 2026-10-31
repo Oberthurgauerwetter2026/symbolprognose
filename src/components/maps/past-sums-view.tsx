@@ -40,11 +40,11 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         const stand = new Date(useRadar ? data.radar!.t : data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
         const missing = useRadar ? data.radar!.missingHours[hours] ?? 0 : 0;
         const label = useRadar
-          ? `Fläche: ${data.radar!.source}${missing ? ` (${missing} h fehlen)` : ""} · Punkte: MeteoSchweiz-Stationen · Stand ${stand}`
-          : `Fläche: ${data.source} · Punkte: MeteoSchweiz-Stationen · Stand ${stand}`;
+          ? `Fläche: ${data.radar!.source}${missing ? ` (${missing} h fehlen)` : ""} · Punkte: MeteoSchweiz- und eigene Stationen · Stand ${stand}`
+          : `Fläche: ${data.source} · Punkte: MeteoSchweiz- und eigene Stationen · Stand ${stand}`;
         const stations = data.stations
-          .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, value: (mode === "snow" ? s.snow : s.rain)[hours] }))
-          .filter((s) => s.value !== null) as { id: string; name: string; lat: number; lon: number; value: number }[];
+          .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, value: (mode === "snow" ? s.snow : s.rain)[hours], own: s.source === "own" }))
+          .filter((s) => s.value !== null) as { id: string; name: string; lat: number; lon: number; value: number; own: boolean }[];
         return (
         <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
           <LazyPrecipAccumMap

@@ -216,17 +216,18 @@ interface Props {
   mode: "rain" | "snow";
   hours: number;
   sourceLabel: string;
-  stations?: { id: string; name: string; lat: number; lon: number; value: number }[];
+  stations?: { id: string; name: string; lat: number; lon: number; value: number; own?: boolean }[];
 }
 
-function stationIcon(name: string, value: number, unit: string) {
+function stationIcon(name: string, value: number, unit: string, own = false) {
+  const bg = own ? "#2563eb" : "#0f172a";
   const v = value >= 10 ? value.toFixed(0) : value.toFixed(1);
   return L.divIcon({
     className: "",
     iconSize: [0, 0],
     html: `<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;pointer-events:auto">
-      <div title="${name}" style="background:#0f172a;color:#fff;font:600 11px/1.2 Inter,system-ui,sans-serif;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)">${v}&nbsp;${unit}</div>
-      <div style="width:6px;height:6px;border-radius:50%;background:#0f172a;border:1.5px solid #fff;margin-top:2px"></div>
+      <div title="${name}" style="background:${bg};color:#fff;font:600 11px/1.2 Inter,system-ui,sans-serif;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)">${v}&nbsp;${unit}</div>
+      <div style="width:6px;height:6px;border-radius:50%;background:${bg};border:1.5px solid #fff;margin-top:2px"></div>
     </div>`,
   });
 }
@@ -427,8 +428,8 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             )}
             <CityMarkers />
             {stations.map((s) => (
-              <Marker key={`${s.id}-${mode}-${hours}`} position={[s.lat, s.lon]} icon={stationIcon(s.name, s.value, unit)} zIndexOffset={1000}>
-                <Tooltip direction="top" offset={[0, -24]}>{`${s.name} (Station MeteoSchweiz)`}</Tooltip>
+              <Marker key={`${s.id}-${mode}-${hours}`} position={[s.lat, s.lon]} icon={stationIcon(s.name, s.value, unit, s.own)} zIndexOffset={1000}>
+                <Tooltip direction="top" offset={[0, -24]}>{`${s.name} (${s.own ? "eigene Station" : "Station MeteoSchweiz"})`}</Tooltip>
               </Marker>
             ))}
             <ZoomControl position="topright" />
