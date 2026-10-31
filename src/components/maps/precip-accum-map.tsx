@@ -426,15 +426,6 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
               crossOrigin="anonymous"
               attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz ICON-CH1 → ICON-CH2'
             />
-            {overlay && (
-              <ImageOverlay
-                key={`accum-${hours}-${overlay.url.length}`}
-                url={overlay.url}
-                bounds={overlay.bounds}
-                opacity={0.7}
-                zIndex={460}
-              />
-            )}
             <GeoJSON
               data={OUTSIDE_CH_MASK}
               style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
@@ -465,6 +456,15 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
               style={() => ({ color: "#1f4d80", weight: 2, opacity: 0.9, fill: false })}
               interactive={false}
             />
+            {overlay && (
+              <ImageOverlay
+                key={`accum-${hours}-${overlay.url.length}`}
+                url={overlay.url}
+                bounds={overlay.bounds}
+                opacity={0.7}
+                zIndex={460}
+              />
+            )}
             <CityMarkers />
             <ZoomControl position="topright" />
           </MapContainer>
