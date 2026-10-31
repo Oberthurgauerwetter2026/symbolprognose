@@ -574,6 +574,7 @@ def _render_frame_png(
     snow_cm_row_major: list[float] | None = None,
     temp_c_row_major: list[float] | None = None,
     elev_row_major: list[float] | None = None,
+    fzra_row_major: list[float] | None = None,
 ) -> bytes:
     """`mmh_row_major` ist [lat_asc * lon_asc] mit len = n_lat*n_lon.
     Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat.
@@ -641,6 +642,14 @@ def _render_frame_png(
                     frac = terrain_fraction(frac, terrain_temp(t_up, e_up, dem))
             if frac.shape == rgba.shape[:2]:
                 rgba = apply_phase_alpha(rgba, frac)
+    # Gefrierender Regen (0/1 pro Modellpunkt) glatt hochgerechnet, überschreibt.
+    if fzra_row_major is not None and len(fzra_row_major) == n_lat * n_lon:
+        raw_fz = np.flipud(np.nan_to_num(np.asarray(fzra_row_major, dtype=np.float32)).reshape(n_lat, n_lon))
+        if float(raw_fz.max()) > 0.0:
+            from _phase import apply_phase_alpha
+            fz_up = _upsample_smooth(raw_fz, FORECAST_OUT_H, FORECAST_OUT_W)
+            if fz_up.shape == rgba.shape[:2]:
+                rgba = apply_phase_alpha(rgba, None, fz_up)
     img = Image.fromarray(rgba, mode="RGBA")
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
@@ -879,7 +888,10 @@ def rasterize_forecast_pngs(
         if n_valid < 0.9 * n_pts:
             print(f"forecast-pngs: CH1-Ende bei {t_iso} ({n_valid}/{n_pts} gültig) — Übergabe an CH2")
             break
-        from _phase import phase_temp
+        from _phase import freezing_rain_point, phase_temp
+        fzra_vals = freezing_rain_point(
+            frame_vals, snow_vals, temp_vals, fzl_vals, per_pt_elev,
+        ).tolist()
         temp_vals = phase_temp(temp_vals, dew_vals, fzl_vals, per_pt_elev, frame_vals).tolist()
 
         grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
@@ -888,6 +900,7 @@ def rasterize_forecast_pngs(
         png = _render_frame_png(
             n_lat, n_lon, grid.reshape(-1).tolist(), snow_cm_row_major=snow_vals,
             temp_c_row_major=temp_vals, elev_row_major=per_pt_elev,
+            fzra_row_major=fzra_vals,
         )
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         key = forecast_png_key(stamp, png)
@@ -1096,6 +1109,8 @@ def rasterize_forecast_hourly_pngs(
             raise ValueError(f"Missing hourly values at {t_iso}; retaining previous manifest")
         from _phase import phase_temp
         elev_h = (per_pt_elev_h + [float("nan")] * n_pts)[:n_pts]
+        from _phase import freezing_rain_point
+        fzra_vals = freezing_rain_point(frame_vals, snow_vals, temp_vals, fzl_vals, elev_h).tolist()
         temp_vals = phase_temp(temp_vals, dew_vals, fzl_vals, elev_h, frame_vals).tolist()
 
         grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
@@ -1107,6 +1122,7 @@ def rasterize_forecast_hourly_pngs(
                 n_lat, n_lon, grid.reshape(-1).tolist(), min_area_px=24,
                 snow_cm_row_major=snow_vals,
                 temp_c_row_major=temp_vals, elev_row_major=elev_h,
+                fzra_row_major=fzra_vals,
             )
 
             key = forecast_png_key(stamp, png)

@@ -7,6 +7,7 @@ unverändert dekodieren kann:
   Alpha 245 / 255  → Regen   (Standard aus PRECIP_SCALE)
   Alpha 230        → Schneeregen (Schneeanteil 30–70 %)
   Alpha 215        → Schnee      (Schneeanteil ≥ 70 %)
+  Alpha 200        → Gefrierender Regen (flüssig auf gefrorenen Boden)
 
 MUSS mit PHASE_ALPHA in src/components/maps/radar-map.tsx übereinstimmen.
 Ohne Phaseninfo bleibt das PNG reiner Regen (abwärtskompatibel).
@@ -17,6 +18,12 @@ import numpy as np
 
 ALPHA_SLEET = 230
 ALPHA_SNOW = 215
+ALPHA_FZRA = 200
+# Gefrierender Regen: Boden ≤ 0 °C, aber warme Schicht darüber (Nullgrad-
+# grenze deutlich über Grund) und Modell rechnet (fast) keinen Schnee.
+FZRA_T_MAX = 0.0
+FZRA_WARM_NOSE_M = 300.0
+FZRA_SNOW_MAX = 0.3
 SLEET_MIN = 0.3
 SNOW_MIN = 0.7
 # Open-Meteo `snowfall` ist cm Neuschnee; das Modell rechnet 1 mm Wasser
@@ -134,14 +141,43 @@ def point_fraction(
     return np.clip(f, 0.0, 1.0).astype(np.float32)
 
 
-def apply_phase_alpha(rgba: np.ndarray, frac: np.ndarray | None) -> np.ndarray:
-    """Setzt die Phasen-Alphacodes auf allen gefärbten Pixeln."""
-    if frac is None or frac.shape != rgba.shape[:2]:
-        return rgba
+def freezing_rain_point(precip_mm, snow_cm, temp2m_c, fzl_m, elev_m) -> np.ndarray:
+    """0/1 pro Modellpunkt: gefrierender Regen.
+
+    Bedingungen (alle): rohe 2-m-Temperatur ≤ 0 °C, Nullgradgrenze mind.
+    FZRA_WARM_NOSE_M über Grund (warme Schicht oben → Tropfen schmelzen),
+    Modell-Schneeanteil < FZRA_SNOW_MAX. Niederschlagsmenge wird hier nicht
+    verlangt, weil das Radar die Fläche liefert; fehlende Grössen → 0."""
+    t = np.asarray(temp2m_c, dtype=np.float32)
+    fz = np.asarray(fzl_m, dtype=np.float32)
+    el = np.broadcast_to(np.asarray(elev_m, dtype=np.float32), t.shape)
+    p = np.nan_to_num(np.asarray(precip_mm, dtype=np.float32))
+    s = np.nan_to_num(np.asarray(snow_cm, dtype=np.float32)) * SNOW_CM_TO_MM
+    if fz.shape != t.shape:
+        return np.zeros(t.shape, dtype=np.float32)
+    with np.errstate(all="ignore"):
+        ratio = np.where(p >= P_MIN_MM, s / np.maximum(p, 1e-6), 0.0)
+        ok = (
+            np.isfinite(t) & np.isfinite(fz) & np.isfinite(el)
+            & (t <= FZRA_T_MAX)
+            & ((fz - el) >= FZRA_WARM_NOSE_M)
+            & (ratio < FZRA_SNOW_MAX)
+        )
+    return ok.astype(np.float32)
+
+
+def apply_phase_alpha(
+    rgba: np.ndarray, frac: np.ndarray | None, fzra: np.ndarray | None = None,
+) -> np.ndarray:
+    """Setzt die Phasen-Alphacodes auf allen gefärbten Pixeln. `fzra` (0..1,
+    geglättet) überschreibt ab 0.5 als gefrierender Regen."""
     wet = rgba[..., 3] > 0
-    f = np.nan_to_num(frac, nan=0.0)
-    rgba[wet & (f >= SNOW_MIN), 3] = ALPHA_SNOW
-    rgba[wet & (f >= SLEET_MIN) & (f < SNOW_MIN), 3] = ALPHA_SLEET
+    if frac is not None and frac.shape == rgba.shape[:2]:
+        f = np.nan_to_num(frac, nan=0.0)
+        rgba[wet & (f >= SNOW_MIN), 3] = ALPHA_SNOW
+        rgba[wet & (f >= SLEET_MIN) & (f < SNOW_MIN), 3] = ALPHA_SLEET
+    if fzra is not None and fzra.shape == rgba.shape[:2]:
+        rgba[wet & (np.nan_to_num(fzra) >= 0.5), 3] = ALPHA_FZRA
     return rgba
 
 
