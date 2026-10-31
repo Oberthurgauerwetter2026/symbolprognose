@@ -455,6 +455,14 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
               ))}
             </div>
             <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
+            {stations.length > 0 && (
+              <div className="mt-1 flex justify-center gap-3 text-[10px] text-zinc-600">
+                {stations.some((s) => s.own) && (
+                  <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#2563eb" }} />Eigene Stationen</span>
+                )}
+                <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#0f172a" }} />MeteoSchweiz</span>
+              </div>
+            )}
           </div>
         </div>
         <div className="mt-2 text-left text-[11px] text-muted-foreground">

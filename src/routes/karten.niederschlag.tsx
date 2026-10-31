@@ -35,7 +35,7 @@ function KartenNiederschlagPage() {
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="niederschlag" />
         <p className="mb-4 max-w-2xl text-sm text-muted-foreground">
-          Gefallene Summen der letzten 12, 24, 48 oder 72 Stunden. Die Fläche stammt aus Radar und Messstationen (CombiPrecip), die Zahlen sind Messwerte der MeteoSchweiz-Stationen. Neuschnee wird pro Fläche aus Niederschlag und Temperatur berechnet.
+          Gefallene Summen der letzten 12, 24, 48 oder 72 Stunden. Die Fläche stammt aus Radar und Messstationen (CombiPrecip). Die Zahlen sind Messwerte: <span className="font-semibold text-primary">blau = eigene Stationen</span>, dunkel = MeteoSchweiz. Neuschnee wird pro Fläche aus Niederschlag und Temperatur berechnet.
         </p>
         <PastSumsView />
       </div>
