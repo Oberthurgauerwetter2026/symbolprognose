@@ -14,7 +14,6 @@ import "leaflet/dist/leaflet.css";
 import { LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, OUTSIDE_CH_MASK, REGION_OUTLINE } from "./radar-base-geo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { RadarFrame } from "@/lib/radar.functions";
 
 
 // Gleiche Karte wie Radar, aber näher auf den Oberthurgau gezoomt.
@@ -44,10 +43,23 @@ const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; 
   { min: 100,   max: 9999, rgb: [170,  40, 180], label: "100+"},
 ];
 
+// Neuschnee-Teppich (cm), von hellem Blau über Indigo zu Violett/Rosa.
+const SNOW_CLASSES: typeof ACCUM_CLASSES = [
+  { min: 0.5, max: 2, rgb: [205, 225, 245], label: "0.5" },
+  { min: 2, max: 5, rgb: [150, 190, 235], label: "2" },
+  { min: 5, max: 10, rgb: [95, 140, 215], label: "5" },
+  { min: 10, max: 20, rgb: [90, 85, 195], label: "10" },
+  { min: 20, max: 50, rgb: [150, 70, 190], label: "20" },
+  { min: 50, max: 9999, rgb: [235, 160, 215], label: "50+" },
+];
+
+let ACTIVE_CLASSES = ACCUM_CLASSES;
+
 function classIndexForAccum(mm: number): number {
-  if (mm < ACCUM_CLASSES[0].min) return -1;
-  for (let i = 0; i < ACCUM_CLASSES.length; i++) {
-    const c = ACCUM_CLASSES[i];
+  const CL = ACTIVE_CLASSES;
+  if (mm < CL[0].min) return -1;
+  for (let i = 0; i < CL.length; i++) {
+    const c = CL[i];
     if (mm >= c.min && mm < c.max) return i;
   }
   return -1;
@@ -58,76 +70,6 @@ function colorForAccum(mm: number): [number, number, number, number] {
   if (idx < 0) return [0, 0, 0, 0];
   const c = ACCUM_CLASSES[idx];
   return [c.rgb[0], c.rgb[1], c.rgb[2], 1.0];
-}
-
-interface AccumResult {
-  values: number[];
-  maxMm: number;
-  firstT: string | null;
-  lastT: string | null;
-  sourceMix: string;
-  framesUsed: number;
-}
-
-/**
- * Aggregiert die ICON-CH-Niederschlagsfelder aus `getRadarFrames()` zu einer
- * mm-Summe über `hours` Stunden ab jetzt. Quelle pro Frame ist identisch zum
- * Radar-Forecast: ICON-CH1 minutely_15 :00 → ICON-CH1 hourly → ICON-CH2 hourly
- * (`source === "icon-ch1" | "icon-ch2"`). `values` sind mm/h und werden mit
- * Δh zwischen aufeinanderfolgenden Frame-Zeitstempeln multipliziert.
- */
-export function accumulatePrecip(
-  frames: RadarFrame[],
-  nPts: number,
-  hours: number,
-): AccumResult {
-  const now = Date.now();
-  const cutoff = now + hours * 3600_000;
-
-  const forecast = frames
-    .filter((f) => f.source === "icon-ch1" || f.source === "icon-ch2")
-    .filter((f) => f.values && f.values.length === nPts)
-    .map((f) => ({ tMs: Date.parse(f.t), source: f.source, values: f.values }))
-    .filter((f) => f.tMs > now - 30 * 60_000)
-    .sort((a, b) => a.tMs - b.tMs);
-
-  const accum = new Array<number>(nPts).fill(0);
-  let prevMs = now;
-  let firstT: string | null = null;
-  let lastT: string | null = null;
-  const srcSet = new Set<string>();
-  let used = 0;
-
-  for (const f of forecast) {
-    if (f.tMs <= now) {
-      prevMs = f.tMs;
-      continue;
-    }
-    if (prevMs >= cutoff) break;
-    const endMs = Math.min(f.tMs, cutoff);
-    const dtH = Math.max(0, (endMs - prevMs) / 3600_000);
-    if (dtH > 0) {
-      for (let i = 0; i < nPts; i++) accum[i] += f.values[i] * dtH;
-      used++;
-      srcSet.add(f.source);
-      if (!firstT) firstT = new Date(prevMs).toISOString();
-      lastT = new Date(endMs).toISOString();
-    }
-    prevMs = f.tMs;
-    if (prevMs >= cutoff) break;
-  }
-
-  let maxMm = 0;
-  for (let i = 0; i < accum.length; i++) if (accum[i] > maxMm) maxMm = accum[i];
-
-  return {
-    values: accum,
-    maxMm,
-    firstT,
-    lastT,
-    sourceMix: [...srcSet].join(" + ") || "—",
-    framesUsed: used,
-  };
 }
 
 // ---------- Heatmap → DataURL (für Leaflet ImageOverlay) ----------
@@ -181,7 +123,7 @@ function renderHeatmapDataUrl(
 
       const ci = classIndexForAccum(v);
       if (ci < 0) continue;
-      const c = ACCUM_CLASSES[ci];
+      const c = ACTIVE_CLASSES[ci];
       const idx = (py * w + px) * 4;
       data[idx] = c.rgb[0];
       data[idx + 1] = c.rgb[1];
@@ -267,18 +209,22 @@ function renderHeatmapDataUrl(
 }
 
 interface Props {
-  hours: 12 | 24 | 48;
-  frames: RadarFrame[];
+  values: number[];
   gridLat: number[];
   gridLon: number[];
+  mode: "rain" | "snow";
+  hours: number;
+  sourceLabel: string;
 }
 
-function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
-  const nPts = gridLat.length * gridLon.length;
-  const accum = useMemo(
-    () => accumulatePrecip(frames, nPts, hours),
-    [frames, nPts, hours],
-  );
+function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel }: Props) {
+  const classes = mode === "snow" ? SNOW_CLASSES : ACCUM_CLASSES;
+  const unit = mode === "snow" ? "cm" : "mm";
+  const accum = useMemo(() => {
+    let maxMm = 0;
+    for (const v of values) if (v > maxMm) maxMm = v;
+    return { values, maxMm };
+  }, [values]);
 
   const [overlay, setOverlay] = useState<{
     url: string;
@@ -286,15 +232,15 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
   } | null>(null);
 
   useEffect(() => {
-    const r = renderHeatmapDataUrl(accum.values, gridLat, gridLon);
-    setOverlay(r);
-  }, [accum, gridLat, gridLon]);
+    ACTIVE_CLASSES = classes;
+    setOverlay(renderHeatmapDataUrl(accum.values, gridLat, gridLon));
+  }, [accum, gridLat, gridLon, classes]);
 
   let pxOver1 = 0;
-  for (let i = 0; i < accum.values.length; i++) if (accum.values[i] >= 1) pxOver1++;
+  for (let i = 0; i < accum.values.length; i++) if (accum.values[i] >= (mode === "snow" ? 0.5 : 1)) pxOver1++;
   const pctWet = ((pxOver1 / accum.values.length) * 100).toFixed(0);
 
-  const mapKeyRef = useRef(`map-${hours}-${Math.random()}`);
+  const mapKeyRef = useRef(`map-${Math.random()}`);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const download = async () => {
@@ -317,7 +263,7 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
         },
       });
 
-      const fileName = `niederschlag-${hours}h-${new Date()
+      const fileName = `${mode === "snow" ? "neuschnee" : "niederschlag"}-${hours}h-${new Date()
         .toISOString()
         .slice(0, 16)
         .replace(/[-:T]/g, "")}.png`;
@@ -364,15 +310,15 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-0.5 tabular-nums">
-              +{hours} h
+              letzte {hours} h
             </span>
             <h2 className="text-lg font-semibold text-zinc-900 tracking-tight">
-              Niederschlagssumme
+              {mode === "snow" ? "Neuschnee" : "Gefallener Niederschlag"}
             </h2>
           </div>
           <p className="text-xs text-zinc-500 tabular-nums">
-            Max <span className="font-medium text-zinc-700">{accum.maxMm.toFixed(1)} mm</span> ·{" "}
-            {pctWet}% der Fläche ≥ 1 mm · {accum.framesUsed} Frames · {accum.sourceMix}
+            Max <span className="font-medium text-zinc-700">{accum.maxMm.toFixed(1)} {unit}</span> ·{" "}
+            {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1" data-export-exclude>
@@ -386,7 +332,7 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
         </div>
       </div>
       <CardContent className="p-0">
-        <div className="map-attrib-compact relative h-[560px] w-full">
+        <div className="map-attrib-compact relative h-[clamp(380px,60vh,620px)] w-full">
           <style>{`
             .leaflet-tooltip.city-label {
               background: rgba(255,255,255,0.85);
@@ -424,7 +370,7 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
               maxZoom={18}
               opacity={0.9}
               crossOrigin="anonymous"
-              attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz ICON-CH1 → ICON-CH2'
+              attribution='Quelle: Oberthurgauer Wetter · © <a href="https://www.swisstopo.admin.ch/">swisstopo</a> · MeteoSchweiz ICON-CH1/CH2'
             />
             <GeoJSON
               data={OUTSIDE_CH_MASK}
@@ -458,7 +404,7 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
             />
             {overlay && (
               <ImageOverlay
-                key={`accum-${hours}-${overlay.url.length}`}
+                key={`accum-${mode}-${hours}-${overlay.url.length}`}
                 url={overlay.url}
                 bounds={overlay.bounds}
                 opacity={0.7}
@@ -475,12 +421,12 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
             style={{ width: "min(420px, calc(100% - 24px))" }}
           >
             <div className="flex justify-between text-[10px] font-semibold text-zinc-600 tabular-nums mb-1 px-[2px]">
-              {ACCUM_CLASSES.map((c) => (
+              {classes.map((c) => (
                 <span key={c.min} className="flex-1 text-center">{c.label}</span>
               ))}
             </div>
             <div className="flex h-2.5 w-full overflow-hidden rounded-full ring-1 ring-zinc-900/10">
-              {ACCUM_CLASSES.map((c) => (
+              {classes.map((c) => (
                 <div
                   key={c.min}
                   className="flex-1"
@@ -488,11 +434,11 @@ function PrecipAccumMapInner({ hours, frames, gridLat, gridLon }: Props) {
                 />
               ))}
             </div>
-            <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">mm Niederschlag</p>
+            <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
           </div>
         </div>
         <div className="mt-2 text-left text-[11px] text-muted-foreground">
-          Quelle: Oberthurgauer Wetter · MeteoSchweiz ICON-CH1 → ICON-CH2 via Open-Meteo · akkumulierter Niederschlag
+          Quelle: Oberthurgauer Wetter · {sourceLabel}
         </div>
       </CardContent>
     </Card>

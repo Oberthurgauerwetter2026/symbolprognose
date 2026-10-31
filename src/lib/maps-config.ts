@@ -83,7 +83,7 @@ export const MAPS: MapDefinition[] = [
     id: "niederschlag",
     label: "Niederschlagssummen",
     shortLabel: "Niederschlag",
-    description: "Akkumulierter Niederschlag der nächsten 12, 24 und 48 Stunden – stündliche Aktualisierung.",
+    description: "Gefallener Niederschlag und Neuschnee der letzten 12–72 Stunden",
     icon: Droplets,
     routePath: "/karten/niederschlag",
     status: "live",

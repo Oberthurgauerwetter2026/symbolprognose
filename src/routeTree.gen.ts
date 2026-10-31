@@ -19,6 +19,7 @@ import { Route as EmbedAllRouteImport } from './routes/embed.all'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedLokalSucheRouteImport } from './routes/embed.lokal-suche'
 import { Route as EmbedLokalprognoseRouteImport } from './routes/embed.lokalprognose'
+import { Route as EmbedNiederschlagRouteImport } from './routes/embed.niederschlag'
 import { Route as EmbedRadarRouteImport } from './routes/embed.radar'
 import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
@@ -98,6 +99,11 @@ const EmbedLokalSucheRoute = EmbedLokalSucheRouteImport.update({
 const EmbedLokalprognoseRoute = EmbedLokalprognoseRouteImport.update({
   id: '/embed/lokalprognose',
   path: '/embed/lokalprognose',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedNiederschlagRoute = EmbedNiederschlagRouteImport.update({
+  id: '/embed/niederschlag',
+  path: '/embed/niederschlag',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedRadarRoute = EmbedRadarRouteImport.update({
@@ -271,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
   '/embed/lokalprognose': typeof EmbedLokalprognoseRoute
+  '/embed/niederschlag': typeof EmbedNiederschlagRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -313,6 +320,7 @@ export interface FileRoutesByTo {
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
   '/embed/lokalprognose': typeof EmbedLokalprognoseRoute
+  '/embed/niederschlag': typeof EmbedNiederschlagRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -356,6 +364,7 @@ export interface FileRoutesById {
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
   '/embed/lokalprognose': typeof EmbedLokalprognoseRoute
+  '/embed/niederschlag': typeof EmbedNiederschlagRoute
   '/embed/radar': typeof EmbedRadarRoute
   '/embed/region': typeof EmbedRegionRoute
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
     | '/embed/lokal'
     | '/embed/lokal-suche'
     | '/embed/lokalprognose'
+    | '/embed/niederschlag'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -442,6 +452,7 @@ export interface FileRouteTypes {
     | '/embed/lokal'
     | '/embed/lokal-suche'
     | '/embed/lokalprognose'
+    | '/embed/niederschlag'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -484,6 +495,7 @@ export interface FileRouteTypes {
     | '/embed/lokal'
     | '/embed/lokal-suche'
     | '/embed/lokalprognose'
+    | '/embed/niederschlag'
     | '/embed/radar'
     | '/embed/region'
     | '/embed/region-lokal'
@@ -527,6 +539,7 @@ export interface RootRouteChildren {
   EmbedLokalRoute: typeof EmbedLokalRoute
   EmbedLokalSucheRoute: typeof EmbedLokalSucheRoute
   EmbedLokalprognoseRoute: typeof EmbedLokalprognoseRoute
+  EmbedNiederschlagRoute: typeof EmbedNiederschlagRoute
   EmbedRadarRoute: typeof EmbedRadarRoute
   EmbedRegionRoute: typeof EmbedRegionRoute
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
@@ -629,6 +642,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/lokalprognose'
       fullPath: '/embed/lokalprognose'
       preLoaderRoute: typeof EmbedLokalprognoseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/niederschlag': {
+      id: '/embed/niederschlag'
+      path: '/embed/niederschlag'
+      fullPath: '/embed/niederschlag'
+      preLoaderRoute: typeof EmbedNiederschlagRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/radar': {
@@ -855,6 +875,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedLokalRoute: EmbedLokalRoute,
   EmbedLokalSucheRoute: EmbedLokalSucheRoute,
   EmbedLokalprognoseRoute: EmbedLokalprognoseRoute,
+  EmbedNiederschlagRoute: EmbedNiederschlagRoute,
   EmbedRadarRoute: EmbedRadarRoute,
   EmbedRegionRoute: EmbedRegionRoute,
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,

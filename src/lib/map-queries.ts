@@ -10,6 +10,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { SPOTS } from "@/data/spots";
 import { getAggregatedForecastBatch } from "@/lib/forecast-aggregated.functions";
 import { getRadarFrames } from "@/lib/radar.functions";
+import { getPastPrecipSums } from "@/lib/precip-past.functions";
 import {
   getSatelliteManifest,
   type SatelliteRegionId,
@@ -99,4 +100,11 @@ export const satelliteManifestQuery = (region: SatelliteRegionId) =>
     queryFn: () => getSatelliteManifest({ data: { region } }),
     staleTime: 60_000,
     gcTime: 30 * 60_000,
+  });
+
+export const pastPrecipQuery = () =>
+  queryOptions({
+    queryKey: ["past-precip-sums"],
+    queryFn: () => getPastPrecipSums(),
+    staleTime: 15 * 60_000,
   });
