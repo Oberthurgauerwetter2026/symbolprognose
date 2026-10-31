@@ -1342,6 +1342,16 @@ def main() -> int:
         print(f"region-max: failed ({exc!r})", flush=True)
         status["region-max"] = "failed (soft)"
 
+    # Gemessene Summen (CombiPrecip) für die Summenkarte – weicher Fehler.
+    try:
+        from ingest_precip_sums import run as run_sums
+        run_sums(s3, BUCKET)
+        status["sums"] = "ok"
+    except Exception as exc:
+        print(f"sums: failed ({exc!r})", flush=True)
+        status["sums"] = "failed (soft)"
+
+
     print(
         "result: " + " | ".join(f"{k}={v}" for k, v in status.items()),
         flush=True,
