@@ -94,7 +94,7 @@ async function loadStations(now: number): Promise<StationPoint[]> {
           rain[w] = r.rain;
           snow[w] = r.snow;
         }
-        return { ...st, rain, snow, source: "mch" } satisfies StationPoint;
+        return { ...st, rain, snow, source: "mch" } as StationPoint;
       } catch (e) {
         console.warn(`[past-sums] station ${st.id}: ${(e as Error).message}`);
         return null;
