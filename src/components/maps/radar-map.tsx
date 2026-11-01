@@ -2376,8 +2376,9 @@ function RadarMapInner({
         </div>
 
         {legendOpen && (
-          <div className="absolute right-[3.75rem] top-3 z-[450] max-h-[calc(100%-1.5rem)] w-44 overflow-y-auto rounded-2xl border border-neutral-200/80 bg-white/95 p-3 text-[11px] text-neutral-700 shadow-xl backdrop-blur-md">
-            <div className="mb-2 flex items-center justify-between">
+          <div className="absolute inset-x-0 bottom-0 z-[460] max-h-[45%] overflow-y-auto rounded-t-2xl border-t border-neutral-200/80 bg-white/95 px-4 pb-4 pt-2 text-[11px] text-neutral-700 shadow-2xl backdrop-blur-md [column-gap:1.25rem] max-sm:columns-2 sm:inset-x-auto sm:bottom-auto sm:right-[3.75rem] sm:top-3 sm:max-h-[calc(100%-1.5rem)] sm:w-44 sm:rounded-2xl sm:border sm:p-3 sm:shadow-xl">
+            <div className="mx-auto mb-1 h-1 w-9 rounded-full bg-neutral-300 sm:hidden [column-span:all]" />
+            <div className="mb-2 flex items-center justify-between [column-span:all]">
               <span className="text-xs font-semibold text-neutral-900">Legende</span>
               <button
                 type="button"
