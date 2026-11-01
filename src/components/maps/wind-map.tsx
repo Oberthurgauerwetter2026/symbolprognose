@@ -7,14 +7,14 @@ import {
   GeoJSON,
   Marker,
   TileLayer,
-  ZoomControl,
   useMap,
 } from "react-leaflet";
+import { MapGrabber, dockBtn } from "./map-dock";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
-import { Pause, Play, ChevronLeft, ChevronRight, Settings, Info, X } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings, Info, X, Plus, Minus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
@@ -984,6 +984,7 @@ function WindMapInner({
   const progress = 0;
   const [arrowsOn, setArrowsOn] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [mapInst, setMapInst] = useState<L.Map | null>(null);
   const isMobile = useIsMobile();
   const idxRef = useRef<number | null>(null);
   const progressRef = useRef(0);
@@ -1151,7 +1152,7 @@ function WindMapInner({
           )}
 
           <CityMarkers />
-          <ZoomControl position="topright" />
+          <MapGrabber onMap={setMapInst} />
 
         </MapContainer>
 
