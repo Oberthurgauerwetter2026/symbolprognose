@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { displacementDeg, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
+import { displacementDeg, handoverBlends, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
 import { buildTimelineSteps } from "../components/maps/radar-playback";
 
 const BBOX = { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 };
@@ -67,14 +67,13 @@ describe("radar nowcast", () => {
   });
 });
 
-import { handoverBlends } from "./radar-nowcast";
 describe("handoverBlends", () => {
-  it("fades the measured field over the first two model hours", () => {
+  test("fades the measured field over the first two model hours", () => {
     const last = Date.parse("2026-11-01T11:45:00Z");
     const hand = Date.parse("2026-11-01T12:00:00Z");
     const b = handoverBlends(last, hand, { dirFromDeg: 270, kmh: 30 }, { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 });
-    expect(b.map((x) => x.weight)).toEqual([0.6, 0.25]);
-    expect(b.map((x) => x.tMs)).toEqual([hand, hand + 3_600_000]);
-    expect(b[1].bbox.minLon).toBeGreaterThan(b[0].bbox.minLon);
+    assert.deepEqual(b.map((x) => x.weight), [0.6, 0.25]);
+    assert.deepEqual(b.map((x) => x.tMs), [hand, hand + 3_600_000]);
+    assert.ok(b[1].bbox.minLon > b[0].bbox.minLon);
   });
 });
