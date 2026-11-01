@@ -24,7 +24,7 @@ from pyproj import Transformer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-LAT_MIN, LAT_MAX, LON_MIN, LON_MAX, STEP = 47.15, 47.85, 8.6, 9.8, 0.01
+LAT_MIN, LAT_MAX, LON_MIN, LON_MAX, STEP = 46.9, 48.1, 8.3, 10.6, 0.01
 WINDOWS = (12, 24, 48, 72)
 HOURLY_KEY = "radar/sums/hourly.npz"
 OUT_KEY = "radar/sums/latest.json"
