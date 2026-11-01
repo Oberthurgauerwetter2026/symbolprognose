@@ -769,6 +769,37 @@ def _fill_missing_values(arr, mask):
 
 
 
+REALITY: dict = {}
+
+
+def load_reality(s3, bucket: str) -> dict:
+    """Frisches Radar-Nass-Raster lesen (soft-fail → kein Abgleich)."""
+    try:
+        from _reality_check import decode, MAX_OBS_AGE_MIN
+        body = json.loads(s3.get_object(Bucket=bucket, Key="radar/wet-grid.json")["Body"].read())
+        t = datetime.fromisoformat(body["t"].replace("Z", "+00:00"))
+        age = (datetime.now(tz=timezone.utc) - t).total_seconds() / 60
+        if age > MAX_OBS_AGE_MIN:
+            print(f"reality-check: Radar {age:.0f} min alt — kein Abgleich")
+            return {}
+        print(f"reality-check: Radar {body['t']} geladen")
+        return {"t": t, "grid": decode(body["rows"]), "bbox": body["bbox"], "motion": body.get("motion")}
+    except Exception as exc:
+        print(f"reality-check: nicht verfügbar ({exc!r})")
+        return {}
+
+
+def _reality_damp(grid, lats, lons, t_dt, ctx: dict):
+    if not ctx:
+        return grid
+    from _reality_check import damping_factors
+    lead_h = (t_dt - ctx["t"]).total_seconds() / 3600
+    f = damping_factors(lats, lons, lead_h, ctx["grid"], ctx["bbox"], ctx["motion"])
+    if f.shape != grid.shape:
+        return grid
+    return grid * f
+
+
 def rasterize_forecast_pngs(
     s3,
     bucket: str,
@@ -896,6 +927,8 @@ def rasterize_forecast_pngs(
 
         grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
         grid = _fill_missing_values(grid, miss_mask)
+        grid = _reality_damp(grid, lats, lons, t_dt, REALITY)
+        any_positive = bool((grid > 0.05).any())
 
         png = _render_frame_png(
             n_lat, n_lon, grid.reshape(-1).tolist(), snow_cm_row_major=snow_vals,
@@ -1115,6 +1148,7 @@ def rasterize_forecast_hourly_pngs(
 
         grid = np.asarray(frame_vals, dtype=np.float32).reshape(n_lat, n_lon)
         grid = _fill_missing_values(grid, hourly_mask)
+        grid = _reality_damp(grid, lats, lons, t_dt, REALITY)
 
         stamp = t_dt.strftime("%Y%m%dT%H%M")
         try:
