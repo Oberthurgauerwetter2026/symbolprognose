@@ -57,7 +57,7 @@ describe("buildTimelineSteps", () => {
       ...[60, 75, 120, 180].map((min) => ({ t: new Date(at(9, 0) + min * M).toISOString() })),
     ];
     const steps = buildTimelineSteps(frames, at(9, 50));
-    assert.deepEqual(steps.map(hhmm).slice(-3), ["09:50", "10:00", "11:00"]);
+    assert.deepEqual(steps.map(hhmm).slice(-4), ["09:50", "10:00", "11:00", "12:00"]);
   });
 
   test("Nowcast-Schritte zählen als Brücke, danach Stundentakt", () => {
@@ -67,7 +67,7 @@ describe("buildTimelineSteps", () => {
       ...[60, 120, 180].map((min) => ({ t: new Date(at(9, 0) + min * M).toISOString() })),
     ];
     const steps = buildTimelineSteps(frames, at(9, 40));
-    assert.deepEqual(steps.map(hhmm).slice(-5), ["09:45", "09:50", "09:55", "10:00", "11:00"]);
+    assert.deepEqual(steps.map(hhmm).slice(-6), ["09:45", "09:50", "09:55", "10:00", "11:00", "12:00"]);
   });
 
   test("ohne Prognosebilder bleibt die Messzeit stehen", () => {
