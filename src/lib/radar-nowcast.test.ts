@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { displacementDeg, handoverBlends, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
+import { displacementDeg, handoverBlends, isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
 import { buildTimelineSteps } from "../components/maps/radar-playback";
 
 const BBOX = { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 };
@@ -64,6 +64,20 @@ describe("radar nowcast", () => {
   test("kein Nowcast, wenn die letzte Messung älter als 20 Minuten ist", () => {
     const last = 1_000_000_000_000;
     assert.deepEqual(nowcastSteps(last, last + 21 * 60_000, { dirFromDeg: 270, kmh: 30 }, BBOX), []);
+  });
+
+  test("quasi-stationärer Stauregen (0 km/h) ist ein brauchbarer Nowcast-Vektor", () => {
+    const stationary = { dirFromDeg: 180, kmh: 0 };
+    assert.ok(isUsableMotion(stationary));
+    const steps = nowcastSteps(at(25), at(25) + 60_000, stationary, BBOX);
+    assert.equal(steps.length, 6);
+    // 0 km/h: Feld bleibt an Ort und Stelle stehen.
+    for (const s of steps) {
+      assert.equal(s.bbox.minLon, BBOX.minLon);
+      assert.equal(s.bbox.minLat, BBOX.minLat);
+    }
+    assert.ok(!isUsableMotion({ dirFromDeg: 180, kmh: -0.1 }));
+    assert.ok(!isUsableMotion({ dirFromDeg: 180, kmh: 120 }));
   });
 });
 
