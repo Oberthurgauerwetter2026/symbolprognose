@@ -2026,8 +2026,11 @@ function RadarMapInner({
     const HOUR_TOL = 4 * 60_000;
     let lastQuarterHit = nowcastEnd;
     if (nowcastEnd <= nowMs) {
-      const qEnd = Math.min(lastMs, nowMs + HOUR);
-      for (let t = Math.ceil((nowMs + 1) / QUARTER) * QUARTER; t <= qEnd; t += QUARTER) {
+      // 15-min-Modellbilder nur bis zur nächsten vollen Stunde (exklusiv);
+      // das Bild auf der vollen Stunde liefert der Stundentakt unten.
+      const nextHour = Math.ceil((nowMs + 1) / HOUR) * HOUR;
+      const qEnd = Math.min(lastMs, nextHour);
+      for (let t = Math.ceil((nowMs + 1) / QUARTER) * QUARTER; t < qEnd; t += QUARTER) {
         const i = pickNearest(t, Q_TOL);
         if (i !== null && times[i] > nowMs) {
           push(times[i]);
