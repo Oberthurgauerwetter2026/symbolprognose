@@ -473,7 +473,8 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       .filter((x) => !Number.isNaN(x.tMs));
     const hasGapFill = fcList.some((x) => x.tMs > now && x.tMs < nextHour && isModelSlot(x.tMs));
     let bridge: { mf: (typeof fcList)[number]["mf"]; tMs: number; srcMs: number } | null = null;
-    if (!hasGapFill) {
+    // Kein Brückenbild mehr: es wäre ein Standbild bis zur vollen Stunde.
+    if (!hasGapFill && false) {
       const prev = fcList.filter((x) => x.tMs <= now && x.mf.precipUrl).sort((a, b) => b.tMs - a.tMs)[0];
       const slot = Math.ceil((now + 1) / QUARTER_MS) * QUARTER_MS;
       if (prev && slot < nextHour && now - prev.tMs <= 3_600_000) {
