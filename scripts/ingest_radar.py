@@ -923,6 +923,21 @@ def _win_slice() -> tuple[slice, slice]:
     return slice(y0, y1), slice(x0, x1)
 
 
+def _steering_wind() -> tuple[float | None, float | None]:
+    """700-hPa-Wind (Herkunft °, km/h) über dem Oberthurgau, aktuelle Stunde."""
+    r = requests.get(
+        "https://api.open-meteo.com/v1/forecast",
+        params={"latitude": 47.55, "longitude": 9.3, "hourly": "wind_speed_700hPa,wind_direction_700hPa",
+                "forecast_hours": 2, "past_hours": 1, "timezone": "UTC"},
+        timeout=8,
+    )
+    r.raise_for_status()
+    h = r.json()["hourly"]
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:00")
+    i = h["time"].index(now) if now in h["time"] else 0
+    return float(h["wind_direction_700hPa"][i]), float(h["wind_speed_700hPa"][i])
+
+
 def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | None:
     """Verlagerung zweier aufeinanderfolgender Niederschlagsfelder.
 
@@ -931,7 +946,7 @@ def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | 
     aktuelle Feld passt. Gibt `None` zurück, wenn die Schätzung nicht belastbar
     ist (zu wenig Fläche, unplausibler Zeitabstand oder kein klares Maximum).
     """
-    if not (4.0 <= dt_min <= 12.0):
+    if not (4.0 <= dt_min <= 25.0):
         return None
     sy, sx = _win_slice()
     a = np.nan_to_num(prev, nan=0.0)[sy, sx]
@@ -944,8 +959,20 @@ def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | 
     min_px = max(30, int(0.002 * a.size))
     if int((a > 0).sum()) < min_px or int((b > 0).sum()) < min_px:
         return None
+    # Ortsfesten Stauregen dämpfen: Pixel, die in beiden Bildern praktisch
+    # identisch sind, dominieren sonst den Abgleich und erzeugen Zufallswinkel.
+    # Bleibt danach zu wenig bewegte Fläche übrig, ist das Feld wirklich
+    # stationär und wird ungefiltert (→ ~0 km/h) ausgewertet.
+    static = (a > 0) & (b > 0) & (np.abs(a - b) <= 0.08 * np.maximum(a, b))
+    moving = int(((a > 0) | (b > 0)).sum() - static.sum())
+    if moving >= min_px and static.sum() > 0.3 * (a > 0).sum():
+        a = np.where(static, a * 0.25, a).astype(np.float32)
+        b = np.where(static, b * 0.25, b).astype(np.float32)
 
-    m = MOTION_MAX_SHIFT_PX
+    # Suchradius skaliert mit dem Zeitabstand (max. ~120 km/h).
+    px_km = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / (OUT_W - 1) * 111.32 * math.cos(
+        math.radians((MOTION_WINDOW["minLat"] + MOTION_WINDOW["maxLat"]) / 2))
+    m = int(min(40, max(MOTION_MAX_SHIFT_PX, math.ceil(120.0 * dt_min / 60.0 / max(px_km, 0.1)))))
     h, w = a.shape
     if h <= 2 * m + 4 or w <= 2 * m + 4:
         return None
@@ -1150,8 +1177,23 @@ def write_region_max(s3, since: datetime) -> None:
     # deshalb vor der Gemeindeauswertung bestimmt.
     motion: dict | None = None
     if len(loaded) >= 2:
-        dt_min = (loaded[-1][1] - loaded[-2][1]).total_seconds() / 60.0
-        motion = estimate_motion(np.nan_to_num(loaded[-2][0], nan=0.0), precip, dt_min)
+        # 15-Minuten-Basis: grössere Verschiebung hebt das Signal vom Rauschen ab;
+        # Fallback auf das direkte Vorgängerbild.
+        ref = loaded[0]
+        for cand in loaded[:-1]:
+            if (loaded[-1][1] - cand[1]).total_seconds() / 60.0 >= 14.0:
+                ref = cand
+        dt_min = (loaded[-1][1] - ref[1]).total_seconds() / 60.0
+        motion = estimate_motion(np.nan_to_num(ref[0], nan=0.0), precip, dt_min)
+        if motion is None and ref is not loaded[-2]:
+            dt_min = (loaded[-1][1] - loaded[-2][1]).total_seconds() / 60.0
+            motion = estimate_motion(np.nan_to_num(loaded[-2][0], nan=0.0), precip, dt_min)
+        try:
+            from _steering import nudge_motion
+            sd, sk = _steering_wind()
+            motion = nudge_motion(motion, sd, sk)
+        except Exception as exc:  # soft-fail: reiner Radarvektor
+            print(f"region-max: steering failed ({exc!r})", flush=True)
         if motion:
             print(
                 f"region-max: motion {motion['kmh']} km/h aus {motion['dirFromDeg']}° "
