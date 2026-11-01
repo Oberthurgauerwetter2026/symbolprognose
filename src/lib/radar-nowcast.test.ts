@@ -1,6 +1,7 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 import { displacementDeg, nowcastSteps } from "./radar-nowcast";
+import { buildTimelineSteps } from "../components/maps/radar-playback";
 
 const BBOX = { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 };
 
@@ -22,6 +23,33 @@ describe("radar nowcast", () => {
       if (n > 1) assert.equal(steps[1].tMs - steps[0].tMs, 5 * 60_000);
     });
   }
+
+  test("08:55-Messung um 09:05 überbrückt bis vor 10:00, mit korrekter Verlagerung und Zeitstreifen", () => {
+    const atTime = (h: number, min: number) => Date.UTC(2026, 10, 1, h, min);
+    const last = atTime(8, 55);
+    const now = atTime(9, 5);
+    const steps = nowcastSteps(last, now, m, BBOX);
+    const expected = Array.from({ length: 10 }, (_, i) => atTime(9, 10 + i * 5));
+    assert.deepEqual(steps.map((s) => s.tMs), expected);
+    const displacement = displacementDeg(m, 15, 47.5);
+    assert.equal(steps[0].bbox.minLon, BBOX.minLon + displacement.dLon);
+    const frames = [
+      { t: new Date(last).toISOString(), source: "radar" },
+      ...steps.map((s) => ({ t: new Date(s.tMs).toISOString(), source: "nowcast" })),
+      ...[10, 11].map((h) => ({ t: new Date(atTime(h, 0)).toISOString(), source: "icon-ch1" })),
+    ];
+    assert.deepEqual(buildTimelineSteps(frames, now), [last, ...expected, atTime(10, 0), atTime(11, 0)]);
+  });
+
+  test("am Stundenwechsel überbrückt eine 08:55-Messung um 09:00 ebenfalls bis vor 10:00", () => {
+    const steps = nowcastSteps(at(-5), at(0), m, BBOX);
+    assert.deepEqual(steps.map((s) => s.tMs), Array.from({ length: 11 }, (_, i) => at(5 + i * 5)));
+  });
+
+  test("auch bei genau 20 Minuten Messverzögerung endet der Nowcast vor der nächsten aktuellen Stunde", () => {
+    const steps = nowcastSteps(at(-15), at(5), m, BBOX);
+    assert.deepEqual(steps.map((s) => s.tMs), Array.from({ length: 10 }, (_, i) => at(10 + i * 5)));
+  });
 
   test("kein Nowcast, wenn die letzte Messung älter als 20 Minuten ist", () => {
     const last = 1_000_000_000_000;

@@ -4,6 +4,8 @@
  * Überblendung). Pure Funktionen — getestet in radar-nowcast.test.ts.
  */
 
+import { nextModelHour } from "../components/maps/radar-playback";
+
 export type Bbox = { minLat: number; maxLat: number; minLon: number; maxLon: number };
 
 export interface NowcastMotion {
@@ -67,8 +69,8 @@ export function nowcastSteps(
   if (nowMs - lastRadarMs > NOWCAST_MAX_AGE_MS) return [];
   const refLat = (bbox.minLat + bbox.maxLat) / 2;
   const out: { tMs: number; bbox: Bbox }[] = [];
-  // Nur bis vor die nächste volle Stunde: dort übernimmt das Modell.
-  const hourEnd = Math.floor(lastRadarMs / 3_600_000) * 3_600_000 + 3_600_000;
+  // Aktuelle Stunde, nicht die des verspäteten Messbilds: dort übernimmt das Modell.
+  const hourEnd = nextModelHour(nowMs);
   for (let dt = NOWCAST_STEP_MS; lastRadarMs + dt < hourEnd; dt += NOWCAST_STEP_MS) {
     const tMs = lastRadarMs + dt;
     if (tMs <= nowMs) continue;

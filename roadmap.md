@@ -1,4 +1,5 @@
 # Radar forecast reliability
+- [x] Fix and verify the nowcast hour-boundary gap with delayed measurements; 20 regression tests pass and live map advances through five-minute nowcast frames without runtime errors.
 - [x] Tune and verify radar playback: 220 ms steps, 50 ms transitions, orientation and loop pauses; browser playback, loop and drag/restart checked, five timing tests pass.
 - [x] Safely publish forecast images and retain previous images during interrupted runs.
 - [x] Shorten batch pauses and extend workflow timeout, preserving grid resolution.
