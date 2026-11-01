@@ -6,7 +6,7 @@ import {
   getRadarRegionMax,
   type OpenMeteoCachePayload,
 } from "./openmeteo-cache.server";
-import { handoverBlends, isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
+import { isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
 import { r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
