@@ -11,13 +11,17 @@ describe("radar nowcast", () => {
     assert.ok(Math.abs(d.dLat) < 1e-9);
   });
 
-  test("liefert 5-Minuten-Schritte bis +60 Minuten", () => {
-    const last = 1_000_000_000_000;
-    const steps = nowcastSteps(last, last + 60_000, { dirFromDeg: 270, kmh: 30 }, BBOX);
-    assert.equal(steps.length, 12);
-    assert.equal(steps[1].tMs - steps[0].tMs, 5 * 60_000);
-    assert.equal(steps[11].tMs, last + 60 * 60_000);
-  });
+  const H = 3_600_000;
+  const at = (min: number) => 1_000 * H + min * 60_000; // volle Stunde + min
+  const m = { dirFromDeg: 270, kmh: 30 };
+  for (const [min, n] of [[5, 10], [25, 6], [50, 1], [55, 0]] as const) {
+    test(`Messung :${min} → ${n} Schritte bis vor die volle Stunde`, () => {
+      const steps = nowcastSteps(at(min), at(min) + 60_000, m, BBOX);
+      assert.equal(steps.length, n);
+      for (const s of steps) assert.ok(s.tMs < 1_001 * H);
+      if (n > 1) assert.equal(steps[1].tMs - steps[0].tMs, 5 * 60_000);
+    });
+  }
 
   test("kein Nowcast, wenn die letzte Messung älter als 20 Minuten ist", () => {
     const last = 1_000_000_000_000;

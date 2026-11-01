@@ -13,7 +13,6 @@ export interface NowcastMotion {
 }
 
 export const NOWCAST_STEP_MS = 5 * 60_000;
-export const NOWCAST_HORIZON_MS = 60 * 60_000;
 /** Messung älter als das → kein Nowcast (Verlagerung nicht mehr aktuell). */
 export const NOWCAST_MAX_AGE_MS = 20 * 60_000;
 
@@ -68,7 +67,9 @@ export function nowcastSteps(
   if (nowMs - lastRadarMs > NOWCAST_MAX_AGE_MS) return [];
   const refLat = (bbox.minLat + bbox.maxLat) / 2;
   const out: { tMs: number; bbox: Bbox }[] = [];
-  for (let dt = NOWCAST_STEP_MS; dt <= NOWCAST_HORIZON_MS; dt += NOWCAST_STEP_MS) {
+  // Nur bis vor die nächste volle Stunde: dort übernimmt das Modell.
+  const hourEnd = Math.floor(lastRadarMs / 3_600_000) * 3_600_000 + 3_600_000;
+  for (let dt = NOWCAST_STEP_MS; lastRadarMs + dt < hourEnd; dt += NOWCAST_STEP_MS) {
     const tMs = lastRadarMs + dt;
     if (tMs <= nowMs) continue;
     out.push({ tMs, bbox: shiftBbox(bbox, displacementDeg(motion, dt / 60_000, refLat)) });
