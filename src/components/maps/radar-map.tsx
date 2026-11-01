@@ -2697,7 +2697,7 @@ function RadarMapInner({
           >
             swisstopo
           </a>{" "}
-          · MeteoSchweiz
+          · Radar/Modell © MeteoSchweiz · Relief Ausland © Esri · Karte: Leaflet
 
           {LIGHTNING_ENABLED && (
             <>
