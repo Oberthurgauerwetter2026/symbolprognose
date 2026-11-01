@@ -1807,9 +1807,7 @@ const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag",
 function fmtUpdatedAt(iso: string): string {
   const d = new Date(iso);
   return new Intl.DateTimeFormat("de-CH", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+    timeZone: "Europe/Zurich",
     hour: "2-digit",
     minute: "2-digit",
   }).format(d);

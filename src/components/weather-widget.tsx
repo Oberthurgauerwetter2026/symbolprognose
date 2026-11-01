@@ -379,6 +379,7 @@ function WeatherWidgetInner({
               snow={false}
             />
           )}
+          {forecast.data && <DataStamp updatedAt={forecast.dataUpdatedAt} />}
         </div>
       </div>
     );

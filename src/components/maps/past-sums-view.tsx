@@ -39,7 +39,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         const values = useRadar ? data.radar!.rain[hours] : (mode === "snow" ? data.snow : data.rain)[hours];
         const stand = new Date(useRadar ? data.radar!.t : data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
         const missing = useRadar ? data.radar!.missingHours[hours] ?? 0 : 0;
-        const label = `Aktualisiert ${stand}${missing ? ` · ${missing} h fehlen` : ""}${!useRadar ? " · Fläche: Modell" : ""}`;
+        const label = [missing ? `${missing} h fehlen` : "", !useRadar ? "Fläche: Modell" : ""].filter(Boolean).join(" · ");
         const stations = data.stations
           .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, value: (mode === "snow" ? s.snow : s.rain)[hours], own: s.source === "own" || s.id.includes("-") }))
           .filter((s) => s.value !== null) as { id: string; name: string; lat: number; lon: number; value: number; own: boolean }[];
@@ -53,6 +53,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             mode={mode}
             hours={hours}
             sourceLabel={label}
+            updatedLabel={stand}
           />
         </Suspense>
         );
