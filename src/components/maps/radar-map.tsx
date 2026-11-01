@@ -2411,43 +2411,103 @@ function RadarMapInner({
 
 
 
-        {/* Legende als vertikale Farbsäule am rechten Bildrand */}
-        {legendOpen && null}
-        <div
-          className="pointer-events-none absolute right-1 top-[11.5rem] bottom-24 z-[400] flex flex-col items-end gap-1.5 rounded-md bg-card/60 p-1 text-[9px] leading-none shadow-md backdrop-blur-sm"
-          aria-label="Legende"
-        >
-          <span className="rounded-sm bg-card/80 px-1 py-0.5 font-semibold text-foreground">mm/h</span>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm shadow-md">
+        {/* Legende oben rechts (unter Zoom) — nur auf Klick */}
+        {legendOpen ? (
+          <div className="absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="font-semibold text-foreground">mm/h</span>
+              <button
+                type="button"
+                aria-label="Legende schliessen"
+                onClick={() => setLegendOpen(false)}
+                className="-mr-0.5 rounded p-0.5 text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
             {[...DISPLAY_SCALE].reverse().map((s) => (
-              <div key={s.mmh} className="relative flex min-h-[6px] flex-1 items-center justify-end">
-                <span className="mr-1 rounded-sm bg-card/70 px-0.5 tabular-nums text-foreground">{s.mmh}</span>
-                <span className="h-full w-2.5" style={{ background: `rgb(${s.rgb.join(",")})` }} />
+              <div key={s.mmh} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  style={{ background: `rgb(${s.rgb.join(",")})` }}
+                />
+                <span className="tabular-nums text-muted-foreground">{s.mmh}</span>
               </div>
             ))}
-          </div>
-          {[
-            { label: "Schneeregen", scale: SLEET_SCALE },
-            { label: "Gefr. Regen", scale: FZRA_SCALE },
-            { label: "Schnee", scale: SNOW_SCALE },
-          ].map((g) => (
-            <div key={g.label} className="flex items-center gap-1" title={g.label}>
-              <span className="rounded-sm bg-card/70 px-0.5 text-foreground">{g.label}</span>
-              <span className="flex h-6 w-2.5 flex-col overflow-hidden rounded-sm shadow-md">
-                {[...g.scale].reverse().map((s) => (
-                  <span key={s.mmh} className="flex-1" style={{ background: `rgb(${s.rgb.join(",")})` }} />
-                ))}
-              </span>
+            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schneeregen</span>
+            {SLEET_SCALE.map((s) => (
+              <div key={`sleet-${s.mmh}`} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  style={{ background: `rgb(${s.rgb.join(",")})` }}
+                />
+                <span className="text-muted-foreground">{s.label}</span>
+              </div>
+            ))}
+            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Gefrierender Regen</span>
+            {FZRA_SCALE.map((s) => (
+              <div key={`fzra-${s.mmh}`} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  style={{ background: `rgb(${s.rgb.join(",")})` }}
+                />
+                <span className="text-muted-foreground">{s.label}</span>
+              </div>
+            ))}
+            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
+            {SNOW_SCALE.map((s) => (
+              <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  style={{ background: `rgb(${s.rgb.join(",")})` }}
+                />
+                <span className="text-muted-foreground">{s.label}</span>
+              </div>
+            ))}
+            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Hagel</span>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-3 rounded-sm bg-white sm:h-3 sm:w-4"
+                style={{
+                  backgroundImage: "radial-gradient(circle, #000 35%, transparent 36%)",
+                  backgroundSize: "4px 4px",
+                }}
+              />
+              <span className="text-muted-foreground">POH</span>
             </div>
-          ))}
-          <div className="flex items-center gap-1">
-            <span className="rounded-sm bg-card/70 px-0.5 text-foreground">Hagel</span>
-            <span
-              className="h-2.5 w-2.5 rounded-sm bg-white shadow-md"
-              style={{ backgroundImage: "radial-gradient(circle, #000 35%, transparent 36%)", backgroundSize: "4px 4px" }}
-            />
+            {LIGHTNING_ENABLED && (
+              <>
+                <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Blitze</span>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
+                    dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0, BOLT_RADAR, 1.5) }}
+                  />
+
+                  <a
+                    href="https://www.blitzortung.org/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Blitzortung
+                  </a>
+                </div>
+              </>
+            )}
+
           </div>
-        </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setLegendOpen(true)}
+            aria-label="Legende anzeigen"
+            title="Legende"
+            className="absolute right-3 top-24 z-[400] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Flocken (Schnee) und Tropfen (Schneeregen) ein-/ausblenden */}
         <button
