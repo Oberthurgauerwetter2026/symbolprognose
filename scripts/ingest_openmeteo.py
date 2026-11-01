@@ -1449,6 +1449,7 @@ def main() -> None:
     forecast_frames: list[dict] = []
     forecast_published = False
     forecast_failed = False
+    REALITY.update(load_reality(s3, bucket))
     if raster_phase1 and r2_public_url:
         try:
             forecast_frames = rasterize_forecast_pngs(
