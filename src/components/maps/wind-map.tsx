@@ -1352,7 +1352,7 @@ function WindMapInner({
           Aktualisiert am {new Intl.DateTimeFormat("de-CH", {
             day: "2-digit", month: "2-digit", year: "numeric",
             hour: "2-digit", minute: "2-digit",
-          }).format(new Date(data.generatedAt))} · Quelle: Oberthurgauer Wetter · © swisstopo · MeteoSchweiz ICON-CH1 → ICON-CH2
+          }).format(new Date(data.generatedAt))} · Quelle: Oberthurgauer Wetter · © swisstopo · Modell © MeteoSchweiz ICON-CH1 → ICON-CH2 via Open-Meteo (CC BY 4.0) · Relief Ausland © Esri · Karte: Leaflet
           {data.warning ? ` · Hinweis: ${data.warning}` : ""}
         </p>
       )}
