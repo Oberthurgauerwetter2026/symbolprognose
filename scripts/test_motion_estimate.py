@@ -35,6 +35,32 @@ class MotionEstimateTests(unittest.TestCase):
         # Anflug-Warnung bleibt an Bewegung gebunden: 0 km/h → keine Vorlauffelder.
         self.assertEqual(ingest._lead_fields(field(195), {"dirFromDeg": 270.0, "kmh": 0.0}), [])
 
+    def test_fifteen_minute_base_detects_slow_drift(self):
+        # 2 px in 15 Minuten: langsame Drift wird mit 15-Min-Basis erkannt.
+        motion = ingest.estimate_motion(field(195), field(197), 15.0)
+        self.assertIsNotNone(motion)
+        self.assertAlmostEqual(motion["dirFromDeg"], 270.0, delta=10.0)
+
+    def test_weak_radar_direction_nudged_to_steering(self):
+        from _steering import nudge_motion
+        weak = {"dirFromDeg": 346.0, "kmh": 5.3, "quality": 0.4}
+        out = nudge_motion(weak, 67.0, 49.0)
+        self.assertEqual(out["kmh"], 5.3)  # Tempo bleibt aus dem Radar
+        self.assertGreater(out["dirFromDeg"], 40.0)
+        self.assertLess(out["dirFromDeg"], 70.0)
+
+    def test_strong_radar_direction_kept(self):
+        from _steering import nudge_motion
+        strong = {"dirFromDeg": 270.0, "kmh": 40.0, "quality": 0.9}
+        self.assertEqual(nudge_motion(strong, 67.0, 49.0)["dirFromDeg"], 270.0)
+
+    def test_stationary_and_missing_steering_unchanged(self):
+        from _steering import nudge_motion
+        still = {"dirFromDeg": 0.0, "kmh": 0.0, "quality": 0.9}
+        self.assertEqual(nudge_motion(still, 67.0, 49.0), still)
+        m = {"dirFromDeg": 300.0, "kmh": 10.0, "quality": 0.5}
+        self.assertEqual(nudge_motion(m, None, None), m)
+
 
 if __name__ == "__main__":
     unittest.main()
