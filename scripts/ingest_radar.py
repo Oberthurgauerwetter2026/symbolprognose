@@ -938,6 +938,22 @@ def _steering_wind() -> tuple[float | None, float | None]:
     return float(h["wind_direction_700hPa"][i]), float(h["wind_speed_700hPa"][i])
 
 
+def _saentis_wind() -> tuple[float | None, float | None]:
+    """Säntis-Messwind (2502 m, ~750 hPa), letzter 10-Minuten-Wert: Herkunft °, km/h."""
+    r = requests.get("https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/sae/ogd-smn_sae_t_now.csv", timeout=8)
+    r.raise_for_status()
+    lines = r.text.strip().splitlines()
+    head = lines[0].split(";")
+    idd, iv = head.index("dkl010z0"), head.index("fu3010z0")
+    for ln in reversed(lines[1:]):
+        c = ln.split(";")
+        try:
+            return float(c[idd]), float(c[iv])
+        except (ValueError, IndexError):
+            continue
+    return None, None
+
+
 def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | None:
     """Verlagerung zweier aufeinanderfolgender Niederschlagsfelder.
 
@@ -1189,8 +1205,19 @@ def write_region_max(s3, since: datetime) -> None:
             dt_min = (loaded[-1][1] - loaded[-2][1]).total_seconds() / 60.0
             motion = estimate_motion(np.nan_to_num(loaded[-2][0], nan=0.0), precip, dt_min)
         try:
-            from _steering import nudge_motion
-            sd, sk = _steering_wind()
+            from _steering import blend_steering, nudge_motion
+            try:
+                model = _steering_wind()
+            except Exception as exc:  # noqa: BLE001
+                print(f"region-max: 700 hPa wind failed ({exc!r})", flush=True)
+                model = None
+            try:
+                saentis = _saentis_wind()
+            except Exception as exc:  # noqa: BLE001
+                print(f"region-max: Säntis wind failed ({exc!r})", flush=True)
+                saentis = None
+            sd, sk = blend_steering(model, saentis)
+            print(f"region-max: steering model={model} saentis={saentis} -> {sd}° {sk} km/h", flush=True)
             motion = nudge_motion(motion, sd, sk)
         except Exception as exc:  # soft-fail: reiner Radarvektor
             print(f"region-max: steering failed ({exc!r})", flush=True)
