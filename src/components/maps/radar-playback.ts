@@ -36,6 +36,12 @@ export function playbackSample(position: PlaybackPosition, times: number[], nowI
 
 export type TimelineFrame = { t: string; source?: string };
 
+/** Modellübergabe und enger Filmstrip-Massstab beginnen am nächsten :00. */
+export function nextModelHour(nowMs: number): number {
+  const hour = 3_600_000;
+  return (Math.floor(nowMs / hour) + 1) * hour;
+}
+
 // Zeitleiste: 5-min-Messraster, Nowcast-Brücke, 15-min-Modellbilder nur
 // über die Restzeit bis zur nächsten vollen Stunde, danach strikter
 // Stundentakt (ICON liefert Stundensummen, Viertelstunden wären Kopien).
@@ -103,7 +109,7 @@ export function buildTimelineSteps(frames: TimelineFrame[], nowMs: number): numb
   const HOUR_TOL = 4 * 60_000;
   let lastQuarterHit = nowcastEnd;
   if (nowcastEnd <= nowMs) {
-    const nextHour = Math.ceil((nowMs + 1) / HOUR) * HOUR;
+    const nextHour = nextModelHour(nowMs);
     const qEnd = Math.min(lastMs, nextHour);
     for (let t = Math.ceil((nowMs + 1) / QUARTER) * QUARTER; t < qEnd; t += QUARTER) {
       const i = pickNearest(t, Q_TOL);
