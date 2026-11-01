@@ -19,7 +19,27 @@ export const NOWCAST_STEP_MS = 5 * 60_000;
 /** Messung älter als das → kein Nowcast (Verlagerung nicht mehr aktuell). */
 export const NOWCAST_MAX_AGE_MS = 20 * 60_000;
 /** Gleitender Horizont ab Messung: Schauer ziehen über den Stundenschlag weiter. */
-export const NOWCAST_HORIZON_MS = 60 * 60_000;
+export const NOWCAST_HORIZON_MS = 75 * 60_000;
+
+/** Smooth intensity decay, not opacity: unchanged through 60 min, dry at 75. */
+export function nowcastIntensityFactor(leadMinutes: number): number {
+  const progress = Math.max(0, Math.min(1, (leadMinutes - 60) / 15));
+  return 1 - progress * progress * (3 - 2 * progress);
+}
+
+/** Convert a sampled colour band to mm/h, attenuate, then map back to bands. */
+export function attenuateRadarBand(band: number, factor: number, thresholds: readonly number[]): number {
+  if (factor >= 1 || band <= 0) return band;
+  if (factor <= 0 || thresholds.length === 0) return 0;
+  const upper = Math.min(thresholds.length, Math.max(1, Math.ceil(band)));
+  const lowerValue = upper === 1 ? 0 : thresholds[upper - 2];
+  const value = (lowerValue + (thresholds[upper - 1] - lowerValue) * (band - upper + 1)) * factor;
+  if (value < thresholds[0]) return 0;
+  for (let i = 1; i < thresholds.length; i++) {
+    if (value < thresholds[i]) return i + (value - thresholds[i - 1]) / (thresholds[i] - thresholds[i - 1]);
+  }
+  return thresholds.length;
+}
 
 /** Only use tendency images from the exact measurement and target step. */
 export function tendencyImageUrl(
@@ -86,7 +106,7 @@ export function nowcastSteps(
   if (nowMs - lastRadarMs > NOWCAST_MAX_AGE_MS) return [];
   const refLat = (bbox.minLat + bbox.maxLat) / 2;
   const out: { tMs: number; bbox: Bbox }[] = [];
-  // Mindestens bis zur nächsten vollen Stunde (aktuelle Zeit), sonst 60 min ab
+  // Mindestens bis zur nächsten vollen Stunde (aktuelle Zeit), sonst 75 min ab
   // Messung; das Modell übernimmt erst mit der ersten vollen Stunde danach.
   const endMs = Math.max(nextModelHour(nowMs) - 1, lastRadarMs + NOWCAST_HORIZON_MS);
   for (let dt = NOWCAST_STEP_MS; lastRadarMs + dt <= endMs; dt += NOWCAST_STEP_MS) {

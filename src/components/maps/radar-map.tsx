@@ -33,6 +33,7 @@ import { FilmstripTimeline } from "./filmstrip-timeline";
 import { advancePlayback, playbackSample, buildTimelineSteps, nextModelHour, type PlaybackPosition } from "./radar-playback";
 import { CityMarkers } from "./city-markers";
 import { sampleRadarBand } from "./forecast-edge-sampling";
+import { attenuateRadarBand } from "@/lib/radar-nowcast";
 
 
 
@@ -908,6 +909,7 @@ function MeasurementCanvasOverlay({
   url,
   nextUrl,
   blend = 0,
+  intensityFactor = 1,
   bounds,
   opacity,
   prefetchUrls,
@@ -917,6 +919,7 @@ function MeasurementCanvasOverlay({
   nextUrl?: string | null;
   /** Gewicht von `nextUrl` (0 = nur `url`, 1 = nur `nextUrl`). */
   blend?: number;
+  intensityFactor?: number;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
@@ -1291,7 +1294,7 @@ function MeasurementCanvasOverlay({
     // die verschobene Bbox — sie muss Teil des Schlüssels sein.
     const cacheKey = `${fieldA ? url : ""}>${fieldB ? nextUrl : ""}@${
       fieldA && fieldB ? w : 0
-    }|${viewKey}|${minLat.toFixed(5)},${maxLat.toFixed(5)},${minLon.toFixed(5)},${maxLon.toFixed(5)}`;
+    }|${intensityFactor}|${viewKey}|${minLat.toFixed(5)},${maxLat.toFixed(5)},${minLon.toFixed(5)},${maxLon.toFixed(5)}`;
     // A fallback belongs to a different timestamp, not to the requested URL.
     const canCache = Boolean(cachedA);
     let off = canCache ? frameCanvasCacheRef.current.get(cacheKey) ?? null : null;
@@ -1328,6 +1331,7 @@ function MeasurementCanvasOverlay({
 
       const wA = fieldA && fieldB ? 1 - w : fieldA ? 1 : 0;
       const wB = fieldA && fieldB ? w : fieldB ? 1 : 0;
+      const intensityThresholds = SCALE.map((s) => s.mmh);
 
       // Mercator ist separabel: Länge hängt nur von x, Breite nur von y ab.
       const colLng = new Float64Array(lowW);
@@ -1398,6 +1402,7 @@ function MeasurementCanvasOverlay({
           // `v` ist ein kontinuierlicher Bandindex (0 = trocken). Einfärbung
           // über die gerundete Stufe — dadurch entstehen keine einzelnen
           // Pixel der Nachbarfarbe innerhalb einer Fläche.
+          v = attenuateRadarBand(v, intensityFactor, intensityThresholds);
           if (v < 0.5) continue;
           const bandIdx = Math.min(DISPLAY_SCALE.length, Math.max(1, Math.round(v))) - 1;
           const s = DISPLAY_SCALE[bandIdx];
@@ -1459,7 +1464,7 @@ function MeasurementCanvasOverlay({
 
   useEffect(() => {
     redraw();
-  }, [payload, blend, nextUrl, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
+  }, [payload, blend, nextUrl, intensityFactor, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
 
   // Opazität separat nachziehen — ohne Neuberechnung des Frame-Canvas.
   useEffect(() => {
@@ -1482,6 +1487,7 @@ function CrossfadePrecipOverlay({
   url,
   nextUrl,
   blend = 0,
+  intensityFactor = 1,
   bounds,
   opacity,
   prefetchUrls,
@@ -1489,6 +1495,7 @@ function CrossfadePrecipOverlay({
   url: string;
   nextUrl?: string | null;
   blend?: number;
+  intensityFactor?: number;
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
@@ -1498,6 +1505,7 @@ function CrossfadePrecipOverlay({
       url={url}
       nextUrl={nextUrl}
       blend={blend}
+      intensityFactor={intensityFactor}
       bounds={bounds}
       opacity={opacity}
       prefetchUrls={prefetchUrls}
@@ -2368,6 +2376,7 @@ function RadarMapInner({
                       url={overlayFrame.precipUrl as string}
                       nextUrl={overlayNext?.precipUrl ?? null}
                       blend={fadeW}
+                      intensityFactor={(overlayFrame.intensityFactor ?? 1) * (1 - fadeW) + (overlayNext?.intensityFactor ?? overlayFrame.intensityFactor ?? 1) * fadeW}
                       bounds={ib}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
