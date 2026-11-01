@@ -903,7 +903,9 @@ def _newest_asset(product: str, since: datetime) -> AssetRef | None:
 
 
 # Fenster rund um den Oberthurgau (ca. 60 km) für die Verlagerungsschätzung.
-MOTION_WINDOW = {"minLon": 8.55, "maxLon": 10.05, "minLat": 47.15, "maxLat": 47.95}
+# Grosses Fenster (Schwarzwald/Zürich bis Allgäu/Vorarlberg), damit auch Regen
+# ausserhalb des Bezirks eine Zugrichtung für den Nowcast liefert.
+MOTION_WINDOW = {"minLon": 7.9, "maxLon": 10.9, "minLat": 46.9, "maxLat": 48.3}
 # Maximale Verschiebung in Pixeln (entspricht ca. 120 km/h bei 5-Min-Takt).
 MOTION_MAX_SHIFT_PX = 16
 

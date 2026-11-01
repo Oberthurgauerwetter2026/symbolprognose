@@ -334,12 +334,11 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   const forecastCutoff = now + forecastHorizonH * 3600 * 1000;
   const pastCutoff = now - 6 * 3600 * 1000;
   const frames: RadarFrame[] = [];
-  // Modellprognose ab der nächsten vollen Stunde nur im echten Stundentakt:
-  // ICON liefert Niederschlag als Stundensumme, die 15-min-Slots wären Kopien.
-  // Bis zu dieser vollen Stunde dürfen 15-min-Slots die Lücke füllen.
+  // Modellprognose nur im echten Stundentakt: ICON liefert Niederschlag als
+  // Stundensumme, 15-min-Slots wären Kopien (Standbild). Die Restzeit bis zur
+  // nächsten vollen Stunde füllt ausschliesslich der Radar-Nowcast.
   const nextHourMs = Math.ceil((now + 1) / 3_600_000) * 3_600_000;
-  const isModelSlot = (tMs: number) =>
-    tMs < nextHourMs || new Date(tMs).getUTCMinutes() === 0;
+  const isModelSlot = (tMs: number) => new Date(tMs).getUTCMinutes() === 0;
 
   // ---- Messung: MeteoSchweiz-Radar-PNGs (Vergangenheit) ----
   const hasRealRadar = !!manifest && manifest.frames.some((frame) => !!frame.precipUrl);
@@ -474,7 +473,8 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       .filter((x) => !Number.isNaN(x.tMs));
     const hasGapFill = fcList.some((x) => x.tMs > now && x.tMs < nextHour && isModelSlot(x.tMs));
     let bridge: { mf: (typeof fcList)[number]["mf"]; tMs: number; srcMs: number } | null = null;
-    if (!hasGapFill) {
+    // Kein Brückenbild mehr: es wäre ein Standbild bis zur vollen Stunde.
+    if (!hasGapFill && false) {
       const prev = fcList.filter((x) => x.tMs <= now && x.mf.precipUrl).sort((a, b) => b.tMs - a.tMs)[0];
       const slot = Math.ceil((now + 1) / QUARTER_MS) * QUARTER_MS;
       if (prev && slot < nextHour && now - prev.tMs <= 3_600_000) {
