@@ -199,7 +199,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
     <Card ref={cardRef} className="overflow-hidden border-zinc-200/80 shadow-sm bg-white">
       <div className="flex items-center justify-between gap-3 flex-wrap px-5 py-3 border-b border-border/60">
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground tabular-nums shadow-sm">
+          <span className="inline-flex items-center rounded-lg bg-[#2561a1] px-2.5 py-1 text-xs font-semibold text-white tabular-nums shadow-sm">
             {hours} h
           </span>
           <h2 className="text-base font-semibold tracking-tight text-zinc-900">

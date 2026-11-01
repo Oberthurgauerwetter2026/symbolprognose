@@ -13,7 +13,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const btn = (active: boolean) =>
     cn(
       "px-4 py-1.5 text-sm font-semibold rounded-lg transition-colors tabular-nums",
-      active ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground hover:bg-muted",
+      active ? "bg-[#2561a1] text-white shadow-sm" : "text-foreground hover:bg-muted",
     );
 
   return (
