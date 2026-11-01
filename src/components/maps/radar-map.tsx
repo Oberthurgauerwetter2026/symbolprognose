@@ -12,6 +12,7 @@ import {
   TileLayer,
   useMap,
 } from "react-leaflet";
+import { MapGrabber, dockBtn } from "./map-dock";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
