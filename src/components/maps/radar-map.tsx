@@ -2709,16 +2709,3 @@ function RadarMapInner({
 /** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
 export const RadarMap = withErrorBoundary(RadarMapInner, "Das Niederschlagsradar", 520);
 
-
-function MapGrabber({ onMap }: { onMap: (m: L.Map) => void }) {
-  const map = useMap();
-  useEffect(() => { onMap(map); }, [map, onMap]);
-  return null;
-}
-
-function dockBtn(active: boolean) {
-  return cn(
-    "flex h-9 w-9 items-center justify-center transition-colors",
-    active ? "bg-[#2561a1] text-white" : "hover:bg-neutral-100 hover:text-neutral-900",
-  );
-}
