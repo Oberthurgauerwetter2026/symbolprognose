@@ -262,9 +262,11 @@ function LightningLayer({
  */
 const MAX_IN_FLIGHT = 3;
 /** Hängt ein Zeitschritt länger, gilt er als fehlgeschlagen (Dienst-Timeout). */
-const FRAME_TIMEOUT_MS = 12_000;
+const FRAME_TIMEOUT_MS = 15_000;
 /** So viele Fehlschläge ohne einen Erfolg ⇒ Dienststörung. */
 const OUTAGE_FAIL_STREAK = 4;
+/** Neuversuche pro Zeitschritt bei sporadischen Dienst-Aussetzern. */
+const MAX_RETRIES = 3;
 /** Kachel-Ebenen vor dem aktiven Zeitschritt (Rückwärtsscrubben). */
 const WINDOW_BACK = 3;
 /** Kachel-Ebenen in Abspielrichtung (Vorladen für flüssige Animation). */
@@ -358,6 +360,7 @@ function FrameStack({
     let failStreak = 0;
     let anySuccess = false;
     let queue: number[] = [];
+    const retries = new Map<number, number>();
     const timers = new Set<number>();
 
     /** Nächste Plätze der Warteschlange füllen. */
@@ -399,6 +402,20 @@ function FrameStack({
       } else {
 
         failStreak += 1;
+        // Einzelner Aussetzer des Dienstes: Zeitschritt später neu anfragen,
+        // statt ihn dauerhaft als Lücke stehen zu lassen.
+        const n = (retries.get(i) ?? 0) + 1;
+        retries.set(i, n);
+        if (anySuccess && n <= MAX_RETRIES) {
+          const t = window.setTimeout(() => {
+            timers.delete(t);
+            if (cancelled) return;
+            unmountFrame(i);
+            if (!queue.includes(i)) queue.unshift(i);
+            pump();
+          }, 1500 * n);
+          timers.add(t);
+        }
         // Komplettausfall der Quelle: Laden abbrechen statt endlos anfragen.
         if (!anySuccess && failStreak >= OUTAGE_FAIL_STREAK) {
           cancelled = true;
