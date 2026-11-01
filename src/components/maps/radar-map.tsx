@@ -2414,7 +2414,7 @@ function RadarMapInner({
         {/* Legende als vertikale Farbsäule am rechten Bildrand */}
         {legendOpen && null}
         <div
-          className="pointer-events-none absolute right-1 top-[11.5rem] bottom-24 z-[400] flex flex-col items-end gap-1.5 text-[9px] leading-none"
+          className="pointer-events-none absolute right-1 top-[11.5rem] bottom-24 z-[400] flex flex-col items-end gap-1.5 rounded-md bg-card/60 p-1 text-[9px] leading-none shadow-md backdrop-blur-sm"
           aria-label="Legende"
         >
           <span className="rounded-sm bg-card/80 px-1 py-0.5 font-semibold text-foreground">mm/h</span>
