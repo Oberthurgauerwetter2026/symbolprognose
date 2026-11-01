@@ -10,7 +10,6 @@ import {
   GeoJSON,
   Marker,
   TileLayer,
-  ZoomControl,
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
@@ -19,7 +18,7 @@ import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import { boltJitter, boltSvg, BOLT_RADAR, LIGHTNING_ENABLED } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { REGION, LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, REGION_OUTLINE, OUTSIDE_CH_MASK } from "./radar-base-geo";
-import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap, Snowflake, Droplet } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap, Snowflake, Plus, Minus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
@@ -1879,6 +1878,7 @@ function RadarMapInner({
   // Blitze sind global deaktiviert; die Einstellung bleibt gespeichert.
   const showLightning = LIGHTNING_ENABLED && lightningPref;
   const [flakesOn, setFlakesOn] = useState(true);
+  const [mapInst, setMapInst] = useState<L.Map | null>(null);
   useEffect(() => {
     const v = window.localStorage.getItem("radar.flakes") !== "0";
     FLAKES_ON = v;
@@ -2313,7 +2313,7 @@ function RadarMapInner({
 
 
           <CityMarkers />
-          <ZoomControl position="topright" />
+          <MapGrabber onMap={setMapInst} />
 
         </MapContainer>
 
@@ -2322,73 +2322,115 @@ function RadarMapInner({
 
 
 
-        {/* Legende oben rechts (unter Zoom) — nur auf Klick */}
-        {legendOpen ? (
-          <div className="absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="font-semibold text-foreground">mm/h</span>
+        {/* Steuerungs-Dock rechts oben: Zoom, Partikel, Legende */}
+        <div className="absolute right-3 top-3 z-[450] flex flex-col overflow-hidden rounded-xl bg-white/90 text-neutral-700 shadow-md ring-1 ring-black/5 backdrop-blur-md divide-y divide-neutral-200/80">
+          <button type="button" aria-label="Hineinzoomen" title="Hineinzoomen" onClick={() => mapInst?.zoomIn()} className={dockBtn(false)}>
+            <Plus className="h-4 w-4" />
+          </button>
+          <button type="button" aria-label="Herauszoomen" title="Herauszoomen" onClick={() => mapInst?.zoomOut()} className={dockBtn(false)}>
+            <Minus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleFlakes}
+            aria-pressed={flakesOn}
+            aria-label={flakesOn ? "Flocken und Tropfen ausblenden" : "Flocken und Tropfen einblenden"}
+            title={flakesOn ? "Flocken und Tropfen ausblenden" : "Flocken und Tropfen einblenden"}
+            className={dockBtn(flakesOn)}
+          >
+            <Snowflake className="h-4 w-4" />
+          </button>
+          {LIGHTNING_ENABLED && (
+            <button
+              type="button"
+              onClick={() => setLightningPref((v) => !v)}
+              aria-pressed={showLightning}
+              aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+              title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
+              className={dockBtn(showLightning)}
+            >
+              <Zap className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setLegendOpen((v) => !v)}
+            aria-pressed={legendOpen}
+            aria-label={legendOpen ? "Legende schliessen" : "Legende anzeigen"}
+            title="Legende"
+            className={dockBtn(legendOpen)}
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        </div>
+
+        {legendOpen && (
+          <div className="absolute right-[3.75rem] top-3 z-[450] max-h-[calc(100%-1.5rem)] w-44 overflow-y-auto rounded-2xl border border-neutral-200/80 bg-white/95 p-3 text-[11px] text-neutral-700 shadow-xl backdrop-blur-md">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral-900">Legende</span>
               <button
                 type="button"
                 aria-label="Legende schliessen"
                 onClick={() => setLegendOpen(false)}
-                className="-mr-0.5 rounded p-0.5 text-muted-foreground hover:bg-muted"
+                className="rounded-md p-0.5 text-neutral-500 hover:bg-neutral-100"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Regen · mm/h</span>
             {[...DISPLAY_SCALE].reverse().map((s) => (
               <div key={s.mmh} className="flex items-center gap-1.5">
                 <span
-                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  className="inline-block h-3 w-5 rounded"
                   style={{ background: `rgb(${s.rgb.join(",")})` }}
                 />
-                <span className="tabular-nums text-muted-foreground">{s.mmh}</span>
+                <span className="tabular-nums text-neutral-600">{s.mmh}</span>
               </div>
             ))}
-            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schneeregen</span>
+            <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Schneeregen</span>
             {SLEET_SCALE.map((s) => (
               <div key={`sleet-${s.mmh}`} className="flex items-center gap-1.5">
                 <span
-                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  className="inline-block h-3 w-5 rounded"
                   style={{ background: `rgb(${s.rgb.join(",")})` }}
                 />
-                <span className="text-muted-foreground">{s.label}</span>
+                <span className="text-neutral-600">{s.label}</span>
               </div>
             ))}
-            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Gefrierender Regen</span>
+            <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Gefrierender Regen</span>
             {FZRA_SCALE.map((s) => (
               <div key={`fzra-${s.mmh}`} className="flex items-center gap-1.5">
                 <span
-                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  className="inline-block h-3 w-5 rounded"
                   style={{ background: `rgb(${s.rgb.join(",")})` }}
                 />
-                <span className="text-muted-foreground">{s.label}</span>
+                <span className="text-neutral-600">{s.label}</span>
               </div>
             ))}
-            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Schnee</span>
+            <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Schnee</span>
             {SNOW_SCALE.map((s) => (
               <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
                 <span
-                  className="inline-block h-2.5 w-3 rounded-sm sm:h-3 sm:w-4"
+                  className="inline-block h-3 w-5 rounded"
                   style={{ background: `rgb(${s.rgb.join(",")})` }}
                 />
-                <span className="text-muted-foreground">{s.label}</span>
+                <span className="text-neutral-600">{s.label}</span>
               </div>
             ))}
-            <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Hagel</span>
+            <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Hagel</span>
             <div className="flex items-center gap-1.5">
               <span
-                className="inline-block h-2.5 w-3 rounded-sm bg-white sm:h-3 sm:w-4"
+                className="inline-block h-2.5 w-3 rounded bg-white ring-1 ring-neutral-200"
                 style={{
                   backgroundImage: "radial-gradient(circle, #000 35%, transparent 36%)",
                   backgroundSize: "4px 4px",
                 }}
               />
-              <span className="text-muted-foreground">POH</span>
+              <span className="text-neutral-600">POH</span>
             </div>
             {LIGHTNING_ENABLED && (
               <>
-                <span className="mt-1.5 mb-0.5 font-semibold text-foreground">Blitze</span>
+                <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Blitze</span>
                 <div className="flex items-center gap-1.5">
                   <span
                     className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
@@ -2399,7 +2441,7 @@ function RadarMapInner({
                     href="https://www.blitzortung.org/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    className="text-neutral-600 underline underline-offset-2 hover:text-foreground"
                   >
                     Blitzortung
                   </a>
@@ -2408,58 +2450,7 @@ function RadarMapInner({
             )}
 
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setLegendOpen(true)}
-            aria-label="Legende anzeigen"
-            title="Legende"
-            className="absolute right-3 top-24 z-[400] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
-          >
-            <Info className="h-4 w-4" />
-          </button>
         )}
-
-        {/* Flocken (Schnee) und Tropfen (Schneeregen) ein-/ausblenden */}
-        <button
-          type="button"
-          onClick={toggleFlakes}
-          aria-pressed={flakesOn}
-          aria-label={flakesOn ? "Flocken und Tropfen ausblenden" : "Flocken und Tropfen einblenden"}
-          title={flakesOn ? "Flocken und Tropfen ausblenden" : "Flocken und Tropfen einblenden"}
-          className={cn(
-            "absolute right-3 z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
-            LIGHTNING_ENABLED ? "top-[11rem]" : "top-[8.5rem]",
-            flakesOn
-              ? "bg-primary text-primary-foreground"
-              : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
-          )}
-        >
-          <span className="relative h-4 w-4">
-            <Snowflake className="h-4 w-4" />
-            <Droplet className="absolute -bottom-1 -right-1.5 h-2.5 w-2.5 fill-current" />
-          </span>
-        </button>
-
-        {/* Blitze ein-/ausblenden */}
-        {LIGHTNING_ENABLED && (
-          <button
-            type="button"
-            onClick={() => setLightningPref((v) => !v)}
-            aria-pressed={showLightning}
-            aria-label={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
-            title={showLightning ? "Blitze ausblenden" : "Blitze einblenden"}
-            className={cn(
-              "absolute right-3 top-[8.5rem] z-[400] flex h-8 w-8 items-center justify-center rounded-full shadow-md transition",
-              showLightning
-                ? "bg-amber-400 text-neutral-900"
-                : "bg-card/50 text-foreground/70 hover:bg-card hover:text-foreground",
-            )}
-          >
-            <Zap className="h-4 w-4" />
-          </button>
-        )}
-
 
         {/* Widget: Messzeit als kleine Pille im Bild */}
         {snapshot && frames.length > 0 && (
@@ -2717,3 +2708,17 @@ function RadarMapInner({
 
 /** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
 export const RadarMap = withErrorBoundary(RadarMapInner, "Das Niederschlagsradar", 520);
+
+
+function MapGrabber({ onMap }: { onMap: (m: L.Map) => void }) {
+  const map = useMap();
+  useEffect(() => { onMap(map); }, [map, onMap]);
+  return null;
+}
+
+function dockBtn(active: boolean) {
+  return cn(
+    "flex h-9 w-9 items-center justify-center transition-colors",
+    active ? "bg-[#2561a1] text-white" : "hover:bg-neutral-100 hover:text-neutral-900",
+  );
+}
