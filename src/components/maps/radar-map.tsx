@@ -30,7 +30,7 @@ import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.funct
 import { radarFramesQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
-import { advancePlayback, playbackSample, type PlaybackPosition } from "./radar-playback";
+import { advancePlayback, playbackSample, buildTimelineSteps, type PlaybackPosition } from "./radar-playback";
 import { CityMarkers } from "./city-markers";
 import { sampleRadarBand } from "./forecast-edge-sampling";
 
