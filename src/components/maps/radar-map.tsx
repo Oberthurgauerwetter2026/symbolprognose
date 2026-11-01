@@ -2249,7 +2249,7 @@ function RadarMapInner({
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
-          attributionControl={true}
+          attributionControl={false}
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <InvalidateOnResize />
@@ -2687,7 +2687,7 @@ function RadarMapInner({
 
       {/* Footnote unter der Karte */}
       {data && (
-        <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
+        <p className="mt-2.5 px-3 text-[10px] text-neutral-500 sm:px-0">
           Aktualisiert {fmtUpdatedAt(data.generatedAt)} · Quelle: Oberthurgauer Wetter · ©{" "}
           <a
             href="https://www.swisstopo.admin.ch/"
