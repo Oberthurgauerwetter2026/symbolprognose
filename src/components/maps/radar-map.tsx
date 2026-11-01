@@ -2271,6 +2271,16 @@ function RadarMapInner({
                       prewarmFrames={frames}
                     />
                   )}
+                  {isForecastFrame && overlayFrame?.handover && (
+                    <StableImageOverlay
+                      url={overlayFrame.handover.precipUrl}
+                      bounds={[
+                        [overlayFrame.handover.imageBbox.minLat, overlayFrame.handover.imageBbox.minLon],
+                        [overlayFrame.handover.imageBbox.maxLat, overlayFrame.handover.imageBbox.maxLon],
+                      ]}
+                      opacity={opacityVal * overlayFrame.handover.weight}
+                    />
+                  )}
                   {showPng && (
                     <CrossfadePrecipOverlay
                       key={flakesOn ? "f1" : "f0"}

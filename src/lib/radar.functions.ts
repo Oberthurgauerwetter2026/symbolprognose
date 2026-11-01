@@ -1,3 +1,4 @@
+import { nextModelHour } from "../components/maps/radar-playback";
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import {
@@ -5,7 +6,7 @@ import {
   getRadarRegionMax,
   type OpenMeteoCachePayload,
 } from "./openmeteo-cache.server";
-import { isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
+import { handoverBlends, isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
 import { r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
@@ -88,6 +89,12 @@ export interface RadarFrame {
   hailUrl?: string;
   /** Optional: Bbox des PNG-Overlays für diesen Frame. */
   imageBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+  /** Abklingendes Messbild über dem Modellframe (Übergabe Nowcast → Modell). */
+  handover?: {
+    precipUrl: string;
+    imageBbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+    weight: number;
+  };
 }
 
 export interface RadarPayload {
@@ -559,6 +566,15 @@ export const getRadarFrames = createServerFn({ method: "GET" })
             });
           }
           frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
+        }
+        // Übergabe: gemessenen Niederschlag in den ersten Modellstunden ausklingen lassen.
+        const lastNc = steps.length > 0 ? frames.filter((f) => f.source === "nowcast").pop() : undefined;
+        const fadeUrl = lastNc?.precipUrl ?? lastRadar.precipUrl;
+        if (fadeUrl) {
+          for (const b of handoverBlends(Date.parse(lastRadar.t), nextModelHour(now), motion, imageBbox)) {
+            const mf = frames.find((f) => f.source !== "radar" && f.source !== "nowcast" && Date.parse(f.t) === b.tMs);
+            if (mf) mf.handover = { precipUrl: fadeUrl, imageBbox: b.bbox, weight: b.weight };
+          }
         }
       }
     }
