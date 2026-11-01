@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -2687,18 +2688,7 @@ function RadarMapInner({
 
       {/* Footnote unter der Karte */}
       {data && (
-        <p className="mt-2.5 px-3 text-[10px] text-neutral-500 sm:px-0">
-          Aktualisiert {fmtUpdatedAt(data.generatedAt)} · Quelle: Oberthurgauer Wetter · ©{" "}
-          <a
-            href="https://www.swisstopo.admin.ch/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-foreground"
-          >
-            swisstopo
-          </a>{" "}
-          · Radar/Modell © MeteoSchweiz · Relief Ausland © Esri · Karte: Leaflet
-
+        <SourceFooter updated={fmtUpdatedAt(data.generatedAt)} data="MeteoSchweiz, Open-Meteo" map className="px-3 sm:px-0">
           {LIGHTNING_ENABLED && (
             <>
               {" · "}
@@ -2713,7 +2703,7 @@ function RadarMapInner({
               (Blitze)
             </>
           )}
-        </p>
+        </SourceFooter>
 
       )}
     </div>

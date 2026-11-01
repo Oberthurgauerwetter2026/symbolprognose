@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { SourceFooter } from "@/components/source-footer";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { satelliteManifestQuery } from "@/lib/map-queries";
@@ -779,7 +780,7 @@ function SatelliteMapInner({
   }, []);
 
   const layer = data?.layer ?? region.layer;
-  const source = data?.source ?? region.source;
+  const source = (data?.provider ?? region.provider ?? "eumetsat-wms") === "gibs-wmts" ? "NASA GIBS, NOAA" : "EUMETSAT";
   const handleTimelineChange = useCallback(
     (n: number) => {
       setPlaying(false);
@@ -881,6 +882,7 @@ function SatelliteMapInner({
           minZoom={region.zoom}
           maxZoom={region.zoom}
           zoomControl={false}
+          attributionControl={false}
           scrollWheelZoom={false}
           doubleClickZoom={false}
           touchZoom={false}
@@ -1092,18 +1094,9 @@ function SatelliteMapInner({
       )}
 
       {/* Quellenangabe — statisch unterhalb von Karte und Steuerpanel */}
-      {!loop && !bare ? (
-        <div className="px-3 pb-2 pt-1 text-left text-[11px] text-muted-foreground">
-          Quelle: Oberthurgauer Wetter · {source}
-          {showLightning ? <> · Blitze: {BlitzortungLink}</> : null}
-        </div>
-      ) : (
-        showLightning && (
-          <div className="px-2 pb-1 pt-0.5 text-left text-[10px] text-muted-foreground">
-            Blitze: {BlitzortungLink}
-          </div>
-        )
-      )}
+      <SourceFooter data={source} className="px-3 pb-2 shrink-0" updated={data?.updatedAt ? new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", hour: "2-digit", minute: "2-digit" }).format(new Date(data.updatedAt)) : undefined}>
+        {showLightning ? <> · Blitze: {BlitzortungLink}</> : null}
+      </SourceFooter>
     </div>
   );
 }

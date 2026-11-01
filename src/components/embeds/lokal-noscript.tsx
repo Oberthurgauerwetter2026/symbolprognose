@@ -205,7 +205,7 @@ export function LokalNoscript({ data }: { data: LokalNoscriptData }) {
 
       <footer className="text-[10px] text-muted-foreground">
         {data.generatedAt ? `Aktualisiert ${fmtTime(data.generatedAt)} · ` : ""}
-        Quelle: Oberthurgauer Wetter · MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX
+        Oberthurgauer Wetter · Daten: MeteoSchweiz, DWD
       </footer>
     </div>
   );

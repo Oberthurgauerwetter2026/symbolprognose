@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { SourceFooter } from "@/components/source-footer";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -508,14 +509,6 @@ function WeatherWidgetInner({
                   snow={snow}
                 />
 
-                <Footer
-                  forecast={forecast.data}
-                  selectedDayIdx={selectedDayIdx}
-                  extended={extended}
-                />
-
-                <DataStamp updatedAt={forecast.dataUpdatedAt} />
-
                 {canCollapseToCompact && (
                   <div className="flex justify-center pt-1">
                     <Button
@@ -530,6 +523,7 @@ function WeatherWidgetInner({
                 )}
               </>
             )}
+            <DataStamp updatedAt={forecast.dataUpdatedAt} />
           </>
         )}
       </div>
@@ -598,24 +592,10 @@ function WarningStrip({
 function DataStamp({ updatedAt }: { updatedAt: number }) {
   if (!updatedAt) return null;
   const fmt = new Intl.DateTimeFormat("de-CH", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    timeZone: "Europe/Zurich", hour: "2-digit", minute: "2-digit",
   }).format(new Date(updatedAt));
-  const tip =
-    "Lokalprognose auf Basis von MeteoSchweiz local_forecast (OGD) und DWD-MOSMIX. " +
-    "Wettermodelle werden ca. alle 6 Stunden (00/06/12/18 UTC) neu gerechnet. " +
-    "Im Browser werden Daten 15–30 Min. zwischengespeichert.";
-  return (
-    <p className="text-[11px] text-zinc-500 text-center pt-1" title={tip}>
-      Aktualisiert {fmt} · Quelle: Oberthurgauer Wetter · MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX
-    </p>
-  );
+  return <SourceFooter updated={fmt} data="MeteoSchweiz, DWD" />;
 }
-
-
 
 /* ---------------- Header ---------------- */
 
@@ -1681,42 +1661,6 @@ function DetailPanel({
         )}
       </div>
     </section>
-  );
-}
-
-/* ---------------- Footer ---------------- */
-
-function Footer({
-  forecast: _forecast,
-  selectedDayIdx: _selectedDayIdx,
-  extended: _extended,
-}: {
-  forecast: import("@/lib/weather").ForecastResponse;
-  selectedDayIdx: number;
-  extended: boolean;
-}) {
-  const updated = new Date();
-  return (
-    <footer className="flex flex-wrap items-center justify-between gap-3 pt-3">
-      <div className="text-xs text-zinc-700 font-medium leading-relaxed">
-        Quelle: Oberthurgauer Wetter · MeteoSchweiz local_forecast (OGD) · DWD-MOSMIX ·
-        aktualisiert{" "}
-        {String(updated.getHours()).padStart(2, "0")}:
-        {String(updated.getMinutes()).padStart(2, "0")}
-      </div>
-
-      <div className="text-xs text-zinc-700 font-medium">
-        Grafik ©{" "}
-        <a
-          href="https://oberthurgauerwetter.ch"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-accent hover:underline"
-        >
-          oberthurgauerwetter.ch
-        </a>
-      </div>
-    </footer>
   );
 }
 

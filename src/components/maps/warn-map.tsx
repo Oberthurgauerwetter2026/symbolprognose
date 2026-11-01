@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, GeoJSON, TileLayer, ZoomControl, Marker, useMap } from "react-leaflet";
@@ -541,7 +542,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             keyboard={!widgetMode}
 
             zoomControl={false}
-            attributionControl
+            attributionControl={false}
             style={{ height: "100%", width: "100%", background: "#ebefeb" }}
           >
             <FitRegion />
@@ -967,10 +968,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
 
       </div>
 
-      <div className="text-left text-[11px] text-muted-foreground">
-        {updatedLabel ? <>Aktualisiert {updatedLabel} · </> : null}
-        Quelle: Oberthurgauer Wetter · Radar MCH
-      </div>
+      <SourceFooter updated={updatedLabel || undefined} map />
 
 
     </div>

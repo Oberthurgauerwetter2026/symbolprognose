@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
@@ -240,7 +241,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             maxBoundsViscosity={1.0}
             scrollWheelZoom
             zoomControl={false}
-            attributionControl
+            attributionControl={false}
             style={{ height: "100%", width: "100%", background: "#ebefeb" }}
             className="mch-precip-sums"
           >
@@ -322,9 +323,9 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
           </div>
         </div>
-        <div className="mt-2 text-left text-[11px] text-muted-foreground">
-          Quelle: Oberthurgauer Wetter · {sourceLabel}
-        </div>
+        <SourceFooter map data="eigene Stationen, MeteoSchweiz">
+          {` · ${sourceLabel}`}
+        </SourceFooter>
       </CardContent>
     </Card>
   );
