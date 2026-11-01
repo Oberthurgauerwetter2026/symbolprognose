@@ -1158,7 +1158,7 @@ function WindMapInner({
 
 
         {/* Steuerungs-Dock rechts oben: Zoom, Legende */}
-        <div className="absolute right-3 top-3 z-[450] flex flex-col overflow-hidden rounded-xl bg-white/90 text-neutral-700 shadow-md ring-1 ring-black/5 backdrop-blur-md divide-y divide-neutral-200/80">
+        <div className={DOCK_CLASS}>
           <button type="button" aria-label="Hineinzoomen" title="Hineinzoomen" onClick={() => mapInst?.zoomIn()} className={dockBtn(false)}>
             <Plus className="h-4 w-4" />
           </button>
