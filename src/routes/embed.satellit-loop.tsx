@@ -16,7 +16,12 @@ export const Route = createFileRoute("/embed/satellit-loop")({
   },
   head: () => ({
     meta: [
-      { title: "Satellit Loop (Embed)" },
+      { name: "description", content: "Satellit Loop (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Satellit Loop (Embed) · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Satellit Loop (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Satellit Loop (Embed) · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),

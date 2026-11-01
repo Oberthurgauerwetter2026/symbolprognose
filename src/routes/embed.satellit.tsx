@@ -16,7 +16,12 @@ export const Route = createFileRoute("/embed/satellit")({
   },
   head: () => ({
     meta: [
-      { title: "Satellit (Embed)" },
+      { name: "description", content: "Satellit (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Satellit (Embed) · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Satellit (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Satellit (Embed) · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),

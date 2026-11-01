@@ -18,7 +18,11 @@ export const Route = createFileRoute("/karten/lokal")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [
-      { title: "Lokalprognose · 5-Tage" },
+      { property: "og:title", content: "Lokalprognose · 5-Tage · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Lokalprognose für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Lokalprognose · 5-Tage · Oberthurgauer Wetter" },
       {
         name: "description",
         content:

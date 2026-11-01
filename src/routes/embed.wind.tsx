@@ -17,7 +17,12 @@ export const Route = createFileRoute("/embed/wind")({
   },
   head: () => ({
     meta: [
-      { title: "Windprognose (Embed)" },
+      { name: "description", content: "Windprognose (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Windprognose (Embed) · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Windprognose (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Windprognose (Embed) · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),

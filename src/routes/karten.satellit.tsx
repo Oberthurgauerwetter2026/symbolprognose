@@ -17,7 +17,9 @@ export const Route = createFileRoute("/karten/satellit")({
   component: KartenSatellitPage,
   head: () => ({
     meta: [
-      { title: "Satellitenbild Schweiz — Zeitraffer · letzte 5 Stunden" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Satellitenbild Schweiz — Zeitraffer · letzte 5 Stunden · Oberthurgauer Wetter" },
       { name: "description", content: getMap("satellit").description },
       { property: "og:title", content: "Satellitenbild Schweiz — Zeitraffer" },
       { property: "og:description", content: getMap("satellit").description },

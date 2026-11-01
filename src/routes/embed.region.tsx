@@ -18,7 +18,12 @@ export const Route = createFileRoute("/embed/region")({
   component: EmbedRegion,
   head: () => ({
     meta: [
-      { title: "Wetterkarte Region (Embed)" },
+      { name: "description", content: "Wetterkarte Region (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Wetterkarte Region (Embed) · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Wetterkarte Region (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Wetterkarte Region (Embed) · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),

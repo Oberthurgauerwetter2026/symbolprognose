@@ -18,7 +18,12 @@ export const Route = createFileRoute("/embed/warnungen")({
 
   head: () => ({
     meta: [
-      { title: "Wetterwarnungen Oberthurgau (Embed)" },
+      { name: "description", content: "Wetterwarnungen Oberthurgau (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Wetterwarnungen Oberthurgau (Embed) · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Wetterwarnungen Oberthurgau (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Wetterwarnungen Oberthurgau (Embed) · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),

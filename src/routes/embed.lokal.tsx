@@ -27,7 +27,12 @@ export const Route = createFileRoute("/embed/lokal")({
   },
   head: () => ({
     meta: [
-      { title: "Lokalprognose (Embed)" },
+      { name: "description", content: "Lokalprognose kompakt für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Lokalprognose kompakt · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Lokalprognose kompakt für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Lokalprognose kompakt · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),
