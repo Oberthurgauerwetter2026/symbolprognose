@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { advancePlayback, playbackDuration, playbackSample } from "./radar-playback";
+import { advancePlayback, buildTimelineSteps, playbackDuration, playbackSample } from "./radar-playback";
 
 describe("radar playback at the default 2× speed", () => {
   const times = [0, 300_000, 1_200_000, 4_800_000];
