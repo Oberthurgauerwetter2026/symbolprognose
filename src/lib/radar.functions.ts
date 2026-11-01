@@ -468,7 +468,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     // Brückenframe: Liegt vor der nächsten vollen Stunde kein Modellbild,
     // füllt das letzte vorhandene Bild (laufende Stunde) die Lücke nach "Jetzt".
     const QUARTER_MS = 15 * 60_000;
-    const nextHour = Math.ceil((now + 1) / 3_600_000) * 3_600_000;
+    const nextHour = nextHourMs;
     const fcList = forecastManifest!.frames
       .map((mf) => ({ mf, tMs: Date.parse(mf.t) }))
       .filter((x) => !Number.isNaN(x.tMs));
