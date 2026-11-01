@@ -1,4 +1,5 @@
 # Radar forecast reliability
+- [ ] Extend nowcast to 75 minutes with intensity fade from minute 60 to 75; preserve model reality check and verify timeline/rendering.
 - [x] Add motion-aligned 15–20-minute observed intensity tendencies for five-minute nowcast PNGs; bounded local growth/decay, damped leads, exact measurement matching, and safe publication. Ten Python and 21 timeline/image-selection tests pass; live radar playback has no runtime errors.
 - [ ] Verify observed intensity evolution on the live map: waiting for GitHub source synchronization and a successful radar ingest producing the new tendency PNGs; published frontend also needs republishing. Model forecasts and phase rules remain unchanged.
 - [x] Fix and verify the nowcast hour-boundary gap with delayed measurements; 20 regression tests pass and live map advances through five-minute nowcast frames without runtime errors.
