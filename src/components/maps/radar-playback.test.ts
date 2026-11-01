@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { advancePlayback, buildTimelineSteps, playbackDuration, playbackSample } from "./radar-playback";
+import { advancePlayback, buildTimelineSteps, nextModelHour, playbackDuration, playbackSample } from "./radar-playback";
 
 describe("radar playback at the default 2× speed", () => {
   const times = [0, 300_000, 1_200_000, 4_800_000];
@@ -41,6 +41,12 @@ const every5 = (fromH: number, fromM: number, toH: number, toM: number) => {
 };
 
 describe("buildTimelineSteps", () => {
+  test("Zeitstreifen und Modellübergabe wechseln um 09:25 bereits bei 10:00", () => {
+    assert.equal(nextModelHour(at(9, 25)), at(10, 0));
+  });
+  test("Zeitstreifen und Modellübergabe wechseln um 08:55 bereits bei 09:00", () => {
+    assert.equal(nextModelHour(at(8, 55)), at(9, 0));
+  });
   test("15-min-Modellbilder enden vor der nächsten vollen Stunde", () => {
     const frames = [
       ...every5(9, 0, 9, 40).map((t) => ({ t })),
