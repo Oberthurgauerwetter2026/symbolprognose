@@ -1157,40 +1157,49 @@ function WindMapInner({
         </MapContainer>
 
 
-        {/* Legende — nur auf Klick */}
-        {legendOpen ? (
-          <div className="absolute right-3 top-24 z-[400] flex flex-col gap-0.5 rounded-md bg-card/95 p-1.5 text-[9px] shadow-md sm:p-2 sm:text-[10px]">
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="font-semibold text-foreground">Böen km/h</span>
+        {/* Steuerungs-Dock rechts oben: Zoom, Legende */}
+        <div className="absolute right-3 top-3 z-[450] flex flex-col overflow-hidden rounded-xl bg-white/90 text-neutral-700 shadow-md ring-1 ring-black/5 backdrop-blur-md divide-y divide-neutral-200/80">
+          <button type="button" aria-label="Hineinzoomen" title="Hineinzoomen" onClick={() => mapInst?.zoomIn()} className={dockBtn(false)}>
+            <Plus className="h-4 w-4" />
+          </button>
+          <button type="button" aria-label="Herauszoomen" title="Herauszoomen" onClick={() => mapInst?.zoomOut()} className={dockBtn(false)}>
+            <Minus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setLegendOpen((v) => !v)}
+            aria-pressed={legendOpen}
+            aria-label={legendOpen ? "Legende schliessen" : "Legende anzeigen"}
+            title="Legende"
+            className={dockBtn(legendOpen)}
+          >
+            <Info className="h-4 w-4" />
+          </button>
+        </div>
+
+        {legendOpen && (
+          <div className="absolute right-[3.75rem] top-3 z-[450] w-44 rounded-2xl border border-neutral-200/80 bg-white/95 p-3 text-[11px] text-neutral-700 shadow-xl backdrop-blur-md">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold text-neutral-900">Böen km/h</span>
               <button
                 type="button"
                 aria-label="Legende schliessen"
                 onClick={() => setLegendOpen(false)}
-                className="-mr-0.5 rounded p-0.5 text-muted-foreground hover:bg-muted"
+                className="rounded-md p-0.5 text-neutral-500 hover:bg-neutral-100"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
             {[...WIND_SCALE].reverse().map((s) => (
               <div key={s.v} className="flex items-center gap-1.5">
                 <span
-                  className="inline-block h-2 w-3 rounded-sm sm:h-2.5 sm:w-4"
+                  className="inline-block h-3 w-5 rounded"
                   style={{ background: `rgb(${s.rgb.join(",")})` }}
                 />
-                <span className="tabular-nums text-muted-foreground">{s.label}</span>
+                <span className="tabular-nums text-neutral-600">{s.label}</span>
               </div>
             ))}
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setLegendOpen(true)}
-            aria-label="Legende anzeigen"
-            title="Legende"
-            className="absolute right-3 top-24 z-[400] flex h-8 w-8 items-center justify-center rounded-full bg-card/50 text-foreground/70 shadow-md transition hover:bg-card hover:text-foreground"
-          >
-            <Info className="h-4 w-4" />
-          </button>
         )}
 
         {/* Widget: Prognosezeit als kleine Pille im Bild */}
