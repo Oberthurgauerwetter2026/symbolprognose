@@ -1077,7 +1077,7 @@ function WindMapInner({
           maxZoom={15}
           scrollWheelZoom
           zoomControl={false}
-          attributionControl
+          attributionControl={false}
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <InvalidateOnResize />
@@ -1348,7 +1348,7 @@ function WindMapInner({
 
 
       {data && (
-        <p className="px-3 text-[10px] text-neutral-500 sm:px-0">
+        <p className="mt-2.5 px-3 text-[10px] text-neutral-500 sm:px-0">
           Aktualisiert am {new Intl.DateTimeFormat("de-CH", {
             day: "2-digit", month: "2-digit", year: "numeric",
             hour: "2-digit", minute: "2-digit",
