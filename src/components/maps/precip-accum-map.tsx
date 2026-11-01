@@ -2,8 +2,6 @@ import { withErrorBoundary } from "@/components/app-error-boundary";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
-import { Download } from "lucide-react";
-import { toast } from "sonner";
 import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, Marker, Tooltip } from "react-leaflet";
 
 
@@ -13,7 +11,6 @@ import "leaflet/dist/leaflet.css";
 
 import { LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, OUTSIDE_CH_MASK, REGION_OUTLINE } from "./radar-base-geo";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 
 
 // Gleiche Karte wie Radar, aber näher auf den Oberthurgau gezoomt.
@@ -33,14 +30,14 @@ import { CityMarkers } from "./city-markers";
 // dadurch sehen Radar-Animation, ICON-CH-Forecast-Frames und Summen-Karte
 // farblich konsistent aus.
 const ACCUM_CLASSES: { min: number; max: number; rgb: [number, number, number]; label: string }[] = [
-  { min:   0.3, max:    1, rgb: [150, 195, 235], label: "0.3" },
-  { min:   1,   max:    3, rgb: [ 95, 155, 220], label: "1"   },
-  { min:   3,   max:   10, rgb: [ 40,  90, 195], label: "3"   },
-  { min:  10,   max:   20, rgb: [ 55, 170,  75], label: "10"  },
-  { min:  20,   max:   40, rgb: [245, 220,  55], label: "20"  },
-  { min:  40,   max:   60, rgb: [240, 140,  35], label: "40"  },
-  { min:  60,   max:  100, rgb: [220,  40,  40], label: "60"  },
-  { min: 100,   max: 9999, rgb: [170,  40, 180], label: "100+"},
+  { min:   0.3, max:    1, rgb: [134, 188, 236], label: "0.3" },
+  { min:   1,   max:    3, rgb: [109, 162, 222], label: "1"   },
+  { min:   3,   max:   10, rgb: [ 66, 111, 200], label: "3"   },
+  { min:  10,   max:   20, rgb: [ 80, 178,  96], label: "10"  },
+  { min:  20,   max:   40, rgb: [243, 215,  81], label: "20"  },
+  { min:  40,   max:   60, rgb: [240, 150,  60], label: "40"  },
+  { min:  60,   max:  100, rgb: [220,  70,  70], label: "60"  },
+  { min: 100,   max: 9999, rgb: [177,  72, 187], label: "100+"},
 ];
 
 // Neuschnee-Teppich (cm), von hellem Blau über Indigo zu Violett/Rosa.
@@ -134,68 +131,7 @@ function renderHeatmapDataUrl(
     }
   }
 
-  // Zweiter Pass: feine Trennlinien zwischen Klassen.
-  // Border wird auf der Pixelseite mit der HÖHEREN Klasse gezeichnet,
-  // damit die Außenkontur der intensiveren Klasse scharf bleibt.
-  // Farbe adaptiv: dunkle Linie auf hellen Klassen (0–4), helle Linie auf dunklen Klassen (5–9).
-  const drawBorderAt = (p: number) => {
-    const ci = clsIdx[p];
-    if (ci < 0) return;
-    const dark = ci <= 4;
-    const i = p * 4;
-    if (dark) {
-      // dunkle Linie
-      data[i] = 15;
-      data[i + 1] = 23;
-      data[i + 2] = 42;
-      data[i + 3] = 230;
-    } else {
-      // helle Linie
-      data[i] = 255;
-      data[i + 1] = 255;
-      data[i + 2] = 255;
-      data[i + 3] = 250;
-    }
-  };
-
-  for (let py = 0; py < h; py++) {
-    for (let px = 0; px < w; px++) {
-      const p = py * w + px;
-      const ci = clsIdx[p];
-      // Rechts
-      if (px + 1 < w) {
-        const pr = p + 1;
-        const cr = clsIdx[pr];
-        if (ci !== cr) {
-          if (ci > cr) drawBorderAt(p);
-          else drawBorderAt(pr);
-        }
-      }
-      // Unten
-      if (py + 1 < h) {
-        const pd = p + w;
-        const cd = clsIdx[pd];
-        if (ci !== cd) {
-          if (ci > cd) drawBorderAt(p);
-          else drawBorderAt(pd);
-        }
-      }
-    }
-  }
-
   ctx.putImageData(img, 0, 0);
-
-  // Weichzeichnungs-Pass: Bitmap durch Off-Screen-Blur → rundere Klassenkanten.
-  const blurCanvas = document.createElement("canvas");
-  blurCanvas.width = w;
-  blurCanvas.height = h;
-  const bctx = blurCanvas.getContext("2d");
-  if (bctx) {
-    bctx.filter = "blur(2px)";
-    bctx.drawImage(canvas, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(blurCanvas, 0, 0);
-  }
 
   // Bounds: Gitterpunkt-zu-Gitterpunkt (Pixel liegen direkt auf Gitterpunkten).
   const minLat = Math.min(gridLat[0], gridLat[nLat - 1]);
@@ -220,7 +156,8 @@ interface Props {
 }
 
 function stationIcon(name: string, value: number, unit: string, own = false) {
-  const bg = own ? "#2563eb" : "#0f172a";
+  void own;
+  const bg = "#0f172a";
   const v = value >= 10 ? value.toFixed(0) : value.toFixed(1);
   return L.divIcon({
     className: "",
@@ -258,93 +195,20 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
   const mapKeyRef = useRef(`map-${Math.random()}`);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const download = async () => {
-    if (!cardRef.current) return;
-    try {
-      // Kurz warten, damit ggf. noch ausstehende Tile-Loads abgeschlossen sind.
-      await new Promise((r) => setTimeout(r, 250));
-      const { toPng } = await import("html-to-image");
-      const dataUrl = await toPng(cardRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
-        // Leaflet-Controls (Zoom-Buttons, Attribution) im Export weglassen
-        filter: (node: HTMLElement) => {
-          if (!(node instanceof HTMLElement)) return true;
-          // Zoom-Buttons aus dem Export ausblenden, Attribution behalten.
-          if (node.classList?.contains("leaflet-control-zoom")) return false;
-          if (node.dataset && "exportExclude" in node.dataset) return false;
-          return true;
-        },
-      });
-
-      const fileName = `${mode === "snow" ? "neuschnee" : "niederschlag"}-${hours}h-${new Date()
-        .toISOString()
-        .slice(0, 16)
-        .replace(/[-:T]/g, "")}.png`;
-
-      const win = window.open("", "_blank");
-      if (win && win.document) {
-        win.document.open();
-        win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${fileName}</title>
-<style>
-  body{margin:0;background:#0f172a;color:#e2e8f0;font-family:ui-sans-serif,system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px}
-  .bar{display:flex;gap:8px;align-items:center}
-  a.btn{display:inline-block;background:#22c55e;color:#0b1220;font-weight:600;padding:8px 14px;border-radius:8px;text-decoration:none;font-size:14px}
-  a.btn:hover{background:#16a34a;color:#fff}
-  img{max-width:100%;height:auto;border:1px solid #1e293b;border-radius:8px;background:#fff}
-  .hint{font-size:12px;color:#94a3b8}
-</style></head><body>
-<div class="bar"><a class="btn" href="${dataUrl}" download="${fileName}">PNG speichern</a><span class="hint">oder Rechtsklick aufs Bild → „Bild speichern unter …"</span></div>
-<img src="${dataUrl}" alt="${fileName}">
-</body></html>`);
-        win.document.close();
-        toast.success("PNG geöffnet", { description: "Im neuen Tab speichern." });
-        return;
-      }
-
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      toast.success("PNG-Download gestartet", { description: fileName });
-    } catch (e) {
-      toast.error("Export fehlgeschlagen", {
-        description:
-          (e as Error).message ||
-          "Karte noch nicht vollständig geladen — kurz warten und erneut versuchen.",
-      });
-    }
-  };
-
   return (
     <Card ref={cardRef} className="overflow-hidden border-zinc-200/80 shadow-sm bg-white">
-      <div className="flex items-center justify-between gap-4 flex-wrap px-6 pt-5 pb-4 border-b border-zinc-100">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-0.5 tabular-nums">
-              letzte {hours} h
-            </span>
-            <h2 className="text-lg font-semibold text-zinc-900 tracking-tight">
-              {mode === "snow" ? "Neuschnee" : "Gefallener Niederschlag"}
-            </h2>
-          </div>
-          <p className="text-xs text-zinc-500 tabular-nums">
-            Max <span className="font-medium text-zinc-700">{accum.maxMm.toFixed(1)} {unit}</span> ·{" "}
-            {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1" data-export-exclude>
-          <Button onClick={download} size="sm" className="gap-2">
-            <Download className="h-4 w-4" />
-            PNG herunterladen
-          </Button>
-          <span className="text-[10px] text-zinc-400">
-            Öffnet PNG in neuem Tab inkl. „Speichern"-Button.
+      <div className="flex items-center justify-between gap-3 flex-wrap px-5 py-3 border-b border-border/60">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground tabular-nums shadow-sm">
+            {hours} h
           </span>
+          <h2 className="text-base font-semibold tracking-tight text-zinc-900">
+            {mode === "snow" ? "Neuschnee" : "Gefallener Niederschlag"}
+          </h2>
         </div>
+        <p className="text-xs text-zinc-500 tabular-nums">
+          Max <span className="font-semibold text-zinc-800">{accum.maxMm.toFixed(1)} {unit}</span> · {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}
+        </p>
       </div>
       <CardContent className="p-0">
         <div className="map-attrib-compact relative h-[clamp(380px,60vh,620px)] w-full">
@@ -378,6 +242,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             zoomControl={false}
             attributionControl
             style={{ height: "100%", width: "100%", background: "#ebefeb" }}
+            className="mch-precip-sums"
           >
             <ForeignReliefLayers />
             <TileLayer
@@ -422,7 +287,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
                 key={`accum-${mode}-${hours}-${overlay.url.length}`}
                 url={overlay.url}
                 bounds={overlay.bounds}
-                opacity={0.7}
+                opacity={0.85}
                 zIndex={460}
               />
             )}
@@ -455,14 +320,6 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
               ))}
             </div>
             <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
-            {stations.length > 0 && (
-              <div className="mt-1 flex justify-center gap-3 text-[10px] text-zinc-600">
-                {stations.some((s) => s.own) && (
-                  <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#2563eb" }} />Eigene Stationen</span>
-                )}
-                <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full" style={{ background: "#0f172a" }} />MeteoSchweiz</span>
-              </div>
-            )}
           </div>
         </div>
         <div className="mt-2 text-left text-[11px] text-muted-foreground">

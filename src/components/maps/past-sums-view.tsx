@@ -12,21 +12,21 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
 
   const btn = (active: boolean) =>
     cn(
-      "px-3 py-1.5 text-sm font-medium rounded-full transition-colors tabular-nums",
-      active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground",
+      "px-4 py-1.5 text-sm font-semibold rounded-lg transition-colors tabular-nums",
+      active ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground hover:bg-muted",
     );
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1" role="group" aria-label="Zeitraum">
+        <div className="flex gap-1 rounded-xl bg-card p-1 shadow-md ring-1 ring-border/50" role="group" aria-label="Zeitraum">
           {PAST_WINDOWS.map((h) => (
             <button key={h} type="button" className={btn(hours === h)} onClick={() => setHours(h)}>
               {h} h
             </button>
           ))}
         </div>
-        <div className="flex gap-1 sm:ml-auto" role="group" aria-label="Anzeige">
+        <div className="flex gap-1 rounded-xl bg-card p-1 shadow-md ring-1 ring-border/50 sm:ml-auto" role="group" aria-label="Anzeige">
           <button type="button" className={btn(mode === "rain")} onClick={() => setMode("rain")}>Niederschlag (mm)</button>
           <button type="button" className={btn(mode === "snow")} onClick={() => setMode("snow")}>Neuschnee (cm)</button>
         </div>
