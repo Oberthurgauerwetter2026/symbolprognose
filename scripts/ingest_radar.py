@@ -938,8 +938,8 @@ def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | 
     if a.shape != b.shape or a.size == 0:
         return None
     # Nur relevante Niederschlagsflächen, Werte gedämpft (robuster gegen Spitzen).
-    a = np.where(a >= 1.0, np.sqrt(a), 0.0).astype(np.float32)
-    b = np.where(b >= 1.0, np.sqrt(b), 0.0).astype(np.float32)
+    a = np.where(a >= 0.3, np.sqrt(a), 0.0).astype(np.float32)
+    b = np.where(b >= 0.3, np.sqrt(b), 0.0).astype(np.float32)
     min_px = max(30, int(0.002 * a.size))
     if int((a > 0).sum()) < min_px or int((b > 0).sum()) < min_px:
         return None

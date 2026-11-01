@@ -27,11 +27,11 @@ export type RadarSums = {
 };
 
 /** Raster über Oberthurgau und Umgebung (Schaffhausen – Bregenz – Säntis). */
-const LAT_MIN = 47.15;
-const LAT_MAX = 47.85;
-const LON_MIN = 8.6;
-const LON_MAX = 9.8;
-const STEP = 0.1;
+const LAT_MIN = 46.9;
+const LAT_MAX = 48.1;
+const LON_MIN = 8.3;
+const LON_MAX = 10.6;
+const STEP = 0.15;
 
 export type PastSums = {
   gridLat: number[];
