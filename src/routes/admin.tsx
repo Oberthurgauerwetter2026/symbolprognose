@@ -11,7 +11,12 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
   head: () => ({
     meta: [
-      { title: "Admin · Wetter-Widget" },
+      { name: "description", content: "Verwaltung der Produkte von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Admin · Wetter-Widget · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Verwaltung der Produkte von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Admin · Wetter-Widget · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

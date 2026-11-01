@@ -17,7 +17,12 @@ export const Route = createFileRoute("/embed/widget-warnungen")({
   component: EmbedWidgetWarnungen,
   head: () => ({
     meta: [
-      { title: "Warnungen aktuell (Widget)" },
+      { name: "description", content: "Warnungen aktuell (Widget) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Warnungen aktuell (Widget) · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Warnungen aktuell (Widget) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Warnungen aktuell (Widget) · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),

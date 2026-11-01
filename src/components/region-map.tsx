@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "@/components/maps/foreign-relief-layers";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -954,7 +955,7 @@ function RegionMapInner({
           maxZoom={17}
           scrollWheelZoom
           zoomControl={false}
-          attributionControl={true}
+          attributionControl={false}
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <BoundsFitter bounds={regionBounds} />
@@ -1177,25 +1178,11 @@ function RegionMapInner({
               )}
             </div>
 
-            {dataUpdatedAt > 0 && (
-              <p
-                className="mt-1.5 text-[10px] text-neutral-500"
-                title="Wettermodelle (ICON-seamless, DWD-MOSMIX) werden ca. alle 6 Stunden (00/06/12/18 UTC) neu gerechnet. Im Browser werden Daten 30 Min. zwischengespeichert."
-              >
-                Datenstand:{" "}
-                {new Intl.DateTimeFormat("de-CH", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }).format(new Date(dataUpdatedAt))}{" "}
-                · Quelle: Oberthurgauer Wetter · Modelle: ICON-seamless, DWD-MOSMIX
-              </p>
-            )}
+
           </div>
         </>
       )}
+      <SourceFooter data="MeteoSchweiz, DWD, Open-Meteo" map updated={dataUpdatedAt > 0 ? new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", hour: "2-digit", minute: "2-digit" }).format(new Date(dataUpdatedAt)) : undefined} />
     </div>
   );
 }

@@ -8,7 +8,13 @@ const PUBLISHED_ORIGIN = "https://oberthurgauer-wetter.lovable.app";
 export const Route = createFileRoute("/embed-info")({
   component: EmbedInfo,
   head: () => ({
-    meta: [{ title: "Embed-Snippets · WordPress" }],
+    meta: [
+      { name: "description", content: "Wetterprodukte von Oberthurgauer Wetter in eine eigene Website einbetten." },
+      { property: "og:title", content: "Embed-Snippets · WordPress · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Wetterprodukte von Oberthurgauer Wetter in eine eigene Website einbetten." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Embed-Snippets · WordPress · Oberthurgauer Wetter" }],
   }),
 });
 

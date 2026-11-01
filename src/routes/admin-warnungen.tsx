@@ -56,6 +56,11 @@ export const Route = createFileRoute("/admin-warnungen")({
   component: WarnAdminPage,
   head: () => ({
     meta: [
+      { name: "description", content: "Redaktionelle Wetterwarnungen von Oberthurgauer Wetter verwalten." },
+      { property: "og:title", content: "Warnungen verwalten · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Redaktionelle Wetterwarnungen von Oberthurgauer Wetter verwalten." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { title: "Warnungen verwalten · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex, nofollow" },
     ],

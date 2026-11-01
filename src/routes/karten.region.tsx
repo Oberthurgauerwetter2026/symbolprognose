@@ -18,7 +18,9 @@ export const Route = createFileRoute("/karten/region")({
   component: KartenRegionPage,
   head: () => ({
     meta: [
-      { title: "Wetterkarte Region · Symbolprognose" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Wetterkarte Region · Symbolprognose · Oberthurgauer Wetter" },
       {
         name: "description",
         content:

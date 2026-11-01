@@ -19,7 +19,12 @@ export const Route = createFileRoute("/embed/region-lokal")({
   },
   head: () => ({
     meta: [
-      { title: "Lokalprognose Amriswil (Embed)" },
+      { name: "description", content: "Lokalprognose Amriswil (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Lokalprognose Amriswil (Embed) · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Lokalprognose Amriswil (Embed) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Lokalprognose Amriswil (Embed) · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),

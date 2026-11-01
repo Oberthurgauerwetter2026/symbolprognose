@@ -1,4 +1,5 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
+import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -1348,13 +1349,11 @@ function WindMapInner({
 
 
       {data && (
-        <p className="mt-2.5 px-3 text-[10px] text-neutral-500 sm:px-0">
-          Aktualisiert am {new Intl.DateTimeFormat("de-CH", {
-            day: "2-digit", month: "2-digit", year: "numeric",
-            hour: "2-digit", minute: "2-digit",
-          }).format(new Date(data.generatedAt))} · Quelle: Oberthurgauer Wetter · © swisstopo · Modell © MeteoSchweiz ICON-CH1 → ICON-CH2 via Open-Meteo (CC BY 4.0) · Relief Ausland © Esri · Karte: Leaflet
+        <SourceFooter map data="MeteoSchweiz, Open-Meteo" className="px-3 sm:px-0" updated={new Intl.DateTimeFormat("de-CH", {
+          timeZone: "Europe/Zurich", hour: "2-digit", minute: "2-digit",
+        }).format(new Date(data.generatedAt))}>
           {data.warning ? ` · Hinweis: ${data.warning}` : ""}
-        </p>
+        </SourceFooter>
       )}
     </div>
   );

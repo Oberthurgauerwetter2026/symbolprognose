@@ -33,7 +33,12 @@ export const Route = createFileRoute("/embed/all")({
   component: EmbedAll,
   head: () => ({
     meta: [
-      { title: "Wetter-Karten (Embed, alle)" },
+      { name: "description", content: "Wetter-Karten (Embed, alle) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Wetter-Karten (Embed, alle) · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Wetter-Karten (Embed, alle) für den Oberthurgau von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Wetter-Karten (Embed, alle) · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex" },
     ],
   }),

@@ -25,7 +25,12 @@ export const Route = createFileRoute("/intern/icons")({
   component: IconsPage,
   head: () => ({
     meta: [
-      { title: "Intern · Icon-Katalog" },
+      { name: "description", content: "Wetterzeichen für die Produkte von Oberthurgauer Wetter." },
+      { property: "og:title", content: "Intern · Icon-Katalog · Oberthurgauer Wetter" },
+      { property: "og:description", content: "Wetterzeichen für die Produkte von Oberthurgauer Wetter." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Intern · Icon-Katalog · Oberthurgauer Wetter" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

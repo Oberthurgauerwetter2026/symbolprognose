@@ -17,7 +17,9 @@ export const Route = createFileRoute("/karten/wind")({
   component: KartenWindPage,
   head: () => ({
     meta: [
-      { title: "Windprognose Oberthurgau · Animation" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { title: "Windprognose Oberthurgau · Animation · Oberthurgauer Wetter" },
       { name: "description", content: getMap("wind").description },
       { property: "og:title", content: "Windprognose Oberthurgau · Animation" },
       { property: "og:description", content: getMap("wind").description },
