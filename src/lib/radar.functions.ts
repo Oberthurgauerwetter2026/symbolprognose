@@ -525,7 +525,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   }
 
   // ---- Radar-Nowcast: letztes Messbild entlang der gemessenen Verlagerung
-  // im 5-Minuten-Takt bis +60 min verschieben. Ersetzt in diesem Fenster die
+  // im 5-Minuten-Takt bis vor die nächste volle Stunde verschieben. Ersetzt in diesem Fenster die
   // Modellframes (wie MeteoSchweiz/SRF: Nowcast vor Modell).
   // Aktiv: verhindert Standbilder in der ersten Stunde, weil ICON-CH1 nur
   // Stundensummen liefert (identische 15-min-Bilder). Danach übernimmt das Modell.

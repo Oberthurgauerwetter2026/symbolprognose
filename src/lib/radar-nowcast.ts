@@ -13,7 +13,6 @@ export interface NowcastMotion {
 }
 
 export const NOWCAST_STEP_MS = 5 * 60_000;
-export const NOWCAST_HORIZON_MS = 60 * 60_000;
 /** Messung älter als das → kein Nowcast (Verlagerung nicht mehr aktuell). */
 export const NOWCAST_MAX_AGE_MS = 20 * 60_000;
 
