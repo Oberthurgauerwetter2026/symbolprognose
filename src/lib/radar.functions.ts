@@ -334,10 +334,12 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   const forecastCutoff = now + forecastHorizonH * 3600 * 1000;
   const pastCutoff = now - 6 * 3600 * 1000;
   const frames: RadarFrame[] = [];
-  // Modellprognose ab +60 min nur im echten Stundentakt: ICON liefert
-  // Niederschlag als Stundensumme, die 15-min-Slots wären Kopien.
+  // Modellprognose ab der nächsten vollen Stunde nur im echten Stundentakt:
+  // ICON liefert Niederschlag als Stundensumme, die 15-min-Slots wären Kopien.
+  // Bis zu dieser vollen Stunde dürfen 15-min-Slots die Lücke füllen.
+  const nextHourMs = Math.ceil((now + 1) / 3_600_000) * 3_600_000;
   const isModelSlot = (tMs: number) =>
-    tMs <= now + 60 * 60_000 || new Date(tMs).getUTCMinutes() === 0;
+    tMs < nextHourMs || new Date(tMs).getUTCMinutes() === 0;
 
   // ---- Messung: MeteoSchweiz-Radar-PNGs (Vergangenheit) ----
   const hasRealRadar = !!manifest && manifest.frames.some((frame) => !!frame.precipUrl);
@@ -466,7 +468,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
     // Brückenframe: Liegt vor der nächsten vollen Stunde kein Modellbild,
     // füllt das letzte vorhandene Bild (laufende Stunde) die Lücke nach "Jetzt".
     const QUARTER_MS = 15 * 60_000;
-    const nextHour = Math.ceil((now + 1) / 3_600_000) * 3_600_000;
+    const nextHour = nextHourMs;
     const fcList = forecastManifest!.frames
       .map((mf) => ({ mf, tMs: Date.parse(mf.t) }))
       .filter((x) => !Number.isNaN(x.tMs));

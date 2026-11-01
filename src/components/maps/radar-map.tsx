@@ -30,7 +30,7 @@ import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.funct
 import { radarFramesQuery } from "@/lib/map-queries";
 import { cn } from "@/lib/utils";
 import { FilmstripTimeline } from "./filmstrip-timeline";
-import { advancePlayback, playbackSample, type PlaybackPosition } from "./radar-playback";
+import { advancePlayback, playbackSample, buildTimelineSteps, type PlaybackPosition } from "./radar-playback";
 import { CityMarkers } from "./city-markers";
 import { sampleRadarBand } from "./forecast-edge-sampling";
 
@@ -1961,96 +1961,7 @@ function RadarMapInner({
   // Gemischtes Zeitraster: Messung im 5-min-Takt (auf echte Radarframes
   // gesnappt), Prognose exakt auf den vorhandenen Prognose-Frames (deren
   // Kadenz wird aus den Daten abgeleitet — heute 15 min, künftig ggf. 60 min).
-  const timelineSteps = useMemo(() => {
-    if (frames.length === 0) return [] as number[];
-    const times = frames.map((f) => Date.parse(f.t));
-    const firstMs = times[0];
-    const lastMs = times[times.length - 1];
-    const nowMs = Date.now();
-    const STEP5 = 5 * 60_000;
-    const TOL = STEP5 / 2;
-
-    // Nächsten Frame zu targetMs per binärer Suche; null wenn ausserhalb Toleranz.
-    const pickNearest = (targetMs: number, tolMs: number): number | null => {
-      let lo = 0;
-      let hi = times.length - 1;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (times[mid] < targetMs) lo = mid + 1;
-        else hi = mid;
-      }
-      const candidates = [lo];
-      if (lo > 0) candidates.push(lo - 1);
-      let best = -1;
-      let bestDiff = Infinity;
-      for (const i of candidates) {
-        const d = Math.abs(times[i] - targetMs);
-        if (d < bestDiff) {
-          bestDiff = d;
-          best = i;
-        }
-      }
-      return bestDiff <= tolMs ? best : null;
-    };
-
-    const out: number[] = [];
-    const push = (ms: number) => {
-      if (ms < firstMs || ms > lastMs) return;
-      if (out.length > 0 && out[out.length - 1] >= ms) return;
-      out.push(ms);
-    };
-
-    // Messteil: 5-min-Raster, nur Zeitpunkte mit echtem Frame.
-    const startMs = Math.ceil(firstMs / STEP5) * STEP5;
-    for (let t = startMs; t <= Math.min(lastMs, nowMs); t += STEP5) {
-      const i = pickNearest(t, TOL);
-      if (i !== null) push(times[i]);
-    }
-
-    // Nowcast (verschobenes Radarbild): 5-min-Schritte bis ca. +60 min.
-    let nowcastEnd = nowMs;
-    for (const f of frames) {
-      if (f.source !== "nowcast") continue;
-      const ms = Date.parse(f.t);
-      if (ms > nowMs) {
-        push(ms);
-        nowcastEnd = Math.max(nowcastEnd, ms);
-      }
-    }
-
-    // Prognoseteil: Ohne Nowcast überbrücken 15-min-Modellbilder nur die
-    // erste Stunde (keine Lücke nach "Jetzt"); danach strikt Stundentakt.
-    const QUARTER = 15 * 60_000;
-    const Q_TOL = 2 * 60_000;
-    const HOUR = 60 * 60_000;
-    const HOUR_TOL = 4 * 60_000;
-    let lastQuarterHit = nowcastEnd;
-    if (nowcastEnd <= nowMs) {
-      const qEnd = Math.min(lastMs, nowMs + HOUR);
-      for (let t = Math.ceil((nowMs + 1) / QUARTER) * QUARTER; t <= qEnd; t += QUARTER) {
-        const i = pickNearest(t, Q_TOL);
-        if (i !== null && times[i] > nowMs) {
-          push(times[i]);
-          lastQuarterHit = times[i];
-        }
-      }
-    }
-    const startFc = Math.ceil((lastQuarterHit + 1) / HOUR) * HOUR;
-    for (let h = startFc; h <= lastMs; h += HOUR) {
-      const i = pickNearest(h, HOUR_TOL);
-      if (i !== null && times[i] > nowMs) push(times[i]);
-    }
-
-
-
-
-
-
-
-
-    if (out.length === 0) out.push(firstMs);
-    return out;
-  }, [frames]);
+  const timelineSteps = useMemo(() => buildTimelineSteps(frames, Date.now()), [frames]);
 
 
 
