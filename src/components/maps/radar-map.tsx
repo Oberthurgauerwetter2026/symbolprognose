@@ -19,7 +19,7 @@ import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import { boltJitter, boltSvg, BOLT_RADAR, LIGHTNING_ENABLED } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { REGION, LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, REGION_OUTLINE, OUTSIDE_CH_MASK } from "./radar-base-geo";
-import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap, Snowflake, Plus, Minus } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, Zap, Snowflake, Plus, Minus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
@@ -1829,6 +1829,97 @@ function fmtBubble(d: Date, measured: boolean): string {
 
 
 
+// Schlanker Legenden-Streifen: durchgehender Intensitäts-Farbbalken (mm/h)
+// plus kleine Phasen-Chips — Apple-Weather-Stil statt grosser Legendenkachel.
+const RAIN_GRADIENT_STOPS = DISPLAY_SCALE.map((s, i) => {
+  const a = (i * 100) / DISPLAY_SCALE.length;
+  const b = ((i + 1) * 100) / DISPLAY_SCALE.length;
+  return `rgb(${s.rgb.join(",")}) ${a.toFixed(2)}% ${b.toFixed(2)}%`;
+});
+const LEGEND_TICKS: { label: string; pct: number; align: "l" | "m" | "r" }[] = [
+  { label: "0,1", pct: 0, align: "l" },
+  { label: "2", pct: 37.5, align: "m" },
+  { label: "5", pct: 50, align: "m" },
+  { label: "15", pct: 62.5, align: "m" },
+  { label: "40", pct: 75, align: "m" },
+  { label: "80", pct: 100, align: "r" },
+];
+const LEGEND_PHASES: { label: string; from: [number, number, number]; to: [number, number, number] }[] = [
+  { label: "Schneeregen", from: SLEET_SCALE[0].rgb, to: SLEET_SCALE[1].rgb },
+  { label: "Gefrierender Regen", from: FZRA_SCALE[0].rgb, to: FZRA_SCALE[1].rgb },
+  { label: "Schnee", from: SNOW_SCALE[0].rgb, to: SNOW_SCALE[1].rgb },
+];
+
+function RadarLegendStrip({ bare }: { bare?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "pointer-events-auto absolute left-1/2 z-[460] max-w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-2xl bg-white/90 px-3 py-1.5 text-[10px] text-neutral-600 shadow-md ring-1 ring-black/5 backdrop-blur-md",
+        bare ? "bottom-[4.5rem]" : "bottom-2",
+      )}
+    >
+      <div className="flex flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2.5">
+        <div className="flex items-center gap-2">
+          <div className="w-36 sm:w-44">
+            <div
+              className="h-2 rounded-full"
+              style={{ backgroundImage: `linear-gradient(to right, ${RAIN_GRADIENT_STOPS.join(", ")})` }}
+            />
+            <div className="relative mt-0.5 h-3">
+              {LEGEND_TICKS.map((tk) => (
+                <span
+                  key={tk.label}
+                  className={cn(
+                    "absolute top-0 text-[9px] tabular-nums text-neutral-500",
+                    tk.align === "l" && "left-0",
+                    tk.align === "m" && "-translate-x-1/2",
+                    tk.align === "r" && "right-0",
+                  )}
+                  style={tk.align === "m" ? { left: `${tk.pct}%` } : undefined}
+                >
+                  {tk.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500">mm/h</span>
+        </div>
+        <div className="hidden h-5 w-px bg-neutral-200 sm:block" />
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 sm:flex-nowrap sm:justify-start">
+          {LEGEND_PHASES.map((p) => (
+            <div key={p.label} className="flex items-center gap-1">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-[3px] ring-1 ring-black/5"
+                style={{ backgroundImage: `linear-gradient(135deg, rgb(${p.from.join(",")}), rgb(${p.to.join(",")}))` }}
+              />
+              <span className="whitespace-nowrap text-[9px] text-neutral-600">{p.label}</span>
+            </div>
+          ))}
+          <div className="flex items-center gap-1" title="Hagelwahrscheinlichkeit (POH)">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-[3px] bg-white ring-1 ring-neutral-300"
+              style={{
+                backgroundImage: "radial-gradient(circle, #000 35%, transparent 36%)",
+                backgroundSize: "3px 3px",
+              }}
+            />
+            <span className="whitespace-nowrap text-[9px] text-neutral-600">Hagel</span>
+          </div>
+          {LIGHTNING_ENABLED && (
+            <div className="flex items-center gap-1" title="Blitze (Blitzortung)">
+              <span
+                className="inline-flex h-2.5 w-3 items-center justify-center"
+                dangerouslySetInnerHTML={{ __html: boltSvg(10, 1, false, 0, BOLT_RADAR, 1.5) }}
+              />
+              <span className="whitespace-nowrap text-[9px] text-neutral-600">Blitze</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RadarMapInner({
   bare = false,
   snapshot = false,
@@ -2375,94 +2466,7 @@ function RadarMapInner({
           </button>
         </div>
 
-        {legendOpen && (
-          <div className="absolute inset-x-0 bottom-0 z-[460] max-h-[45%] overflow-y-auto rounded-t-2xl border-t border-neutral-200/80 bg-white/95 px-4 pb-4 pt-2 text-[11px] text-neutral-700 shadow-2xl backdrop-blur-md [column-gap:1.25rem] max-sm:columns-2 sm:inset-x-auto sm:bottom-auto sm:right-[3.75rem] sm:top-3 sm:max-h-[calc(100%-1.5rem)] sm:w-44 sm:rounded-2xl sm:border sm:p-3 sm:shadow-xl">
-            <div className="mx-auto mb-1 h-1 w-9 rounded-full bg-neutral-300 sm:hidden [column-span:all]" />
-            <div className="mb-2 flex items-center justify-between [column-span:all]">
-              <span className="text-xs font-semibold text-neutral-900">Legende</span>
-              <button
-                type="button"
-                aria-label="Legende schliessen"
-                onClick={() => setLegendOpen(false)}
-                className="rounded-md p-0.5 text-neutral-500 hover:bg-neutral-100"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Regen · mm/h</span>
-            {[...DISPLAY_SCALE].reverse().map((s) => (
-              <div key={s.mmh} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-3 w-5 rounded"
-                  style={{ background: `rgb(${s.rgb.join(",")})` }}
-                />
-                <span className="tabular-nums text-neutral-600">{s.mmh}</span>
-              </div>
-            ))}
-            <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Schneeregen</span>
-            {SLEET_SCALE.map((s) => (
-              <div key={`sleet-${s.mmh}`} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-3 w-5 rounded"
-                  style={{ background: `rgb(${s.rgb.join(",")})` }}
-                />
-                <span className="text-neutral-600">{s.label}</span>
-              </div>
-            ))}
-            <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Gefrierender Regen</span>
-            {FZRA_SCALE.map((s) => (
-              <div key={`fzra-${s.mmh}`} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-3 w-5 rounded"
-                  style={{ background: `rgb(${s.rgb.join(",")})` }}
-                />
-                <span className="text-neutral-600">{s.label}</span>
-              </div>
-            ))}
-            <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Schnee</span>
-            {SNOW_SCALE.map((s) => (
-              <div key={`snow-${s.mmh}`} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-3 w-5 rounded"
-                  style={{ background: `rgb(${s.rgb.join(",")})` }}
-                />
-                <span className="text-neutral-600">{s.label}</span>
-              </div>
-            ))}
-            <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Hagel</span>
-            <div className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-2.5 w-3 rounded bg-white ring-1 ring-neutral-200"
-                style={{
-                  backgroundImage: "radial-gradient(circle, #000 35%, transparent 36%)",
-                  backgroundSize: "4px 4px",
-                }}
-              />
-              <span className="text-neutral-600">POH</span>
-            </div>
-            {LIGHTNING_ENABLED && (
-              <>
-                <span className="mt-2.5 mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Blitze</span>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="inline-flex h-2.5 w-3 items-center justify-center sm:h-3 sm:w-4"
-                    dangerouslySetInnerHTML={{ __html: boltSvg(12, 1, false, 0, BOLT_RADAR, 1.5) }}
-                  />
-
-                  <a
-                    href="https://www.blitzortung.org/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-neutral-600 underline underline-offset-2 hover:text-foreground"
-                  >
-                    Blitzortung
-                  </a>
-                </div>
-              </>
-            )}
-
-          </div>
-        )}
+        {legendOpen && <RadarLegendStrip bare={bare} />}
 
         {/* Widget: Messzeit als kleine Pille im Bild */}
         {snapshot && frames.length > 0 && (
