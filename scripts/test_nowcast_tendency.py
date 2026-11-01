@@ -1,9 +1,5 @@
 import unittest
-import io
-from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
 import numpy as np
-from PIL import Image
 from _nowcast import aligned_previous, observed_tendency, evolve_intensity
 
 

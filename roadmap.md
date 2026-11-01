@@ -1,5 +1,6 @@
 # Radar forecast reliability
-- [ ] Add and test motion-aligned observed intensity tendencies for five-minute nowcast PNGs; leave model forecasts and phase rules unchanged.
+- [x] Add motion-aligned 15–20-minute observed intensity tendencies for five-minute nowcast PNGs; bounded local growth/decay, damped leads, exact measurement matching, and safe publication. Ten Python and 21 timeline/image-selection tests pass; live radar playback has no runtime errors.
+- [ ] Verify observed intensity evolution on the live map: waiting for GitHub source synchronization and a successful radar ingest producing the new tendency PNGs; published frontend also needs republishing. Model forecasts and phase rules remain unchanged.
 - [x] Fix and verify the nowcast hour-boundary gap with delayed measurements; 20 regression tests pass and live map advances through five-minute nowcast frames without runtime errors.
 - [x] Tune and verify radar playback: 220 ms steps, 50 ms transitions, orientation and loop pauses; browser playback, loop and drag/restart checked, five timing tests pass.
 - [x] Safely publish forecast images and retain previous images during interrupted runs.
