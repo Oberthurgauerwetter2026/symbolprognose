@@ -19,7 +19,7 @@ import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import { boltJitter, boltSvg, BOLT_RADAR, LIGHTNING_ENABLED } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { REGION, LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, REGION_OUTLINE, OUTSIDE_CH_MASK } from "./radar-base-geo";
-import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, X, Zap, Snowflake, Plus, Minus } from "lucide-react";
+import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, Zap, Snowflake, Plus, Minus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 
