@@ -1,11 +1,28 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { displacementDeg, handoverBlends, isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
+import { attenuateRadarBand, nowcastIntensityFactor, displacementDeg, handoverBlends, isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
 import { buildTimelineSteps } from "../components/maps/radar-playback";
 
 const BBOX = { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 };
 
 describe("radar nowcast", () => {
+  test("intensity is unchanged through minute 60 and smoothly vanishes at 75", () => {
+    assert.equal(nowcastIntensityFactor(0), 1);
+    assert.equal(nowcastIntensityFactor(60), 1);
+    assert.equal(nowcastIntensityFactor(65), 20 / 27);
+    assert.equal(nowcastIntensityFactor(67.5), 0.5);
+    assert.ok(Math.abs(nowcastIntensityFactor(70) - 7 / 27) < 1e-12);
+    assert.equal(nowcastIntensityFactor(75), 0);
+    assert.equal(nowcastIntensityFactor(80), 0);
+  });
+  test("tail reduces mm/h before colour selection, without dimming or inventing dry pixels", () => {
+    const thresholds = [0.1, 0.3, 0.8, 2, 5, 15, 40, 80];
+    assert.equal(attenuateRadarBand(5, 1, thresholds), 5);
+    assert.equal(attenuateRadarBand(5, 0.4, thresholds), 4); // 5 -> 2 mm/h
+    assert.equal(attenuateRadarBand(1, 0.5, thresholds), 0); // below 0.1 mm/h
+    assert.equal(attenuateRadarBand(8, nowcastIntensityFactor(75), thresholds), 0);
+    assert.equal(attenuateRadarBand(0, 0.5, thresholds), 0);
+  });
   test("observed tendency image matches exact measurement and five-minute target only", () => {
     const source = Date.UTC(2026, 10, 1, 9, 25);
     const target = source + 5 * 60_000;
@@ -26,40 +43,40 @@ describe("radar nowcast", () => {
   const at = (min: number) => 1_000 * H + min * 60_000; // volle Stunde + min
   const m = { dirFromDeg: 270, kmh: 30 };
   for (const min of [5, 25, 50, 55]) {
-    test(`Messung :${min} → 60 Minuten Nowcast, auch über die volle Stunde`, () => {
+    test(`Messung :${min} → 75 Minuten Nowcast, auch über die volle Stunde`, () => {
       const steps = nowcastSteps(at(min), at(min) + 60_000, m, BBOX);
-      assert.equal(steps.length, 12);
-      assert.equal(steps[11].tMs, at(min + 60));
-      const n = 12;
+      assert.equal(steps.length, 15);
+      assert.equal(steps[14].tMs, at(min + 75));
+      const n = 15;
       if (n > 1) assert.equal(steps[1].tMs - steps[0].tMs, 5 * 60_000);
     });
   }
 
-  test("08:55-Messung um 09:05 überbrückt bis vor 10:00, mit korrekter Verlagerung und Zeitstreifen", () => {
+  test("08:55-Messung um 09:05 läuft bis 10:10, erst danach Modell und komprimierter Zeitstreifen", () => {
     const atTime = (h: number, min: number) => Date.UTC(2026, 10, 1, h, min);
     const last = atTime(8, 55);
     const now = atTime(9, 5);
     const steps = nowcastSteps(last, now, m, BBOX);
-    const expected = Array.from({ length: 10 }, (_, i) => atTime(9, 10 + i * 5));
+    const expected = Array.from({ length: 13 }, (_, i) => atTime(9, 10 + i * 5));
     assert.deepEqual(steps.map((s) => s.tMs), expected);
     const displacement = displacementDeg(m, 15, 47.5);
     assert.equal(steps[0].bbox.minLon, BBOX.minLon + displacement.dLon);
     const frames = [
       { t: new Date(last).toISOString(), source: "radar" },
       ...steps.map((s) => ({ t: new Date(s.tMs).toISOString(), source: "nowcast" })),
-      ...[10, 11].map((h) => ({ t: new Date(atTime(h, 0)).toISOString(), source: "icon-ch1" })),
+      ...[11, 12].map((h) => ({ t: new Date(atTime(h, 0)).toISOString(), source: "icon-ch1" })),
     ];
-    assert.deepEqual(buildTimelineSteps(frames, now), [last, ...expected, atTime(10, 0), atTime(11, 0)]);
+    assert.deepEqual(buildTimelineSteps(frames, now), [last, ...expected, atTime(11, 0), atTime(12, 0)]);
   });
 
-  test("am Stundenwechsel überbrückt eine 08:55-Messung um 09:00 ebenfalls bis vor 10:00", () => {
+  test("am Stundenwechsel läuft eine 08:55-Messung um 09:00 bis 10:10", () => {
     const steps = nowcastSteps(at(-5), at(0), m, BBOX);
-    assert.deepEqual(steps.map((s) => s.tMs), Array.from({ length: 11 }, (_, i) => at(5 + i * 5)));
+    assert.deepEqual(steps.map((s) => s.tMs), Array.from({ length: 14 }, (_, i) => at(5 + i * 5)));
   });
 
-  test("auch bei genau 20 Minuten Messverzögerung endet der Nowcast vor der nächsten aktuellen Stunde", () => {
+  test("auch bei genau 20 Minuten Messverzögerung läuft der Nowcast 75 Minuten ab Messung", () => {
     const steps = nowcastSteps(at(-15), at(5), m, BBOX);
-    assert.deepEqual(steps.map((s) => s.tMs), Array.from({ length: 10 }, (_, i) => at(10 + i * 5)));
+    assert.deepEqual(steps.map((s) => s.tMs), Array.from({ length: 11 }, (_, i) => at(10 + i * 5)));
   });
 
   test("kein Nowcast, wenn die letzte Messung älter als 20 Minuten ist", () => {
@@ -71,7 +88,7 @@ describe("radar nowcast", () => {
     const stationary = { dirFromDeg: 180, kmh: 0 };
     assert.ok(isUsableMotion(stationary));
     const steps = nowcastSteps(at(25), at(25) + 60_000, stationary, BBOX);
-    assert.equal(steps.length, 12);
+    assert.equal(steps.length, 15);
     // 0 km/h: Feld bleibt an Ort und Stelle stehen.
     for (const s of steps) {
       assert.equal(s.bbox.minLon, BBOX.minLon);

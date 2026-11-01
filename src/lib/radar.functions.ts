@@ -5,7 +5,7 @@ import {
   getRadarRegionMax,
   type OpenMeteoCachePayload,
 } from "./openmeteo-cache.server";
-import { isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
+import { isUsableMotion, nowcastSteps, tendencyImageUrl, nowcastIntensityFactor } from "./radar-nowcast";
 import { r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
@@ -78,6 +78,8 @@ export interface RadarFrame {
   source: "radar" | "nowcast" | "icon-ch1" | "icon-ch2";
   /** Tatsächlicher Zeitstempel des PNG-Bildes (identisch mit `t`, kein Forward-Fill). */
   sourceT?: string;
+  /** Intensity multiplier for the 60–75 minute nowcast tail; never opacity. */
+  intensityFactor?: number;
   /** Niederschlag mm/h pro Grid-Punkt (row-major). Bei reinen `precipUrl`-Frames leer. */
   values: number[];
   /** Schnee-Wasser-Äquivalent mm/h pro Grid-Punkt (row-major). Leer = unbekannt. */
@@ -533,7 +535,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
   }
 
   // ---- Radar-Nowcast: letztes Messbild entlang der gemessenen Verlagerung
-  // im 5-Minuten-Takt bis vor die nächste volle Stunde verschieben. Ersetzt in diesem Fenster die
+  // im 5-Minuten-Takt für 75 Minuten verschieben, ab Minute 60 ausklingen lassen. Ersetzt die
   // Modellframes (wie MeteoSchweiz/SRF: Nowcast vor Modell).
   // Aktiv: verhindert Standbilder in der ersten Stunde, weil ICON-CH1 nur
   // Stundensummen liefert (identische 15-min-Bilder). Danach übernimmt das Modell.
@@ -558,6 +560,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
               t: new Date(s.tMs).toISOString().replace(/\.\d{3}Z$/, "Z"),
               source: "nowcast",
               sourceT: lastRadar.t,
+              intensityFactor: nowcastIntensityFactor((s.tMs - Date.parse(lastRadar.t)) / 60_000),
               values: [],
               precipUrl: tendencyImageUrl(regionMax?.nowcastFrames, Date.parse(lastRadar.t), s.tMs)
                 ?? lastRadar.precipUrl,
