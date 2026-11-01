@@ -23,6 +23,7 @@ disabled, otherwise it overwrites the manifest with stale data.
 from __future__ import annotations
 
 import io
+import hashlib
 import json
 import math
 
@@ -1058,6 +1059,44 @@ def _lead_fields(precip: np.ndarray, motion: dict) -> list[tuple[int, np.ndarray
 
 
 
+def publish_tendency_frames(s3, loaded: list, motion: dict | None) -> list[dict]:
+    """Publish intensity-adjusted PNGs before exposing them in region-max."""
+    from _nowcast import observed_tendency, evolve_intensity
+    if not motion or len(loaded) < 4:
+        return []
+    current, ts = loaded[-1]
+    candidates = [(field, t) for field, t in loaded[:-1]
+                  if 15 <= (ts - t).total_seconds() / 60 <= 20]
+    if not candidates:
+        return []
+    old, old_ts = candidates[0]
+    minutes = (ts - old_ts).total_seconds() / 60
+    bearing = math.radians(motion["dirFromDeg"])
+    distance = motion["kmh"] * minutes / 60
+    mid_lat = (MOTION_WINDOW["minLat"] + MOTION_WINDOW["maxLat"]) / 2
+    dx = -math.sin(bearing) * distance / (111.32 * math.cos(math.radians(mid_lat)))
+    dy = math.cos(bearing) * distance / 111.32
+    dx *= (OUT_W - 1) / (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"])
+    dy *= (OUT_H - 1) / (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"])
+    rate = observed_tendency(old, current, minutes, dx, dy, motion.get("quality", 0))
+    if rate is None or not np.any(rate):
+        return []
+    # Phase stays that of the measurement; the model handover is not corrected.
+    frac, fzra = phase_fraction_at(ts), freezing_rain_at(ts)
+    out = []
+    # Delayed observations may need up to 80 minutes lead to the next current hour.
+    for lead in range(5, 81, 5):
+        target = ts + timedelta(minutes=lead)
+        png = render_png(evolve_intensity(current, rate, lead), PRECIP_SCALE, frac, fzra)
+        digest = hashlib.sha256(png).hexdigest()[:16]
+        key = f"radar/nowcast/{target:%Y%m%dT%H%M}-{digest}.png"
+        upload_png(s3, key, png)
+        out.append({"t": target.strftime("%Y-%m-%dT%H:%M:00Z"),
+                    "sourceT": ts.strftime("%Y-%m-%dT%H:%M:00Z"),
+                    "precipUrl": f"{PUBLIC_URL.rstrip('/')}/{key}"})
+    return out
+
+
 def write_region_max(s3, since: datetime) -> None:
     """Schreibt `radar/region-max.json`: je Gemeinde die aktuell gemessene
     Spitzenintensität (mm/h) und Hagelwahrscheinlichkeit (%).
@@ -1080,15 +1119,15 @@ def write_region_max(s3, since: datetime) -> None:
             print(f"region-max: {product} failed ({exc!r})", flush=True)
             return None
 
-    # Zwei neueste Niederschlagsfelder: aktuelles Feld plus Vorgänger für die
-    # Verlagerungsschätzung.
-    precip_assets = _newest_assets("precip", since, 2)
+    # Fünf Bilder für 15–20 Minuten Entwicklung, letzte zwei für die Bewegung.
+    precip_assets = _newest_assets("precip", since, 5)
     loaded: list[tuple[np.ndarray, datetime]] = []
     for a in precip_assets:
         got = load(a, "precip")
         if got:
             loaded.append(got)
 
+    loaded.sort(key=lambda item: item[1])
     if not loaded:
         print("region-max: no precip field — skipping", flush=True)
         return
@@ -1164,7 +1203,12 @@ def write_region_max(s3, since: datetime) -> None:
         regions.append(entry)
 
     ts = ts_iso
-
+    nowcast_frames = []
+    try:
+        nowcast_frames = publish_tendency_frames(s3, loaded, motion)
+    except Exception as exc:
+        # Failed image publication must never expose partial/missing frames.
+        print(f"region-max: intensity tendency unavailable ({exc!r})", flush=True)
 
     body = {
         "t": ts,
@@ -1172,6 +1216,7 @@ def write_region_max(s3, since: datetime) -> None:
         "version": RADAR_INGEST_VERSION,
         "regions": regions,
         "motion": motion,
+        "nowcastFrames": nowcast_frames,
     }
 
     s3.put_object(
@@ -1195,6 +1240,11 @@ def cleanup(s3, keep_since: datetime) -> None:
     """Delete radar/*.png objects older than `keep_since`."""
     paginator = s3.get_paginator("list_objects_v2")
     deleted = 0
+    for page in paginator.paginate(Bucket=BUCKET, Prefix="radar/nowcast/"):
+        for obj in page.get("Contents", []) or []:
+            if obj.get("LastModified") and obj["LastModified"] < keep_since:
+                s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
+                deleted += 1
     for product in COLLECTIONS:
         for page in paginator.paginate(Bucket=BUCKET, Prefix=f"radar/{product}/"):
             for obj in page.get("Contents", []) or []:
