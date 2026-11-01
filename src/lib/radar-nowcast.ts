@@ -91,3 +91,26 @@ export function nowcastSteps(
   }
   return out;
 }
+
+/** Gewicht des abklingenden Nowcasts in den ersten Modellstunden nach der Übergabe. */
+export const HANDOVER_WEIGHTS = [0.6, 0.25] as const;
+
+/**
+ * Übergabe Nowcast → Modell: Für die ersten Modellstunden nach `handoverMs`
+ * wird das letzte Messbild weiter verschoben und mit abnehmendem Gewicht
+ * über das Modellbild gelegt, damit gemessener Niederschlag nicht schlagartig
+ * verschwindet. Modellwerte selbst bleiben unverändert.
+ */
+export function handoverBlends(
+  lastRadarMs: number,
+  handoverMs: number,
+  motion: NowcastMotion,
+  bbox: Bbox,
+): { tMs: number; bbox: Bbox; weight: number }[] {
+  const refLat = (bbox.minLat + bbox.maxLat) / 2;
+  return HANDOVER_WEIGHTS.map((weight, i) => {
+    const tMs = handoverMs + i * 3_600_000;
+    const minutes = (tMs - lastRadarMs) / 60_000;
+    return { tMs, weight, bbox: shiftBbox(bbox, displacementDeg(motion, minutes, refLat)) };
+  });
+}

@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { displacementDeg, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
+import { displacementDeg, handoverBlends, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
 import { buildTimelineSteps } from "../components/maps/radar-playback";
 
 const BBOX = { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 };
@@ -64,5 +64,16 @@ describe("radar nowcast", () => {
   test("kein Nowcast, wenn die letzte Messung älter als 20 Minuten ist", () => {
     const last = 1_000_000_000_000;
     assert.deepEqual(nowcastSteps(last, last + 21 * 60_000, { dirFromDeg: 270, kmh: 30 }, BBOX), []);
+  });
+});
+
+describe("handoverBlends", () => {
+  test("fades the measured field over the first two model hours", () => {
+    const last = Date.parse("2026-11-01T11:45:00Z");
+    const hand = Date.parse("2026-11-01T12:00:00Z");
+    const b = handoverBlends(last, hand, { dirFromDeg: 270, kmh: 30 }, { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 });
+    assert.deepEqual(b.map((x) => x.weight), [0.6, 0.25]);
+    assert.deepEqual(b.map((x) => x.tMs), [hand, hand + 3_600_000]);
+    assert.ok(b[1].bbox.minLon > b[0].bbox.minLon);
   });
 });
