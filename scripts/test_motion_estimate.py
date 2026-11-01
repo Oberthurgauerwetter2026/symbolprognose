@@ -64,3 +64,16 @@ class MotionEstimateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_slow_motion_follows_steering_at_least_75_percent(self):
+        from _steering import nudge_motion
+        slow = {"dirFromDeg": 270.0, "kmh": 12.0, "quality": 0.95}
+        self.assertGreaterEqual(nudge_motion(slow, 90.0, 40.0)["steerWeight"], 0.75)
+
+    def test_blend_model_and_saentis(self):
+        from _steering import blend_steering
+        d, k = blend_steering((60.0, 50.0), (80.0, 30.0))
+        self.assertTrue(60.0 < d < 80.0)
+        self.assertEqual(blend_steering(None, (80.0, 30.0)), (80.0, 30.0))
+        self.assertEqual(blend_steering((60.0, 50.0), (80.0, 2.0)), (60.0, 50.0))
+        self.assertEqual(blend_steering(None, None), (None, None))
