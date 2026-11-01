@@ -1,3 +1,6 @@
+# Embed source attribution
+- [ ] Consolidate duplicate footers and attribute Oberthurgauer Wetter as publisher, data partners separately, with necessary map credits retained; verify actual embeds.
+
 # Radar forecast reliability
 - [x] Extend nowcast to 75 minutes with a smooth intensity fade from minute 60 to 75, including fallback measurement PNGs; model reality check unchanged. 29 timeline/rendering-logic tests and seven tendency tests pass; actual 12:55 radar source produces a tail through 14:10, visibly attenuated at 14:05 and clear at 14:10; playback runs without browser errors. Full Python publication suite remains unavailable locally because h5py is not installed (ingest code unchanged).
 - [x] Add motion-aligned 15–20-minute observed intensity tendencies for five-minute nowcast PNGs; bounded local growth/decay, damped leads, exact measurement matching, and safe publication. Ten Python and 21 timeline/image-selection tests pass; live radar playback has no runtime errors.
