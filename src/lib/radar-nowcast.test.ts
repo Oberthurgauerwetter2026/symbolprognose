@@ -25,11 +25,12 @@ describe("radar nowcast", () => {
   const H = 3_600_000;
   const at = (min: number) => 1_000 * H + min * 60_000; // volle Stunde + min
   const m = { dirFromDeg: 270, kmh: 30 };
-  for (const [min, n] of [[5, 10], [25, 6], [50, 1], [55, 0]] as const) {
-    test(`Messung :${min} → ${n} Schritte bis vor die volle Stunde`, () => {
+  for (const min of [5, 25, 50, 55]) {
+    test(`Messung :${min} → 60 Minuten Nowcast, auch über die volle Stunde`, () => {
       const steps = nowcastSteps(at(min), at(min) + 60_000, m, BBOX);
-      assert.equal(steps.length, n);
-      for (const s of steps) assert.ok(s.tMs < 1_001 * H);
+      assert.equal(steps.length, 12);
+      assert.equal(steps[11].tMs, at(min + 60));
+      const n = 12;
       if (n > 1) assert.equal(steps[1].tMs - steps[0].tMs, 5 * 60_000);
     });
   }
@@ -70,7 +71,7 @@ describe("radar nowcast", () => {
     const stationary = { dirFromDeg: 180, kmh: 0 };
     assert.ok(isUsableMotion(stationary));
     const steps = nowcastSteps(at(25), at(25) + 60_000, stationary, BBOX);
-    assert.equal(steps.length, 6);
+    assert.equal(steps.length, 12);
     // 0 km/h: Feld bleibt an Ort und Stelle stehen.
     for (const s of steps) {
       assert.equal(s.bbox.minLon, BBOX.minLon);
