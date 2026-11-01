@@ -193,7 +193,8 @@ export interface RadarRegionMaxPayload {
    * Herkunftsrichtung in Grad, Geschwindigkeit in km/h.
    */
   motion?: { dirFromDeg: number; kmh: number; dtMin?: number; quality?: number } | null;
-
+  /** PNGs with motion-aligned observed intensity tendency; unshifted image coordinates. */
+  nowcastFrames?: { t: string; sourceT: string; precipUrl: string }[];
 
 }
 

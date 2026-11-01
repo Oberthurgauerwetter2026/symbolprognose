@@ -1,11 +1,21 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { displacementDeg, nowcastSteps } from "./radar-nowcast";
+import { displacementDeg, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
 import { buildTimelineSteps } from "../components/maps/radar-playback";
 
 const BBOX = { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 };
 
 describe("radar nowcast", () => {
+  test("observed tendency image matches exact measurement and five-minute target only", () => {
+    const source = Date.UTC(2026, 10, 1, 9, 25);
+    const target = source + 5 * 60_000;
+    const url = "https://weather.test/radar/nowcast/image.png";
+    const frames = [{ t: new Date(target).toISOString(), sourceT: new Date(source).toISOString(), precipUrl: url }];
+    assert.equal(tendencyImageUrl(frames, source, target), url);
+    assert.equal(tendencyImageUrl(frames, source - 5 * 60_000, target), undefined);
+    assert.equal(tendencyImageUrl(frames, source, target + 5 * 60_000), undefined);
+    assert.equal(tendencyImageUrl(undefined, source, target), undefined);
+  });
   test("Westwind (aus 270°) verschiebt nach Osten", () => {
     const d = displacementDeg({ dirFromDeg: 270, kmh: 60 }, 60, 47.5);
     assert.ok(d.dLon > 0.75);

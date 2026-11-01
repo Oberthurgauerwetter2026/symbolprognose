@@ -1,7 +1,8 @@
 /**
  * Radar-Nowcast: verschiebt das letzte echte Radarbild entlang der gemessenen
- * Zellverlagerung in 5-Minuten-Schritten (reine Advektion, keine Morphing-
- * Überblendung). Pure Funktionen — getestet in radar-nowcast.test.ts.
+ * Zellverlagerung in 5-Minuten-Schritten, ohne geometrische Verformung.
+ * Optionale PNGs tragen die im Ingest beobachtete Intensitätstendenz.
+ * Pure Funktionen — getestet in radar-nowcast.test.ts.
  */
 
 import { nextModelHour } from "../components/maps/radar-playback";
@@ -17,6 +18,18 @@ export interface NowcastMotion {
 export const NOWCAST_STEP_MS = 5 * 60_000;
 /** Messung älter als das → kein Nowcast (Verlagerung nicht mehr aktuell). */
 export const NOWCAST_MAX_AGE_MS = 20 * 60_000;
+
+/** Only use tendency images from the exact measurement and target step. */
+export function tendencyImageUrl(
+  frames: { t: string; sourceT: string; precipUrl: string }[] | undefined,
+  sourceMs: number,
+  targetMs: number,
+): string | undefined {
+  return frames?.find((frame) => Date.parse(frame.sourceT) === sourceMs
+    && Date.parse(frame.t) === targetMs
+    && typeof frame.precipUrl === "string"
+    && frame.precipUrl.startsWith("https://"))?.precipUrl;
+}
 
 export function isUsableMotion(m: unknown): m is NowcastMotion {
   if (!m || typeof m !== "object") return false;

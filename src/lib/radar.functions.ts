@@ -5,7 +5,7 @@ import {
   getRadarRegionMax,
   type OpenMeteoCachePayload,
 } from "./openmeteo-cache.server";
-import { isUsableMotion, nowcastSteps } from "./radar-nowcast";
+import { isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
 import { r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
@@ -553,7 +553,8 @@ export const getRadarFrames = createServerFn({ method: "GET" })
               source: "nowcast",
               sourceT: lastRadar.t,
               values: [],
-              precipUrl: lastRadar.precipUrl,
+              precipUrl: tendencyImageUrl(regionMax?.nowcastFrames, Date.parse(lastRadar.t), s.tMs)
+                ?? lastRadar.precipUrl,
               imageBbox: s.bbox,
             });
           }
