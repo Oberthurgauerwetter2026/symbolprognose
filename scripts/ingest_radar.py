@@ -996,7 +996,10 @@ def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | 
     dx_km = deg_lon * 111.32 * math.cos(math.radians(mid_lat))
     dy_km = deg_lat * 111.32
     kmh = math.hypot(dx_km, dy_km) / (dt_min / 60.0)
-    if not (5.0 <= kmh <= 120.0):
+    # Ab 0 km/h akzeptieren: quasi-stationärer Stauregen (0 km/h) ist ein
+    # brauchbarer Nowcast-Vektor — das Feld bleibt an Ort und Stelle stehen
+    # und die Intensitätstendenz kann weiterrechnen.
+    if not (0.0 <= kmh <= 120.0):
         return None
     bearing_from = (math.degrees(math.atan2(-dx_km, -dy_km)) + 360.0) % 360.0
     return {

@@ -34,11 +34,13 @@ export function tendencyImageUrl(
 export function isUsableMotion(m: unknown): m is NowcastMotion {
   if (!m || typeof m !== "object") return false;
   const { dirFromDeg, kmh } = m as Record<string, unknown>;
+  // Ab 0 km/h brauchbar: quasi-stationärer Stauregen bleibt an Ort und Stelle
+  // stehen, statt ganz ohne Nowcast direkt zur Modellstunde zu springen.
   return (
     typeof dirFromDeg === "number" &&
     Number.isFinite(dirFromDeg) &&
     typeof kmh === "number" &&
-    kmh >= 5 &&
+    kmh >= 0 &&
     kmh < 120
   );
 }
