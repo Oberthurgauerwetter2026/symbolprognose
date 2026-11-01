@@ -1222,6 +1222,22 @@ def write_region_max(s3, since: datetime) -> None:
         "nowcastFrames": nowcast_frames,
     }
 
+    try:
+        from _reality_check import wet_grid, encode
+        g = wet_grid(loaded[-1][0])
+        s3.put_object(
+            Bucket=BUCKET,
+            Key="radar/wet-grid.json",
+            Body=json.dumps({
+                "t": ts, "bbox": BBOX_WGS, "w": int(g.shape[1]), "h": int(g.shape[0]),
+                "motion": motion, "rows": encode(g),
+            }).encode("utf-8"),
+            ContentType="application/json",
+            CacheControl="public, max-age=30",
+        )
+    except Exception as exc:
+        print(f"wet-grid: failed (soft) {exc!r}", flush=True)
+
     s3.put_object(
         Bucket=BUCKET,
         Key="radar/region-max.json",
