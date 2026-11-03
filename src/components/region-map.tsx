@@ -10,7 +10,6 @@ import {
   GeoJSON,
   Marker,
   TileLayer,
-  ZoomControl,
   useMap,
   useMapEvents,
 } from "react-leaflet";

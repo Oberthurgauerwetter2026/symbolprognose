@@ -4,7 +4,7 @@ import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { DockZoomControl } from "./map-dock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
-import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, Marker, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, ImageOverlay, Marker, Tooltip } from "react-leaflet";
 
 
 import L from "leaflet";
