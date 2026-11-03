@@ -1,8 +1,9 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
+import { DockZoomControl } from "./map-dock";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, GeoJSON, TileLayer, ZoomControl, Marker, useMap } from "react-leaflet";
+import { MapContainer, GeoJSON, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
@@ -616,7 +617,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
                 keyboard={false}
               />
             ))}
-            {!widgetMode && <ZoomControl position="topright" />}
+            {!widgetMode && <DockZoomControl />}
           </MapContainer>
 
           {/* Widget: gesamte Karte verlinkt auf die WP-Warnseite */}
