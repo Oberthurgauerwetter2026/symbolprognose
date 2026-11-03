@@ -1,6 +1,7 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
+import { DockZoomControl } from "./map-dock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { MapContainer, TileLayer, GeoJSON, ImageOverlay, ZoomControl, Marker, Tooltip } from "react-leaflet";
@@ -299,7 +300,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
                 <Tooltip direction="top" offset={[0, -24]}>{`${s.name} (${s.own ? "eigene Station" : "Station MeteoSchweiz"})`}</Tooltip>
               </Marker>
             ))}
-            <ZoomControl position="topright" />
+            <DockZoomControl />
           </MapContainer>
 
           {/* Floating-Legende */}

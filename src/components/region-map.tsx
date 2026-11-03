@@ -1,6 +1,7 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "@/components/maps/foreign-relief-layers";
+import { DockZoomControl } from "@/components/maps/map-dock";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -1047,7 +1048,7 @@ function RegionMapInner({
 
             />
           ))}
-          <ZoomControl position="topright" />
+          <DockZoomControl />
         </MapContainer>
       </div>
 
