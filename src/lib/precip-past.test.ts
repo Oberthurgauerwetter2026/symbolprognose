@@ -25,16 +25,15 @@ test("Fehlende Werte werden übersprungen", () => {
 });
 
 const H2 = 3_600_000;
-  const now = 100 * H2;
-  const times = [99, 100, 101, 112, 113, 172, 173].map((h) => h * H22);
-  const vals = [5, 5, 1, 2, 4, 8, 16];
+const now2 = 100 * H2;
+const times2 = [99, 100, 101, 112, 113, 172, 173].map((h) => h * H2);
+const vals2 = [5, 5, 1, 2, 4, 8, 16];
 test("sumNextHours: 12 h zählt nur Stunden nach jetzt bis +12 h", () => {
-    expect(sumNextHours(times, vals, now, 12)).toBe(3);
+  expect(sumNextHours(times2, vals2, now2, 12)).toBe(3);
 });
 test("sumNextHours: 72 h schliesst Stunde 172 ein, 173 aus", () => {
-    expect(sumNextHours(times, vals, now, 72)).toBe(15);
+  expect(sumNextHours(times2, vals2, now2, 72)).toBe(15);
 });
 test("sumNextHours: überspringt fehlende Werte", () => {
-    expect(sumNextHours([101 * H2], [null], now, 12)).toBe(0);
-});
+  expect(sumNextHours([101 * H2], [null], now2, 12)).toBe(0);
 });
