@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { PAST_WINDOWS, sumPastHours } from "./precip-past";
+import { PAST_WINDOWS, sumNextHours, sumPastHours } from "./precip-past";
 import { SUM_STATIONS, parseSmnCsv, stationWindowSum, type Sample } from "./station-sums";
 
 export type StationPoint = {
@@ -44,6 +44,8 @@ export type PastSums = {
   source: string;
   radar: RadarSums | null;
   stations: StationPoint[];
+  /** Prognosesummen ICON-CH1 → CH2 ab jetzt (mm / cm) */
+  forecast: { rain: Record<string, number[]>; snow: Record<string, number[]> };
 };
 
 async function loadRadarSums(): Promise<RadarSums | null> {
@@ -130,7 +132,7 @@ async function load(): Promise<PastSums> {
       "https://api.open-meteo.com/v1/forecast?" +
       `latitude=${slice.map((p) => p[0]).join(",")}` +
       `&longitude=${slice.map((p) => p[1]).join(",")}` +
-      "&hourly=precipitation,snowfall&past_days=3&forecast_days=1&timezone=GMT" +
+      "&hourly=precipitation,snowfall&past_days=3&forecast_days=4&timezone=GMT" +
       "&models=meteoswiss_icon_ch1,meteoswiss_icon_ch2";
     const start = i;
     batches.push(
@@ -169,9 +171,13 @@ async function load(): Promise<PastSums> {
   const stations: StationPoint[] = [...mchStations, ...ownStations];
   const rain: Record<string, number[]> = {};
   const snow: Record<string, number[]> = {};
+  const fRain: Record<string, number[]> = {};
+  const fSnow: Record<string, number[]> = {};
   for (const w of PAST_WINDOWS) {
     rain[w] = new Array(pts.length).fill(0);
     snow[w] = new Array(pts.length).fill(0);
+    fRain[w] = new Array(pts.length).fill(0);
+    fSnow[w] = new Array(pts.length).fill(0);
   }
   for (let i = 0; i < pts.length; i++) {
     const h = results[i]?.hourly;
@@ -180,6 +186,8 @@ async function load(): Promise<PastSums> {
     for (const w of PAST_WINDOWS) {
       rain[w][i] = sumPastHours(times, h.precipitation ?? [], now, w);
       snow[w][i] = sumPastHours(times, h.snowfall ?? [], now, w);
+      fRain[w][i] = sumNextHours(times, h.precipitation ?? [], now, w);
+      fSnow[w][i] = sumNextHours(times, h.snowfall ?? [], now, w);
     }
   }
   return {
@@ -191,6 +199,7 @@ async function load(): Promise<PastSums> {
     source: "MeteoSchweiz ICON-CH1/CH2 Analyse via Open-Meteo",
     radar,
     stations,
+    forecast: { rain: fRain, snow: fSnow },
   };
 }
 

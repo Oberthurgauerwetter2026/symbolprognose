@@ -9,6 +9,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const { data, isLoading, error } = useQuery({ ...pastPrecipQuery(), refetchInterval: 30 * 60_000 });
   const [hours, setHours] = useState<PastWindow>(24);
   const [mode, setMode] = useState<"rain" | "snow">("rain");
+  const [period, setPeriod] = useState<"past" | "future">("past");
 
   const btn = (active: boolean) =>
     cn(
@@ -19,10 +20,14 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 rounded-xl bg-card p-1 shadow-md ring-1 ring-border/50" role="group" aria-label="Zeitrichtung">
+          <button type="button" className={btn(period === "past")} onClick={() => setPeriod("past")}>Gefallen</button>
+          <button type="button" className={btn(period === "future")} onClick={() => setPeriod("future")}>Prognose</button>
+        </div>
         <div className="flex gap-1 rounded-xl bg-card p-1 shadow-md ring-1 ring-border/50" role="group" aria-label="Zeitraum">
           {PAST_WINDOWS.map((h) => (
             <button key={h} type="button" className={btn(hours === h)} onClick={() => setHours(h)}>
-              {h} h
+              {period === "future" ? `+${h} h` : `${h} h`}
             </button>
           ))}
         </div>
@@ -34,6 +39,27 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
       {isLoading && <div className="h-[420px] rounded-lg bg-muted animate-pulse" />}
       {error && <div className="text-sm text-destructive">Summen konnten nicht geladen werden.</div>}
       {data && (() => {
+        if (period === "future") {
+          const f = data.forecast;
+          if (!f) return <div className="text-sm text-muted-foreground">Prognose wird geladen …</div>;
+          const stand = new Date(data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
+          return (
+            <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
+              <LazyPrecipAccumMap
+                values={(mode === "snow" ? f.snow : f.rain)[hours]}
+                gridLat={data.gridLat}
+                gridLon={data.gridLon}
+                stations={[]}
+                mode={mode}
+                hours={hours}
+                sourceLabel={`Prognose nächste ${hours} h`}
+                updatedLabel={stand}
+                dataLabel="MeteoSchweiz ICON-CH1/CH2"
+                forecast
+              />
+            </Suspense>
+          );
+        }
         const useRadar = mode === "rain" && !!data.radar;
         const grid = useRadar ? data.radar! : data;
         const values = useRadar ? data.radar!.rain[hours] : (mode === "snow" ? data.snow : data.rain)[hours];

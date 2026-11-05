@@ -154,6 +154,8 @@ interface Props {
   mode: "rain" | "snow";
   hours: number;
   sourceLabel: string;
+  dataLabel?: string;
+  forecast?: boolean;
   updatedLabel?: string;
   stations?: { id: string; name: string; lat: number; lon: number; value: number; own?: boolean }[];
 }
@@ -172,7 +174,7 @@ function stationIcon(name: string, value: number, unit: string, own = false) {
   });
 }
 
-function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel, updatedLabel, stations = [] }: Props) {
+function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel, updatedLabel, dataLabel = "eigene Stationen, MeteoSchweiz", forecast = false, stations = [] }: Props) {
   const classes = mode === "snow" ? SNOW_CLASSES : ACCUM_CLASSES;
   const unit = mode === "snow" ? "cm" : "mm";
   const accum = useMemo(() => {
@@ -203,10 +205,10 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
       <div className="flex items-center justify-between gap-3 flex-wrap px-5 py-3 border-b border-border/60">
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center rounded-lg bg-[#2561a1] px-2.5 py-1 text-xs font-semibold text-white tabular-nums shadow-sm">
-            {hours} h
+            {forecast ? `+${hours}` : hours} h
           </span>
           <h2 className="text-base font-semibold tracking-tight text-zinc-900">
-            {mode === "snow" ? "Neuschnee" : "Gefallener Niederschlag"}
+            {forecast ? (mode === "snow" ? "Erwarteter Neuschnee" : "Erwarteter Niederschlag") : mode === "snow" ? "Neuschnee" : "Gefallener Niederschlag"}
           </h2>
         </div>
         <p className="text-xs text-zinc-500 tabular-nums">
@@ -325,7 +327,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
           </div>
         </div>
-        <SourceFooter updated={updatedLabel} map data="eigene Stationen, MeteoSchweiz">
+        <SourceFooter updated={updatedLabel} map data={dataLabel}>
           {sourceLabel ? ` · ${sourceLabel}` : null}
         </SourceFooter>
       </CardContent>
