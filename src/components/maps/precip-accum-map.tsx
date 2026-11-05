@@ -154,6 +154,7 @@ interface Props {
   mode: "rain" | "snow";
   hours: number;
   sourceLabel: string;
+  dataLabel?: string;
   updatedLabel?: string;
   stations?: { id: string; name: string; lat: number; lon: number; value: number; own?: boolean }[];
 }
@@ -172,7 +173,7 @@ function stationIcon(name: string, value: number, unit: string, own = false) {
   });
 }
 
-function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel, updatedLabel, stations = [] }: Props) {
+function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel, updatedLabel, dataLabel = "eigene Stationen, MeteoSchweiz", stations = [] }: Props) {
   const classes = mode === "snow" ? SNOW_CLASSES : ACCUM_CLASSES;
   const unit = mode === "snow" ? "cm" : "mm";
   const accum = useMemo(() => {
@@ -325,7 +326,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
           </div>
         </div>
-        <SourceFooter updated={updatedLabel} map data="eigene Stationen, MeteoSchweiz">
+        <SourceFooter updated={updatedLabel} map data={dataLabel}>
           {sourceLabel ? ` · ${sourceLabel}` : null}
         </SourceFooter>
       </CardContent>

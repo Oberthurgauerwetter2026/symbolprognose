@@ -104,7 +104,7 @@ export const satelliteManifestQuery = (region: SatelliteRegionId) =>
 
 export const pastPrecipQuery = () =>
   queryOptions({
-    queryKey: ["past-precip-sums", 2],
+    queryKey: ["past-precip-sums", 3],
     queryFn: () => getPastPrecipSums(),
     staleTime: 15 * 60_000,
   });

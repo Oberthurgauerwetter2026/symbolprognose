@@ -24,3 +24,24 @@ export function sumPastHours(
   }
   return sum;
 }
+
+/**
+ * Prognosesumme: stündliche Werte im Fenster (now, now + hours].
+ * Die laufende Stunde zählt anteilig nicht – nur Stunden, die nach `now` enden.
+ */
+export function sumNextHours(
+  timesMs: number[],
+  values: (number | null)[],
+  nowMs: number,
+  hours: number,
+): number {
+  const end = nowMs + hours * 3_600_000;
+  let sum = 0;
+  for (let i = 0; i < timesMs.length; i++) {
+    const t = timesMs[i];
+    if (t <= nowMs || t > end) continue;
+    const v = values[i];
+    if (typeof v === "number" && Number.isFinite(v)) sum += v;
+  }
+  return sum;
+}
