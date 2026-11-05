@@ -911,7 +911,7 @@ function SatelliteMapInner({
             />
           )}
           {showSwiss && <SwissOutline />}
-          <SatelliteCities europe={regionId !== "alpen-ch"} />
+          {regionId === "alpen-ch" && <SatelliteCities europe={false} />}
           {showLightning && (
             <LightningLayer
               strikes={lightningStrikes}
