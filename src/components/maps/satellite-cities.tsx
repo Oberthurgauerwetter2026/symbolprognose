@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
 
-type City = { name: string; lat: number; lon: number };
+type City = { name: string; lat: number; lon: number; left?: boolean };
 
 const ALPS: City[] = [
   { name: "Zürich", lat: 47.377, lon: 8.54 },
@@ -10,7 +10,7 @@ const ALPS: City[] = [
   { name: "Basel", lat: 47.559, lon: 7.588 },
   { name: "Genf", lat: 46.204, lon: 6.143 },
   { name: "Lugano", lat: 46.004, lon: 8.951 },
-  { name: "St. Gallen", lat: 47.424, lon: 9.377 },
+  { name: "St. Gallen", lat: 47.424, lon: 9.377, left: true },
   { name: "Luzern", lat: 47.05, lon: 8.309 },
   { name: "Chur", lat: 46.85, lon: 9.532 },
   { name: "Bregenz", lat: 47.503, lon: 9.747 },
@@ -45,7 +45,9 @@ export function SatelliteCities({ europe }: { europe: boolean }) {
         className: "",
         iconSize: [0, 0],
         iconAnchor: [2.5, 2.5],
-        html: `<div style="${LABEL_STYLE}"><span style="${DOT_STYLE}"></span>${c.name}</div>`,
+        html: c.left
+          ? `<div style="${LABEL_STYLE}transform:translateX(calc(-100% + 5px));flex-direction:row-reverse"><span style="${DOT_STYLE}"></span>${c.name}</div>`
+          : `<div style="${LABEL_STYLE}"><span style="${DOT_STYLE}"></span>${c.name}</div>`,
       });
       L.marker([c.lat, c.lon], { icon, interactive: false, keyboard: false }).addTo(group);
     }
