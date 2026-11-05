@@ -33,6 +33,7 @@ import {
 } from "@/lib/satellite.functions";
 import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 import { FilmstripTimeline } from "./filmstrip-timeline";
+import { SatelliteCities } from "./satellite-cities";
 
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
@@ -910,6 +911,7 @@ function SatelliteMapInner({
             />
           )}
           {showSwiss && <SwissOutline />}
+          <SatelliteCities europe={regionId !== "alpen-ch"} />
           {showLightning && (
             <LightningLayer
               strikes={lightningStrikes}
