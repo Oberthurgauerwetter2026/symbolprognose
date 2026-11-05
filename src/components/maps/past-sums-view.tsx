@@ -55,6 +55,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
                 sourceLabel={`Prognose nächste ${hours} h`}
                 updatedLabel={stand}
                 dataLabel="MeteoSchweiz ICON-CH1/CH2"
+                forecast
               />
             </Suspense>
           );
