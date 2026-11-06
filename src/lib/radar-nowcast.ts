@@ -70,7 +70,7 @@ export function tendencyFrame<T extends { t: string; sourceT: string; precipUrl:
   return frames?.find((frame) => Date.parse(frame.sourceT) === sourceMs
     && Date.parse(frame.t) === targetMs
     && typeof frame.precipUrl === "string"
-    && frame.precipUrl.startsWith("https://"))?.precipUrl;
+    && frame.precipUrl.startsWith("https://"));
 }
 
 export function isUsableMotion(m: unknown): m is NowcastMotion {
