@@ -47,10 +47,30 @@ export function tendencyImageUrl(
   sourceMs: number,
   targetMs: number,
 ): string | undefined {
+  return tendencyFrame(frames, sourceMs, targetMs)?.precipUrl;
+}
+
+/**
+ * Stufe 2: Ist das Bild serverseitig mit dem lokalen Strömungsfeld advektiert
+ * (`advected`), liegt es bereits am Zielort und darf nicht zusätzlich verschoben werden.
+ */
+export function nowcastPlacement(
+  frame: { advected?: boolean } | undefined,
+  shifted: Bbox,
+  unshifted: Bbox,
+): Bbox {
+  return frame?.advected === true ? unshifted : shifted;
+}
+
+export function tendencyFrame<T extends { t: string; sourceT: string; precipUrl: string }>(
+  frames: T[] | undefined,
+  sourceMs: number,
+  targetMs: number,
+): T | undefined {
   return frames?.find((frame) => Date.parse(frame.sourceT) === sourceMs
     && Date.parse(frame.t) === targetMs
     && typeof frame.precipUrl === "string"
-    && frame.precipUrl.startsWith("https://"))?.precipUrl;
+    && frame.precipUrl.startsWith("https://"));
 }
 
 export function isUsableMotion(m: unknown): m is NowcastMotion {
