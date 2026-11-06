@@ -1262,7 +1262,7 @@ def write_region_max(s3, since: datetime) -> None:
             from _steering import centroid_track, guard_direction
             track = centroid_track(_centroid_points([l for l in loaded if (loaded[-1][1] - l[1]).total_seconds() <= 46 * 60]))
             print(f"region-max: centroid track {track}", flush=True)
-            motion = guard_direction(motion, track)
+            motion = guard_direction(motion, track, steering_dir=sd)
         except Exception as exc:  # soft-fail: reiner Radarvektor
             print(f"region-max: steering failed ({exc!r})", flush=True)
         if motion:

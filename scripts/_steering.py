@@ -91,7 +91,8 @@ def centroid_track(points: list[tuple[float, float, float]], min_km: float = 3.0
     return round((to_deg + 180.0) % 360.0, 1), round(dist / (dt / 60.0), 1), round(consistency, 2)
 
 
-def guard_direction(motion: dict | None, track: tuple | None, max_dev: float = 90.0) -> dict | None:
+def guard_direction(motion: dict | None, track: tuple | None, max_dev: float = 90.0,
+                    steering_dir: float | None = None) -> dict | None:
     """Richtungs-Sperre: der Nowcast darf nie entgegen der gemessenen Wanderung laufen.
 
     Weicht der (genudgte) Vektor mehr als `max_dev` von der Schwerpunkt-
@@ -101,6 +102,10 @@ def guard_direction(motion: dict | None, track: tuple | None, max_dev: float = 9
     if motion is None or track is None or float(motion.get("kmh", 0.0)) <= 0.0:
         return motion
     tdir = float(track[0])
+    # Schwerpunkte täuschen bei mehreren Feldern / Rand-Wachstum Bewegung vor:
+    # nur überstimmen, wenn die Wanderung zum Höhenwind passt.
+    if steering_dir is not None and _ang_diff(tdir, float(steering_dir)) > 60.0:
+        return motion
     cur = float(motion["dirFromDeg"])
     dev = _ang_diff(cur, tdir)
     limit = max_dev / 2.0

@@ -25,5 +25,13 @@ class DirectionGuard(unittest.TestCase):
         self.assertIsNone(centroid_track([(-10, 0, 0), (-5, 6, 0), (0, 0.5, 4)]))
 
 
+    def test_track_contradicting_steering_is_ignored(self):
+        m = guard_direction({"dirFromDeg": 145.0, "kmh": 20.0}, (330.0, 24.0, 1.0), steering_dir=150.0)
+        self.assertEqual(m["dirFromDeg"], 145.0)
+
+    def test_track_agreeing_with_steering_still_guards(self):
+        m = guard_direction({"dirFromDeg": 90.0, "kmh": 20.0}, (270.0, 24.0, 1.0), steering_dir=260.0)
+        self.assertEqual(m["dirFromDeg"], 270.0)
+
 if __name__ == "__main__":
     unittest.main()
