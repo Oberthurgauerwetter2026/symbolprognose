@@ -119,3 +119,11 @@ describe("nowcastPlacement", () => {
     assert.deepEqual(nowcastPlacement(undefined, b, a), b);
   });
 });
+
+import { tendencyFrame as tf2 } from "./radar-nowcast";
+import { test as t2, expect as e2 } from "vitest";
+t2("tendencyFrame toleriert 5 min Versatz zwischen Manifest und region-max", () => {
+  const f = [{ t: "2026-11-06T16:30:00Z", sourceT: "2026-11-06T16:15:00Z", precipUrl: "https://x/a.png" }];
+  e2(tf2(f, Date.parse("2026-11-06T16:10:00Z"), Date.parse("2026-11-06T16:30:00Z"))).toBe(f[0]);
+  e2(tf2(f, Date.parse("2026-11-06T15:50:00Z"), Date.parse("2026-11-06T16:30:00Z"))).toBeUndefined();
+});
