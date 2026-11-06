@@ -71,6 +71,14 @@ function colorForAccum(mm: number): [number, number, number, number] {
   return [c.rgb[0], c.rgb[1], c.rgb[2], 1.0];
 }
 
+function crWeight(i: number, t: number): number {
+  const t2 = t * t, t3 = t2 * t;
+  if (i === -1) return -0.5 * t3 + t2 - 0.5 * t;
+  if (i === 0) return 1.5 * t3 - 2.5 * t2 + 1;
+  if (i === 1) return -1.5 * t3 + 2 * t2 + 0.5 * t;
+  return 0.5 * t3 - 0.5 * t2;
+}
+
 // ---------- Heatmap → DataURL (für Leaflet ImageOverlay) ----------
 // Bilineare Interpolation des mm-Wertes pro Pixel, danach Klassenfarbe.
 // → weiche, geschwungene Bandkonturen, aber harte Farbsprünge zwischen Klassen.
@@ -84,7 +92,7 @@ function renderHeatmapDataUrl(
   if (!nLat || !nLon || values.length !== nLat * nLon) return null;
 
   // Feines Radarraster braucht weniger Hochskalierung als das Modellraster.
-  const UP = Math.max(2, Math.min(16, Math.round(1200 / Math.max(1, nLon - 1))));
+  const UP = Math.max(2, Math.min(64, Math.round(1600 / Math.max(1, nLon - 1))));
   const w = (nLon - 1) * UP;
   const h = (nLat - 1) * UP;
   const canvas = document.createElement("canvas");
@@ -111,15 +119,20 @@ function renderHeatmapDataUrl(
       const x1 = x0 + 1;
       const tx = fx - x0;
 
-      const v00 = values[y0 * nLon + x0];
-      const v10 = values[y0 * nLon + x1];
-      const v01 = values[y1 * nLon + x0];
-      const v11 = values[y1 * nLon + x1];
-      const v =
-        v00 * (1 - tx) * (1 - ty) +
-        v10 * tx * (1 - ty) +
-        v01 * (1 - tx) * ty +
-        v11 * tx * ty;
+      // Catmull-Rom (bikubisch) wie im Radar-Ingest: organische Bandkanten.
+      let v = 0;
+      for (let j = -1; j <= 2; j++) {
+        const yy = Math.max(0, Math.min(nLat - 1, y0 + j));
+        const wy = crWeight(j, ty);
+        if (!wy) continue;
+        for (let i = -1; i <= 2; i++) {
+          const xx = Math.max(0, Math.min(nLon - 1, x0 + i));
+          const wx = crWeight(i, tx);
+          if (!wx) continue;
+          v += wx * wy * (values[yy * nLon + xx] || 0);
+        }
+      }
+      void x1; void y1;
 
       const ci = classIndexForAccum(v);
       if (ci < 0) continue;
@@ -292,8 +305,9 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
                 key={`accum-${mode}-${hours}-${overlay.url.length}`}
                 url={overlay.url}
                 bounds={overlay.bounds}
-                opacity={0.85}
+                opacity={0.8}
                 zIndex={460}
+                className="precip-accum-overlay"
               />
             )}
             <CityMarkers />

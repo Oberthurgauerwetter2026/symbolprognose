@@ -60,7 +60,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             </Suspense>
           );
         }
-        const useRadar = mode === "rain" && !!data.radar;
+        const useRadar = mode === "rain" && !!data.radar && (data.radar.missingHours[hours] ?? 0) <= hours * 0.25;
         const grid = useRadar ? data.radar! : data;
         const values = useRadar ? data.radar!.rain[hours] : (mode === "snow" ? data.snow : data.rain)[hours];
         const stand = new Date(useRadar ? data.radar!.t : data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
