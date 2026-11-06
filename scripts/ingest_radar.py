@@ -924,10 +924,12 @@ def _win_slice() -> tuple[slice, slice]:
 
 
 def _steering_wind() -> tuple[float | None, float | None]:
-    """700-hPa-Wind (Herkunft °, km/h) über dem Oberthurgau, aktuelle Stunde."""
+    """Steuerungswind 850/700 hPa (Schichtmittel, 850 dominiert) über dem Oberthurgau."""
+    from _steering import layer_wind
     r = requests.get(
         "https://api.open-meteo.com/v1/forecast",
-        params={"latitude": 47.55, "longitude": 9.3, "hourly": "wind_speed_700hPa,wind_direction_700hPa",
+        params={"latitude": 47.55, "longitude": 9.3,
+                "hourly": "wind_speed_850hPa,wind_direction_850hPa,wind_speed_700hPa,wind_direction_700hPa",
                 "forecast_hours": 2, "past_hours": 1, "timezone": "UTC"},
         timeout=8,
     )
@@ -935,7 +937,11 @@ def _steering_wind() -> tuple[float | None, float | None]:
     h = r.json()["hourly"]
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:00")
     i = h["time"].index(now) if now in h["time"] else 0
-    return float(h["wind_direction_700hPa"][i]), float(h["wind_speed_700hPa"][i])
+    def pick(lvl):
+        d, k = h[f"wind_direction_{lvl}hPa"][i], h[f"wind_speed_{lvl}hPa"][i]
+        return (float(d), float(k)) if d is not None and k is not None else None
+    res = layer_wind(pick(850), pick(700))
+    return res if res else (None, None)
 
 
 def _saentis_wind() -> tuple[float | None, float | None]:
