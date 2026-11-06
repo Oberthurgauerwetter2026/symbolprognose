@@ -1379,7 +1379,8 @@ def cleanup(s3, keep_since: datetime) -> None:
     """Delete radar/*.png objects older than `keep_since`."""
     paginator = s3.get_paginator("list_objects_v2")
     deleted = 0
-    for page in paginator.paginate(Bucket=BUCKET, Prefix="radar/nowcast/"):
+    for prefix in ("radar/nowcast/", "radar/phase/"):
+      for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
         for obj in page.get("Contents", []) or []:
             if obj.get("LastModified") and obj["LastModified"] < keep_since:
                 s3.delete_object(Bucket=BUCKET, Key=obj["Key"])
