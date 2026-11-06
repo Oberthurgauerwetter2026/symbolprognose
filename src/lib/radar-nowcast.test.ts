@@ -23,13 +23,13 @@ describe("radar nowcast", () => {
     assert.equal(attenuateRadarBand(8, nowcastIntensityFactor(75), thresholds), 0);
     assert.equal(attenuateRadarBand(0, 0.5, thresholds), 0);
   });
-  test("observed tendency image matches exact measurement and five-minute target only", () => {
+  test("observed tendency image matches measurement within one ingest cycle and exact target", () => {
     const source = Date.UTC(2026, 10, 1, 9, 25);
     const target = source + 5 * 60_000;
     const url = "https://weather.test/radar/nowcast/image.png";
     const frames = [{ t: new Date(target).toISOString(), sourceT: new Date(source).toISOString(), precipUrl: url }];
     assert.equal(tendencyImageUrl(frames, source, target), url);
-    assert.equal(tendencyImageUrl(frames, source - 5 * 60_000, target), undefined);
+    assert.equal(tendencyImageUrl(frames, source - 20 * 60_000, target), undefined);
     assert.equal(tendencyImageUrl(frames, source, target + 5 * 60_000), undefined);
     assert.equal(tendencyImageUrl(undefined, source, target), undefined);
   });
