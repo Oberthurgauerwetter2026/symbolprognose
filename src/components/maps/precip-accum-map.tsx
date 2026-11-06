@@ -92,7 +92,7 @@ function renderHeatmapDataUrl(
   if (!nLat || !nLon || values.length !== nLat * nLon) return null;
 
   // Feines Radarraster braucht weniger Hochskalierung als das Modellraster.
-  const UP = Math.max(2, Math.min(16, Math.round(1200 / Math.max(1, nLon - 1))));
+  const UP = Math.max(2, Math.min(64, Math.round(1600 / Math.max(1, nLon - 1))));
   const w = (nLon - 1) * UP;
   const h = (nLat - 1) * UP;
   const canvas = document.createElement("canvas");
@@ -243,7 +243,6 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
               white-space: nowrap;
             }
             .leaflet-tooltip.city-label::before { display: none; }
-            .precip-accum-overlay { image-rendering: pixelated; }
           `}</style>
 
 
