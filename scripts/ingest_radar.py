@@ -1152,21 +1152,37 @@ def publish_tendency_frames(s3, loaded: list, motion: dict | None) -> list[dict]
     dx *= (OUT_W - 1) / (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"])
     dy *= (OUT_H - 1) / (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"])
     rate = observed_tendency(old, current, minutes, dx, dy, motion.get("quality", 0))
-    if rate is None or not np.any(rate):
+    if rate is not None and not np.any(rate):
+        rate = None
+    # Stufe 2: lokales Verlagerungsfeld; jede Gegend zieht mit eigenem Vektor.
+    flow = None
+    try:
+        from _flow import local_flow
+        flow = local_flow(old, current, minutes, dx, dy)
+    except Exception as exc:
+        print(f"region-max: local flow unavailable (soft) {exc!r}", flush=True)
+    if rate is None and flow is None:
         return []
+    if flow is not None:
+        print(f"region-max: local flow field active", flush=True)
     # Phase stays that of the measurement; the model handover is not corrected.
     frac, fzra = phase_fraction_at(ts), freezing_rain_at(ts)
     out = []
     # Delayed observations may need up to 80 minutes lead to the next current hour.
     for lead in range(5, 81, 5):
         target = ts + timedelta(minutes=lead)
-        png = render_png(evolve_intensity(current, rate, lead), PRECIP_SCALE, frac, fzra)
+        field = evolve_intensity(current, rate, lead)
+        if flow is not None:
+            from _flow import advect
+            field = advect(field, flow[0], flow[1], lead)
+        png = render_png(field, PRECIP_SCALE, frac, fzra)
         digest = hashlib.sha256(png).hexdigest()[:16]
         key = f"radar/nowcast/{target:%Y%m%dT%H%M}-{digest}.png"
         upload_png(s3, key, png)
         out.append({"t": target.strftime("%Y-%m-%dT%H:%M:00Z"),
                     "sourceT": ts.strftime("%Y-%m-%dT%H:%M:00Z"),
-                    "precipUrl": f"{PUBLIC_URL.rstrip('/')}/{key}"})
+                    "precipUrl": f"{PUBLIC_URL.rstrip('/')}/{key}",
+                    "advected": flow is not None})
     return out
 
 
