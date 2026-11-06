@@ -195,6 +195,8 @@ export interface RadarRegionMaxPayload {
   motion?: { dirFromDeg: number; kmh: number; dtMin?: number; quality?: number } | null;
   /** PNGs with motion-aligned observed intensity tendency; unshifted image coordinates. */
   nowcastFrames?: { t: string; sourceT: string; precipUrl: string }[];
+  /** Ortsfestes Phasenfeld der Messung (Phase am Zielort, nicht am Ursprung). */
+  phaseField?: { t: string; url: string } | null;
 
 }
 

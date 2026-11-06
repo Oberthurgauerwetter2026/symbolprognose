@@ -914,8 +914,12 @@ function MeasurementCanvasOverlay({
   bounds,
   opacity,
   prefetchUrls,
+  phaseUrl,
+  phaseBounds,
 }: {
   url: string;
+  phaseUrl?: string | null;
+  phaseBounds?: { minLat: number; maxLat: number; minLon: number; maxLon: number } | null;
   /** Zielfeld des weichen Übergangs (optional). */
   nextUrl?: string | null;
   /** Gewicht von `nextUrl` (0 = nur `url`, 1 = nur `nextUrl`). */
@@ -1118,11 +1122,12 @@ function MeasurementCanvasOverlay({
     };
     decode(url);
     if (nextUrl && nextUrl !== url) decode(nextUrl);
+    if (phaseUrl) decode(phaseUrl);
     return () => {
       cancelled = true;
       retryTimers.forEach(clearTimeout);
     };
-  }, [url, nextUrl]);
+  }, [url, nextUrl, phaseUrl]);
 
 
 
@@ -1285,6 +1290,10 @@ function MeasurementCanvasOverlay({
     if (!ctx) return;
 
     const { minLat, maxLat, minLon, maxLon } = bounds;
+    // Nowcast: Phase ortsfest am Zielort (Gelände + aktuelle Atmosphäre),
+    // nur die Intensität wandert mit der Zugbahn.
+    const phaseField = phaseUrl && phaseBounds ? cacheRef.current.get(phaseUrl) ?? null : null;
+    const phaseFieldReady = !!phaseField;
     const center = map.getCenter();
     const viewKey = `${map.getZoom()}|${size.x}x${size.y}|${dpr}|${center.lat.toFixed(4)}|${center.lng.toFixed(4)}`;
     if (viewKey !== viewKeyRef.current) {
@@ -1295,7 +1304,7 @@ function MeasurementCanvasOverlay({
     // die verschobene Bbox — sie muss Teil des Schlüssels sein.
     const cacheKey = `${fieldA ? url : ""}>${fieldB ? nextUrl : ""}@${
       fieldA && fieldB ? w : 0
-    }|${intensityFactor}|${viewKey}|${minLat.toFixed(5)},${maxLat.toFixed(5)},${minLon.toFixed(5)},${maxLon.toFixed(5)}`;
+    }|${intensityFactor}|${phaseFieldReady ? phaseUrl : ""}|${viewKey}|${minLat.toFixed(5)},${maxLat.toFixed(5)},${minLon.toFixed(5)},${maxLon.toFixed(5)}`;
     // A fallback belongs to a different timestamp, not to the requested URL.
     const canCache = Boolean(cachedA);
     let off = canCache ? frameCanvasCacheRef.current.get(cacheKey) ?? null : null;
@@ -1408,18 +1417,15 @@ function MeasurementCanvasOverlay({
           const bandIdx = Math.min(DISPLAY_SCALE.length, Math.max(1, Math.round(v))) - 1;
           const s = DISPLAY_SCALE[bandIdx];
           // Phase vom dominanten Feld, bilinear geglättet — keine Mischfarben.
-          const pf = wA >= wB ? fieldA : fieldB;
+          const pf = phaseField ?? (wA >= wB ? fieldA : fieldB);
+          const pb = phaseField && phaseBounds ? phaseBounds : bounds;
           let ph = 0;
           if (pf) {
-            const score = phaseScore(
-              pf,
-              ((ll.lng - minLon) / lonSpan) * (pf.w - 1),
-              ((maxLat - ll.lat) / latSpan) * (pf.h - 1),
-            );
+            const fx = ((ll.lng - pb.minLon) / (pb.maxLon - pb.minLon)) * (pf.w - 1);
+            const fy = ((pb.maxLat - ll.lat) / (pb.maxLat - pb.minLat)) * (pf.h - 1);
+            const score = phaseScore(pf, fx, fy);
             ph = score >= 0.75 ? 2 : score >= 0.25 ? 1 : 0;
-            const fzx = ((ll.lng - minLon) / lonSpan) * (pf.w - 1);
-            const fzy = ((maxLat - ll.lat) / latSpan) * (pf.h - 1);
-            if (fzraScore(pf, fzx, fzy) >= 0.5) ph = 3;
+            if (fzraScore(pf, fx, fy) >= 0.5) ph = 3;
           }
           const mx = Math.floor(lx / PAT);
           const my = Math.floor(ly / PAT);
@@ -1465,7 +1471,7 @@ function MeasurementCanvasOverlay({
 
   useEffect(() => {
     redraw();
-  }, [payload, blend, nextUrl, intensityFactor, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
+  }, [payload, blend, nextUrl, intensityFactor, phaseUrl, bounds.minLat, bounds.maxLat, bounds.minLon, bounds.maxLon]);
 
   // Opazität separat nachziehen — ohne Neuberechnung des Frame-Canvas.
   useEffect(() => {
@@ -1492,6 +1498,8 @@ function CrossfadePrecipOverlay({
   bounds,
   opacity,
   prefetchUrls,
+  phaseUrl,
+  phaseBounds,
 }: {
   url: string;
   nextUrl?: string | null;
@@ -1500,9 +1508,13 @@ function CrossfadePrecipOverlay({
   bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   opacity: number;
   prefetchUrls?: string[];
+  phaseUrl?: string | null;
+  phaseBounds?: { minLat: number; maxLat: number; minLon: number; maxLon: number } | null;
 }) {
   return (
     <MeasurementCanvasOverlay
+      phaseUrl={phaseUrl}
+      phaseBounds={phaseBounds}
       url={url}
       nextUrl={nextUrl}
       blend={blend}
@@ -2377,6 +2389,8 @@ function RadarMapInner({
                       blend={fadeW}
                       intensityFactor={(overlayFrame.intensityFactor ?? 1) * (1 - fadeW) + (overlayNext?.intensityFactor ?? overlayFrame.intensityFactor ?? 1) * fadeW}
                       bounds={ib}
+                      phaseUrl={(fadeW >= 0.5 ? overlayNext : overlayFrame)?.phaseUrl ?? null}
+                      phaseBounds={(fadeW >= 0.5 ? overlayNext : overlayFrame)?.phaseBbox ?? null}
                       opacity={opacityVal}
                       prefetchUrls={radarUrls}
                     />
