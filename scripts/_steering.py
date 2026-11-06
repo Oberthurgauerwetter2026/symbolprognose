@@ -26,8 +26,10 @@ def radar_weight(kmh: float, quality: float) -> float:
 def layer_wind(w850: tuple | None, w700: tuple | None, w850_weight: float = 0.65) -> tuple | None:
     """Steuerungsschicht 850/700 hPa vektoriell mitteln (850 hPa dominiert,
     weil Mittelland-Niederschlag in ~1500 m zieht; 700 hPa allein ist föhnanfällig)."""
-    srcs = [(d, k, wt) for (d, k), wt in ((w850, w850_weight), (w700, 1 - w850_weight))
-            if d is not None and k] if w850 and w700 else [(d, k, 1.0) for d, k in (w850 or w700,) if d is not None and k] if (w850 or w700) else []
+    srcs = []
+    for w, wt in ((w850, w850_weight), (w700, 1.0 - w850_weight)):
+        if w and w[0] is not None and w[1]:
+            srcs.append((float(w[0]), float(w[1]), wt))
     if not srcs:
         return None
     tw = sum(w for *_, w in srcs)
