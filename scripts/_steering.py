@@ -61,3 +61,58 @@ def nudge_motion(motion: dict | None, steer_from_deg: float | None, steer_kmh: f
     out["radarDirFromDeg"] = motion["dirFromDeg"]
     out["steerWeight"] = round(1 - w, 2)
     return out
+
+
+def _ang_diff(a: float, b: float) -> float:
+    return abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+def centroid_track(points: list[tuple[float, float, float]], min_km: float = 3.0) -> tuple | None:
+    """Reale Schwerpunkt-Wanderung aus (t_min, x_km Ost, y_km Nord).
+
+    Gibt (Herkunft °, km/h, Konsistenz 0–1) zurück oder None, wenn die
+    Verlagerung zu klein bzw. die Einzelschritte widersprüchlich sind.
+    """
+    if len(points) < 3:
+        return None
+    pts = sorted(points)
+    dx = pts[-1][1] - pts[0][1]
+    dy = pts[-1][2] - pts[0][2]
+    dt = pts[-1][0] - pts[0][0]
+    dist = math.hypot(dx, dy)
+    if dt <= 0 or dist < min_km:
+        return None
+    steps = [(b[1] - a[1], b[2] - a[2]) for a, b in zip(pts, pts[1:])]
+    path = sum(math.hypot(x, y) for x, y in steps)
+    consistency = dist / path if path > 0 else 0.0
+    if consistency < 0.5:
+        return None
+    to_deg = math.degrees(math.atan2(dx, dy))
+    return round((to_deg + 180.0) % 360.0, 1), round(dist / (dt / 60.0), 1), round(consistency, 2)
+
+
+def guard_direction(motion: dict | None, track: tuple | None, max_dev: float = 90.0) -> dict | None:
+    """Richtungs-Sperre: der Nowcast darf nie entgegen der gemessenen Wanderung laufen.
+
+    Weicht der (genudgte) Vektor mehr als `max_dev` von der Schwerpunkt-
+    Wanderung ab, gilt die gemessene Richtung; bei kleinerer Abweichung bleibt
+    der Vektor, wird aber auf höchstens `max_dev/2` an die Messung gezogen.
+    """
+    if motion is None or track is None or float(motion.get("kmh", 0.0)) <= 0.0:
+        return motion
+    tdir = float(track[0])
+    cur = float(motion["dirFromDeg"])
+    dev = _ang_diff(cur, tdir)
+    limit = max_dev / 2.0
+    if dev <= limit:
+        return motion
+    out = dict(motion)
+    if dev > max_dev:
+        new = tdir
+    else:
+        sign = 1.0 if ((cur - tdir + 180.0) % 360.0 - 180.0) > 0 else -1.0
+        new = (tdir + sign * limit) % 360.0
+    out["dirFromDeg"] = round(new, 1)
+    out["trackDirFromDeg"] = tdir
+    out["guarded"] = True
+    return out

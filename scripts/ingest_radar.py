@@ -954,6 +954,27 @@ def _saentis_wind() -> tuple[float | None, float | None]:
     return None, None
 
 
+def _centroid_points(loaded) -> list[tuple[float, float, float]]:
+    """Gewichteter Niederschlags-Schwerpunkt je Bild im Bewegungsfenster (km)."""
+    sy, sx = _win_slice()
+    mid_lat = (MOTION_WINDOW["minLat"] + MOTION_WINDOW["maxLat"]) / 2
+    kx = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / (OUT_W - 1) * 111.32 * math.cos(math.radians(mid_lat))
+    ky = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / (OUT_H - 1) * 111.32
+    t0 = loaded[-1][1]
+    pts = []
+    for arr, ts, *_ in loaded:
+        a = np.nan_to_num(arr, nan=0.0)[sy, sx]
+        wgt = np.where(a >= 0.3, np.sqrt(a), 0.0)
+        tot = float(wgt.sum())
+        if tot <= 0 or int((wgt > 0).sum()) < 30:
+            continue
+        yy, xx = np.indices(wgt.shape)
+        cx = float((wgt * xx).sum()) / tot
+        cy = float((wgt * yy).sum()) / tot
+        pts.append(((ts - t0).total_seconds() / 60.0, cx * kx, -cy * ky))
+    return pts
+
+
 def estimate_motion(prev: np.ndarray, cur: np.ndarray, dt_min: float) -> dict | None:
     """Verlagerung zweier aufeinanderfolgender Niederschlagsfelder.
 
@@ -1219,6 +1240,10 @@ def write_region_max(s3, since: datetime) -> None:
             sd, sk = blend_steering(model, saentis)
             print(f"region-max: steering model={model} saentis={saentis} -> {sd}° {sk} km/h", flush=True)
             motion = nudge_motion(motion, sd, sk)
+            from _steering import centroid_track, guard_direction
+            track = centroid_track(_centroid_points([l for l in loaded if (loaded[-1][1] - l[1]).total_seconds() <= 46 * 60]))
+            print(f"region-max: centroid track {track}", flush=True)
+            motion = guard_direction(motion, track)
         except Exception as exc:  # soft-fail: reiner Radarvektor
             print(f"region-max: steering failed ({exc!r})", flush=True)
         if motion:
