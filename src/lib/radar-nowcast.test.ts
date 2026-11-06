@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
-import { attenuateRadarBand, nowcastIntensityFactor, displacementDeg, handoverBlends, isUsableMotion, nowcastSteps, tendencyImageUrl } from "./radar-nowcast";
+import { attenuateRadarBand, nowcastIntensityFactor, displacementDeg, handoverBlends, isUsableMotion, nowcastSteps, tendencyImageUrl, nowcastPlacement } from "./radar-nowcast";
 import { buildTimelineSteps } from "../components/maps/radar-playback";
 
 const BBOX = { minLat: 47, maxLat: 48, minLon: 9, maxLon: 10 };
@@ -107,5 +107,15 @@ describe("handoverBlends", () => {
     assert.deepEqual(b.map((x) => x.weight), [0.6, 0.25]);
     assert.deepEqual(b.map((x) => x.tMs), [hand, hand + 3_600_000]);
     assert.ok(b[1].bbox.minLon > b[0].bbox.minLon);
+  });
+});
+
+describe("nowcastPlacement", () => {
+  const a = { minLat: 1, maxLat: 2, minLon: 3, maxLon: 4 };
+  const b = { minLat: 1.1, maxLat: 2.1, minLon: 3.1, maxLon: 4.1 };
+  test("advected images stay in place", () => assert.deepEqual(nowcastPlacement({ advected: true }, b, a), a));
+  test("legacy images are shifted", () => {
+    assert.deepEqual(nowcastPlacement({}, b, a), b);
+    assert.deepEqual(nowcastPlacement(undefined, b, a), b);
   });
 });
