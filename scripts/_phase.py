@@ -181,6 +181,20 @@ def apply_phase_alpha(
     return rgba
 
 
+def phase_field_rgba(
+    shape: tuple[int, int], frac: np.ndarray | None, fzra: np.ndarray | None = None,
+) -> np.ndarray:
+    """Ortsfestes Phasenfeld für den Nowcast: jedes Pixel trägt den Phasencode
+    seiner eigenen Geländehöhe/Atmosphäre (auch wo es gerade trocken ist).
+    Der Nowcast verschiebt nur die Intensität und liest die Phase hier am
+    Zielort — Säntis-Schnee wird im Flachland so zu Regen."""
+    h, w = shape
+    rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    rgba[..., :3] = (255, 255, 255)
+    rgba[..., 3] = 245
+    return apply_phase_alpha(rgba, frac, fzra)
+
+
 def idw_to_grid(
     pt_lat: np.ndarray,
     pt_lon: np.ndarray,
