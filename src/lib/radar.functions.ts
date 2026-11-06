@@ -5,7 +5,7 @@ import {
   getRadarRegionMax,
   type OpenMeteoCachePayload,
 } from "./openmeteo-cache.server";
-import { isUsableMotion, nowcastSteps, tendencyImageUrl, nowcastIntensityFactor } from "./radar-nowcast";
+import { isUsableMotion, nowcastSteps, tendencyFrame, nowcastPlacement, nowcastIntensityFactor } from "./radar-nowcast";
 import { r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
@@ -561,15 +561,15 @@ export const getRadarFrames = createServerFn({ method: "GET" })
           const pfield = regionMax?.phaseField;
           const phaseUrl = pfield && Date.parse(pfield.t) === Date.parse(lastRadar.t) ? pfield.url : undefined;
           for (const s of steps) {
+            const tf = tendencyFrame(regionMax?.nowcastFrames, Date.parse(lastRadar.t), s.tMs);
             frames.push({
               t: new Date(s.tMs).toISOString().replace(/\.\d{3}Z$/, "Z"),
               source: "nowcast",
               sourceT: lastRadar.t,
               intensityFactor: nowcastIntensityFactor((s.tMs - Date.parse(lastRadar.t)) / 60_000),
               values: [],
-              precipUrl: tendencyImageUrl(regionMax?.nowcastFrames, Date.parse(lastRadar.t), s.tMs)
-                ?? lastRadar.precipUrl,
-              imageBbox: s.bbox,
+              precipUrl: tf?.precipUrl ?? lastRadar.precipUrl,
+              imageBbox: imageBbox ? nowcastPlacement(tf, s.bbox, imageBbox) : s.bbox,
               ...(phaseUrl && imageBbox ? { phaseUrl, phaseBbox: imageBbox } : {}),
             });
           }
