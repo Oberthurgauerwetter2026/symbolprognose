@@ -1164,6 +1164,25 @@ def publish_tendency_frames(s3, loaded: list, motion: dict | None) -> list[dict]
     return out
 
 
+def publish_phase_field(s3, ts: datetime) -> dict | None:
+    """Publiziert das ortsfeste Phasenfeld (DEM + Stationen + Modell) der
+    Messung, damit der Nowcast die Phase am Zielort statt am Ursprung zeigt."""
+    from _phase import phase_field_rgba
+    from PIL import Image
+    import io
+    frac, fzra = phase_fraction_at(ts), freezing_rain_at(ts)
+    if frac is None:
+        return None
+    rgba = phase_field_rgba(frac.shape, frac, fzra)
+    buf = io.BytesIO()
+    Image.fromarray(rgba, "RGBA").save(buf, format="PNG", optimize=True)
+    png = buf.getvalue()
+    digest = hashlib.sha256(png).hexdigest()[:16]
+    key = f"radar/phase/{ts:%Y%m%dT%H%M}-{digest}.png"
+    upload_png(s3, key, png)
+    return {"t": ts.strftime("%Y-%m-%dT%H:%M:00Z"), "url": f"{PUBLIC_URL.rstrip('/')}/{key}"}
+
+
 def write_region_max(s3, since: datetime) -> None:
     """Schreibt `radar/region-max.json`: je Gemeinde die aktuell gemessene
     Spitzenintensität (mm/h) und Hagelwahrscheinlichkeit (%).
@@ -1307,8 +1326,15 @@ def write_region_max(s3, since: datetime) -> None:
         # Failed image publication must never expose partial/missing frames.
         print(f"region-max: intensity tendency unavailable ({exc!r})", flush=True)
 
+    phase_field = None
+    try:
+        phase_field = publish_phase_field(s3, loaded[-1][1])
+    except Exception as exc:
+        print(f"region-max: phase field unavailable (soft) {exc!r}", flush=True)
+
     body = {
         "t": ts,
+        "phaseField": phase_field,
         "generatedAt": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "version": RADAR_INGEST_VERSION,
         "regions": regions,
@@ -1353,7 +1379,8 @@ def cleanup(s3, keep_since: datetime) -> None:
     """Delete radar/*.png objects older than `keep_since`."""
     paginator = s3.get_paginator("list_objects_v2")
     deleted = 0
-    for page in paginator.paginate(Bucket=BUCKET, Prefix="radar/nowcast/"):
+    for prefix in ("radar/nowcast/", "radar/phase/"):
+      for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
         for obj in page.get("Contents", []) or []:
             if obj.get("LastModified") and obj["LastModified"] < keep_since:
                 s3.delete_object(Bucket=BUCKET, Key=obj["Key"])

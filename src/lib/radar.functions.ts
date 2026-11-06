@@ -90,6 +90,9 @@ export interface RadarFrame {
   hailUrl?: string;
   /** Optional: Bbox des PNG-Overlays für diesen Frame. */
   imageBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+  /** Nowcast: ortsfestes Phasenfeld; wird an der unverschobenen `phaseBbox` gelesen. */
+  phaseUrl?: string;
+  phaseBbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   /** Abklingendes Messbild über dem Modellframe (Übergabe Nowcast → Modell). */
   handover?: {
     precipUrl: string;
@@ -555,6 +558,8 @@ export const getRadarFrames = createServerFn({ method: "GET" })
             const f = frames[i];
             if (f.source !== "radar" && Date.parse(f.t) <= endMs) frames.splice(i, 1);
           }
+          const pfield = regionMax?.phaseField;
+          const phaseUrl = pfield && Date.parse(pfield.t) === Date.parse(lastRadar.t) ? pfield.url : undefined;
           for (const s of steps) {
             frames.push({
               t: new Date(s.tMs).toISOString().replace(/\.\d{3}Z$/, "Z"),
@@ -565,6 +570,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
               precipUrl: tendencyImageUrl(regionMax?.nowcastFrames, Date.parse(lastRadar.t), s.tMs)
                 ?? lastRadar.precipUrl,
               imageBbox: s.bbox,
+              ...(phaseUrl && imageBbox ? { phaseUrl, phaseBbox: imageBbox } : {}),
             });
           }
           frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
