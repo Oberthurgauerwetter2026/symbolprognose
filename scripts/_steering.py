@@ -15,10 +15,29 @@ def _clamp(v: float) -> float:
 
 def radar_weight(kmh: float, quality: float) -> float:
     """Vertrauen in die Radarrichtung (0.2–1)."""
+    if quality >= 0.6 and kmh >= 3.0:
+        return 1.0  # klares Mustersignal: die Messung gilt, kein Modell-Nudging
     w = _clamp((quality - 0.35) / 0.4) * _clamp(kmh / 20.0)
     if kmh < 15.0:
         w = min(w, 0.25)  # langsamer Zug: Richtung zu mind. 75 % aus dem Höhenwind
     return max(0.15, w)
+
+
+def layer_wind(w850: tuple | None, w700: tuple | None, w850_weight: float = 0.65) -> tuple | None:
+    """Steuerungsschicht 850/700 hPa vektoriell mitteln (850 hPa dominiert,
+    weil Mittelland-Niederschlag in ~1500 m zieht; 700 hPa allein ist föhnanfällig)."""
+    srcs = []
+    for w, wt in ((w850, w850_weight), (w700, 1.0 - w850_weight)):
+        if w and w[0] is not None and w[1]:
+            srcs.append((float(w[0]), float(w[1]), wt))
+    if not srcs:
+        return None
+    tw = sum(w for *_, w in srcs)
+    x = sum(w * k * math.sin(math.radians(d)) for d, k, w in srcs) / tw
+    y = sum(w * k * math.cos(math.radians(d)) for d, k, w in srcs) / tw
+    if math.hypot(x, y) < 1e-6:
+        return None
+    return round((math.degrees(math.atan2(x, y)) + 360.0) % 360.0, 1), round(math.hypot(x, y), 1)
 
 
 def blend_steering(model: tuple | None, saentis: tuple | None, saentis_weight: float = 0.4) -> tuple:

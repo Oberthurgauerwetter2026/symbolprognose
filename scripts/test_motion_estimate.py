@@ -62,13 +62,22 @@ class MotionEstimateTests(unittest.TestCase):
         self.assertEqual(nudge_motion(m, None, None), m)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-    def test_slow_motion_follows_steering_at_least_75_percent(self):
+    def test_clear_slow_measurement_beats_opposite_steering(self):
         from _steering import nudge_motion
         slow = {"dirFromDeg": 270.0, "kmh": 12.0, "quality": 0.95}
+        self.assertEqual(nudge_motion(slow, 90.0, 40.0)["dirFromDeg"], 270.0)
+
+    def test_uncertain_slow_motion_follows_steering_at_least_75_percent(self):
+        from _steering import nudge_motion
+        slow = {"dirFromDeg": 270.0, "kmh": 12.0, "quality": 0.5}
         self.assertGreaterEqual(nudge_motion(slow, 90.0, 40.0)["steerWeight"], 0.75)
+
+    def test_layer_wind_850_dominates_foehn_aloft(self):
+        from _steering import layer_wind
+        d, _ = layer_wind((250.0, 24.0), (153.0, 17.5))
+        self.assertTrue(205.0 < d < 250.0)
+        self.assertEqual(layer_wind(None, (153.0, 17.5)), (153.0, 17.5))
+        self.assertIsNone(layer_wind(None, None))
 
     def test_blend_model_and_saentis(self):
         from _steering import blend_steering
@@ -77,3 +86,7 @@ if __name__ == "__main__":
         self.assertEqual(blend_steering(None, (80.0, 30.0)), (80.0, 30.0))
         self.assertEqual(blend_steering((60.0, 50.0), (80.0, 2.0)), (60.0, 50.0))
         self.assertEqual(blend_steering(None, None), (None, None))
+
+
+if __name__ == "__main__":
+    unittest.main()
