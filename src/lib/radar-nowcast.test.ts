@@ -23,13 +23,13 @@ describe("radar nowcast", () => {
     assert.equal(attenuateRadarBand(8, nowcastIntensityFactor(75), thresholds), 0);
     assert.equal(attenuateRadarBand(0, 0.5, thresholds), 0);
   });
-  test("observed tendency image matches exact measurement and five-minute target only", () => {
+  test("observed tendency image matches measurement within one ingest cycle and exact target", () => {
     const source = Date.UTC(2026, 10, 1, 9, 25);
     const target = source + 5 * 60_000;
     const url = "https://weather.test/radar/nowcast/image.png";
     const frames = [{ t: new Date(target).toISOString(), sourceT: new Date(source).toISOString(), precipUrl: url }];
     assert.equal(tendencyImageUrl(frames, source, target), url);
-    assert.equal(tendencyImageUrl(frames, source - 5 * 60_000, target), undefined);
+    assert.equal(tendencyImageUrl(frames, source - 20 * 60_000, target), undefined);
     assert.equal(tendencyImageUrl(frames, source, target + 5 * 60_000), undefined);
     assert.equal(tendencyImageUrl(undefined, source, target), undefined);
   });
@@ -118,4 +118,11 @@ describe("nowcastPlacement", () => {
     assert.deepEqual(nowcastPlacement({}, b, a), b);
     assert.deepEqual(nowcastPlacement(undefined, b, a), b);
   });
+});
+
+import { tendencyFrame } from "./radar-nowcast";
+test("tendencyFrame toleriert 5 min Versatz zwischen Manifest und region-max", () => {
+  const f = [{ t: "2026-11-06T16:30:00Z", sourceT: "2026-11-06T16:15:00Z", precipUrl: "https://x/a.png" }];
+  assert.equal(tendencyFrame(f, Date.parse("2026-11-06T16:10:00Z"), Date.parse("2026-11-06T16:30:00Z")), f[0]);
+  assert.equal(tendencyFrame(f, Date.parse("2026-11-06T15:50:00Z"), Date.parse("2026-11-06T16:30:00Z")), undefined);
 });

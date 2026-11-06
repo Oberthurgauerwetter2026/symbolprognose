@@ -1175,7 +1175,14 @@ def publish_tendency_frames(s3, loaded: list, motion: dict | None) -> list[dict]
         if flow is not None:
             from _flow import advect
             field = advect(field, flow[0], flow[1], lead)
-        png = render_png(field, PRECIP_SCALE, frac, fzra)
+        # Phase am Zielzeitpunkt (Modellentwicklung + DEM + Stationen); Fallback Messphase.
+        try:
+            t_frac, t_fzra = phase_fraction_at(target), freezing_rain_at(target)
+        except Exception:
+            t_frac, t_fzra = None, None
+        if t_frac is None and t_fzra is None:
+            t_frac, t_fzra = frac, fzra
+        png = render_png(field, PRECIP_SCALE, t_frac, t_fzra)
         digest = hashlib.sha256(png).hexdigest()[:16]
         key = f"radar/nowcast/{target:%Y%m%dT%H%M}-{digest}.png"
         upload_png(s3, key, png)

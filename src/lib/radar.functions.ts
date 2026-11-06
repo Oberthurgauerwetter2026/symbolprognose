@@ -559,7 +559,7 @@ export const getRadarFrames = createServerFn({ method: "GET" })
             if (f.source !== "radar" && Date.parse(f.t) <= endMs) frames.splice(i, 1);
           }
           const pfield = regionMax?.phaseField;
-          const phaseUrl = pfield && Date.parse(pfield.t) === Date.parse(lastRadar.t) ? pfield.url : undefined;
+          const phaseUrl = pfield && Math.abs(Date.parse(pfield.t) - Date.parse(lastRadar.t)) <= 15 * 60_000 ? pfield.url : undefined;
           for (const s of steps) {
             const tf = tendencyFrame(regionMax?.nowcastFrames, Date.parse(lastRadar.t), s.tMs);
             frames.push({

@@ -67,7 +67,8 @@ export function tendencyFrame<T extends { t: string; sourceT: string; precipUrl:
   sourceMs: number,
   targetMs: number,
 ): T | undefined {
-  return frames?.find((frame) => Date.parse(frame.sourceT) === sourceMs
+  // Manifest und region-max können einen Ingest-Takt (5–15 min) auseinanderliegen.
+  return frames?.find((frame) => Math.abs(Date.parse(frame.sourceT) - sourceMs) <= 15 * 60_000
     && Date.parse(frame.t) === targetMs
     && typeof frame.precipUrl === "string"
     && frame.precipUrl.startsWith("https://"));
