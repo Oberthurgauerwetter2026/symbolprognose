@@ -105,12 +105,10 @@ function renderHeatmapDataUrl(
     const fyTop = py / UP;
     const fyGrid = latAsc ? nLat - 1 - fyTop : fyTop;
     const y0 = Math.max(0, Math.min(nLat - 2, Math.floor(fyGrid)));
-    const y1 = y0 + 1;
     const ty = fyGrid - y0;
     for (let px = 0; px < w; px++) {
       const fx = px / UP;
       const x0 = Math.max(0, Math.min(nLon - 2, Math.floor(fx)));
-      const x1 = x0 + 1;
       const tx = fx - x0;
 
       // Catmull-Rom (bikubisch) wie im Radar-Ingest: organische Bandkanten,
