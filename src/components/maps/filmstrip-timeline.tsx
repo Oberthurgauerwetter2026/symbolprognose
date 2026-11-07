@@ -32,6 +32,7 @@ export function FilmstripTimeline({
   ariaLabel,
   compressAfterMs,
   compressedPxPerHour,
+  nowcastEndMs,
 }: {
   frames: FilmstripFrame[];
   idx: number;
@@ -48,6 +49,8 @@ export function FilmstripTimeline({
   /** Ab dieser Zeit wird der Strip enger (z. B. reine Stundenprognose). */
   compressAfterMs?: number;
   compressedPxPerHour?: number;
+  /** Ende des Radar-Nowcasts; danach wird das Band als Modellprognose markiert. */
+  nowcastEndMs?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerW, setContainerW] = useState(0);
@@ -436,17 +439,52 @@ export function FilmstripTimeline({
               }}
             />
           )}
-          {showForecastBand && (
-            <div
-              className="absolute bottom-0 top-5"
-              style={{
-                left: forecastLeft,
-                width: forecastWidth,
-                background: forecastColor,
-                opacity: 0.68,
-              }}
-            />
-          )}
+          {showForecastBand && (() => {
+            const splitX =
+              bandMode === "measurement-forecast" && nowcastEndMs != null && nowcastEndMs > nowMs
+                ? Math.max(forecastLeft, Math.min(totalWidth, msToX(nowcastEndMs)))
+                : null;
+            if (splitX == null) {
+              return (
+                <div
+                  className="absolute bottom-0 top-5"
+                  style={{ left: forecastLeft, width: forecastWidth, background: forecastColor, opacity: 0.68 }}
+                />
+              );
+            }
+            const ncW = splitX - forecastLeft;
+            const mW = Math.max(0, totalWidth - splitX);
+            return (
+              <>
+                <div
+                  className="absolute bottom-0 top-5 overflow-hidden"
+                  style={{ left: forecastLeft, width: ncW, background: forecastColor, opacity: 0.85 }}
+                >
+                  {ncW > 56 && (
+                    <span className="absolute left-1.5 top-[1px] text-[8px] font-bold uppercase tracking-wide text-white/95">
+                      Nowcast
+                    </span>
+                  )}
+                </div>
+                <div
+                  className="absolute bottom-0 top-5 overflow-hidden"
+                  style={{
+                    left: splitX,
+                    width: mW,
+                    background: `repeating-linear-gradient(135deg, ${forecastColor} 0 5px, color-mix(in srgb, ${forecastColor} 55%, white) 5px 9px)`,
+                    opacity: 0.6,
+                  }}
+                >
+                  {mW > 48 && (
+                    <span className="absolute left-1.5 top-[1px] text-[8px] font-bold uppercase tracking-wide text-white">
+                      Modell
+                    </span>
+                  )}
+                </div>
+                <span className="absolute bottom-0 top-5 w-[2px] -translate-x-1/2 bg-white" style={{ left: splitX }} />
+              </>
+            );
+          })()}
 
           {/* 10-min-Ticks */}
           {ticks10.map((tk, i) => (

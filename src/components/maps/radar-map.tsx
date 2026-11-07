@@ -2586,6 +2586,7 @@ function RadarMapInner({
                       color={timelineColorForMs(stripMs ?? timelineSteps[stripIdx] ?? Date.now())}
                       bandMode="measurement-forecast"
                       compressAfterMs={Math.max(nextModelHour(Date.now()), ...frames.filter((f) => f.source === "nowcast").map((f) => Date.parse(f.t) + 1))}
+                      nowcastEndMs={Math.max(0, ...frames.filter((f) => f.source === "nowcast").map((f) => Date.parse(f.t))) || undefined}
                       ariaLabel="Radar-Zeit"
                       formatBubble={(d) => fmtBubble(d, d.getTime() <= Date.now())}
                       onScrubMs={(ms) => {
