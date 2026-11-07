@@ -2,18 +2,21 @@ import { describe, it } from "node:test";
 import { strict as assert } from "node:assert";
 import { sampleAccumCell } from "./accum-sampling";
 
-// 4x4-Feld: flächig 0.3 mm (unterste Farbstufe), ausserhalb trocken.
-const PLATEAU = [
-  0, 0, 0, 0,
-  0, 0.3, 0.3, 0,
-  0, 0.3, 0.3, 0,
-  0, 0, 0, 0,
+// 5x5-Feld: eine Zelle liegt flächig auf der untersten Farbstufe (0.3 mm),
+// ihr Umfeld fällt auf 0 ab. Die bikubische Seitenkeule rechnet dort in
+// Zellenmitte auf −0.36 mm — die Zelle wird transparent: ringförmiges Loch.
+const HOLE = [
+  0.3, 0.3, 0.3, 0.3, 0.3,
+  0,   0.3, 3,   3,   0,
+  0.3, 3,   0.3, 0.3, 3,
+  0,   3,   0.3, 0.3, 3,
+  1,   1,   0.3, 3,   1,
 ];
 
 describe("monotone accum sampling", () => {
-  it("keeps a flat 0.3 mm field visible in the cell centre (no ring holes)", () => {
-    const v = sampleAccumCell(PLATEAU, 4, 4, 1, 1, 0.5, 0.5);
-    assert.ok(v >= 0.3, `cell centre dropped to ${v} — hole in the sums carpet`);
+  it("keeps a flat 0.3 mm cell visible where bicubic would punch a hole", () => {
+    const v = sampleAccumCell(HOLE, 5, 5, 2, 2, 0.5, 0.5);
+    assert.equal(v, 0.3, `cell centre ${v} — hole in the sums carpet`);
   });
 
   it("never falls below or above the four cell corners", () => {
@@ -50,8 +53,8 @@ describe("monotone accum sampling", () => {
   it("stays smooth, not blocky, across a ramp", () => {
     const ramp = [0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 0, 0, 0, 0, 0];
     const a = sampleAccumCell(ramp, 4, 4, 1, 1, 0.5, 0.5);
-    const b = sampleAccumCell(ramp, 4, 4, 1, 1, 0.55, 0.5);
+    const b = sampleAccumCell(ramp, 4, 4, 1, 1, 0.505, 0.5);
     assert.ok(a > 1 && a < 4, `ramp centre ${a} not between corner values`);
-    assert.ok(Math.abs(a - b) < 0.05, `sampling steps discontinuously: ${a} -> ${b}`);
+    assert.ok(Math.abs(a - b) < 0.02, `sampling steps discontinuously: ${a} -> ${b}`);
   });
 });
