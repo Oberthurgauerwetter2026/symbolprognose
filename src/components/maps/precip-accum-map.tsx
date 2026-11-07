@@ -196,6 +196,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
     return { values, maxMm };
   }, [values]);
 
+  const [showStations, setShowStations] = useState(false);
   const [overlay, setOverlay] = useState<{
     url: string;
     bounds: [[number, number], [number, number]];
@@ -311,13 +312,26 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
               />
             )}
             <CityMarkers />
-            {stations.map((s) => (
+            {showStations && stations.map((s) => (
               <Marker key={`${s.id}-${mode}-${hours}`} position={[s.lat, s.lon]} icon={stationIcon(s.name, s.value, unit, s.own)} zIndexOffset={1000}>
                 <Tooltip direction="top" offset={[0, -24]}>{`${s.name} (${s.own ? "eigene Station" : "Station MeteoSchweiz"})`}</Tooltip>
               </Marker>
             ))}
             <DockZoomControl />
           </MapContainer>
+
+          {stations.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowStations((v) => !v)}
+              aria-pressed={showStations}
+              className={`absolute left-3 top-3 z-[500] rounded-full px-3 py-1.5 text-xs font-semibold shadow-md ring-1 ring-zinc-900/10 backdrop-blur-md transition-colors ${
+                showStations ? "bg-[#2561a1] text-white" : "bg-white/85 text-zinc-700"
+              }`}
+            >
+              Stationen
+            </button>
+          )}
 
           {/* Floating-Legende */}
           <div
