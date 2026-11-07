@@ -71,13 +71,7 @@ function colorForAccum(mm: number): [number, number, number, number] {
   return [c.rgb[0], c.rgb[1], c.rgb[2], 1.0];
 }
 
-function crWeight(i: number, t: number): number {
-  const t2 = t * t, t3 = t2 * t;
-  if (i === -1) return -0.5 * t3 + t2 - 0.5 * t;
-  if (i === 0) return 1.5 * t3 - 2.5 * t2 + 1;
-  if (i === 1) return -1.5 * t3 + 2 * t2 + 0.5 * t;
-  return 0.5 * t3 - 0.5 * t2;
-}
+import { sampleAccumCell } from "./accum-sampling";
 
 // ---------- Heatmap → DataURL (für Leaflet ImageOverlay) ----------
 // Bilineare Interpolation des mm-Wertes pro Pixel, danach Klassenfarbe.
@@ -111,28 +105,16 @@ function renderHeatmapDataUrl(
     const fyTop = py / UP;
     const fyGrid = latAsc ? nLat - 1 - fyTop : fyTop;
     const y0 = Math.max(0, Math.min(nLat - 2, Math.floor(fyGrid)));
-    const y1 = y0 + 1;
     const ty = fyGrid - y0;
     for (let px = 0; px < w; px++) {
       const fx = px / UP;
       const x0 = Math.max(0, Math.min(nLon - 2, Math.floor(fx)));
-      const x1 = x0 + 1;
       const tx = fx - x0;
 
-      // Catmull-Rom (bikubisch) wie im Radar-Ingest: organische Bandkanten.
-      let v = 0;
-      for (let j = -1; j <= 2; j++) {
-        const yy = Math.max(0, Math.min(nLat - 1, y0 + j));
-        const wy = crWeight(j, ty);
-        if (!wy) continue;
-        for (let i = -1; i <= 2; i++) {
-          const xx = Math.max(0, Math.min(nLon - 1, x0 + i));
-          const wx = crWeight(i, tx);
-          if (!wx) continue;
-          v += wx * wy * (values[yy * nLon + xx] || 0);
-        }
-      }
-      void x1; void y1;
+      // Catmull-Rom (bikubisch) wie im Radar-Ingest: organische Bandkanten,
+      // monoton an den Zell-Eckwerten begrenzt — sonst rechnet die
+      // bikubische Seitenkeule ringförmige Löcher in flächige 0.3-mm-Gebiete.
+      const v = sampleAccumCell(values, nLat, nLon, y0, x0, tx, ty);
 
       const ci = classIndexForAccum(v);
       if (ci < 0) continue;
