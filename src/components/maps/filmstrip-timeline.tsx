@@ -471,8 +471,8 @@ export function FilmstripTimeline({
                   style={{
                     left: splitX,
                     width: mW,
-                    background: `repeating-linear-gradient(135deg, ${forecastColor} 0 5px, color-mix(in srgb, ${forecastColor} 55%, white) 5px 9px)`,
-                    opacity: 0.6,
+                    background: `repeating-linear-gradient(135deg, ${forecastColor} 0 5px, color-mix(in srgb, ${forecastColor} 70%, black) 5px 9px)`,
+                    opacity: 0.8,
                   }}
                 >
                   {mW > 48 && (
