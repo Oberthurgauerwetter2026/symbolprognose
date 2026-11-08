@@ -159,14 +159,19 @@ def latest_item():
 
 
 def asset_url(item: dict, param: str) -> str | None:
-    """Asset zu einem Parameter-Shortname suchen (Filename endet auf `.<param>.csv`)."""
+    """Neuestes verfügbares Asset pro Parameter, nicht den ersten Tageslauf.
+
+    Die STAC-Keys enthalten den UTC-Lauf als YYYYMMDDHHMM vor dem
+    Parameter-Suffix. Ihre lexikografische Reihenfolge entspricht damit
+    der zeitlichen Reihenfolge; die Reihenfolge im STAC-Dictionary nicht.
+    """
     suffix = f".{param}.csv"
-    for k, v in item.get("assets", {}).items():
-        if k.endswith(suffix):
-            href = v.get("href")
-            if href:
-                return href
-    return None
+    candidates = [
+        (key, asset["href"])
+        for key, asset in (item.get("assets") or {}).items()
+        if key.endswith(suffix) and asset.get("href")
+    ]
+    return max(candidates, key=lambda candidate: candidate[0])[1] if candidates else None
 
 
 def stream_csv(url: str, wanted_pids: set[int]) -> dict[int, list[tuple[str, str]]]:

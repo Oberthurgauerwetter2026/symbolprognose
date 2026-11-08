@@ -1,4 +1,8 @@
 # Embed source attribution
+# Symbol forecast refresh
+- [ ] Select and test the latest available hourly MeteoSwiss asset per parameter instead of the first daily asset.
+
+# Embed source attribution
 - [x] Consolidate duplicate footers and attribute Oberthurgauer Wetter as publisher, data partners separately, with necessary map credits retained. Browser checks cover local forecast (compact/detail), radar, wind, warnings, sums (rain/snow), satellite, widgets and combined embed; one visible footer, no duplicate Leaflet boxes or browser errors, mobile text fits.
 
 # Radar forecast reliability
