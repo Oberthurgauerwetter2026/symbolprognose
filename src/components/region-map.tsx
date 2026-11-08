@@ -732,8 +732,8 @@ function RegionMapInner({
     return () => window.clearInterval(id);
   }, []);
 
-  // Warnungen passend zum gewählten Zeitschritt: Vorlaufzeit sichtbar,
-  // für den betrachteten Zeitraum abgelaufene Warnungen ausgeblendet.
+  // Warnungen ab Ausgabe sichtbar (auch vor Gültigkeitsbeginn, in jedem
+  // Zeitschritt davor); erst nach Ablauf für den betrachteten Zeitraum ausgeblendet.
   const activeWarnings = useMemo(() => {
     const midnight = new Date();
     midnight.setHours(0, 0, 0, 0);
@@ -753,10 +753,9 @@ function RegionMapInner({
     if (winEnd <= winStart) return [];
 
     return allWarnings.filter((w) => {
-      const from = new Date(w.validFrom).getTime();
       const to = new Date(w.validTo).getTime();
-      if (Number.isNaN(from) || Number.isNaN(to)) return false;
-      return from < winEnd && to > winStart;
+      if (Number.isNaN(to)) return false;
+      return to > winStart;
     });
   }, [allWarnings, nowMs, viewMode, absoluteHour, selectedDayIdx]);
 
