@@ -1,3 +1,7 @@
+# Symbol forecast refresh
+- [x] Select the latest available hourly MeteoSwiss asset per parameter instead of the first daily asset; four regression tests pass and live STAC selects the 06:00 UTC run for hourly/daily symbols and temperature.
+- [ ] Verify the updated published forecast: awaiting GitHub source synchronization and a successful ingestion using the corrected script; no live workflow was triggered.
+
 # Embed source attribution
 - [x] Consolidate duplicate footers and attribute Oberthurgauer Wetter as publisher, data partners separately, with necessary map credits retained. Browser checks cover local forecast (compact/detail), radar, wind, warnings, sums (rain/snow), satellite, widgets and combined embed; one visible footer, no duplicate Leaflet boxes or browser errors, mobile text fits.
 
