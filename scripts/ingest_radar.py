@@ -631,14 +631,19 @@ def freezing_rain_at(ts: datetime) -> np.ndarray | None:
     return terrain_freezing_rain(field, load_dem(field.shape))
 
 
-def sums_phase_at(ts: datetime) -> np.ndarray | None:
+def sums_phase_at(ts: datetime):
     """Schneeanteil für die Summenkarte: None nur, wenn das Modell ts nicht
     abdeckt (dann bleibt die Stunde offen); sonst Feld, bei Regen Nullen."""
     m = _load_phase_model()
     if not m or not (np.abs(m["t"] - ts.timestamp()) <= 30 * 60 + 1).any():
         return None
     f = phase_fraction_at(ts)
-    return f if f is not None else np.zeros((OUT_H, OUT_W), dtype=np.float32)
+    if f is None:
+        return np.zeros((OUT_H, OUT_W), dtype=np.float32), None
+    return f, _TPIX.get(ts)
+
+
+_TPIX: dict = {}
 
 
 def phase_fraction_at(ts: datetime) -> np.ndarray | None:
@@ -682,7 +687,9 @@ def phase_fraction_at(ts: datetime) -> np.ndarray | None:
     if dem is not None and el_ok.sum() >= 10:
         t_g = idw_to_grid(m["lat"][el_ok], m["lon"][el_ok], tc[el_ok], lat_g, lon_g, k=4)
         e_g = idw_to_grid(m["lat"][el_ok], m["lon"][el_ok], m["el"][el_ok], lat_g, lon_g, k=4)
-        frac = terrain_fraction(frac, terrain_temp(t_g, e_g, dem))
+        t_pix = terrain_temp(t_g, e_g, dem)
+        _TPIX[ts] = t_pix
+        frac = terrain_fraction(frac, t_pix)
     return frac
 
 
