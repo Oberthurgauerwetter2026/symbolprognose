@@ -21,10 +21,9 @@ export const NOWCAST_MAX_AGE_MS = 20 * 60_000;
 /** Gleitender Horizont ab Messung: Schauer ziehen über den Stundenschlag weiter. */
 export const NOWCAST_HORIZON_MS = 75 * 60_000;
 
-/** Smooth intensity decay, not opacity: unchanged through 60 min, dry at 75. */
-export function nowcastIntensityFactor(leadMinutes: number): number {
-  const progress = Math.max(0, Math.min(1, (leadMinutes - 60) / 15));
-  return 1 - progress * progress * (3 - 2 * progress);
+/** Kein künstliches Verblassen: der Nowcast behält die gemessene Intensität bis zur Modellübergabe. */
+export function nowcastIntensityFactor(_leadMinutes: number): number {
+  return 1;
 }
 
 /** Convert a sampled colour band to mm/h, attenuate, then map back to bands. */
@@ -129,7 +128,9 @@ export function nowcastSteps(
   const out: { tMs: number; bbox: Bbox }[] = [];
   // Mindestens bis zur nächsten vollen Stunde (aktuelle Zeit), sonst 75 min ab
   // Messung; das Modell übernimmt erst mit der ersten vollen Stunde danach.
-  const endMs = Math.max(nextModelHour(nowMs) - 1, lastRadarMs + NOWCAST_HORIZON_MS);
+  // Lückenlos bis zur vollen Modellstunde nach dem 75-min-Horizont (letzter Schritt :55).
+  const HOUR = 3_600_000;
+  const endMs = Math.max(nextModelHour(nowMs), Math.ceil((lastRadarMs + NOWCAST_HORIZON_MS) / HOUR) * HOUR) - 1;
   for (let dt = NOWCAST_STEP_MS; lastRadarMs + dt <= endMs; dt += NOWCAST_STEP_MS) {
     const tMs = lastRadarMs + dt;
     if (tMs <= nowMs) continue;
