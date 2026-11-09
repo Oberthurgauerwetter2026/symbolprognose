@@ -33,8 +33,10 @@ export function sampleAccumCell(
   tx: number,
   ty: number,
 ): number {
+  const corners = [values[y0 * nLon + x0], values[y0 * nLon + x0 + 1], values[(y0 + 1) * nLon + x0], values[(y0 + 1) * nLon + x0 + 1]];
+  if (corners.some(v => !Number.isFinite(v) || v < 0)) return NaN;
   const at = (x: number, y: number) =>
-    values[clampIdx(y, nLat - 1) * nLon + clampIdx(x, nLon - 1)] || 0;
+    Math.max(0, values[clampIdx(y, nLat - 1) * nLon + clampIdx(x, nLon - 1)] || 0);
 
   let v = 0;
   for (let j = -1; j <= 2; j++) {

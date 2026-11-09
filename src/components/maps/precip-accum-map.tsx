@@ -189,7 +189,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
   const accum = useMemo(() => {
     let maxMm = 0;
     for (const v of values) if (v > maxMm) maxMm = v;
-    return { values, maxMm };
+    return { values, maxMm, hasData: values.some(v => Number.isFinite(v) && v >= 0), incomplete: values.some(v => !Number.isFinite(v) || v < 0) };
   }, [values]);
 
   const [showStations, setShowStations] = useState(false);
@@ -224,13 +224,13 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
           </h2>
         </div>
         <p className="text-xs text-zinc-500 tabular-nums">
-          Max <span className="font-semibold text-zinc-800">{accum.maxMm.toFixed(1)} {unit}</span> · {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}
+          {accum.hasData ? <>Max <span className="font-semibold text-zinc-800">{accum.maxMm.toFixed(1)} {unit}</span> · {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}</> : "Mengen derzeit nicht verfügbar"}
         </p>
       </div>
       {mode === "snow" && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground border-b border-border/60">
           <Snowflake className="size-3.5 shrink-0 text-accent" />
-          {accum.maxMm === 0 ? "Kein Neuschnee im dargestellten Gebiet" : "Neuschnee aus Modellberechnung · schneefreie Orte: 0.0 cm"}
+          {!accum.hasData ? "Neuschneedaten derzeit nicht verfügbar" : accum.incomplete ? "Modellierter Neuschnee · Daten teilweise unvollständig" : accum.maxMm === 0 ? "Kein modellierter Neuschnee im dargestellten Gebiet" : "Neuschnee aus Modellberechnung · schneefreie Orte: 0.0 cm"}
         </div>
       )}
       <CardContent className="p-0">

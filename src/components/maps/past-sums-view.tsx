@@ -43,7 +43,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
       {data && (() => {
         if (period === "future") {
           const f = data.forecast;
-          if (!f) return <div className="text-sm text-muted-foreground">Prognose wird geladen …</div>;
+          if (!f) return <div className="text-sm text-muted-foreground">Prognose derzeit nicht verfügbar.</div>;
           const stand = new Date(data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
           return (
             <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
@@ -83,6 +83,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             hours={hours}
             sourceLabel={label}
             updatedLabel={stand}
+            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2" : "eigene Stationen, MeteoSchweiz"}
           />
         </Suspense>
         );
