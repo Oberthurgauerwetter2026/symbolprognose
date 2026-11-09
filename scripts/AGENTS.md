@@ -1,0 +1,1 @@
+- Nowcast advection runs on the radar field sampled with a NOWCAST_PAD margin around the display bbox (soft-faded outer edge) and is cropped only afterwards, because cropping before advection drags a hard dry edge into the map.
