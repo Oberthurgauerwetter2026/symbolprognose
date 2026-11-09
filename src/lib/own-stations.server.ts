@@ -4,6 +4,7 @@
  * mit derselben getesteten Fensterlogik wie die MeteoSchweiz-Stationen.
  */
 import { PAST_WINDOWS } from "./precip-past";
+import { applyDailyOverrides, zurichDay, type DailyOverride } from "./rain-overrides";
 import { stationWindowSum, type Sample, type StationDef } from "./station-sums";
 
 const HUB_URL = "https://eqnhgnirvpblmmvtdzvo.supabase.co";
@@ -28,6 +29,20 @@ export type OwnStationPoint = StationDef & {
   source: "own";
 };
 
+/** Manuelle Tagessummen; Soft-Fail, damit fehlende Leserechte die Rohwerte nicht blockieren. */
+async function loadOverrides(stationId: string, now: number): Promise<DailyOverride[]> {
+  try {
+    const from = zurichDay(now - 4 * 86_400_000);
+    const url = `${HUB_URL}/rest/v1/rain_daily_overrides?select=day,rain_sum&station_id=eq.${stationId}&day=gte.${from}`;
+    const res = await fetch(url, { headers: { apikey: HUB_KEY, accept: "application/json" } });
+    if (!res.ok) return [];
+    const rows = (await res.json()) as { day: string; rain_sum: number | string | null }[];
+    return rows.filter((r) => r.rain_sum !== null).map((r) => ({ day: String(r.day).slice(0, 10), rain_sum: Number(r.rain_sum) }));
+  } catch {
+    return [];
+  }
+}
+
 async function loadOne(st: StationDef, now: number): Promise<OwnStationPoint | null> {
   const since = new Date(now - 72 * 3_600_000 - 600_000).toISOString();
   const url =
@@ -36,12 +51,13 @@ async function loadOne(st: StationDef, now: number): Promise<OwnStationPoint | n
   const res = await fetch(url, { headers: { apikey: HUB_KEY, accept: "application/json" } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const rows = (await res.json()) as { measured_at: string; rain_inc: number | null }[];
-  const samples: Sample[] = rows.map((r) => ({
+  const raw: Sample[] = rows.map((r) => ({
     t: Date.parse(r.measured_at),
     precip: typeof r.rain_inc === "number" && r.rain_inc >= 0 ? r.rain_inc : null,
     snowDepth: null,
     dur: 600_000,
   }));
+  const samples = applyDailyOverrides(raw, await loadOverrides(st.id, now));
   const rain: Record<string, number | null> = {};
   const snow: Record<string, number | null> = {};
   for (const w of PAST_WINDOWS) {
