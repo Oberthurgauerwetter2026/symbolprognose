@@ -5,7 +5,8 @@ import { pastPrecipQuery } from "@/lib/map-queries";
 import { PAST_WINDOWS, type PastWindow } from "@/lib/precip-past";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { History, ChartNoAxesCombined, Droplets, Snowflake } from "lucide-react";
+import { History, ChartNoAxesCombined, Droplets, Snowflake, Download } from "lucide-react";
+import { sumsToCsv, exportFilename, downloadText } from "@/lib/precip-export";
 
 export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const { data, isLoading, error } = useQuery({ ...pastPrecipQuery(), refetchInterval: 30 * 60_000 });
@@ -37,6 +38,12 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
           <Button variant="ghost" aria-pressed={mode === "rain"} className={btn(mode === "rain")} onClick={() => setMode("rain")}><Droplets />Niederschlag <span className="text-xs opacity-75">mm</span></Button>
           <Button variant="ghost" aria-pressed={mode === "snow"} className={btn(mode === "snow")} onClick={() => setMode("snow")}><Snowflake />Neuschnee <span className="text-xs opacity-75">cm</span></Button>
         </div>
+        {!embed && data && (
+          <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Download">
+            <Button variant="ghost" className={btn(false)} onClick={() => downloadText(sumsToCsv(data), exportFilename(data, "csv"), "text/csv;charset=utf-8")}><Download />CSV</Button>
+            <Button variant="ghost" className={btn(false)} onClick={() => downloadText(JSON.stringify(data), exportFilename(data, "json"), "application/json")}>JSON</Button>
+          </div>
+        )}
       </div>
       {isLoading && <div className="h-[420px] rounded-lg bg-muted animate-pulse" />}
       {error && <div className="text-sm text-destructive">Summen konnten nicht geladen werden.</div>}
@@ -83,7 +90,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             hours={hours}
             sourceLabel={label}
             updatedLabel={stand}
-            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2" : "eigene Stationen, MeteoSchweiz"}
+            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen)" : "eigene Stationen, MeteoSchweiz"}
           />
         </Suspense>
         );
