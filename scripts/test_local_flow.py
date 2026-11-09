@@ -34,3 +34,15 @@ def test_advect_zero_flow_is_identity():
     f = blob(60, 60, 30, 30, 5)
     z = np.zeros((60, 60))
     assert np.allclose(advect(f, z, z, 60.0), f)
+
+
+def test_inflow_buffer_fills_west_edge():
+    import numpy as np
+    from _flow import advect_with_inflow
+    pad, h, w = 20, 30, 40
+    field = np.zeros((h, w))
+    wide = np.zeros((h + 2 * pad, w + 2 * pad))
+    wide[:, pad - 15:pad] = 2.0  # gemessener Regen westlich des Ausschnitts
+    u = np.full((h, w), 1.0); v = np.zeros((h, w))  # 1 px/min nach Osten
+    out = advect_with_inflow(field, wide, u, v, 10, pad, fade_px=3)
+    assert out[h // 2, 5] > 1.5  # Einstrom statt Linealkante
