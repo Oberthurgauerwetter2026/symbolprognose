@@ -1901,7 +1901,7 @@ function RadarLegendStrip({ bare }: { bare?: boolean }) {
               ))}
             </div>
           </div>
-          <span className="text-[9px] font-semibold uppercase tracking-wide text-neutral-500">mm/h</span>
+          <span className="text-[9px] font-semibold text-neutral-500">mm/h</span>
         </div>
         <div className="hidden h-5 w-px bg-neutral-200 sm:block" />
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 sm:flex-nowrap sm:justify-start">

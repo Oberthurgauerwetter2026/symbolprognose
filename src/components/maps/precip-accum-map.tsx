@@ -383,7 +383,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
                 />
               ))}
             </div>
-            <p className="text-[9px] text-zinc-500 mt-1 text-center tracking-wide uppercase">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
+            <p className="text-[9px] text-zinc-500 mt-1 text-center ">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
           </div>
         </div>
         <SourceFooter updated={updatedLabel} map data={dataLabel}>
