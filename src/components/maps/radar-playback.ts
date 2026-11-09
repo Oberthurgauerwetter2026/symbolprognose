@@ -107,13 +107,15 @@ export function buildTimelineSteps(frames: TimelineFrame[], nowMs: number): numb
   const Q_TOL = 2 * 60_000;
   const HOUR = 60 * 60_000;
   const HOUR_TOL = 4 * 60_000;
+  // Auch nach dem Nowcast: Restzeit bis zur nächsten vollen Stunde mit
+  // 15-min-Modellbildern füllen statt leer zu springen.
   let lastQuarterHit = nowcastEnd;
-  if (nowcastEnd <= nowMs) {
-    const nextHour = nextModelHour(nowMs);
+  {
+    const nextHour = nextModelHour(nowcastEnd);
     const qEnd = Math.min(lastMs, nextHour);
-    for (let t = Math.ceil((nowMs + 1) / QUARTER) * QUARTER; t < qEnd; t += QUARTER) {
+    for (let t = Math.ceil((nowcastEnd + 1) / QUARTER) * QUARTER; t < qEnd; t += QUARTER) {
       const i = pickNearest(t, Q_TOL);
-      if (i !== null && times[i] > nowMs) {
+      if (i !== null && times[i] > nowcastEnd && frames[i].source !== "nowcast") {
         push(times[i]);
         lastQuarterHit = times[i];
       }

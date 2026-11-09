@@ -93,3 +93,16 @@ function expect_no_quarter_after_hour(steps: number[], hour: number) {
     }
   }
 }
+describe("Brücke nach Nowcast", () => {
+  test("Nowcast endet 10:15 → Modellbilder 10:30, 10:45, dann 11:00", () => {
+    const iso = (h: number, m: number) => `2026-11-09T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`;
+    const frames = [
+      { t: iso(9, 0), source: "radar" },
+      { t: iso(10, 5), source: "nowcast" }, { t: iso(10, 15), source: "nowcast" },
+      ...[15, 30, 45].map((m) => ({ t: iso(10, m), source: "model" })),
+      { t: iso(11, 0), source: "model" },
+    ] as never[];
+    const out = buildTimelineSteps(frames, Date.parse(iso(9, 55))).map((ms) => new Date(ms).toISOString().slice(11, 16));
+    assert.deepEqual(out.slice(-4), ["10:15", "10:30", "10:45", "11:00"]);
+  });
+});
