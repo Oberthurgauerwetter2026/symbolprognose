@@ -631,6 +631,16 @@ def freezing_rain_at(ts: datetime) -> np.ndarray | None:
     return terrain_freezing_rain(field, load_dem(field.shape))
 
 
+def sums_phase_at(ts: datetime) -> np.ndarray | None:
+    """Schneeanteil für die Summenkarte: None nur, wenn das Modell ts nicht
+    abdeckt (dann bleibt die Stunde offen); sonst Feld, bei Regen Nullen."""
+    m = _load_phase_model()
+    if not m or not (np.abs(m["t"] - ts.timestamp()) <= 30 * 60 + 1).any():
+        return None
+    f = phase_fraction_at(ts)
+    return f if f is not None else np.zeros((OUT_H, OUT_W), dtype=np.float32)
+
+
 def phase_fraction_at(ts: datetime) -> np.ndarray | None:
     """Schneeanteil-Feld (OUT_H×OUT_W) für den Messzeitpunkt.
 
@@ -1616,7 +1626,7 @@ def main() -> int:
     # Gemessene Summen (CombiPrecip) für die Summenkarte – weicher Fehler.
     try:
         from ingest_precip_sums import run as run_sums
-        run_sums(s3, BUCKET)
+        run_sums(s3, BUCKET, phase_at=sums_phase_at, phase_bbox=BBOX_WGS)
         status["sums"] = "ok"
     except Exception as exc:
         print(f"sums: failed ({exc!r})", flush=True)

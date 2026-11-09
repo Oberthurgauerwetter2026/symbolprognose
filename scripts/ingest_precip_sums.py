@@ -27,6 +27,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 LAT_MIN, LAT_MAX, LON_MIN, LON_MAX, STEP = 46.9, 48.1, 8.3, 10.6, 0.01
 WINDOWS = (12, 24, 48, 72)
 HOURLY_KEY = "radar/sums/hourly.npz"
+PHASE_KEY = "radar/sums/phase.npz"
+# Wasserwert → Neuschnee wie im Modell (Open-Meteo: 1 mm ≈ 0.7 cm).
+SNOW_CM_PER_MM = 0.7
+# Unterhalb dieses Schneeanteils (Regen/nasser Schneeregen) bleibt nichts liegen.
+SNOW_ACC_MIN_FRAC = 0.3
 OUT_KEY = "radar/sums/latest.json"
 COLL = "ch.meteoschweiz.ogd-radar-precip"
 
@@ -79,6 +84,42 @@ def window_sums(hourly: dict[datetime, np.ndarray], now_hour: datetime) -> tuple
     return sums, missing
 
 
+def snow_cm(mm: np.ndarray, frac: np.ndarray) -> np.ndarray:
+    """Neuschnee (cm) aus gemessenem Wasserwert (mm) und Schneeanteil 0..1."""
+    m = np.nan_to_num(np.asarray(mm, dtype=np.float32))
+    f = np.clip(np.nan_to_num(np.asarray(frac, dtype=np.float32)), 0.0, 1.0)
+    return np.where(f >= SNOW_ACC_MIN_FRAC, m * f * SNOW_CM_PER_MM, 0.0).astype(np.float32)
+
+
+def resample_phase(frac: np.ndarray, bbox: dict) -> np.ndarray:
+    """Phasenfeld (Radarraster, Zeile 0 = Norden) → Summenraster (Zeile 0 = Süden)."""
+    h, w = frac.shape
+    lats, lons = grid_axes()
+    cols = np.clip(np.round((lons - bbox["minLon"]) / (bbox["maxLon"] - bbox["minLon"]) * (w - 1)), 0, w - 1).astype(int)
+    rows = np.clip(np.round((bbox["maxLat"] - lats) / (bbox["maxLat"] - bbox["minLat"]) * (h - 1)), 0, h - 1).astype(int)
+    return frac[np.ix_(rows, cols)].astype(np.float32)
+
+
+def snow_window_sums(hourly: dict, phase: dict, now_hour: datetime) -> tuple[dict[int, np.ndarray], dict[int, int]]:
+    """Radar-Neuschnee je Fenster. Stunden ohne Phase oder ohne Messung zählen als fehlend."""
+    sums: dict[int, np.ndarray] = {}
+    missing: dict[int, int] = {}
+    shape = (len(grid_axes()[0]), len(grid_axes()[1]))
+    for w in WINDOWS:
+        acc = np.zeros(shape, dtype=np.float32)
+        miss = 0
+        for k in range(w):
+            ts = now_hour - timedelta(hours=k)
+            g, f = hourly.get(ts), phase.get(ts)
+            if g is None or f is None:
+                miss += 1
+                continue
+            acc += snow_cm(g, f)
+        sums[w] = acc
+        missing[w] = miss
+    return sums, missing
+
+
 def _list_cpc_hourly(since: datetime) -> dict[datetime, str]:
     from ingest_radar import STAC_BASE, http_get, parse_ts_from_filename, _filename_from_asset
 
@@ -103,7 +144,9 @@ def _list_cpc_hourly(since: datetime) -> dict[datetime, str]:
     return out
 
 
-def run(s3, bucket: str) -> None:
+def run(s3, bucket: str, phase_at=None, phase_bbox: dict | None = None) -> None:
+    """phase_at(ts) → Schneeanteil-Feld (Radarraster), np.zeros bei reinem
+    Regen, None wenn die Atmosphäre für ts unbekannt ist."""
     from ingest_radar import http_get, read_h5_grid
 
     now_hour = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -141,6 +184,33 @@ def run(s3, bucket: str) -> None:
     latest = max(hourly)
     sums, missing = window_sums(hourly, latest)
 
+    # Phase je Messstunde (DEM + Stationen + Modell), inkrementell gespeichert.
+    phase: dict[datetime, np.ndarray] = {}
+    try:
+        obj = s3.get_object(Bucket=bucket, Key=PHASE_KEY)
+        with np.load(io.BytesIO(obj["Body"].read())) as z:
+            for k in z.files:
+                ts = datetime.fromisoformat(k)
+                if ts >= keep_since and z[k].shape == (len(lats), len(lons)):
+                    phase[ts] = z[k].astype(np.float32) / 100.0
+    except Exception as exc:  # noqa: BLE001
+        print(f"  sums: no phase cache ({exc.__class__.__name__})", flush=True)
+    if phase_at is not None and phase_bbox is not None:
+        for ts in sorted(t for t in hourly if t not in phase):
+            try:
+                f = phase_at(ts - timedelta(minutes=30))  # Mitte der Stunde
+                if f is not None:
+                    phase[ts] = resample_phase(f, phase_bbox)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  sums: phase {ts.isoformat()} failed {exc!r}", flush=True)
+        try:
+            pio = io.BytesIO()
+            np.savez_compressed(pio, **{t.isoformat(): np.round(f * 100).astype(np.uint8) for t, f in phase.items() if t >= keep_since})
+            s3.put_object(Bucket=bucket, Key=PHASE_KEY, Body=pio.getvalue(), ContentType="application/octet-stream")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  sums: phase cache write failed {exc!r}", flush=True)
+    snow_sums, snow_missing = snow_window_sums(hourly, phase, latest)
+
     bio = io.BytesIO()
     np.savez_compressed(
         bio,
@@ -155,6 +225,9 @@ def run(s3, bucket: str) -> None:
         "unit": "0.1mm",
         "missingHours": {str(w): missing[w] for w in WINDOWS},
         "sums": {str(w): np.round(sums[w] * 10).astype(int).ravel().tolist() for w in WINDOWS},
+        "snowUnit": "0.1cm",
+        "snowMissingHours": {str(w): snow_missing[w] for w in WINDOWS},
+        "snow": {str(w): np.round(snow_sums[w] * 10).astype(int).ravel().tolist() for w in WINDOWS},
         "source": "MeteoSchweiz CombiPrecip (Radar + Stationen)",
     }
     s3.put_object(
