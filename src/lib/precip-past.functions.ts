@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { createSumsCache } from "./sums-cache";
+import { packDeep } from "./sums-pack";
 import { PAST_WINDOWS } from "./precip-past";
 import { completeWindowSum } from "./sums-coverage";
 import { SUM_STATIONS, parseSmnCsv, stationWindowSum, type Sample } from "./station-sums";
@@ -245,5 +246,6 @@ export const getPastPrecipSums = createServerFn({ method: "GET" }).handler(async
     // Other runtimes await refresh rather than abandon background work.
   }
   setResponseHeader("Cache-Control", "public, max-age=300, s-maxage=900, stale-while-revalidate=1800");
-  return cachedSums(load, Date.now(), waitUntil);
+  // Kompakt übertragen (Base64-Int16), Client entpackt in pastPrecipQuery.
+  return { packed: JSON.stringify(packDeep(await cachedSums(load, Date.now(), waitUntil))) };
 });
