@@ -606,7 +606,7 @@ def _apply_obs(ts: datetime, m: dict, tc, td, fz):
 
 def freezing_rain_at(ts: datetime) -> np.ndarray | None:
     """Gefrierender-Regen-Feld (0..1, OUT_H×OUT_W) für den Messzeitpunkt."""
-    from _phase import freezing_rain_point, idw_to_grid
+    from _phase import freezing_rain_point, idw_to_grid, load_dem, terrain_freezing_rain
 
     m = _load_phase_model()
     if not m:
@@ -627,7 +627,8 @@ def freezing_rain_at(ts: datetime) -> np.ndarray | None:
     lats = np.linspace(BBOX_WGS["maxLat"], BBOX_WGS["minLat"], OUT_H)
     lon_g, lat_g = np.meshgrid(lons, lats)
     print(f"  phase: gefrierender Regen an {int(pt.sum())} Modellpunkten", flush=True)
-    return idw_to_grid(m["lat"], m["lon"], pt, lat_g, lon_g, k=4)
+    field = idw_to_grid(m["lat"], m["lon"], pt, lat_g, lon_g, k=4)
+    return terrain_freezing_rain(field, load_dem(field.shape))
 
 
 def phase_fraction_at(ts: datetime) -> np.ndarray | None:

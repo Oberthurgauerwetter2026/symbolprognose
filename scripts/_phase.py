@@ -24,6 +24,7 @@ ALPHA_FZRA = 200
 FZRA_T_MAX = 0.0
 FZRA_WARM_NOSE_M = 300.0
 FZRA_SNOW_MAX = 0.3
+FZRA_ELEV_MAX_M = 800.0
 SLEET_MIN = 0.3
 SNOW_MIN = 0.7
 # Open-Meteo `snowfall` ist cm Neuschnee; das Modell rechnet 1 mm Wasser
@@ -146,7 +147,8 @@ def freezing_rain_point(precip_mm, snow_cm, temp2m_c, fzl_m, elev_m) -> np.ndarr
 
     Bedingungen (alle): rohe 2-m-Temperatur ≤ 0 °C, Nullgradgrenze mind.
     FZRA_WARM_NOSE_M über Grund (warme Schicht oben → Tropfen schmelzen),
-    Modell-Schneeanteil < FZRA_SNOW_MAX. Niederschlagsmenge wird hier nicht
+    Modell-Schneeanteil < FZRA_SNOW_MAX und Geländehöhe ≤ FZRA_ELEV_MAX_M.
+    Niederschlagsmenge wird hier nicht
     verlangt, weil das Radar die Fläche liefert; fehlende Grössen → 0."""
     t = np.asarray(temp2m_c, dtype=np.float32)
     fz = np.asarray(fzl_m, dtype=np.float32)
@@ -159,11 +161,31 @@ def freezing_rain_point(precip_mm, snow_cm, temp2m_c, fzl_m, elev_m) -> np.ndarr
         ratio = np.where(p >= P_MIN_MM, s / np.maximum(p, 1e-6), 0.0)
         ok = (
             np.isfinite(t) & np.isfinite(fz) & np.isfinite(el)
+            & (el <= FZRA_ELEV_MAX_M)
             & (t <= FZRA_T_MAX)
             & ((fz - el) >= FZRA_WARM_NOSE_M)
             & (ratio < FZRA_SNOW_MAX)
         )
     return ok.astype(np.float32)
+
+
+def terrain_freezing_rain(fzra, dem) -> np.ndarray:
+    """Interpoliertes Glatteisfeld auf das Flachland begrenzen.
+
+    Ohne verlässliche Pixelhöhe keine Glatteis-Markierung; die normale
+    Regen-/Schneephase bleibt unverändert. Nach der Interpolation anwenden,
+    damit Talwerte nicht auf höheres Gelände verschmiert werden.
+    """
+    f = np.asarray(fzra, dtype=np.float32)
+    if dem is None:
+        return np.zeros_like(f)
+    el = np.asarray(dem, dtype=np.float32)
+    if el.shape != f.shape:
+        return np.zeros_like(f)
+    return np.where(
+        np.isfinite(el) & (el <= FZRA_ELEV_MAX_M),
+        np.clip(np.nan_to_num(f, nan=0.0), 0.0, 1.0), 0.0,
+    ).astype(np.float32)
 
 
 def apply_phase_alpha(
