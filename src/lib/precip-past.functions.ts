@@ -169,6 +169,30 @@ async function load(): Promise<PastSums> {
     loadOwnStations(now).catch(() => [] as StationPoint[]),
   ]);
   const stations: StationPoint[] = [...mchStations, ...ownStations];
+  // Säntis misst keine Schneehöhe und liegt zwischen den Rasterpunkten:
+  // Gipfel-Neuschnee aus ICON-CH1/CH2 am Stationsort ergänzen.
+  const sae = stations.find((s) => s.id === "SAE");
+  if (sae && PAST_WINDOWS.every((w) => sae.snow[w] === null)) {
+    try {
+      const r = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${sae.lat}&longitude=${sae.lon}&elevation=${sae.alt}&hourly=snowfall&past_days=3&forecast_days=1&timezone=GMT&models=meteoswiss_icon_ch1,meteoswiss_icon_ch2`,
+        { signal: AbortSignal.timeout(6_000) },
+      );
+      if (r.ok) {
+        const j = (await r.json()) as { hourly: Record<string, (number | null)[] | string[]> };
+        const t = (j.hourly.time as string[]).map((x) => Date.parse(x + "Z"));
+        const a = j.hourly.snowfall_meteoswiss_icon_ch1 as (number | null)[];
+        const b = j.hourly.snowfall_meteoswiss_icon_ch2 as (number | null)[];
+        const v = a.map((x, i) => x ?? b?.[i] ?? null);
+        for (const w of PAST_WINDOWS) {
+          const s = completeWindowSum(t, v, now, w, false);
+          sae.snow[w] = s >= 0 ? Math.round(s * 10) / 10 : null;
+        }
+      }
+    } catch (e) {
+      console.warn(`[past-sums] Säntis-Schnee: ${(e as Error).message}`);
+    }
+  }
   const rain: Record<string, number[]> = {};
   const snow: Record<string, number[]> = {};
   const fRain: Record<string, number[]> = {};
