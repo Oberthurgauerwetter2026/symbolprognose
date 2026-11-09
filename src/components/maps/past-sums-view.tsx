@@ -97,13 +97,17 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             </Suspense>
           );
         }
-        const useRadar = mode === "rain" && !!data.radar && (data.radar.missingHours[hours] ?? 0) <= hours * 0.25;
-        const radar = useRadar ? data.radar : null;
+        const r = data.radar;
+        const radarSnowOk = !!r?.snow?.[hours] && (r.snowMissingHours?.[hours] ?? hours) <= hours * 0.25;
+        const useRadar = !!r && (mode === "rain" ? (r.missingHours[hours] ?? 0) <= hours * 0.25 : radarSnowOk);
+        const radar = useRadar ? r : null;
         const grid = radar ?? data;
         const own = data.stations.filter((s) => s.source === "own" && s.rain[hours] != null).map((s) => ({ lat: s.lat, lon: s.lon, value: s.rain[hours] as number }));
-        const values = radar ? blendStations(radar.rain[hours], radar.gridLat, radar.gridLon, own) : (mode === "snow" ? data.snow : data.rain)[hours];
+        const values = radar
+          ? mode === "snow" ? radar.snow![hours] : blendStations(radar.rain[hours], radar.gridLat, radar.gridLon, own)
+          : (mode === "snow" ? data.snow : data.rain)[hours];
         const stand = new Date(radar?.t ?? data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
-        const missing = radar?.missingHours[hours] ?? 0;
+        const missing = (mode === "snow" ? radar?.snowMissingHours?.[hours] : radar?.missingHours[hours]) ?? 0;
         const label = [missing ? `${missing} h fehlen` : "", !useRadar ? "Fläche: Modell" : ""].filter(Boolean).join(" · ");
         const stations = data.stations
           .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, value: (mode === "snow" ? s.snow : s.rain)[hours], own: s.source === "own" || s.id.includes("-") }))
@@ -119,7 +123,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             hours={hours}
             sourceLabel={label}
             updatedLabel={stand}
-            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen; Säntis: Modell)" : "eigene Stationen, MeteoSchweiz"}
+            dataLabel={mode === "snow" ? (radar ? "MeteoSchweiz CombiPrecip + Schneefallgrenze aus Gelände, Stationen und ICON-CH1 (Fläche), SMN-Schneehöhen (Stationen)" : "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen; Säntis: Modell)") : "eigene Stationen, MeteoSchweiz"}
           />
         </Suspense>
         );

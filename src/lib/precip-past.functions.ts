@@ -24,6 +24,9 @@ export type RadarSums = {
   /** mm je Fenster, Index = lat * nLon + lon */
   rain: Record<string, number[]>;
   missingHours: Record<string, number>;
+  /** cm Radar-Neuschnee (CombiPrecip × Phase aus DEM/Stationen/Modell) */
+  snow?: Record<string, number[]>;
+  snowMissingHours?: Record<string, number>;
   t: string;
   source: string;
 };
@@ -63,12 +66,16 @@ async function loadRadarSums(): Promise<RadarSums | null> {
       const j = (await res.json()) as {
         t: string; gridLat: number[]; gridLon: number[]; sums: Record<string, number[]>;
         missingHours: Record<string, number>; source: string;
+        snow?: Record<string, number[]>; snowMissingHours?: Record<string, number>;
       };
       // Älter als 3 h → nicht als „aktuell" anzeigen.
       if (Date.now() - Date.parse(j.t) > 3 * 3_600_000) return null;
       const rain: Record<string, number[]> = {};
       for (const [w, arr] of Object.entries(j.sums)) rain[w] = arr.map((v) => v / 10);
-      return { gridLat: j.gridLat, gridLon: j.gridLon, rain, missingHours: j.missingHours, t: j.t, source: j.source };
+      const snow: Record<string, number[]> | undefined = j.snow
+        ? Object.fromEntries(Object.entries(j.snow).map(([w, arr]) => [w, arr.map((v) => v / 10)]))
+        : undefined;
+      return { gridLat: j.gridLat, gridLon: j.gridLon, rain, missingHours: j.missingHours, snow, snowMissingHours: j.snowMissingHours, t: j.t, source: j.source };
     } catch (e) {
       console.warn(`[past-sums] radar ${url}: ${(e as Error).message}`);
     }
