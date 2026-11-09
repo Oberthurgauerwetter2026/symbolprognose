@@ -13,6 +13,8 @@ import "leaflet/dist/leaflet.css";
 
 import { LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, OUTSIDE_CH_MASK, REGION_OUTLINE } from "./radar-base-geo";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { History, ChartNoAxesCombined, MapPin, Snowflake } from "lucide-react";
 
 
 // Gleiche Karte wie Radar, aber näher auf den Oberthurgau gezoomt.
@@ -52,23 +54,13 @@ const SNOW_CLASSES: typeof ACCUM_CLASSES = [
   { min: 50, max: 9999, rgb: [235, 160, 215], label: "50+" },
 ];
 
-let ACTIVE_CLASSES = ACCUM_CLASSES;
-
-function classIndexForAccum(mm: number): number {
-  const CL = ACTIVE_CLASSES;
+function classIndexForAccum(mm: number, CL = ACCUM_CLASSES): number {
   if (mm < CL[0].min) return -1;
   for (let i = 0; i < CL.length; i++) {
     const c = CL[i];
     if (mm >= c.min && mm < c.max) return i;
   }
   return -1;
-}
-
-function colorForAccum(mm: number): [number, number, number, number] {
-  const idx = classIndexForAccum(mm);
-  if (idx < 0) return [0, 0, 0, 0];
-  const c = ACCUM_CLASSES[idx];
-  return [c.rgb[0], c.rgb[1], c.rgb[2], 1.0];
 }
 
 import { sampleAccumCell } from "./accum-sampling";
@@ -80,13 +72,14 @@ function renderHeatmapDataUrl(
   values: number[],
   gridLat: number[],
   gridLon: number[],
+  classes: typeof ACCUM_CLASSES,
 ): { url: string; bounds: [[number, number], [number, number]] } | null {
   const nLat = gridLat.length;
   const nLon = gridLon.length;
   if (!nLat || !nLon || values.length !== nLat * nLon) return null;
 
   // Feines Radarraster braucht weniger Hochskalierung als das Modellraster.
-  const UP = Math.max(2, Math.min(64, Math.round(1600 / Math.max(1, nLon - 1))));
+  const UP = Math.max(1, Math.min(64, Math.round(640 / Math.max(1, nLon - 1))));
   const w = (nLon - 1) * UP;
   const h = (nLat - 1) * UP;
   const canvas = document.createElement("canvas");
@@ -96,7 +89,6 @@ function renderHeatmapDataUrl(
   if (!ctx) return null;
   const img = ctx.createImageData(w, h);
   const data = img.data;
-  const clsIdx = new Int8Array(w * h).fill(-1);
 
   const latAsc = gridLat[nLat - 1] > gridLat[0];
 
@@ -116,15 +108,14 @@ function renderHeatmapDataUrl(
       // bikubische Seitenkeule ringförmige Löcher in flächige 0.3-mm-Gebiete.
       const v = sampleAccumCell(values, nLat, nLon, y0, x0, tx, ty);
 
-      const ci = classIndexForAccum(v);
+      const ci = classIndexForAccum(v, classes);
       if (ci < 0) continue;
-      const c = ACTIVE_CLASSES[ci];
+      const c = classes[ci];
       const idx = (py * w + px) * 4;
       data[idx] = c.rgb[0];
       data[idx + 1] = c.rgb[1];
       data[idx + 2] = c.rgb[2];
       data[idx + 3] = 255;
-      clsIdx[py * w + px] = ci;
     }
   }
 
@@ -158,7 +149,7 @@ type Hover = { x: number; y: number; v: number } | null;
 function HoverProbe({ values, gridLat, gridLon, onHover }: { values: number[]; gridLat: number[]; gridLon: number[]; onHover: (h: Hover) => void }) {
   const update = (e: L.LeafletMouseEvent) => {
     const v = valueAt(values, gridLat, gridLon, e.latlng.lat, e.latlng.lng);
-    if (v == null || classIndexForAccum(v) < 0) return onHover(null);
+    if (v == null || !Number.isFinite(v)) return onHover(null);
     onHover({ x: e.containerPoint.x, y: e.containerPoint.y, v });
   };
   useMapEvents({ mousemove: update, click: update, mouseout: () => onHover(null), dragstart: () => onHover(null) });
@@ -209,8 +200,8 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
   } | null>(null);
 
   useEffect(() => {
-    ACTIVE_CLASSES = classes;
-    setOverlay(renderHeatmapDataUrl(accum.values, gridLat, gridLon));
+    setHover(null);
+    setOverlay(renderHeatmapDataUrl(accum.values, gridLat, gridLon, classes));
   }, [accum, gridLat, gridLon, classes]);
 
   let pxOver1 = 0;
@@ -221,11 +212,12 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
   const cardRef = useRef<HTMLDivElement>(null);
 
   return (
-    <Card ref={cardRef} className="overflow-hidden border-zinc-200/80 shadow-sm bg-white">
-      <div className="flex items-center justify-between gap-3 flex-wrap px-5 py-3 border-b border-border/60">
+    <Card ref={cardRef} className="overflow-hidden border-border shadow-sm bg-card">
+      <div className={`flex items-center justify-between gap-3 flex-wrap px-4 py-3 border-b border-border/60 ${forecast ? "sums-model-header" : "bg-card"}`}>
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center rounded-lg bg-[#2561a1] px-2.5 py-1 text-xs font-semibold text-white tabular-nums shadow-sm">
-            {forecast ? `+${hours}` : hours} h
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground tabular-nums shadow-sm">
+            {forecast ? <ChartNoAxesCombined className="size-3.5" /> : <History className="size-3.5" />}
+            {forecast ? `+${hours} h Modell` : `${hours} h Rückblick`}
           </span>
           <h2 className="text-base font-semibold tracking-tight text-zinc-900">
             {forecast ? (mode === "snow" ? "Erwarteter Neuschnee" : "Erwarteter Niederschlag") : mode === "snow" ? "Neuschnee" : "Gefallener Niederschlag"}
@@ -235,6 +227,12 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
           Max <span className="font-semibold text-zinc-800">{accum.maxMm.toFixed(1)} {unit}</span> · {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}
         </p>
       </div>
+      {mode === "snow" && (
+        <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground border-b border-border/60">
+          <Snowflake className="size-3.5 shrink-0 text-accent" />
+          {accum.maxMm === 0 ? "Kein Neuschnee im dargestellten Gebiet" : "Neuschnee aus Modellberechnung · schneefreie Orte: 0.0 cm"}
+        </div>
+      )}
       <CardContent className="p-0">
         <div className="map-attrib-compact relative h-[clamp(380px,60vh,620px)] w-full">
           <style>{`
@@ -328,30 +326,32 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
           </MapContainer>
 
           {hover && (() => {
-            const c = classes[classIndexForAccum(hover.v)];
+            const c = classes[classIndexForAccum(hover.v, classes)];
             const txt = hover.v >= 10 ? hover.v.toFixed(0) : hover.v.toFixed(1);
             return (
               <div
-                className="pointer-events-none absolute z-[600] flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold tabular-nums text-zinc-900 shadow-md ring-1 ring-zinc-900/10 backdrop-blur-md"
-                style={{ left: hover.x, top: hover.y, transform: "translate(-50%, calc(-100% - 12px))" }}
+                role="status"
+                className="pointer-events-none absolute z-[600] flex items-center gap-1.5 whitespace-nowrap rounded-md bg-card/95 px-2.5 py-1 text-xs font-semibold tabular-nums text-card-foreground shadow-md ring-1 ring-border backdrop-blur-md"
+                style={{ left: Math.max(48, Math.min((cardRef.current?.clientWidth ?? 320) - 48, hover.x)), top: Math.max(40, hover.y), transform: "translate(-50%, calc(-100% - 12px))" }}
               >
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: c ? `rgb(${c.rgb.join(",")})` : undefined }} />
+                <span className="h-2.5 w-2.5 rounded-full bg-muted" style={c ? { background: `rgb(${c.rgb.join(",")})` } : undefined} />
                 {txt} {unit}
               </div>
             );
           })()}
 
           {stations.length > 0 && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setShowStations((v) => !v)}
               aria-pressed={showStations}
-              className={`absolute left-3 top-3 z-[500] rounded-full px-3 py-1.5 text-xs font-semibold shadow-md ring-1 ring-zinc-900/10 backdrop-blur-md transition-colors ${
-                showStations ? "bg-[#2561a1] text-white" : "bg-white/85 text-zinc-700"
+              className={`absolute left-3 top-3 z-[500] rounded-md px-3 text-xs font-semibold shadow-sm ring-1 ring-border backdrop-blur-md transition-colors ${
+                showStations ? "bg-accent text-accent-foreground hover:bg-accent/90" : "bg-card/90 text-foreground hover:bg-card"
               }`}
             >
-              Stationen
-            </button>
+              <MapPin />Stationen
+            </Button>
           )}
 
           {/* Floating-Legende */}

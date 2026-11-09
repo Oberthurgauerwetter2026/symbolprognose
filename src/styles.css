@@ -209,6 +209,11 @@
 html.js-ok .embed-fallback { display: none; }
 html.js-ok .embed-live { display: block; }
 
+.sums-model-header {
+  background-color: color-mix(in srgb, var(--accent) 7%, var(--card));
+  background-image: repeating-linear-gradient(135deg, transparent 0 8px, color-mix(in srgb, var(--accent) 5%, transparent) 8px 10px);
+}
+
 /* Embed-Kontext: kein eigener Seitenhintergrund, damit die Host-Seite
    (z. B. WordPress) durchscheint und kein grauer Rahmen entsteht. */
 html.embed,

@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createSumsCache } from "./sums-cache";
 import { PAST_WINDOWS, sumNextHours, sumPastHours } from "./precip-past";
 import { SUM_STATIONS, parseSmnCsv, stationWindowSum, type Sample } from "./station-sums";
 
@@ -106,9 +107,7 @@ async function loadStations(now: number): Promise<StationPoint[]> {
   return res.filter((x): x is StationPoint => !!x && Object.values(x.rain).some((v) => v !== null));
 }
 
-let cache: { at: number; value: PastSums } | null = null;
-let inflight: Promise<PastSums> | null = null;
-const TTL = 30 * 60_000;
+const cachedSums = createSumsCache<PastSums>(30 * 60_000, 60 * 60_000);
 
 function range(a: number, b: number, s: number) {
   const out: number[] = [];
@@ -204,20 +203,13 @@ async function load(): Promise<PastSums> {
 }
 
 export const getPastPrecipSums = createServerFn({ method: "GET" }).handler(async () => {
-  if (cache && Date.now() - cache.at < TTL) return cache.value;
-  if (!inflight) {
-    inflight = load()
-      .then((v) => {
-        cache = { at: Date.now(), value: v };
-        return v;
-      })
-      .catch((e) => {
-        if (cache) return cache.value;
-        throw e;
-      })
-      .finally(() => {
-        inflight = null;
-      });
+  let waitUntil: ((promise: Promise<unknown>) => void) | undefined;
+  try {
+    const { useRequest } = await import("nitro/context");
+    const request = useRequest();
+    if (request.waitUntil) waitUntil = request.waitUntil.bind(request);
+  } catch {
+    // Other runtimes await refresh rather than abandon background work.
   }
-  return inflight;
+  return cachedSums(load, Date.now(), waitUntil);
 });
