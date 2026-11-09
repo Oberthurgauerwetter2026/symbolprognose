@@ -1,5 +1,5 @@
 # Freezing rain terrain restriction
-- [ ] Restrict freezing rain to lowland model points and DEM pixels in measurement, nowcast and forecast; verify boundary and normal-phase fallback tests.
+- [x] Restrict freezing rain to lowland model points and DEM pixels in measurement, nowcast and forecast; 20 tests pass, including the inclusive 800 m boundary, normal-phase fallback and an actual generated forecast PNG with the committed DEM.
 - [ ] Verify newly published phase images: awaiting source synchronization and successful radar/model ingestion.
 
 # Symbol forecast refresh
