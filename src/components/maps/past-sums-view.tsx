@@ -1,3 +1,4 @@
+import { blendStations } from "@/lib/station-blend";
 import { Suspense, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
@@ -99,7 +100,8 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         const useRadar = mode === "rain" && !!data.radar && (data.radar.missingHours[hours] ?? 0) <= hours * 0.25;
         const radar = useRadar ? data.radar : null;
         const grid = radar ?? data;
-        const values = radar ? radar.rain[hours] : (mode === "snow" ? data.snow : data.rain)[hours];
+        const own = data.stations.filter((s) => s.source === "own" && s.rain[hours] != null).map((s) => ({ lat: s.lat, lon: s.lon, value: s.rain[hours] as number }));
+        const values = radar ? blendStations(radar.rain[hours], radar.gridLat, radar.gridLon, own) : (mode === "snow" ? data.snow : data.rain)[hours];
         const stand = new Date(radar?.t ?? data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
         const missing = radar?.missingHours[hours] ?? 0;
         const label = [missing ? `${missing} h fehlen` : "", !useRadar ? "Fläche: Modell" : ""].filter(Boolean).join(" · ");
