@@ -36,7 +36,7 @@ class PublicationTests(unittest.TestCase):
              patch.object(ingest, 'phase_fraction_at', return_value=None), \
              patch.object(ingest, 'freezing_rain_at', return_value=None):
             frames = ingest.publish_tendency_frames(s3, loaded, motion)
-        self.assertEqual(len(frames), 16)
+        self.assertEqual(len(frames), 24)
         self.assertEqual(frames[0]['t'], '2026-11-01T09:30:00Z')
         self.assertEqual(frames[0]['sourceT'], '2026-11-01T09:25:00Z')
         for frame in frames:

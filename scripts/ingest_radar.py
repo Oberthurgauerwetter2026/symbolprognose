@@ -480,7 +480,7 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         return arr, meta
 
 
-NOWCAST_PAD = 150  # px Einstrom-Puffer je Seite (~110 km), damit Advektion gemessenen Regen nachzieht
+NOWCAST_PAD = 220  # px Einstrom-Puffer je Seite (~165 km), reicht für 80+ km/h über 120 min
 
 
 def sample_to_bbox(values: np.ndarray, meta: dict, pad: int = 0) -> np.ndarray:
@@ -1194,7 +1194,7 @@ def publish_tendency_frames(s3, loaded: list, motion: dict | None,
     frac, fzra = phase_fraction_at(ts), freezing_rain_at(ts)
     out = []
     # Delayed observations may need up to 80 minutes lead to the next current hour.
-    for lead in range(5, 81, 5):
+    for lead in range(5, 121, 5):  # bis 120 min: deckt jeden Schritt bis :55 vor der Modellstunde
         target = ts + timedelta(minutes=lead)
         field = evolve_intensity(current, rate, lead)
         if flow is not None:

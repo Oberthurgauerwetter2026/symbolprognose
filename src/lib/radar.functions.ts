@@ -551,7 +551,13 @@ export const getRadarFrames = createServerFn({ method: "GET" })
       const motionFresh =
         !!regionMax && Math.abs(Date.parse(regionMax.t) - Date.parse(lastRadar.t)) <= 15 * 60_000;
       if (motionFresh && isUsableMotion(motion)) {
-        const steps = nowcastSteps(Date.parse(lastRadar.t), now, motion, imageBbox);
+        const allSteps = nowcastSteps(Date.parse(lastRadar.t), now, motion, imageBbox);
+        // Liegen serverseitig advektierte Bilder vor, nie auf ein verschobenes
+        // Rechteck zurückfallen: das erzeugt eine harte Schnittkante im Bild.
+        const hasAdvected = (regionMax?.nowcastFrames ?? []).some((f) => f.advected === true);
+        const steps = hasAdvected
+          ? allSteps.filter((s) => tendencyFrame(regionMax?.nowcastFrames, Date.parse(lastRadar.t), s.tMs)?.advected === true)
+          : allSteps;
         if (steps.length > 0) {
           const endMs = steps[steps.length - 1].tMs;
           for (let i = frames.length - 1; i >= 0; i--) {
