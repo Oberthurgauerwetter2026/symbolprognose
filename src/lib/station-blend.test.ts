@@ -1,4 +1,6 @@
-import { test, expect } from "bun:test";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+const expect = (v: number) => ({ toBe: (e: number) => assert.equal(v, e), toBeCloseTo: (e: number, d = 2) => assert.ok(Math.abs(v - e) < 10 ** -d / 2 * 10, `${v} ≈ ${e}`) });
 import { blendStations } from "./station-blend";
 const lat = [47.5, 47.51, 47.52, 47.53, 47.54], lon = [9.2, 9.21, 9.22, 9.23, 9.24];
 const flat = (v: number) => new Array(25).fill(v);
