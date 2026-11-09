@@ -117,7 +117,7 @@ async function loadStations(now: number): Promise<StationPoint[]> {
   return res.filter((x): x is StationPoint => !!x && Object.values(x.rain).some((v) => v !== null));
 }
 
-const cachedSums = createSumsCache<PastSums>(30 * 60_000, 60 * 60_000);
+const cachedSums = createSumsCache<PastSums>(5 * 60_000, 60 * 60_000);
 
 function range(a: number, b: number, s: number) {
   const out: number[] = [];
@@ -245,7 +245,7 @@ export const getPastPrecipSums = createServerFn({ method: "GET" }).handler(async
   } catch {
     // Other runtimes await refresh rather than abandon background work.
   }
-  setResponseHeader("Cache-Control", "public, max-age=300, s-maxage=900, stale-while-revalidate=1800");
+  setResponseHeader("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=1800");
   // Kompakt übertragen (Base64-Int16), Client entpackt in pastPrecipQuery.
   return { packed: JSON.stringify(packDeep(await cachedSums(load, Date.now(), waitUntil))) };
 });
