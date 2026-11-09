@@ -4,7 +4,7 @@ import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { DockZoomControl } from "./map-dock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
-import { MapContainer, TileLayer, GeoJSON, ImageOverlay, Marker, Tooltip } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, ImageOverlay, Marker, Tooltip, useMapEvents } from "react-leaflet";
 
 
 import L from "leaflet";
@@ -142,6 +142,29 @@ function renderHeatmapDataUrl(
   };
 }
 
+function valueAt(values: number[], gridLat: number[], gridLon: number[], lat: number, lon: number): number | null {
+  const nLat = gridLat.length, nLon = gridLon.length;
+  if (nLat < 2 || nLon < 2) return null;
+  const fy = ((lat - gridLat[0]) / (gridLat[nLat - 1] - gridLat[0])) * (nLat - 1);
+  const fx = ((lon - gridLon[0]) / (gridLon[nLon - 1] - gridLon[0])) * (nLon - 1);
+  if (!(fy >= 0 && fy <= nLat - 1 && fx >= 0 && fx <= nLon - 1)) return null;
+  const y0 = Math.min(nLat - 2, Math.floor(fy));
+  const x0 = Math.min(nLon - 2, Math.floor(fx));
+  return sampleAccumCell(values, nLat, nLon, y0, x0, fx - x0, fy - y0);
+}
+
+type Hover = { x: number; y: number; v: number } | null;
+
+function HoverProbe({ values, gridLat, gridLon, onHover }: { values: number[]; gridLat: number[]; gridLon: number[]; onHover: (h: Hover) => void }) {
+  const update = (e: L.LeafletMouseEvent) => {
+    const v = valueAt(values, gridLat, gridLon, e.latlng.lat, e.latlng.lng);
+    if (v == null || classIndexForAccum(v) < 0) return onHover(null);
+    onHover({ x: e.containerPoint.x, y: e.containerPoint.y, v });
+  };
+  useMapEvents({ mousemove: update, click: update, mouseout: () => onHover(null), dragstart: () => onHover(null) });
+  return null;
+}
+
 interface Props {
   values: number[];
   gridLat: number[];
@@ -179,6 +202,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
   }, [values]);
 
   const [showStations, setShowStations] = useState(false);
+  const [hover, setHover] = useState<Hover>(null);
   const [overlay, setOverlay] = useState<{
     url: string;
     bounds: [[number, number], [number, number]];
@@ -299,8 +323,23 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
                 <Tooltip direction="top" offset={[0, -24]}>{`${s.name} (${s.own ? "eigene Station" : "Station MeteoSchweiz"})`}</Tooltip>
               </Marker>
             ))}
+            <HoverProbe values={accum.values} gridLat={gridLat} gridLon={gridLon} onHover={setHover} />
             <DockZoomControl />
           </MapContainer>
+
+          {hover && (() => {
+            const c = classes[classIndexForAccum(hover.v)];
+            const txt = hover.v >= 10 ? hover.v.toFixed(0) : hover.v.toFixed(1);
+            return (
+              <div
+                className="pointer-events-none absolute z-[600] flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold tabular-nums text-zinc-900 shadow-md ring-1 ring-zinc-900/10 backdrop-blur-md"
+                style={{ left: hover.x, top: hover.y, transform: "translate(-50%, calc(-100% - 12px))" }}
+              >
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: c ? `rgb(${c.rgb.join(",")})` : undefined }} />
+                {txt} {unit}
+              </div>
+            );
+          })()}
 
           {stations.length > 0 && (
             <button
