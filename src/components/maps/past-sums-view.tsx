@@ -117,7 +117,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             hours={hours}
             sourceLabel={label}
             updatedLabel={stand}
-            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen)" : "eigene Stationen, MeteoSchweiz"}
+            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen; Säntis: Modell)" : "eigene Stationen, MeteoSchweiz"}
           />
         </Suspense>
         );
