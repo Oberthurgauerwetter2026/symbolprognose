@@ -480,7 +480,10 @@ def read_h5_grid(buf: bytes) -> tuple[np.ndarray, dict]:
         return arr, meta
 
 
-def sample_to_bbox(values: np.ndarray, meta: dict) -> np.ndarray:
+NOWCAST_PAD = 150  # px Einstrom-Puffer je Seite (~110 km), damit Advektion gemessenen Regen nachzieht
+
+
+def sample_to_bbox(values: np.ndarray, meta: dict, pad: int = 0) -> np.ndarray:
     """
     Resample the native MeteoSchweiz grid to the WGS84 Oberthurgau bbox at
     OUT_W × OUT_H pixels using nearest-neighbour. The native grid is in a
@@ -498,8 +501,11 @@ def sample_to_bbox(values: np.ndarray, meta: dict) -> np.ndarray:
     dy = (ur_y - ll_y) / h
 
     # Output pixel grid in WGS84 → reproject to native → index lookup.
-    lons = np.linspace(BBOX_WGS["minLon"], BBOX_WGS["maxLon"], OUT_W)
-    lats = np.linspace(BBOX_WGS["maxLat"], BBOX_WGS["minLat"], OUT_H)  # top→bottom
+    dlon = (BBOX_WGS["maxLon"] - BBOX_WGS["minLon"]) / (OUT_W - 1)
+    dlat = (BBOX_WGS["maxLat"] - BBOX_WGS["minLat"]) / (OUT_H - 1)
+    gw, gh = OUT_W + 2 * pad, OUT_H + 2 * pad
+    lons = np.linspace(BBOX_WGS["minLon"] - pad * dlon, BBOX_WGS["maxLon"] + pad * dlon, gw)
+    lats = np.linspace(BBOX_WGS["maxLat"] + pad * dlat, BBOX_WGS["minLat"] - pad * dlat, gh)  # top→bottom
     lon_grid, lat_grid = np.meshgrid(lons, lats)
     xs, ys = to_native.transform(lon_grid.ravel(), lat_grid.ravel())
 
@@ -508,9 +514,9 @@ def sample_to_bbox(values: np.ndarray, meta: dict) -> np.ndarray:
     rows = ((ur_y - ys) / dy).astype(np.int32)
     valid = (cols >= 0) & (cols < w) & (rows >= 0) & (rows < h)
 
-    out = np.full(OUT_W * OUT_H, np.nan, dtype=np.float32)
+    out = np.full(gw * gh, np.nan, dtype=np.float32)
     out[valid] = values[rows[valid], cols[valid]]
-    return out.reshape(OUT_H, OUT_W)
+    return out.reshape(gh, gw)
 
 
 # ---------------------------------------------------------------------------
@@ -1150,7 +1156,8 @@ def _lead_fields(precip: np.ndarray, motion: dict) -> list[tuple[int, np.ndarray
 
 
 
-def publish_tendency_frames(s3, loaded: list, motion: dict | None) -> list[dict]:
+def publish_tendency_frames(s3, loaded: list, motion: dict | None,
+                            wide: np.ndarray | None = None) -> list[dict]:
     """Publish intensity-adjusted PNGs before exposing them in region-max."""
     from _nowcast import observed_tendency, evolve_intensity
     if not motion or len(loaded) < 4:
@@ -1192,7 +1199,11 @@ def publish_tendency_frames(s3, loaded: list, motion: dict | None) -> list[dict]
         field = evolve_intensity(current, rate, lead)
         if flow is not None:
             from _flow import advect
-            field = advect(field, flow[0], flow[1], lead)
+            if wide is not None and wide.shape == (OUT_H + 2 * NOWCAST_PAD, OUT_W + 2 * NOWCAST_PAD):
+                from _flow import advect_with_inflow
+                field = advect_with_inflow(field, wide, flow[0], flow[1], lead, NOWCAST_PAD)
+            else:
+                field = advect(field, flow[0], flow[1], lead)
         # Phase am Zielzeitpunkt (Modellentwicklung + DEM + Stationen); Fallback Messphase.
         try:
             t_frac, t_fzra = phase_fraction_at(target), freezing_rain_at(target)
@@ -1247,6 +1258,11 @@ def write_region_max(s3, since: datetime) -> None:
             if isinstance(img_ts, datetime):
                 asset.ts = img_ts
             converted, _ = _to_mmh(values, meta, product)
+            if product == "precip":
+                try:
+                    wide_by_ts[asset.ts] = sample_to_bbox(converted, meta, NOWCAST_PAD)
+                except Exception as exc:
+                    print(f"region-max: inflow buffer unavailable (soft) {exc!r}", flush=True)
             return sample_to_bbox(converted, meta), asset.ts
         except Exception as exc:
             print(f"region-max: {product} failed ({exc!r})", flush=True)
@@ -1255,6 +1271,7 @@ def write_region_max(s3, since: datetime) -> None:
     # Fünf Bilder für 15–20 Minuten Entwicklung, letzte zwei für die Bewegung.
     precip_assets = _newest_assets("precip", since, 5)
     loaded: list[tuple[np.ndarray, datetime]] = []
+    wide_by_ts: dict = {}
     for a in precip_assets:
         got = load(a, "precip")
         if got:
@@ -1368,7 +1385,7 @@ def write_region_max(s3, since: datetime) -> None:
     ts = ts_iso
     nowcast_frames = []
     try:
-        nowcast_frames = publish_tendency_frames(s3, loaded, motion)
+        nowcast_frames = publish_tendency_frames(s3, loaded, motion, wide_by_ts.get(loaded[-1][1]))
     except Exception as exc:
         # Failed image publication must never expose partial/missing frames.
         print(f"region-max: intensity tendency unavailable ({exc!r})", flush=True)

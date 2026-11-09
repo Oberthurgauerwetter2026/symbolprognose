@@ -133,3 +133,24 @@ def advect(field: np.ndarray, u: np.ndarray, v: np.ndarray, lead_min: float,
         x = x - _sample(u, x, y) * dt
         y = y - _sample(v, x, y) * dt
     return _sample(np.nan_to_num(field, nan=0.0), x, y)
+
+
+def advect_with_inflow(field: np.ndarray, wide: np.ndarray, u: np.ndarray, v: np.ndarray,
+                       lead_min: float, pad: int, fade_px: int = 25) -> np.ndarray:
+    """Advektiert auf einem um `pad` erweiterten Messfeld und schneidet erst danach zu.
+
+    `field` (entwickelte Intensität im Kartenausschnitt) ersetzt das Zentrum von
+    `wide`; der Rand liefert real gemessenen Einstrom statt eines leeren Vakuums.
+    Der äusserste Rand wird weich ausgeblendet, damit nie eine Linealkante entsteht.
+    """
+    h, w = field.shape
+    big = np.nan_to_num(wide, nan=0.0).astype(float, copy=True)
+    big[pad:pad + h, pad:pad + w] = np.nan_to_num(field, nan=0.0)
+    gh, gw = big.shape
+    yy, xx = np.indices((gh, gw))
+    edge = np.minimum.reduce([xx, yy, gw - 1 - xx, gh - 1 - yy]).astype(float)
+    big *= np.clip(edge / max(1, fade_px), 0.0, 1.0)
+    bu = np.pad(u, pad, mode="edge")
+    bv = np.pad(v, pad, mode="edge")
+    out = advect(big, bu, bv, lead_min)
+    return out[pad:pad + h, pad:pad + w]
