@@ -573,6 +573,20 @@ export const getRadarFrames = createServerFn({ method: "GET" })
               ...(phaseUrl && imageBbox ? { phaseUrl, phaseBbox: imageBbox } : {}),
             });
           }
+          // Lücke Nowcast-Ende → nächste volle Stunde mit 15-min-Modellbildern füllen.
+          const gapEnd = Math.ceil((endMs + 1) / 3_600_000) * 3_600_000;
+          for (const mf of forecastManifest?.frames ?? []) {
+            const tMs = Date.parse(mf.t);
+            if (!(tMs > endMs && tMs < gapEnd) || !mf.precipUrl || isModelSlot(tMs)) continue;
+            frames.push({
+              t: mf.t,
+              source: mf.source ?? "icon-ch1",
+              sourceT: mf.t,
+              values: [],
+              precipUrl: mf.precipUrl,
+              imageBbox: forecastImageBbox,
+            });
+          }
           frames.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
         }
         // Übergabe: klarer Schnitt zur vollen Stunde, keine halbtransparente Überlagerung.
