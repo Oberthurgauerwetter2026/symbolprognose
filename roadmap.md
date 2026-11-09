@@ -1,3 +1,7 @@
+# Precipitation sums usability
+- [ ] Show snow amounts including zero values, retain smooth classified contours, and improve forecast loading.
+- [ ] Add icon controls and clearly distinguish past measurements from future model sums; verify desktop/mobile interactions.
+
 # Freezing rain terrain restriction
 - [x] Restrict freezing rain to lowland model points and DEM pixels in measurement, nowcast and forecast; 20 tests pass, including the inclusive 800 m boundary, normal-phase fallback and an actual generated forecast PNG with the committed DEM.
 - [ ] Verify newly published phase images: awaiting source synchronization and successful radar/model ingestion.
