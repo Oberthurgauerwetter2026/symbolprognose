@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+const expect = (v: unknown) => ({ toBe: (e: unknown) => assert.equal(v, e), toEqual: (e: unknown) => assert.deepEqual(v, e) });
 import { sumsToCsv } from "./precip-export";
 
 const w = (v: number) => ({ 12: [v], 24: [v], 48: [v], 72: [v] });
