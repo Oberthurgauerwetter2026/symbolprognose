@@ -460,8 +460,8 @@ export function FilmstripTimeline({
                   className="absolute bottom-0 top-5 overflow-hidden"
                   style={{ left: forecastLeft, width: ncW, background: forecastColor, opacity: 0.85 }}
                 >
-                  {ncW > 56 && (
-                    <span className="absolute left-1.5 top-[1px] text-[8px] font-semibold tracking-normal text-white/95">
+                  {ncW > 64 && (
+                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] font-bold leading-none tracking-wide text-white">
                       Nowcast
                     </span>
                   )}
@@ -475,8 +475,8 @@ export function FilmstripTimeline({
                     opacity: 0.8,
                   }}
                 >
-                  {mW > 48 && (
-                    <span className="absolute left-1.5 top-[1px] text-[8px] font-semibold tracking-normal text-white">
+                  {mW > 56 && (
+                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[11px] font-bold leading-none tracking-wide text-white">
                       Modell
                     </span>
                   )}
