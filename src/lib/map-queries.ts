@@ -26,6 +26,7 @@ export const PERSISTED_QUERY_PREFIXES = [
   "radar-frames-accum",
   "wind-frames",
   "satellite-manifest",
+  "past-precip-sums",
 ] as const;
 
 const FORECAST_BATCH_VERSION = "v9";
