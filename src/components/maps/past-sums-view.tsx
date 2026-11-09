@@ -4,6 +4,8 @@ import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
 import { pastPrecipQuery } from "@/lib/map-queries";
 import { PAST_WINDOWS, type PastWindow } from "@/lib/precip-past";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { History, ChartNoAxesCombined, Droplets, Snowflake } from "lucide-react";
 
 export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const { data, isLoading, error } = useQuery({ ...pastPrecipQuery(), refetchInterval: 30 * 60_000 });
@@ -13,27 +15,27 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
 
   const btn = (active: boolean) =>
     cn(
-      "px-4 py-1.5 text-sm font-semibold rounded-lg transition-colors tabular-nums",
-      active ? "bg-[#2561a1] text-white shadow-sm" : "text-foreground hover:bg-muted",
+      "h-9 px-3 text-sm font-semibold rounded-md transition-colors tabular-nums",
+      active ? "bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm" : "text-foreground hover:bg-muted hover:text-foreground",
     );
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-xl bg-card p-1 shadow-md ring-1 ring-border/50" role="group" aria-label="Zeitrichtung">
-          <button type="button" className={btn(period === "past")} onClick={() => setPeriod("past")}>Gefallen</button>
-          <button type="button" className={btn(period === "future")} onClick={() => setPeriod("future")}>Prognose</button>
+        <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Zeitrichtung">
+          <Button variant="ghost" aria-pressed={period === "past"} className={btn(period === "past")} onClick={() => setPeriod("past")}><History />Gefallen</Button>
+          <Button variant="ghost" aria-pressed={period === "future"} className={btn(period === "future")} onClick={() => setPeriod("future")}><ChartNoAxesCombined />Prognose</Button>
         </div>
-        <div className="flex gap-1 rounded-xl bg-card p-1 shadow-md ring-1 ring-border/50" role="group" aria-label="Zeitraum">
+        <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Zeitraum">
           {PAST_WINDOWS.map((h) => (
-            <button key={h} type="button" className={btn(hours === h)} onClick={() => setHours(h)}>
+            <Button variant="ghost" key={h} aria-pressed={hours === h} className={btn(hours === h)} onClick={() => setHours(h)}>
               {period === "future" ? `+${h} h` : `${h} h`}
-            </button>
+            </Button>
           ))}
         </div>
-        <div className="flex gap-1 rounded-xl bg-card p-1 shadow-md ring-1 ring-border/50 sm:ml-auto" role="group" aria-label="Anzeige">
-          <button type="button" className={btn(mode === "rain")} onClick={() => setMode("rain")}>Niederschlag (mm)</button>
-          <button type="button" className={btn(mode === "snow")} onClick={() => setMode("snow")}>Neuschnee (cm)</button>
+        <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50 sm:ml-auto" role="group" aria-label="Anzeige">
+          <Button variant="ghost" aria-pressed={mode === "rain"} className={btn(mode === "rain")} onClick={() => setMode("rain")}><Droplets />Niederschlag <span className="text-xs opacity-75">mm</span></Button>
+          <Button variant="ghost" aria-pressed={mode === "snow"} className={btn(mode === "snow")} onClick={() => setMode("snow")}><Snowflake />Neuschnee <span className="text-xs opacity-75">cm</span></Button>
         </div>
       </div>
       {isLoading && <div className="h-[420px] rounded-lg bg-muted animate-pulse" />}
@@ -41,7 +43,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
       {data && (() => {
         if (period === "future") {
           const f = data.forecast;
-          if (!f) return <div className="text-sm text-muted-foreground">Prognose wird geladen …</div>;
+          if (!f) return <div className="text-sm text-muted-foreground">Prognose derzeit nicht verfügbar.</div>;
           const stand = new Date(data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
           return (
             <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
@@ -61,10 +63,11 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
           );
         }
         const useRadar = mode === "rain" && !!data.radar && (data.radar.missingHours[hours] ?? 0) <= hours * 0.25;
-        const grid = useRadar ? data.radar! : data;
-        const values = useRadar ? data.radar!.rain[hours] : (mode === "snow" ? data.snow : data.rain)[hours];
-        const stand = new Date(useRadar ? data.radar!.t : data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
-        const missing = useRadar ? data.radar!.missingHours[hours] ?? 0 : 0;
+        const radar = useRadar ? data.radar : null;
+        const grid = radar ?? data;
+        const values = radar ? radar.rain[hours] : (mode === "snow" ? data.snow : data.rain)[hours];
+        const stand = new Date(radar?.t ?? data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
+        const missing = radar?.missingHours[hours] ?? 0;
         const label = [missing ? `${missing} h fehlen` : "", !useRadar ? "Fläche: Modell" : ""].filter(Boolean).join(" · ");
         const stations = data.stations
           .map((s) => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, value: (mode === "snow" ? s.snow : s.rain)[hours], own: s.source === "own" || s.id.includes("-") }))
@@ -80,6 +83,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             hours={hours}
             sourceLabel={label}
             updatedLabel={stand}
+            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2" : "eigene Stationen, MeteoSchweiz"}
           />
         </Suspense>
         );

@@ -1,4 +1,5 @@
 # Project rules
+- Accumulation maps use explicit per-render phase palettes (no shared mutable palette); recent sums refresh through a deduplicated cache with request-managed background lifetime and a one-hour stale limit, because concurrent embeds must not leak modes or abandon updates.
 - MeteoSwiss local-forecast ingestion selects the greatest timestamped STAC asset key with a usable href per parameter, because a daily item contains multiple hourly runs and dictionary order must never pin forecasts to midnight.
 - Live weather products use a shared SourceFooter outside the map instead of Leaflet attribution controls; static/no-JS alternatives match its wording, so publisher, data and active map-layer credits appear once.
 - Forecast PNG URLs are content-addressed and published before the manifest; cleanup retains recent generations so interrupted ingests and open tabs remain safe.

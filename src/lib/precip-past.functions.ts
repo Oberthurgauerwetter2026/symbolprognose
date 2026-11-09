@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { PAST_WINDOWS, sumNextHours, sumPastHours } from "./precip-past";
+import { createSumsCache } from "./sums-cache";
+import { PAST_WINDOWS } from "./precip-past";
+import { completeWindowSum } from "./sums-coverage";
 import { SUM_STATIONS, parseSmnCsv, stationWindowSum, type Sample } from "./station-sums";
 
 export type StationPoint = {
@@ -56,7 +58,7 @@ async function loadRadarSums(): Promise<RadarSums | null> {
   ];
   for (const url of urls) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
       if (!res.ok) continue;
       const j = (await res.json()) as {
         t: string; gridLat: number[]; gridLon: number[]; sums: Record<string, number[]>;
@@ -81,8 +83,8 @@ async function loadStations(now: number): Promise<StationPoint[]> {
       const id = st.id.toLowerCase();
       try {
         const [h, t] = await Promise.all([
-          fetch(`${base}/${id}/ogd-smn_${id}_h_recent.csv`).then((r) => (r.ok ? r.text() : "")),
-          fetch(`${base}/${id}/ogd-smn_${id}_t_now.csv`).then((r) => (r.ok ? r.text() : "")),
+          fetch(`${base}/${id}/ogd-smn_${id}_h_recent.csv`, { signal: AbortSignal.timeout(6_000) }).then((r) => (r.ok ? r.text() : "")),
+          fetch(`${base}/${id}/ogd-smn_${id}_t_now.csv`, { signal: AbortSignal.timeout(6_000) }).then((r) => (r.ok ? r.text() : "")),
         ]);
         const hourly = parseSmnCsv(h, 60);
         const tenMin = parseSmnCsv(t, 10);
@@ -106,9 +108,7 @@ async function loadStations(now: number): Promise<StationPoint[]> {
   return res.filter((x): x is StationPoint => !!x && Object.values(x.rain).some((v) => v !== null));
 }
 
-let cache: { at: number; value: PastSums } | null = null;
-let inflight: Promise<PastSums> | null = null;
-const TTL = 30 * 60_000;
+const cachedSums = createSumsCache<PastSums>(30 * 60_000, 60 * 60_000);
 
 function range(a: number, b: number, s: number) {
   const out: number[] = [];
@@ -137,7 +137,7 @@ async function load(): Promise<PastSums> {
     const start = i;
     batches.push(
       (async () => {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
         if (!res.ok) {
           // Modell ist nur Fallback/Schnee: Limit darf Radar + Stationen nicht blockieren.
           console.warn(`[past-sums] Open-Meteo ${res.status}`);
@@ -174,20 +174,20 @@ async function load(): Promise<PastSums> {
   const fRain: Record<string, number[]> = {};
   const fSnow: Record<string, number[]> = {};
   for (const w of PAST_WINDOWS) {
-    rain[w] = new Array(pts.length).fill(0);
-    snow[w] = new Array(pts.length).fill(0);
-    fRain[w] = new Array(pts.length).fill(0);
-    fSnow[w] = new Array(pts.length).fill(0);
+    rain[w] = new Array(pts.length).fill(-1);
+    snow[w] = new Array(pts.length).fill(-1);
+    fRain[w] = new Array(pts.length).fill(-1);
+    fSnow[w] = new Array(pts.length).fill(-1);
   }
   for (let i = 0; i < pts.length; i++) {
     const h = results[i]?.hourly;
     if (!h) continue;
     const times = h.time.map((t) => Date.parse(t + "Z"));
     for (const w of PAST_WINDOWS) {
-      rain[w][i] = sumPastHours(times, h.precipitation ?? [], now, w);
-      snow[w][i] = sumPastHours(times, h.snowfall ?? [], now, w);
-      fRain[w][i] = sumNextHours(times, h.precipitation ?? [], now, w);
-      fSnow[w][i] = sumNextHours(times, h.snowfall ?? [], now, w);
+      rain[w][i] = completeWindowSum(times, h.precipitation ?? [], now, w, false);
+      snow[w][i] = completeWindowSum(times, h.snowfall ?? [], now, w, false);
+      fRain[w][i] = completeWindowSum(times, h.precipitation ?? [], now, w, true);
+      fSnow[w][i] = completeWindowSum(times, h.snowfall ?? [], now, w, true);
     }
   }
   return {
@@ -204,20 +204,13 @@ async function load(): Promise<PastSums> {
 }
 
 export const getPastPrecipSums = createServerFn({ method: "GET" }).handler(async () => {
-  if (cache && Date.now() - cache.at < TTL) return cache.value;
-  if (!inflight) {
-    inflight = load()
-      .then((v) => {
-        cache = { at: Date.now(), value: v };
-        return v;
-      })
-      .catch((e) => {
-        if (cache) return cache.value;
-        throw e;
-      })
-      .finally(() => {
-        inflight = null;
-      });
+  let waitUntil: ((promise: Promise<unknown>) => void) | undefined;
+  try {
+    const { useRequest } = await import("nitro/context");
+    const request = useRequest();
+    if (request.waitUntil) waitUntil = request.waitUntil.bind(request);
+  } catch {
+    // Other runtimes await refresh rather than abandon background work.
   }
-  return inflight;
+  return cachedSums(load, Date.now(), waitUntil);
 });

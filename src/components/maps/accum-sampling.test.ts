@@ -14,6 +14,9 @@ const HOLE = [
 ];
 
 describe("monotone accum sampling", () => {
+  it("does not interpolate unavailable snowfall into dry areas", () => {
+    assert.ok(Number.isNaN(sampleAccumCell([0, -1, 0, 0], 2, 2, 0, 0, 0.5, 0.5)));
+  });
   it("keeps a flat 0.3 mm cell visible where bicubic would punch a hole", () => {
     const v = sampleAccumCell(HOLE, 5, 5, 2, 2, 0.5, 0.5);
     assert.equal(v, 0.3, `cell centre ${v} — hole in the sums carpet`);
