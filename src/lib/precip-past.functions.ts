@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { setResponseHeader } from "@tanstack/react-start/server";
 import { createSumsCache } from "./sums-cache";
 import { PAST_WINDOWS } from "./precip-past";
 import { completeWindowSum } from "./sums-coverage";
@@ -243,5 +244,6 @@ export const getPastPrecipSums = createServerFn({ method: "GET" }).handler(async
   } catch {
     // Other runtimes await refresh rather than abandon background work.
   }
+  setResponseHeader("Cache-Control", "public, max-age=300, s-maxage=900, stale-while-revalidate=1800");
   return cachedSums(load, Date.now(), waitUntil);
 });
