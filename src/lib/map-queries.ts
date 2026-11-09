@@ -104,11 +104,14 @@ export const satelliteManifestQuery = (region: SatelliteRegionId) =>
     gcTime: 30 * 60_000,
   });
 
+// Stabile Referenz, damit React Query das Entpacken memoisiert.
+const unpackPastSums = (d: { packed: string }) => unpackDeep<PastSums>(JSON.parse(d.packed));
+
 export const pastPrecipQuery = () =>
   queryOptions({
     // Cache/Gerätespeicher halten die kompakte Form; entpackt wird per select.
     queryKey: ["past-precip-sums", 5],
     queryFn: () => getPastPrecipSums(),
-    select: (d: { packed: string }) => unpackDeep<PastSums>(JSON.parse(d.packed)),
+    select: unpackPastSums,
     staleTime: 15 * 60_000,
   });
