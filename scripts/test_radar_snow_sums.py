@@ -25,3 +25,22 @@ def test_resample_north_up_to_south_up():
     f = np.zeros((200, 420), np.float32); f[0, :] = 1.0  # Nordrand
     out = resample_phase(f, {"minLon": 7.4, "maxLon": 11.6, "minLat": 46.6, "maxLat": 48.6})
     assert out[0].max() == 0.0  # Südzeile bleibt Regen
+
+
+from ingest_precip_sums import retained_step
+
+def test_warm_bare_ground_eats_first_snow():
+    pack, kept = retained_step(np.zeros(1), np.array([0.2]), np.array([1.0]))
+    assert kept[0] == 0 and pack[0] == 0
+
+def test_frozen_ground_keeps_all():
+    pack, kept = retained_step(np.zeros(1), np.array([2.0]), np.array([-2.0]))
+    assert abs(kept[0] - 2.0) < 1e-6 and abs(pack[0] - 2.0) < 1e-6
+
+def test_existing_pack_no_ground_loss():
+    _, kept = retained_step(np.array([3.0]), np.array([1.0]), np.array([0.5]))
+    assert abs(kept[0] - 0.95) < 1e-6
+
+def test_no_temperature_keeps_all():
+    _, kept = retained_step(np.zeros(1), np.array([1.0]), None)
+    assert kept[0] == 1.0
