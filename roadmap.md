@@ -1,6 +1,6 @@
 # Precipitation sums usability
-- [ ] Show snow amounts including zero values, retain smooth classified contours, and improve forecast loading.
-- [ ] Add icon controls and clearly distinguish past measurements from future model sums; verify desktop/mobile interactions.
+- [x] Show valid zero and trace snow amounts; missing model hours remain unavailable. Retain smooth contours, reduce rendering work, bound upstream requests and add managed background refresh; 19 tests pass.
+- [x] Add icon controls, distinguish past/future headers, and include alpine snow areas in snow framing; desktop/mobile interactions checked with live data, no browser errors or horizontal overflow.
 
 # Freezing rain terrain restriction
 - [x] Restrict freezing rain to lowland model points and DEM pixels in measurement, nowcast and forecast; 20 tests pass, including the inclusive 800 m boundary, normal-phase fallback and an actual generated forecast PNG with the committed DEM.

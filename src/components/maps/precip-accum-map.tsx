@@ -4,7 +4,7 @@ import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { DockZoomControl } from "./map-dock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
-import { MapContainer, TileLayer, GeoJSON, ImageOverlay, Marker, Tooltip, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, ImageOverlay, Marker, Tooltip, useMapEvents, useMap } from "react-leaflet";
 
 
 import L from "leaflet";
@@ -146,6 +146,15 @@ function valueAt(values: number[], gridLat: number[], gridLon: number[], lat: nu
 
 type Hover = { x: number; y: number; v: number } | null;
 
+function SnowMapFraming({ mode }: { mode: "rain" | "snow" }) {
+  const map = useMap();
+  useEffect(() => {
+    // Keep the alpine snow area clear of the legend without changing rain framing.
+    map.setView(mode === "snow" ? [47.43, 9.32] : MAP_CENTER, mode === "snow" ? 9.5 : MAP_ZOOM, { animate: false });
+  }, [map, mode]);
+  return null;
+}
+
 function HoverProbe({ values, gridLat, gridLon, onHover }: { values: number[]; gridLat: number[]; gridLon: number[]; onHover: (h: Hover) => void }) {
   const update = (e: L.LeafletMouseEvent) => {
     const v = valueAt(values, gridLat, gridLon, e.latlng.lat, e.latlng.lng);
@@ -268,6 +277,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             className="mch-precip-sums"
           >
             <ForeignReliefLayers />
+            <SnowMapFraming mode={mode} />
             <TileLayer
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
               maxZoom={18}
