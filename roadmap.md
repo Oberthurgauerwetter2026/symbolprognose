@@ -1,3 +1,7 @@
+# Freezing rain terrain restriction
+- [x] Restrict freezing rain to lowland model points and DEM pixels in measurement, nowcast and forecast; 20 tests pass, including the inclusive 800 m boundary, normal-phase fallback and an actual generated forecast PNG with the committed DEM.
+- [ ] Verify newly published phase images: awaiting source synchronization and successful radar/model ingestion.
+
 # Symbol forecast refresh
 - [x] Select the latest available hourly MeteoSwiss asset per parameter instead of the first daily asset; four regression tests pass and live STAC selects the 06:00 UTC run for hourly/daily symbols and temperature.
 - [ ] Verify the updated published forecast: awaiting GitHub source synchronization and a successful ingestion using the corrected script; no live workflow was triggered.

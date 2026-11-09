@@ -646,8 +646,9 @@ def _render_frame_png(
     if fzra_row_major is not None and len(fzra_row_major) == n_lat * n_lon:
         raw_fz = np.flipud(np.nan_to_num(np.asarray(fzra_row_major, dtype=np.float32)).reshape(n_lat, n_lon))
         if float(raw_fz.max()) > 0.0:
-            from _phase import apply_phase_alpha
+            from _phase import apply_phase_alpha, load_dem, terrain_freezing_rain
             fz_up = _upsample_smooth(raw_fz, FORECAST_OUT_H, FORECAST_OUT_W)
+            fz_up = terrain_freezing_rain(fz_up, load_dem(fz_up.shape))
             if fz_up.shape == rgba.shape[:2]:
                 rgba = apply_phase_alpha(rgba, None, fz_up)
     img = Image.fromarray(rgba, mode="RGBA")
