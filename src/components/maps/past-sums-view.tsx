@@ -1,4 +1,4 @@
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
 import { pastPrecipQuery } from "@/lib/map-queries";
@@ -6,13 +6,40 @@ import { PAST_WINDOWS, type PastWindow } from "@/lib/precip-past";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { History, ChartNoAxesCombined, Droplets, Snowflake, Download } from "lucide-react";
-import { sumsToCsv, exportFilename, downloadText } from "@/lib/precip-export";
+import { toPng } from "html-to-image";
 
 export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const { data, isLoading, error } = useQuery({ ...pastPrecipQuery(), refetchInterval: 30 * 60_000 });
   const [hours, setHours] = useState<PastWindow>(24);
   const [mode, setMode] = useState<"rain" | "snow">("rain");
   const [period, setPeriod] = useState<"past" | "future">("past");
+
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  async function savePng() {
+    const el = mapRef.current;
+    if (!el) return;
+    setBusy(true);
+    try {
+      const url = await toPng(el, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+        filter: (n) => !(n instanceof HTMLElement && (n.classList.contains("leaflet-control-container") || n.dataset.exportHide === "1")),
+      });
+      const day = new Date().toISOString().slice(0, 10);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `oberthurgau-${mode === "snow" ? "neuschnee" : "niederschlag"}-${period === "future" ? "prognose" : "gefallen"}-${hours}h-${day}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      console.warn("[export] PNG fehlgeschlagen", e);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const btn = (active: boolean) =>
     cn(
@@ -40,13 +67,13 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         </div>
         {!embed && data && (
           <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Download">
-            <Button variant="ghost" className={btn(false)} onClick={() => downloadText(sumsToCsv(data), exportFilename(data, "csv"), "text/csv;charset=utf-8")}><Download />CSV</Button>
-            <Button variant="ghost" className={btn(false)} onClick={() => downloadText(JSON.stringify(data), exportFilename(data, "json"), "application/json")}>JSON</Button>
+            <Button variant="ghost" className={btn(false)} disabled={busy} onClick={savePng}><Download />{busy ? "…" : "Grafik"}</Button>
           </div>
         )}
       </div>
       {isLoading && <div className="h-[420px] rounded-lg bg-muted animate-pulse" />}
       {error && <div className="text-sm text-destructive">Summen konnten nicht geladen werden.</div>}
+      <div ref={mapRef}>
       {data && (() => {
         if (period === "future") {
           const f = data.forecast;
@@ -90,11 +117,12 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             hours={hours}
             sourceLabel={label}
             updatedLabel={stand}
-            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen)" : "eigene Stationen, MeteoSchweiz"}
+            dataLabel={mode === "snow" ? "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen; Säntis: Modell)" : "eigene Stationen, MeteoSchweiz"}
           />
         </Suspense>
         );
       })()}
+      </div>
       {embed && (
         <a href="https://oberthurgauer-wetter.lovable.app/karten/niederschlag" target="_blank" rel="noopener" className="block text-xs text-muted-foreground underline">
           Mehr auf Oberthurgauer Wetter
