@@ -19,7 +19,7 @@ import { History, ChartNoAxesCombined, MapPin, Snowflake } from "lucide-react";
 
 // Gleiche Karte wie Radar, aber näher auf den Oberthurgau gezoomt.
 const MAP_CENTER: [number, number] = [47.56, 9.32];
-const MAP_ZOOM = 10;
+const MAP_ZOOM = 9;
 const MAP_BOUNDS: [[number, number], [number, number]] = [
   [46.6, 7.4],
   [48.6, 11.6],
