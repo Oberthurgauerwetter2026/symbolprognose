@@ -27,12 +27,12 @@ const C = {
 // gestaffelt über negative Delays. Bei reduzierter Bewegung statisch.
 export const DROP_ANIM_CSS = `
 @keyframes wx-drop-fall {
-  0% { transform: translateY(0); opacity: 0; }
-  18% { opacity: 1; }
-  78% { opacity: 1; }
-  100% { transform: translateY(7px); opacity: 0; }
+  0% { transform: translateY(0); opacity: 0.32; }
+  25% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { transform: translateY(7px); opacity: 0.32; }
 }
-.wx-drop-anim { animation: wx-drop-fall 1.5s ease-in infinite; }
+.wx-drop-anim { animation: wx-drop-fall 1.8s ease-in-out infinite; }
 @keyframes wx-flake-fall {
   0% { transform: translate(0, 0); opacity: 0; }
   15% { opacity: 1; }
@@ -182,7 +182,7 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
   // Einheitlich ruhige Neigung von 10°, unabhängig von der übergebenen Neigung.
   const t = tilt === 0 ? 0 : Math.sign(tilt) * 10;
   const sy = size * 0.82;
-  const sx = sy * 0.58; // noch schlanker, damit benachbarte Tropfen klar getrennt bleiben
+  const sx = sy * 0.78; // voller: vollerer Tropfenquerschnitt, bleibt aber klar getrennt
   return (
     <g
       className="wx-drop-anim"
@@ -191,7 +191,7 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
       <g transform={`translate(${x} ${y}) rotate(${t}) scale(${sx} ${sy})`}>
         <path
           d="M 0 -7.5 C 1.6 -3.4 2.9 -0.6 2.9 1.9 C 2.9 4.6 1.6 6.3 0 6.3 C -1.6 6.3 -2.9 4.6 -2.9 1.9 C -2.9 -0.6 -1.6 -3.4 0 -7.5 Z"
-          fill="var(--wx-drop, #2f8fe0)"
+          fill="var(--wx-drop, #38bdf8)"
           stroke="var(--wx-drop-edge, #0b3a6b)"
           strokeWidth="1"
           strokeLinejoin="round"
@@ -199,7 +199,7 @@ function Drop({ x, y, size = 1, tilt = 0 }: { x: number; y: number; size?: numbe
         <path
           d="M 0 -6.9 C 1.1 -3.6 2.0 -1.2 2.2 0.9 C 1.3 -0.6 0.6 -2.2 0 -3.4 C -0.6 -2.2 -1.3 -0.6 -2.2 0.9 C -2.0 -1.2 -1.1 -3.6 0 -6.9 Z"
           fill="var(--wx-drop-hi, #ffffff)"
-          opacity="0.55"
+          opacity="0.7"
         />
       </g>
     </g>
