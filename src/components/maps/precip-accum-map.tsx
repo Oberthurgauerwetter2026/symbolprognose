@@ -66,7 +66,7 @@ function classIndexForAccum(mm: number, CL = ACCUM_CLASSES): number {
 import { sampleAccumCell } from "./accum-sampling";
 
 // ---------- Heatmap → DataURL (für Leaflet ImageOverlay) ----------
-// Bilineare Interpolation des mm-Wertes pro Pixel, danach Klassenfarbe.
+// Monotone Catmull-Rom-Interpolation des mm-Wertes pro Pixel, danach Klassenfarbe.
 // → weiche, geschwungene Bandkonturen, aber harte Farbsprünge zwischen Klassen.
 function renderHeatmapDataUrl(
   values: number[],
@@ -78,8 +78,9 @@ function renderHeatmapDataUrl(
   const nLon = gridLon.length;
   if (!nLat || !nLon || values.length !== nLat * nLon) return null;
 
-  // Feines Radarraster braucht weniger Hochskalierung als das Modellraster.
-  const UP = Math.max(1, Math.min(64, Math.round(640 / Math.max(1, nLon - 1))));
+  // Rund 2000 Bildpixel: auch beim lokalen Zoom fein aufgelöste Bandkonturen.
+  // Mengenklassen und Deckkraft bleiben unverändert; keine Farbmischung.
+  const UP = Math.max(1, Math.min(256, Math.round(2000 / Math.max(1, nLon - 1))));
   const w = (nLon - 1) * UP;
   const h = (nLat - 1) * UP;
   const canvas = document.createElement("canvas");
