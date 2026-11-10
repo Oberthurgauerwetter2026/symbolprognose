@@ -15,3 +15,12 @@ describe("sums-pack", () => {
     assert.deepEqual(unpackDeep(packDeep(d)), d);
   });
 });
+
+import { packDeep as _pd, unpackDeep as _ud } from "./sums-pack";
+import { test as _t, expect as _e } from "vitest";
+_t("grid axes keep full 0.01° precision", () => {
+  const gridLat = Array.from({ length: 121 }, (_, i) => +(46.9 + i * 0.01).toFixed(2));
+  const out = _ud<{ radar: { gridLat: number[] } }>(JSON.parse(JSON.stringify(_pd({ radar: { gridLat } }))));
+  _e(out.radar.gridLat[1]).toBe(46.91);
+  _e(new Set(out.radar.gridLat).size).toBe(121);
+});
