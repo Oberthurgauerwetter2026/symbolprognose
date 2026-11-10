@@ -1,5 +1,6 @@
 import { blendStations } from "@/lib/station-blend";
-import { Suspense, useRef, useState } from "react";
+import { downscaleSnow } from "@/lib/snow-downscale";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
 import { pastPrecipQuery } from "@/lib/map-queries";
@@ -12,8 +13,19 @@ import { toPng } from "html-to-image";
 export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const { data, isLoading, error } = useQuery({ ...pastPrecipQuery(), refetchInterval: 30 * 60_000 });
   const [hours, setHours] = useState<PastWindow>(12);
+  const { data: dem } = useQuery({
+    queryKey: ["terrain-dem-420x200"],
+    queryFn: async () => new Int16Array(await (await fetch("/terrain-elev-420x200.bin")).arrayBuffer()),
+    staleTime: Infinity,
+  });
   const [mode, setMode] = useState<"rain" | "snow">("rain");
   const [period, setPeriod] = useState<"past" | "future">("past");
+  const fineSnow = useMemo(() => {
+    const f = data?.forecast;
+    const line = f?.snowLine?.[hours];
+    if (!dem || !f || !line || dem.length !== 84000) return null;
+    return downscaleSnow(f.rain[hours], line, data!.gridLat, data!.gridLon, dem);
+  }, [data, dem, hours]);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
@@ -90,15 +102,15 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
           return (
             <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
               <LazyPrecipAccumMap
-                values={(mode === "snow" ? f.snow : f.rain)[hours]}
-                gridLat={data.gridLat}
-                gridLon={data.gridLon}
+                values={mode === "snow" ? fineSnow?.values ?? f.snow[hours] : f.rain[hours]}
+                gridLat={mode === "snow" && fineSnow ? fineSnow.gridLat : data.gridLat}
+                gridLon={mode === "snow" && fineSnow ? fineSnow.gridLon : data.gridLon}
                 stations={[]}
                 mode={mode}
                 hours={hours}
                 sourceLabel={`Prognose nächste ${hours} h`}
                 updatedLabel={stand}
-                dataLabel="MeteoSchweiz ICON-CH1/CH2"
+                dataLabel={mode === "snow" && fineSnow ? "MeteoSchweiz ICON-CH1/CH2, Schneefallgrenze aufs Gelände übertragen" : "MeteoSchweiz ICON-CH1/CH2"}
                 forecast
               />
             </Suspense>
