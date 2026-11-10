@@ -34,12 +34,17 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
     if (!el) return;
     setBusy(true);
     try {
-      const url = await toPng(el, {
+      const opts = {
         pixelRatio: 2,
         cacheBust: true,
         backgroundColor: "#ffffff",
-        filter: (n) => !(n instanceof HTMLElement && (n.classList.contains("leaflet-control-container") || n.dataset.exportHide === "1")),
-      });
+        filter: (n: Node) => !(n instanceof HTMLElement && (n.classList.contains("leaflet-control-container") || n.dataset.exportHide === "1")),
+      };
+      // Safari/WebKit dekodiert Rasterbilder im SVG-Export erst beim ersten Durchlauf:
+      // stiller Warm-up, damit die Niederschlagsfläche im finalen Bild enthalten ist.
+      await toPng(el, opts);
+      await new Promise((r) => setTimeout(r, 250));
+      const url = await toPng(el, opts);
       const day = new Date().toISOString().slice(0, 10);
       const name = `oberthurgau-${mode === "snow" ? "neuschnee" : "niederschlag"}-${period === "future" ? "prognose" : "gefallen"}-${hours}h-${day}.png`;
       const blob = await (await fetch(url)).blob();
