@@ -38,7 +38,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         pixelRatio: 2,
         cacheBust: true,
         backgroundColor: "#ffffff",
-        filter: (n) => !(n instanceof HTMLElement && (n.classList.contains("leaflet-control-container") || n.dataset.exportHide === "1")),
+        filter: (n: Node) => !(n instanceof HTMLElement && (n.classList.contains("leaflet-control-container") || n.dataset.exportHide === "1")),
       };
       // Safari/WebKit dekodiert Rasterbilder im SVG-Export erst beim ersten Durchlauf:
       // stiller Warm-up, damit die Niederschlagsfläche im finalen Bild enthalten ist.
