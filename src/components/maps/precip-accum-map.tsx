@@ -80,7 +80,7 @@ function renderHeatmapDataUrl(
 
   // Rund 2000 Bildpixel: auch beim lokalen Zoom fein aufgelöste Bandkonturen.
   // Mengenklassen und Deckkraft bleiben unverändert; keine Farbmischung.
-  const UP = Math.max(1, Math.min(64, Math.round(2000 / Math.max(1, nLon - 1))));
+  const UP = Math.max(1, Math.min(256, Math.round(2000 / Math.max(1, nLon - 1))));
   const w = (nLon - 1) * UP;
   const h = (nLat - 1) * UP;
   const canvas = document.createElement("canvas");
