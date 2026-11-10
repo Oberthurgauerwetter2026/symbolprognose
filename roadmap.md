@@ -1,5 +1,5 @@
 # Precipitation sums usability
-- [ ] Increase accumulation overlay resolution to approximately 2000 pixels (option A only); verify live past/forecast maps and interpolation tests.
+- [x] Increase accumulation overlay resolution (option A only): live past image 2070 px, forecast 1995 px; desktop/mobile checked, no browser errors, five interpolation tests pass. Classes and opacity unchanged.
 - [x] Show valid zero and trace snow amounts; missing model hours remain unavailable. Retain smooth contours, reduce rendering work, bound upstream requests and add managed background refresh; 19 tests pass.
 - [x] Add icon controls, distinguish past/future headers, and include alpine snow areas in snow framing; desktop/mobile interactions checked with live data, no browser errors or horizontal overflow.
 
