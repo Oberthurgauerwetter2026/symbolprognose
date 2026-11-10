@@ -1,5 +1,6 @@
 import { blendStations } from "@/lib/station-blend";
-import { Suspense, useRef, useState } from "react";
+import { downscaleSnow } from "@/lib/snow-downscale";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
 import { pastPrecipQuery } from "@/lib/map-queries";
@@ -12,6 +13,11 @@ import { toPng } from "html-to-image";
 export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const { data, isLoading, error } = useQuery({ ...pastPrecipQuery(), refetchInterval: 30 * 60_000 });
   const [hours, setHours] = useState<PastWindow>(12);
+  const { data: dem } = useQuery({
+    queryKey: ["terrain-dem-420x200"],
+    queryFn: async () => new Int16Array(await (await fetch("/terrain-elev-420x200.bin")).arrayBuffer()),
+    staleTime: Infinity,
+  });
   const [mode, setMode] = useState<"rain" | "snow">("rain");
   const [period, setPeriod] = useState<"past" | "future">("past");
 

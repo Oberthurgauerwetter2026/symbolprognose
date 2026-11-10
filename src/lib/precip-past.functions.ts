@@ -5,6 +5,7 @@ import { createSumsCache } from "./sums-cache";
 import { packDeep } from "./sums-pack";
 import { PAST_WINDOWS } from "./precip-past";
 import { completeWindowSum } from "./sums-coverage";
+import { weightedSnowLineHm } from "./snow-downscale";
 import { SUM_STATIONS, parseSmnCsv, stationWindowSum, type Sample } from "./station-sums";
 
 export type StationPoint = {
@@ -53,7 +54,7 @@ export type PastSums = {
   radar: RadarSums | null;
   stations: StationPoint[];
   /** Prognosesummen ICON-CH1 → CH2 ab jetzt (mm / cm) */
-  forecast: { rain: Record<string, number[]>; snow: Record<string, number[]> };
+  forecast: { rain: Record<string, number[]>; snow: Record<string, number[]>; /** Schneefallgrenze hm (−1 = trocken) */ snowLine?: Record<string, number[]> };
 };
 
 async function loadRadarSums(): Promise<RadarSums | null> {
@@ -132,7 +133,7 @@ async function load(): Promise<PastSums> {
   const pts: [number, number][] = [];
   for (const la of gridLat) for (const lo of gridLon) pts.push([la, lo]);
 
-  type Loc = { hourly?: { time: string[]; precipitation?: (number | null)[]; snowfall?: (number | null)[] } };
+  type Loc = { hourly?: { time: string[]; precipitation?: (number | null)[]; snowfall?: (number | null)[]; fzl?: (number | null)[] } };
   const results: Loc[] = new Array(pts.length);
   const BATCH = 150;
   const batches: Promise<void>[] = [];
@@ -164,7 +165,7 @@ async function load(): Promise<PastSums> {
               x ?? ((h[`${v}_meteoswiss_icon_ch2`] as (number | null)[] | undefined)?.[idx] ?? null),
             ) ?? (h[v] as (number | null)[] | undefined);
           results[start + k] = {
-            hourly: { time: (h.time as string[]) ?? [], precipitation: pick("precipitation"), snowfall: gateSnowfall(pick("snowfall") ?? [], pick("temperature_2m"), pick("freezing_level_height"), l.elevation) },
+            hourly: { time: (h.time as string[]) ?? [], precipitation: pick("precipitation"), snowfall: gateSnowfall(pick("snowfall") ?? [], pick("temperature_2m"), pick("freezing_level_height"), l.elevation), fzl: pick("freezing_level_height") },
           };
         });
       })(),
@@ -207,11 +208,13 @@ async function load(): Promise<PastSums> {
   const snow: Record<string, number[]> = {};
   const fRain: Record<string, number[]> = {};
   const fSnow: Record<string, number[]> = {};
+  const fLine: Record<string, number[]> = {};
   for (const w of PAST_WINDOWS) {
     rain[w] = new Array(pts.length).fill(-1);
     snow[w] = new Array(pts.length).fill(-1);
     fRain[w] = new Array(pts.length).fill(-1);
     fSnow[w] = new Array(pts.length).fill(-1);
+    fLine[w] = new Array(pts.length).fill(-1);
   }
   for (let i = 0; i < pts.length; i++) {
     const h = results[i]?.hourly;
@@ -222,6 +225,7 @@ async function load(): Promise<PastSums> {
       snow[w][i] = completeWindowSum(times, h.snowfall ?? [], now, w, false);
       fRain[w][i] = completeWindowSum(times, h.precipitation ?? [], now, w, true);
       fSnow[w][i] = completeWindowSum(times, h.snowfall ?? [], now, w, true);
+      fLine[w][i] = weightedSnowLineHm(times, h.precipitation ?? [], h.fzl, now, w);
     }
   }
   return {
@@ -233,7 +237,7 @@ async function load(): Promise<PastSums> {
     source: "MeteoSchweiz ICON-CH1/CH2 Analyse via Open-Meteo",
     radar,
     stations,
-    forecast: { rain: fRain, snow: fSnow },
+    forecast: { rain: fRain, snow: fSnow, snowLine: fLine },
   };
 }
 
