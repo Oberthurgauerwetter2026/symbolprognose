@@ -187,7 +187,7 @@ function stationIcon(name: string, value: number, unit: string, own = false) {
     className: "",
     iconSize: [0, 0],
     html: `<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;pointer-events:auto">
-      <div title="${name}" style="background:${bg};color:#fff;font:600 11px/1.2 Inter,system-ui,sans-serif;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)">${v}&nbsp;${unit}</div>
+      <div title="${name}" style="background:#fff;color:${bg};font:600 11px/1.2 system-ui,sans-serif;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid rgba(15,23,42,.15);box-shadow:0 1px 3px rgba(0,0,0,.25)">${v}&nbsp;${unit}</div>
       <div style="width:6px;height:6px;border-radius:50%;background:${bg};border:1.5px solid #fff;margin-top:2px"></div>
     </div>`,
   });
