@@ -45,3 +45,23 @@ export function sumNextHours(
   }
   return sum;
 }
+
+/** Neuschnee nur zählen, wenn es am Boden physikalisch schneien kann:
+ *  2-m-Temperatur ≤ 1.5 °C und Nullgradgrenze höchstens 400 m über Grund. */
+export function gateSnowfall(
+  snow: (number | null)[],
+  temp: (number | null)[] | undefined,
+  fzl: (number | null)[] | undefined,
+  elevation: number | undefined,
+): (number | null)[] {
+  if (!temp) return snow;
+  return snow.map((s, i) => {
+    if (s == null || s <= 0) return s;
+    const t = temp[i];
+    if (t == null) return s;
+    if (t > 1.5) return 0;
+    const f = fzl?.[i];
+    if (f != null && elevation != null && f - elevation > 400) return 0;
+    return s;
+  });
+}

@@ -1,3 +1,4 @@
+import { gateSnowfall } from "./precip-past";
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 import { createSumsCache } from "./sums-cache";
@@ -141,7 +142,7 @@ async function load(): Promise<PastSums> {
       "https://api.open-meteo.com/v1/forecast?" +
       `latitude=${slice.map((p) => p[0]).join(",")}` +
       `&longitude=${slice.map((p) => p[1]).join(",")}` +
-      "&hourly=precipitation,snowfall&past_days=3&forecast_days=4&timezone=GMT" +
+      "&hourly=precipitation,snowfall,temperature_2m,freezing_level_height&past_days=3&forecast_days=4&timezone=GMT" +
       "&models=meteoswiss_icon_ch1,meteoswiss_icon_ch2";
     const start = i;
     batches.push(
@@ -155,7 +156,7 @@ async function load(): Promise<PastSums> {
         const json = await res.json();
         const arr: unknown[] = Array.isArray(json) ? json : [json];
         arr.forEach((loc, k) => {
-          const l = loc as { hourly?: Record<string, unknown> };
+          const l = loc as { hourly?: Record<string, unknown>; elevation?: number };
           const h = l.hourly ?? {};
           // Erstes vorhandenes Modell (CH1 bevorzugt) je Variable nehmen.
           const pick = (v: string) =>
@@ -163,7 +164,7 @@ async function load(): Promise<PastSums> {
               x ?? ((h[`${v}_meteoswiss_icon_ch2`] as (number | null)[] | undefined)?.[idx] ?? null),
             ) ?? (h[v] as (number | null)[] | undefined);
           results[start + k] = {
-            hourly: { time: (h.time as string[]) ?? [], precipitation: pick("precipitation"), snowfall: pick("snowfall") },
+            hourly: { time: (h.time as string[]) ?? [], precipitation: pick("precipitation"), snowfall: gateSnowfall(pick("snowfall") ?? [], pick("temperature_2m"), pick("freezing_level_height"), l.elevation) },
           };
         });
       })(),

@@ -11,7 +11,7 @@ import { toPng } from "html-to-image";
 
 export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const { data, isLoading, error } = useQuery({ ...pastPrecipQuery(), refetchInterval: 30 * 60_000 });
-  const [hours, setHours] = useState<PastWindow>(24);
+  const [hours, setHours] = useState<PastWindow>(12);
   const [mode, setMode] = useState<"rain" | "snow">("rain");
   const [period, setPeriod] = useState<"past" | "future">("past");
 
@@ -29,6 +29,13 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         filter: (n) => !(n instanceof HTMLElement && (n.classList.contains("leaflet-control-container") || n.dataset.exportHide === "1")),
       });
       const day = new Date().toISOString().slice(0, 10);
+      const name = `oberthurgau-${mode === "snow" ? "neuschnee" : "niederschlag"}-${period === "future" ? "prognose" : "gefallen"}-${hours}h-${day}.png`;
+      const blob = await (await fetch(url)).blob();
+      const file = new File([blob], name, { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: "Oberthurgauer Wetter" }); } catch { /* abgebrochen */ }
+        return;
+      }
       const a = document.createElement("a");
       a.href = url;
       a.download = `oberthurgau-${mode === "snow" ? "neuschnee" : "niederschlag"}-${period === "future" ? "prognose" : "gefallen"}-${hours}h-${day}.png`;
