@@ -5,6 +5,8 @@
  */
 export type Packed = { __p: string };
 const MIN_LEN = 16;
+/** Koordinatenachsen brauchen volle Präzision (0.01°-Raster); 0.1-Rundung erzeugt Blöcke. */
+const KEEP_KEYS = new Set(["gridLat", "gridLon"]);
 
 function isNumArr(v: unknown): v is number[] {
   return Array.isArray(v) && v.length >= MIN_LEN && v.every((x) => typeof x === "number");
@@ -36,7 +38,7 @@ export function unpackArr(p: Packed): number[] {
 export function packDeep(v: unknown): unknown {
   if (isNumArr(v)) return packArr(v);
   if (Array.isArray(v)) return v.map(packDeep);
-  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, packDeep(x)]));
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, KEEP_KEYS.has(k) ? x : packDeep(x)]));
   return v;
 }
 
