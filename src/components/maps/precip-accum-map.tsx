@@ -365,26 +365,26 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             </Button>
           )}
 
-          {/* Floating-Legende */}
-          <div
-            className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 z-[500] rounded-2xl bg-white/85 backdrop-blur-md ring-1 ring-zinc-900/10 shadow-lg px-3 py-2"
-            style={{ width: "min(420px, calc(100% - 24px))" }}
-          >
-            <div className="flex justify-between text-[10px] font-semibold text-zinc-600 tabular-nums mb-1 px-[2px]">
-              {classes.map((c) => (
-                <span key={c.min} className="flex-1 text-center">{c.label}</span>
-              ))}
+          {/* Schlanker Legenden-Streifen (Radar-Stil) */}
+          <div className="pointer-events-none absolute bottom-2 left-1/2 z-[500] flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-2xl bg-white/90 px-3 py-1.5 shadow-md ring-1 ring-black/5 backdrop-blur-md">
+            <div className="w-52 sm:w-64">
+              <div
+                className="h-2 rounded-full"
+                style={{ backgroundImage: `linear-gradient(to right, ${classes.map((c, i) => `rgb(${c.rgb.join(",")}) ${(i * 100) / classes.length}% ${((i + 1) * 100) / classes.length}%`).join(", ")})` }}
+              />
+              <div className="relative mt-0.5 h-3">
+                {classes.map((c, i) => (
+                  <span
+                    key={c.min}
+                    className={`absolute top-0 text-[9px] tabular-nums text-neutral-500 ${i === 0 ? "" : "-translate-x-1/2"}`}
+                    style={{ left: `${(i * 100) / classes.length}%` }}
+                  >
+                    {c.label}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="flex h-2.5 w-full overflow-hidden rounded-full ring-1 ring-zinc-900/10">
-              {classes.map((c) => (
-                <div
-                  key={c.min}
-                  className="flex-1"
-                  style={{ background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})` }}
-                />
-              ))}
-            </div>
-            <p className="text-[9px] text-zinc-500 mt-1 text-center ">{mode === "snow" ? "cm Neuschnee" : "mm Niederschlag"}</p>
+            <span className="text-[9px] font-semibold text-neutral-500">{unit}</span>
           </div>
         </div>
         <SourceFooter updated={updatedLabel} map data={dataLabel}>
