@@ -20,6 +20,7 @@ import { attachCanvasZoomAnim, detachCanvasZoomAnim } from "./canvas-zoom-anim";
 import { boltJitter, boltSvg, BOLT_RADAR, LIGHTNING_ENABLED } from "./lightning-bolt";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import { REGION, LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, REGION_OUTLINE, OUTSIDE_CH_MASK } from "./radar-base-geo";
+import { blendPhaseRgb, phaseCore } from "@/lib/phase-blend";
 import { Pause, Play, ChevronLeft, ChevronRight, Settings, Clock, Info, Zap, Snowflake, Plus, Minus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -1420,23 +1421,25 @@ function MeasurementCanvasOverlay({
           const pf = phaseField ?? (wA >= wB ? fieldA : fieldB);
           const pb = phaseField && phaseBounds ? phaseBounds : bounds;
           let ph = 0;
+          let score = 0;
           if (pf) {
             const fx = ((ll.lng - pb.minLon) / (pb.maxLon - pb.minLon)) * (pf.w - 1);
             const fy = ((pb.maxLat - ll.lat) / (pb.maxLat - pb.minLat)) * (pf.h - 1);
-            const score = phaseScore(pf, fx, fy);
-            ph = score >= 0.75 ? 2 : score >= 0.25 ? 1 : 0;
+            score = phaseScore(pf, fx, fy);
             if (fzraScore(pf, fx, fy) >= 0.5) ph = 3;
           }
           const mx = Math.floor(lx / PAT);
           const my = Math.floor(ly / PAT);
-          const [r, g, b] =
-            ph === 3
-              ? isDropPixel(mx, my, 20) ? DROP_RGB : fzraRgbFor(s.mmh)
-              : ph === 2
-              ? isFlakePixel(mx, my, 20, 3) ? FLAKE_RGB : snowColorFor(s.mmh)
-              : ph === 1
-                ? isSleetMarkPixel(mx, my, 20) ? DROP_RGB : sleetRgbFor(s.mmh)
-                : s.rgb;
+          let r: number, g: number, b: number;
+          if (ph === 3) {
+            [r, g, b] = isDropPixel(mx, my, 20) ? DROP_RGB : fzraRgbFor(s.mmh);
+          } else {
+            const snowRgb = snowColorFor(s.mmh);
+            [r, g, b] = blendPhaseRgb(score, s.rgb, sleetRgbFor(s.mmh), [snowRgb[0], snowRgb[1], snowRgb[2]]);
+            const core = phaseCore(score);
+            if (core === 2 && isFlakePixel(mx, my, 20, 3)) [r, g, b] = FLAKE_RGB;
+            else if (core === 1 && isSleetMarkPixel(mx, my, 20)) [r, g, b] = DROP_RGB;
+          }
           const alpha = Math.round(s.a * 255);
           if (alpha === 0) continue;
           const idx = (ly * lowW + lx) * 4;
