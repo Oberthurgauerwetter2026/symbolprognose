@@ -21,11 +21,12 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const [mode, setMode] = useState<"rain" | "snow">("rain");
   const [period, setPeriod] = useState<"past" | "future">("past");
   const fineSnow = useMemo(() => {
-    const f = data?.forecast;
+    if (mode !== "snow" || !data) return null;
+    const f = period === "future" ? data.forecast : data;
     const line = f?.snowLine?.[hours];
     if (!dem || !f || !line || dem.length !== 84000) return null;
-    return downscaleSnow(f.rain[hours], line, data!.gridLat, data!.gridLon, dem);
-  }, [data, dem, hours]);
+    return downscaleSnow(f.rain[hours], line, data.gridLat, data.gridLon, dem);
+  }, [data, dem, hours, mode, period]);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
@@ -128,11 +129,11 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         const radarSnowOk = !!r?.snow?.[hours] && (r.snowMissingHours?.[hours] ?? hours) <= hours * 0.25;
         const useRadar = !!r && (mode === "rain" ? (r.missingHours[hours] ?? 0) <= hours * 0.25 : radarSnowOk);
         const radar = useRadar ? r : null;
-        const grid = radar ?? data;
+        const grid = radar ?? (mode === "snow" && fineSnow ? fineSnow : data);
         const own = data.stations.filter((s) => s.source === "own" && s.rain[hours] != null).map((s) => ({ lat: s.lat, lon: s.lon, value: s.rain[hours] as number }));
         const values = radar
-          ? mode === "snow" ? radar.snow![hours] : blendStations(radar.rain[hours], radar.gridLat, radar.gridLon, own)
-          : (mode === "snow" ? data.snow : data.rain)[hours];
+          ? mode === "snow" ? radar.snow?.[hours] ?? [] : blendStations(radar.rain[hours], radar.gridLat, radar.gridLon, own)
+          : mode === "snow" ? fineSnow?.values ?? data.snow[hours] : data.rain[hours];
         const stand = new Date(radar?.t ?? data.generatedAt).toLocaleString("de-CH", { timeZone: "Europe/Zurich", dateStyle: "short", timeStyle: "short" });
         const missing = (mode === "snow" ? radar?.snowMissingHours?.[hours] : radar?.missingHours[hours]) ?? 0;
         const label = [missing ? `${missing} h fehlen` : "", !useRadar ? "Fläche: Modell" : ""].filter(Boolean).join(" · ");
@@ -150,7 +151,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
             hours={hours}
             sourceLabel={label}
             updatedLabel={stand}
-            dataLabel={mode === "snow" ? (radar ? "MeteoSchweiz CombiPrecip + Schneefallgrenze aus Gelände, Stationen und ICON-CH1 (Fläche), SMN-Schneehöhen (Stationen)" : "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen; Säntis: Modell)") : "eigene Stationen, MeteoSchweiz"}
+            dataLabel={mode === "snow" ? (radar ? "MeteoSchweiz CombiPrecip + Schneefallgrenze aus Gelände, Stationen und ICON-CH1 (Fläche), SMN-Schneehöhen (Stationen)" : fineSnow ? "MeteoSchweiz ICON-CH1/CH2, historische Schneefallgrenze aufs Gelände übertragen (Fläche), SMN-Schneehöhen (Stationen; Säntis: Modell)" : "MeteoSchweiz ICON-CH1/CH2 (Fläche), SMN-Schneehöhen (Stationen; Säntis: Modell)") : "eigene Stationen, MeteoSchweiz"}
           />
         </Suspense>
         );

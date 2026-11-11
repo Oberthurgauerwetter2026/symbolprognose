@@ -110,7 +110,7 @@ const unpackPastSums = (d: { packed: string }) => unpackDeep<PastSums>(JSON.pars
 export const pastPrecipQuery = () =>
   queryOptions({
     // Cache/Gerätespeicher halten die kompakte Form; entpackt wird per select.
-    queryKey: ["past-precip-sums", 6],
+    queryKey: ["past-precip-sums", 7],
     queryFn: () => getPastPrecipSums(),
     select: unpackPastSums,
     staleTime: 15 * 60_000,

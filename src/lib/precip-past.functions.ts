@@ -49,6 +49,8 @@ export type PastSums = {
   rain: Record<string, number[]>;
   /** cm Neuschnee je Fenster */
   snow: Record<string, number[]>;
+  /** Historische, niederschlagsgewichtete Modell-Schneefallgrenze in hm. */
+  snowLine?: Record<string, number[]>;
   generatedAt: string;
   source: string;
   radar: RadarSums | null;
@@ -239,12 +241,14 @@ async function load(): Promise<PastSums> {
   }
   const rain: Record<string, number[]> = {};
   const snow: Record<string, number[]> = {};
+  const snowLine: Record<string, number[]> = {};
   const fRain: Record<string, number[]> = {};
   const fSnow: Record<string, number[]> = {};
   const fLine: Record<string, number[]> = {};
   for (const w of PAST_WINDOWS) {
     rain[w] = new Array(pts.length).fill(-1);
     snow[w] = new Array(pts.length).fill(-1);
+    snowLine[w] = new Array(pts.length).fill(-1);
     fRain[w] = new Array(pts.length).fill(-1);
     fSnow[w] = new Array(pts.length).fill(-1);
     fLine[w] = new Array(pts.length).fill(-1);
@@ -256,6 +260,7 @@ async function load(): Promise<PastSums> {
     for (const w of PAST_WINDOWS) {
       rain[w][i] = completeWindowSum(times, h.precipitation ?? [], now, w, false);
       snow[w][i] = completeWindowSum(times, h.snowfall ?? [], now, w, false);
+      snowLine[w][i] = weightedSnowLineHm(times, h.precipitation ?? [], h.fzl, now, w, false);
       fRain[w][i] = completeWindowSum(times, h.precipitation ?? [], now, w, true);
       fSnow[w][i] = completeWindowSum(times, h.snowfall ?? [], now, w, true);
       fLine[w][i] = weightedSnowLineHm(times, h.precipitation ?? [], h.fzl, now, w);
@@ -266,6 +271,7 @@ async function load(): Promise<PastSums> {
     gridLon,
     rain,
     snow,
+    snowLine,
     generatedAt: new Date(now).toISOString(),
     source: "MeteoSchweiz ICON-CH1/CH2 Analyse via Open-Meteo",
     radar,

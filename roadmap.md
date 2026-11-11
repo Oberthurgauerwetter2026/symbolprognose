@@ -1,4 +1,5 @@
 # Precipitation sums usability
+- [x] Apply the shared DEM to past model-fallback snow for 12/24/48/72 h; measured snow unchanged. 13 tests pass; live 72 h model fallback follows alpine relief, mobile/desktop switching has no runtime errors or overflow.
 - [x] Separate period and precipitation selection into two rows, with time windows directly above the map and an independent download icon; live mobile/desktop switching checked, no overflow or browser errors.
 - [x] Increase accumulation overlay resolution (option A only): live past image 2070 px, forecast 1995 px; desktop/mobile checked, no browser errors, five interpolation tests pass. Classes and opacity unchanged.
 - [x] Show valid zero and trace snow amounts; missing model hours remain unavailable. Retain smooth contours, reduce rendering work, bound upstream requests and add managed background refresh; 19 tests pass.
