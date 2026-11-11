@@ -74,26 +74,29 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Zeitrichtung">
+      <div className="space-y-4 pb-1">
+        <div className="grid w-full max-w-sm grid-cols-2 gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Zeitrichtung">
           <Button variant="ghost" aria-pressed={period === "past"} className={btn(period === "past")} onClick={() => setPeriod("past")}><History />Gefallen</Button>
           <Button variant="ghost" aria-pressed={period === "future"} className={btn(period === "future")} onClick={() => setPeriod("future")}><ChartNoAxesCombined />Prognose</Button>
         </div>
-        <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Zeitraum">
-          {PAST_WINDOWS.map((h) => (
-            <Button variant="ghost" key={h} aria-pressed={hours === h} className={btn(hours === h)} onClick={() => setHours(h)}>
-              {period === "future" ? `+${h} h` : `${h} h`}
-            </Button>
-          ))}
-        </div>
-        <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50 sm:ml-auto" role="group" aria-label="Anzeige">
-          <Button variant="ghost" aria-pressed={mode === "rain"} className={btn(mode === "rain")} onClick={() => setMode("rain")}><Droplets />Niederschlag <span className="text-xs opacity-75">mm</span></Button>
+        <div className="grid w-full max-w-sm grid-cols-2 gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Anzeige">
+          <Button variant="ghost" aria-pressed={mode === "rain"} className={btn(mode === "rain")} onClick={() => setMode("rain")}><Droplets />Regen <span className="text-xs opacity-75">mm</span></Button>
           <Button variant="ghost" aria-pressed={mode === "snow"} className={btn(mode === "snow")} onClick={() => setMode("snow")}><Snowflake />Neuschnee <span className="text-xs opacity-75">cm</span></Button>
         </div>
-        {!embed && data && (
-          <div className="flex gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Download">
-            <Button variant="ghost" className={btn(false)} disabled={busy} onClick={savePng}><Download />{busy ? "…" : "Grafik"}</Button>
+      </div>
+      <div className="flex items-end justify-between gap-3 border-t border-border/60 pt-3">
+        <div className="min-w-0 space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">{period === "future" ? "Nächste Stunden" : "Letzte Stunden"}</div>
+          <div className="grid grid-cols-4 gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Zeitraum">
+            {PAST_WINDOWS.map((h) => (
+              <Button variant="ghost" key={h} aria-pressed={hours === h} className={cn(btn(hours === h), "px-2 sm:px-3")} onClick={() => setHours(h)}>
+                {`${h} h`}
+              </Button>
+            ))}
           </div>
+        </div>
+        {!embed && data && (
+          <Button variant="ghost" size="icon" className="mb-1 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={busy ? "Grafik wird erstellt" : "Grafik herunterladen"} title="Grafik herunterladen" disabled={busy} onClick={savePng}><Download className={busy ? "animate-pulse" : undefined} /></Button>
         )}
       </div>
       {isLoading && <div className="h-[420px] rounded-lg bg-muted animate-pulse" />}
