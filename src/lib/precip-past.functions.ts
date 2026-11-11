@@ -119,6 +119,36 @@ async function loadStations(now: number): Promise<StationPoint[]> {
   return res.filter((x): x is StationPoint => !!x && Object.values(x.rain).some((v) => v !== null));
 }
 
+/** Liest openmeteo/sums-series.json (Base64-Int16, -32768 = fehlend). */
+async function loadModelSeries(nLat: number, nLon: number) {
+  const { r2ObjectUrlCandidates } = await import("./r2-url.server");
+  const urls = [
+    ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, "openmeteo/sums-series.json"),
+    ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "openmeteo/sums-series.json"),
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+      if (!res.ok) continue;
+      const j = (await res.json()) as { generatedAt: string; gridLat: number[]; gridLon: number[]; times: string[]; precip: string; snow: string; fzl: string };
+      if (Date.now() - Date.parse(j.generatedAt) > 3 * 3_600_000) return null;
+      if (j.gridLat.length !== nLat || j.gridLon.length !== nLon) return null;
+      const dec = (b64: string, scale: number) => {
+        const bin = atob(b64);
+        const a = new Int16Array(bin.length / 2);
+        for (let i = 0; i < a.length; i++) a[i] = (bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8)) << 16 >> 16;
+        return (i: number, n: number) => Array.from(a.subarray(i * n, (i + 1) * n), (v) => (v === -32768 ? null : v / scale));
+      };
+      const n = j.times.length;
+      const p = dec(j.precip, 10), s = dec(j.snow, 10), f = dec(j.fzl, 0.1);
+      return (i: number) => ({ time: j.times, precipitation: p(i, n), snowfall: s(i, n), fzl: f(i, n) });
+    } catch (e) {
+      console.warn(`[past-sums] series ${url}: ${(e as Error).message}`);
+    }
+  }
+  return null;
+}
+
 const cachedSums = createSumsCache<PastSums>(5 * 60_000, 60 * 60_000);
 
 function range(a: number, b: number, s: number) {
@@ -137,7 +167,10 @@ async function load(): Promise<PastSums> {
   const results: Loc[] = new Array(pts.length);
   const BATCH = 150;
   const batches: Promise<void>[] = [];
-  for (let i = 0; i < pts.length; i += BATCH) {
+  // Vorab publizierte Reihen (GitHub-Ingest) zuerst: keine Live-Abrufe nötig.
+  const series = await loadModelSeries(gridLat.length, gridLon.length).catch(() => null);
+  if (series) for (let i = 0; i < pts.length; i++) results[i] = { hourly: series(i) };
+  for (let i = 0; !series && i < pts.length; i += BATCH) {
     const slice = pts.slice(i, i + BATCH);
     const url =
       "https://api.open-meteo.com/v1/forecast?" +
