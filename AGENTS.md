@@ -26,4 +26,4 @@
 - Gefallener Neuschnee kommt aus CombiPrecip × stündlichem Schneeanteil (sums_phase_at in ingest_radar.py: DEM + Stationen + ICON-CH1, inkrementell in radar/sums/phase.npz) über ingest_precip_sums.snow_cm und retained_step (Bodenwärme zehrt ersten Schnee auf schneefreiem Boden über 0 °C, Grad-Stunden-Schmelze; ohne Pixeltemperatur keine Schmelze); Stunden ohne bekannte Phase zählen als fehlend und ab >25 % fällt die Fläche aufs Modell zurück, weil vergangene Atmosphäre nicht nachträglich rekonstruierbar ist.
 - Sums travel as base64 Int16 (src/lib/sums-pack.ts), unpacked via stable `select`; per-number payloads overflowed localStorage.
 - Forecast snow is DEM-downscaled (snow-downscale.ts; snow line in hm for Int16), because the model grid blurs terrain.
-- Sum-map model series come prefetched from R2 (scripts/ingest_model_series.py); live Open-Meteo only if missing/stale (worker IPs get throttled).
+- Sum-map model series come prefetched from R2 (ingest_model_series.py); live Open-Meteo only if missing/stale (worker IPs get throttled).
