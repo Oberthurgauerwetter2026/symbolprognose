@@ -2,7 +2,7 @@
 - Accumulation maps use explicit per-render phase palettes (no shared mutable palette); recent sums refresh through a deduplicated cache with request-managed background lifetime and a one-hour stale limit, because concurrent embeds must not leak modes or abandon updates.
 - MeteoSwiss local-forecast ingestion selects the greatest timestamped STAC asset key with a usable href per parameter, because a daily item contains multiple hourly runs and dictionary order must never pin forecasts to midnight.
 - Live weather products use a shared SourceFooter outside the map instead of Leaflet attribution controls; static/no-JS alternatives match its wording, so publisher, data and active map-layer credits appear once.
-- Forecast PNG URLs are content-addressed and published before the manifest; cleanup retains recent generations so interrupted ingests and open tabs remain safe.
+- Forecast PNGs are content-addressed, published before the manifest, and recent generations are retained, so interrupted ingests and open tabs stay safe.
 - Missing radar images are loading failures, never evidence of dry weather; never cache fallback renders under a missing URL.
 - Radar playback timing lives in a pure, tested timeline module; render time and the snapped filmstrip time are separate so transitions cannot move labels early.
 - Radar nowcast runs in 5-minute steps from the measurement without any intensity fade until :55 before the first full model hour at or after measurement+75 min (at least the current-time next full hour), so the model takes over seamlessly at :00 with no gap; filmstrip compression starts after the last nowcast frame.
