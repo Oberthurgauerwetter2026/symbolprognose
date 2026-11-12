@@ -179,43 +179,63 @@ export const getPushPublicKey = createServerFn({ method: "GET" }).handler(async 
   return { publicKey: process.env.VAPID_PUBLIC_KEY ?? "" };
 });
 
+/** Prüft, ob der Aufrufer das geheime Abo-Schlüsselmaterial (auth) des Endpoints kennt. */
+function validEndpoint(endpoint: unknown, auth: unknown): asserts endpoint is string {
+  if (typeof endpoint !== "string" || !/^https:\/\//.test(endpoint) || endpoint.length > 1000) {
+    throw new Error("Ungültiger Endpoint");
+  }
+  if (typeof auth !== "string" || auth.length < 8 || auth.length > 200) {
+    throw new Error("Ungültiges Abo");
+  }
+}
+
 export const savePushSubscription = createServerFn({ method: "POST" })
   .inputValidator(
     (d: { endpoint: string; p256dh: string; auth: string; regionIds: string[] }) => d,
   )
   .handler(async ({ data }) => {
-    if (!/^https:\/\//.test(data.endpoint) || data.endpoint.length > 1000) {
-      throw new Error("Ungültiger Endpoint");
+    validEndpoint(data.endpoint, data.auth);
+    if (typeof data.p256dh !== "string" || !Array.isArray(data.regionIds)) {
+      throw new Error("Ungültiges Abo");
     }
     const { adminClient } = await import("@/lib/warnings.server");
     const sb = await adminClient();
-    const { error } = await sb.from("push_subscriptions").upsert(
-      {
-        endpoint: data.endpoint,
-        p256dh: data.p256dh.slice(0, 400),
-        auth: data.auth.slice(0, 200),
-        region_ids: Array.from(new Set(data.regionIds)).slice(0, 50),
-      },
-      { onConflict: "endpoint" },
-    );
-    if (error) throw new Error(error.message);
+    const { data: existing } = await sb
+      .from("push_subscriptions")
+      .select("auth")
+      .eq("endpoint", data.endpoint)
+      .maybeSingle();
+    if (existing && existing.auth !== data.auth) throw new Error("Nicht berechtigt");
+    const row = {
+      endpoint: data.endpoint,
+      p256dh: data.p256dh.slice(0, 400),
+      auth: data.auth,
+      region_ids: Array.from(new Set(data.regionIds.filter((x) => typeof x === "string"))).slice(0, 50),
+    };
+    const { error } = existing
+      ? await sb
+          .from("push_subscriptions")
+          .update({ p256dh: row.p256dh, region_ids: row.region_ids })
+          .eq("endpoint", data.endpoint)
+          .eq("auth", data.auth)
+      : await sb.from("push_subscriptions").insert(row);
+    if (error) throw new Error("Speichern fehlgeschlagen");
     return { ok: true };
   });
 
 export const getPushSubscription = createServerFn({ method: "POST" })
-  .inputValidator((d: { endpoint: string }) => d)
+  .inputValidator((d: { endpoint: string; auth: string }) => d)
   .handler(async ({ data }) => {
-    if (!/^https:\/\//.test(data.endpoint) || data.endpoint.length > 1000) {
-      throw new Error("Ungültiger Endpoint");
-    }
+    validEndpoint(data.endpoint, data.auth);
     const { adminClient } = await import("@/lib/warnings.server");
     const sb = await adminClient();
     const { data: row, error } = await sb
       .from("push_subscriptions")
       .select("region_ids, updated_at")
       .eq("endpoint", data.endpoint)
+      .eq("auth", data.auth)
       .maybeSingle();
-    if (error) throw new Error(error.message);
+    if (error) throw new Error("Abruf fehlgeschlagen");
     if (!row) return { found: false, regionIds: [] as string[], updatedAt: null as string | null };
     return {
       found: true,
@@ -225,11 +245,15 @@ export const getPushSubscription = createServerFn({ method: "POST" })
   });
 
 export const removePushSubscription = createServerFn({ method: "POST" })
-  .inputValidator((d: { endpoint: string }) => d)
+  .inputValidator((d: { endpoint: string; auth: string }) => d)
   .handler(async ({ data }) => {
+    validEndpoint(data.endpoint, data.auth);
     const { adminClient } = await import("@/lib/warnings.server");
     const sb = await adminClient();
-    await sb.from("push_subscriptions").delete().eq("endpoint", data.endpoint);
+    await sb
+      .from("push_subscriptions")
+      .delete()
+      .eq("endpoint", data.endpoint)
+      .eq("auth", data.auth);
     return { ok: true };
   });
-

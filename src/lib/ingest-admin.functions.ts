@@ -125,9 +125,12 @@ export interface AutoThunderStatus {
 }
 
 /** Status des letzten automatischen Gewitter-Laufs (Cron alle 5 Minuten). */
-export const getAutoThunderStatus = createServerFn({ method: "GET" }).handler(
-  async (): Promise<AutoThunderStatus> => {
-    const { adminClient } = await import("@/lib/warnings.server");
+export const getAutoThunderStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string }) => d)
+  .handler(
+  async ({ data: input }): Promise<AutoThunderStatus> => {
+    const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
+    assertAdmin(input.password);
     const sb = await adminClient();
     const { data } = await sb
       .from("job_runs")

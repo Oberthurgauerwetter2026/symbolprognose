@@ -34,6 +34,7 @@ export type FavoritesStorageMode = "local" | "bridge" | "memory";
 let mode: FavoritesStorageMode | null = null;
 let memory: FavoritePlace[] = [];
 let initPromise: Promise<FavoritesStorageMode> | null = null;
+let hostOrigin: string | null = null;
 
 function isValid(p: unknown): p is FavoritePlace {
   if (!p || typeof p !== "object") return false;
@@ -121,9 +122,15 @@ export function initFavoritesStorage(): Promise<FavoritesStorageMode> {
 
   // Host nach den gespeicherten Favoriten fragen. Antwortet niemand, bleibt es
   // beim Arbeitsspeicher für die laufende Sitzung.
+  try {
+    hostOrigin = document.referrer ? new URL(document.referrer).origin : null;
+  } catch {
+    hostOrigin = null;
+  }
   initPromise = new Promise<FavoritesStorageMode>((resolve) => {
     let settled = false;
     const onMessage = (e: MessageEvent) => {
+      if (e.source !== window.parent || !hostOrigin || e.origin !== hostOrigin) return;
       const d = e.data as { type?: string; value?: unknown } | null;
       if (!d || d.type !== MSG_VALUE) return;
       memory = sanitize(d.value);
@@ -143,7 +150,7 @@ export function initFavoritesStorage(): Promise<FavoritesStorageMode> {
       resolve(mode);
     }, BRIDGE_TIMEOUT_MS);
     try {
-      window.parent.postMessage({ type: MSG_GET, key: FAVORITES_KEY }, "*");
+      if (hostOrigin) window.parent.postMessage({ type: MSG_GET, key: FAVORITES_KEY }, hostOrigin);
     } catch {
       /* Host nicht erreichbar – Timeout greift */
     }
@@ -195,11 +202,11 @@ function writeFavoritePlaces(next: FavoritePlace[]): FavoritePlace[] {
       /* Speicher nicht verfügbar – Favoriten sind optional */
     }
   }
-  if (mode === "bridge") {
+  if (mode === "bridge" && hostOrigin) {
     try {
       window.parent.postMessage(
         { type: MSG_SET, key: FAVORITES_KEY, value: next },
-        "*",
+        hostOrigin ?? "null",
       );
     } catch {
       /* Host nicht erreichbar */

@@ -1165,7 +1165,7 @@ function AutoThunderSection({ password }: { password: string }) {
 
   const load = async () => {
     try {
-      setStatus(await getAutoThunderStatus());
+      setStatus(await getAutoThunderStatus({ data: { password } }));
     } catch (e) {
       setMsg((e as Error).message);
     }

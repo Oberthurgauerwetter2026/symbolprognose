@@ -256,7 +256,9 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
       setSubscribed(Boolean(sub));
       if (!sub) return;
       try {
-        const info = await getPushSubscription({ data: { endpoint: sub.endpoint } });
+        const info = await getPushSubscription({
+          data: { endpoint: sub.endpoint, auth: bufToB64(sub.getKey("auth")) },
+        });
         setMissing(!info.found);
         setSavedRegionIds(info.regionIds);
         setRegionIds(info.regionIds);
@@ -362,7 +364,9 @@ export function PushOptIn({ defaultRegionId }: { defaultRegionId?: string | null
       const reg = await navigator.serviceWorker.getRegistration("/push-sw.js");
       const sub = await reg?.pushManager.getSubscription();
       if (sub) {
-        await removePushSubscription({ data: { endpoint: sub.endpoint } });
+        await removePushSubscription({
+          data: { endpoint: sub.endpoint, auth: bufToB64(sub.getKey("auth")) },
+        });
         await sub.unsubscribe();
       }
       setSubscribed(false);
