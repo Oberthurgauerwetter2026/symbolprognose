@@ -7,7 +7,7 @@ const HUB = "https://live-wetterkarte.lovable.app";
 const AMR = "https://oberthurgauerwetter2026.lovable.app";
 const W = [12, 24, 48, 72] as const;
 const sums = (m: "rain" | "snow", p: "past" | "future", name: string, hint: string): TickerProduct[] =>
-  W.map((h) => ({ id: `${m}-${p}-${h}`, label: `${name} ${h} h`, group: `${name}`, path: `/karten/niederschlag?p=${p}&m=${m}&h=${h}`, embed: `/embed/niederschlag?p=${p}&m=${m}&h=${h}`, hint }));
+  W.map((h) => ({ id: `${m}-${p}-${h}`, label: `${name} ${h} h`, group: `${name}`, path: `/karten/niederschlag?p=${p}&m=${m}&h=${h}`, embed: `/embed/niederschlag?p=${p}&m=${m}&h=${h}&clean=1`, hint }));
 
 /** Alle Karten aus allen Projekten. Pfade mit https:// verlinken direkt in andere Projekte. */
 export const TICKER_PRODUCTS: TickerProduct[] = [

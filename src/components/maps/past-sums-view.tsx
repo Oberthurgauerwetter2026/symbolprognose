@@ -20,12 +20,14 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
   });
   const [mode, setMode] = useState<"rain" | "snow">("rain");
   const [period, setPeriod] = useState<"past" | "future">("past");
+  const [clean, setClean] = useState(false);
   // Direktlinks (z. B. aus dem Ticker): ?p=past|future&m=rain|snow&h=12|24|48|72
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const h = Number(q.get("h"));
     if ((PAST_WINDOWS as readonly number[]).includes(h)) setHours(h as PastWindow);
     if (q.get("m") === "snow" || q.get("m") === "rain") setMode(q.get("m") as "rain" | "snow");
+    if (q.get("clean") === "1") setClean(true);
     if (q.get("p") === "future" || q.get("p") === "past") setPeriod(q.get("p") as "past" | "future");
   }, []);
   const fineSnow = useMemo(() => {
@@ -83,6 +85,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
 
   return (
     <div className="space-y-3">
+      {!clean && <>
       <div className="space-y-4 pb-1">
         <div className="grid w-full max-w-sm grid-cols-2 gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Zeitrichtung">
           <Button variant="ghost" aria-pressed={period === "past"} className={btn(period === "past")} onClick={() => setPeriod("past")}><History />Gefallen</Button>
@@ -113,6 +116,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
           <Button variant="ghost" size="icon" className="mb-1 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={busy ? "Grafik wird erstellt" : "Grafik herunterladen"} title="Grafik herunterladen" disabled={busy} onClick={savePng}><Download className={busy ? "animate-pulse" : undefined} /></Button>
         )}
       </div>
+      </>}
       {isLoading && <div className="h-[420px] rounded-lg bg-muted animate-pulse" />}
       {error && <div className="text-sm text-destructive">Summen konnten nicht geladen werden.</div>}
       <div ref={mapRef}>
@@ -171,7 +175,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         );
       })()}
       </div>
-      {embed && (
+      {embed && !clean && (
         <a href="https://oberthurgauer-wetter.lovable.app/karten/niederschlag" target="_blank" rel="noopener" className="block text-xs text-muted-foreground underline">
           Mehr auf Oberthurgauer Wetter
         </a>
