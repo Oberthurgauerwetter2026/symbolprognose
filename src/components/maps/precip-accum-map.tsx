@@ -176,6 +176,7 @@ interface Props {
   dataLabel?: string;
   forecast?: boolean;
   updatedLabel?: string;
+  endLabel?: string;
   stations?: { id: string; name: string; lat: number; lon: number; value: number; own?: boolean }[];
 }
 
@@ -193,7 +194,7 @@ function stationIcon(name: string, value: number, unit: string, own = false) {
   });
 }
 
-function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel, updatedLabel, dataLabel = "eigene Stationen, MeteoSchweiz", forecast = false, stations = [] }: Props) {
+function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel, updatedLabel, endLabel, dataLabel = "eigene Stationen, MeteoSchweiz", forecast = false, stations = [] }: Props) {
   const classes = mode === "snow" ? SNOW_CLASSES : ACCUM_CLASSES;
   const unit = mode === "snow" ? "cm" : "mm";
   const accum = useMemo(() => {
@@ -232,6 +233,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
           <h2 className="text-base font-semibold tracking-tight text-zinc-900">
             {forecast ? (mode === "snow" ? "Erwarteter Neuschnee" : "Erwarteter Niederschlag") : mode === "snow" ? "Gefallener Neuschnee" : "Gefallener Niederschlag"}
           </h2>
+          {forecast && endLabel && <span className="text-xs font-medium text-zinc-500">{endLabel}</span>}
         </div>
         <p className="text-xs text-zinc-500 tabular-nums">
           {accum.hasData ? <>Max <span className="font-semibold text-zinc-800">{accum.maxMm.toFixed(1)} {unit}</span> · {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}</> : "Mengen derzeit nicht verfügbar"}

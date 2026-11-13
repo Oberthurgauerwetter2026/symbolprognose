@@ -87,11 +87,16 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
       </div>
       <div className="flex items-end justify-between gap-3 border-t border-border/60 pt-3">
         <div className="min-w-0 space-y-2">
-          <div className="text-xs font-medium text-muted-foreground">{period === "future" ? "Nächste Stunden" : "Letzte Stunden"}</div>
+          <div className="text-xs font-medium text-muted-foreground"> {period === "future" ? "Nächste Stunden" : "Letzte Stunden"}</div>
           <div className="grid grid-cols-4 gap-1 rounded-lg bg-card p-1 ring-1 ring-border/50" role="group" aria-label="Zeitraum">
             {PAST_WINDOWS.map((h) => (
-              <Button variant="ghost" key={h} aria-pressed={hours === h} className={cn(btn(hours === h), "px-2 sm:px-3")} onClick={() => setHours(h)}>
-                {`${h} h`}
+              <Button variant="ghost" key={h} aria-pressed={hours === h} className={cn(btn(hours === h), "px-2 sm:px-3", period === "future" && "h-11")} onClick={() => setHours(h)}>
+                {period === "future" && data ? (
+                  <span className="flex flex-col items-center leading-tight">
+                    <span>{`${h} h`}</span>
+                    <span className="text-[10px] font-medium opacity-75">{forecastEnd(data.generatedAt, h, "short")}</span>
+                  </span>
+                ) : `${h} h`}
               </Button>
             ))}
           </div>
@@ -121,6 +126,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
                 updatedLabel={stand}
                 dataLabel={mode === "snow" && fineSnow ? "MeteoSchweiz ICON-CH1/CH2, Schneefallgrenze aufs Gelände übertragen" : "MeteoSchweiz ICON-CH1/CH2"}
                 forecast
+                endLabel={`bis ${forecastEnd(data.generatedAt, hours, "long")}`}
               />
             </Suspense>
           );
@@ -164,4 +170,17 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
       )}
     </div>
   );
+}
+
+function forecastEnd(from: string, h: number, style: "short" | "long") {
+  const d = new Date(Date.parse(from) + h * 3600_000);
+  const tz = "Europe/Zurich";
+  if (style === "short") {
+    const wd = d.toLocaleDateString("de-CH", { timeZone: tz, weekday: "short" }).replace(".", "");
+    const dm = d.toLocaleDateString("de-CH", { timeZone: tz, day: "numeric", month: "numeric" });
+    return `${wd} ${dm}`;
+  }
+  const date = d.toLocaleDateString("de-CH", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });
+  const time = d.toLocaleTimeString("de-CH", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+  return `${date}, ${time} Uhr`;
 }
