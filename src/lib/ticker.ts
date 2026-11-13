@@ -12,7 +12,7 @@ export const TICKER_PRODUCTS: TickerProduct[] = [
   { id: "temperatur", label: "Temperatur", path: "/karten/region", hint: "z. B. Amriswil −3.4 °C" },
   { id: "wind", label: "Wind", path: "/karten/wind", hint: "z. B. Böen bis 75 km/h" },
   { id: "satellit", label: "Satellitenbild", path: "/karten/satellit", hint: "z. B. Hochnebel bis 900 m" },
-  { id: "bodendruck", label: "Bodendruck", path: "/karten/wind", hint: "z. B. Tief über der Nordsee" },
+  { id: "bodendruck", label: "Bodendruck", path: "/karten/bodendruck", hint: "z. B. Tief über der Nordsee" },
   { id: "warnungen", label: "Warnungen", path: "/karten/warnungen", hint: "z. B. Stufe 2 Glätte" },
   { id: "lokal", label: "Lokalprognose", path: "/karten/lokal", hint: "z. B. morgen sonnig, 8 °C" },
 ];

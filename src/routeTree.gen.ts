@@ -33,6 +33,7 @@ import { Route as EmbedWidgetWarnungenRouteImport } from './routes/embed.widget-
 import { Route as EmbedWidgetWindRouteImport } from './routes/embed.widget-wind'
 import { Route as EmbedWindRouteImport } from './routes/embed.wind'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
+import { Route as KartenBodendruckRouteImport } from './routes/karten.bodendruck'
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
 import { Route as KartenNiederschlagRouteImport } from './routes/karten.niederschlag'
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
@@ -173,6 +174,11 @@ const InternIconsRoute = InternIconsRouteImport.update({
   path: '/intern/icons',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KartenBodendruckRoute = KartenBodendruckRouteImport.update({
+  id: '/karten/bodendruck',
+  path: '/karten/bodendruck',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KartenLokalRoute = KartenLokalRouteImport.update({
   id: '/karten/lokal',
   path: '/karten/lokal',
@@ -303,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/embed/widget-wind': typeof EmbedWidgetWindRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
+  '/karten/bodendruck': typeof KartenBodendruckRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
@@ -348,6 +355,7 @@ export interface FileRoutesByTo {
   '/embed/widget-wind': typeof EmbedWidgetWindRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
+  '/karten/bodendruck': typeof KartenBodendruckRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
@@ -394,6 +402,7 @@ export interface FileRoutesById {
   '/embed/widget-wind': typeof EmbedWidgetWindRoute
   '/embed/wind': typeof EmbedWindRoute
   '/intern/icons': typeof InternIconsRoute
+  '/karten/bodendruck': typeof KartenBodendruckRoute
   '/karten/lokal': typeof KartenLokalRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
@@ -441,6 +450,7 @@ export interface FileRouteTypes {
     | '/embed/widget-wind'
     | '/embed/wind'
     | '/intern/icons'
+    | '/karten/bodendruck'
     | '/karten/lokal'
     | '/karten/niederschlag'
     | '/karten/radar'
@@ -486,6 +496,7 @@ export interface FileRouteTypes {
     | '/embed/widget-wind'
     | '/embed/wind'
     | '/intern/icons'
+    | '/karten/bodendruck'
     | '/karten/lokal'
     | '/karten/niederschlag'
     | '/karten/radar'
@@ -531,6 +542,7 @@ export interface FileRouteTypes {
     | '/embed/widget-wind'
     | '/embed/wind'
     | '/intern/icons'
+    | '/karten/bodendruck'
     | '/karten/lokal'
     | '/karten/niederschlag'
     | '/karten/radar'
@@ -577,6 +589,7 @@ export interface RootRouteChildren {
   EmbedWidgetWindRoute: typeof EmbedWidgetWindRoute
   EmbedWindRoute: typeof EmbedWindRoute
   InternIconsRoute: typeof InternIconsRoute
+  KartenBodendruckRoute: typeof KartenBodendruckRoute
   KartenLokalRoute: typeof KartenLokalRoute
   KartenNiederschlagRoute: typeof KartenNiederschlagRoute
   KartenRadarRoute: typeof KartenRadarRoute
@@ -768,6 +781,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InternIconsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/karten/bodendruck': {
+      id: '/karten/bodendruck'
+      path: '/karten/bodendruck'
+      fullPath: '/karten/bodendruck'
+      preLoaderRoute: typeof KartenBodendruckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/karten/lokal': {
       id: '/karten/lokal'
       path: '/karten/lokal'
@@ -929,6 +949,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedWidgetWindRoute: EmbedWidgetWindRoute,
   EmbedWindRoute: EmbedWindRoute,
   InternIconsRoute: InternIconsRoute,
+  KartenBodendruckRoute: KartenBodendruckRoute,
   KartenLokalRoute: KartenLokalRoute,
   KartenNiederschlagRoute: KartenNiederschlagRoute,
   KartenRadarRoute: KartenRadarRoute,
