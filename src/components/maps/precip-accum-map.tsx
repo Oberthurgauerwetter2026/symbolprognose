@@ -5,6 +5,7 @@ import { DockZoomControl } from "./map-dock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
 import { MapContainer, TileLayer, GeoJSON, ImageOverlay, Marker, Tooltip, useMapEvents, useMap } from "react-leaflet";
+import { SUMS_REGION_BOUNDS } from "./sums-framing";
 
 
 import L from "leaflet";
@@ -147,12 +148,18 @@ function valueAt(values: number[], gridLat: number[], gridLon: number[], lat: nu
 
 type Hover = { x: number; y: number; v: number } | null;
 
-function SnowMapFraming({ mode }: { mode: "rain" | "snow" }) {
+function RegionalPreviewFraming() {
   const map = useMap();
   useEffect(() => {
-    // Keep the alpine snow area clear of the legend without changing rain framing.
-    map.setView(mode === "snow" ? [47.43, 9.32] : MAP_CENTER, mode === "snow" ? 9.5 : MAP_ZOOM, { animate: false });
-  }, [map, mode]);
+    const fit = () => {
+      map.invalidateSize({ animate: false });
+      map.fitBounds(SUMS_REGION_BOUNDS, { paddingTopLeft: [12, 12], paddingBottomRight: [12, 48], animate: false });
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
   return null;
 }
 
@@ -175,6 +182,7 @@ interface Props {
   sourceLabel: string;
   dataLabel?: string;
   forecast?: boolean;
+  clean?: boolean;
   updatedLabel?: string;
   endLabel?: string;
   stations?: { id: string; name: string; lat: number; lon: number; value: number; own?: boolean }[];
@@ -194,7 +202,7 @@ function stationIcon(name: string, value: number, unit: string, own = false) {
   });
 }
 
-function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel, updatedLabel, endLabel, dataLabel = "eigene Stationen, MeteoSchweiz", forecast = false, stations = [] }: Props) {
+function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabel, updatedLabel, endLabel, dataLabel = "eigene Stationen, MeteoSchweiz", forecast = false, clean = false, stations = [] }: Props) {
   const classes = mode === "snow" ? SNOW_CLASSES : ACCUM_CLASSES;
   const unit = mode === "snow" ? "cm" : "mm";
   const accum = useMemo(() => {
@@ -224,7 +232,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
 
   return (
     <Card ref={cardRef} className="overflow-hidden border-border shadow-sm bg-card">
-      <div className={`flex items-center justify-between gap-3 flex-wrap px-4 py-3 border-b border-border/60 ${forecast ? "sums-model-header" : "bg-card"}`}>
+      {!clean && <div className={`flex items-center justify-between gap-3 flex-wrap px-4 py-3 border-b border-border/60 ${forecast ? "sums-model-header" : "bg-card"}`}>
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground tabular-nums shadow-sm">
             {forecast ? <ChartNoAxesCombined className="size-3.5" /> : <History className="size-3.5" />}
@@ -238,8 +246,8 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
         <p className="text-xs text-zinc-500 tabular-nums">
           {accum.hasData ? <>Max <span className="font-semibold text-zinc-800">{accum.maxMm.toFixed(1)} {unit}</span> · {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}</> : "Mengen derzeit nicht verfügbar"}
         </p>
-      </div>
-      {mode === "snow" && (
+      </div>}
+      {!clean && mode === "snow" && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground border-b border-border/60">
           <Snowflake className="size-3.5 shrink-0 text-accent" />
           {!accum.hasData ? "Neuschneedaten derzeit nicht verfügbar" : accum.incomplete ? "Modellierter Neuschnee · Daten teilweise unvollständig" : accum.maxMm === 0 ? "Kein modellierter Neuschnee im dargestellten Gebiet" : forecast ? "Neuschnee aus Modellberechnung · schneefreie Orte: 0.0 cm" : "Fläche: Modellberechnung ICON-CH1/CH2 · Stationen: gemessene Schneehöhen-Zunahme (MeteoSchweiz)"}
@@ -269,7 +277,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             zoom={MAP_ZOOM}
             zoomSnap={0.5}
             zoomDelta={0.5}
-            minZoom={9}
+            minZoom={clean ? 6 : 9}
             maxZoom={15}
             maxBounds={MAP_BOUNDS}
             maxBoundsViscosity={1.0}
@@ -280,7 +288,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             className="mch-precip-sums"
           >
             <ForeignReliefLayers />
-            <SnowMapFraming mode={mode} />
+            {clean && <RegionalPreviewFraming />}
             <TileLayer
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
               maxZoom={18}
@@ -334,8 +342,8 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
                 <Tooltip direction="top" offset={[0, -24]}>{`${s.name} (${s.own ? "eigene Station" : "Station MeteoSchweiz"})`}</Tooltip>
               </Marker>
             ))}
-            <HoverProbe values={accum.values} gridLat={gridLat} gridLon={gridLon} onHover={setHover} />
-            <DockZoomControl />
+            {!clean && <HoverProbe values={accum.values} gridLat={gridLat} gridLon={gridLon} onHover={setHover} />}
+            {!clean && <DockZoomControl />}
           </MapContainer>
 
           {hover && (() => {
@@ -353,7 +361,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             );
           })()}
 
-          {stations.length > 0 && (
+          {!clean && stations.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -368,7 +376,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
           )}
 
           {/* Schlanker Legenden-Streifen (Radar-Stil) */}
-          <div className="pointer-events-none absolute bottom-2 left-1/2 z-[500] flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-2xl bg-white/90 px-3 py-1.5 shadow-md ring-1 ring-black/5 backdrop-blur-md">
+          <div data-map-legend className="pointer-events-none absolute bottom-2 left-1/2 z-[500] flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-2xl bg-white/90 px-3 py-1.5 shadow-md ring-1 ring-black/5 backdrop-blur-md">
             <div className="w-52 sm:w-64">
               <div
                 className="h-2 rounded-full"

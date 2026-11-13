@@ -238,7 +238,7 @@ html.embed .embed-fallback {
   height: auto !important;
   aspect-ratio: auto !important;
 }
-.ticker-map-only :has(.leaflet-container) > :not(:has(.leaflet-container)):not(.leaflet-container):not([data-source-footer]):not(style):not(svg) {
+.ticker-map-only :has(.leaflet-container) > :not(:has(.leaflet-container)):not(.leaflet-container):not([data-source-footer]):not([data-map-legend]):not(style):not(svg) {
   display: none !important;
 }
 .ticker-map-only .leaflet-container {

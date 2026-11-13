@@ -1,6 +1,8 @@
 # Precipitation sums usability
+- [x] Restore identical regional framing for rain and snow; map-only previews fit Oberthurgau, Lake Constance and Alpstein at desktop/mobile ticker sizes, without headers or buttons and with a retained color scale. Sixteen tests pass; all six local map types checked without buttons and a real public ticker post opens its attached map without runtime errors.
 - [x] Local ticker map previews use same-origin map-only embeds; seven catalog tests preserve all 16 sum selections, and live sum/wind/radar/region/warning/satellite views checked without toolbars.
-- [ ] Verify the signed-in ticker selection and a visitor post with an attached map: available admin credential was rejected and the current public post has no map.
+- [x] Verify a visitor post with an attached map: public ticker opens its selected map successfully.
+- [ ] Verify the signed-in ticker selection: available admin credential was previously rejected; requires a valid admin session.
 - [ ] Make external Weather Hub and Amriswil product previews map-only: their pages require changes in the originating projects; read-only snapshots cannot be modified here.
 - [x] Apply the shared DEM to past model-fallback snow for 12/24/48/72 h; measured snow unchanged. 13 tests pass; live 72 h model fallback follows alpine relief, mobile/desktop switching has no runtime errors or overflow.
 - [x] Separate period and precipitation selection into two rows, with time windows directly above the map and an independent download icon; live mobile/desktop switching checked, no overflow or browser errors.

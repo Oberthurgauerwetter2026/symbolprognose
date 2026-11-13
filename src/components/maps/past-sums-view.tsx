@@ -128,6 +128,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
           return (
             <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
               <LazyPrecipAccumMap
+                clean={clean}
                 values={mode === "snow" ? fineSnow?.values ?? f.snow[hours] : f.rain[hours]}
                 gridLat={mode === "snow" && fineSnow ? fineSnow.gridLat : data.gridLat}
                 gridLon={mode === "snow" && fineSnow ? fineSnow.gridLon : data.gridLon}
@@ -161,6 +162,7 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
         return (
         <Suspense fallback={<div className="h-[420px] rounded-lg bg-muted" />}>
           <LazyPrecipAccumMap
+            clean={clean}
             values={values}
             gridLat={grid.gridLat}
             gridLon={grid.gridLon}
