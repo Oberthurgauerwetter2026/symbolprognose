@@ -45,23 +45,48 @@ function ProductChip({ post }: { post: TickerPost }) {
   );
 }
 
+function Thumb({ post }: { post: TickerPost }) {
+  const p = productById(post.product);
+  const v = p ? productPreview(p) : null;
+  const src = post.image ?? (v?.kind === "image" ? v.src : null);
+  if (src) return <img src={src} alt="" loading="lazy" className="h-10 w-10 shrink-0 rounded-lg object-cover" />;
+  if (p) return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-[9px] font-semibold uppercase leading-tight text-accent text-center">Karte</span>;
+  return null;
+}
+
+/** Ein Tipp öffnet die Meldung: voller Text, Bild und Karte. Geschlossen nur eine Zeile. */
 function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last: boolean }) {
+  const [open, setOpen] = useState(false);
   return (
     <li className="relative pl-6">
       {!last && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-border" />}
       <span className={`absolute left-0 top-[6px] h-[11px] w-[11px] rounded-full ${latest ? "bg-accent ring-4 ring-accent/20" : "bg-muted-foreground/40"}`} />
-      <div className="pb-4">
-        <div className="text-xs font-semibold tabular-nums text-muted-foreground">
-          <span className={latest ? "text-accent" : ""}>{time(post.created_at)}</span> · {day(post.created_at)}
+      <div className="pb-3">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+          className="flex w-full items-start gap-3 text-left">
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-semibold tabular-nums text-muted-foreground">
+              <span className={latest ? "text-accent" : ""}>{time(post.created_at)}</span> · {day(post.created_at)}
+            </span>
+            <span className={`mt-0.5 block text-[15px] leading-snug text-foreground ${open ? "" : "line-clamp-1"}`}>{post.body}</span>
+          </span>
+          {!open && <Thumb post={post} />}
+          <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+        </button>
+        <div className="grid transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
+          <div className="overflow-hidden">
+            {open && (
+              <>
+                {post.image && <img src={post.image} alt="" loading="lazy" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
+                <ProductChip post={post} />
+              </>
+            )}
+          </div>
         </div>
-        <p className="mt-0.5 text-[15px] leading-snug text-foreground">{post.body}</p>
-        {post.image && <img src={post.image} alt="" loading="lazy" className="mt-2 max-h-64 w-full rounded-xl object-cover" />}
-        <ProductChip post={post} />
       </div>
     </li>
   );
 }
-
 function Header() {
   return (
     <div className="mb-3 flex items-center gap-2">
