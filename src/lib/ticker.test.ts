@@ -16,11 +16,25 @@ describe("visiblePosts", () => {
   });
 });
 
-import { productById as _pb, TICKER_PRODUCTS as _all } from "./ticker";
+import { productById as _pb, productPreview, TICKER_PRODUCTS as _all } from "./ticker";
 describe("ticker catalog", () => {
   it("hat jede Summenkarte 12/24/48/72 h einzeln", () => {
     for (const h of [12, 24, 48, 72]) assert.equal(_pb(`snow-future-${h}`)?.path, `/karten/niederschlag?p=future&m=snow&h=${h}`);
     assert.equal(_all.filter((p) => p.path.includes("niederschlag")).length, 16);
   });
   it("alte Produkt-IDs bleiben gültig", () => assert.equal(_pb("regensumme")?.id, "rain-past-24"));
+  it("keeps all 16 selected sum periods and phases in same-origin map-only previews", () => {
+    for (const phase of ["rain", "snow"]) for (const period of ["past", "future"]) for (const h of [12, 24, 48, 72]) {
+      const p = _pb(`${phase}-${period}-${h}`);
+      assert.ok(p);
+      assert.equal(productPreview(p)?.src, `/embed/niederschlag?p=${period}&m=${phase}&h=${h}&clean=1`);
+    }
+  });
+  it("uses map-only previews for every local map", () => {
+    for (const id of ["radar", "wind", "temperatur", "satellit", "warnungen"]) {
+      const p = _pb(id);
+      assert.ok(p);
+      assert.equal(new URL(productPreview(p)?.src ?? "", "https://example.test").searchParams.get("clean"), "1");
+    }
+  });
 });

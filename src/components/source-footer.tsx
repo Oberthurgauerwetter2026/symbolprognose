@@ -9,7 +9,7 @@ export function SourceFooter({ updated, data, map, children, className }: {
   className?: string;
 }) {
   return (
-    <p className={cn("mt-2.5 text-left text-[10px] leading-relaxed text-muted-foreground", className)}>
+    <p data-source-footer className={cn("mt-2.5 text-left text-[10px] leading-relaxed text-muted-foreground", className)}>
       {updated ? <>Aktualisiert {updated} · </> : null}
       Oberthurgauer Wetter
       {data ? <> · Daten: {data}</> : null}

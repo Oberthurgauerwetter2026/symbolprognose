@@ -223,6 +223,41 @@ html.embed .embed-fallback {
   background: transparent;
 }
 
+/* Ticker: retain only the actual map and its mandatory single credit line.
+   Scope structural flattening to ancestors of Leaflet, never its internal panes. */
+.ticker-map-only :has(.leaflet-container) {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  height: auto !important;
+  aspect-ratio: auto !important;
+}
+.ticker-map-only :has(.leaflet-container) > :not(:has(.leaflet-container)):not(.leaflet-container):not([data-source-footer]):not(style):not(svg) {
+  display: none !important;
+}
+.ticker-map-only .leaflet-container {
+  position: relative !important;
+  width: 100% !important;
+  height: calc(100svh - 38px) !important;
+  min-height: 0 !important;
+}
+.ticker-map-only .leaflet-control-container,
+.ticker-map-only [data-map-controls] { display: none !important; }
+.ticker-map-only .leaflet-container { pointer-events: none; }
+.ticker-map-only [data-source-footer] {
+  display: block !important;
+  margin: 0 !important;
+  padding: 3px 6px !important;
+  max-height: 38px;
+  overflow: hidden;
+}
+
 
 
 

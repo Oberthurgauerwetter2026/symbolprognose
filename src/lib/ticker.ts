@@ -15,12 +15,12 @@ export const TICKER_PRODUCTS: TickerProduct[] = [
   ...sums("snow", "past", "Neuschnee gefallen", "z. B. bis 15 cm"),
   ...sums("rain", "future", "Regensumme Prognose", "z. B. bis 25 mm"),
   ...sums("snow", "future", "Neuschnee Prognose", "z. B. bis 10 cm"),
-  { id: "radar", label: "Radar", group: "Karten", path: "/karten/radar", embed: "/embed/radar",  hint: "z. B. Schauer ziehen ostwärts" },
-  { id: "temperatur", label: "Regionskarte", group: "Karten", path: "/karten/region", embed: "/embed/region",  hint: "z. B. Amriswil −3.4 °C" },
-  { id: "wind", label: "Wind", group: "Karten", path: "/karten/wind", embed: "/embed/wind",  hint: "z. B. Böen bis 75 km/h" },
-  { id: "satellit", label: "Satellitenbild", group: "Karten", path: "/karten/satellit", embed: "/embed/satellit",  hint: "z. B. Hochnebel bis 900 m" },
+  { id: "radar", label: "Radar", group: "Karten", path: "/karten/radar", embed: "/embed/radar?clean=1",  hint: "z. B. Schauer ziehen ostwärts" },
+  { id: "temperatur", label: "Regionskarte", group: "Karten", path: "/karten/region", embed: "/embed/region?clean=1",  hint: "z. B. Amriswil −3.4 °C" },
+  { id: "wind", label: "Wind", group: "Karten", path: "/karten/wind", embed: "/embed/wind?clean=1",  hint: "z. B. Böen bis 75 km/h" },
+  { id: "satellit", label: "Satellitenbild", group: "Karten", path: "/karten/satellit", embed: "/embed/satellit?clean=1",  hint: "z. B. Hochnebel bis 900 m" },
   { id: "bodendruck", label: "Bodendruck", group: "Karten", path: "/karten/bodendruck", image: AMR + "/api/public/maps/europe-pressure-latest.svg",  hint: "z. B. Tief über der Nordsee" },
-  { id: "warnungen", label: "Warnungen", group: "Karten", path: "/karten/warnungen", embed: "/embed/warnungen",  hint: "z. B. Stufe 2 Glätte" },
+  { id: "warnungen", label: "Warnungen", group: "Karten", path: "/karten/warnungen", embed: "/embed/warnungen?clean=1",  hint: "z. B. Stufe 2 Glätte" },
   { id: "lokal", label: "Lokalprognose", group: "Karten", path: "/karten/lokal", embed: "/embed/lokalprognose",  hint: "z. B. morgen sonnig, 8 °C" },
   { id: "hub-karte", label: "Live-Stationskarte", group: "Weather Hub", path: HUB + "/", embed: HUB + "/",  hint: "z. B. Amriswil 2.1 °C" },
   { id: "hub-summen", label: "Stations-Summenkarte", group: "Weather Hub", path: HUB + "/summenkarte", embed: HUB + "/summenkarte",  hint: "z. B. 24 h: bis 12 mm" },
@@ -34,7 +34,7 @@ const LEGACY: Record<string, string> = {
 export const productUrl = (p: TickerProduct) => (p.path.startsWith("http") ? p.path : SITE + p.path);
 /** Live-Vorschau: Bild-URL oder einbettbare Seite. */
 export const productPreview = (p: TickerProduct) =>
-  p.image ? { kind: "image" as const, src: p.image } : p.embed ? { kind: "frame" as const, src: p.embed.startsWith("http") ? p.embed : SITE + p.embed } : null;
+  p.image ? { kind: "image" as const, src: p.image } : p.embed ? { kind: "frame" as const, src: p.embed } : null;
 export const productGroups = () => [...new Set(TICKER_PRODUCTS.map((p) => p.group))];
 
 export const productById = (id: string | null | undefined) =>

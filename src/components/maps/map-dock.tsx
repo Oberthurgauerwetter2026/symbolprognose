@@ -28,6 +28,7 @@ export function DockZoomControl() {
   const map = useMap();
   return (
     <div
+      data-map-controls
       className={DOCK_CLASS}
       ref={(el) => { if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); } }}
     >

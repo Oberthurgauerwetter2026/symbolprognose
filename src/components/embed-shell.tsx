@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
  * Schlanke Hülle für /embed/*-Routen.
@@ -17,6 +17,10 @@ export function EmbedShell({
   flush?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [mapOnly, setMapOnly] = useState(false);
+  useEffect(() => {
+    setMapOnly(new URLSearchParams(window.location.search).get("clean") === "1");
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -127,6 +131,10 @@ export function EmbedShell({
     };
   }, [fillViewport]);
 
+
+  if (mapOnly) {
+    return <div ref={ref} className="ticker-map-only h-[100svh] w-full overflow-hidden">{children}</div>;
+  }
 
   if (fillViewport) {
     return (
