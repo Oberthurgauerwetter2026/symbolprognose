@@ -15,3 +15,12 @@ describe("visiblePosts", () => {
     assert.equal(visiblePosts([at(23)], now).length, 1);
   });
 });
+
+import { productById as _pb, TICKER_PRODUCTS as _all } from "./ticker";
+describe("ticker catalog", () => {
+  it("hat jede Summenkarte 12/24/48/72 h einzeln", () => {
+    for (const h of [12, 24, 48, 72]) assert.equal(_pb(`snow-future-${h}`)?.path, `/karten/niederschlag?p=future&m=snow&h=${h}`);
+    assert.equal(_all.filter((p) => p.path.includes("niederschlag")).length, 16);
+  });
+  it("alte Produkt-IDs bleiben gültig", () => assert.equal(_pb("regensumme")?.id, "rain-past-24"));
+});

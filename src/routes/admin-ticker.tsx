@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ImagePlus, Trash2, X } from "lucide-react";
 import { checkAdminLogin } from "@/lib/warnings.functions";
 import { createTickerPost, deleteTickerPost } from "@/lib/ticker.functions";
-import { MAX_BODY, TICKER_PRODUCTS, productById, visiblePosts } from "@/lib/ticker";
+import { MAX_BODY, TICKER_PRODUCTS, productById, productGroups, productUrl, visiblePosts } from "@/lib/ticker";
 import { TickerWidget } from "@/components/ticker/ticker-view";
 import { tickerQuery } from "./embed.ticker";
 
@@ -89,12 +89,20 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         </div>
         <div>
           <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Produkt anhängen</div>
-          <div className="flex flex-wrap gap-2">
-            {TICKER_PRODUCTS.map((x) => (
-              <button type="button" key={x.id} onClick={() => setProduct(product === x.id ? null : x.id)}
-                className={`rounded-full border px-3 py-1 text-sm transition-colors ${product === x.id ? "border-accent bg-accent text-accent-foreground" : "border-border bg-background"}`}>{x.label}</button>
+          <div className="space-y-3">
+            {productGroups().map((g) => (
+              <div key={g}>
+                <div className="mb-1 text-[12px] text-muted-foreground">{g}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {TICKER_PRODUCTS.filter((x) => x.group === g).map((x) => (
+                    <button type="button" key={x.id} onClick={() => setProduct(product === x.id ? null : x.id)}
+                      className={`rounded-full border px-3 py-1 text-sm transition-colors ${product === x.id ? "border-accent bg-accent text-accent-foreground" : "border-border bg-background"}`}>{x.label.startsWith(g) ? x.label.slice(g.length).trim() : x.label}</button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
+          {p && <a href={productUrl(p)} target="_blank" rel="noopener" className="mt-2 inline-block text-sm text-accent">Karte «{p.label}» öffnen ↗</a>}
           {p && <input value={value} onChange={(e) => setValue(e.target.value)} placeholder={p.hint} className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />}
         </div>
         <div className="flex items-center gap-3">

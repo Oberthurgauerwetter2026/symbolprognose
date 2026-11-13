@@ -1,6 +1,6 @@
 import { blendStations } from "@/lib/station-blend";
 import { downscaleSnow } from "@/lib/snow-downscale";
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
 import { pastPrecipQuery } from "@/lib/map-queries";
@@ -20,6 +20,14 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
   });
   const [mode, setMode] = useState<"rain" | "snow">("rain");
   const [period, setPeriod] = useState<"past" | "future">("past");
+  // Direktlinks (z. B. aus dem Ticker): ?p=past|future&m=rain|snow&h=12|24|48|72
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const h = Number(q.get("h"));
+    if ((PAST_WINDOWS as readonly number[]).includes(h)) setHours(h as PastWindow);
+    if (q.get("m") === "snow" || q.get("m") === "rain") setMode(q.get("m") as "rain" | "snow");
+    if (q.get("p") === "future" || q.get("p") === "past") setPeriod(q.get("p") as "past" | "future");
+  }, []);
   const fineSnow = useMemo(() => {
     if (mode !== "snow" || !data) return null;
     const f = period === "future" ? data.forecast : data;

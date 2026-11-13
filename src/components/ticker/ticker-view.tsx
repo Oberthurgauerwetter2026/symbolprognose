@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ArrowUpRight } from "lucide-react";
-import { productById, SITE } from "@/lib/ticker";
+import { productById, productUrl } from "@/lib/ticker";
 import type { TickerPost } from "@/lib/ticker.functions";
 
 const time = (iso: string) =>
@@ -12,7 +12,7 @@ function ProductChip({ post }: { post: TickerPost }) {
   const p = productById(post.product);
   if (!p) return null;
   return (
-    <a href={SITE + p.path} target="_blank" rel="noopener"
+    <a href={productUrl(p)} target="_blank" rel="noopener"
       className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/60 px-3 py-2 text-sm transition-colors hover:bg-muted">
       <span className="min-w-0">
         <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{p.label}</span>
