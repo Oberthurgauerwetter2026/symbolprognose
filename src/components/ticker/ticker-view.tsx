@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ArrowUpRight } from "lucide-react";
-import { productById, productUrl } from "@/lib/ticker";
+import { productById, productPreview, productUrl, type TickerProduct } from "@/lib/ticker";
 import type { TickerPost } from "@/lib/ticker.functions";
 
 const time = (iso: string) =>
@@ -8,10 +8,31 @@ const time = (iso: string) =>
 const day = (iso: string) =>
   new Date(iso).toLocaleDateString("de-CH", { weekday: "short", day: "numeric", month: "numeric", timeZone: "Europe/Zurich" });
 
+/** Live-Bild der Karte direkt in der Meldung – kein Klick nötig. */
+export function ProductPreview({ product, className = "" }: { product: TickerProduct; className?: string }) {
+  const v = productPreview(product);
+  if (!v) return null;
+  return (
+    <a href={productUrl(product)} target="_blank" rel="noopener" aria-label={`${product.label} öffnen`}
+      className={`relative mt-2 block overflow-hidden rounded-xl border border-border bg-muted ${className}`}>
+      {v.kind === "image" ? (
+        <img src={v.src} alt={product.label} loading="lazy" className="block h-auto w-full" />
+      ) : (
+        <div className="relative aspect-[4/3] w-full">
+          <iframe src={v.src} title={product.label} loading="lazy" tabIndex={-1}
+            className="pointer-events-none absolute inset-0 h-full w-full border-0" />
+        </div>
+      )}
+    </a>
+  );
+}
+
 function ProductChip({ post }: { post: TickerPost }) {
   const p = productById(post.product);
   if (!p) return null;
   return (
+    <>
+    <ProductPreview product={p} />
     <a href={productUrl(p)} target="_blank" rel="noopener"
       className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/60 px-3 py-2 text-sm transition-colors hover:bg-muted">
       <span className="min-w-0">
@@ -20,6 +41,7 @@ function ProductChip({ post }: { post: TickerPost }) {
       </span>
       <ArrowUpRight className="h-4 w-4 shrink-0 text-accent" />
     </a>
+    </>
   );
 }
 

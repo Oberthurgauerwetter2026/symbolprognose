@@ -5,7 +5,7 @@ import { ImagePlus, Trash2, X } from "lucide-react";
 import { checkAdminLogin } from "@/lib/warnings.functions";
 import { createTickerPost, deleteTickerPost } from "@/lib/ticker.functions";
 import { MAX_BODY, TICKER_PRODUCTS, productById, productGroups, productUrl, visiblePosts } from "@/lib/ticker";
-import { TickerWidget } from "@/components/ticker/ticker-view";
+import { ProductPreview, TickerWidget } from "@/components/ticker/ticker-view";
 import { tickerQuery } from "./embed.ticker";
 
 const KEY = "wx_warn_admin_pw";
@@ -102,7 +102,8 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
               </div>
             ))}
           </div>
-          {p && <a href={productUrl(p)} target="_blank" rel="noopener" className="mt-2 inline-block text-sm text-accent">Karte «{p.label}» öffnen ↗</a>}
+          {p && <ProductPreview product={p} />}
+          {p && <a href={productUrl(p)} target="_blank" rel="noopener" className="mt-2 inline-block text-sm text-accent">Karte «{p.label}» gross öffnen ↗</a>}
           {p && <input value={value} onChange={(e) => setValue(e.target.value)} placeholder={p.hint} className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />}
         </div>
         <div className="flex items-center gap-3">
