@@ -110,6 +110,33 @@ export type Database = {
         }
         Relationships: []
       }
+      ticker_posts: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          image_url: string | null
+          product: string | null
+          product_value: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          product?: string | null
+          product_value?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          product?: string | null
+          product_value?: string | null
+        }
+        Relationships: []
+      }
       warning_regions: {
         Row: {
           region_id: string

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AdminTickerRouteImport } from './routes/admin-ticker'
 import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
 import { Route as KarteRouteImport } from './routes/karte'
@@ -25,6 +26,7 @@ import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
 import { Route as EmbedSatellitLoopRouteImport } from './routes/embed.satellit-loop'
+import { Route as EmbedTickerRouteImport } from './routes/embed.ticker'
 import { Route as EmbedWarnungenRouteImport } from './routes/embed.warnungen'
 import { Route as EmbedWidgetRadarRouteImport } from './routes/embed.widget-radar'
 import { Route as EmbedWidgetWarnungenRouteImport } from './routes/embed.widget-warnungen'
@@ -59,6 +61,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminTickerRoute = AdminTickerRouteImport.update({
+  id: '/admin-ticker',
+  path: '/admin-ticker',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminWarnungenRoute = AdminWarnungenRouteImport.update({
@@ -129,6 +136,11 @@ const EmbedSatellitRoute = EmbedSatellitRouteImport.update({
 const EmbedSatellitLoopRoute = EmbedSatellitLoopRouteImport.update({
   id: '/embed/satellit-loop',
   path: '/embed/satellit-loop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedTickerRoute = EmbedTickerRouteImport.update({
+  id: '/embed/ticker',
+  path: '/embed/ticker',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedWarnungenRoute = EmbedWarnungenRouteImport.update({
@@ -269,6 +281,7 @@ const ApiPublicWarningsAutoThunderRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-ticker': typeof AdminTickerRoute
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
@@ -283,6 +296,7 @@ export interface FileRoutesByFullPath {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/ticker': typeof EmbedTickerRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
   '/embed/widget-warnungen': typeof EmbedWidgetWarnungenRoute
@@ -312,6 +326,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-ticker': typeof AdminTickerRoute
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
@@ -326,6 +341,7 @@ export interface FileRoutesByTo {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/ticker': typeof EmbedTickerRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
   '/embed/widget-warnungen': typeof EmbedWidgetWarnungenRoute
@@ -356,6 +372,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/admin-ticker': typeof AdminTickerRoute
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
   '/karte': typeof KarteRoute
@@ -370,6 +387,7 @@ export interface FileRoutesById {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/ticker': typeof EmbedTickerRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
   '/embed/widget-warnungen': typeof EmbedWidgetWarnungenRoute
@@ -401,6 +419,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/admin-ticker'
     | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
@@ -415,6 +434,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/ticker'
     | '/embed/warnungen'
     | '/embed/widget-radar'
     | '/embed/widget-warnungen'
@@ -444,6 +464,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/admin-ticker'
     | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
@@ -458,6 +479,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/ticker'
     | '/embed/warnungen'
     | '/embed/widget-radar'
     | '/embed/widget-warnungen'
@@ -487,6 +509,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/admin-ticker'
     | '/admin-warnungen'
     | '/embed-info'
     | '/karte'
@@ -501,6 +524,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/ticker'
     | '/embed/warnungen'
     | '/embed/widget-radar'
     | '/embed/widget-warnungen'
@@ -531,6 +555,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AdminTickerRoute: typeof AdminTickerRoute
   AdminWarnungenRoute: typeof AdminWarnungenRoute
   EmbedInfoRoute: typeof EmbedInfoRoute
   KarteRoute: typeof KarteRoute
@@ -545,6 +570,7 @@ export interface RootRouteChildren {
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
   EmbedSatellitRoute: typeof EmbedSatellitRoute
   EmbedSatellitLoopRoute: typeof EmbedSatellitLoopRoute
+  EmbedTickerRoute: typeof EmbedTickerRoute
   EmbedWarnungenRoute: typeof EmbedWarnungenRoute
   EmbedWidgetRadarRoute: typeof EmbedWidgetRadarRoute
   EmbedWidgetWarnungenRoute: typeof EmbedWidgetWarnungenRoute
@@ -586,6 +612,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-ticker': {
+      id: '/admin-ticker'
+      path: '/admin-ticker'
+      fullPath: '/admin-ticker'
+      preLoaderRoute: typeof AdminTickerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin-warnungen': {
@@ -684,6 +717,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/satellit-loop'
       fullPath: '/embed/satellit-loop'
       preLoaderRoute: typeof EmbedSatellitLoopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/ticker': {
+      id: '/embed/ticker'
+      path: '/embed/ticker'
+      fullPath: '/embed/ticker'
+      preLoaderRoute: typeof EmbedTickerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/warnungen': {
@@ -867,6 +907,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AdminTickerRoute: AdminTickerRoute,
   AdminWarnungenRoute: AdminWarnungenRoute,
   EmbedInfoRoute: EmbedInfoRoute,
   KarteRoute: KarteRoute,
@@ -881,6 +922,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
   EmbedSatellitRoute: EmbedSatellitRoute,
   EmbedSatellitLoopRoute: EmbedSatellitLoopRoute,
+  EmbedTickerRoute: EmbedTickerRoute,
   EmbedWarnungenRoute: EmbedWarnungenRoute,
   EmbedWidgetRadarRoute: EmbedWidgetRadarRoute,
   EmbedWidgetWarnungenRoute: EmbedWidgetWarnungenRoute,

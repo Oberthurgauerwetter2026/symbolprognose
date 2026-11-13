@@ -192,6 +192,24 @@ interface Product {
 /** Ein Eintrag pro Produkt des Wetterboards — jedes bekommt sein eigenes Snippet. */
 const PRODUCTS: Product[] = [
   {
+    id: "ticker-banner",
+    label: "Wetter-Ticker (Handy, zuoberst)",
+    path: "/embed/ticker?view=banner",
+    height: 140,
+    variant: "auto-height",
+    frameId: "otw-ticker-banner",
+    description: "Schlanker Ticker mit der neuesten Meldung, ältere zum Aufklappen. Verschwindet, wenn 24 h nichts Neues kam.",
+  },
+  {
+    id: "ticker-widget",
+    label: "Wetter-Ticker (Desktop-Widget)",
+    path: "/embed/ticker?view=widget",
+    height: 420,
+    variant: "auto-height",
+    frameId: "otw-ticker-widget",
+    description: "Chronologischer Ticker, neueste Meldung oben. Verschwindet, wenn 24 h nichts Neues kam.",
+  },
+  {
     id: "widget-warnungen",
     label: "Widget: Warnungen aktuell",
     path: "/embed/widget-warnungen",
