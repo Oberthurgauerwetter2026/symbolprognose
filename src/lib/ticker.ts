@@ -22,6 +22,8 @@ export const TICKER_PRODUCTS: TickerProduct[] = [
   { id: "bodendruck", label: "Bodendruck", group: "Karten", path: "/karten/bodendruck", image: AMR + "/api/public/maps/europe-pressure-latest.svg",  hint: "z. B. Tief über der Nordsee" },
   { id: "warnungen", label: "Warnungen", group: "Karten", path: "/karten/warnungen", embed: "/embed/warnungen?clean=1",  hint: "z. B. Stufe 2 Glätte" },
   { id: "lokal", label: "Lokalprognose", group: "Karten", path: "/karten/lokal", embed: "/embed/lokalprognose",  hint: "z. B. morgen sonnig, 8 °C" },
+  { id: "temp-min", label: "Tiefsttemperaturen heute", group: "Weather Hub", path: "/embed/stationen-extrem?stat=min", embed: "/embed/stationen-extrem?stat=min&clean=1", hint: "z. B. Opfershofen −3.1 °C" },
+  { id: "temp-max", label: "Höchsttemperaturen heute", group: "Weather Hub", path: "/embed/stationen-extrem?stat=max", embed: "/embed/stationen-extrem?stat=max&clean=1", hint: "z. B. Uttwil 3.2 °C" },
   { id: "hub-karte", label: "Live-Stationskarte", group: "Weather Hub", path: HUB + "/", embed: HUB + "/embed/map",  hint: "z. B. Amriswil 2.1 °C" },
   { id: "hub-summen", label: "Stations-Summenkarte", group: "Weather Hub", path: HUB + "/summenkarte", embed: HUB + "/summenkarte",  hint: "z. B. 24 h: bis 12 mm" },
   { id: "hub-dashboard", label: "Stations-Dashboard", group: "Weather Hub", path: HUB + "/dashboard", embed: HUB + "/dashboard",  hint: "z. B. Böen 68 km/h" },

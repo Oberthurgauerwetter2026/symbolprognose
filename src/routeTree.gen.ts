@@ -26,6 +26,7 @@ import { Route as EmbedRegionRouteImport } from './routes/embed.region'
 import { Route as EmbedRegionLokalRouteImport } from './routes/embed.region-lokal'
 import { Route as EmbedSatellitRouteImport } from './routes/embed.satellit'
 import { Route as EmbedSatellitLoopRouteImport } from './routes/embed.satellit-loop'
+import { Route as EmbedStationenExtremRouteImport } from './routes/embed.stationen-extrem'
 import { Route as EmbedTickerRouteImport } from './routes/embed.ticker'
 import { Route as EmbedWarnungenRouteImport } from './routes/embed.warnungen'
 import { Route as EmbedWidgetRadarRouteImport } from './routes/embed.widget-radar'
@@ -137,6 +138,11 @@ const EmbedSatellitRoute = EmbedSatellitRouteImport.update({
 const EmbedSatellitLoopRoute = EmbedSatellitLoopRouteImport.update({
   id: '/embed/satellit-loop',
   path: '/embed/satellit-loop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedStationenExtremRoute = EmbedStationenExtremRouteImport.update({
+  id: '/embed/stationen-extrem',
+  path: '/embed/stationen-extrem',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedTickerRoute = EmbedTickerRouteImport.update({
@@ -302,6 +308,7 @@ export interface FileRoutesByFullPath {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/stationen-extrem': typeof EmbedStationenExtremRoute
   '/embed/ticker': typeof EmbedTickerRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
@@ -348,6 +355,7 @@ export interface FileRoutesByTo {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/stationen-extrem': typeof EmbedStationenExtremRoute
   '/embed/ticker': typeof EmbedTickerRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
@@ -395,6 +403,7 @@ export interface FileRoutesById {
   '/embed/region-lokal': typeof EmbedRegionLokalRoute
   '/embed/satellit': typeof EmbedSatellitRoute
   '/embed/satellit-loop': typeof EmbedSatellitLoopRoute
+  '/embed/stationen-extrem': typeof EmbedStationenExtremRoute
   '/embed/ticker': typeof EmbedTickerRoute
   '/embed/warnungen': typeof EmbedWarnungenRoute
   '/embed/widget-radar': typeof EmbedWidgetRadarRoute
@@ -443,6 +452,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/stationen-extrem'
     | '/embed/ticker'
     | '/embed/warnungen'
     | '/embed/widget-radar'
@@ -489,6 +499,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/stationen-extrem'
     | '/embed/ticker'
     | '/embed/warnungen'
     | '/embed/widget-radar'
@@ -535,6 +546,7 @@ export interface FileRouteTypes {
     | '/embed/region-lokal'
     | '/embed/satellit'
     | '/embed/satellit-loop'
+    | '/embed/stationen-extrem'
     | '/embed/ticker'
     | '/embed/warnungen'
     | '/embed/widget-radar'
@@ -582,6 +594,7 @@ export interface RootRouteChildren {
   EmbedRegionLokalRoute: typeof EmbedRegionLokalRoute
   EmbedSatellitRoute: typeof EmbedSatellitRoute
   EmbedSatellitLoopRoute: typeof EmbedSatellitLoopRoute
+  EmbedStationenExtremRoute: typeof EmbedStationenExtremRoute
   EmbedTickerRoute: typeof EmbedTickerRoute
   EmbedWarnungenRoute: typeof EmbedWarnungenRoute
   EmbedWidgetRadarRoute: typeof EmbedWidgetRadarRoute
@@ -730,6 +743,13 @@ declare module '@tanstack/react-router' {
       path: '/embed/satellit-loop'
       fullPath: '/embed/satellit-loop'
       preLoaderRoute: typeof EmbedSatellitLoopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed/stationen-extrem': {
+      id: '/embed/stationen-extrem'
+      path: '/embed/stationen-extrem'
+      fullPath: '/embed/stationen-extrem'
+      preLoaderRoute: typeof EmbedStationenExtremRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/ticker': {
@@ -942,6 +962,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedRegionLokalRoute: EmbedRegionLokalRoute,
   EmbedSatellitRoute: EmbedSatellitRoute,
   EmbedSatellitLoopRoute: EmbedSatellitLoopRoute,
+  EmbedStationenExtremRoute: EmbedStationenExtremRoute,
   EmbedTickerRoute: EmbedTickerRoute,
   EmbedWarnungenRoute: EmbedWarnungenRoute,
   EmbedWidgetRadarRoute: EmbedWidgetRadarRoute,
