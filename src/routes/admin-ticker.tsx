@@ -25,6 +25,16 @@ export const Route = createFileRoute("/admin-ticker")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "Ticker Admin" },
+      { name: "application-name", content: "Ticker Admin" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "theme-color", content: "#2561a1" },
+    ],
+    links: [
+      { rel: "manifest", href: "/api/public/admin-ticker-manifest" },
+      { rel: "apple-touch-icon", href: "/icon-192.png" },
     ],
   }),
 });

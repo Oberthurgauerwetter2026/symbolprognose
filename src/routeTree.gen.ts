@@ -43,6 +43,7 @@ import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenSatellitRouteImport } from './routes/karten.satellit'
 import { Route as KartenWarnungenRouteImport } from './routes/karten.warnungen'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
+import { Route as ApiPublicAdminTickerManifestRouteImport } from './routes/api/public/admin-ticker-manifest'
 import { Route as ApiPublicWarnkarteManifestRouteImport } from './routes/api/public/warnkarte-manifest'
 import { Route as ApiPublicAromeIngestTriggerRouteImport } from './routes/api/public/arome/ingest-trigger'
 import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
@@ -226,6 +227,12 @@ const KartenWindRoute = KartenWindRouteImport.update({
   path: '/karten/wind',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAdminTickerManifestRoute =
+  ApiPublicAdminTickerManifestRouteImport.update({
+    id: '/api/public/admin-ticker-manifest',
+    path: '/api/public/admin-ticker-manifest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWarnkarteManifestRoute =
   ApiPublicWarnkarteManifestRouteImport.update({
     id: '/api/public/warnkarte-manifest',
@@ -331,6 +338,7 @@ export interface FileRoutesByFullPath {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/admin-ticker-manifest': typeof ApiPublicAdminTickerManifestRoute
   '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -379,6 +387,7 @@ export interface FileRoutesByTo {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/admin-ticker-manifest': typeof ApiPublicAdminTickerManifestRoute
   '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -428,6 +437,7 @@ export interface FileRoutesById {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/api/public/admin-ticker-manifest': typeof ApiPublicAdminTickerManifestRoute
   '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
@@ -478,6 +488,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/api/public/admin-ticker-manifest'
     | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -526,6 +537,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/api/public/admin-ticker-manifest'
     | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -574,6 +586,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/api/public/admin-ticker-manifest'
     | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
     | '/api/public/debug/r2-cache'
@@ -623,6 +636,7 @@ export interface RootRouteChildren {
   KartenSatellitRoute: typeof KartenSatellitRoute
   KartenWarnungenRoute: typeof KartenWarnungenRoute
   KartenWindRoute: typeof KartenWindRoute
+  ApiPublicAdminTickerManifestRoute: typeof ApiPublicAdminTickerManifestRoute
   ApiPublicWarnkarteManifestRoute: typeof ApiPublicWarnkarteManifestRoute
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
@@ -877,6 +891,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KartenWindRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/admin-ticker-manifest': {
+      id: '/api/public/admin-ticker-manifest'
+      path: '/api/public/admin-ticker-manifest'
+      fullPath: '/api/public/admin-ticker-manifest'
+      preLoaderRoute: typeof ApiPublicAdminTickerManifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/warnkarte-manifest': {
       id: '/api/public/warnkarte-manifest'
       path: '/api/public/warnkarte-manifest'
@@ -999,6 +1020,7 @@ const rootRouteChildren: RootRouteChildren = {
   KartenSatellitRoute: KartenSatellitRoute,
   KartenWarnungenRoute: KartenWarnungenRoute,
   KartenWindRoute: KartenWindRoute,
+  ApiPublicAdminTickerManifestRoute: ApiPublicAdminTickerManifestRoute,
   ApiPublicWarnkarteManifestRoute: ApiPublicWarnkarteManifestRoute,
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
