@@ -1,3 +1,6 @@
+# Additional ticker station maps
+- [x] Add current temperatures, today's strongest gusts and daily precipitation using the existing regional station map; nine real station readings verified in all five views at desktop/mobile sizes, no controls or browser errors, 16 tests pass. Existing WordPress live map stays unchanged.
+
 # Ticker station temperature coverage
 - [x] Include Sitterdorf-Bischofszell and Güttingen on both daily extreme temperature maps; real Weather Hub daily readings verified, all nine live-map pills visible without overlap or controls at desktop and mobile sizes, WordPress live overview unchanged. Fourteen tests pass; no browser errors.
 
