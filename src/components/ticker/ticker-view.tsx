@@ -72,6 +72,15 @@ function Thumb({ post }: { post: TickerPost }) {
   return null;
 }
 
+/** Titel = erste Zeile (sonst erster Satz); der Rest erscheint erst nach dem Antippen. */
+export function splitPost(body: string): { title: string; rest: string } {
+  const t = body.trim();
+  const nl = t.indexOf("\n");
+  if (nl > 0) return { title: t.slice(0, nl).trim(), rest: t.slice(nl + 1).trim() };
+  const m = t.match(/^(.+?[.!?])\s+(.+)$/s);
+  return m ? { title: m[1], rest: m[2].trim() } : { title: t, rest: "" };
+}
+
 /** Ein Tipp öffnet die Meldung: voller Text, Bild und Karte. Geschlossen nur eine Zeile. */
 function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last: boolean }) {
   const [open, setOpen] = useState(false);
@@ -88,7 +97,7 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
             <span className="block text-xs font-semibold tabular-nums text-muted-foreground">
               <span className={latest ? "text-accent" : ""}>{rel ?? time(post.created_at)}</span>{" · "}{rel ? time(post.created_at) : day(post.created_at)}
             </span>
-            <span className={`mt-0.5 block text-[15px] leading-snug text-foreground ${open ? "" : "line-clamp-1"}`}>{post.body}</span>
+            <span className="mt-0.5 block text-[15px] font-semibold leading-snug text-foreground">{splitPost(post.body).title}</span>
           </span>
           {!open && <Thumb post={post} />}
           <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
@@ -97,6 +106,7 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
           <div className="overflow-hidden">
             {open && (
               <>
+                {splitPost(post.body).rest && <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-foreground/85">{splitPost(post.body).rest}</p>}
                 {post.image && <img src={post.image} alt="" loading="lazy" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
                 <ProductChip post={post} />
               </>
