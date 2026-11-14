@@ -57,7 +57,9 @@ function AdminTicker() {
 function Composer({ password, onLogout }: { password: string; onLogout: () => void }) {
   const qc = useQueryClient();
   const { data = [] } = useQuery(tickerQuery());
-  const [body, setBody] = useState("");
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
+  const body = text.trim() ? `${title.trim()}\n${text.trim()}` : title.trim();
   const [product, setProduct] = useState<string | null>(null);
   const [value, setValue] = useState("");
   const [link, setLink] = useState("");
@@ -69,7 +71,7 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
     e.preventDefault(); setBusy(true); setMsg("");
     try {
       await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, link } });
-      setBody(""); setProduct(null); setValue(""); setImage(null); setLink(""); setMsg("Veröffentlicht.");
+      setTitle(""); setText(""); setProduct(null); setValue(""); setImage(null); setLink(""); setMsg("Veröffentlicht.");
       await qc.invalidateQueries({ queryKey: ["ticker"] });
     } catch (x) { setMsg(x instanceof Error ? x.message : "Fehler"); } finally { setBusy(false); }
   };
@@ -84,8 +86,10 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
       </div>
       <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-4">
         <div>
-          <textarea value={body} onChange={(e) => setBody(e.target.value.slice(0, MAX_BODY))} rows={3} placeholder="Kurz und aktuell, z. B. «Schneefall setzt ein, Schneefallgrenze sinkt auf 500 m.»"
-            className="w-full resize-none rounded-xl border border-border bg-background p-3 text-[15px]" />
+          <input value={title} onChange={(e) => setTitle(e.target.value.replace(/\n/g, " ").slice(0, 120))} placeholder="Titel, z. B. «Schneefall setzt ein»"
+            className="w-full rounded-xl border border-border bg-background p-3 text-[16px] font-semibold" />
+          <textarea value={text} onChange={(e) => setText(e.target.value.slice(0, Math.max(0, MAX_BODY - title.length - 1)))} rows={4} placeholder="Text (erscheint nach dem Antippen)"
+            className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-3 text-[15px]" />
           <div className="text-right text-xs text-muted-foreground">{body.length}/{MAX_BODY}</div>
         </div>
         <div>
@@ -105,7 +109,6 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
           </div>
           {p && <ProductPreview product={p} />}
           {p && <a href={productUrl(p)} target="_blank" rel="noopener" className="mt-2 inline-block text-sm text-accent">Karte «{p.label}» gross öffnen ↗</a>}
-          {p && <input value={value} onChange={(e) => setValue(e.target.value)} placeholder={p.hint} className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />}
         </div>
         <input value={link} onChange={(e) => setLink(e.target.value)} type="url" inputMode="url" placeholder="Link (optional), z. B. zu einem Foto oder Bericht" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
         <div className="flex items-center gap-3">
@@ -118,7 +121,7 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
               <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setImage({ b64: await shrink(f), url: URL.createObjectURL(f) }); }} />
             </label>
           )}
-          <button disabled={busy || !body.trim()} className="ml-auto rounded-lg bg-accent px-5 py-2 font-medium text-accent-foreground disabled:opacity-50">{busy ? "…" : "Veröffentlichen"}</button>
+          <button disabled={busy || !title.trim()} className="ml-auto rounded-lg bg-accent px-5 py-2 font-medium text-accent-foreground disabled:opacity-50">{busy ? "…" : "Veröffentlichen"}</button>
         </div>
         {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
       </form>
