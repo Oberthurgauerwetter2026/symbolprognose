@@ -22,3 +22,12 @@ test("photo notifications open the admin ticker and remain distinct per submissi
   assert.equal(first.url, "/admin-ticker");
   assert.notEqual(first.tag, next.tag);
 });
+const v2 = validatePhotoPushDevice;
+test("iPhone: Standard-Base64 mit + und / sowie ohne Padding wird akzeptiert", () => {
+  const pk = new Uint8Array(65).fill(251); pk[0] = 4;
+  const auth = new Uint8Array(16).fill(255);
+  const b = (a: Uint8Array) => btoa(String.fromCharCode(...a));
+  const d = v2({ endpoint: "https://api.push.apple.com/3/device/abc", p256dh: b(pk), auth: b(auth).replace(/=+$/, "") });
+  assert.doesNotMatch(d.p256dh, /[+/=]/);
+  assert.equal(d.auth, "_____________________w");
+});
