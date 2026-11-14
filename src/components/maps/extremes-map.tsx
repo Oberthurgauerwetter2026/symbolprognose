@@ -9,7 +9,15 @@ const BOUNDS: L.LatLngBoundsExpression = [[47.477, 9.158], [47.641, 9.467]];
 function Fit() {
   const map = useMap();
   useEffect(() => {
-    const fit = () => { map.invalidateSize(); map.fitBounds(BOUNDS, { padding: [36, 36] }); };
+    const fit = () => {
+      map.invalidateSize();
+      const small = map.getSize().x <= 480;
+      map.fitBounds(BOUNDS, {
+        paddingTopLeft: small ? [20, 35] : [36, 36],
+        paddingBottomRight: small ? [20, 0] : [36, 36],
+        animate: false,
+      });
+    };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(map.getContainer());
@@ -42,13 +50,15 @@ function icon(v: number) {
 
 export function ExtremesMap({ stations, stat }: { stations: StationExtreme[]; stat: ExtremeStat }) {
   return (
-    <MapContainer bounds={BOUNDS} zoomControl={false} attributionControl={false} scrollWheelZoom={false} dragging={false} doubleClickZoom={false}
+    <MapContainer bounds={BOUNDS} zoomSnap={0} zoomControl={false} attributionControl={false} scrollWheelZoom={false} dragging={false} doubleClickZoom={false}
       className="h-full w-full" style={{ background: "#eef2f5" }}>
       <Fit />
       <TileLayer url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png" maxZoom={18} />
-      {stations.map((s) => (
-        <Marker key={s.id} position={[s.lat, s.lon]} icon={icon(s[stat]!)} interactive={false} />
-      ))}
+      {stations.map((s) => {
+        const value = s[stat];
+        if (typeof value !== "number" || !Number.isFinite(value)) return null;
+        return <Marker key={s.id} title={s.name} alt={s.name} position={[s.lat, s.lon]} icon={icon(value)} interactive={false} keyboard={false} />;
+      })}
     </MapContainer>
   );
 }

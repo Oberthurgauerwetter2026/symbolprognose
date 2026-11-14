@@ -1,3 +1,6 @@
+# Ticker station temperature coverage
+- [x] Include Sitterdorf-Bischofszell and Güttingen on both daily extreme temperature maps; real Weather Hub daily readings verified, all nine live-map pills visible without overlap or controls at desktop and mobile sizes, WordPress live overview unchanged. Fourteen tests pass; no browser errors.
+
 # Precipitation sums usability
 - [x] Restore identical regional framing for rain and snow; map-only previews fit Oberthurgau, Lake Constance and Alpstein at desktop/mobile ticker sizes, without headers or buttons and with a retained color scale. Sixteen tests pass; all six local map types checked without buttons and a real public ticker post opens its attached map without runtime errors.
 - [x] Local ticker map previews use same-origin map-only embeds; seven catalog tests preserve all 16 sum selections, and live sum/wind/radar/region/warning/satellite views checked without toolbars.
