@@ -11,3 +11,9 @@ test("Link-Feld nimmt nur Web-Adressen", () => {
   assert.equal(cleanLink("javascript:alert(1)"), null);
   assert.equal(cleanLink(""), null);
 });
+
+import { productIds as _pids } from "./ticker";
+test("mehrere Karten: unbekannte und doppelte IDs fallen weg", () => {
+  assert.deepEqual(_pids("radar,radar,xyz,wind"), ["radar", "wind"]);
+  assert.deepEqual(_pids(null), []);
+});

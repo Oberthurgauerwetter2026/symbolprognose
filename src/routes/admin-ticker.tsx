@@ -60,7 +60,9 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const body = text.trim() ? `${title.trim()}\n${text.trim()}` : title.trim();
-  const [product, setProduct] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const product = picked.join(",") || null;
+  const toggle = (id: string) => setPicked((l) => l.includes(id) ? l.filter((x) => x !== id) : [...l, id]);
   const [value, setValue] = useState("");
   const [link, setLink] = useState("");
   const [image, setImage] = useState<{ b64: string; url: string } | null>(null);
@@ -71,11 +73,10 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
     e.preventDefault(); setBusy(true); setMsg("");
     try {
       await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, link } });
-      setTitle(""); setText(""); setProduct(null); setValue(""); setImage(null); setLink(""); setMsg("Veröffentlicht.");
+      setTitle(""); setText(""); setPicked([]); setValue(""); setImage(null); setLink(""); setMsg("Veröffentlicht.");
       await qc.invalidateQueries({ queryKey: ["ticker"] });
     } catch (x) { setMsg(x instanceof Error ? x.message : "Fehler"); } finally { setBusy(false); }
   };
-  const p = productById(product);
   const live = visiblePosts(data, Date.now());
 
   return (
@@ -93,22 +94,25 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
           <div className="text-right text-xs text-muted-foreground">{body.length}/{MAX_BODY}</div>
         </div>
         <div>
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Produkt anhängen</div>
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Karten anhängen (mehrere möglich)</div>
           <div className="space-y-3">
             {productGroups().map((g) => (
               <div key={g}>
                 <div className="mb-1 text-[12px] text-muted-foreground">{g}</div>
                 <div className="flex flex-wrap gap-1.5">
                   {TICKER_PRODUCTS.filter((x) => x.group === g).map((x) => (
-                    <button type="button" key={x.id} onClick={() => setProduct(product === x.id ? null : x.id)}
-                      className={`rounded-full border px-3 py-1 text-sm transition-colors ${product === x.id ? "border-accent bg-accent text-accent-foreground" : "border-border bg-background"}`}>{x.label.startsWith(g) ? x.label.slice(g.length).trim() : x.label}</button>
+                    <button type="button" key={x.id} onClick={() => toggle(x.id)}
+                      className={`rounded-full border px-3 py-1 text-sm transition-colors ${picked.includes(x.id) ? "border-accent bg-accent text-accent-foreground" : "border-border bg-background"}`}>{x.label.startsWith(g) ? x.label.slice(g.length).trim() : x.label}</button>
                   ))}
                 </div>
               </div>
             ))}
           </div>
-          {p && <ProductPreview product={p} />}
-          {p && <a href={productUrl(p)} target="_blank" rel="noopener" className="mt-2 inline-block text-sm text-accent">Karte «{p.label}» gross öffnen ↗</a>}
+          {picked.map((id) => { const p = productById(id); return p && (
+            <div key={id} className="mt-3">
+              <ProductPreview product={p} />
+              <a href={productUrl(p)} target="_blank" rel="noopener" className="mt-1 inline-block text-sm text-accent">Karte «{p.label}» gross öffnen ↗</a>
+            </div>); })}
         </div>
         <input value={link} onChange={(e) => setLink(e.target.value)} type="url" inputMode="url" placeholder="Link (optional), z. B. zu einem Foto oder Bericht" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
         <div className="flex items-center gap-3">

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { MAX_BODY, cleanLink, productById } from "./ticker";
+import { MAX_BODY, cleanLink, productIds } from "./ticker";
 
 export interface TickerPost {
   id: string; created_at: string; body: string;
@@ -33,7 +33,7 @@ export const createTickerPost = createServerFn({ method: "POST" })
     assertAdmin(data.password);
     const body = data.body.trim();
     if (!body || body.length > MAX_BODY) throw new Error(`Text 1–${MAX_BODY} Zeichen`);
-    const product = productById(data.product)?.id ?? null;
+    const product = productIds(data.product).join(",") || null;
     const sb = (await adminClient()) as any;
     let image_url: string | null = null;
     if (data.imageBase64) {

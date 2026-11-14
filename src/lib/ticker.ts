@@ -63,3 +63,8 @@ export function visiblePosts<T extends { created_at: string }>(posts: T[], nowMs
   if (!sorted.length || nowMs - Date.parse(sorted[0].created_at) > TICKER_MAX_AGE_MS) return [];
   return sorted;
 }
+
+/** Mehrere Karten pro Meldung: kommagetrennte IDs, nur bekannte, ohne Duplikate. */
+export function productIds(raw: string | null | undefined): string[] {
+  return [...new Set((raw ?? "").split(",").map((s) => s.trim()).filter((id) => !!productById(id)))];
+}

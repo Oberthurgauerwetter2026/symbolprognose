@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ArrowUpRight } from "lucide-react";
-import { productById, productPreview, productUrl, type TickerProduct } from "@/lib/ticker";
+import { productById, productIds, productPreview, productUrl, type TickerProduct } from "@/lib/ticker";
 import type { TickerPost } from "@/lib/ticker.functions";
 
 const time = (iso: string) =>
@@ -46,10 +46,14 @@ export function ProductPreview({ product, className = "" }: { product: TickerPro
 }
 
 function ProductChip({ post }: { post: TickerPost }) {
-  const p = productById(post.product);
+  return <>{productIds(post.product).map((id) => <OneProduct key={id} id={id} post={post} />)}</>;
+}
+
+function OneProduct({ id, post }: { id: string; post: TickerPost }) {
+  const p = productById(id);
   if (!p) return null;
   return (
-    <>
+    <div className="mt-2">
     <ProductPreview product={p} />
     <a href={productUrl(p)} target="_blank" rel="noopener"
       className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-white/10 px-3 py-2 text-sm transition-colors hover:bg-white/15">
@@ -59,12 +63,12 @@ function ProductChip({ post }: { post: TickerPost }) {
       </span>
       <ArrowUpRight className="h-4 w-4 shrink-0 text-white/80" />
     </a>
-    </>
+    </div>
   );
 }
 
 function Thumb({ post }: { post: TickerPost }) {
-  const p = productById(post.product);
+  const p = productById(productIds(post.product)[0]);
   const v = p ? productPreview(p) : null;
   const src = post.image ?? (v?.kind === "image" ? v.src : null);
   if (src) return <img src={src} alt="" decoding="async" className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/25" />;
