@@ -27,7 +27,7 @@ export const listTickerPosts = createServerFn({ method: "GET" }).handler(async (
 });
 
 export const createTickerPost = createServerFn({ method: "POST" })
-  .inputValidator((d: { password: string; body: string; product?: string | null; productValue?: string | null; imageBase64?: string | null; link?: string | null }) => d)
+  .inputValidator((d: { password: string; body: string; product?: string | null; productValue?: string | null; imageBase64?: string | null; submissionId?: string | null; link?: string | null }) => d)
   .handler(async ({ data }) => {
     const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
     assertAdmin(data.password);
@@ -43,6 +43,12 @@ export const createTickerPost = createServerFn({ method: "POST" })
       const { error } = await sb.storage.from("ticker").upload(path, bin, { contentType: "image/jpeg" });
       if (error) throw new Error(error.message);
       image_url = path;
+    } else if (data.submissionId) {
+      // Leserfoto übernehmen: Bild bleibt liegen, die Einsendung verschwindet aus der Freigabe.
+      const { data: sub } = await sb.from("photo_submissions").select("image_path").eq("id", data.submissionId).maybeSingle();
+      if (!sub) throw new Error("Einsendung nicht gefunden");
+      image_url = sub.image_path;
+      await sb.from("photo_submissions").delete().eq("id", data.submissionId);
     }
     const { error } = await sb.from("ticker_posts").insert({
       body, product, product_value: product ? data.productValue?.trim().slice(0, 80) || null : null, image_url, link_url: cleanLink(data.link),

@@ -80,6 +80,33 @@ export type Database = {
         }
         Relationships: []
       }
+      photo_submissions: {
+        Row: {
+          author: string
+          created_at: string
+          id: string
+          image_path: string
+          note: string
+          place: string
+        }
+        Insert: {
+          author?: string
+          created_at?: string
+          id?: string
+          image_path: string
+          note?: string
+          place?: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          id?: string
+          image_path?: string
+          note?: string
+          place?: string
+        }
+        Relationships: []
+      }
       push_subscriptions: {
         Row: {
           auth: string

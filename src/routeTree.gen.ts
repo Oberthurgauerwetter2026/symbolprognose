@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AdminTickerRouteImport } from './routes/admin-ticker'
 import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
+import { Route as FotoEinsendenRouteImport } from './routes/foto-einsenden'
 import { Route as KarteRouteImport } from './routes/karte'
 import { Route as WarnkarteRouteImport } from './routes/warnkarte'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
@@ -78,6 +79,11 @@ const AdminWarnungenRoute = AdminWarnungenRouteImport.update({
 const EmbedInfoRoute = EmbedInfoRouteImport.update({
   id: '/embed-info',
   path: '/embed-info',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FotoEinsendenRoute = FotoEinsendenRouteImport.update({
+  id: '/foto-einsenden',
+  path: '/foto-einsenden',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KarteRoute = KarteRouteImport.update({
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/admin-ticker': typeof AdminTickerRoute
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
+  '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -343,6 +350,7 @@ export interface FileRoutesByTo {
   '/admin-ticker': typeof AdminTickerRoute
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
+  '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -391,6 +399,7 @@ export interface FileRoutesById {
   '/admin-ticker': typeof AdminTickerRoute
   '/admin-warnungen': typeof AdminWarnungenRoute
   '/embed-info': typeof EmbedInfoRoute
+  '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
@@ -440,6 +449,7 @@ export interface FileRouteTypes {
     | '/admin-ticker'
     | '/admin-warnungen'
     | '/embed-info'
+    | '/foto-einsenden'
     | '/karte'
     | '/warnkarte'
     | '/embed/all'
@@ -487,6 +497,7 @@ export interface FileRouteTypes {
     | '/admin-ticker'
     | '/admin-warnungen'
     | '/embed-info'
+    | '/foto-einsenden'
     | '/karte'
     | '/warnkarte'
     | '/embed/all'
@@ -534,6 +545,7 @@ export interface FileRouteTypes {
     | '/admin-ticker'
     | '/admin-warnungen'
     | '/embed-info'
+    | '/foto-einsenden'
     | '/karte'
     | '/warnkarte'
     | '/embed/all'
@@ -582,6 +594,7 @@ export interface RootRouteChildren {
   AdminTickerRoute: typeof AdminTickerRoute
   AdminWarnungenRoute: typeof AdminWarnungenRoute
   EmbedInfoRoute: typeof EmbedInfoRoute
+  FotoEinsendenRoute: typeof FotoEinsendenRoute
   KarteRoute: typeof KarteRoute
   WarnkarteRoute: typeof WarnkarteRoute
   EmbedAllRoute: typeof EmbedAllRoute
@@ -659,6 +672,13 @@ declare module '@tanstack/react-router' {
       path: '/embed-info'
       fullPath: '/embed-info'
       preLoaderRoute: typeof EmbedInfoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/foto-einsenden': {
+      id: '/foto-einsenden'
+      path: '/foto-einsenden'
+      fullPath: '/foto-einsenden'
+      preLoaderRoute: typeof FotoEinsendenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/karte': {
@@ -950,6 +970,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminTickerRoute: AdminTickerRoute,
   AdminWarnungenRoute: AdminWarnungenRoute,
   EmbedInfoRoute: EmbedInfoRoute,
+  FotoEinsendenRoute: FotoEinsendenRoute,
   KarteRoute: KarteRoute,
   WarnkarteRoute: WarnkarteRoute,
   EmbedAllRoute: EmbedAllRoute,

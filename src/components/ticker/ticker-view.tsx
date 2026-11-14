@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ArrowUpRight } from "lucide-react";
+import { ChevronDown, ArrowUpRight, Info, Camera } from "lucide-react";
 import { productById, productIds, productPreview, productUrl, type TickerProduct } from "@/lib/ticker";
 import type { TickerPost } from "@/lib/ticker.functions";
 
@@ -125,13 +125,31 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
   );
 }
 function Header() {
+  const [info, setInfo] = useState(false);
   return (
-    <div className="mb-2 flex items-center justify-between gap-2">
-      <span className="font-display text-[15px] font-semibold tracking-tight text-white">Wetter-Ticker</span>
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-        <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" /><span className="relative h-1.5 w-1.5 rounded-full bg-red-400" /></span>
-        Live
-      </span>
+    <div className="mb-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5">
+          <span className="font-display text-[15px] font-semibold tracking-tight text-white">Wetter-Ticker</span>
+          <button type="button" onClick={() => setInfo((o) => !o)} aria-expanded={info} aria-label="Was ist der Wetter-Ticker?" className="rounded-full p-0.5 text-white/70 transition-colors hover:text-white">
+            <Info className="h-4 w-4" />
+          </button>
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+          <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" /><span className="relative h-1.5 w-1.5 rounded-full bg-red-400" /></span>
+          Live
+        </span>
+      </div>
+      <div className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ gridTemplateRows: info ? "1fr" : "0fr" }}>
+        <div className="overflow-hidden">
+          <p className="mt-2 rounded-xl bg-white/10 p-3 text-[13px] leading-relaxed text-white/90">
+            Das Wetter ändert sich oft rasch – bei Gewittern, Schneefall oder Föhn am Bodensee. Der Ticker meldet zeitnah und kompakt, was gerade los ist: mit Messwerten unserer Stationen, Radar- und Modellkarten und kurzen Einschätzungen – aus dem Oberthurgau für das Oberthurgau.
+            <a href="/foto-einsenden" target="_blank" rel="noopener" className="mt-2 flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] font-medium text-[#1c4d82]">
+              <Camera className="h-3.5 w-3.5" /> Eigenes Wetterfoto einsenden
+            </a>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

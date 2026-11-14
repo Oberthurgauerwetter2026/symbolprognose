@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { ImagePlus, Trash2, X } from "lucide-react";
+import { deletePhotoSubmission, listPhotoSubmissions } from "@/lib/photos.functions";
+import { creditLine } from "@/lib/photo-submit";
+import { shrinkImage } from "@/lib/image-shrink";
 import { checkAdminLogin } from "@/lib/warnings.functions";
 import { createTickerPost, deleteTickerPost } from "@/lib/ticker.functions";
 import { MAX_BODY, TICKER_PRODUCTS, productById, productGroups, productUrl, visiblePosts } from "@/lib/ticker";
@@ -25,14 +28,7 @@ export const Route = createFileRoute("/admin-ticker")({
   }),
 });
 
-async function shrink(file: File): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const s = Math.min(1, 1000 / Math.max(bmp.width, bmp.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
-  c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.72).split(",")[1];
-}
+const shrink = (f: File) => shrinkImage(f);
 
 function AdminTicker() {
   const [pw, setPw] = useState<string | null>(null);
@@ -65,16 +61,17 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   const toggle = (id: string) => setPicked((l) => l.includes(id) ? l.filter((x) => x !== id) : [...l, id]);
   const [value, setValue] = useState("");
   const [link, setLink] = useState("");
-  const [image, setImage] = useState<{ b64: string; url: string } | null>(null);
+  const [image, setImage] = useState<{ b64?: string; sub?: string; url: string } | null>(null);
+  const subs = useQuery({ queryKey: ["photo-subs"], queryFn: () => listPhotoSubmissions({ data: { password } }), refetchInterval: 60_000 });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setMsg("");
     try {
-      await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, link } });
+      await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, link } });
       setTitle(""); setText(""); setPicked([]); setValue(""); setImage(null); setLink(""); setMsg("Veröffentlicht.");
-      await qc.invalidateQueries({ queryKey: ["ticker"] });
+      await qc.invalidateQueries({ queryKey: ["ticker"] }); qc.invalidateQueries({ queryKey: ["photo-subs"] });
     } catch (x) { setMsg(x instanceof Error ? x.message : "Fehler"); } finally { setBusy(false); }
   };
   const live = visiblePosts(data, Date.now());
@@ -85,6 +82,27 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         <h1 className="font-display text-2xl font-semibold">Wetter-Ticker</h1>
         <button onClick={onLogout} className="text-sm text-muted-foreground">Abmelden</button>
       </div>
+      {(subs.data?.length ?? 0) > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Eingesandte Leserfotos ({subs.data!.length})</div>
+          <ul className="space-y-3">
+            {subs.data!.map((s) => (
+              <li key={s.id} className="flex gap-3">
+                {s.url && <img src={s.url} alt="" className="h-20 w-28 shrink-0 rounded-lg object-cover" />}
+                <div className="min-w-0 flex-1 text-sm">
+                  <div className="font-medium">{creditLine(s)}</div>
+                  <div className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" })}</div>
+                  {s.note && <div className="mt-0.5 line-clamp-2 text-muted-foreground">{s.note}</div>}
+                  <div className="mt-1 flex gap-3">
+                    <button type="button" className="text-accent" onClick={() => { if (!s.url) return; setImage({ sub: s.id, url: s.url }); setText((t) => t || `${s.note ? s.note + "\n" : ""}${creditLine(s)}`); window.scrollTo({ top: 0, behavior: "smooth" }); }}>In Meldung übernehmen</button>
+                    <button type="button" className="text-muted-foreground" onClick={async () => { if (confirm("Einsendung löschen?")) { await deletePhotoSubmission({ data: { password, id: s.id } }); subs.refetch(); } }}>Löschen</button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-4">
         <div>
           <input value={title} onChange={(e) => setTitle(e.target.value.replace(/\n/g, " ").slice(0, 120))} placeholder="Titel, z. B. «Schneefall setzt ein»"
