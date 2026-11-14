@@ -17,7 +17,7 @@ interface SubRow {
   endpoint: string;
   p256dh: string;
   auth: string;
-  region_ids: string[];
+  region_ids?: string[];
 }
 
 function vapid() {
@@ -31,7 +31,7 @@ function vapid() {
 export async function sendPush(
   sub: SubRow,
   payload: { title: string; body: string; url: string; tag?: string; icon?: string },
-
+  subscriptionTable: "push_subscriptions" | "admin_photo_push_subscriptions" = "push_subscriptions",
 ): Promise<boolean> {
   const keys = vapid();
   if (!keys.publicKey || !keys.privateKey) return false;
@@ -45,13 +45,23 @@ export async function sendPush(
     const res = await fetch(sub.endpoint, init as unknown as RequestInit);
     if (res.status === 404 || res.status === 410) {
       const sb = await adminClient();
-      await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+      await sb.from(subscriptionTable).delete().eq("endpoint", sub.endpoint);
       return false;
     }
     return res.ok;
   } catch {
     return false;
   }
+}
+
+/** Awaited by submission handling: an accepted photo must outlive notification failures. */
+export async function notifyPhotoSubmission(photo: { id: string; author: string; place: string; note: string }): Promise<number> {
+  const sb = await adminClient();
+  const { data: devices, error } = await sb.from("admin_photo_push_subscriptions").select("endpoint, p256dh, auth");
+  if (error) throw new Error("Photo notification device lookup failed");
+  const { photoPushPayload } = await import("@/lib/photo-push");
+  const results = await Promise.all((devices ?? []).map((device) => sendPush(device as SubRow, photoPushPayload(photo), "admin_photo_push_subscriptions")));
+  return results.filter(Boolean).length;
 }
 
 /** Benachrichtigt alle Abos, die mindestens eine betroffene Gemeinde abonniert haben. */

@@ -10,6 +10,7 @@ import { createTickerPost, deleteTickerPost } from "@/lib/ticker.functions";
 import { MAX_BODY, TICKER_PRODUCTS, productById, productGroups, productUrl, visiblePosts } from "@/lib/ticker";
 import { ProductPreview, TickerWidget } from "@/components/ticker/ticker-view";
 import { tickerQuery } from "./embed.ticker";
+import { PhotoPushOptIn } from "@/components/ticker/photo-push-opt-in";
 
 const KEY = "wx_warn_admin_pw";
 
@@ -82,11 +83,12 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         <h1 className="font-display text-2xl font-semibold">Wetter-Ticker</h1>
         <button onClick={onLogout} className="text-sm text-muted-foreground">Abmelden</button>
       </div>
+      <PhotoPushOptIn password={password} />
       {(subs.data?.length ?? 0) > 0 && (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Eingesandte Leserfotos ({subs.data!.length})</div>
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Eingesandte Leserfotos ({subs.data?.length})</div>
           <ul className="space-y-3">
-            {subs.data!.map((s) => (
+            {subs.data?.map((s) => (
               <li key={s.id} className="flex gap-3">
                 {s.url && <img src={s.url} alt="" className="h-20 w-28 shrink-0 rounded-lg object-cover" />}
                 <div className="min-w-0 flex-1 text-sm">

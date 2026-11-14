@@ -21,8 +21,15 @@ export const submitPhoto = createServerFn({ method: "POST" })
     const path = `einsendungen/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.jpg`;
     const up = await sb.storage.from("ticker").upload(path, bin, { contentType: "image/jpeg" });
     if (up.error) throw new Error("Upload fehlgeschlagen");
-    const { error } = await sb.from("photo_submissions").insert({ image_path: path, ...meta });
+    const { data: photo, error } = await sb.from("photo_submissions").insert({ image_path: path, ...meta }).select("id").single();
     if (error) throw new Error("Speichern fehlgeschlagen");
+    try {
+      const { notifyPhotoSubmission } = await import("@/lib/push.server");
+      await notifyPhotoSubmission({ id: photo.id, ...meta });
+    } catch {
+      // The photo is saved; never invite duplicate submissions after a push failure.
+      console.warn("Reader photo notification failed");
+    }
     return { ok: true };
   });
 

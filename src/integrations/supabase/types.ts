@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_photo_push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          p256dh: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          p256dh: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          p256dh?: string
+        }
+        Relationships: []
+      }
       client_errors: {
         Row: {
           created_at: string

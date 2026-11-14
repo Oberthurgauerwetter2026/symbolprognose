@@ -1,3 +1,7 @@
+# Reader photo notifications
+- [x] Add password-protected device opt-in, disable and test controls, and delivery attempts after successful reader photo submission; preserve weather-warning subscriptions. Seven tests pass; unauthorized registration rejected; real photo accepted, read back in admin and removed; mobile has no overflow.
+- [ ] Verify actual push receipt on a real device: automated Chromium denies push registration; activate on the published admin page and use Test senden.
+
 # Additional ticker station maps
 - [x] Add current temperatures, today's strongest gusts and daily precipitation using the existing regional station map; nine real station readings verified in all five views at desktop/mobile sizes, no controls or browser errors, 16 tests pass. Existing WordPress live map stays unchanged.
 
