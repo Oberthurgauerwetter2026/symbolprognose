@@ -1,16 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
-import { MAX_BODY, productById } from "./ticker";
+import { MAX_BODY, cleanLink, productById } from "./ticker";
 
 export interface TickerPost {
   id: string; created_at: string; body: string;
-  product: string | null; product_value: string | null; image: string | null;
+  product: string | null; product_value: string | null; image: string | null; link: string | null;
 }
 
 export const listTickerPosts = createServerFn({ method: "GET" }).handler(async (): Promise<TickerPost[]> => {
   const { adminClient } = await import("@/lib/warnings.server");
   const sb = (await adminClient()) as any;
   const { data, error } = await sb
-    .from("ticker_posts").select("id,created_at,body,product,product_value,image_url")
+    .from("ticker_posts").select("id,created_at,body,product,product_value,image_url,link_url")
     .order("created_at", { ascending: false }).limit(30);
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as any[];
@@ -22,12 +22,12 @@ export const listTickerPosts = createServerFn({ method: "GET" }).handler(async (
   }
   return rows.map((r) => ({
     id: r.id, created_at: r.created_at, body: r.body, product: r.product,
-    product_value: r.product_value, image: r.image_url ? signed.get(r.image_url) ?? null : null,
+    product_value: r.product_value, image: r.image_url ? signed.get(r.image_url) ?? null : null, link: r.link_url ?? null,
   }));
 });
 
 export const createTickerPost = createServerFn({ method: "POST" })
-  .inputValidator((d: { password: string; body: string; product?: string | null; productValue?: string | null; imageBase64?: string | null }) => d)
+  .inputValidator((d: { password: string; body: string; product?: string | null; productValue?: string | null; imageBase64?: string | null; link?: string | null }) => d)
   .handler(async ({ data }) => {
     const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
     assertAdmin(data.password);
@@ -45,7 +45,7 @@ export const createTickerPost = createServerFn({ method: "POST" })
       image_url = path;
     }
     const { error } = await sb.from("ticker_posts").insert({
-      body, product, product_value: product ? data.productValue?.trim().slice(0, 80) || null : null, image_url,
+      body, product, product_value: product ? data.productValue?.trim().slice(0, 80) || null : null, image_url, link_url: cleanLink(data.link),
     });
     if (error) throw new Error(error.message);
     return { ok: true };

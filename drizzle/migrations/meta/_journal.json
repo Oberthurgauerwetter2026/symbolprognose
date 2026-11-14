@@ -8,6 +8,13 @@
       "when": 1794598630610,
       "tag": "0000_create_ticker_posts",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794661070212,
+      "tag": "0001_ticker_link",
+      "breakpoints": true
     }
   ]
 }

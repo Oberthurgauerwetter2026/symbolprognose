@@ -1,0 +1,1 @@
+ALTER TABLE public.ticker_posts ADD COLUMN IF NOT EXISTS link_url text;

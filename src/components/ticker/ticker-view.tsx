@@ -111,6 +111,7 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
                 {splitPost(post.body).rest && <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-foreground/85">{splitPost(post.body).rest}</p>}
                 {post.image && <img src={post.image} alt="" decoding="async" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
                 <ProductChip post={post} />
+                {post.link && <a href={post.link} target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground">Link öffnen <ArrowUpRight className="h-3.5 w-3.5" /></a>}
               </>
             )}
           </div>

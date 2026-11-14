@@ -116,6 +116,7 @@ export type Database = {
           created_at: string
           id: string
           image_url: string | null
+          link_url: string | null
           product: string | null
           product_value: string | null
         }
@@ -124,6 +125,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          link_url?: string | null
           product?: string | null
           product_value?: string | null
         }
@@ -132,6 +134,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          link_url?: string | null
           product?: string | null
           product_value?: string | null
         }

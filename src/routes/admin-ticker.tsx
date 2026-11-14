@@ -60,6 +60,7 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   const [body, setBody] = useState("");
   const [product, setProduct] = useState<string | null>(null);
   const [value, setValue] = useState("");
+  const [link, setLink] = useState("");
   const [image, setImage] = useState<{ b64: string; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -67,8 +68,8 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setMsg("");
     try {
-      await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null } });
-      setBody(""); setProduct(null); setValue(""); setImage(null); setMsg("Veröffentlicht.");
+      await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, link } });
+      setBody(""); setProduct(null); setValue(""); setImage(null); setLink(""); setMsg("Veröffentlicht.");
       await qc.invalidateQueries({ queryKey: ["ticker"] });
     } catch (x) { setMsg(x instanceof Error ? x.message : "Fehler"); } finally { setBusy(false); }
   };
@@ -106,6 +107,7 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
           {p && <a href={productUrl(p)} target="_blank" rel="noopener" className="mt-2 inline-block text-sm text-accent">Karte «{p.label}» gross öffnen ↗</a>}
           {p && <input value={value} onChange={(e) => setValue(e.target.value)} placeholder={p.hint} className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />}
         </div>
+        <input value={link} onChange={(e) => setLink(e.target.value)} type="url" inputMode="url" placeholder="Link (optional), z. B. zu einem Foto oder Bericht" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
         <div className="flex items-center gap-3">
           {image ? (
             <div className="relative"><img src={image.url} alt="" className="h-20 rounded-lg object-cover" />

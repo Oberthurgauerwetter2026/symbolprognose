@@ -873,7 +873,8 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
         return p;
       };
 
-      for (const p of data.points) {
+      // Alle Punkte parallel – sequentiell dauerte es mehrere Sekunden.
+      await Promise.all(data.points.map(async (p) => {
         // 1) MCH primär
         if (mchLocs) {
           const built = await forecastFromMchCache(p.lat, p.lon, mchLocs, locs);
@@ -884,7 +885,7 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
               mosmix,
               built.loc.utc_offset_seconds ?? 0,
             );
-            continue;
+            return;
           }
         }
         // 2) phaseA fallback
@@ -895,7 +896,7 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
             dropImplausibleWetCodes(fc);
             const mosmix = await getMosmix(p.lat, p.lon);
             out[p.id] = applyMosmixOverlay(fc, mosmix, best.utc_offset_seconds ?? 0);
-            continue;
+            return;
           }
         }
         // 3) Direkter Open-Meteo-Call mit Retry, danach stale-Cache bzw.
@@ -904,7 +905,7 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
         const cachedDirect = directForecastCache.get(cacheKey);
         if (cachedDirect && Date.now() - cachedDirect.at < DIRECT_TTL_MS) {
           out[p.id] = cachedDirect.fc;
-          continue;
+          return;
         }
         try {
           let pending = directInFlight.get(cacheKey);
@@ -925,12 +926,12 @@ export const getAggregatedForecastBatch = createServerFn({ method: "POST" })
           console.error("[aggregated-forecast-batch] direct fail", p.id, err);
           if (cachedDirect) {
             out[p.id] = cachedDirect.fc;
-            continue;
+            return;
           }
           const nearest = await nearestCacheFallback(p.lat, p.lon);
           out[p.id] = nearest ?? emptyForecast(p.lat, p.lon);
         }
-      }
+      }));
       return out;
     },
   );
