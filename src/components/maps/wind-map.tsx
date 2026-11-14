@@ -810,7 +810,8 @@ function WindArrowLayer({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, size.x, size.y);
 
-    if (!enabled || z < 11) return;
+    const tickerView = new URLSearchParams(window.location.search).get("clean") === "1";
+    if (!enabled || (z < 11 && !tickerView)) return;
 
     const sampler = makeSampler(payload, frame, nextFrame, progress);
     const STEP = z >= 13 ? 46 : 58;
@@ -832,7 +833,7 @@ function WindArrowLayer({
         if (sp < 1) continue;
         const dr = sampler.dir(ll.lat, ll.lng);
         const rad = ((dr + 180) * Math.PI) / 180;
-        const len = Math.max(3, Math.min(STEP * 0.9, sp * 0.55));
+        const len = Math.max(tickerView ? 12 : 3, Math.min(STEP * 0.9, sp * 0.55));
         const dx = Math.sin(rad) * len;
         const dy = -Math.cos(rad) * len;
         const x0 = px - dx / 2;
@@ -985,6 +986,8 @@ function WindMapInner({
   const progress = 0;
   const [arrowsOn, setArrowsOn] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
+  // Ticker-Vorschau (clean=1): Windpfeile immer zeigen, da keine Knöpfe sichtbar sind.
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("clean") === "1") setArrowsOn(true); }, []);
   const [mapInst, setMapInst] = useState<L.Map | null>(null);
   const isMobile = useIsMobile();
   const idxRef = useRef<number | null>(null);

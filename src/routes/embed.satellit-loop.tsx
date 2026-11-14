@@ -29,7 +29,7 @@ export const Route = createFileRoute("/embed/satellit-loop")({
 
 function EmbedSatellitLoop() {
   const fallback = (
-    <div className="h-full min-h-[300px] w-full animate-pulse rounded-lg bg-muted" />
+    <div className="h-full min-h-[300px] w-full animate-pulse bg-neutral-900" />
   );
   return (
     <EmbedShell fillViewport>

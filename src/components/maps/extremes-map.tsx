@@ -1,5 +1,7 @@
 import { useEffect } from "react";
-import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import { GeoJSON, MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import type { FeatureCollection } from "geojson";
+import lake from "@/data/lake.json";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { ExtremeStat, StationExtreme } from "@/lib/station-extremes";
@@ -42,9 +44,10 @@ function color(v: number): string {
 }
 const contrast = (bg: string) => (0.299 * parseInt(bg.slice(1, 3), 16) + 0.587 * parseInt(bg.slice(3, 5), 16) + 0.114 * parseInt(bg.slice(5, 7), 16)) / 255 > 0.6 ? "#111827" : "#ffffff";
 
-function icon(v: number) {
+function icon(v: number, name: string) {
   const bg = color(v), w = 58, h = 36;
-  const html = `<div style="background:${bg};color:${contrast(bg)};box-shadow:0 2px 6px rgba(0,0,0,0.22);border:2px solid white;border-radius:9999px;min-width:${w}px;height:${h}px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:system-ui,sans-serif;padding:0 8px;white-space:nowrap;">${v.toFixed(1)}°</div>`;
+  const label = `<div style="position:absolute;top:${h + 2}px;left:50%;transform:translateX(-50%);white-space:nowrap;font:600 10px/1.1 system-ui,sans-serif;color:#1f2937;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff;">${name}</div>`;
+  const html = `<div style="background:${bg};color:${contrast(bg)};box-shadow:0 2px 6px rgba(0,0,0,0.22);border:2px solid white;border-radius:9999px;min-width:${w}px;height:${h}px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:system-ui,sans-serif;padding:0 8px;white-space:nowrap;">${v.toFixed(1)}°</div>${label}`;
   return L.divIcon({ html, className: "weather-marker", iconSize: [w, h], iconAnchor: [w / 2, h / 2] });
 }
 
@@ -54,10 +57,11 @@ export function ExtremesMap({ stations, stat }: { stations: StationExtreme[]; st
       className="h-full w-full" style={{ background: "#eef2f5" }}>
       <Fit />
       <TileLayer url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png" maxZoom={18} />
+      <GeoJSON data={lake as unknown as FeatureCollection} interactive={false} style={{ color: "#7fb3d9", weight: 1, fillColor: "#a9cfe9", fillOpacity: 0.9 }} />
       {stations.map((s) => {
         const value = s[stat];
         if (typeof value !== "number" || !Number.isFinite(value)) return null;
-        return <Marker key={s.id} title={s.name} alt={s.name} position={[s.lat, s.lon]} icon={icon(value)} interactive={false} keyboard={false} />;
+        return <Marker key={s.id} title={s.name} alt={s.name} position={[s.lat, s.lon]} icon={icon(value, s.name)} interactive={false} keyboard={false} />;
       })}
     </MapContainer>
   );

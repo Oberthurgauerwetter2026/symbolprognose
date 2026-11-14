@@ -6,7 +6,14 @@ import { parseStat, rankExtremes } from "@/lib/station-extremes";
 import { SourceFooter } from "@/components/source-footer";
 
 const ExtremesMap = lazy(() => import("@/components/maps/extremes-map").then((m) => ({ default: m.ExtremesMap })));
-const q = () => queryOptions({ queryKey: ["station-extremes"], queryFn: () => getStationExtremes(), refetchInterval: 300_000, staleTime: 120_000 });
+const CACHE = "owt_station_extremes";
+// Letzte Werte sofort aus dem Browser zeigen, frische Werte im Hintergrund nachladen.
+const cached = () => { try { const v = JSON.parse(localStorage.getItem(CACHE) ?? "null"); return Array.isArray(v) && v.length ? v : undefined; } catch { return undefined; } };
+const q = () => queryOptions({
+  queryKey: ["station-extremes"],
+  queryFn: async () => { const d = await getStationExtremes(); try { if (d.length) localStorage.setItem(CACHE, JSON.stringify(d)); } catch { /* voll */ } return d; },
+  placeholderData: cached, refetchInterval: 300_000, staleTime: 120_000,
+});
 
 export const Route = createFileRoute("/embed/stationen-extrem")({
   ssr: false,
