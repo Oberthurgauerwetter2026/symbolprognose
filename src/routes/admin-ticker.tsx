@@ -27,11 +27,11 @@ export const Route = createFileRoute("/admin-ticker")({
 
 async function shrink(file: File): Promise<string> {
   const bmp = await createImageBitmap(file);
-  const s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const s = Math.min(1, 1000 / Math.max(bmp.width, bmp.height));
   const c = document.createElement("canvas");
   c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
   c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.85).split(",")[1];
+  return c.toDataURL("image/jpeg", 0.72).split(",")[1];
 }
 
 function AdminTicker() {

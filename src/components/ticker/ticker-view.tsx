@@ -31,10 +31,10 @@ export function ProductPreview({ product, className = "" }: { product: TickerPro
       className={`group relative mt-3 block overflow-hidden rounded-2xl bg-muted shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_-12px_rgba(0,0,0,0.25)] ring-1 ring-border ${className}`}>
       {!loaded && <span aria-hidden className="ticker-shimmer absolute inset-0 z-10" />}
       {v.kind === "image" ? (
-        <img src={v.src} alt={product.label} loading="lazy" onLoad={() => setLoaded(true)} className={`block h-auto w-full transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`} />
+        <img src={v.src} alt={product.label} decoding="async" onLoad={() => setLoaded(true)} className={`block h-auto w-full transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`} />
       ) : (
         <div className="relative aspect-[4/3] w-full">
-          <iframe src={v.src} title={product.label} loading="lazy" tabIndex={-1} onLoad={() => setTimeout(() => setLoaded(true), 600)}
+          <iframe src={v.src} title={product.label} tabIndex={-1} onLoad={() => setLoaded(true)}
             className={`pointer-events-none absolute inset-0 h-full w-full border-0 transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`} />
         </div>
       )}
@@ -67,7 +67,7 @@ function Thumb({ post }: { post: TickerPost }) {
   const p = productById(post.product);
   const v = p ? productPreview(p) : null;
   const src = post.image ?? (v?.kind === "image" ? v.src : null);
-  if (src) return <img src={src} alt="" loading="lazy" className="h-10 w-10 shrink-0 rounded-lg object-cover" />;
+  if (src) return <img src={src} alt="" decoding="async" className="h-10 w-10 shrink-0 rounded-lg object-cover" />;
   if (p) return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-[9px] font-semibold uppercase leading-tight text-accent text-center">Karte</span>;
   return null;
 }
@@ -84,6 +84,8 @@ export function splitPost(body: string): { title: string; rest: string } {
 /** Ein Tipp öffnet die Meldung: voller Text, Bild und Karte. Geschlossen nur eine Zeile. */
 function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last: boolean }) {
   const [open, setOpen] = useState(false);
+  // Neueste Meldung sofort, übrige beim ersten Berühren im Hintergrund vorladen.
+  const [warm, setWarm] = useState(latest);
   const now = useNow();
   const rel = ago(post.created_at, now);
   return (
@@ -91,7 +93,7 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
       {!last && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-border" />}
       <span className={`absolute left-0 top-[6px] h-[11px] w-[11px] rounded-full ${latest ? "bg-accent ring-4 ring-accent/20" : "bg-muted-foreground/40"}`} />
       <div className="pb-3">
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+        <button type="button" onPointerEnter={() => setWarm(true)} onPointerDown={() => setWarm(true)} onFocus={() => setWarm(true)} onClick={() => { setWarm(true); setOpen((o) => !o); }} aria-expanded={open}
           className="-mx-2 flex w-[calc(100%+1rem)] items-start gap-3 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold tabular-nums text-muted-foreground">
@@ -103,11 +105,11 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
           <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
         </button>
         <div className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
-          <div className="overflow-hidden">
-            {open && (
+          <div className="overflow-hidden" aria-hidden={!open}>
+            {(open || warm) && (
               <>
                 {splitPost(post.body).rest && <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-foreground/85">{splitPost(post.body).rest}</p>}
-                {post.image && <img src={post.image} alt="" loading="lazy" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
+                {post.image && <img src={post.image} alt="" decoding="async" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
                 <ProductChip post={post} />
               </>
             )}
