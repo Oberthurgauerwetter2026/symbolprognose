@@ -10,7 +10,7 @@ const HUB = "https://live-wetterkarte.lovable.app";
 const AMR = "https://oberthurgauerwetter2026.lovable.app";
 const W = [12, 24, 48, 72] as const;
 const sums = (m: "rain" | "snow", p: "past" | "future", name: string, hint: string): TickerProduct[] =>
-  W.map((h) => ({ id: `${m}-${p}-${h}`, label: `${name} ${h} h`, group: `${name}`, path: `/karten/niederschlag?p=${p}&m=${m}&h=${h}`, embed: `/embed/niederschlag?p=${p}&m=${m}&h=${h}&clean=1`, hint, site: WEB + "/niederschlag/" }));
+  W.map((h) => ({ id: `${m}-${p}-${h}`, label: `${name} ${h} h`, group: `${name}`, path: `/karten/niederschlag?p=${p}&m=${m}&h=${h}`, embed: `/embed/niederschlag?p=${p}&m=${m}&h=${h}&clean=1`, hint }));
 
 /** Alle Karten aus allen Projekten. Pfade mit https:// verlinken direkt in andere Projekte. */
 export const TICKER_PRODUCTS: TickerProduct[] = [
@@ -19,20 +19,20 @@ export const TICKER_PRODUCTS: TickerProduct[] = [
   ...sums("rain", "future", "Regensumme Prognose", "z. B. bis 25 mm"),
   ...sums("snow", "future", "Neuschnee Prognose", "z. B. bis 10 cm"),
   { id: "wetterbericht", label: "Wetterbericht", group: "Karten", path: "/", site: WEB + "/wetterbericht/", hint: "z. B. Aktueller Bericht aufgeschaltet" },
-  { id: "radar", label: "Radar", group: "Karten", path: "/karten/radar", embed: "/embed/radar?clean=1",  site: WEB + "/radar/", hint: "z. B. Schauer ziehen ostwärts" },
-  { id: "temperatur", label: "Regionskarte", group: "Karten", path: "/karten/region", embed: "/embed/region?clean=1",  site: WEB + "/wetterkarte/", hint: "z. B. Amriswil −3.4 °C" },
-  { id: "wind", label: "Wind", group: "Karten", path: "/karten/wind", embed: "/embed/wind?clean=1",  site: WEB + "/wind/", hint: "z. B. Böen bis 75 km/h" },
-  { id: "wind-max", label: "Stärkste Böen nächste 24 h", group: "Karten", path: "/karten/wind?max=1", embed: "/embed/wind?clean=1&max=1", site: WEB + "/wind/", hint: "z. B. Säntis bis 110 km/h" },
-  { id: "satellit", label: "Satellitenbild", group: "Karten", path: "/karten/satellit", embed: "/embed/satellit-loop?clean=1",  site: WEB + "/satellitenbild/", hint: "z. B. Hochnebel bis 900 m" },
-  { id: "bodendruck", label: "Bodendruck", group: "Karten", path: "/karten/bodendruck", image: AMR + "/api/public/maps/europe-pressure-latest.svg",  site: WEB + "/bodendruck/", hint: "z. B. Tief über der Nordsee" },
+  { id: "radar", label: "Radar", group: "Karten", path: "/karten/radar", embed: "/embed/radar?clean=1",  site: WEB + "/niederschlagsradar-3/", hint: "z. B. Schauer ziehen ostwärts" },
+  { id: "temperatur", label: "Regionskarte", group: "Karten", path: "/karten/region", embed: "/embed/region?clean=1", hint: "z. B. Amriswil −3.4 °C" },
+  { id: "wind", label: "Wind", group: "Karten", path: "/karten/wind", embed: "/embed/wind?clean=1", hint: "z. B. Böen bis 75 km/h" },
+  { id: "wind-max", label: "Stärkste Böen nächste 24 h", group: "Karten", path: "/karten/wind?max=1", embed: "/embed/wind?clean=1&max=1", hint: "z. B. Säntis bis 110 km/h" },
+  { id: "satellit", label: "Satellitenbild", group: "Karten", path: "/karten/satellit", embed: "/embed/satellit-loop?clean=1",  site: WEB + "/satellitenbild-schweiz/", hint: "z. B. Hochnebel bis 900 m" },
+  { id: "bodendruck", label: "Bodendruck", group: "Karten", path: "/karten/bodendruck", image: AMR + "/api/public/maps/europe-pressure-latest.svg", hint: "z. B. Tief über der Nordsee" },
   { id: "warnungen", label: "Warnungen", group: "Karten", path: "/karten/warnungen", embed: "/embed/warnungen?clean=1",  site: WEB + "/warnkarte/", hint: "z. B. Stufe 2 Glätte" },
   { id: "lokal", label: "Lokalprognose", group: "Karten", path: "/karten/lokal", embed: "/embed/lokalprognose",  hint: "z. B. morgen sonnig, 8 °C" },
-  { id: "temp-current", label: "Aktuelle Temperaturen (Live)", group: "Weather Hub", path: "/embed/stationen-extrem?stat=current", embed: "/embed/stationen-extrem?stat=current&clean=1", site: WEB, hint: "z. B. Amriswil 2.1 °C" },
-  { id: "gust-today", label: "Stärkste Windböen heute (km/h)", group: "Weather Hub", path: "/embed/stationen-extrem?stat=gust", embed: "/embed/stationen-extrem?stat=gust&clean=1", site: WEB, hint: "z. B. Böen bis 68 km/h" },
-  { id: "rain-today", label: "Gesamtniederschlag heute (mm)", group: "Weather Hub", path: "/embed/stationen-extrem?stat=rain", embed: "/embed/stationen-extrem?stat=rain&clean=1", site: WEB, hint: "z. B. Amriswil 12.4 mm" },
-  { id: "temp-min", label: "Tiefsttemperaturen heute", group: "Weather Hub", path: "/embed/stationen-extrem?stat=min", embed: "/embed/stationen-extrem?stat=min&clean=1", hint: "z. B. Opfershofen −3.1 °C" },
-  { id: "temp-max", label: "Höchsttemperaturen heute", group: "Weather Hub", path: "/embed/stationen-extrem?stat=max", embed: "/embed/stationen-extrem?stat=max&clean=1", hint: "z. B. Uttwil 3.2 °C" },
-  { id: "hub-karte", label: "Live-Stationskarte", group: "Weather Hub", path: HUB + "/", embed: HUB + "/embed/map",  hint: "z. B. Amriswil 2.1 °C" },
+  { id: "temp-current", label: "Aktuelle Temperaturen (Live)", group: "Weather Hub", path: "/embed/stationen-extrem?stat=current", embed: "/embed/stationen-extrem?stat=current&clean=1", site: WEB + "/live-wetterkarte/", hint: "z. B. Amriswil 2.1 °C" },
+  { id: "gust-today", label: "Stärkste Windböen heute (km/h)", group: "Weather Hub", path: "/embed/stationen-extrem?stat=gust", embed: "/embed/stationen-extrem?stat=gust&clean=1", site: WEB + "/live-wetterkarte/", hint: "z. B. Böen bis 68 km/h" },
+  { id: "rain-today", label: "Gesamtniederschlag heute (mm)", group: "Weather Hub", path: "/embed/stationen-extrem?stat=rain", embed: "/embed/stationen-extrem?stat=rain&clean=1", site: WEB + "/live-wetterkarte/", hint: "z. B. Amriswil 12.4 mm" },
+  { id: "temp-min", label: "Tiefsttemperaturen heute", group: "Weather Hub", path: "/embed/stationen-extrem?stat=min", embed: "/embed/stationen-extrem?stat=min&clean=1", site: WEB + "/live-wetterkarte/", hint: "z. B. Opfershofen −3.1 °C" },
+  { id: "temp-max", label: "Höchsttemperaturen heute", group: "Weather Hub", path: "/embed/stationen-extrem?stat=max", embed: "/embed/stationen-extrem?stat=max&clean=1", site: WEB + "/live-wetterkarte/", hint: "z. B. Uttwil 3.2 °C" },
+  { id: "hub-karte", label: "Live-Stationskarte", group: "Weather Hub", path: HUB + "/", embed: HUB + "/embed/map", site: WEB + "/live-wetterkarte/", hint: "z. B. Amriswil 2.1 °C" },
   { id: "hub-dashboard", label: "Stations-Dashboard", group: "Weather Hub", path: HUB + "/dashboard", embed: HUB + "/dashboard",  hint: "z. B. Böen 68 km/h" },
   { id: "amr-prognose", label: "Amriswil 10-Tage", group: "Amriswil Weather Watch", path: AMR + "/", embed: AMR + "/",  hint: "z. B. ab Sonntag kälter" },
 ];
@@ -40,6 +40,7 @@ export const TICKER_PRODUCTS: TickerProduct[] = [
 const LEGACY: Record<string, string> = {
   regensumme: "rain-past-24", neuschnee: "snow-past-24", "regen-prognose": "rain-future-24", "schnee-prognose": "snow-future-24",
 };
+/** Passende WordPress-Unterseite zuerst; sonst die unveränderte Grossansicht mit allen Auswahlparametern. */
 export const productUrl = (p: TickerProduct) => p.site ?? (p.path.startsWith("http") ? p.path : SITE + p.path);
 /** Optionaler Link: nur http(s), sonst null. */
 export function cleanLink(raw: string | null | undefined): string | null {

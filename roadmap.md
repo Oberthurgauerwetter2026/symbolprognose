@@ -1,3 +1,6 @@
+# Ticker link destinations
+- [x] Correct every catalog destination: matching WordPress pages when available, otherwise the selected interactive map with its parameters; all 33 products resolve to 28 HTTP-200 destinations without redirects, and 36 regression tests pass. A real temporary five-card post read back through the public widget/banner, its radar link opened the correct WordPress page, and mobile has no overflow or runtime errors; temporary post removed. Snow 72 h and maximum gust selection verified with real data. Signed-in admin verification remains blocked by the rejected available admin credential, as recorded below.
+
 # Satellite portrait framing
 - [x] Fit the entire Swiss outline to the actual satellite-map container on phones and resize; four framing tests pass, and real imagery verified at 375/402 px, landscape and desktop, with both embeds and Europe/Switzerland switching. Desktop stays at zoom 7; no cropped Swiss bounds, horizontal overflow or runtime errors. Remove tile layers before clearing their listeners to keep resize and region changes stable.
 
