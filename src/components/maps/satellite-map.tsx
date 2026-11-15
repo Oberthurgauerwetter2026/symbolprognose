@@ -34,6 +34,7 @@ import {
 import { getLightningStrikes, type LightningStrike } from "@/lib/lightning.functions";
 import { FilmstripTimeline } from "./filmstrip-timeline";
 import { SatelliteCities } from "./satellite-cities";
+import { SATELLITE_SWISS_BOUNDS, SATELLITE_FIT_PADDING, satelliteFitZoom } from "./satellite-framing";
 
 
 const WMS_URL = "https://view.eumetsat.int/geoserver/wms";
@@ -87,45 +88,54 @@ const SPEEDS = [
   { label: "4×", ms: 125 },
 ];
 
-// Schweiz-Bounds inkl. kleinem Puffer (Bodensee, Genfersee, Tessin sichtbar).
-const CH_BOUNDS: L.LatLngBoundsLiteral = [
-  [45.75, 5.9],
-  [47.85, 10.55],
-];
-const CH_CENTER: [number, number] = [46.8, 8.23];
-
-function FlyToRegion({ regionId, fitBounds }: { regionId: SatelliteRegionId; fitBounds?: boolean }) {
+function FlyToRegion({ regionId, loop = false }: { regionId: SatelliteRegionId; loop?: boolean }) {
   const map = useMap();
   useEffect(() => {
-    if (fitBounds) {
-      const apply = () => {
-        map.invalidateSize();
-        const bounds = L.latLngBounds(CH_BOUNDS);
-        // inside=false: max. Zoom, bei dem die Bounds komplett in den Viewport passen.
-        const raw = map.getBoundsZoom(bounds, false, L.point(12, 12));
-        const z = Math.max(5, Math.min(9, Math.floor(raw)));
-        map.setMinZoom(z);
-        map.setMaxZoom(z);
-        map.fitBounds(bounds, { padding: [12, 12], animate: false, maxZoom: z });
-      };
-      apply();
-      const container = map.getContainer();
-      let raf = 0;
-      const ro = new ResizeObserver(() => {
-        window.clearTimeout(raf);
-        raf = window.setTimeout(apply, 150) as unknown as number;
-      });
-      ro.observe(container);
-      return () => {
-        ro.disconnect();
-        window.clearTimeout(raf);
-      };
-    }
     const r = getRegion(regionId);
-    map.setMinZoom(r.zoom);
-    map.setMaxZoom(r.zoom);
-    map.setView(r.center, r.zoom, { animate: true });
-  }, [regionId, map, fitBounds]);
+    const bounds = L.latLngBounds(SATELLITE_SWISS_BOUNDS);
+    const padding = L.point(SATELLITE_FIT_PADDING, SATELLITE_FIT_PADDING);
+    const apply = () => {
+      const container = map.getContainer();
+      if (container.clientWidth === 0 || container.clientHeight === 0) return;
+      map.stop();
+      // Alte feste Limits vor der Berechnung lösen: getBoundsZoom berücksichtigt sie.
+      map.setMinZoom(0);
+      map.setMaxZoom(9);
+      map.invalidateSize({ animate: false, pan: false });
+      let zoom = r.zoom;
+      let center = L.latLng(r.center);
+      if (loop || regionId === "alpen-ch") {
+        const raw = map.getBoundsZoom(bounds, false, padding.multiplyBy(2));
+        zoom = satelliteFitZoom(raw, r.zoom, loop);
+        const halfSize = map.getSize().divideBy(2);
+        // Breite Ansichten behalten den bisherigen Mittelpunkt; enge werden
+        // nur dann neu zentriert, wenn ein Teil der Schweiz abgeschnitten wäre.
+        const centerPoint = map.project(center, zoom);
+        const southWest = map.project(bounds.getSouthWest(), zoom);
+        const northEast = map.project(bounds.getNorthEast(), zoom);
+        const fits = southWest.x >= centerPoint.x - halfSize.x + padding.x
+          && northEast.x <= centerPoint.x + halfSize.x - padding.x
+          && northEast.y >= centerPoint.y - halfSize.y + padding.y
+          && southWest.y <= centerPoint.y + halfSize.y - padding.y;
+        if (loop || !fits) center = map.unproject(southWest.add(northEast).divideBy(2), zoom);
+      }
+      const viewOptions: L.ZoomPanOptions & { reset: boolean } = { animate: false, reset: true };
+      map.setView(center, zoom, viewOptions);
+      map.setMinZoom(zoom);
+      map.setMaxZoom(zoom);
+    };
+    apply();
+    let timer = 0;
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(apply, 150);
+    });
+    observer.observe(map.getContainer());
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, [regionId, map, loop]);
   return null;
 }
 
@@ -486,8 +496,9 @@ function FrameStack({
     const unmountFrame = (i: number) => {
       const tl = layersRef.current[i];
       if (!tl) return;
-      tl.off();
+      // remove muss Leaflets eigene Map-Listener lösen, bevor off sie löscht.
       tl.remove();
+      tl.off();
       layersRef.current[i] = null;
       loadedRef.current.delete(i);
     };
@@ -537,8 +548,8 @@ function FrameStack({
       timers.forEach((t) => window.clearTimeout(t));
       timers.clear();
       layersRef.current.forEach((tl) => {
-        tl?.off();
         tl?.remove();
+        tl?.off();
       });
       layersRef.current = [];
       loadedRef.current = new Set();
@@ -882,6 +893,8 @@ function SatelliteMapInner({
           zoom={region.zoom}
           minZoom={region.zoom}
           maxZoom={region.zoom}
+          zoomSnap={loop ? 1 : 0.25}
+          zoomAnimation={false}
           zoomControl={false}
           attributionControl={false}
           scrollWheelZoom={false}
@@ -893,7 +906,7 @@ function SatelliteMapInner({
           worldCopyJump
           className="absolute inset-0 z-0 bg-black"
         >
-          <FlyToRegion regionId={regionId} fitBounds={loop} />
+          <FlyToRegion regionId={regionId} loop={loop} />
           {frames.length > 0 && (
             <FrameStack
               key={`${regionId}-${layer}-${reloadKey}`}

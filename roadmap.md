@@ -1,3 +1,6 @@
+# Satellite portrait framing
+- [x] Fit the entire Swiss outline to the actual satellite-map container on phones and resize; four framing tests pass, and real imagery verified at 375/402 px, landscape and desktop, with both embeds and Europe/Switzerland switching. Desktop stays at zoom 7; no cropped Swiss bounds, horizontal overflow or runtime errors. Remove tile layers before clearing their listeners to keep resize and region changes stable.
+
 # Reader photo notifications
 - [x] Add password-protected device opt-in, disable and test controls, and delivery attempts after successful reader photo submission; preserve weather-warning subscriptions. Seven tests pass; unauthorized registration rejected; real photo accepted, read back in admin and removed; mobile has no overflow.
 - [ ] Verify actual push receipt on a real device: automated Chromium denies push registration; activate on the published admin page and use Test senden.
