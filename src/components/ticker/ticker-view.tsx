@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ArrowUpRight, Info, Camera } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { productById, productIds, productPreview, productUrl, type TickerProduct } from "@/lib/ticker";
 import type { TickerPost } from "@/lib/ticker.functions";
 
@@ -28,7 +29,7 @@ export function ProductPreview({ product, className = "" }: { product: TickerPro
   if (!v) return null;
   return (
     <a href={productUrl(product)} target="_blank" rel="noopener" aria-label={`${product.label} öffnen`}
-      className={`group relative mt-3 block overflow-hidden rounded-2xl bg-white/10 shadow-[0_1px_2px_rgba(0,0,0,0.15),0_8px_24px_-12px_rgba(0,0,0,0.4)] ring-1 ring-white/20 ${className}`}>
+      className={`group relative mt-3 block overflow-hidden rounded-2xl bg-ticker-foreground/10 shadow-ticker-preview ring-1 ring-ticker-foreground/20 ${className}`}>
       {!loaded && <span aria-hidden className="ticker-shimmer absolute inset-0 z-10" />}
       {v.kind === "image" ? (
         <img src={v.src} alt={product.label} loading="lazy" decoding="async" onLoad={() => setLoaded(true)} className={`block h-auto w-full transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`} />
@@ -38,7 +39,7 @@ export function ProductPreview({ product, className = "" }: { product: TickerPro
             className={`pointer-events-none absolute inset-0 h-full w-full border-0 transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`} />
         </div>
       )}
-      <span className="absolute bottom-2 right-2 z-20 inline-flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-[#1c4d82] shadow-sm backdrop-blur transition-transform group-hover:scale-105">
+      <span className="absolute bottom-2 right-2 z-20 inline-flex items-center gap-1 rounded-full bg-ticker-foreground/90 px-2.5 py-1 text-[11px] font-semibold text-ticker-strong shadow-sm backdrop-blur transition-transform group-hover:scale-105">
         Gross öffnen <ArrowUpRight className="h-3 w-3" />
       </span>
     </a>
@@ -56,12 +57,12 @@ function OneProduct({ id, post }: { id: string; post: TickerPost }) {
     <div className="mt-2">
     <ProductPreview product={p} />
     <a href={productUrl(p)} target="_blank" rel="noopener"
-      className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-white/10 px-3 py-2 text-sm transition-colors hover:bg-white/15">
+      className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-ticker-foreground/10 px-3 py-2 text-sm transition-colors hover:bg-ticker-foreground/15">
       <span className="min-w-0">
-        <span className="block text-[11px] font-medium uppercase tracking-wide text-white/60">{p.label}</span>
-        {post.product_value && <span className="block truncate font-semibold text-white">{post.product_value}</span>}
+        <span className="block text-[11px] font-medium uppercase tracking-wide text-ticker-foreground/60">{p.label}</span>
+        {post.product_value && <span className="block truncate font-semibold text-ticker-foreground">{post.product_value}</span>}
       </span>
-      <ArrowUpRight className="h-4 w-4 shrink-0 text-white/80" />
+      <ArrowUpRight className="h-4 w-4 shrink-0 text-ticker-foreground/80" />
     </a>
     </div>
   );
@@ -71,8 +72,8 @@ function Thumb({ post }: { post: TickerPost }) {
   const p = productById(productIds(post.product)[0]);
   const v = p ? productPreview(p) : null;
   const src = post.image ?? (v?.kind === "image" ? v.src : null);
-  if (src) return <img src={src} alt="" decoding="async" className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/25" />;
-  if (p) return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/15 text-[9px] font-semibold uppercase leading-tight text-white/80 text-center">Karte</span>;
+  if (src) return <img src={src} alt="" decoding="async" className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-ticker-foreground/25" />;
+  if (p) return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ticker-foreground/15 text-[9px] font-semibold uppercase leading-tight text-ticker-foreground/80 text-center">Karte</span>;
   return null;
 }
 
@@ -88,34 +89,32 @@ export function splitPost(body: string): { title: string; rest: string } {
 /** Ein Tipp öffnet die Meldung: voller Text, Bild und Karte. Geschlossen nur eine Zeile. */
 function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last: boolean }) {
   const [open, setOpen] = useState(false);
-  // Neueste Meldung sofort, übrige beim ersten Berühren im Hintergrund vorladen.
-  const [warm, setWarm] = useState(latest);
   const now = useNow();
   const rel = ago(post.created_at, now);
   return (
     <li className="relative pl-6">
-      {!last && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-white/20" />}
-      <span className={`absolute left-0 top-[6px] h-[11px] w-[11px] rounded-full ${latest ? "bg-white ring-4 ring-white/25" : "bg-white/40"}`} />
+      {!last && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-ticker-foreground/20" />}
+      <span className={`absolute left-0 top-[6px] h-[11px] w-[11px] rounded-full ${latest ? "bg-ticker-foreground ring-4 ring-ticker-foreground/25" : "bg-ticker-foreground/40"}`} />
       <div className="pb-3">
-        <button type="button" onPointerEnter={() => setWarm(true)} onPointerDown={() => setWarm(true)} onFocus={() => setWarm(true)} onClick={() => { setWarm(true); setOpen((o) => !o); }} aria-expanded={open}
-          className="-mx-2 flex w-[calc(100%+1rem)] items-start gap-3 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40">
+        <Button type="button" variant="ghost" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+          className="-mx-2 flex h-auto w-[calc(100%+1rem)] items-start justify-start gap-3 whitespace-normal rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-ticker-foreground/10 hover:text-ticker-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ticker-foreground/40">
           <span className="min-w-0 flex-1">
-            <span className="block text-xs font-semibold tabular-nums text-white/60">
-              <span className={latest ? "text-white" : ""}>{rel ?? time(post.created_at)}</span>{" · "}{rel ? time(post.created_at) : day(post.created_at)}
+            <span className="block text-xs font-semibold tabular-nums text-ticker-foreground/60">
+              <span className={latest ? "text-ticker-foreground" : ""}>{rel ?? time(post.created_at)}</span>{" · "}{rel ? time(post.created_at) : day(post.created_at)}
             </span>
-            <span className="mt-0.5 block text-[15px] font-semibold leading-snug text-white">{splitPost(post.body).title}</span>
+            <span className="mt-0.5 block break-words text-[15px] font-semibold leading-snug text-ticker-foreground">{splitPost(post.body).title}</span>
           </span>
           {!open && <Thumb post={post} />}
-          <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-white/60 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
-        </button>
-        <div className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
+          <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-ticker-foreground/60 transition-transform duration-300 motion-reduce:transition-none ${open ? "rotate-180" : ""}`} />
+        </Button>
+        <div className={`grid ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
           <div className="overflow-hidden" aria-hidden={!open}>
             {open && (
               <>
-                {splitPost(post.body).rest && <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-white/85">{splitPost(post.body).rest}</p>}
+                {splitPost(post.body).rest && <p className="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed text-ticker-foreground/85">{splitPost(post.body).rest}</p>}
                 {post.image && <img src={post.image} alt="" decoding="async" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
                 <ProductChip post={post} />
-                {post.link && <a href={post.link} target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-[#1c4d82]">Link öffnen <ArrowUpRight className="h-3.5 w-3.5" /></a>}
+                {post.link && <a href={post.link} target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 rounded-full bg-ticker-foreground px-3 py-1.5 text-sm font-medium text-ticker-strong">Link öffnen <ArrowUpRight className="h-3.5 w-3.5" /></a>}
               </>
             )}
           </div>
@@ -127,54 +126,52 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
 function Header({ live = true }: { live?: boolean }) {
   const [info, setInfo] = useState(false);
   return (
-    <div className="mb-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5">
-          <span className="font-display text-[15px] font-semibold tracking-tight text-white">Wetter-Ticker</span>
-          <button type="button" onClick={() => setInfo((o) => !o)} aria-expanded={info} aria-label="Was ist der Wetter-Ticker?" className="rounded-full p-0.5 text-white/70 transition-colors hover:text-white">
+    <div className="mb-1">
+      <div className="flex items-start justify-between gap-2">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+          <span className="whitespace-nowrap font-display text-[15px] font-semibold text-ticker-foreground">Wetter-Ticker</span>
+          <Button type="button" variant="ghost" size="icon" onClick={() => setInfo((o) => !o)} aria-expanded={info} aria-label="Was ist der Wetter-Ticker?" title="Was ist der Wetter-Ticker?" className="h-5 w-5 rounded-full p-0.5 text-ticker-foreground/70 hover:bg-ticker-foreground/10 hover:text-ticker-foreground">
             <Info className="h-4 w-4" />
-          </button>
-          <a href="/foto-einsenden" target="_blank" rel="noopener" className="ml-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium text-white/70 transition-colors hover:text-white">
+          </Button>
+          <a href="/foto-einsenden" target="_blank" rel="noopener" className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-1 py-0.5 text-[11px] font-medium text-ticker-foreground/70 transition-colors hover:text-ticker-foreground">
             <Camera className="h-3.5 w-3.5" /> Foto einsenden
           </a>
         </span>
         {live ? (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-          <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" /><span className="relative h-1.5 w-1.5 rounded-full bg-red-400" /></span>
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ticker-foreground/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ticker-foreground">
+          <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ticker-live opacity-70 motion-reduce:animate-none" /><span className="relative h-1.5 w-1.5 rounded-full bg-ticker-live" /></span>
           Live
         </span>
         ) : (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/70">
-          <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ticker-foreground/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ticker-foreground/70">
+          <span className="h-1.5 w-1.5 rounded-full bg-ticker-foreground/50" />
           Standby
         </span>
         )}
       </div>
-      <div className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ gridTemplateRows: info ? "1fr" : "0fr" }}>
-        <div className="overflow-hidden">
-          <p className="mt-2 rounded-xl bg-white/10 p-3 text-[13px] leading-relaxed text-white/90">
+      {info && (
+          <p className="mb-2 mt-2 rounded-lg bg-ticker-foreground/10 p-3 text-[13px] leading-relaxed text-ticker-foreground/90">
             Der Ticker meldet zeitnah und kompakt, was gerade los ist: mit Messwerten unserer Stationen, Radar- und Modellkarten und kurzen Einschätzungen – aus dem Oberthurgau für das Oberthurgau.
           </p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
 const shell =
-  "rounded-3xl bg-[#2561a1] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.12),0_12px_32px_-16px_rgba(10,40,80,0.55)] ring-1 ring-[#1c4d82]";
+  "rounded-3xl bg-ticker p-4 text-ticker-foreground shadow-ticker ring-1 ring-ticker-strong";
 
 function Standby() {
   return (
-    <div className="pb-1 pt-1">
-      <p className="text-[15px] font-semibold text-white">Aktuell keine neuen Meldungen.</p>
+    <div>
+      <p className="text-[15px] font-semibold leading-snug text-ticker-foreground">Aktuell keine neuen Meldungen.</p>
     </div>
   );
 }
 
 export function TickerStandby() {
   return (
-    <section className={`${shell} px-4 pt-3`}>
+    <section className={`${shell} px-3 py-2.5`}>
       <Header live={false} />
       <Standby />
     </section>
@@ -201,16 +198,16 @@ export function TickerBanner({ posts }: { posts: TickerPost[] }) {
       <ol><Entry post={first} latest last={!open || !rest.length} /></ol>
       {rest.length > 0 && (
         <>
-          <div className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
+          <div className={`grid ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
             <div className="overflow-hidden">
               <ol>{rest.map((p, i) => <Entry key={p.id} post={p} latest={false} last={i === rest.length - 1} />)}</ol>
             </div>
           </div>
-          <button onClick={() => setOpen((o) => !o)}
-            className="-mx-4 flex w-[calc(100%+2rem)] items-center justify-center gap-1 border-t border-white/20 py-2 text-xs font-medium text-white/80 transition-colors hover:text-white">
+          <Button variant="ghost" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+            className="-mx-4 flex h-auto w-[calc(100%+2rem)] items-center justify-center gap-1 border-t border-ticker-foreground/20 py-2 text-xs font-medium text-ticker-foreground/80 transition-colors hover:bg-ticker-foreground/10 hover:text-ticker-foreground">
             {open ? "Schliessen" : `${rest.length} frühere Meldung${rest.length > 1 ? "en" : ""}`}
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
-          </button>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 motion-reduce:transition-none ${open ? "rotate-180" : ""}`} />
+          </Button>
         </>
       )}
       {!rest.length && <div className="pb-1" />}

@@ -11,6 +11,8 @@ import { MAX_BODY, TICKER_PRODUCTS, productById, productGroups, productUrl, visi
 import { ProductPreview, TickerWidget } from "@/components/ticker/ticker-view";
 import { tickerQuery } from "./embed.ticker";
 import { PhotoPushOptIn } from "@/components/ticker/photo-push-opt-in";
+import { Button } from "@/components/ui/button";
+import { WP_TICKER_SNIPPETS } from "@/lib/ticker-wp";
 
 const KEY = "wx_warn_admin_pw";
 
@@ -163,8 +165,8 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
       <WpSnippets />
 
       <div className="space-y-2">
-        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Vorschau {live.length ? "" : "(Ticker aktuell ausgeblendet – keine Meldung der letzten 24 h)"}</div>
-        {live.length > 0 && <TickerWidget posts={live} />}
+        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Vorschau {live.length ? "" : "(Standby)"}</div>
+        <TickerWidget posts={live} />
       </div>
       <ul className="divide-y divide-border rounded-2xl border border-border bg-card">
         {data.map((x) => (
@@ -179,49 +181,26 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   );
 }
 
-const BASE = "https://oberthurgauer-wetter.lovable.app";
-const WP_SNIPPETS = [
-  {
-    label: "Smartphone – ganz oben (HTML-Block auf der Startseite)",
-    code: `<div class="otw-handy-ticker otw-ticker">
-  <iframe src="${BASE}/embed/ticker?view=banner" loading="eager" scrolling="no"
-    style="width:100%;height:120px;border:0;transition:height .25s ease;display:block;background:transparent;margin-bottom:12px;"
-    title="Wetter-Ticker"></iframe>
-</div>
-<style>@media (min-width:768px){.otw-handy-ticker{display:none!important}}</style>
-<script>(function(){if(window.otwTickerResize)return;window.otwTickerResize=1;addEventListener('message',function(e){var d=e.data;if(!d||d.type!=='lovable-weather:height')return;var h=Math.ceil(+d.height);if(!(h>40&&h<4000))return;document.querySelectorAll('.otw-ticker iframe').forEach(function(f){if(f.contentWindow===e.source)f.style.height=h+'px';});});})();</script>`,
-  },
-  {
-    label: "Desktop – Seitenleiste (Widget «Individuelles HTML»)",
-    code: `<div class="otw-desktop-ticker otw-ticker">
-  <iframe src="${BASE}/embed/ticker?view=widget" loading="eager" scrolling="no"
-    style="width:100%;height:200px;border:0;transition:height .25s ease;display:block;background:transparent;"
-    title="Wetter-Ticker"></iframe>
-</div>
-<style>@media (max-width:767px){.otw-desktop-ticker{display:none!important}}</style>
-<script>(function(){if(window.otwTickerResize)return;window.otwTickerResize=1;addEventListener('message',function(e){var d=e.data;if(!d||d.type!=='lovable-weather:height')return;var h=Math.ceil(+d.height);if(!(h>40&&h<4000))return;document.querySelectorAll('.otw-ticker iframe').forEach(function(f){if(f.contentWindow===e.source)f.style.height=h+'px';});});})();</script>`,
-  },
-];
-
 function WpSnippets() {
   const [copied, setCopied] = useState<number | null>(null);
   return (
     <details className="rounded-2xl border border-border bg-card p-4">
       <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-muted-foreground">Einbettung WordPress (Handy oben, Desktop Seitenleiste)</summary>
       <div className="mt-3 space-y-4">
-        {WP_SNIPPETS.map((x, i) => (
+        {WP_TICKER_SNIPPETS.map((x, i) => (
           <div key={i}>
             <div className="mb-1 flex items-center gap-2 text-sm font-medium">
               <span className="flex-1">{x.label}</span>
-              <button type="button" className="rounded-lg border border-border px-3 py-1 text-sm text-accent"
+              <Button type="button" variant="outline" size="sm" className="text-accent"
                 onClick={async () => { await navigator.clipboard.writeText(x.code); setCopied(i); setTimeout(() => setCopied(null), 2000); }}>
                 {copied === i ? "Kopiert ✓" : "Kopieren"}
-              </button>
+              </Button>
             </div>
             <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-3 text-[12px]">{x.code}</pre>
           </div>
         ))}
         <p className="text-xs text-muted-foreground">Beide Codes einfügen: Auf dem Handy erscheint nur der obere Banner, auf dem Computer nur das Seitenleisten-Widget.</p>
+        <p className="text-xs text-muted-foreground">Vorhandene Ticker-Codes vollständig durch diese Codes ersetzen, auch das bisherige Höhenskript. Die Höhe passt sich beim Öffnen und Schliessen automatisch an.</p>
       </div>
     </details>
   );

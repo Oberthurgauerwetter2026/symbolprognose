@@ -32,6 +32,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-ticker: var(--accent);
+  --color-ticker-foreground: var(--ticker-foreground);
+  --color-ticker-strong: var(--accent-strong);
+  --color-ticker-live: var(--ticker-live);
+  --shadow-ticker: var(--ticker-shadow);
+  --shadow-ticker-preview: var(--ticker-preview-shadow);
 
   --color-zinc-50: var(--zinc-50);
   --color-zinc-100: var(--zinc-100);
@@ -80,6 +86,10 @@
   --border: var(--zinc-200);
   --input: var(--zinc-200);
   --ring: #2561a1;
+  --ticker-foreground: #ffffff;
+  --ticker-live: #f87171;
+  --ticker-shadow: 0 1px 2px rgba(0,0,0,0.12), 0 12px 32px -16px rgba(10,40,80,0.55);
+  --ticker-preview-shadow: 0 1px 2px rgba(0,0,0,0.15), 0 8px 24px -12px rgba(0,0,0,0.4);
 
   /* Weather icon palette (SRF Meteo inspired) */
   --wx-sun: #f59e0b;
@@ -284,8 +294,12 @@ html.embed .embed-fallback {
 
 /* Ticker: weicher Lade-Shimmer für Kartenvorschauen */
 .ticker-shimmer {
-  background: linear-gradient(100deg, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0.08) 70%);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--ticker-foreground) 8%, transparent) 30%, color-mix(in srgb, var(--ticker-foreground) 28%, transparent) 50%, color-mix(in srgb, var(--ticker-foreground) 8%, transparent) 70%);
   background-size: 200% 100%;
   animation: ticker-shimmer 1.4s ease-in-out infinite;
 }
 @keyframes ticker-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-shimmer { animation: none; }
+}

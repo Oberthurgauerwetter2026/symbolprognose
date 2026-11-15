@@ -122,12 +122,20 @@ export function EmbedShell({
 
     const ro = new ResizeObserver(scheduleSend);
     ro.observe(el);
+    // Hosts may load their external resize script after our initial messages.
+    const onHeightRequest = (event: MessageEvent) => {
+      if (event.source === window.parent && event.data?.type === "lovable-weather:request-height") {
+        scheduleSend();
+      }
+    };
     window.addEventListener("load", send);
+    window.addEventListener("message", onHeightRequest);
     return () => {
       if (raf) cancelAnimationFrame(raf);
       timers.forEach(clearTimeout);
       ro.disconnect();
       window.removeEventListener("load", send);
+      window.removeEventListener("message", onHeightRequest);
     };
   }, [fillViewport]);
 

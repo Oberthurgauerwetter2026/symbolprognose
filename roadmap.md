@@ -1,3 +1,8 @@
+# WordPress ticker sizing
+- [x] Replace fragile inline resize scripts with a shared external file and late-load handshake; make standby compact and keep the full info/message visible as content grows and shrinks. Admin snippets now use the external script; standby preview stays visible.
+- [x] Verify generated WordPress snippets at 320/375/402 px and 320 px desktop sidebar: standby 68–90 px, full info 188–253 px, returning to the original height; 28 regression tests pass. An expired database-backed test post read back through both embeds with two real station cards, then was removed; isolated component checks with the same input confirm attachment lazy loading and grow/shrink without runtime errors. Signed-in admin remains unverified without a valid admin session (existing blocker below).
+- [ ] Activate on the WordPress site: publish the app and replace both existing embed codes in WordPress; the external site still contains the old broken inline script.
+
 # Ticker link destinations
 - [x] Correct every catalog destination: matching WordPress pages when available, otherwise the selected interactive map with its parameters; all 33 products resolve to 28 HTTP-200 destinations without redirects, and 36 regression tests pass. A real temporary five-card post read back through the public widget/banner, its radar link opened the correct WordPress page, and mobile has no overflow or runtime errors; temporary post removed. Snow 72 h and maximum gust selection verified with real data. Signed-in admin verification remains blocked by the rejected available admin credential, as recorded below.
 
