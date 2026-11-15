@@ -69,3 +69,34 @@ export const deleteTickerPost = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const updateTickerPost = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; id: string; body: string; product?: string | null; productValue?: string | null; link?: string | null; imageBase64?: string | null; removeImage?: boolean }) => d)
+  .handler(async ({ data }) => {
+    const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
+    assertAdmin(data.password);
+    const body = data.body.trim();
+    if (!body || body.length > MAX_BODY) throw new Error(`Text 1–${MAX_BODY} Zeichen`);
+    const product = productIds(data.product).join(",") || null;
+    const sb = (await adminClient()) as any;
+    const { data: row } = await sb.from("ticker_posts").select("image_url").eq("id", data.id).maybeSingle();
+    if (!row) throw new Error("Meldung nicht gefunden");
+    const patch: Record<string, unknown> = {
+      body, product, product_value: product ? data.productValue?.trim().slice(0, 80) || null : null, link_url: cleanLink(data.link),
+    };
+    if (data.imageBase64 || data.removeImage) {
+      let image_url: string | null = null;
+      if (data.imageBase64) {
+        const bin = Uint8Array.from(atob(data.imageBase64), (c) => c.charCodeAt(0));
+        if (bin.length > 8_000_000) throw new Error("Bild zu gross");
+        image_url = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.jpg`;
+        const { error } = await sb.storage.from("ticker").upload(image_url, bin, { contentType: "image/jpeg" });
+        if (error) throw new Error(error.message);
+      }
+      if (row.image_url) await sb.storage.from("ticker").remove([row.image_url]);
+      patch.image_url = image_url;
+    }
+    const { error } = await sb.from("ticker_posts").update(patch).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

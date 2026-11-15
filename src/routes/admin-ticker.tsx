@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
-import { ImagePlus, Trash2, X } from "lucide-react";
+import { ImagePlus, Pencil, Trash2, X } from "lucide-react";
 import { deletePhotoSubmission, listPhotoSubmissions } from "@/lib/photos.functions";
 import { creditLine } from "@/lib/photo-submit";
 import { shrinkImage } from "@/lib/image-shrink";
 import { checkAdminLogin } from "@/lib/warnings.functions";
-import { createTickerPost, deleteTickerPost } from "@/lib/ticker.functions";
+import { createTickerPost, deleteTickerPost, updateTickerPost } from "@/lib/ticker.functions";
 import { MAX_BODY, TICKER_PRODUCTS, productById, productGroups, productUrl, visiblePosts } from "@/lib/ticker";
 import { ProductPreview, TickerWidget } from "@/components/ticker/ticker-view";
 import { tickerQuery } from "./embed.ticker";
@@ -78,12 +78,22 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   const subs = useQuery({ queryKey: ["photo-subs"], queryFn: () => listPhotoSubmissions({ data: { password } }), refetchInterval: 60_000 });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [imgRemoved, setImgRemoved] = useState(false);
+  const reset = () => { setTitle(""); setText(""); setPicked([]); setValue(""); setImage(null); setLink(""); setEditId(null); setImgRemoved(false); };
+  const startEdit = (x: (typeof data)[number]) => {
+    const [t, ...rest] = x.body.split("\n");
+    setTitle(t); setText(rest.join("\n")); setPicked(x.product ? x.product.split(",").filter(Boolean) : []);
+    setValue(x.product_value ?? ""); setLink(x.link ?? ""); setImage(x.image ? { url: x.image } : null);
+    setEditId(x.id); setImgRemoved(false); setMsg(""); window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setMsg("");
     try {
-      await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, link } });
-      setTitle(""); setText(""); setPicked([]); setValue(""); setImage(null); setLink(""); setMsg("Veröffentlicht.");
+      if (editId) await updateTickerPost({ data: { password, id: editId, body, product, productValue: value, link, imageBase64: image?.b64 ?? null, removeImage: imgRemoved && !image } });
+      else await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, link } });
+      reset(); setMsg(editId ? "Änderung gespeichert." : "Veröffentlicht.");
       await qc.invalidateQueries({ queryKey: ["ticker"] }); qc.invalidateQueries({ queryKey: ["photo-subs"] });
     } catch (x) { setMsg(x instanceof Error ? x.message : "Fehler"); } finally { setBusy(false); }
   };
@@ -117,7 +127,13 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
           </ul>
         </div>
       )}
-      <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-4">
+      <form onSubmit={submit} className={`space-y-4 rounded-2xl border bg-card p-4 ${editId ? "border-accent" : "border-border"}`}>
+        {editId && (
+          <div className="flex items-center justify-between rounded-lg bg-accent/10 px-3 py-2 text-sm">
+            <span className="font-medium text-accent">Meldung bearbeiten</span>
+            <button type="button" onClick={() => { reset(); setMsg(""); }} className="text-muted-foreground">Abbrechen</button>
+          </div>
+        )}
         <div>
           <input value={title} onChange={(e) => setTitle(e.target.value.replace(/\n/g, " ").slice(0, 120))} placeholder="Titel, z. B. «Schneefall setzt ein»"
             className="w-full rounded-xl border border-border bg-background p-3 text-[16px] font-semibold" />
@@ -150,14 +166,14 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         <div className="flex items-center gap-3">
           {image ? (
             <div className="relative"><img src={image.url} alt="" className="h-20 rounded-lg object-cover" />
-              <button type="button" onClick={() => setImage(null)} className="absolute -right-2 -top-2 rounded-full bg-card p-1 shadow"><X className="h-3 w-3" /></button></div>
+              <button type="button" onClick={() => { setImage(null); setImgRemoved(true); }} className="absolute -right-2 -top-2 rounded-full bg-card p-1 shadow"><X className="h-3 w-3" /></button></div>
           ) : (
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
               <ImagePlus className="h-4 w-4" /> Eigenes Bild
               <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setImage({ b64: await shrink(f), url: URL.createObjectURL(f) }); }} />
             </label>
           )}
-          <button disabled={busy || !title.trim()} className="ml-auto rounded-lg bg-accent px-5 py-2 font-medium text-accent-foreground disabled:opacity-50">{busy ? "…" : "Veröffentlichen"}</button>
+          <button disabled={busy || !title.trim()} className="ml-auto rounded-lg bg-accent px-5 py-2 font-medium text-accent-foreground disabled:opacity-50">{busy ? "…" : editId ? "Speichern" : "Veröffentlichen"}</button>
         </div>
         {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
       </form>
@@ -173,7 +189,8 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
           <li key={x.id} className="flex items-center gap-3 px-4 py-2 text-sm">
             <span className="tabular-nums text-muted-foreground">{new Date(x.created_at).toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" })}</span>
             <span className="flex-1 truncate">{x.body}</span>
-            <button onClick={async () => { if (confirm("Meldung löschen?")) { await deleteTickerPost({ data: { password, id: x.id } }); qc.invalidateQueries({ queryKey: ["ticker"] }); } }}><Trash2 className="h-4 w-4 text-muted-foreground" /></button>
+            <button onClick={() => startEdit(x)} aria-label="Bearbeiten"><Pencil className="h-4 w-4 text-muted-foreground" /></button>
+            <button aria-label="Löschen" onClick={async () => { if (confirm("Meldung löschen?")) { await deleteTickerPost({ data: { password, id: x.id } }); qc.invalidateQueries({ queryKey: ["ticker"] }); } }}><Trash2 className="h-4 w-4 text-muted-foreground" /></button>
           </li>
         ))}
       </ul>
