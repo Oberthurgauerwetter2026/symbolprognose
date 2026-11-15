@@ -124,7 +124,7 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
     </li>
   );
 }
-function Header() {
+function Header({ live = true }: { live?: boolean }) {
   const [info, setInfo] = useState(false);
   return (
     <div className="mb-2">
@@ -135,10 +135,17 @@ function Header() {
             <Info className="h-4 w-4" />
           </button>
         </span>
+        {live ? (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
           <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" /><span className="relative h-1.5 w-1.5 rounded-full bg-red-400" /></span>
           Live
         </span>
+        ) : (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/70">
+          <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
+          Standby
+        </span>
+        )}
       </div>
       <div className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ gridTemplateRows: info ? "1fr" : "0fr" }}>
         <div className="overflow-hidden">
@@ -157,7 +164,28 @@ function Header() {
 const shell =
   "rounded-3xl bg-[#2561a1] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.12),0_12px_32px_-16px_rgba(10,40,80,0.55)] ring-1 ring-[#1c4d82]";
 
+function Standby() {
+  return (
+    <div className="pb-1 pt-1">
+      <p className="text-[15px] font-semibold text-white">Aktuell keine neuen Meldungen.</p>
+      <a href="/foto-einsenden" target="_blank" rel="noopener" className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] font-medium text-[#1c4d82]">
+        <Camera className="h-3.5 w-3.5" /> Eigenes Wetterfoto einsenden
+      </a>
+    </div>
+  );
+}
+
+export function TickerStandby() {
+  return (
+    <section className={`${shell} px-4 pt-3`}>
+      <Header live={false} />
+      <Standby />
+    </section>
+  );
+}
+
 export function TickerWidget({ posts }: { posts: TickerPost[] }) {
+  if (!posts.length) return <TickerStandby />;
   return (
     <section className={shell}>
       <Header />
@@ -169,6 +197,7 @@ export function TickerWidget({ posts }: { posts: TickerPost[] }) {
 export function TickerBanner({ posts }: { posts: TickerPost[] }) {
   const [open, setOpen] = useState(false);
   const [first, ...rest] = posts;
+  if (!first) return <TickerStandby />;
   return (
     <section className={`${shell} px-4 pt-3`}>
       <Header />

@@ -31,7 +31,7 @@ function EmbedTicker() {
   const posts = visiblePosts(data, Date.now());
   return (
     <EmbedShell flush>
-      {posts.length === 0 ? <div /> : view === "banner" ? <TickerBanner posts={posts} /> : <TickerWidget posts={posts} />}
+      {view === "banner" ? <TickerBanner posts={posts} /> : <TickerWidget posts={posts} />}
     </EmbedShell>
   );
 }
