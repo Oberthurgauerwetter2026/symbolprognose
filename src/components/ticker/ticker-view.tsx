@@ -31,10 +31,10 @@ export function ProductPreview({ product, className = "" }: { product: TickerPro
       className={`group relative mt-3 block overflow-hidden rounded-2xl bg-white/10 shadow-[0_1px_2px_rgba(0,0,0,0.15),0_8px_24px_-12px_rgba(0,0,0,0.4)] ring-1 ring-white/20 ${className}`}>
       {!loaded && <span aria-hidden className="ticker-shimmer absolute inset-0 z-10" />}
       {v.kind === "image" ? (
-        <img src={v.src} alt={product.label} decoding="async" onLoad={() => setLoaded(true)} className={`block h-auto w-full transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`} />
+        <img src={v.src} alt={product.label} loading="lazy" decoding="async" onLoad={() => setLoaded(true)} className={`block h-auto w-full transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`} />
       ) : (
         <div className="relative aspect-[4/3] w-full">
-          <iframe src={v.src} title={product.label} tabIndex={-1} onLoad={() => setLoaded(true)}
+          <iframe src={v.src} title={product.label} tabIndex={-1} loading="lazy" onLoad={() => setLoaded(true)}
             className={`pointer-events-none absolute inset-0 h-full w-full border-0 transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`} />
         </div>
       )}
@@ -110,7 +110,7 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
         </button>
         <div className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ gridTemplateRows: open ? "1fr" : "0fr" }}>
           <div className="overflow-hidden" aria-hidden={!open}>
-            {(open || warm) && (
+            {open && (
               <>
                 {splitPost(post.body).rest && <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-white/85">{splitPost(post.body).rest}</p>}
                 {post.image && <img src={post.image} alt="" decoding="async" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}

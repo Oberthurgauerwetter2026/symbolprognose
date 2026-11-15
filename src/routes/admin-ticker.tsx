@@ -183,21 +183,23 @@ const BASE = "https://oberthurgauer-wetter.lovable.app";
 const WP_SNIPPETS = [
   {
     label: "Smartphone – ganz oben (HTML-Block auf der Startseite)",
-    code: `<div class="otw-handy-ticker">
+    code: `<div class="otw-handy-ticker otw-ticker">
   <iframe src="${BASE}/embed/ticker?view=banner" loading="eager" scrolling="no"
-    style="width:100%;height:140px;border:0;display:block;background:transparent;margin-bottom:12px;"
+    style="width:100%;height:120px;border:0;transition:height .25s ease;display:block;background:transparent;margin-bottom:12px;"
     title="Wetter-Ticker"></iframe>
 </div>
-<style>@media (min-width:768px){.otw-handy-ticker{display:none!important}}</style>`,
+<style>@media (min-width:768px){.otw-handy-ticker{display:none!important}}</style>
+<script>(function(){if(window.otwTickerResize)return;window.otwTickerResize=1;addEventListener('message',function(e){var d=e.data;if(!d||d.type!=='lovable-weather:height')return;var h=Math.ceil(+d.height);if(!(h>40&&h<4000))return;document.querySelectorAll('.otw-ticker iframe').forEach(function(f){if(f.contentWindow===e.source)f.style.height=h+'px';});});})();</script>`,
   },
   {
     label: "Desktop – Seitenleiste (Widget «Individuelles HTML»)",
-    code: `<div class="otw-desktop-ticker">
+    code: `<div class="otw-desktop-ticker otw-ticker">
   <iframe src="${BASE}/embed/ticker?view=widget" loading="eager" scrolling="no"
-    style="width:100%;height:420px;border:0;display:block;background:transparent;"
+    style="width:100%;height:200px;border:0;transition:height .25s ease;display:block;background:transparent;"
     title="Wetter-Ticker"></iframe>
 </div>
-<style>@media (max-width:767px){.otw-desktop-ticker{display:none!important}}</style>`,
+<style>@media (max-width:767px){.otw-desktop-ticker{display:none!important}}</style>
+<script>(function(){if(window.otwTickerResize)return;window.otwTickerResize=1;addEventListener('message',function(e){var d=e.data;if(!d||d.type!=='lovable-weather:height')return;var h=Math.ceil(+d.height);if(!(h>40&&h<4000))return;document.querySelectorAll('.otw-ticker iframe').forEach(function(f){if(f.contentWindow===e.source)f.style.height=h+'px';});});})();</script>`,
   },
 ];
 

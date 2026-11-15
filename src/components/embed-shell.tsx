@@ -103,7 +103,7 @@ export function EmbedShell({
     const send = () => {
       const h = measure();
       // Kurzzeitige Einbrüche (Neu-Mount, Chunk-Load) nicht melden.
-      if (h < 80) return;
+      if (h < 60) return;
       window.parent?.postMessage({ type: "lovable-weather:height", height: h }, "*");
     };
 
