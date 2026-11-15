@@ -986,6 +986,8 @@ function WindMapInner({
   const progress = 0;
   const [arrowsOn, setArrowsOn] = useState(false);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [maxOn, setMaxOn] = useState(false);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("max") === "1") setMaxOn(true); }, []);
   // Ticker-Vorschau (clean=1): Windpfeile immer zeigen, da keine Knöpfe sichtbar sind.
   useEffect(() => { if (new URLSearchParams(window.location.search).get("clean") === "1") setArrowsOn(true); }, []);
   const [mapInst, setMapInst] = useState<L.Map | null>(null);
@@ -1057,7 +1059,19 @@ function WindMapInner({
   const nextFrame = playing && idx !== null && currentFrame
     ? frames[idx + 1] ?? null
     : null;
-  const showFlow = true;
+  // Maximalböen: pro Gitterpunkt die stärkste Böe der nächsten 24 h aus dem Modell.
+  const maxFrame = useMemo<WindFrame | null>(() => {
+    if (frames.length === 0) return null;
+    const now = Date.now();
+    const win = frames.filter((f) => { const t = Date.parse(f.t); return t >= now - HOUR_MS && t <= now + 24 * HOUR_MS; });
+    const use = win.length ? win : frames;
+    const n = use[0].gust.length;
+    const gust = new Array<number>(n).fill(0);
+    for (const f of use) for (let i = 0; i < n; i++) gust[i] = Math.max(gust[i], f.gust[i] ?? 0);
+    return { t: "max24", gust, speed: use[0].speed, dir: use[0].dir };
+  }, [frames]);
+  const showMax = maxOn && maxFrame !== null;
+  const showFlow = !showMax;
   const showArrows = arrowsOn;
 
   return (
@@ -1128,8 +1142,9 @@ function WindMapInner({
             <>
               <WindColorOverlay
                 payload={data}
-                frame={currentFrame}
-                nextFrame={nextFrame}
+                frame={showMax && maxFrame ? maxFrame : currentFrame}
+                nextFrame={showMax ? null : nextFrame}
+                opacity={showMax ? 0.75 : 0.55}
                 progress={progress}
               />
               <WindParticleLayer
@@ -1144,7 +1159,7 @@ function WindMapInner({
                 frame={currentFrame}
                 nextFrame={nextFrame}
                 progress={progress}
-                enabled={showArrows}
+                enabled={showArrows && !showMax}
               />
               <WindHoverTooltip
                 payload={data}
@@ -1180,6 +1195,18 @@ function WindMapInner({
             <Info className="h-4 w-4" />
           </button>
         </div>
+
+        {!snapshot && <button
+          type="button"
+          onClick={() => setMaxOn((v) => !v)}
+          aria-pressed={maxOn}
+          className={cn(
+            "absolute left-3 top-3 z-[450] rounded-full px-3 py-1 text-[11px] font-semibold shadow backdrop-blur",
+            maxOn ? "bg-[#2561a1] text-white" : "bg-white/90 text-neutral-800",
+          )}
+        >
+          {maxOn ? "Stärkste Böen nächste 24 h" : "Stärkste Böen 24 h"}
+        </button>}
 
         {legendOpen && (
           <div className="absolute right-[3.75rem] top-3 z-[450] w-44 rounded-2xl border border-neutral-200/80 bg-white/95 p-3 text-[11px] text-neutral-700 shadow-xl backdrop-blur-md">

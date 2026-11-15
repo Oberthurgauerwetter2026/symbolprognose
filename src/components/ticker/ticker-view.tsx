@@ -153,7 +153,7 @@ function Header({ live = true }: { live?: boolean }) {
       <div className="grid transition-[grid-template-rows] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]" style={{ gridTemplateRows: info ? "1fr" : "0fr" }}>
         <div className="overflow-hidden">
           <p className="mt-2 rounded-xl bg-white/10 p-3 text-[13px] leading-relaxed text-white/90">
-            Das Wetter ändert sich oft rasch – bei Gewittern, Schneefall oder Föhn am Bodensee. Der Ticker meldet zeitnah und kompakt, was gerade los ist: mit Messwerten unserer Stationen, Radar- und Modellkarten und kurzen Einschätzungen – aus dem Oberthurgau für das Oberthurgau.
+            Der Ticker meldet zeitnah und kompakt, was gerade los ist: mit Messwerten unserer Stationen, Radar- und Modellkarten und kurzen Einschätzungen – aus dem Oberthurgau für das Oberthurgau.
           </p>
         </div>
       </div>

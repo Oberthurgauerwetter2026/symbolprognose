@@ -22,6 +22,7 @@ export const TICKER_PRODUCTS: TickerProduct[] = [
   { id: "radar", label: "Radar", group: "Karten", path: "/karten/radar", embed: "/embed/radar?clean=1",  site: WEB + "/radar/", hint: "z. B. Schauer ziehen ostwärts" },
   { id: "temperatur", label: "Regionskarte", group: "Karten", path: "/karten/region", embed: "/embed/region?clean=1",  site: WEB + "/wetterkarte/", hint: "z. B. Amriswil −3.4 °C" },
   { id: "wind", label: "Wind", group: "Karten", path: "/karten/wind", embed: "/embed/wind?clean=1",  site: WEB + "/wind/", hint: "z. B. Böen bis 75 km/h" },
+  { id: "wind-max", label: "Stärkste Böen nächste 24 h", group: "Karten", path: "/karten/wind?max=1", embed: "/embed/wind?clean=1&max=1", site: WEB + "/wind/", hint: "z. B. Säntis bis 110 km/h" },
   { id: "satellit", label: "Satellitenbild", group: "Karten", path: "/karten/satellit", embed: "/embed/satellit-loop?clean=1",  site: WEB + "/satellitenbild/", hint: "z. B. Hochnebel bis 900 m" },
   { id: "bodendruck", label: "Bodendruck", group: "Karten", path: "/karten/bodendruck", image: AMR + "/api/public/maps/europe-pressure-latest.svg",  site: WEB + "/bodendruck/", hint: "z. B. Tief über der Nordsee" },
   { id: "warnungen", label: "Warnungen", group: "Karten", path: "/karten/warnungen", embed: "/embed/warnungen?clean=1",  site: WEB + "/warnkarte/", hint: "z. B. Stufe 2 Glätte" },
