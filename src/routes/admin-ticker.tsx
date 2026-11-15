@@ -160,6 +160,8 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
       </form>
 
+      <WpSnippets />
+
       <div className="space-y-2">
         <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Vorschau {live.length ? "" : "(Ticker aktuell ausgeblendet – keine Meldung der letzten 24 h)"}</div>
         {live.length > 0 && <TickerWidget posts={live} />}
@@ -174,5 +176,51 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         ))}
       </ul>
     </div>
+  );
+}
+
+const BASE = "https://oberthurgauer-wetter.lovable.app";
+const WP_SNIPPETS = [
+  {
+    label: "Smartphone – ganz oben (HTML-Block auf der Startseite)",
+    code: `<div class="otw-handy-ticker">
+  <iframe src="${BASE}/embed/ticker?view=banner" loading="eager" scrolling="no"
+    style="width:100%;height:140px;border:0;display:block;background:transparent;margin-bottom:12px;"
+    title="Wetter-Ticker"></iframe>
+</div>
+<style>@media (min-width:768px){.otw-handy-ticker{display:none!important}}</style>`,
+  },
+  {
+    label: "Desktop – Seitenleiste (Widget «Individuelles HTML»)",
+    code: `<div class="otw-desktop-ticker">
+  <iframe src="${BASE}/embed/ticker?view=widget" loading="eager" scrolling="no"
+    style="width:100%;height:420px;border:0;display:block;background:transparent;"
+    title="Wetter-Ticker"></iframe>
+</div>
+<style>@media (max-width:767px){.otw-desktop-ticker{display:none!important}}</style>`,
+  },
+];
+
+function WpSnippets() {
+  const [copied, setCopied] = useState<number | null>(null);
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4">
+      <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-muted-foreground">Einbettung WordPress (Handy oben, Desktop Seitenleiste)</summary>
+      <div className="mt-3 space-y-4">
+        {WP_SNIPPETS.map((x, i) => (
+          <div key={i}>
+            <div className="mb-1 flex items-center gap-2 text-sm font-medium">
+              <span className="flex-1">{x.label}</span>
+              <button type="button" className="rounded-lg border border-border px-3 py-1 text-sm text-accent"
+                onClick={async () => { await navigator.clipboard.writeText(x.code); setCopied(i); setTimeout(() => setCopied(null), 2000); }}>
+                {copied === i ? "Kopiert ✓" : "Kopieren"}
+              </button>
+            </div>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-muted p-3 text-[12px]">{x.code}</pre>
+          </div>
+        ))}
+        <p className="text-xs text-muted-foreground">Beide Codes einfügen: Auf dem Handy erscheint nur der obere Banner, auf dem Computer nur das Seitenleisten-Widget.</p>
+      </div>
+    </details>
   );
 }
