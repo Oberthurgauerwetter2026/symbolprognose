@@ -134,6 +134,9 @@ function Header({ live = true }: { live?: boolean }) {
           <button type="button" onClick={() => setInfo((o) => !o)} aria-expanded={info} aria-label="Was ist der Wetter-Ticker?" className="rounded-full p-0.5 text-white/70 transition-colors hover:text-white">
             <Info className="h-4 w-4" />
           </button>
+          <a href="/foto-einsenden" target="_blank" rel="noopener" className="ml-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium text-white/70 transition-colors hover:text-white">
+            <Camera className="h-3.5 w-3.5" /> Foto einsenden
+          </a>
         </span>
         {live ? (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
@@ -151,9 +154,6 @@ function Header({ live = true }: { live?: boolean }) {
         <div className="overflow-hidden">
           <p className="mt-2 rounded-xl bg-white/10 p-3 text-[13px] leading-relaxed text-white/90">
             Das Wetter ändert sich oft rasch – bei Gewittern, Schneefall oder Föhn am Bodensee. Der Ticker meldet zeitnah und kompakt, was gerade los ist: mit Messwerten unserer Stationen, Radar- und Modellkarten und kurzen Einschätzungen – aus dem Oberthurgau für das Oberthurgau.
-            <a href="/foto-einsenden" target="_blank" rel="noopener" className="mt-2 flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] font-medium text-[#1c4d82]">
-              <Camera className="h-3.5 w-3.5" /> Eigenes Wetterfoto einsenden
-            </a>
           </p>
         </div>
       </div>
@@ -168,9 +168,6 @@ function Standby() {
   return (
     <div className="pb-1 pt-1">
       <p className="text-[15px] font-semibold text-white">Aktuell keine neuen Meldungen.</p>
-      <a href="/foto-einsenden" target="_blank" rel="noopener" className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[13px] font-medium text-[#1c4d82]">
-        <Camera className="h-3.5 w-3.5" /> Eigenes Wetterfoto einsenden
-      </a>
     </div>
   );
 }
