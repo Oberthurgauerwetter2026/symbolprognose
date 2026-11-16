@@ -91,7 +91,7 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setMsg("");
     try {
-      if (editId) await updateTickerPost({ data: { password, id: editId, body, product, productValue: value, link, imageBase64: image?.b64 ?? null, removeImage: imgRemoved && !image } });
+      if (editId) await updateTickerPost({ data: { password, id: editId, body, product, productValue: value, link, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, removeImage: imgRemoved && !image } });
       else await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, link } });
       reset(); setMsg(editId ? "Änderung gespeichert." : "Veröffentlicht.");
       await qc.invalidateQueries({ queryKey: ["ticker"] }); qc.invalidateQueries({ queryKey: ["photo-subs"] });

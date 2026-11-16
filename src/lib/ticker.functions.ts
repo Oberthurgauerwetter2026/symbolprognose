@@ -71,7 +71,7 @@ export const deleteTickerPost = createServerFn({ method: "POST" })
   });
 
 export const updateTickerPost = createServerFn({ method: "POST" })
-  .inputValidator((d: { password: string; id: string; body: string; product?: string | null; productValue?: string | null; link?: string | null; imageBase64?: string | null; removeImage?: boolean }) => d)
+  .inputValidator((d: { password: string; id: string; body: string; product?: string | null; productValue?: string | null; link?: string | null; imageBase64?: string | null; submissionId?: string | null; removeImage?: boolean }) => d)
   .handler(async ({ data }) => {
     const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
     assertAdmin(data.password);
@@ -84,7 +84,7 @@ export const updateTickerPost = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = {
       body, product, product_value: product ? data.productValue?.trim().slice(0, 80) || null : null, link_url: cleanLink(data.link),
     };
-    if (data.imageBase64 || data.removeImage) {
+    if (data.imageBase64 || data.submissionId || data.removeImage) {
       let image_url: string | null = null;
       if (data.imageBase64) {
         const bin = Uint8Array.from(atob(data.imageBase64), (c) => c.charCodeAt(0));
@@ -92,8 +92,14 @@ export const updateTickerPost = createServerFn({ method: "POST" })
         image_url = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.jpg`;
         const { error } = await sb.storage.from("ticker").upload(image_url, bin, { contentType: "image/jpeg" });
         if (error) throw new Error(error.message);
+      } else if (data.submissionId) {
+        // Leserfoto übernehmen: Bild bleibt liegen, die Einsendung verschwindet aus der Freigabe.
+        const { data: sub } = await sb.from("photo_submissions").select("image_path").eq("id", data.submissionId).maybeSingle();
+        if (!sub) throw new Error("Einsendung nicht gefunden");
+        image_url = sub.image_path;
+        await sb.from("photo_submissions").delete().eq("id", data.submissionId);
       }
-      if (row.image_url) await sb.storage.from("ticker").remove([row.image_url]);
+      if (row.image_url && row.image_url !== image_url) await sb.storage.from("ticker").remove([row.image_url]);
       patch.image_url = image_url;
     }
     const { error } = await sb.from("ticker_posts").update(patch).eq("id", data.id);
