@@ -21,9 +21,12 @@ test("Warnungen bleiben auf der WordPress-Warnkarte", () => {
   assert.equal(destination("warnungen"), "https://www.oberthurgauerwetter.ch/warnkarte/");
 });
 test("alle Stationskarten führen zur WordPress-Live-Wetterkarte", () => {
-  for (const id of ["temp-current", "gust-today", "rain-today", "temp-min", "temp-max", "hub-karte"]) {
+  for (const id of ["temp-current", "rain-today", "temp-min", "temp-max", "hub-karte"]) {
     assert.equal(destination(id), "https://www.oberthurgauerwetter.ch/live-wetterkarte/");
   }
+});
+test("Stärkste Windböen heute öffnen die Summenkarte Wind von heute", () => {
+  assert.equal(destination("gust-today"), "https://live-wetterkarte.lovable.app/summenkarte?period=today&metric=wind");
 });
 test("alle 16 Summenkarten behalten Niederschlagsart, Zeitraum und Stunden in der Grossansicht", () => {
   for (const phase of ["rain", "snow"]) for (const period of ["past", "future"]) for (const hours of [12, 24, 48, 72]) {
