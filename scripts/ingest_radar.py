@@ -1179,17 +1179,14 @@ def publish_tendency_frames(s3, loaded: list, motion: dict | None,
     rate = observed_tendency(old, current, minutes, dx, dy, motion.get("quality", 0))
     if rate is not None and not np.any(rate):
         rate = None
-    # Stufe 2: lokales Verlagerungsfeld; jede Gegend zieht mit eigenem Vektor.
-    flow = None
-    try:
-        from _flow import local_flow
-        flow = local_flow(old, current, minutes, dx, dy)
-    except Exception as exc:
-        print(f"region-max: local flow unavailable (soft) {exc!r}", flush=True)
+    # Starre Verlagerung: ganzes Feld entlang des geführten Hauptvektors,
+    # damit Zellformen erhalten bleiben (lokales Blockfeld verzerrte Landregen).
+    flow = (np.full(current.shape, dx / minutes, dtype=np.float32),
+            np.full(current.shape, dy / minutes, dtype=np.float32))
     if rate is None and flow is None:
         return []
     if flow is not None:
-        print(f"region-max: local flow field active", flush=True)
+        print("region-max: rigid nowcast translation active", flush=True)
     # Phase stays that of the measurement; the model handover is not corrected.
     frac, fzra = phase_fraction_at(ts), freezing_rain_at(ts)
     out = []
