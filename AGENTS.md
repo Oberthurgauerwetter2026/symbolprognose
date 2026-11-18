@@ -28,4 +28,4 @@
 - Sums travel as base64 Int16 (src/lib/sums-pack.ts), unpacked via stable `select`; per-number payloads overflowed localStorage.
 - Model snow (past/future) uses DEM + window snow line in hm; measured snow stays intact, avoiding coarse terrain.
 - Sum-map model series come prefetched from R2 (ingest_model_series.py); live Open-Meteo only if missing/stale (worker IPs get throttled).
-- Ticker media (images and videos) share ticker_posts.image_url / photo_submissions.image_path; videos are detected by file extension and uploaded via signed upload URLs directly to storage, because base64 through server functions cannot carry 50 MB.
+- Ticker videos reuse the image path columns (detected by extension) and upload via signed URLs, since 50 MB cannot pass server functions.
