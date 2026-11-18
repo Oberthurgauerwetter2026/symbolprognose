@@ -1,0 +1,1 @@
+- Ticker videos reuse the image path columns (detected by extension) and upload via signed URLs, since 50 MB cannot pass server functions.
