@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
-import { ImagePlus, Pencil, Trash2, X } from "lucide-react";
+import { Film, ImagePlus, Pencil, Trash2, X } from "lucide-react";
+import { uploadVideo } from "@/lib/video-upload";
+import { checkVideo } from "@/lib/ticker-media";
 import { deletePhotoSubmission, listPhotoSubmissions } from "@/lib/photos.functions";
 import { creditLine } from "@/lib/photo-submit";
 import { shrinkImage } from "@/lib/image-shrink";
@@ -74,7 +76,7 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   const toggle = (id: string) => setPicked((l) => l.includes(id) ? l.filter((x) => x !== id) : [...l, id]);
   const [value, setValue] = useState("");
   const [link, setLink] = useState("");
-  const [image, setImage] = useState<{ b64?: string; sub?: string; url: string } | null>(null);
+  const [image, setImage] = useState<{ b64?: string; sub?: string; file?: File; video?: boolean; url: string } | null>(null);
   const subs = useQuery({ queryKey: ["photo-subs"], queryFn: () => listPhotoSubmissions({ data: { password } }), refetchInterval: 60_000 });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -84,15 +86,16 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
   const startEdit = (x: (typeof data)[number]) => {
     const [t, ...rest] = x.body.split("\n");
     setTitle(t); setText(rest.join("\n")); setPicked(x.product ? x.product.split(",").filter(Boolean) : []);
-    setValue(x.product_value ?? ""); setLink(x.link ?? ""); setImage(x.image ? { url: x.image } : null);
+    setValue(x.product_value ?? ""); setLink(x.link ?? ""); setImage(x.image ? { url: x.image, video: !!x.video } : null);
     setEditId(x.id); setImgRemoved(false); setMsg(""); window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setMsg("");
     try {
-      if (editId) await updateTickerPost({ data: { password, id: editId, body, product, productValue: value, link, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, removeImage: imgRemoved && !image } });
-      else await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, link } });
+      const videoPath = image?.file ? (setMsg("Video wird hochgeladen …"), await uploadVideo(image.file, password)) : null;
+      if (editId) await updateTickerPost({ data: { password, id: editId, body, product, productValue: value, link, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, removeImage: imgRemoved && !image, videoPath } });
+      else await createTickerPost({ data: { password, body, product, productValue: value, imageBase64: image?.b64 ?? null, submissionId: image?.sub ?? null, link, videoPath } });
       reset(); setMsg(editId ? "Änderung gespeichert." : "Veröffentlicht.");
       await qc.invalidateQueries({ queryKey: ["ticker"] }); qc.invalidateQueries({ queryKey: ["photo-subs"] });
     } catch (x) { setMsg(x instanceof Error ? x.message : "Fehler"); } finally { setBusy(false); }
@@ -108,17 +111,17 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
       <PhotoPushOptIn password={password} />
       {(subs.data?.length ?? 0) > 0 && (
         <div className="rounded-2xl border border-border bg-card p-4">
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Eingesandte Leserfotos ({subs.data?.length})</div>
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Eingesandte Leserfotos & -videos ({subs.data?.length})</div>
           <ul className="space-y-3">
             {subs.data?.map((s) => (
               <li key={s.id} className="flex gap-3">
-                {s.url && <img src={s.url} alt="" className="h-20 w-28 shrink-0 rounded-lg object-cover" />}
+                {s.url && (s.video ? <video src={s.url} controls playsInline preload="metadata" className="h-20 w-28 shrink-0 rounded-lg bg-muted object-cover" /> : <img src={s.url} alt="" className="h-20 w-28 shrink-0 rounded-lg object-cover" />)}
                 <div className="min-w-0 flex-1 text-sm">
                   <div className="font-medium">{creditLine(s)}</div>
                   <div className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" })}</div>
                   {s.note && <div className="mt-0.5 line-clamp-2 text-muted-foreground">{s.note}</div>}
                   <div className="mt-1 flex gap-3">
-                    <button type="button" className="text-accent" onClick={() => { if (!s.url) return; setImage({ sub: s.id, url: s.url }); setText((t) => t || `${s.note ? s.note + "\n" : ""}${creditLine(s)}`); window.scrollTo({ top: 0, behavior: "smooth" }); }}>In Meldung übernehmen</button>
+                    <button type="button" className="text-accent" onClick={() => { if (!s.url) return; setImage({ sub: s.id, url: s.url, video: s.video }); setText((t) => t || `${s.note ? s.note + "\n" : ""}${creditLine(s)}`); window.scrollTo({ top: 0, behavior: "smooth" }); }}>In Meldung übernehmen</button>
                     <button type="button" className="text-muted-foreground" onClick={async () => { if (confirm("Einsendung löschen?")) { await deletePhotoSubmission({ data: { password, id: s.id } }); subs.refetch(); } }}>Löschen</button>
                   </div>
                 </div>
@@ -165,12 +168,18 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         <input value={link} onChange={(e) => setLink(e.target.value)} type="url" inputMode="url" placeholder="Link (optional), z. B. zu einem Foto oder Bericht" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
         <div className="flex items-center gap-3">
           {image ? (
-            <div className="relative"><img src={image.url} alt="" className="h-20 rounded-lg object-cover" />
+            <div className="relative">{image.video ? <video src={image.url} muted playsInline preload="metadata" className="h-20 rounded-lg bg-muted" /> : <img src={image.url} alt="" className="h-20 rounded-lg object-cover" />}
               <button type="button" onClick={() => { setImage(null); setImgRemoved(true); }} className="absolute -right-2 -top-2 rounded-full bg-card p-1 shadow"><X className="h-3 w-3" /></button></div>
           ) : (
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
               <ImagePlus className="h-4 w-4" /> Eigenes Bild
               <input type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setImage({ b64: await shrink(f), url: URL.createObjectURL(f) }); }} />
+            </label>
+          )}
+          {!image && (
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+              <Film className="h-4 w-4" /> Video
+              <input type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; try { checkVideo(f.type, f.size); setImage({ file: f, video: true, url: URL.createObjectURL(f) }); setMsg(""); } catch (x) { setMsg(x instanceof Error ? x.message : "Fehler"); } }} />
             </label>
           )}
           <button disabled={busy || !title.trim()} className="ml-auto rounded-lg bg-accent px-5 py-2 font-medium text-accent-foreground disabled:opacity-50">{busy ? "…" : editId ? "Speichern" : "Veröffentlichen"}</button>

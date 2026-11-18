@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ArrowUpRight, Info, Camera } from "lucide-react";
+import { ChevronDown, ArrowUpRight, Info, Camera, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { productById, productIds, productPreview, productUrl, type TickerProduct } from "@/lib/ticker";
 import type { TickerPost } from "@/lib/ticker.functions";
@@ -71,6 +71,7 @@ function OneProduct({ id, post }: { id: string; post: TickerPost }) {
 function Thumb({ post }: { post: TickerPost }) {
   const p = productById(productIds(post.product)[0]);
   const v = p ? productPreview(p) : null;
+  if (post.image && post.video) return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ticker-foreground/15 text-ticker-foreground/80" aria-label="Video"><Play className="h-4 w-4 fill-current" /></span>;
   const src = post.image ?? (v?.kind === "image" ? v.src : null);
   if (src) return <img src={src} alt="" decoding="async" className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-ticker-foreground/25" />;
   if (p) return <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ticker-foreground/15 text-[9px] font-semibold uppercase leading-tight text-ticker-foreground/80 text-center">Karte</span>;
@@ -112,7 +113,8 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
             {open && (
               <>
                 {splitPost(post.body).rest && <p className="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed text-ticker-foreground/85">{splitPost(post.body).rest}</p>}
-                {post.image && <img src={post.image} alt="" decoding="async" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
+                {post.image && post.video && <video src={post.image} controls playsInline preload="metadata" className="mt-2 max-h-96 w-full rounded-xl bg-ticker-foreground/10" />}
+                {post.image && !post.video && <img src={post.image} alt="" decoding="async" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
                 <ProductChip post={post} />
                 {post.link && <a href={post.link} target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 rounded-full bg-ticker-foreground px-3 py-1.5 text-sm font-medium text-ticker-strong">Link öffnen <ArrowUpRight className="h-3.5 w-3.5" /></a>}
               </>

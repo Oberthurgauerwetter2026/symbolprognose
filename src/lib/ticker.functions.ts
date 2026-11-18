@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { MAX_BODY, cleanLink, productIds } from "./ticker";
+import { isVideoPath, validVideoPath } from "./ticker-media";
 
 export interface TickerPost {
   id: string; created_at: string; body: string;
-  product: string | null; product_value: string | null; image: string | null; link: string | null;
+  product: string | null; product_value: string | null; image: string | null; link: string | null; video?: boolean;
 }
 
 export const listTickerPosts = createServerFn({ method: "GET" }).handler(async (): Promise<TickerPost[]> => {
@@ -22,12 +23,12 @@ export const listTickerPosts = createServerFn({ method: "GET" }).handler(async (
   }
   return rows.map((r) => ({
     id: r.id, created_at: r.created_at, body: r.body, product: r.product,
-    product_value: r.product_value, image: r.image_url ? signed.get(r.image_url) ?? null : null, link: r.link_url ?? null,
+    product_value: r.product_value, image: r.image_url ? signed.get(r.image_url) ?? null : null, link: r.link_url ?? null, video: isVideoPath(r.image_url),
   }));
 });
 
 export const createTickerPost = createServerFn({ method: "POST" })
-  .inputValidator((d: { password: string; body: string; product?: string | null; productValue?: string | null; imageBase64?: string | null; submissionId?: string | null; link?: string | null }) => d)
+  .inputValidator((d: { password: string; body: string; product?: string | null; productValue?: string | null; imageBase64?: string | null; submissionId?: string | null; link?: string | null; videoPath?: string | null }) => d)
   .handler(async ({ data }) => {
     const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
     assertAdmin(data.password);
@@ -36,7 +37,10 @@ export const createTickerPost = createServerFn({ method: "POST" })
     const product = productIds(data.product).join(",") || null;
     const sb = (await adminClient()) as any;
     let image_url: string | null = null;
-    if (data.imageBase64) {
+    if (data.videoPath) {
+      if (!validVideoPath(data.videoPath, "videos")) throw new Error("Ungültiges Video");
+      image_url = data.videoPath;
+    } else if (data.imageBase64) {
       const bin = Uint8Array.from(atob(data.imageBase64), (c) => c.charCodeAt(0));
       if (bin.length > 8_000_000) throw new Error("Bild zu gross");
       const path = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.jpg`;
@@ -71,7 +75,7 @@ export const deleteTickerPost = createServerFn({ method: "POST" })
   });
 
 export const updateTickerPost = createServerFn({ method: "POST" })
-  .inputValidator((d: { password: string; id: string; body: string; product?: string | null; productValue?: string | null; link?: string | null; imageBase64?: string | null; submissionId?: string | null; removeImage?: boolean }) => d)
+  .inputValidator((d: { password: string; id: string; body: string; product?: string | null; productValue?: string | null; link?: string | null; imageBase64?: string | null; submissionId?: string | null; removeImage?: boolean; videoPath?: string | null }) => d)
   .handler(async ({ data }) => {
     const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
     assertAdmin(data.password);
@@ -84,9 +88,12 @@ export const updateTickerPost = createServerFn({ method: "POST" })
     const patch: Record<string, unknown> = {
       body, product, product_value: product ? data.productValue?.trim().slice(0, 80) || null : null, link_url: cleanLink(data.link),
     };
-    if (data.imageBase64 || data.submissionId || data.removeImage) {
+    if (data.videoPath || data.imageBase64 || data.submissionId || data.removeImage) {
       let image_url: string | null = null;
-      if (data.imageBase64) {
+      if (data.videoPath) {
+        if (!validVideoPath(data.videoPath, "videos")) throw new Error("Ungültiges Video");
+        image_url = data.videoPath;
+      } else if (data.imageBase64) {
         const bin = Uint8Array.from(atob(data.imageBase64), (c) => c.charCodeAt(0));
         if (bin.length > 8_000_000) throw new Error("Bild zu gross");
         image_url = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.jpg`;
