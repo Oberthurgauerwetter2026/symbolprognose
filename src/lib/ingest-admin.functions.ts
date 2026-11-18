@@ -115,6 +115,7 @@ export const getIngestStatus = createServerFn({ method: "GET" }).handler(
 );
 
 export interface AutoThunderStatus {
+  enabled: boolean;
   ranAt: string | null;
   ageMinutes: number | null;
   detected: number;
@@ -131,6 +132,8 @@ export const getAutoThunderStatus = createServerFn({ method: "POST" })
   async ({ data: input }): Promise<AutoThunderStatus> => {
     const { assertAdmin, adminClient } = await import("@/lib/warnings.server");
     assertAdmin(input.password);
+    const { getAutoThunderEnabled } = await import("@/lib/auto-thunder-control.server");
+    const enabled = await getAutoThunderEnabled();
     const sb = await adminClient();
     const { data } = await sb
       .from("job_runs")
@@ -149,6 +152,7 @@ export const getAutoThunderStatus = createServerFn({ method: "POST" })
       | null;
     if (!row) {
       return {
+        enabled,
         ranAt: null,
         ageMinutes: null,
         detected: 0,
@@ -160,6 +164,7 @@ export const getAutoThunderStatus = createServerFn({ method: "POST" })
     }
     const ms = Date.parse(row.ran_at);
     return {
+      enabled,
       ranAt: row.ran_at,
       ageMinutes: Number.isFinite(ms) ? Math.round((Date.now() - ms) / 60000) : null,
       detected: row.detected,
@@ -173,6 +178,19 @@ export const getAutoThunderStatus = createServerFn({ method: "POST" })
 
 
 /** Gewitter-Autowarnung sofort prüfen (Admin-Passwort statt Cron-Secret). */
+export const setAutoThunderSetting = createServerFn({ method: "POST" })
+  .inputValidator((d: { password: string; enabled: boolean }) => {
+    if (typeof d.enabled !== "boolean") throw new Error("Ungültige Gewitter-Einstellung");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const { assertAdmin } = await import("@/lib/warnings.server");
+    assertAdmin(data.password);
+    const { setAutoThunderEnabled } = await import("@/lib/auto-thunder-control.server");
+    await setAutoThunderEnabled(data.enabled);
+    return { enabled: data.enabled };
+  });
+
 export const runAutoThunderNow = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => d)
   .handler(async ({ data }) => {

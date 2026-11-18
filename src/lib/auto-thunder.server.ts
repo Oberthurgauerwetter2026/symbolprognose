@@ -20,6 +20,7 @@ import {
 } from "@/lib/warnings-config";
 import { getRadarRegionMax } from "@/lib/openmeteo-cache.server";
 import { adminClient, setWarningRegions } from "@/lib/warnings.server";
+import { getAutoThunderEnabled } from "@/lib/auto-thunder-control.server";
 
 /**
  * mm/h-Schwellen für Stufe 1/2/3 (15/25/45), angelehnt an die MeteoSchweiz-Gefahrenstufen.
@@ -333,6 +334,11 @@ async function recordRun(r: AutoThunderResult, error?: string): Promise<void> {
  */
 export async function runAutoThunder(): Promise<AutoThunderResult> {
   try {
+    if (!(await getAutoThunderEnabled())) {
+      const paused = { detected: 0, created: 0, closed: 0, notified: 0, note: "Gewitter-Autowarnung ausgeschaltet" };
+      await recordRun(paused);
+      return paused;
+    }
     const res = await runAutoThunderCore();
     await recordRun(res);
     return res;

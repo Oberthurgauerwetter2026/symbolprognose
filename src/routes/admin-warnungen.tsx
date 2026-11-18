@@ -38,6 +38,7 @@ import {
 } from "@/lib/client-errors.functions";
 import {
   getAutoThunderStatus,
+  setAutoThunderSetting,
   runAutoThunderNow,
   getPipelineHealth,
   getCronWorkerStatus,
@@ -48,6 +49,8 @@ import {
 } from "@/lib/ingest-admin.functions";
 import { Suspense as __WarnSuspense } from "react";
 import { LazyWarnMap } from "@/components/maps/lazy-maps";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "wx_warn_admin_pw";
 
@@ -1161,7 +1164,23 @@ function ClientErrorsSection({ password }: { password: string }) {
 function AutoThunderSection({ password }: { password: string }) {
   const [status, setStatus] = useState<AutoThunderStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+
+  const toggle = async (enabled: boolean) => {
+    setSaving(true);
+    setMsg("");
+    try {
+      await setAutoThunderSetting({ data: { password, enabled } });
+      setStatus((previous) => previous ? { ...previous, enabled } : previous);
+      setMsg(enabled ? "Gewitter-Autowarnung eingeschaltet." : "Gewitter-Autowarnung ausgeschaltet.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Einstellung konnte nicht gespeichert werden.");
+    } finally {
+      setSaving(false);
+      await load();
+    }
+  };
 
   const load = async () => {
     try {
@@ -1207,6 +1226,16 @@ function AutoThunderSection({ password }: { password: string }) {
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Gewitter-Autowarnung
       </h2>
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="auto-thunder-enabled" className="text-sm font-medium">
+          Automatische Radar-Gewitterwarnungen
+        </label>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-xs text-muted-foreground">{saving ? "Speichert …" : status ? (status.enabled ? "Ein" : "Aus") : "Lädt …"}</span>
+          <Switch id="auto-thunder-enabled" checked={status?.enabled ?? false} disabled={!status || saving || busy} onCheckedChange={(enabled) => void toggle(enabled)} />
+        </div>
+      </div>
+      {status?.enabled === false && <p className="text-xs text-muted-foreground">Keine neuen automatischen Warnungen oder Push-Mitteilungen. Bestehende Warnungen bleiben bis zu ihrem Ablauf gültig; manuelle Warnungen bleiben möglich.</p>}
       <div className="flex items-center gap-2 text-xs">
         <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
         <span className="text-muted-foreground">
@@ -1230,14 +1259,15 @@ function AutoThunderSection({ password }: { password: string }) {
       </p>
 
 
-      <button
+      <Button
         type="button"
-        disabled={busy}
+        variant="outline"
+        size="sm"
+        disabled={busy || saving || !status?.enabled}
         onClick={() => void check()}
-        className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
       >
         {busy ? "Prüft …" : "Jetzt prüfen"}
-      </button>
+      </Button>
       {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
     </section>
   );
