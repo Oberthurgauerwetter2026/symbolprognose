@@ -136,7 +136,7 @@ function Header({ live = true }: { live?: boolean }) {
             <Info className="h-4 w-4" />
           </Button>
           <a href="/foto-einsenden" target="_blank" rel="noopener" className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-1 py-0.5 text-[11px] font-medium text-ticker-foreground/70 transition-colors hover:text-ticker-foreground">
-            <Camera className="h-3.5 w-3.5" /> Foto einsenden
+            <Camera className="h-3.5 w-3.5" /> Foto / Video einsenden
           </a>
         </span>
         {live ? (
@@ -153,7 +153,10 @@ function Header({ live = true }: { live?: boolean }) {
       </div>
       {info && (
           <p className="mb-2 mt-2 rounded-lg bg-ticker-foreground/10 p-3 text-[13px] leading-relaxed text-ticker-foreground/90">
-            Der Ticker meldet zeitnah und kompakt, was gerade los ist: mit Messwerten unserer Stationen, Radar- und Modellkarten und kurzen Einschätzungen – aus dem Oberthurgau für das Oberthurgau.
+            Der Ticker meldet zeitnah und kompakt, was gerade los ist: mit Messwerten unserer Stationen, Radar- und Modellkarten und kurzen Einschätzungen – aus dem Oberthurgau für das Oberthurgau.{" "}
+            <a href="/foto-einsenden" target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-semibold text-ticker-foreground underline underline-offset-2 decoration-ticker-foreground/40">
+              <Camera className="h-3.5 w-3.5" /> Auch Ihr Foto oder Video vom Himmel überm Oberthurgau ist willkommen
+            </a>
           </p>
       )}
     </div>
