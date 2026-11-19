@@ -66,6 +66,12 @@ export function visiblePosts<T extends { created_at: string }>(posts: T[], nowMs
   return sorted;
 }
 
+/** Seitenleisten-Widget: nur die neuesten drei Meldungen sichtbar, Rest hinter «weitere …». */
+export const WIDGET_VISIBLE = 3;
+export function widgetSplit<T>(posts: T[]): { shown: T[]; rest: T[] } {
+  return { shown: posts.slice(0, WIDGET_VISIBLE), rest: posts.slice(WIDGET_VISIBLE) };
+}
+
 /** Mehrere Karten pro Meldung: kommagetrennte IDs, nur bekannte, ohne Duplikate. */
 export function productIds(raw: string | null | undefined): string[] {
   return [...new Set((raw ?? "").split(",").map((s) => s.trim()).filter((id) => !!productById(id)))];

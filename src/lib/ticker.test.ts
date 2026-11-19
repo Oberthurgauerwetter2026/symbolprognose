@@ -1,8 +1,20 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { visiblePosts } from "./ticker";
+import { widgetSplit, WIDGET_VISIBLE } from "./ticker";
 const now = Date.parse("2026-11-13T20:00:00Z");
 const at = (h: number) => ({ created_at: new Date(now - h * 3600_000).toISOString() });
+describe("widgetSplit", () => {
+  it("zeigt im Widget nur die neuesten drei Meldungen", () => {
+    const r = widgetSplit([1, 2, 3, 4, 5]);
+    assert.equal(WIDGET_VISIBLE, 3);
+    assert.deepEqual(r.shown, [1, 2, 3]);
+    assert.deepEqual(r.rest, [4, 5]);
+  });
+  it("ohne vierte Meldung gibt es kein «weitere …»", () => {
+    assert.deepEqual(widgetSplit([1, 2, 3]).rest, []);
+  });
+});
 describe("visiblePosts", () => {
   it("neueste Meldung zuerst", () => {
     const r = visiblePosts([at(5), at(1), at(3)], now);

@@ -1,3 +1,6 @@
+# Ticker widget entry limit
+- [x] Sidebar widget shows only the three newest messages, then «weitere …» / «schliessen»; two tests pass, collapsed and expanded verified in the browser at phone width (329 px → 578 px), banner unchanged.
+
 # WordPress ticker sizing
 - [x] Add persistent admin on/off for automatic radar thunderstorm warnings; four tests pass, signed-in toggle/reload/restoration and mobile verified. Existing warnings expire normally; manual warnings unchanged.
 - [x] Replace fragile inline resize scripts with a shared external file and late-load handshake; make standby compact and keep the full info/message visible as content grows and shrinks. Admin snippets now use the external script; standby preview stays visible.

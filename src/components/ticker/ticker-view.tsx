@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ArrowUpRight, Info, Camera, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { productById, productIds, productPreview, productUrl, type TickerProduct } from "@/lib/ticker";
+import { productById, productIds, productPreview, productUrl, widgetSplit, type TickerProduct } from "@/lib/ticker";
 import type { TickerPost } from "@/lib/ticker.functions";
 
 const time = (iso: string) =>
@@ -184,11 +184,28 @@ export function TickerStandby() {
 }
 
 export function TickerWidget({ posts }: { posts: TickerPost[] }) {
+  const [open, setOpen] = useState(false);
   if (!posts.length) return <TickerStandby />;
+  const { shown, rest } = widgetSplit(posts);
+  const more = open && rest.length > 0;
   return (
     <section className={shell}>
       <Header />
-      <ol>{posts.map((p, i) => <Entry key={p.id} post={p} latest={i === 0} last={i === posts.length - 1} />)}</ol>
+      <ol>{shown.map((p, i) => <Entry key={p.id} post={p} latest={i === 0} last={i === shown.length - 1 && !more} />)}</ol>
+      {rest.length > 0 && (
+        <>
+          <div className={`grid ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+            <div className="overflow-hidden">
+              <ol>{rest.map((p, i) => <Entry key={p.id} post={p} latest={false} last={i === rest.length - 1} />)}</ol>
+            </div>
+          </div>
+          <Button variant="ghost" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+            className="-mx-4 -mb-4 flex h-auto w-[calc(100%+2rem)] items-center justify-center gap-1 rounded-b-3xl border-t border-ticker-foreground/20 py-2 text-xs font-medium text-ticker-foreground/80 transition-colors hover:bg-ticker-foreground/10 hover:text-ticker-foreground">
+            {open ? "schliessen" : "weitere …"}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 motion-reduce:transition-none ${open ? "rotate-180" : ""}`} />
+          </Button>
+        </>
+      )}
     </section>
   );
 }
