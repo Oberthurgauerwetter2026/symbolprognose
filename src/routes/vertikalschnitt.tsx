@@ -63,6 +63,11 @@ function SnowcastPage() {
   const an = useAnalyses(hour);
   const minSnow = an.length ? Math.min(...an.map((a) => a.snowLine ?? 9999)) : null;
   const lowCols = hour ? an.filter((a, i) => (a.snowLine ?? 9999) <= hour.columns[i]!.ground + 30).length : 0;
+  const fr = an.map((a) => a.freezing).filter((v): v is number => v != null);
+  const minFreeze = fr.length ? Math.min(...fr) : null;
+  const w2 = hour?.columns[Math.floor(hour.columns.length / 2)]?.levels.reduce<{ z: number; ws: number; wd: number } | null>((b, l) => (!b || Math.abs(l.z - 2000) < Math.abs(b.z - 2000) ? l : b), null);
+  const r50 = (v: number) => `${Math.round(v / 50) * 50}`.replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+  const dirs = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
 
 
   const exportPng = () => {
@@ -118,7 +123,11 @@ function SnowcastPage() {
 
           <section className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-3">
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-              <div className="text-lg font-semibold">{minSnow == null || minSnow >= 9999 ? "–" : lowCols > 0 ? `Schnee bis in tiefe Lagen möglich (ab ≈ ${Math.round(minSnow / 50) * 50} m)` : `Schnee erst ab ≈ ${Math.round(minSnow / 50) * 50} m – darunter Regen`}</div>
+              <div className="text-base font-semibold">{minSnow == null || minSnow >= 9999 ? "–" : <>
+                {lowCols > 0 ? `Schnee bis in tiefe Lagen (ab ≈ ${r50(minSnow)} m ü. M.)` : `Schneefallgrenze ≈ ${r50(minSnow)} m ü. M.`}
+                {minFreeze != null && ` · Nullgradgrenze ${r50(minFreeze)} m`}
+                {w2 && ` · Wind in 2'000 m aus ${dirs[Math.round((((w2.wd % 360) + 360) % 360) / 45) % 8]} mit ${Math.round(w2.ws)} km/h`}
+              </>}</div>
               <div className="ml-auto flex gap-2">
                 <button onClick={exportPng} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"><Download className="h-3 w-3" />Bild</button>
               </div>
@@ -129,7 +138,7 @@ function SnowcastPage() {
               {hour && <SimpleProfile hour={hour} marks={marks} />}
             </div>
             <p className="text-[11px] leading-snug text-muted-foreground">
-              Weiss = Schnee, Blau = Regen, grün = Gelände entlang der Strecke. Die Schneefallgrenze ist eine Modellschätzung (berücksichtigt Verdunstungskühlung). Höhen: ICON-D2 (DWD), Boden: ICON-CH1 (MeteoSchweiz). Daten: Open-Meteo, Karte © swisstopo.
+              Farben = Lufttemperatur (blau unter, sand über 0 °C), dünne Linien = Isothermen alle 5 °C, Pfeile = Windrichtung und -stärke in 1'000/2'000/3'000 m, blaues Band = Unsicherheit der Schneefallgrenze. Die Schneefallgrenze ist eine Modellschätzung (berücksichtigt Verdunstungskühlung). Höhen: ICON-D2 (DWD), Boden: ICON-CH1 (MeteoSchweiz). Daten: Open-Meteo, Karte © swisstopo.
             </p>
           </section>
         </div>
