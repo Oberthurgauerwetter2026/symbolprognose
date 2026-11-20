@@ -1,1 +1,2 @@
 - Ticker videos reuse the image path columns (detected by extension) and upload via signed URLs, since 50 MB cannot pass server functions.
+- SnowCast fetches Open-Meteo in the browser (ICON-D2 levels split in two requests, ICON-CH1 surface): CH1/CH2 lack pressure levels and worker IPs get throttled; snow-line physics stays pure/tested in snowcast.ts.
