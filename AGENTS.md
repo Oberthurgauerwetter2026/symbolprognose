@@ -28,3 +28,4 @@
 - Sums travel as base64 Int16 (src/lib/sums-pack.ts), unpacked via stable `select`; per-number payloads overflowed localStorage.
 - Model snow (past/future) uses DEM + window snow line in hm; measured snow stays intact, avoiding coarse terrain.
 - Sum-map model series come prefetched from R2 (ingest_model_series.py); live Open-Meteo only if missing/stale (worker IPs get throttled).
+- SnowCast vertical section (/vertikalschnitt) fetches Open-Meteo in the browser (ICON-D2 pressure levels in two requests, ICON-CH1 surface), because ICON-CH1/CH2 have no pressure-level data there and worker IPs get throttled; snow-line physics stays pure and tested in src/lib/snowcast.ts.

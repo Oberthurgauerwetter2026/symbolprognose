@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Code2, Settings, BellRing } from "lucide-react";
+import { LayoutDashboard, Code2, Settings, BellRing, Snowflake } from "lucide-react";
 
 import {
   Sidebar,
@@ -87,6 +87,14 @@ export function AppSidebar() {
           <SidebarGroupLabel>Werkzeuge</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/vertikalschnitt")} tooltip="SnowCast Vertikalschnitt">
+                  <Link to="/vertikalschnitt" className="flex items-center gap-2">
+                    <Snowflake className="h-4 w-4" />
+                    <span>SnowCast Vertikalschnitt</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/embed-info")} tooltip="Embed-Snippets">
                   <Link to="/embed-info" className="flex items-center gap-2">

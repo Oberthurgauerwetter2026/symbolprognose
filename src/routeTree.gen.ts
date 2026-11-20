@@ -16,6 +16,7 @@ import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
 import { Route as FotoEinsendenRouteImport } from './routes/foto-einsenden'
 import { Route as KarteRouteImport } from './routes/karte'
+import { Route as VertikalschnittRouteImport } from './routes/vertikalschnitt'
 import { Route as WarnkarteRouteImport } from './routes/warnkarte'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
@@ -90,6 +91,11 @@ const FotoEinsendenRoute = FotoEinsendenRouteImport.update({
 const KarteRoute = KarteRouteImport.update({
   id: '/karte',
   path: '/karte',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VertikalschnittRoute = VertikalschnittRouteImport.update({
+  id: '/vertikalschnitt',
+  path: '/vertikalschnitt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WarnkarteRoute = WarnkarteRouteImport.update({
@@ -311,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/embed-info': typeof EmbedInfoRoute
   '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
+  '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
@@ -360,6 +367,7 @@ export interface FileRoutesByTo {
   '/embed-info': typeof EmbedInfoRoute
   '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
+  '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
@@ -410,6 +418,7 @@ export interface FileRoutesById {
   '/embed-info': typeof EmbedInfoRoute
   '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
+  '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
@@ -461,6 +470,7 @@ export interface FileRouteTypes {
     | '/embed-info'
     | '/foto-einsenden'
     | '/karte'
+    | '/vertikalschnitt'
     | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
@@ -510,6 +520,7 @@ export interface FileRouteTypes {
     | '/embed-info'
     | '/foto-einsenden'
     | '/karte'
+    | '/vertikalschnitt'
     | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
@@ -559,6 +570,7 @@ export interface FileRouteTypes {
     | '/embed-info'
     | '/foto-einsenden'
     | '/karte'
+    | '/vertikalschnitt'
     | '/warnkarte'
     | '/embed/all'
     | '/embed/lokal'
@@ -609,6 +621,7 @@ export interface RootRouteChildren {
   EmbedInfoRoute: typeof EmbedInfoRoute
   FotoEinsendenRoute: typeof FotoEinsendenRoute
   KarteRoute: typeof KarteRoute
+  VertikalschnittRoute: typeof VertikalschnittRoute
   WarnkarteRoute: typeof WarnkarteRoute
   EmbedAllRoute: typeof EmbedAllRoute
   EmbedLokalRoute: typeof EmbedLokalRoute
@@ -700,6 +713,13 @@ declare module '@tanstack/react-router' {
       path: '/karte'
       fullPath: '/karte'
       preLoaderRoute: typeof KarteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vertikalschnitt': {
+      id: '/vertikalschnitt'
+      path: '/vertikalschnitt'
+      fullPath: '/vertikalschnitt'
+      preLoaderRoute: typeof VertikalschnittRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/warnkarte': {
@@ -993,6 +1013,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedInfoRoute: EmbedInfoRoute,
   FotoEinsendenRoute: FotoEinsendenRoute,
   KarteRoute: KarteRoute,
+  VertikalschnittRoute: VertikalschnittRoute,
   WarnkarteRoute: WarnkarteRoute,
   EmbedAllRoute: EmbedAllRoute,
   EmbedLokalRoute: EmbedLokalRoute,
