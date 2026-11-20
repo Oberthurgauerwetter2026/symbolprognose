@@ -3,7 +3,8 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pause, Play, Download, Save } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { SectionChart, SnowLineStrip, useAnalyses, type ChartOpts, type Layers } from "@/components/snowcast/section-chart";
+import { useAnalyses, type ChartOpts } from "@/components/snowcast/section-chart";
+import { SimpleProfile } from "@/components/snowcast/simple-profile";
 import { PRESET_ROUTES, haversineKm, sampleRoute, type LatLon } from "@/lib/snowcast";
 import { loadSection } from "@/lib/snowcast-data";
 
@@ -24,10 +25,6 @@ export const Route = createFileRoute("/vertikalschnitt")({
   }),
 });
 
-const LAYER_LABELS: [keyof Layers, string][] = [
-  ["rh", "Relative Feuchte"], ["iso", "Isothermen"], ["wind", "Windfiedern"], ["precip", "Niederschlag"],
-  ["freezing", "Nullgradgrenze"], ["wbz", "Feuchtkugel-0°-Grenze"], ["snow", "Schneefallgrenze (Schätzung)"],
-];
 const STORE = "snowcast-settings-v1";
 
 function fmtTime(iso: string) {
@@ -67,17 +64,10 @@ function SnowcastPage() {
   const minSnow = an.length ? Math.min(...an.map((a) => a.snowLine ?? 9999)) : null;
   const lowCols = hour ? an.filter((a, i) => (a.snowLine ?? 9999) <= hour.columns[i]!.ground + 30).length : 0;
 
-  const setLayer = (k: keyof Layers, v: boolean) => { const n = { ...opts, layers: { ...opts.layers, [k]: v } }; setOpts(n); persist({ opts: n }); };
-  const setOpt = <K extends keyof ChartOpts>(k: K, v: ChartOpts[K]) => { const n = { ...opts, [k]: v }; setOpts(n); persist({ opts: n }); };
 
   const exportPng = () => {
-    const c = document.querySelector<HTMLCanvasElement>("#snowcast-chart canvas"); if (!c) return;
-    const a = document.createElement("a"); a.href = c.toDataURL("image/png"); a.download = `vertikalschnitt-${hour?.time ?? ""}.png`; a.click();
-  };
-  const exportPdf = () => {
-    const c = document.querySelector<HTMLCanvasElement>("#snowcast-chart canvas"); if (!c) return;
-    const w = window.open(""); if (!w) return;
-    w.document.write(`<title>Vertikalschnitt</title><h3 style="font-family:sans-serif">Vertikalschnitt ${points.map((p) => p.name ?? "").join(" – ")} · ${hour ? fmtTime(hour.time) : ""}</h3><img src="${c.toDataURL("image/png")}" style="width:100%"/><script>setTimeout(()=>print(),300)</script>`);
+    const svg = document.querySelector<SVGSVGElement>("#snowcast-chart svg"); if (!svg) return;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" })); a.download = `schneefallgrenze-${hour?.time ?? ""}.svg`; a.click();
   };
 
   return (
@@ -99,7 +89,7 @@ function SnowcastPage() {
           </div>
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)_240px]">
+        <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
           {/* Links: Karte */}
           <aside className="space-y-3">
             <select className="w-full rounded-md border border-input bg-background px-2 py-2 text-sm" value={presetId} onChange={(e) => {
@@ -126,56 +116,22 @@ function SnowcastPage() {
             </div>
           </aside>
 
-          {/* Mitte: Diagramm */}
           <section className="min-w-0 space-y-3 rounded-xl border border-border bg-card p-3">
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-              <div><span className="text-xs text-muted-foreground">Tiefste Schneefallgrenze (Schätzung) </span><span className="text-lg font-semibold text-primary">{minSnow != null && minSnow < 9999 ? `≈ ${Math.round(minSnow / 50) * 50} m` : "–"}</span></div>
-              {lowCols > 0 && <div className="text-sm font-medium">Schnee bis ins Flachland möglich ({lowCols} von {an.length} Punkten)</div>}
-              {an.some((a) => a.inversion) && <div className="text-sm text-muted-foreground">Warmschicht / Inversion erkannt</div>}
+              <div className="text-lg font-semibold">{minSnow == null || minSnow >= 9999 ? "–" : lowCols > 0 ? `Schnee bis in tiefe Lagen möglich (ab ≈ ${Math.round(minSnow / 50) * 50} m)` : `Schnee erst ab ≈ ${Math.round(minSnow / 50) * 50} m – darunter Regen`}</div>
               <div className="ml-auto flex gap-2">
-                <button onClick={exportPng} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"><Download className="h-3 w-3" />PNG</button>
-                <button onClick={exportPdf} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"><Download className="h-3 w-3" />PDF</button>
+                <button onClick={exportPng} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"><Download className="h-3 w-3" />Bild</button>
               </div>
             </div>
             <div id="snowcast-chart">
-              {q.isLoading && <div className="flex h-[420px] items-center justify-center text-sm text-muted-foreground">Modelldaten werden geladen …</div>}
-              {q.error && <div className="flex h-[420px] items-center justify-center text-sm text-destructive">{(q.error as Error).message}</div>}
-              {hour && <SectionChart hour={hour} opts={opts} marks={marks} />}
+              {q.isLoading && <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">Modelldaten werden geladen …</div>}
+              {q.error && <div className="flex h-[320px] items-center justify-center text-sm text-destructive">{(q.error as Error).message}</div>}
+              {hour && <SimpleProfile hour={hour} marks={marks} />}
             </div>
-            {hour && (
-              <div>
-                <div className="mb-1 text-xs font-semibold text-muted-foreground">Geschätzte Schneefallgrenze entlang der Strecke (Band = Unsicherheit, Punkt = Schnee bis zum Boden)</div>
-                <SnowLineStrip hour={hour} marks={marks} />
-              </div>
-            )}
             <p className="text-[11px] leading-snug text-muted-foreground">
-              Schneefallgrenze geschätzt aus der Feuchtkugeltemperatur (≈ +1 °C-Niveau, Band 0 bis +1,5 °C) – berücksichtigt Verdunstungskühlung und Warmschichten, ist aber kein Messwert. Höhenprofil: ICON-D2 (DWD) auf Druckflächen, Boden: ICON-CH1 (MeteoSchweiz). Daten: Open-Meteo, Karte © swisstopo.
+              Weiss = Schnee, Blau = Regen, grün = Gelände entlang der Strecke. Die Schneefallgrenze ist eine Modellschätzung (berücksichtigt Verdunstungskühlung). Höhen: ICON-D2 (DWD), Boden: ICON-CH1 (MeteoSchweiz). Daten: Open-Meteo, Karte © swisstopo.
             </p>
           </section>
-
-          {/* Rechts: Steuerung */}
-          <aside className="space-y-4 rounded-xl border border-border bg-card p-3 text-sm">
-            <div className="space-y-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ebenen</div>
-              {LAYER_LABELS.map(([k, label]) => (
-                <label key={k} className="flex items-center gap-2"><input type="checkbox" className="accent-primary" checked={opts.layers[k]} onChange={(e) => setLayer(k, e.target.checked)} />{label}</label>
-              ))}
-            </div>
-            <label className="block space-y-1"><span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Höhe bis {opts.zMax} m</span>
-              <input type="range" min={2000} max={10000} step={500} value={opts.zMax} onChange={(e) => setOpt("zMax", +e.target.value)} className="w-full accent-primary" /></label>
-            <label className="block space-y-1"><span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Isothermen alle</span>
-              <select value={opts.isoStep} onChange={(e) => setOpt("isoStep", +e.target.value)} className="w-full rounded-md border border-input bg-background px-2 py-1">
-                {[1, 2, 5].map((s) => <option key={s} value={s}>{s} °C</option>)}
-              </select></label>
-            <label className="block space-y-1"><span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Windfiedern-Grösse</span>
-              <input type="range" min={0.6} max={1.8} step={0.1} value={opts.barbScale} onChange={(e) => setOpt("barbScale", +e.target.value)} className="w-full accent-primary" /></label>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <div><span className="inline-block h-0.5 w-5 bg-primary align-middle" /> Schneefallgrenze</div>
-              <div><span className="inline-block w-5 border-t-2 border-dashed border-foreground align-middle" /> Nullgradgrenze</div>
-              <div><span className="inline-block w-5 border-t-2 border-dotted border-violet-600 align-middle" /> Feuchtkugel 0 °C</div>
-              <div>Grün → Blau: relative Feuchte 60–100 %</div>
-            </div>
-          </aside>
         </div>
       </div>
     </DashboardLayout>
