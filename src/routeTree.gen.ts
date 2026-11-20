@@ -43,6 +43,7 @@ import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenSatellitRouteImport } from './routes/karten.satellit'
 import { Route as KartenWarnungenRouteImport } from './routes/karten.warnungen'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
+import { Route as StationSlugRouteImport } from './routes/station.$slug'
 import { Route as ApiPublicAdminTickerManifestRouteImport } from './routes/api/public/admin-ticker-manifest'
 import { Route as ApiPublicWarnkarteManifestRouteImport } from './routes/api/public/warnkarte-manifest'
 import { Route as ApiPublicAromeIngestTriggerRouteImport } from './routes/api/public/arome/ingest-trigger'
@@ -227,6 +228,11 @@ const KartenWindRoute = KartenWindRouteImport.update({
   path: '/karten/wind',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StationSlugRoute = StationSlugRouteImport.update({
+  id: '/station/$slug',
+  path: '/station/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAdminTickerManifestRoute =
   ApiPublicAdminTickerManifestRouteImport.update({
     id: '/api/public/admin-ticker-manifest',
@@ -338,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/station/$slug': typeof StationSlugRoute
   '/api/public/admin-ticker-manifest': typeof ApiPublicAdminTickerManifestRoute
   '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
@@ -387,6 +394,7 @@ export interface FileRoutesByTo {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/station/$slug': typeof StationSlugRoute
   '/api/public/admin-ticker-manifest': typeof ApiPublicAdminTickerManifestRoute
   '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
@@ -437,6 +445,7 @@ export interface FileRoutesById {
   '/karten/satellit': typeof KartenSatellitRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
+  '/station/$slug': typeof StationSlugRoute
   '/api/public/admin-ticker-manifest': typeof ApiPublicAdminTickerManifestRoute
   '/api/public/warnkarte-manifest': typeof ApiPublicWarnkarteManifestRoute
   '/api/public/arome/ingest-trigger': typeof ApiPublicAromeIngestTriggerRoute
@@ -488,6 +497,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/station/$slug'
     | '/api/public/admin-ticker-manifest'
     | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
@@ -537,6 +547,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/station/$slug'
     | '/api/public/admin-ticker-manifest'
     | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
@@ -586,6 +597,7 @@ export interface FileRouteTypes {
     | '/karten/satellit'
     | '/karten/warnungen'
     | '/karten/wind'
+    | '/station/$slug'
     | '/api/public/admin-ticker-manifest'
     | '/api/public/warnkarte-manifest'
     | '/api/public/arome/ingest-trigger'
@@ -636,6 +648,7 @@ export interface RootRouteChildren {
   KartenSatellitRoute: typeof KartenSatellitRoute
   KartenWarnungenRoute: typeof KartenWarnungenRoute
   KartenWindRoute: typeof KartenWindRoute
+  StationSlugRoute: typeof StationSlugRoute
   ApiPublicAdminTickerManifestRoute: typeof ApiPublicAdminTickerManifestRoute
   ApiPublicWarnkarteManifestRoute: typeof ApiPublicWarnkarteManifestRoute
   ApiPublicAromeIngestTriggerRoute: typeof ApiPublicAromeIngestTriggerRoute
@@ -891,6 +904,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KartenWindRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/station/$slug': {
+      id: '/station/$slug'
+      path: '/station/$slug'
+      fullPath: '/station/$slug'
+      preLoaderRoute: typeof StationSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/admin-ticker-manifest': {
       id: '/api/public/admin-ticker-manifest'
       path: '/api/public/admin-ticker-manifest'
@@ -1020,6 +1040,7 @@ const rootRouteChildren: RootRouteChildren = {
   KartenSatellitRoute: KartenSatellitRoute,
   KartenWarnungenRoute: KartenWarnungenRoute,
   KartenWindRoute: KartenWindRoute,
+  StationSlugRoute: StationSlugRoute,
   ApiPublicAdminTickerManifestRoute: ApiPublicAdminTickerManifestRoute,
   ApiPublicWarnkarteManifestRoute: ApiPublicWarnkarteManifestRoute,
   ApiPublicAromeIngestTriggerRoute: ApiPublicAromeIngestTriggerRoute,

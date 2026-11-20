@@ -303,3 +303,27 @@ html.embed .embed-fallback {
 @media (prefers-reduced-motion: reduce) {
   .ticker-shimmer { animation: none; }
 }
+
+/* Mobile Stationsansicht: OLED-Schwarz mit Signalfarben (bewusst immer dunkel). */
+:root {
+  --oled-bg: oklch(0 0 0);
+  --oled-card: oklch(0.17 0 0);
+  --oled-line: oklch(0.28 0 0);
+  --oled-fg: oklch(0.98 0 0);
+  --oled-muted: oklch(0.68 0 0);
+  --oled-hot: oklch(0.66 0.22 27);
+  --oled-cold: oklch(0.72 0.14 240);
+  --oled-good: oklch(0.8 0.2 145);
+  --oled-warn: oklch(0.88 0.17 95);
+}
+@theme inline {
+  --color-oled-bg: var(--oled-bg);
+  --color-oled-card: var(--oled-card);
+  --color-oled-line: var(--oled-line);
+  --color-oled-fg: var(--oled-fg);
+  --color-oled-muted: var(--oled-muted);
+  --color-oled-hot: var(--oled-hot);
+  --color-oled-cold: var(--oled-cold);
+  --color-oled-good: var(--oled-good);
+  --color-oled-warn: var(--oled-warn);
+}
