@@ -1,5 +1,5 @@
 import { blendStations } from "@/lib/station-blend";
-import { downscaleSnow, downscaleSnowProfile } from "@/lib/snow-downscale";
+import { downscaleSnow, downscaleSnowProfile, DEM_FINE } from "@/lib/snow-downscale";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
@@ -14,8 +14,8 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
   const { data, isLoading, error } = useQuery({ ...pastPrecipQuery(), refetchInterval: 30 * 60_000 });
   const [hours, setHours] = useState<PastWindow>(12);
   const { data: dem } = useQuery({
-    queryKey: ["terrain-dem-420x200"],
-    queryFn: async () => new Int16Array(await (await fetch("/terrain-elev-420x200.bin")).arrayBuffer()),
+    queryKey: ["terrain-dem-840x400"],
+    queryFn: async () => new Int16Array(await (await fetch("/terrain-elev-840x400.bin")).arrayBuffer()),
     staleTime: Infinity,
   });
   const [mode, setMode] = useState<"rain" | "snow">("rain");
@@ -35,11 +35,11 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
     const f = period === "future" ? data.forecast : data;
     const line = f?.snowLine?.[hours];
     const prof = f?.snowProfile?.[hours];
-    if (!dem || !f || dem.length !== 84000) return null;
+    if (!dem || !f || dem.length !== DEM_FINE.w * DEM_FINE.h) return null;
     // Stundenweise Projektion bevorzugt; ältere Caches liefern nur die Fenster-Grenze.
-    if (prof && prof.length === f.rain[hours].length * 13) return downscaleSnowProfile(f.rain[hours], prof, data.gridLat, data.gridLon, dem);
+    if (prof && prof.length === f.rain[hours].length * 13) return downscaleSnowProfile(f.rain[hours], prof, data.gridLat, data.gridLon, dem, DEM_FINE);
     if (!line) return null;
-    return downscaleSnow(f.rain[hours], line, data.gridLat, data.gridLon, dem);
+    return downscaleSnow(f.rain[hours], line, data.gridLat, data.gridLon, dem, DEM_FINE);
   }, [data, dem, hours, mode, period]);
 
   const mapRef = useRef<HTMLDivElement>(null);

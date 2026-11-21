@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { snowFraction, downscaleSnow, weightedSnowLineHm, hourlySnowProfile, DEM } from "./snow-downscale";
+import { snowFraction, downscaleSnow, downscaleSnowProfile, weightedSnowLineHm, hourlySnowProfile, SNOW_LEVELS, DEM, DEM_FINE } from "./snow-downscale";
 
 test("Schneefallgrenze 1000 m: Säntis-Höhe voll Schnee, Seebecken kein Schnee", () => {
   assert.equal(snowFraction(2500, 1000), 1);
@@ -60,6 +60,22 @@ test("Fehlende historische Nullgradgrenze erfindet keinen Schnee", () => {
   assert.ok(g.values.every((v) => v === -1));
   const dry = downscaleSnow([0, 0, 0, 0], [-1, -1, -1, -1], [47.2, 47.3], [9.3, 9.4], dem);
   assert.ok(dry.values.every((v) => v === 0));
+});
+
+test("feines Gelände (840×400) löst schmale Grate auf, die das grobe Raster verliert", () => {
+  const h = 3600_000;
+  const prof = hourlySnowProfile([h], [10], [1300], 0, 12)!; // Grenze 1000 m
+  const flat = Array.from({ length: 4 * SNOW_LEVELS.length }, (_, i) => prof[i % SNOW_LEVELS.length]);
+  const dem = new Int16Array(DEM_FINE.w * DEM_FINE.h).fill(400);
+  // Schmaler Grat bei 47.255 N / 9.345 E – liegt zwischen den 0.01°-Zellen des groben Rasters
+  const row = Math.round(((DEM_FINE.maxLat - 47.255) / 2) * (DEM_FINE.h - 1));
+  const col = Math.round(((9.345 - DEM_FINE.minLon) / 4.2) * (DEM_FINE.w - 1));
+  dem[row * DEM_FINE.w + col] = 2500;
+  const g = downscaleSnowProfile([10, 10, 10, 10], flat, [47.2, 47.3], [9.3, 9.4], dem, DEM_FINE);
+  assert.ok(Math.abs(g.gridLat[1] - g.gridLat[0] - 0.005) < 1e-9);
+  const at = (la: number, lo: number) => g.values[g.gridLat.indexOf(la) * g.gridLon.length + g.gridLon.indexOf(lo)];
+  assert.equal(at(47.255, 9.345), 7); // Grat: voller Schnee
+  assert.equal(at(47.25, 9.34), 0); // Flachland daneben: kein Schnee
 });
 
 test("stundenweise: milder Regen zuerst löscht späteren Flachlandschnee nicht", () => {

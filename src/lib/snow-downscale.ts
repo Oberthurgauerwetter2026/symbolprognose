@@ -1,6 +1,9 @@
 /** Topografischer Modell-Neuschnee: grobe Modellsumme + Schneefallgrenze
- *  werden auf das 0.01°-Geländeraster (DEM, Zeile 0 = Norden) übertragen. */
-export const DEM = { minLon: 7.4, maxLon: 11.6, minLat: 46.6, maxLat: 48.6, w: 420, h: 200 };
+ *  werden auf das Geländeraster (DEM, Zeile 0 = Norden) übertragen. */
+export const DEM = { minLon: 7.4, maxLon: 11.6, minLat: 46.6, maxLat: 48.6, w: 420, h: 200, step: 0.01 };
+/** Feines Gelände (840×400, gleiches Gebiet) für filigrane Schneegrenzen; Ausgabe 0.005°. */
+export const DEM_FINE = { ...DEM, w: 840, h: 400, step: 0.005 };
+export type DemGrid = typeof DEM;
 /** cm Neuschnee je mm Niederschlag (wie Open-Meteo, ~7:1). */
 export const CM_PER_MM = 0.7;
 /** Übergangsband Regen→Schnee um die Schneefallgrenze (m). */
@@ -24,26 +27,26 @@ function bilinear(v: number[], lat: number[], lon: number[], la: number, lo: num
 
 /** rain: mm, snowLineHm: Schneefallgrenze in Hektometern (−1 = kein Niederschlag). */
 export function downscaleSnow(
-  rain: number[], snowLineHm: number[], gridLat: number[], gridLon: number[], dem: Int16Array,
+  rain: number[], snowLineHm: number[], gridLat: number[], gridLon: number[], dem: Int16Array, grid: DemGrid = DEM,
 ): { gridLat: number[]; gridLon: number[]; values: number[] } {
-  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const r3 = (x: number) => Math.round(x * 1000) / 1000;
   const lat: number[] = [], lon: number[] = [];
-  for (let la = gridLat[0]; la <= gridLat[gridLat.length - 1] + 1e-9; la += 0.01) lat.push(r2(la));
-  for (let lo = gridLon[0]; lo <= gridLon[gridLon.length - 1] + 1e-9; lo += 0.01) lon.push(r2(lo));
+  for (let la = gridLat[0]; la <= gridLat[gridLat.length - 1] + 1e-9; la += grid.step) lat.push(r3(la));
+  for (let lo = gridLon[0]; lo <= gridLon[gridLon.length - 1] + 1e-9; lo += grid.step) lon.push(r3(lo));
   // Trockene Punkte brauchen keine Grenze; nasse Punkte ohne bekannte Grenze
   // bleiben fehlend, statt durch eine erfundene Grenze von 0 m Schnee zu erzeugen.
   const sl = snowLineHm.map((x, i) => (x >= 0 ? x * 100 : rain[i] === 0 ? 0 : -1));
   const values = new Array(lat.length * lon.length).fill(-1);
   for (let i = 0; i < lat.length; i++) {
-    const row = Math.round(((DEM.maxLat - lat[i]) / (DEM.maxLat - DEM.minLat)) * (DEM.h - 1));
+    const row = Math.round(((grid.maxLat - lat[i]) / (grid.maxLat - grid.minLat)) * (grid.h - 1));
     for (let j = 0; j < lon.length; j++) {
       const p = bilinear(rain, gridLat, gridLon, lat[i], lon[j]);
       if (p < 0) continue;
-      const col = Math.round(((lon[j] - DEM.minLon) / (DEM.maxLon - DEM.minLon)) * (DEM.w - 1));
-      if (row < 0 || row >= DEM.h || col < 0 || col >= DEM.w) continue;
+      const col = Math.round(((lon[j] - grid.minLon) / (grid.maxLon - grid.minLon)) * (grid.w - 1));
+      if (row < 0 || row >= grid.h || col < 0 || col >= grid.w) continue;
       const L = bilinear(sl, gridLat, gridLon, lat[i], lon[j]);
       if (p > 0 && L < 0) continue;
-      values[i * lon.length + j] = p > 0 ? Math.round(p * snowFraction(dem[row * DEM.w + col], L) * CM_PER_MM * 10) / 10 : 0;
+      values[i * lon.length + j] = p > 0 ? Math.round(p * snowFraction(dem[row * grid.w + col], L) * CM_PER_MM * 10) / 10 : 0;
     }
   }
   return { gridLat: lat, gridLon: lon, values };
@@ -110,28 +113,28 @@ function atLevel(profile: number[], elev: number): number {
 
 /** Wie downscaleSnow, aber mit stundenweisem Höhenprofil (flach: Punkt × SNOW_LEVELS). */
 export function downscaleSnowProfile(
-  rain: number[], profile: number[], gridLat: number[], gridLon: number[], dem: Int16Array,
+  rain: number[], profile: number[], gridLat: number[], gridLon: number[], dem: Int16Array, grid: DemGrid = DEM,
 ): { gridLat: number[]; gridLon: number[]; values: number[] } {
   const n = SNOW_LEVELS.length;
-  const r2 = (x: number) => Math.round(x * 100) / 100;
+  const r3 = (x: number) => Math.round(x * 1000) / 1000;
   const lat: number[] = [], lon: number[] = [];
-  for (let la = gridLat[0]; la <= gridLat[gridLat.length - 1] + 1e-9; la += 0.01) lat.push(r2(la));
-  for (let lo = gridLon[0]; lo <= gridLon[gridLon.length - 1] + 1e-9; lo += 0.01) lon.push(r2(lo));
+  for (let la = gridLat[0]; la <= gridLat[gridLat.length - 1] + 1e-9; la += grid.step) lat.push(r3(la));
+  for (let lo = gridLon[0]; lo <= gridLon[gridLon.length - 1] + 1e-9; lo += grid.step) lon.push(r3(lo));
   const levels = SNOW_LEVELS.map((_, k) => rain.map((_, i) => profile[i * n + k]));
   const values = new Array(lat.length * lon.length).fill(-1);
   const prof = new Array<number>(n);
   for (let i = 0; i < lat.length; i++) {
-    const row = Math.round(((DEM.maxLat - lat[i]) / (DEM.maxLat - DEM.minLat)) * (DEM.h - 1));
+    const row = Math.round(((grid.maxLat - lat[i]) / (grid.maxLat - grid.minLat)) * (grid.h - 1));
     for (let j = 0; j < lon.length; j++) {
       const p = bilinear(rain, gridLat, gridLon, lat[i], lon[j]);
       if (p < 0) continue;
-      const col = Math.round(((lon[j] - DEM.minLon) / (DEM.maxLon - DEM.minLon)) * (DEM.w - 1));
-      if (row < 0 || row >= DEM.h || col < 0 || col >= DEM.w) continue;
+      const col = Math.round(((lon[j] - grid.minLon) / (grid.maxLon - grid.minLon)) * (grid.w - 1));
+      if (row < 0 || row >= grid.h || col < 0 || col >= grid.w) continue;
       if (p === 0) { values[i * lon.length + j] = 0; continue; }
       let ok = true;
       for (let k = 0; k < n; k++) { prof[k] = bilinear(levels[k], gridLat, gridLon, lat[i], lon[j]); if (prof[k] < 0) { ok = false; break; } }
       if (!ok) continue;
-      values[i * lon.length + j] = Math.round(atLevel(prof, dem[row * DEM.w + col]) * CM_PER_MM * 10) / 10;
+      values[i * lon.length + j] = Math.round(atLevel(prof, dem[row * grid.w + col]) * CM_PER_MM * 10) / 10;
     }
   }
   return { gridLat: lat, gridLon: lon, values };
