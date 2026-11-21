@@ -254,11 +254,13 @@ _DEM_CACHE: dict = {}
 
 
 def load_dem(shape: tuple[int, int]) -> np.ndarray | None:
-    """Reales Höhenmodell (m) im Kartenraster (Basel–Tirol, 420×200)."""
+    """Reales Höhenmodell im Mess- (420×200) oder Prognoseraster (840×400).
+    Nur passende echte Höhenraster laden; niemals grobes Relief vergrössern."""
     if shape in _DEM_CACHE:
         return _DEM_CACHE[shape]
     import os
-    path = os.path.join(os.path.dirname(__file__), "terrain_elev_420x200.npy")
+    height, width = shape
+    path = os.path.join(os.path.dirname(__file__), f"terrain_elev_{width}x{height}.npy")
     dem = None
     try:
         d = np.load(path).astype(np.float32)

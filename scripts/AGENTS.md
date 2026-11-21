@@ -1,1 +1,2 @@
 - Nowcast advection runs on the radar field sampled with a NOWCAST_PAD margin around the display bbox (soft-faded outer edge) and is cropped only afterwards, because cropping before advection drags a hard dry edge into the map.
+- Forecast PNG phases use a source-sampled 840×400 terrain DEM; intensity texture is computed at 420×200 then smoothly resampled, because terrain detail must not change motion analysis or invent finer rainfall structure. Rebuild with build_forecast_terrain.py when the bbox changes; keep categorical alpha codes and existing temperature gates.

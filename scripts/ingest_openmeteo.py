@@ -425,9 +425,10 @@ def _index_minutely_times(loc: dict) -> dict[str, int]:
     return {t: i for i, t in enumerate(times)}
 
 
-#: Zielraster der Prognose-PNGs — exakt identisch zum Messungs-Ingest
-#: (scripts/ingest_radar.py: OUT_W, OUT_H = 240, 144 auf die Oberthurgau-BBox).
-FORECAST_OUT_W, FORECAST_OUT_H = 420, 200  # = Messraster ingest_radar.py
+# Prognosephase auf echtem feinem Relief; Messung und Bewegungsanalyse
+# behalten ihr Raster. BBox bleibt identisch, PNG-Dimensionen sind dynamisch.
+FORECAST_OUT_W, FORECAST_OUT_H = 840, 400
+FORECAST_INTENSITY_W, FORECAST_INTENSITY_H = 420, 200
 
 
 _GRAIN_CACHE: dict = {}
@@ -577,7 +578,7 @@ def _render_frame_png(
     fzra_row_major: list[float] | None = None,
 ) -> bytes:
     """`mmh_row_major` ist [lat_asc * lon_asc] mit len = n_lat*n_lon.
-    Rendert ein RGBA-PNG mit PRECIP_SCALE im Messraster (~1 km); Zeile 0 = maxLat.
+    Rendert ein RGBA-PNG mit PRECIP_SCALE und feiner Geländephase; Zeile 0 = maxLat.
 
     WICHTIG (dauerhafte Vorgabe): Prognosefelder werden NIE blockig gerastert.
     Die Neurasterung läuft immer über `_upsample_smooth` (Catmull-Rom auf den
@@ -591,9 +592,9 @@ def _render_frame_png(
     # Bildzeile 0 muss max_lat entsprechen (PNG top-left = NW).
     arr = np.flipud(arr)
 
-    # Auf das exakte Raster der Radarmessung bringen (240 × 144) — glatte
-    # Wertinterpolation, damit die Bandkanten organisch statt blockig laufen.
-    arr = _upsample_smooth(arr, FORECAST_OUT_H, FORECAST_OUT_W)
+    # Intensität/Körnung weiter im bisherigen Raster berechnen: höhere
+    # Geländeauflösung darf weder neue Regenkerne noch kleinere Rauschkanten erzeugen.
+    arr = _upsample_smooth(arr, FORECAST_INTENSITY_H, FORECAST_INTENSITY_W)
 
     # Radar-Körnung: multiplikatives, ortsfestes Rauschen im 1-km-Raster, damit
     # die Bandkanten wie in der Messung leicht pixelig/zerfranst wirken statt
@@ -602,8 +603,8 @@ def _render_frame_png(
 
     # Nur echte Einzelpixel entfernen; kleine Buchten/Fransen bleiben erhalten.
     arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min(min_area_px, 2), hole_area_px=2)
-
-
+    # Erst danach glatte Wertinterpolation ins feinere Phasen-/PNG-Raster.
+    arr = _upsample_smooth(arr, FORECAST_OUT_H, FORECAST_OUT_W)
 
     rgba = np.zeros((arr.shape[0], arr.shape[1], 4), dtype=np.uint8)
     for thresh, color in PRECIP_SCALE:

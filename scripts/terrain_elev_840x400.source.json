@@ -1,0 +1,15 @@
+{
+  "source": "AWS Terrain Tiles / Mapzen Terrarium",
+  "documentation": "https://registry.opendata.aws/terrain-tiles/",
+  "tile_url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+  "source_zoom": 9,
+  "bbox_wgs84": [7.4, 46.6, 11.6, 48.6],
+  "shape": [400, 840],
+  "orientation": "north-up; rows and columns include bbox endpoints",
+  "sampling": "bilinear interpolation of decoded source elevations in Web Mercator pixel centres",
+  "units": "metres above sea level; source vertical datum retained without conversion",
+  "nodata": "generation aborts on failed tiles or non-finite/out-of-range elevations",
+  "attribution": "Terrain Tiles, Mapzen/AWS; underlying open elevation sources and terms described in source documentation",
+  "generated_utc": "2026-11-21",
+  "rebuild": "python3 scripts/build_forecast_terrain.py"
+}
