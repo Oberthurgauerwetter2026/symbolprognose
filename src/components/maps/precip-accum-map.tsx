@@ -375,6 +375,11 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             </Button>
           )}
 
+          {forecast && endLabel && (
+            <div className="pointer-events-none absolute right-3 top-3 z-[500] rounded-md bg-card/90 px-2.5 py-1 text-xs font-semibold tabular-nums text-card-foreground shadow-sm ring-1 ring-border backdrop-blur-md">
+              Berechnung {endLabel}
+            </div>
+          )}
           {/* Schlanker Legenden-Streifen (Radar-Stil) */}
           <div data-map-legend className="pointer-events-none absolute bottom-2 left-1/2 z-[500] flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 items-center gap-2 rounded-2xl bg-white/90 px-3 py-1.5 shadow-md ring-1 ring-black/5 backdrop-blur-md">
             <div className="w-52 sm:w-64">

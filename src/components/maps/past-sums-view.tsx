@@ -192,7 +192,8 @@ function forecastEnd(from: string, h: number, style: "short" | "long") {
   if (style === "short") {
     const wd = d.toLocaleDateString("de-CH", { timeZone: tz, weekday: "short" }).replace(".", "");
     const dm = d.toLocaleDateString("de-CH", { timeZone: tz, day: "numeric", month: "numeric" });
-    return `${wd} ${dm}`;
+    const hm = d.toLocaleTimeString("de-CH", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+    return `${wd} ${dm} ${hm}`;
   }
   const date = d.toLocaleDateString("de-CH", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });
   const time = d.toLocaleTimeString("de-CH", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
