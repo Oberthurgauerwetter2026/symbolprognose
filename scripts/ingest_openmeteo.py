@@ -594,17 +594,13 @@ def _render_frame_png(
 
     # Intensität/Körnung weiter im bisherigen Raster berechnen: höhere
     # Geländeauflösung darf weder neue Regenkerne noch kleinere Rauschkanten erzeugen.
-    arr = _upsample_smooth(arr, FORECAST_INTENSITY_H, FORECAST_INTENSITY_W)
-
-    # Radar-Körnung: multiplikatives, ortsfestes Rauschen im 1-km-Raster, damit
-    # die Bandkanten wie in der Messung leicht pixelig/zerfranst wirken statt
-    # vektorglatt. Ortsfest (fixer Seed) → kein Flimmern zwischen Frames.
-    arr = _edge_roughen(arr)
-
-    # Nur echte Einzelpixel entfernen; kleine Buchten/Fransen bleiben erhalten.
-    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=min(min_area_px, 2), hole_area_px=2)
-    # Erst danach glatte Wertinterpolation ins feinere Phasen-/PNG-Raster.
+    # Eine einzige Catmull-Rom-Interpolation direkt ins PNG-Raster, VOR der
+    # Quantisierung: zweimaliges Interpolieren quantisierter Stufen erzeugte Karomuster.
     arr = _upsample_smooth(arr, FORECAST_OUT_H, FORECAST_OUT_W)
+    _scale = FORECAST_OUT_W / FORECAST_INTENSITY_W
+    # Radar-Körnung ortsfest; Verzerrung ans feinere Raster skaliert.
+    arr = _edge_roughen(arr, warp_px=3.2 * _scale)
+    arr = clean_precip_field(arr, PRECIP_SCALE, min_area_px=int(min(min_area_px, 2) * _scale * _scale), hole_area_px=int(2 * _scale * _scale))
 
     rgba = np.zeros((arr.shape[0], arr.shape[1], 4), dtype=np.uint8)
     for thresh, color in PRECIP_SCALE:
