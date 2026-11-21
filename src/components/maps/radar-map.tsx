@@ -1877,7 +1877,7 @@ const LEGEND_PHASES: { label: string; light: [number, number, number]; strong: [
 function LegendColumn({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("flex min-w-0 flex-col gap-[3px]", className)}>
-      <span className="truncate text-[8.5px] font-semibold uppercase leading-none tracking-[0.02em] text-neutral-500 sm:tracking-[0.06em]">
+      <span className="truncate text-[9px] font-semibold leading-none tracking-[-0.01em] text-neutral-500">
         {label}
       </span>
       {children}
@@ -1901,7 +1901,7 @@ function TwoStepBar({ light, strong }: { light: [number, number, number]; strong
 }
 
 function RadarLegendStrip({ bare }: { bare?: boolean }) {
-  const short: Record<string, string> = { "Gefrierender Regen": "Glatteis", Schneeregen: "Schn.regen" };
+  const short: Record<string, string> = { "Gefrierender Regen": "Glatteis" };
   return (
     <div
       className={cn(
