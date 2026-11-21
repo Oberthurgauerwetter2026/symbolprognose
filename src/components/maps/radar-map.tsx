@@ -1874,77 +1874,85 @@ const LEGEND_PHASES: { label: string; light: [number, number, number]; strong: [
   { label: "Schnee", light: SNOW_SCALE[0].rgb, strong: SNOW_SCALE[1].rgb },
 ];
 
+function LegendColumn({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-[3px]", className)}>
+      <span className="truncate text-[8.5px] font-semibold uppercase leading-none tracking-[0.02em] text-neutral-500 sm:tracking-[0.06em]">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function TwoStepBar({ light, strong }: { light: [number, number, number]; strong: [number, number, number] }) {
+  return (
+    <>
+      <div className="flex h-[6px] overflow-hidden rounded-[2px] ring-1 ring-inset ring-black/5">
+        <span className="flex-1" style={{ backgroundColor: `rgb(${light.join(",")})` }} />
+        <span className="flex-1" style={{ backgroundColor: `rgb(${strong.join(",")})` }} />
+      </div>
+      <div className="flex justify-between text-[8px] leading-none text-neutral-400">
+        <span>leicht</span>
+        <span>stark</span>
+      </div>
+    </>
+  );
+}
+
 function RadarLegendStrip({ bare }: { bare?: boolean }) {
+  const short: Record<string, string> = { "Gefrierender Regen": "Glatteis" };
   return (
     <div
       className={cn(
-        "pointer-events-auto absolute left-1/2 z-[460] max-w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-2xl bg-white/90 px-3 py-1.5 text-[10px] text-neutral-600 shadow-md ring-1 ring-black/5 backdrop-blur-md",
+        "pointer-events-auto absolute inset-x-3 z-[460] mx-auto max-w-3xl rounded-xl bg-white/92 px-3 py-[7px] shadow-[0_1px_8px_rgba(0,0,0,0.08)] ring-1 ring-black/5 backdrop-blur-md",
         bare ? "bottom-[4.5rem]" : "bottom-2",
       )}
     >
-      <div className="flex flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2.5">
-        <div className="flex items-center gap-2">
-          <div className="w-36 sm:w-44">
-            <div
-              className="h-2 rounded-full"
-              style={{ backgroundImage: `linear-gradient(to right, ${RAIN_GRADIENT_STOPS.join(", ")})` }}
-            />
-            <div className="relative mt-0.5 h-3">
-              {LEGEND_TICKS.map((tk) => (
-                <span
-                  key={tk.label}
-                  className={cn(
-                    "absolute top-0 text-[9px] tabular-nums text-neutral-500",
-                    tk.align === "l" && "left-0",
-                    tk.align === "m" && "-translate-x-1/2",
-                    tk.align === "r" && "right-0",
-                  )}
-                  style={tk.align === "m" ? { left: `${tk.pct}%` } : undefined}
-                >
-                  {tk.label}
-                </span>
-              ))}
-            </div>
+      <div className="flex items-start gap-2 sm:gap-4">
+        <LegendColumn label="Regen · mm/h" className="flex-[1.7] sm:flex-[2.2]">
+          <div
+            className="h-[6px] rounded-[2px] ring-1 ring-inset ring-black/5"
+            style={{ backgroundImage: `linear-gradient(to right, ${RAIN_GRADIENT_STOPS.join(", ")})` }}
+          />
+          <div className="relative h-[8px]">
+            {LEGEND_TICKS.map((tk) => (
+              <span
+                key={tk.label}
+                className={cn(
+                  "absolute top-0 text-[8px] leading-none tabular-nums text-neutral-400",
+                  tk.align === "l" && "left-0",
+                  tk.align === "m" && "-translate-x-1/2",
+                  tk.align === "r" && "right-0",
+                )}
+                style={tk.align === "m" ? { left: `${tk.pct}%` } : undefined}
+              >
+                {tk.label}
+              </span>
+            ))}
           </div>
-          <span className="text-[9px] font-semibold text-neutral-500">mm/h</span>
-        </div>
-        <div className="hidden h-5 w-px bg-neutral-200 sm:block" />
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 sm:flex-nowrap sm:justify-start">
-          {LEGEND_PHASES.map((p) => (
-            <div key={p.label} className="flex items-center gap-1">
-              <span className="whitespace-nowrap text-[9px] font-medium text-neutral-600">{p.label}</span>
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-[3px] ring-1 ring-black/5"
-                style={{ backgroundColor: `rgb(${p.light.join(",")})` }}
-              />
-              <span className="whitespace-nowrap text-[9px] text-neutral-500">leicht</span>
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-[3px] ring-1 ring-black/5"
-                style={{ backgroundColor: `rgb(${p.strong.join(",")})` }}
-              />
-              <span className="whitespace-nowrap text-[9px] text-neutral-500">stark</span>
-            </div>
-          ))}
-          <div className="flex items-center gap-1" title="Hagelwahrscheinlichkeit (POH)">
+        </LegendColumn>
+        {LEGEND_PHASES.map((p) => (
+          <LegendColumn key={p.label} label={short[p.label] ?? p.label} className="flex-1">
+            <TwoStepBar light={p.light} strong={p.strong} />
+          </LegendColumn>
+        ))}
+        <LegendColumn label="Hagel" className="shrink-0">
+          <div
+            className="h-[6px] w-6 rounded-[2px] bg-white ring-1 ring-inset ring-neutral-300"
+            title="Hagelwahrscheinlichkeit (POH)"
+            style={{ backgroundImage: "radial-gradient(circle, #000 35%, transparent 36%)", backgroundSize: "3px 3px" }}
+          />
+          {LIGHTNING_ENABLED ? (
             <span
-              className="inline-block h-2.5 w-2.5 rounded-[3px] bg-white ring-1 ring-neutral-300"
-              style={{
-                backgroundImage: "radial-gradient(circle, #000 35%, transparent 36%)",
-                backgroundSize: "3px 3px",
-              }}
+              className="inline-flex h-[8px] items-center"
+              title="Blitze"
+              dangerouslySetInnerHTML={{ __html: boltSvg(8, 1, false, 0, BOLT_RADAR, 1.5) }}
             />
-            <span className="whitespace-nowrap text-[9px] text-neutral-600">Hagel</span>
-          </div>
-          {LIGHTNING_ENABLED && (
-            <div className="flex items-center gap-1" title="Blitze (Blitzortung)">
-              <span
-                className="inline-flex h-2.5 w-3 items-center justify-center"
-                dangerouslySetInnerHTML={{ __html: boltSvg(10, 1, false, 0, BOLT_RADAR, 1.5) }}
-              />
-              <span className="whitespace-nowrap text-[9px] text-neutral-600">Blitze</span>
-            </div>
+          ) : (
+            <span className="h-[8px]" />
           )}
-        </div>
+        </LegendColumn>
       </div>
     </div>
   );
