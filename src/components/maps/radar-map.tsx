@@ -1877,7 +1877,7 @@ const LEGEND_PHASES: { label: string; light: [number, number, number]; strong: [
 function LegendColumn({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("flex min-w-0 flex-col gap-[3px]", className)}>
-      <span className="truncate text-[9px] font-semibold leading-none tracking-[-0.01em] text-neutral-500">
+      <span className="truncate text-[10px] font-semibold leading-none tracking-[-0.01em] text-neutral-900">
         {label}
       </span>
       {children}
@@ -1892,7 +1892,7 @@ function TwoStepBar({ light, strong }: { light: [number, number, number]; strong
         <span className="flex-1" style={{ backgroundColor: `rgb(${light.join(",")})` }} />
         <span className="flex-1" style={{ backgroundColor: `rgb(${strong.join(",")})` }} />
       </div>
-      <div className="flex justify-between text-[8px] leading-none text-neutral-400">
+      <div className="flex justify-between text-[9px] font-medium leading-none text-neutral-700">
         <span>leicht</span>
         <span>stark</span>
       </div>
@@ -1905,7 +1905,7 @@ function RadarLegendStrip({ bare }: { bare?: boolean }) {
   return (
     <div
       className={cn(
-        "pointer-events-auto absolute inset-x-3 z-[460] mx-auto max-w-3xl rounded-xl bg-white/92 px-3 py-[7px] shadow-[0_1px_8px_rgba(0,0,0,0.08)] ring-1 ring-black/5 backdrop-blur-md",
+        "pointer-events-auto absolute inset-x-3 z-[460] mx-auto max-w-3xl rounded-xl bg-white px-3 py-[7px] shadow-[0_1px_8px_rgba(0,0,0,0.08)] ring-1 ring-black/5 backdrop-blur-md",
         bare ? "bottom-[4.5rem]" : "bottom-2",
       )}
     >
@@ -1920,7 +1920,7 @@ function RadarLegendStrip({ bare }: { bare?: boolean }) {
               <span
                 key={tk.label}
                 className={cn(
-                  "absolute top-0 text-[8px] leading-none tabular-nums text-neutral-400",
+                  "absolute top-0 text-[9px] font-medium leading-none tabular-nums text-neutral-700",
                   tk.align === "l" && "left-0",
                   tk.align === "m" && "-translate-x-1/2",
                   tk.align === "r" && "right-0",
