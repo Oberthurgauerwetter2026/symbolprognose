@@ -1866,10 +1866,12 @@ const LEGEND_TICKS: { label: string; pct: number; align: "l" | "m" | "r" }[] = [
   { label: "40", pct: 75, align: "m" },
   { label: "80", pct: 100, align: "r" },
 ];
-const LEGEND_PHASES: { label: string; from: [number, number, number]; to: [number, number, number] }[] = [
-  { label: "Schneeregen", from: SLEET_SCALE[0].rgb, to: SLEET_SCALE[1].rgb },
-  { label: "Gefrierender Regen", from: FZRA_SCALE[0].rgb, to: FZRA_SCALE[1].rgb },
-  { label: "Schnee", from: SNOW_SCALE[0].rgb, to: SNOW_SCALE[1].rgb },
+// Phasen mit den zwei echten Intensitätsstufen der Farbskalen:
+// hell = leicht (< 2 mm/h), dunkel = mässig bis stark (≥ 2 mm/h).
+const LEGEND_PHASES: { label: string; light: [number, number, number]; strong: [number, number, number] }[] = [
+  { label: "Schneeregen", light: SLEET_SCALE[0].rgb, strong: SLEET_SCALE[1].rgb },
+  { label: "Gefrierender Regen", light: FZRA_SCALE[0].rgb, strong: FZRA_SCALE[1].rgb },
+  { label: "Schnee", light: SNOW_SCALE[0].rgb, strong: SNOW_SCALE[1].rgb },
 ];
 
 function RadarLegendStrip({ bare }: { bare?: boolean }) {
@@ -1910,11 +1912,17 @@ function RadarLegendStrip({ bare }: { bare?: boolean }) {
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 sm:flex-nowrap sm:justify-start">
           {LEGEND_PHASES.map((p) => (
             <div key={p.label} className="flex items-center gap-1">
+              <span className="whitespace-nowrap text-[9px] font-medium text-neutral-600">{p.label}</span>
               <span
                 className="inline-block h-2.5 w-2.5 rounded-[3px] ring-1 ring-black/5"
-                style={{ backgroundImage: `linear-gradient(135deg, rgb(${p.from.join(",")}), rgb(${p.to.join(",")}))` }}
+                style={{ backgroundColor: `rgb(${p.light.join(",")})` }}
               />
-              <span className="whitespace-nowrap text-[9px] text-neutral-600">{p.label}</span>
+              <span className="whitespace-nowrap text-[9px] text-neutral-500">leicht</span>
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-[3px] ring-1 ring-black/5"
+                style={{ backgroundColor: `rgb(${p.strong.join(",")})` }}
+              />
+              <span className="whitespace-nowrap text-[9px] text-neutral-500">stark</span>
             </div>
           ))}
           <div className="flex items-center gap-1" title="Hagelwahrscheinlichkeit (POH)">
