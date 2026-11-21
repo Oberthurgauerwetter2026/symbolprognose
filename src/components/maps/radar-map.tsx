@@ -1901,7 +1901,7 @@ function TwoStepBar({ light, strong }: { light: [number, number, number]; strong
 }
 
 function RadarLegendStrip({ bare }: { bare?: boolean }) {
-  const short: Record<string, string> = { "Gefrierender Regen": "Glatteis" };
+  const short: Record<string, string> = { "Gefrierender Regen": "Glatteis", Schneeregen: "Schn.regen" };
   return (
     <div
       className={cn(
