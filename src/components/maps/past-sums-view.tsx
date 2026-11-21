@@ -1,5 +1,5 @@
 import { blendStations } from "@/lib/station-blend";
-import { downscaleSnow } from "@/lib/snow-downscale";
+import { downscaleSnow, downscaleSnowProfile } from "@/lib/snow-downscale";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LazyPrecipAccumMap } from "@/components/maps/lazy-maps";
@@ -34,7 +34,11 @@ export function PastSumsView({ embed = false }: { embed?: boolean }) {
     if (mode !== "snow" || !data) return null;
     const f = period === "future" ? data.forecast : data;
     const line = f?.snowLine?.[hours];
-    if (!dem || !f || !line || dem.length !== 84000) return null;
+    const prof = f?.snowProfile?.[hours];
+    if (!dem || !f || dem.length !== 84000) return null;
+    // Stundenweise Projektion bevorzugt; ältere Caches liefern nur die Fenster-Grenze.
+    if (prof && prof.length === f.rain[hours].length * 13) return downscaleSnowProfile(f.rain[hours], prof, data.gridLat, data.gridLon, dem);
+    if (!line) return null;
     return downscaleSnow(f.rain[hours], line, data.gridLat, data.gridLon, dem);
   }, [data, dem, hours, mode, period]);
 

@@ -5,7 +5,7 @@ import { createSumsCache } from "./sums-cache";
 import { packDeep } from "./sums-pack";
 import { PAST_WINDOWS } from "./precip-past";
 import { completeWindowSum } from "./sums-coverage";
-import { weightedSnowLineHm } from "./snow-downscale";
+import { weightedSnowLineHm, hourlySnowProfile, SNOW_LEVELS } from "./snow-downscale";
 import { SUM_STATIONS, parseSmnCsv, stationWindowSum, type Sample } from "./station-sums";
 
 export type StationPoint = {
@@ -51,12 +51,14 @@ export type PastSums = {
   snow: Record<string, number[]>;
   /** Historische, niederschlagsgewichtete Modell-Schneefallgrenze in hm. */
   snowLine?: Record<string, number[]>;
+  /** Stundenweise projizierter Schnee (mm) je Punkt × SNOW_LEVELS, −1 = fehlend */
+  snowProfile?: Record<string, number[]>;
   generatedAt: string;
   source: string;
   radar: RadarSums | null;
   stations: StationPoint[];
   /** Prognosesummen ICON-CH1 → CH2 ab jetzt (mm / cm) */
-  forecast: { rain: Record<string, number[]>; snow: Record<string, number[]>; /** Schneefallgrenze hm (−1 = trocken) */ snowLine?: Record<string, number[]> };
+  forecast: { rain: Record<string, number[]>; snow: Record<string, number[]>; /** Schneefallgrenze hm (−1 = trocken) */ snowLine?: Record<string, number[]>; snowProfile?: Record<string, number[]> };
 };
 
 async function loadRadarSums(): Promise<RadarSums | null> {
@@ -245,6 +247,9 @@ async function load(): Promise<PastSums> {
   const fRain: Record<string, number[]> = {};
   const fSnow: Record<string, number[]> = {};
   const fLine: Record<string, number[]> = {};
+  const prof: Record<string, number[]> = {};
+  const fProf: Record<string, number[]> = {};
+  const NL = SNOW_LEVELS.length;
   for (const w of PAST_WINDOWS) {
     rain[w] = new Array(pts.length).fill(-1);
     snow[w] = new Array(pts.length).fill(-1);
@@ -252,6 +257,8 @@ async function load(): Promise<PastSums> {
     fRain[w] = new Array(pts.length).fill(-1);
     fSnow[w] = new Array(pts.length).fill(-1);
     fLine[w] = new Array(pts.length).fill(-1);
+    prof[w] = new Array(pts.length * NL).fill(-1);
+    fProf[w] = new Array(pts.length * NL).fill(-1);
   }
   for (let i = 0; i < pts.length; i++) {
     const h = results[i]?.hourly;
@@ -264,6 +271,10 @@ async function load(): Promise<PastSums> {
       fRain[w][i] = completeWindowSum(times, h.precipitation ?? [], now, w, true);
       fSnow[w][i] = completeWindowSum(times, h.snowfall ?? [], now, w, true);
       fLine[w][i] = weightedSnowLineHm(times, h.precipitation ?? [], h.fzl, now, w);
+      const pp = hourlySnowProfile(times, h.precipitation ?? [], h.fzl, now, w, false);
+      if (pp) for (let k = 0; k < NL; k++) prof[w][i * NL + k] = pp[k];
+      const fp = hourlySnowProfile(times, h.precipitation ?? [], h.fzl, now, w);
+      if (fp) for (let k = 0; k < NL; k++) fProf[w][i * NL + k] = fp[k];
     }
   }
   return {
@@ -272,11 +283,12 @@ async function load(): Promise<PastSums> {
     rain,
     snow,
     snowLine,
+    snowProfile: prof,
     generatedAt: new Date(now).toISOString(),
     source: "MeteoSchweiz ICON-CH1/CH2 Analyse via Open-Meteo",
     radar,
     stations,
-    forecast: { rain: fRain, snow: fSnow, snowLine: fLine },
+    forecast: { rain: fRain, snow: fSnow, snowLine: fLine, snowProfile: fProf },
   };
 }
 

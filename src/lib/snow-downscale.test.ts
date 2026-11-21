@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { snowFraction, downscaleSnow, weightedSnowLineHm, DEM } from "./snow-downscale";
+import { snowFraction, downscaleSnow, weightedSnowLineHm, hourlySnowProfile, DEM } from "./snow-downscale";
 
 test("Schneefallgrenze 1000 m: Säntis-Höhe voll Schnee, Seebecken kein Schnee", () => {
   assert.equal(snowFraction(2500, 1000), 1);
@@ -60,4 +60,12 @@ test("Fehlende historische Nullgradgrenze erfindet keinen Schnee", () => {
   assert.ok(g.values.every((v) => v === -1));
   const dry = downscaleSnow([0, 0, 0, 0], [-1, -1, -1, -1], [47.2, 47.3], [9.3, 9.4], dem);
   assert.ok(dry.values.every((v) => v === 0));
+});
+
+test("stundenweise: milder Regen zuerst löscht späteren Flachlandschnee nicht", () => {
+  const h = 3600_000;
+  // Stunde 1: 10 mm bei Nullgrad 2500 m, Stunde 2: 2 mm bei Nullgrad 500 m (Grenze 200 m)
+  const p = hourlySnowProfile([h, 2 * h], [10, 2], [2500, 500], 0, 12)!;
+  assert.ok(p[1] >= 1.9); // 400 m: späterer Schnee bleibt
+  assert.equal(weightedSnowLineHm([h, 2 * h], [10, 2], [2500, 500], 0, 12), 18.7); // alte Mittelung: ~1870 m
 });
