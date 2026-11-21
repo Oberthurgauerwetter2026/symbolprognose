@@ -84,14 +84,6 @@ function SnowcastPage() {
             <div className="text-xs text-muted-foreground">Modell</div>
             <div className="font-semibold">{q.data ? `${q.data.upperModel} · Boden ${q.data.surfaceModel}` : "ICON-D2 / ICON-CH1"}</div>
           </div>
-          <button onClick={() => setPlaying((p) => !p)} className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground" aria-label={playing ? "Pause" : "Abspielen"} disabled={!hours.length}>
-            {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          </button>
-          <input type="range" min={0} max={Math.max(0, hours.length - 1)} value={hourIdx} onChange={(e) => { setPlaying(false); setHourIdx(+e.target.value); }} className="w-full max-w-md accent-primary" aria-label="Prognosezeit" />
-          <div className="w-40 text-right">
-            <div className="font-semibold">{hour ? fmtTime(hour.time) : "–"}</div>
-            <div className="text-xs text-muted-foreground">{hour ? `+${hourIdx - nowIdx} h ab jetzt` : ""}</div>
-          </div>
         </section>
 
         <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -131,6 +123,16 @@ function SnowcastPage() {
               <div className="ml-auto flex gap-2">
                 <button onClick={exportPng} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"><Download className="h-3 w-3" />Bild</button>
               </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg bg-muted/60 px-3 py-2 text-sm">
+          <button onClick={() => setPlaying((p) => !p)} className="inline-flex shrink-0 h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground" aria-label={playing ? "Pause" : "Abspielen"} disabled={!hours.length}>
+            {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </button>
+          <input type="range" min={0} max={Math.max(0, hours.length - 1)} value={hourIdx} onChange={(e) => { setPlaying(false); setHourIdx(+e.target.value); }} className="min-w-0 flex-1 accent-primary" aria-label="Prognosezeit" />
+          <div className="w-36 shrink-0 text-right">
+            <div className="font-semibold">{hour ? fmtTime(hour.time) : "–"}</div>
+            <div className="text-xs text-muted-foreground">{hour ? `+${hourIdx - nowIdx} h ab jetzt` : ""}</div>
+          </div>
             </div>
             <div id="snowcast-chart">
               {q.isLoading && <div className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">Modelldaten werden geladen …</div>}
