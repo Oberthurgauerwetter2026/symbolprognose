@@ -49,7 +49,7 @@ function FotoEinsenden() {
       <p className="mt-1 text-muted-foreground">Gewitterwolken, Schnee, Regenbogen? Ausgewählte Bilder zeigen wir im Wetter-Ticker.</p>
       <form onSubmit={submit} className="mt-6 space-y-3">
         <label className="block cursor-pointer overflow-hidden rounded-2xl border border-dashed border-border bg-card">
-          {img ? (img.file ? <video src={img.url} controls playsInline className="max-h-80 w-full bg-muted" /> : <img src={img.url} alt="Ihr Foto" className="max-h-80 w-full object-cover" />) : (
+          {img ? (img.file ? <video src={img.url} controls playsInline className="max-h-80 w-full bg-muted" /> : <img src={img.url} alt="Ihr Foto" className="mx-auto max-h-80 w-auto max-w-full rounded-lg" />) : (
             <span className="flex flex-col items-center gap-2 py-10 text-muted-foreground"><Camera className="h-8 w-8" />Foto oder Video wählen<span className="text-xs">Video max. 50 MB (etwa 1 Minute)</span></span>)}
           <input type="file" accept="image/*,video/mp4,video/quicktime,video/webm" className="hidden" onChange={async (e) => {
             const f = e.target.files?.[0]; if (!f) return; setErr("");

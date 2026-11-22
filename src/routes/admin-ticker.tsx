@@ -168,7 +168,7 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         <input value={link} onChange={(e) => setLink(e.target.value)} type="url" inputMode="url" placeholder="Link (optional), z. B. zu einem Foto oder Bericht" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
         <div className="flex items-center gap-3">
           {image ? (
-            <div className="relative">{image.video ? <video src={image.url} muted playsInline preload="metadata" className="h-20 rounded-lg bg-muted" /> : <img src={image.url} alt="" className="h-20 rounded-lg object-cover" />}
+            <div className="relative">{image.video ? <video src={image.url} muted playsInline preload="metadata" className="h-20 rounded-lg bg-muted" /> : <img src={image.url} alt="" className="h-20 w-auto rounded-lg" />}
               <button type="button" onClick={() => { setImage(null); setImgRemoved(true); }} className="absolute -right-2 -top-2 rounded-full bg-card p-1 shadow"><X className="h-3 w-3" /></button></div>
           ) : (
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">

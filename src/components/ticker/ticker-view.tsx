@@ -114,7 +114,7 @@ function Entry({ post, latest, last }: { post: TickerPost; latest: boolean; last
               <>
                 {splitPost(post.body).rest && <p className="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed text-ticker-foreground/85">{splitPost(post.body).rest}</p>}
                 {post.image && post.video && <video src={post.image} controls playsInline preload="metadata" className="mt-2 max-h-96 w-full rounded-xl bg-ticker-foreground/10" />}
-                {post.image && !post.video && <img src={post.image} alt="" decoding="async" className="mt-2 max-h-72 w-full rounded-xl object-cover" />}
+                {post.image && !post.video && <img src={post.image} alt="" decoding="async" className="mx-auto mt-2 block max-h-[32rem] w-auto max-w-full rounded-xl" />}
                 <ProductChip post={post} />
                 {post.link && <a href={post.link} target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 rounded-full bg-ticker-foreground px-3 py-1.5 text-sm font-medium text-ticker-strong">Link öffnen <ArrowUpRight className="h-3.5 w-3.5" /></a>}
               </>
