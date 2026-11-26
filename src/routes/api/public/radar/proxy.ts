@@ -29,6 +29,21 @@ function unavailableFrame() {
 }
 
 
+// Kleiner Zwischenspeicher pro Serverinstanz: Die Bilder sind unveränderlich und
+// nur wenige kB gross. So trifft ein erneutes Laden der Karte nicht jedes Mal
+// den Bildspeicher, der bei vielen Abrufen in kurzer Zeit drosselt.
+const FRAME_TTL_MS = 3600_000;
+const FRAME_CACHE_MAX = 900;
+const FRAME_MAX_BYTES = 400_000;
+const frameCache = new Map<string, { at: number; type: string; body: ArrayBuffer }>();
+
+function frameResponse(type: string, body: ArrayBuffer) {
+  return new Response(body, {
+    status: 200,
+    headers: { "Content-Type": type, "Cache-Control": "public, max-age=3600, immutable", ...CORS },
+  });
+}
+
 export const Route = createFileRoute("/api/public/radar/proxy")({
   server: {
     handlers: {
@@ -47,9 +62,12 @@ export const Route = createFileRoute("/api/public/radar/proxy")({
         ].filter((u, i, a) => a.indexOf(u) === i);
         if (candidates.length === 0) return unavailableFrame();
 
-        // Kurze Aussetzer des Bildspeichers (Verbindungsabbruch, 429/5xx) einmal
+        const cached = frameCache.get(path);
+        if (cached && Date.now() - cached.at < FRAME_TTL_MS) return frameResponse(cached.type, cached.body);
+
+        // Kurze Aussetzer des Bildspeichers (Verbindungsabbruch, 429/5xx) zweimal
         // wiederholen; ein echtes 404 bleibt sofort ein fehlendes Bild.
-        for (let attempt = 0; attempt < 2; attempt++) {
+        for (let attempt = 0; attempt < 3; attempt++) {
           let transient = false;
           for (const target of candidates) {
             try {
@@ -57,23 +75,27 @@ export const Route = createFileRoute("/api/public/radar/proxy")({
                 cf: { cacheTtl: 3600 } as unknown as undefined,
               } as RequestInit);
               if (!res.ok) {
+                console.warn(`[radar-proxy] ${res.status} ${target}`);
                 if (res.status === 429 || res.status >= 500) transient = true;
                 continue;
               }
-              return new Response(res.body, {
-                status: 200,
-                headers: {
-                  "Content-Type": res.headers.get("content-type") ?? "image/png",
-                  "Cache-Control": "public, max-age=3600, immutable",
-                  ...CORS,
-                },
-              });
-            } catch {
+              const type = res.headers.get("content-type") ?? "image/png";
+              const body = await res.arrayBuffer();
+              if (body.byteLength <= FRAME_MAX_BYTES) {
+                if (frameCache.size >= FRAME_CACHE_MAX) {
+                  const oldest = frameCache.keys().next().value;
+                  if (oldest !== undefined) frameCache.delete(oldest);
+                }
+                frameCache.set(path, { at: Date.now(), type, body });
+              }
+              return frameResponse(type, body);
+            } catch (error) {
+              console.warn(`[radar-proxy] fetch failed ${target}: ${error instanceof Error ? `${error.name} ${error.message} ${String((error as { cause?: unknown }).cause ?? "")}` : String(error)}`);
               transient = true;
             }
           }
           if (!transient) break;
-          await new Promise((resolve) => setTimeout(resolve, 250));
+          if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 250 : 800));
         }
         return unavailableFrame();
       },
