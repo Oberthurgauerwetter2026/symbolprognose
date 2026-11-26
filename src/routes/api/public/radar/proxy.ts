@@ -47,23 +47,33 @@ export const Route = createFileRoute("/api/public/radar/proxy")({
         ].filter((u, i, a) => a.indexOf(u) === i);
         if (candidates.length === 0) return unavailableFrame();
 
-        for (const target of candidates) {
-          try {
-            const res = await fetch(target, {
-              cf: { cacheTtl: 3600 } as unknown as undefined,
-            } as RequestInit);
-            if (!res.ok) continue;
-            return new Response(res.body, {
-              status: 200,
-              headers: {
-                "Content-Type": res.headers.get("content-type") ?? "image/png",
-                "Cache-Control": "public, max-age=3600, immutable",
-                ...CORS,
-              },
-            });
-          } catch {
-            // try next
+        // Kurze Aussetzer des Bildspeichers (Verbindungsabbruch, 429/5xx) einmal
+        // wiederholen; ein echtes 404 bleibt sofort ein fehlendes Bild.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          let transient = false;
+          for (const target of candidates) {
+            try {
+              const res = await fetch(target, {
+                cf: { cacheTtl: 3600 } as unknown as undefined,
+              } as RequestInit);
+              if (!res.ok) {
+                if (res.status === 429 || res.status >= 500) transient = true;
+                continue;
+              }
+              return new Response(res.body, {
+                status: 200,
+                headers: {
+                  "Content-Type": res.headers.get("content-type") ?? "image/png",
+                  "Cache-Control": "public, max-age=3600, immutable",
+                  ...CORS,
+                },
+              });
+            } catch {
+              transient = true;
+            }
           }
+          if (!transient) break;
+          await new Promise((resolve) => setTimeout(resolve, 250));
         }
         return unavailableFrame();
       },
