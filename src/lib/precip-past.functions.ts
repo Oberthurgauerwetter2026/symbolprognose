@@ -62,14 +62,14 @@ export type PastSums = {
 };
 
 async function loadRadarSums(): Promise<RadarSums | null> {
-  const { r2ObjectUrlCandidates } = await import("./r2-url.server");
+  const { fetchR2, r2ObjectUrlCandidates } = await import("./r2-url.server");
   const urls = [
     ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "radar/sums/latest.json"),
     ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, "radar/sums/latest.json"),
   ];
   for (const url of urls) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+      const res = await fetchR2(url, { signal: AbortSignal.timeout(8_000) });
       if (!res.ok) continue;
       const j = (await res.json()) as {
         t: string; gridLat: number[]; gridLon: number[]; sums: Record<string, number[]>;
@@ -125,14 +125,14 @@ async function loadStations(now: number): Promise<StationPoint[]> {
 
 /** Liest openmeteo/sums-series.json (Base64-Int16, -32768 = fehlend). */
 async function loadModelSeries(nLat: number, nLon: number) {
-  const { r2ObjectUrlCandidates } = await import("./r2-url.server");
+  const { fetchR2, r2ObjectUrlCandidates } = await import("./r2-url.server");
   const urls = [
     ...r2ObjectUrlCandidates(process.env.R2_PUBLIC_URL, "openmeteo/sums-series.json"),
     ...r2ObjectUrlCandidates(process.env.RADAR_R2_PUBLIC_URL, "openmeteo/sums-series.json"),
   ];
   for (const url of urls) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+      const res = await fetchR2(url, { signal: AbortSignal.timeout(8_000) });
       if (!res.ok) continue;
       const j = (await res.json()) as { generatedAt: string; gridLat: number[]; gridLon: number[]; times: string[]; precip: string; snow: string; fzl: string };
       if (Date.now() - Date.parse(j.generatedAt) > 3 * 3_600_000) return null;

@@ -69,3 +69,18 @@ export function r2ObjectUrlCandidates(rawUrl: string | null | undefined, objectK
 
   return out;
 }
+
+/**
+ * Abruf vom Bildspeicher mit einer Wiederholung bei kurzem Aussetzer
+ * (Verbindungsabbruch, 429 oder 5xx). Ein 404 kommt sofort zurück.
+ */
+export async function fetchR2(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    const res = await fetch(url, init);
+    if (res.status !== 429 && res.status < 500) return res;
+  } catch {
+    // einmal wiederholen
+  }
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return fetch(url, init);
+}

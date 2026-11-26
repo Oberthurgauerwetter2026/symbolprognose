@@ -6,7 +6,7 @@ import {
   type OpenMeteoCachePayload,
 } from "./openmeteo-cache.server";
 import { isUsableMotion, nowcastSteps, tendencyFrame, nowcastPlacement, nowcastIntensityFactor } from "./radar-nowcast";
-import { r2ObjectUrlCandidates } from "./r2-url.server";
+import { fetchR2, r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
  * Radar-Frames für die Region Oberthurgau.
@@ -218,7 +218,7 @@ async function fetchR2Manifest(): Promise<Manifest | null> {
 
   for (const url of candidates) {
     try {
-      const res = await fetch(url, {
+      const res = await fetchR2(url, {
         cf: { cacheTtl: 30 } as unknown as undefined,
       } as RequestInit);
       if (!res.ok) {
@@ -255,7 +255,7 @@ async function fetchR2ForecastManifest(): Promise<ForecastManifest | null> {
 
   for (const url of candidates) {
     try {
-      const res = await fetch(url, {
+      const res = await fetchR2(url, {
         cf: { cacheTtl: 30 } as unknown as undefined,
       } as RequestInit);
       if (!res.ok) {

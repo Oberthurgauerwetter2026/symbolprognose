@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
-import { r2ObjectUrlCandidates } from "./r2-url.server";
+import { fetchR2, r2ObjectUrlCandidates } from "./r2-url.server";
 
 /**
  * Blitz-Overlay für die Satellit-Karte.
@@ -62,7 +62,7 @@ async function fetchR2Lightning(): Promise<LightningPayload | null> {
 
   for (const url of candidates) {
     try {
-      const res = await fetch(url, {
+      const res = await fetchR2(url, {
         cf: { cacheTtl: 20 } as unknown as undefined,
       } as RequestInit);
       if (!res.ok) continue;

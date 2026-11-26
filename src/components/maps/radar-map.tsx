@@ -302,8 +302,20 @@ function StableImageOverlay({
       latestUrlRef.current = url;
       overlay.setUrl(url);
     };
+    // Ein Ladefehler ist kein leeres Bild: bisherige Darstellung behalten und
+    // zweimal nachladen, bevor die Ebene auf die fehlende Adresse wechselt.
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     img.onerror = () => {
       if (cancelled) return;
+      if (attempt < 2) {
+        attempt++;
+        retryTimer = setTimeout(() => {
+          if (cancelled) return;
+          img.src = `${url}${url.includes("?") ? "&" : "?"}retry=${attempt}`;
+        }, 3000);
+        return;
+      }
       latestUrlRef.current = url;
       overlay.setUrl(url);
     };
@@ -314,6 +326,7 @@ function StableImageOverlay({
     }
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [url]);
 
