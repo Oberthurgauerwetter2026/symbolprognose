@@ -69,7 +69,7 @@ function WeatherOverview() {
     <div className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8">
       <section aria-label="Wetter an deinem Ort" className="pb-6 sm:pb-8">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-          <div className="min-w-0"><p className="text-xs font-semibold text-accent">Jetzt in deiner Nähe</p><h1 className="mt-1 font-display text-2xl font-semibold sm:text-3xl">Dein Wetter am Bodensee</h1></div>
+          <div className="min-w-0"><p className="text-xs font-semibold text-accent">Wetter für die Region</p><h1 className="mt-1 font-display text-3xl font-semibold text-accent sm:text-4xl">Oberthurgau</h1><p className="mt-1 text-sm text-muted-foreground">Bodensee und Alpstein</p></div>
           <Thermometer className="mt-2 size-7 shrink-0 text-accent" />
         </div>
         <div className="mt-5 grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
@@ -107,10 +107,10 @@ function WeatherOverview() {
           <div className="weather-warning-preview"><div className="flex items-center gap-2 text-accent">{warningCount ? <TriangleAlert className="size-8" /> : <ShieldCheck className="size-8" />}<span className="text-3xl font-semibold">{warnings.warning ? '—' : warningCount}</span></div><div className="mt-3 flex flex-wrap gap-1.5">{HAZARDS.slice(0,4).map(h => <h.icon key={h.id} className="size-5 text-accent/70" />)}</div></div>
           <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">Warnungen<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">{warnings.warning ? 'Momentan nicht verfügbar' : warningCount ? `${warningCount} aktive Meldungen` : 'Keine aktiven Warnungen'}</p></div>
         </Link>
-        <a href="https://live-wetterkarte.lovable.app" className="weather-product">
+        <Link to="/karten/messwerte" className="weather-product" aria-label="Live-Messwerte öffnen">
           <div className="weather-station-preview"><Thermometer className="size-7 text-accent" /><div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm tabular-nums">{stations.filter(s => s.current != null).slice(0,4).map(s => <span key={s.id} className="truncate">{s.name} <strong>{s.current?.toFixed(1)}°</strong></span>)}</div></div>
-          <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">WeatherHub<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">Live-Messwerte</p></div>
-        </a>
+          <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">Live-Messwerte<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">Temperatur · Wind · Regen</p></div>
+        </Link>
       </section>
 
       <WeatherReportView {...report} />

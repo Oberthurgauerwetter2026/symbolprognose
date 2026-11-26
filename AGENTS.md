@@ -1,4 +1,5 @@
 # Project rules
+- Public weather pages share a focused header with a direct home link and no sidebar/product tabs; station selections reuse the existing regional station map and query cache to keep navigation lightweight.
 - The public home uses static product preview assets rather than live map iframes; animations load only on their dedicated pages to avoid mobile memory pressure.
 - Weather reports use one current published row, public RLS-scoped reads and existing server-validated admin password writes; local editor drafts contain text only, never credentials.
 - Keep thunder on/off in a separate job_runs row; the shared runner checks it so cron cannot overwrite it.

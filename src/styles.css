@@ -306,7 +306,7 @@ html.embed .embed-fallback {
   .ticker-shimmer { animation: none; }
 }
 
-.weather-product { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--card); transition: border-color 160ms ease; }
+.weather-product { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-bottom: 3px solid color-mix(in srgb, var(--accent) 65%, var(--border)); border-radius: 8px; background: var(--card); transition: border-color 160ms ease; }
 .weather-product:hover { border-color: var(--accent); }
 .weather-product-image, .weather-warning-preview, .weather-station-preview { position: relative; aspect-ratio: 1.45; overflow: hidden; }
 .weather-product-image img { width: 100%; height: 100%; object-fit: cover; object-position: center; }

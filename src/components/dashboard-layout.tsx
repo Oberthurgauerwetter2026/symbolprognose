@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { useRouterState } from "@tanstack/react-router";
+import { PublicWeatherLayout } from "@/components/public-weather-layout";
 
 export function DashboardLayout({
   title,
@@ -11,6 +13,10 @@ export function DashboardLayout({
   subtitle?: string;
   children: ReactNode;
 }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname === "/" || pathname.startsWith("/karten/") || pathname === "/wetterbericht" || pathname === "/vertikalschnitt") {
+    return <PublicWeatherLayout home={pathname === "/"} {...(title ? { title } : {})}>{children}</PublicWeatherLayout>;
+  }
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background">

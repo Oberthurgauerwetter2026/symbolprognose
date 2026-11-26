@@ -40,6 +40,7 @@ import { Route as EmbedWindRouteImport } from './routes/embed.wind'
 import { Route as InternIconsRouteImport } from './routes/intern.icons'
 import { Route as KartenBodendruckRouteImport } from './routes/karten.bodendruck'
 import { Route as KartenLokalRouteImport } from './routes/karten.lokal'
+import { Route as KartenMesswerteRouteImport } from './routes/karten.messwerte'
 import { Route as KartenNiederschlagRouteImport } from './routes/karten.niederschlag'
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
 import { Route as KartenRegionRouteImport } from './routes/karten.region'
@@ -215,6 +216,11 @@ const KartenLokalRoute = KartenLokalRouteImport.update({
   path: '/karten/lokal',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KartenMesswerteRoute = KartenMesswerteRouteImport.update({
+  id: '/karten/messwerte',
+  path: '/karten/messwerte',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KartenNiederschlagRoute = KartenNiederschlagRouteImport.update({
   id: '/karten/niederschlag',
   path: '/karten/niederschlag',
@@ -353,6 +359,7 @@ export interface FileRoutesByFullPath {
   '/intern/icons': typeof InternIconsRoute
   '/karten/bodendruck': typeof KartenBodendruckRoute
   '/karten/lokal': typeof KartenLokalRoute
+  '/karten/messwerte': typeof KartenMesswerteRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
@@ -405,6 +412,7 @@ export interface FileRoutesByTo {
   '/intern/icons': typeof InternIconsRoute
   '/karten/bodendruck': typeof KartenBodendruckRoute
   '/karten/lokal': typeof KartenLokalRoute
+  '/karten/messwerte': typeof KartenMesswerteRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
@@ -458,6 +466,7 @@ export interface FileRoutesById {
   '/intern/icons': typeof InternIconsRoute
   '/karten/bodendruck': typeof KartenBodendruckRoute
   '/karten/lokal': typeof KartenLokalRoute
+  '/karten/messwerte': typeof KartenMesswerteRoute
   '/karten/niederschlag': typeof KartenNiederschlagRoute
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
@@ -512,6 +521,7 @@ export interface FileRouteTypes {
     | '/intern/icons'
     | '/karten/bodendruck'
     | '/karten/lokal'
+    | '/karten/messwerte'
     | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
@@ -564,6 +574,7 @@ export interface FileRouteTypes {
     | '/intern/icons'
     | '/karten/bodendruck'
     | '/karten/lokal'
+    | '/karten/messwerte'
     | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
@@ -616,6 +627,7 @@ export interface FileRouteTypes {
     | '/intern/icons'
     | '/karten/bodendruck'
     | '/karten/lokal'
+    | '/karten/messwerte'
     | '/karten/niederschlag'
     | '/karten/radar'
     | '/karten/region'
@@ -669,6 +681,7 @@ export interface RootRouteChildren {
   InternIconsRoute: typeof InternIconsRoute
   KartenBodendruckRoute: typeof KartenBodendruckRoute
   KartenLokalRoute: typeof KartenLokalRoute
+  KartenMesswerteRoute: typeof KartenMesswerteRoute
   KartenNiederschlagRoute: typeof KartenNiederschlagRoute
   KartenRadarRoute: typeof KartenRadarRoute
   KartenRegionRoute: typeof KartenRegionRoute
@@ -909,6 +922,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KartenLokalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/karten/messwerte': {
+      id: '/karten/messwerte'
+      path: '/karten/messwerte'
+      fullPath: '/karten/messwerte'
+      preLoaderRoute: typeof KartenMesswerteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/karten/niederschlag': {
       id: '/karten/niederschlag'
       path: '/karten/niederschlag'
@@ -1077,6 +1097,7 @@ const rootRouteChildren: RootRouteChildren = {
   InternIconsRoute: InternIconsRoute,
   KartenBodendruckRoute: KartenBodendruckRoute,
   KartenLokalRoute: KartenLokalRoute,
+  KartenMesswerteRoute: KartenMesswerteRoute,
   KartenNiederschlagRoute: KartenNiederschlagRoute,
   KartenRadarRoute: KartenRadarRoute,
   KartenRegionRoute: KartenRegionRoute,

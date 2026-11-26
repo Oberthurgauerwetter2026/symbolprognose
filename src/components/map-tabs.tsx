@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { MAPS, type MapId } from "@/lib/maps-config";
 import { preloadMapChunk } from "@/components/maps/lazy-maps";
 import { cn } from "@/lib/utils";
@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 const BRAND = "#2561a1";
 
 export function MapTabs({ active }: { active: MapId }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname.startsWith("/karten/")) return null;
   return (
     <div className="no-scrollbar -mx-1 mb-5 flex gap-1 overflow-x-auto rounded-full bg-muted p-1">
       {MAPS.filter((m) => !m.internal).map((m) => {

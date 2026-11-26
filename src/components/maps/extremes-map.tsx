@@ -9,15 +9,15 @@ import { formatStationValue } from "@/lib/station-extremes";
 
 const BOUNDS: L.LatLngBoundsExpression = [[47.477, 9.158], [47.641, 9.467]];
 
-function Fit() {
+function Fit({ generousPadding }: { generousPadding: boolean }) {
   const map = useMap();
   useEffect(() => {
     const fit = () => {
       map.invalidateSize();
       const small = map.getSize().x <= 480;
       map.fitBounds(BOUNDS, {
-        paddingTopLeft: small ? [20, 35] : [36, 36],
-        paddingBottomRight: small ? [20, 18] : [36, 36],
+        paddingTopLeft: small ? [generousPadding ? 48 : 20, 35] : [36, 36],
+        paddingBottomRight: small ? [generousPadding ? 48 : 20, 18] : [36, 36],
         animate: false,
       });
     };
@@ -25,7 +25,7 @@ function Fit() {
     const ro = new ResizeObserver(fit);
     ro.observe(map.getContainer());
     return () => ro.disconnect();
-  }, [map]);
+  }, [map, generousPadding]);
   return null;
 }
 
@@ -55,11 +55,11 @@ function icon(v: number, name: string, stat: ExtremeStat) {
   return L.divIcon({ html, className: "weather-marker", iconSize: [w, h], iconAnchor: [w / 2, h / 2] });
 }
 
-export function ExtremesMap({ stations, stat }: { stations: StationExtreme[]; stat: ExtremeStat }) {
+export function ExtremesMap({ stations, stat, generousPadding = false }: { stations: StationExtreme[]; stat: ExtremeStat; generousPadding?: boolean }) {
   return (
     <MapContainer bounds={BOUNDS} zoomSnap={0} zoomControl={false} attributionControl={false} scrollWheelZoom={false} dragging={false} doubleClickZoom={false}
       className="h-full w-full" style={{ background: "#eef2f5" }}>
-      <Fit />
+      <Fit generousPadding={generousPadding} />
       <TileLayer url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png" maxZoom={18} />
       <GeoJSON data={lake as unknown as FeatureCollection} interactive={false} style={{ color: "#7fb3d9", weight: 1, fillColor: "#a9cfe9", fillOpacity: 0.9 }} />
       {stations.map((s) => {

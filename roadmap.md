@@ -1,4 +1,5 @@
 # Mobile weather overview and editorial report
+- [x] Refine the blue regional overview and focused product pages with visible return navigation; integrate temperature, daily gust and rain selections without an external jump. Nine real stations and all five selections checked at 320/402/768/1440 px, radar/wind/warnings/report and home return verified, no overflow or runtime errors; 14 station and 3 report tests pass, preview build OK. Publication and WordPress remain unchanged.
 - [x] Replace the start page with lightweight product tiles and nearest-station readings; verified at 320/390/768/1440 px, geolocation selects Horn, no overflow or iframes, radar opens its live map. Preview images total about 44 KB.
 - [x] Add public report summary/detail and password-protected smartphone publishing; real admin login, incorrect password rejection, publish, update, reload and public summary/detail readback verified. Test report removed; 3 overview/report tests and 14 station tests pass; preview build OK.
 - [ ] Make the new overview live: publish the app; WordPress itself has not been changed.
