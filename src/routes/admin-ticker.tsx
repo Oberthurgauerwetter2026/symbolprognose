@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { Film, ImagePlus, Pencil, Trash2, X } from "lucide-react";
@@ -109,6 +109,7 @@ function Composer({ password, onLogout }: { password: string; onLogout: () => vo
         <button onClick={onLogout} className="text-sm text-muted-foreground">Abmelden</button>
       </div>
       <PhotoPushOptIn password={password} />
+      <Button asChild variant="outline"><Link to="/admin/bericht"><Pencil />Wetterbericht verfassen</Link></Button>
       {(subs.data?.length ?? 0) > 0 && (
         <div className="rounded-2xl border border-border bg-card p-4">
           <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Eingesandte Leserfotos & -videos ({subs.data?.length})</div>

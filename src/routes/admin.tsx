@@ -1,4 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Button } from '@/components/ui/button';
+import { Newspaper } from 'lucide-react';
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type FormEvent } from "react";
 import { SPOTS } from "@/data/spots";
@@ -113,6 +115,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </button>
         </header>
 
+        <Button asChild variant="outline"><Link to="/admin/bericht"><Newspaper />Wetterbericht verfassen</Link></Button>
         <ModelsSection />
         <MosmixStationsSection />
         <EmbedSection />

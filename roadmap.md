@@ -1,3 +1,8 @@
+# Mobile weather overview and editorial report
+- [x] Replace the start page with lightweight product tiles and nearest-station readings; verified at 320/390/768/1440 px, geolocation selects Horn, no overflow or iframes, radar opens its live map. Preview images total about 44 KB.
+- [x] Add public report summary/detail and password-protected smartphone publishing; real admin login, incorrect password rejection, publish, update, reload and public summary/detail readback verified. Test report removed; 3 overview/report tests and 14 station tests pass; preview build OK.
+- [ ] Make the new overview live: publish the app; WordPress itself has not been changed.
+
 # Ticker widget entry limit
 - [x] Sidebar widget shows only the three newest messages, then «weitere …» / «schliessen»; two tests pass, collapsed and expanded verified in the browser at phone width (329 px → 578 px), banner unchanged.
 

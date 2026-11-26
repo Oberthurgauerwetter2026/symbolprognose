@@ -271,6 +271,33 @@ export type Database = {
         }
         Relationships: []
       }
+      weather_reports: {
+        Row: {
+          body: string
+          id: string
+          published_at: string
+          summary: string
+          symbol: number
+          title: string
+        }
+        Insert: {
+          body?: string
+          id?: string
+          published_at?: string
+          summary?: string
+          symbol?: number
+          title?: string
+        }
+        Update: {
+          body?: string
+          id?: string
+          published_at?: string
+          summary?: string
+          symbol?: number
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       radar_cron_health: {

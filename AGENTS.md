@@ -1,4 +1,6 @@
 # Project rules
+- The public home uses static product preview assets rather than live map iframes; animations load only on their dedicated pages to avoid mobile memory pressure.
+- Weather reports use one current published row, public RLS-scoped reads and existing server-validated admin password writes; local editor drafts contain text only, never credentials.
 - Keep thunder on/off in a separate job_runs row; the shared runner checks it so cron cannot overwrite it.
 - Accumulation maps use explicit per-render phase palettes (no shared mutable palette); recent sums refresh through a deduplicated cache with request-managed background lifetime and a one-hour stale limit, because concurrent embeds must not leak modes or abandon updates.
 - MeteoSwiss local-forecast ingestion selects the greatest timestamped STAC asset key with a usable href per parameter, because a daily item contains multiple hourly runs and dictionary order must never pin forecasts to midnight.

@@ -36,6 +36,13 @@
       "when": 1795449317835,
       "tag": "0004_ticker_public_read_published_only",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795725976808,
+      "tag": "0005_editorial_weather_report",
+      "breakpoints": true
     }
   ]
 }

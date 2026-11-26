@@ -18,6 +18,8 @@ import { Route as FotoEinsendenRouteImport } from './routes/foto-einsenden'
 import { Route as KarteRouteImport } from './routes/karte'
 import { Route as VertikalschnittRouteImport } from './routes/vertikalschnitt'
 import { Route as WarnkarteRouteImport } from './routes/warnkarte'
+import { Route as WetterberichtRouteImport } from './routes/wetterbericht'
+import { Route as AdminBerichtRouteImport } from './routes/admin_.bericht'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
 import { Route as EmbedLokalSucheRouteImport } from './routes/embed.lokal-suche'
@@ -101,6 +103,16 @@ const VertikalschnittRoute = VertikalschnittRouteImport.update({
 const WarnkarteRoute = WarnkarteRouteImport.update({
   id: '/warnkarte',
   path: '/warnkarte',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WetterberichtRoute = WetterberichtRouteImport.update({
+  id: '/wetterbericht',
+  path: '/wetterbericht',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminBerichtRoute = AdminBerichtRouteImport.update({
+  id: '/admin_/bericht',
+  path: '/admin/bericht',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmbedAllRoute = EmbedAllRouteImport.update({
@@ -319,6 +331,8 @@ export interface FileRoutesByFullPath {
   '/karte': typeof KarteRoute
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
+  '/wetterbericht': typeof WetterberichtRoute
+  '/admin/bericht': typeof AdminBerichtRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
@@ -369,6 +383,8 @@ export interface FileRoutesByTo {
   '/karte': typeof KarteRoute
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
+  '/wetterbericht': typeof WetterberichtRoute
+  '/admin/bericht': typeof AdminBerichtRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
@@ -420,6 +436,8 @@ export interface FileRoutesById {
   '/karte': typeof KarteRoute
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
+  '/wetterbericht': typeof WetterberichtRoute
+  '/admin_/bericht': typeof AdminBerichtRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
   '/embed/lokal-suche': typeof EmbedLokalSucheRoute
@@ -472,6 +490,8 @@ export interface FileRouteTypes {
     | '/karte'
     | '/vertikalschnitt'
     | '/warnkarte'
+    | '/wetterbericht'
+    | '/admin/bericht'
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/lokal-suche'
@@ -522,6 +542,8 @@ export interface FileRouteTypes {
     | '/karte'
     | '/vertikalschnitt'
     | '/warnkarte'
+    | '/wetterbericht'
+    | '/admin/bericht'
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/lokal-suche'
@@ -572,6 +594,8 @@ export interface FileRouteTypes {
     | '/karte'
     | '/vertikalschnitt'
     | '/warnkarte'
+    | '/wetterbericht'
+    | '/admin_/bericht'
     | '/embed/all'
     | '/embed/lokal'
     | '/embed/lokal-suche'
@@ -623,6 +647,8 @@ export interface RootRouteChildren {
   KarteRoute: typeof KarteRoute
   VertikalschnittRoute: typeof VertikalschnittRoute
   WarnkarteRoute: typeof WarnkarteRoute
+  WetterberichtRoute: typeof WetterberichtRoute
+  AdminBerichtRoute: typeof AdminBerichtRoute
   EmbedAllRoute: typeof EmbedAllRoute
   EmbedLokalRoute: typeof EmbedLokalRoute
   EmbedLokalSucheRoute: typeof EmbedLokalSucheRoute
@@ -727,6 +753,20 @@ declare module '@tanstack/react-router' {
       path: '/warnkarte'
       fullPath: '/warnkarte'
       preLoaderRoute: typeof WarnkarteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wetterbericht': {
+      id: '/wetterbericht'
+      path: '/wetterbericht'
+      fullPath: '/wetterbericht'
+      preLoaderRoute: typeof WetterberichtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/bericht': {
+      id: '/admin_/bericht'
+      path: '/admin/bericht'
+      fullPath: '/admin/bericht'
+      preLoaderRoute: typeof AdminBerichtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/all': {
@@ -1015,6 +1055,8 @@ const rootRouteChildren: RootRouteChildren = {
   KarteRoute: KarteRoute,
   VertikalschnittRoute: VertikalschnittRoute,
   WarnkarteRoute: WarnkarteRoute,
+  WetterberichtRoute: WetterberichtRoute,
+  AdminBerichtRoute: AdminBerichtRoute,
   EmbedAllRoute: EmbedAllRoute,
   EmbedLokalRoute: EmbedLokalRoute,
   EmbedLokalSucheRoute: EmbedLokalSucheRoute,

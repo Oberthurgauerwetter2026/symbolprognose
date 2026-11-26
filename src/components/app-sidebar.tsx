@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Code2, Settings, BellRing, Snowflake } from "lucide-react";
+import { LayoutDashboard, Code2, Settings, BellRing, Snowflake, Newspaper } from "lucide-react";
 
 import {
   Sidebar,
@@ -25,13 +25,12 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
           <div
-            className="flex h-7 w-7 items-center justify-center rounded-md text-white"
-            style={{ background: "#2561a1" }}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-accent-foreground"
           >
             <LayoutDashboard className="h-4 w-4" />
           </div>
           <span className="font-[family-name:var(--font-display)] text-sm font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-            Wetter-Board
+            Oberthurgauer Wetter
           </span>
         </div>
       </SidebarHeader>
@@ -42,11 +41,16 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/")} tooltip="Dashboard">
+                <SidebarMenuButton asChild isActive={isActive("/")} tooltip="Wetterübersicht">
                   <Link to="/" className="flex items-center gap-2">
                     <LayoutDashboard className="h-4 w-4" />
-                    <span>Dashboard</span>
+                    <span>Wetterübersicht</span>
                   </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/wetterbericht')} tooltip="Wetterbericht">
+                  <Link to="/wetterbericht"><Newspaper /><span>Wetterbericht</span></Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -87,6 +91,11 @@ export function AppSidebar() {
           <SidebarGroupLabel>Werkzeuge</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive('/admin/bericht')} tooltip="Wetterbericht verfassen">
+                  <Link to="/admin/bericht"><Newspaper /><span>Wetterbericht verfassen</span></Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/vertikalschnitt")} tooltip="SnowCast Vertikalschnitt">
                   <Link to="/vertikalschnitt" className="flex items-center gap-2">
