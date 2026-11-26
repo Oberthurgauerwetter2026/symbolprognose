@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { getMorphCard, setMorphCard } from '@/lib/card-morph';
 import { ArrowUpRight, LocateFixed, MapPin, Thermometer, Wind, Droplets, Play, ShieldCheck, TriangleAlert, Satellite, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
@@ -41,6 +43,8 @@ function WeatherOverview() {
   const { data: warnings } = useSuspenseQuery(warningsQuery());
   const { data: report } = useSuspenseQuery(weatherReportQuery());
   const [location, setLocation] = useState({ name: 'Amriswil', lat: 47.5428, lon: 9.2871 });
+  const [morph, setMorph] = useState<string | null>(() => getMorphCard());
+  const openCard = (path: string) => { setMorphCard(path); flushSync(() => setMorph(path)); };
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
   const nearest = nearestLiveStation(stations, location.lat, location.lon);
@@ -95,19 +99,19 @@ function WeatherOverview() {
       </section>
 
       <section aria-label="Wetterprodukte" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <Link to="/karten/radar" className="weather-product group" aria-label="Radar und Nowcast öffnen">
+        <Link to="/karten/radar" viewTransition onClick={() => openCard('/karten/radar')} className={`weather-product group${morph === '/karten/radar' ? ' morph-card' : ''}`} aria-label="Radar und Nowcast öffnen">
           <div className="weather-product-image"><img src={radarAsset.url} alt="Kartenausschnitt Bodensee und Alpstein" /><div className="weather-play"><Play className="size-5" /></div></div>
           <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">Radar<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">Messung & Nowcast</p></div>
         </Link>
-        <Link to="/karten/wind" className="weather-product group" aria-label="Windanimation öffnen">
+        <Link to="/karten/wind" viewTransition onClick={() => openCard('/karten/wind')} className={`weather-product group${morph === '/karten/wind' ? ' morph-card' : ''}`} aria-label="Windanimation öffnen">
           <div className="weather-product-image"><img src={windAsset.url} alt="Vorschau der regionalen Windkarte" /><div className="weather-play"><Wind className="size-5" /></div></div>
           <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">Windanimation<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">Wind & Böen</p></div>
         </Link>
-        <Link to="/karten/warnungen" className="weather-product">
+        <Link to="/karten/warnungen" viewTransition onClick={() => openCard('/karten/warnungen')} className={`weather-product${morph === '/karten/warnungen' ? ' morph-card' : ''}`}>
           <div className="weather-warning-preview"><div className="flex items-center gap-2 text-accent">{warningCount ? <TriangleAlert className="size-8" /> : <ShieldCheck className="size-8" />}<span className="text-3xl font-semibold">{warnings.warning ? '—' : warningCount}</span></div><div className="mt-3 flex flex-wrap gap-1.5">{HAZARDS.slice(0,4).map(h => <h.icon key={h.id} className="size-5 text-accent/70" />)}</div></div>
           <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">Warnungen<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">{warnings.warning ? 'Momentan nicht verfügbar' : warningCount ? `${warningCount} aktive Meldungen` : 'Keine aktiven Warnungen'}</p></div>
         </Link>
-        <Link to="/karten/messwerte" className="weather-product" aria-label="Live-Messwerte öffnen">
+        <Link to="/karten/messwerte" viewTransition onClick={() => openCard('/karten/messwerte')} className={`weather-product${morph === '/karten/messwerte' ? ' morph-card' : ''}`} aria-label="Live-Messwerte öffnen">
           <div className="weather-station-preview"><Thermometer className="size-7 text-accent" /><div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm tabular-nums">{stations.filter(s => s.current != null).slice(0,4).map(s => <span key={s.id} className="truncate">{s.name} <strong>{s.current?.toFixed(1)}°</strong></span>)}</div></div>
           <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">Live-Messwerte<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">Temperatur · Wind · Regen</p></div>
         </Link>

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
-import { useRouterState } from "@tanstack/react-router";
+import { useMatch } from "@tanstack/react-router";
 import { PublicWeatherLayout } from "@/components/public-weather-layout";
 
 export function DashboardLayout({
@@ -13,7 +13,8 @@ export function DashboardLayout({
   subtitle?: string;
   children: ReactNode;
 }) {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // Pfad der eigenen Route, nicht des Navigationsziels: sonst kippt das Layout schon vor dem Seitenwechsel.
+  const pathname = useMatch({ strict: false, select: (match) => match.pathname.replace(/(.)\/$/, "$1") });
   if (pathname === "/" || pathname.startsWith("/karten/") || pathname === "/wetterbericht" || pathname === "/vertikalschnitt") {
     return <PublicWeatherLayout home={pathname === "/"} {...(title ? { title } : {})}>{children}</PublicWeatherLayout>;
   }
