@@ -1,4 +1,5 @@
 # Project rules
+- Tile arrangement drafts are isolated in a local-only planning screen with independently validated phone/desktop layouts; never apply them to public pages or embeds implicitly, so planning cannot alter the existing website.
 - Public weather pages share a focused header with a direct home link and no sidebar/product tabs; station selections reuse the existing regional station map and query cache to keep navigation lightweight.
 - The public home uses static product preview assets rather than live map iframes; animations load only on their dedicated pages to avoid mobile memory pressure.
 - Weather reports use one current published row, public RLS-scoped reads and existing server-validated admin password writes; local editor drafts contain text only, never credentials.

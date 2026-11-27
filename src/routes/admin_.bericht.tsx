@@ -90,7 +90,7 @@ function ReportAdmin() {
       <Input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="h-12 text-base" />
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={busy} className="h-12 w-full bg-accent text-accent-foreground">{busy ? 'Anmelden …' : 'Anmelden'}</Button>
-      <Button variant="link" asChild className="px-0"><Link to="/"><ArrowLeft />Zur Wetterübersicht</Link></Button>
+      <div className="flex flex-wrap gap-3"><Button variant="link" asChild className="px-0"><Link to="/"><ArrowLeft />Zur Wetterübersicht</Link></Button><Button variant="link" asChild className="px-0"><Link to="/admin/anordnung">Kacheln anordnen</Link></Button></div>
     </form>
   </main>;
 
@@ -99,8 +99,9 @@ function ReportAdmin() {
       <div className="min-w-0"><p className="text-xs font-semibold text-accent">Oberthurgauer Wetter</p><h1 className="mt-1 text-2xl font-semibold">Wetterbericht</h1></div>
       <Button variant="ghost" size="icon" title="Abmelden" aria-label="Abmelden" onClick={() => { setUnlocked(false); setPassword(''); }}><LogOut /></Button>
     </header>
-    <nav className="my-4 flex items-center justify-between gap-2">
+    <nav className="my-4 flex flex-wrap items-center justify-between gap-2">
       <Button asChild variant="link" className="px-0"><Link to="/admin-ticker"><ArrowLeft />Ticker-Admin</Link></Button>
+      <Button asChild variant="link" className="px-0"><Link to="/admin/anordnung">Kacheln anordnen</Link></Button>
       <Button variant="outline" onClick={() => setPreview(v => !v)}>{preview ? <Pencil /> : <Eye />}{preview ? 'Bearbeiten' : 'Vorschau'}</Button>
     </nav>
     {publishedAt && <p className="mb-5 text-xs text-muted-foreground">Zuletzt veröffentlicht: {reportTime(publishedAt)}</p>}

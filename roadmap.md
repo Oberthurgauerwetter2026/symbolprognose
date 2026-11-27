@@ -1,3 +1,6 @@
+# Tile arrangement planning mask
+- [x] Add a separate visual planning mask at /admin/anordnung with independent phone/desktop layouts, ordering, widths, visibility, local saving and JSON draft exchange; three tests pass, real move/resize/hide/save/reload/export/import and home return verified at 1557/390/320 px without browser errors or overflow. Public home and existing embeds unchanged; drafts are device-local, not published.
+
 # Mobile weather overview and editorial report
 - [x] Refine the blue regional overview and focused product pages with visible return navigation; integrate temperature, daily gust and rain selections without an external jump. Nine real stations and all five selections checked at 320/402/768/1440 px, radar/wind/warnings/report and home return verified, no overflow or runtime errors; 14 station and 3 report tests pass, preview build OK. Publication and WordPress remain unchanged.
 - [x] Replace the start page with lightweight product tiles and nearest-station readings; verified at 320/390/768/1440 px, geolocation selects Horn, no overflow or iframes, radar opens its live map. Preview images total about 44 KB.

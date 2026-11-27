@@ -19,6 +19,7 @@ import { Route as KarteRouteImport } from './routes/karte'
 import { Route as VertikalschnittRouteImport } from './routes/vertikalschnitt'
 import { Route as WarnkarteRouteImport } from './routes/warnkarte'
 import { Route as WetterberichtRouteImport } from './routes/wetterbericht'
+import { Route as AdminAnordnungRouteImport } from './routes/admin_.anordnung'
 import { Route as AdminBerichtRouteImport } from './routes/admin_.bericht'
 import { Route as EmbedAllRouteImport } from './routes/embed.all'
 import { Route as EmbedLokalRouteImport } from './routes/embed.lokal'
@@ -109,6 +110,11 @@ const WarnkarteRoute = WarnkarteRouteImport.update({
 const WetterberichtRoute = WetterberichtRouteImport.update({
   id: '/wetterbericht',
   path: '/wetterbericht',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAnordnungRoute = AdminAnordnungRouteImport.update({
+  id: '/admin_/anordnung',
+  path: '/admin/anordnung',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminBerichtRoute = AdminBerichtRouteImport.update({
@@ -338,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/wetterbericht': typeof WetterberichtRoute
+  '/admin/anordnung': typeof AdminAnordnungRoute
   '/admin/bericht': typeof AdminBerichtRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
@@ -391,6 +398,7 @@ export interface FileRoutesByTo {
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/wetterbericht': typeof WetterberichtRoute
+  '/admin/anordnung': typeof AdminAnordnungRoute
   '/admin/bericht': typeof AdminBerichtRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
@@ -445,6 +453,7 @@ export interface FileRoutesById {
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/wetterbericht': typeof WetterberichtRoute
+  '/admin_/anordnung': typeof AdminAnordnungRoute
   '/admin_/bericht': typeof AdminBerichtRoute
   '/embed/all': typeof EmbedAllRoute
   '/embed/lokal': typeof EmbedLokalRoute
@@ -500,6 +509,7 @@ export interface FileRouteTypes {
     | '/vertikalschnitt'
     | '/warnkarte'
     | '/wetterbericht'
+    | '/admin/anordnung'
     | '/admin/bericht'
     | '/embed/all'
     | '/embed/lokal'
@@ -553,6 +563,7 @@ export interface FileRouteTypes {
     | '/vertikalschnitt'
     | '/warnkarte'
     | '/wetterbericht'
+    | '/admin/anordnung'
     | '/admin/bericht'
     | '/embed/all'
     | '/embed/lokal'
@@ -606,6 +617,7 @@ export interface FileRouteTypes {
     | '/vertikalschnitt'
     | '/warnkarte'
     | '/wetterbericht'
+    | '/admin_/anordnung'
     | '/admin_/bericht'
     | '/embed/all'
     | '/embed/lokal'
@@ -660,6 +672,7 @@ export interface RootRouteChildren {
   VertikalschnittRoute: typeof VertikalschnittRoute
   WarnkarteRoute: typeof WarnkarteRoute
   WetterberichtRoute: typeof WetterberichtRoute
+  AdminAnordnungRoute: typeof AdminAnordnungRoute
   AdminBerichtRoute: typeof AdminBerichtRoute
   EmbedAllRoute: typeof EmbedAllRoute
   EmbedLokalRoute: typeof EmbedLokalRoute
@@ -773,6 +786,13 @@ declare module '@tanstack/react-router' {
       path: '/wetterbericht'
       fullPath: '/wetterbericht'
       preLoaderRoute: typeof WetterberichtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/anordnung': {
+      id: '/admin_/anordnung'
+      path: '/admin/anordnung'
+      fullPath: '/admin/anordnung'
+      preLoaderRoute: typeof AdminAnordnungRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin_/bericht': {
@@ -1076,6 +1096,7 @@ const rootRouteChildren: RootRouteChildren = {
   VertikalschnittRoute: VertikalschnittRoute,
   WarnkarteRoute: WarnkarteRoute,
   WetterberichtRoute: WetterberichtRoute,
+  AdminAnordnungRoute: AdminAnordnungRoute,
   AdminBerichtRoute: AdminBerichtRoute,
   EmbedAllRoute: EmbedAllRoute,
   EmbedLokalRoute: EmbedLokalRoute,
