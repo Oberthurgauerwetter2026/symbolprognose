@@ -3,6 +3,7 @@ import { currentWeatherSlot } from '@/lib/current-weather-slot';
 import { isDayAtIso, weatherLabel } from '@/lib/weather';
 import { WeatherIcon } from '@/components/weather-icons';
 import { useEffect, useState } from 'react';
+import { OverviewRadarOutlook } from '@/components/overview-radar-outlook';
 
 export function OverviewWeatherSymbol({ location }: { location: { lat: number; lon: number } | null }) {
   const forecast = useOverviewForecast(location);
@@ -20,5 +21,6 @@ export function OverviewWeatherSymbol({ location }: { location: { lat: number; l
     {available ? <WeatherIcon code={code} {...(data.hourly.weathercode_mch?.[index] !== undefined ? { mchCode: data.hourly.weathercode_mch[index] } : {})} isDay={isDayAtIso(data.hourly.time[index], data.daily)} size={96} /> : <span className="flex h-24 items-center text-2xl text-muted-foreground sm:h-32">—</span>}
     </div>
     <span className="text-center text-xs text-muted-foreground">{available ? weatherLabel(code) : forecast.isFetching ? 'Wetter lädt …' : 'Nicht verfügbar'}</span>
+    <OverviewRadarOutlook location={location} />
   </div>;
 }

@@ -1,3 +1,7 @@
+# Radar point outlook
+- [x] Show dry / rain / sleet / snow and approximate arrival minutes below the home symbol using native radar nowcast frames; nine tests pass. Real Amriswil input checked on desktop/phone: current data provide only the measurement, so the UI correctly reports unavailable; no false dry claim, no overflow or browser errors.
+- [ ] Verify a live dry/arrival result: awaiting a current complete radar-nowcast generation (or valid motion plus target phase); current live data do not supply it. Rain/sleet/snow arrivals are covered by tests, not verified during a real precipitation event.
+
 # Compact location and precipitation outlook
 - [x] Group location and temperature with a small gap; show local rain/snow/dry outlook below the current symbol without loading radar frames or changing embeds.
 - [x] Ten trend/hour-selection tests pass; real Horn and Amriswil forecasts checked at 1557/390/320 px, temperature 4 px below place, outlook visible without overflow or browser errors; preview build OK. Rain/snow branches covered by unit tests, current live outlook is dry.
