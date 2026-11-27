@@ -3,7 +3,7 @@ import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { Suspense, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { getMorphCard, setMorphCard } from '@/lib/card-morph';
-import { ArrowUpRight, MapPin, Search, Thermometer, Wind, Droplets, Play, ShieldCheck, TriangleAlert, Satellite, Snowflake } from 'lucide-react';
+import { ArrowUpRight, MapPin, Search, Droplets, Satellite, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { WeatherReportView } from '@/components/weather-report-view';
@@ -22,10 +22,8 @@ import { getStationExtremes } from '@/lib/station-extremes.functions';
 import { nearestLiveStation } from '@/lib/weather-overview';
 import { listWarnings } from '@/lib/warnings.functions';
 import { SPOTS } from '@/data/spots';
-import { HAZARDS } from '@/lib/warnings-config';
 import { APP_MANIFEST_LINK } from '@/lib/pwa-links';
-import radarAsset from '@/assets/overview-radar.asset.json';
-import windAsset from '@/assets/overview-wind.asset.json';
+import { LivePreview } from '@/components/live-preview';
 
 const stationsQuery = () => queryOptions({ queryKey: ['overview-stations'], queryFn: () => getStationExtremes(), staleTime: 60000, refetchInterval: 120000 });
 const warningsQuery = () => queryOptions({ queryKey: ['overview-warnings'], queryFn: () => listWarnings(), staleTime: 30000, refetchInterval: 60000 });
@@ -88,21 +86,22 @@ function WeatherOverview() {
   const ticker = useQuery({ ...tickerQuery(), enabled: desktop });
   const tile = (path: string, extra = '') => `weather-product group${extra}${morph === path ? ' morph-card' : ''}`;
   const title = (text: string, hint: string) => <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">{text}<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>;
+  const live = (src: string, label: string) => <div className="weather-product-image"><LivePreview src={src} title={label} /></div>;
   const iconPreview = (icon: ReactNode) => <div className="grid aspect-[1.45] place-items-center bg-(--overview-station) text-accent [&_svg]:size-10">{icon}</div>;
   const radarTile = (extra = '') => <Link to="/karten/radar" viewTransition onClick={() => openCard('/karten/radar')} className={tile('/karten/radar', extra)} aria-label="Radar und Nowcast öffnen">
-    <div className="weather-product-image"><img src={radarAsset.url} alt="Kartenausschnitt Bodensee und Alpstein" /><div className="weather-play"><Play className="size-5" /></div></div>
+    {live('/embed/radar?clean=1', 'Radar aktuell')}
     {title('Radar', 'Messung & Nowcast')}
   </Link>;
   const windTile = <Link to="/karten/wind" viewTransition onClick={() => openCard('/karten/wind')} className={tile('/karten/wind')} aria-label="Windanimation öffnen">
-    <div className="weather-product-image"><img src={windAsset.url} alt="Vorschau der regionalen Windkarte" loading="lazy" /><div className="weather-play"><Wind className="size-5" /></div></div>
+    {live('/embed/wind?clean=1', 'Wind aktuell')}
     {title('Windanimation', 'Wind & Böen')}
   </Link>;
   const warnTile = <Link to="/karten/warnungen" viewTransition onClick={() => openCard('/karten/warnungen')} className={tile('/karten/warnungen')}>
-    <div className="weather-warning-preview"><div className="flex items-center gap-2 text-accent">{warningCount ? <TriangleAlert className="size-8" /> : <ShieldCheck className="size-8" />}<span className="text-3xl font-semibold">{warnings.warning ? '—' : warningCount}</span></div><div className="mt-3 flex flex-wrap gap-1.5">{HAZARDS.slice(0,4).map(h => <h.icon key={h.id} className="size-5 text-accent/70" />)}</div></div>
+    {live('/embed/warnungen?clean=1', 'Warnkarte aktuell')}
     {title('Warnungen', warnings.warning ? 'Momentan nicht verfügbar' : warningCount ? `${warningCount} aktive Meldungen` : 'Keine aktiven Warnungen')}
   </Link>;
   const stationTile = <Link to="/karten/messwerte" viewTransition onClick={() => openCard('/karten/messwerte')} className={tile('/karten/messwerte')} aria-label="Live-Messwerte öffnen">
-    <div className="weather-station-preview"><Thermometer className="size-7 text-accent" /><div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm tabular-nums">{stations.filter(s => s.current != null).slice(0,4).map(s => <span key={s.id} className="truncate">{s.name} <strong>{s.current?.toFixed(1)}°</strong></span>)}</div></div>
+    {live('/embed/stationen-extrem?stat=current&clean=1', 'Aktuelle Temperaturen')}
     {title('Live-Messwerte', 'Temperatur · Wind · Regen')}
   </Link>;
   return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11 lg:hidden [&_svg]:size-7" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
@@ -128,11 +127,11 @@ function WeatherOverview() {
       </section>}
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">
-        <Link to="/karten/messwerte" viewTransition onClick={() => openCard('/karten/messwerte')} className={tile('/karten/messwerte', ' block p-4 shadow-xl')} aria-label="Live-Messwerte öffnen">
-          <h2 className="flex items-center justify-between gap-2 font-semibold"><span className="flex items-center gap-2"><Thermometer className="size-4 text-accent" />Live-Werte</span><ArrowUpRight className="size-4 shrink-0 text-accent" /></h2>
-          <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-2 text-sm tabular-nums">{stations.filter(s => s.current != null).slice(0, 6).map(s => <span key={s.id} className="min-w-0"><span className="block truncate text-xs text-muted-foreground">{s.name}</span><strong className="text-base">{s.current?.toFixed(1)}°</strong></span>)}</div>
+        <Link to="/karten/messwerte" viewTransition onClick={() => openCard('/karten/messwerte')} className={tile('/karten/messwerte', ' block shadow-xl [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:h-52')} aria-label="Live-Messwerte öffnen">
+          {live('/embed/stationen-extrem?stat=current&clean=1', 'Aktuelle Temperaturen')}
+          {title('Live-Werte', 'Aktuelle Temperaturen der Stationen')}
         </Link>
-        {radarTile(' flex flex-1 flex-col shadow-xl [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-44 [&_.weather-product-image]:flex-1 [&_img]:absolute [&_img]:inset-0')}
+        {radarTile(' flex flex-1 flex-col shadow-xl [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-44 [&_.weather-product-image]:flex-1')}
         <div className="rounded-lg shadow-xl"><WeatherReportView {...report} /></div>
         {desktop && ticker.data && <div className="weather-surface" style={{ '--accent': 'var(--accent-strong)' } as CSSProperties}><TickerWidget posts={visiblePosts(ticker.data, Date.now())} /></div>}
       </aside>
@@ -145,8 +144,8 @@ function WeatherOverview() {
 
       <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-3 gap-4 [&>a>div:first-child]:aspect-[2.1]!">
         {windTile}{warnTile}
-        <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{iconPreview(<Satellite />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>
-        <Link to="/karten/niederschlag" viewTransition onClick={() => openCard('/karten/niederschlag')} className={tile('/karten/niederschlag')}>{iconPreview(<Droplets />)}{title('Regen & Schnee', 'Summen: gefallen und erwartet')}</Link>
+        <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{live('/embed/satellit-loop?clean=1', 'Satellitenbild aktuell')}{title('Satellit', 'Wolken über der Schweiz')}</Link>
+        <Link to="/karten/niederschlag" viewTransition onClick={() => openCard('/karten/niederschlag')} className={tile('/karten/niederschlag')}>{live('/embed/niederschlag?clean=1', 'Niederschlagssummen')}{title('Regen & Schnee', 'Summen: gefallen und erwartet')}</Link>
         <Link to="/vertikalschnitt" viewTransition onClick={() => openCard('/vertikalschnitt')} className={tile('/vertikalschnitt')}>{iconPreview(<Snowflake />)}{title('SnowCast', 'Schneefallgrenze im Schnitt')}</Link>
       </div></section>
       <section className="py-6 lg:hidden"><h2 className="mb-4 text-lg font-semibold">Mehr Wetter</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
