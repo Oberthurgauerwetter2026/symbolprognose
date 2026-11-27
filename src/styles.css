@@ -77,7 +77,8 @@
   --secondary-foreground: var(--zinc-900);
   --muted: var(--zinc-200);
   --muted-foreground: var(--zinc-500);
-  --accent: #2561a1;
+  --brand-blue: #2561a1;
+  --accent: var(--brand-blue);
   --accent-soft: #e8f0f9;
   --accent-strong: #1c4d82;
   --accent-foreground: var(--zinc-50);
@@ -306,6 +307,10 @@ html.embed .embed-fallback {
   .ticker-shimmer { animation: none; }
 }
 
+/* Blaue Markenfläche der öffentlichen Wetterseiten; helle Flächen darin setzen die Tokens zurück. */
+.weather-blue { --background: var(--brand-blue); --foreground: #ffffff; --muted-foreground: color-mix(in srgb, #ffffff 85%, var(--brand-blue)); --border: color-mix(in srgb, #ffffff 28%, var(--brand-blue)); --accent: #ffffff; --accent-foreground: var(--brand-blue); --ring: #ffffff; --destructive: #ffd9d6; color: var(--foreground); }
+html:has(.weather-blue) { background-color: var(--brand-blue); }
+.weather-surface, .weather-product { --background: var(--zinc-100); --foreground: var(--zinc-900); --muted-foreground: var(--zinc-500); --border: var(--zinc-200); --accent: var(--brand-blue); --accent-foreground: var(--zinc-50); --ring: var(--brand-blue); --destructive: #e62117; color: var(--foreground); }
 .weather-product { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-bottom: 3px solid color-mix(in srgb, var(--accent) 65%, var(--border)); border-radius: 8px; background: var(--card); transition: border-color 160ms ease; }
 .weather-product:hover { border-color: var(--accent); }
 .weather-product-image, .weather-warning-preview, .weather-station-preview { position: relative; aspect-ratio: 1.45; overflow: hidden; }

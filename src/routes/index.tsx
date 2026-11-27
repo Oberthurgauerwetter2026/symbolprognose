@@ -83,9 +83,9 @@ function WeatherOverview() {
               if (!spot) return;
               const next = { name: spot.name, lat: spot.lat, lon: spot.lon }; setLocation(next);
               try { localStorage.setItem('owt-overview-location', JSON.stringify(next)); } catch { /* optional */ }
-            }} className="min-w-0 max-w-full rounded-md border border-border bg-card px-2 py-2 text-base font-medium">
+            }} className="weather-surface min-w-0 max-w-full rounded-md border border-border bg-card px-2 py-2 text-base font-medium">
               {!SPOTS.some(s => s.name === location.name) && <option>{location.name}</option>}{SPOTS.map(s => <option key={s.id}>{s.name}</option>)}
-            </select><Button size="icon" variant="outline" title="Meinen Standort verwenden" aria-label="Meinen Standort verwenden" disabled={locating} onClick={locate}><LocateFixed className={locating ? 'animate-pulse' : ''} /></Button></div>
+            </select><Button size="icon" variant="outline" className="weather-surface" title="Meinen Standort verwenden" aria-label="Meinen Standort verwenden" disabled={locating} onClick={locate}><LocateFixed className={locating ? 'animate-pulse' : ''} /></Button></div>
             <div className="mt-3 flex items-baseline gap-3"><span className="font-display text-6xl font-semibold tabular-nums">{station?.current != null ? `${station.current.toFixed(1)}°` : '—'}</span><span className="text-sm text-muted-foreground">Aktuelle Temperatur</span></div>
             <p className="mt-2 text-xs text-muted-foreground">{station ? `Messstation ${station.name} · ${nearest.distance.toFixed(1)} km entfernt` : 'Momentan keine aktuelle Messung verfügbar.'}</p>
             {locationError && <p role="status" className="mt-2 text-xs text-destructive">{locationError}</p>}
@@ -119,10 +119,10 @@ function WeatherOverview() {
 
       <WeatherReportView {...report} />
       <section className="py-6"><h2 className="mb-4 text-lg font-semibold">Mehr Wetter</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Button asChild variant="outline" className="h-14 justify-between px-3"><Link to="/karten/satellit"><span className="flex items-center gap-2"><Satellite />Satellit</span><ArrowUpRight /></Link></Button>
-        <Button asChild variant="outline" className="h-14 justify-between px-3"><Link to="/karten/niederschlag"><span className="flex items-center gap-2"><Droplets />Regen & Schnee</span><ArrowUpRight /></Link></Button>
-        <Button asChild variant="outline" className="h-14 justify-between px-3"><Link to="/karten/region"><span className="flex items-center gap-2"><MapPin />Regionsprognose</span><ArrowUpRight /></Link></Button>
-        <Button asChild variant="outline" className="h-14 justify-between px-3"><Link to="/vertikalschnitt"><span className="flex items-center gap-2"><Snowflake />SnowCast</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-surface h-14 justify-between px-3"><Link to="/karten/satellit"><span className="flex items-center gap-2"><Satellite />Satellit</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-surface h-14 justify-between px-3"><Link to="/karten/niederschlag"><span className="flex items-center gap-2"><Droplets />Regen & Schnee</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-surface h-14 justify-between px-3"><Link to="/karten/region"><span className="flex items-center gap-2"><MapPin />Regionsprognose</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-surface h-14 justify-between px-3"><Link to="/vertikalschnitt"><span className="flex items-center gap-2"><Snowflake />SnowCast</span><ArrowUpRight /></Link></Button>
       </div></section>
       <footer className="flex flex-wrap justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground"><span>Oberthurgauer Wetter · Messwerte: WeatherHub, MeteoSchweiz · Karten: swisstopo</span><Link to="/admin/bericht" className="text-accent">Wetterredaktion</Link></footer>
     </div>
