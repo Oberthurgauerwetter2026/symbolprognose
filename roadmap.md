@@ -1,3 +1,7 @@
+# Compact location and precipitation outlook
+- [x] Group location and temperature with a small gap; show local rain/snow/dry outlook below the current symbol without loading radar frames or changing embeds.
+- [x] Ten trend/hour-selection tests pass; real Horn and Amriswil forecasts checked at 1557/390/320 px, temperature 4 px below place, outlook visible without overflow or browser errors; preview build OK. Rain/snow branches covered by unit tests, current live outlook is dry.
+
 # Local hourly overview and app launch
 - [x] Show upcoming local forecast hours below the temperature and open the same place's full symbol forecast with X home return.
 - [x] Start the main installed weather app on home and return home when reopened; preserve browser deep links, admin and existing embeds. Manifest identity retained for existing installations.

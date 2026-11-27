@@ -81,17 +81,13 @@ function WeatherOverview() {
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2"><MapPin className="size-4 shrink-0" /><h1 className="min-w-0 break-words font-display text-2xl font-semibold sm:text-4xl">{location?.name ?? (locating ? 'Standort wird ermittelt …' : 'Ort wählen')}</h1></div>
+            <div className="mt-1 flex items-baseline"><span className="font-display text-4xl font-semibold tabular-nums">{station?.current != null ? `${station.current.toFixed(1)}°` : '—'}</span></div>
+            <p className="mt-2 text-xs text-muted-foreground">{station && nearest ? `Messstation ${station.name} · ${nearest.distance.toFixed(1)} km entfernt` : 'Momentan keine aktuelle Messung verfügbar.'}</p>
+            {locationError && <p role="status" className="mt-2 text-xs text-destructive">{locationError}</p>}
           </div>
           <OverviewWeatherSymbol location={location} />
         </div>
         {searchOpen && <div className="weather-surface relative z-30 mt-3 rounded-md bg-card p-3"><LocationSearch onSelect={place => { locationRequest.current++; setLocation({ name: place.name, lat: place.latitude, lon: place.longitude }); setLocating(false); setLocationError(''); setSearchOpen(false); }} /><div className="mt-3 flex flex-wrap gap-1">{SPOTS.map(spot => <Button key={spot.id} size="sm" variant="ghost" onClick={() => { locationRequest.current++; setLocation({ name: spot.name, lat: spot.lat, lon: spot.lon }); setLocating(false); setLocationError(''); setSearchOpen(false); }}>{spot.name}</Button>)}</div></div>}
-        <div className="mt-5">
-          <div className="min-w-0">
-            <div className="mt-3 flex items-baseline gap-3"><span className="font-display text-4xl font-semibold tabular-nums">{station?.current != null ? `${station.current.toFixed(1)}°` : '—'}</span></div>
-            <p className="mt-2 text-xs text-muted-foreground">{station && nearest ? `Messstation ${station.name} · ${nearest.distance.toFixed(1)} km entfernt` : 'Momentan keine aktuelle Messung verfügbar.'}</p>
-            {locationError && <p role="status" className="mt-2 text-xs text-destructive">{locationError}</p>}
-          </div>
-        </div>
         <OverviewHourlyForecast location={location} onOpen={() => openCard('/karten/lokal')} morph={morph === '/karten/lokal'} />
       </section>
 
