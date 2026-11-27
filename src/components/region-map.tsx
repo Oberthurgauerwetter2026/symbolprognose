@@ -67,6 +67,7 @@ import { WeatherIcon } from "@/components/weather-icons";
 import { Slider } from "@/components/ui/slider";
 import { ScrollEdgeShadows } from "@/components/ui/scroll-edge-shadows";
 import { cn } from "@/lib/utils";
+import { LocationSearch } from "@/components/location-search";
 
 import { SPOTS, type Spot } from "@/data/spots";
 import { useActiveWarnings } from "@/hooks/use-warnings";
@@ -668,9 +669,12 @@ function RegionMapInner({
   bare = false,
   fill = false,
   onSelectSpot,
+  search = false,
 }: {
   bare?: boolean;
   fill?: boolean;
+  /** Ortssuche (Ort oder PLZ) als Band oben in der Karte; öffnet die Lokalprognose. */
+  search?: boolean;
   /** Embed-Modus: Ortsauswahl wird nach oben gemeldet statt navigiert. */
   onSelectSpot?: (spot: { name: string; lat: number; lon: number }) => void;
 } = {}) {
@@ -944,6 +948,11 @@ function RegionMapInner({
         )}
         ref={mapFrameRef}
       >
+        {search && (
+          <div className="absolute left-3 top-3 z-[900] w-[min(22rem,calc(100%-5rem))] rounded-lg shadow-md">
+            <LocationSearch placeholder="Ort oder PLZ suchen" />
+          </div>
+        )}
         <MapContainer
           center={center}
           zoom={11}

@@ -79,7 +79,8 @@ function WeatherOverview() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('embed')) { window.location.replace(`/embed/lokal${window.location.search}`); return; }
-    locate();
+    // Desktop zeigt keinen Standortblock mehr – dort keine Standortabfrage auslösen.
+    if (!window.matchMedia('(min-width: 1024px)').matches) locate();
     return () => { locationRequest.current++; };
   }, []);
   const warningCount = warnings.warnings.length;
@@ -104,11 +105,11 @@ function WeatherOverview() {
     <div className="weather-station-preview"><Thermometer className="size-7 text-accent" /><div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm tabular-nums">{stations.filter(s => s.current != null).slice(0,4).map(s => <span key={s.id} className="truncate">{s.name} <strong>{s.current?.toFixed(1)}°</strong></span>)}</div></div>
     {title('Live-Messwerte', 'Temperatur · Wind · Regen')}
   </Link>;
-  return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11 [&_svg]:size-7" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
+  return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11 lg:hidden [&_svg]:size-7" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
     <div className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8 lg:max-w-7xl">
      <div className="lg:grid lg:grid-cols-[minmax(0,1.75fr)_minmax(320px,1fr)] lg:items-start lg:gap-6">
       <div className="min-w-0">
-      <section aria-label="Wetter an deinem Ort" className="pb-6 sm:pb-8">
+      <section aria-label="Wetter an deinem Ort" className="pb-6 sm:pb-8 lg:hidden">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2"><MapPin className="size-4 shrink-0" /><h1 className="min-w-0 break-words font-display text-2xl font-semibold sm:text-4xl">{location?.name ?? (locating ? 'Standort wird ermittelt …' : 'Ort wählen')}</h1></div>
@@ -124,7 +125,7 @@ function WeatherOverview() {
 
       {desktop && <section aria-label="Symbolprognose der Region" className="weather-surface mb-6 rounded-lg border border-border bg-card p-4">
         <h2 className="font-display text-lg font-semibold">Wetter in der Region</h2>
-        <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap /></Suspense>
+        <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search /></Suspense>
       </section>}
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">
