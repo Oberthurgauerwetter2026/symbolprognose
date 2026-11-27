@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useHydrated } from '@tanstack/react-router';
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query';
-import { Suspense, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { getMorphCard, setMorphCard } from '@/lib/card-morph';
+import { describeHomeClick, rememberHomeAnchor, restoreHomePosition, takeHomeReturn, type HomeAnchor } from '@/lib/home-return';
 import { ArrowUpRight, MapPin, Search, Droplets, Satellite, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
@@ -82,9 +83,22 @@ function WeatherOverview() {
     if (!window.matchMedia('(min-width: 1024px)').matches) locate();
     return () => { locationRequest.current++; };
   }, []);
+  // Nach dem Schliessen einer Kachel wieder an die Stelle, an der sie geöffnet wurde.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const pendingReturn = useRef<HomeAnchor | null>(null);
+  useLayoutEffect(() => {
+    const target = takeHomeReturn() ?? pendingReturn.current;
+    const root = rootRef.current;
+    if (!target || !root) return;
+    pendingReturn.current = target;
+    return restoreHomePosition(root, target, () => { pendingReturn.current = null; });
+  }, []);
   const warningCount = warnings.warnings.length;
   const desktop = useIsDesktop();
-  const ticker = useQuery({ ...tickerQuery(), enabled: desktop });
+  // Karte und Ticker brauchen den Browser; sie erscheinen in beiden Ansichten, sobald die Seite geladen ist.
+  const hydrated = useHydrated();
+  const ticker = useQuery({ ...tickerQuery(), enabled: hydrated });
+  const tickerWidget = ticker.data && <div className="weather-surface" style={{ '--accent': 'var(--accent-strong)' } as CSSProperties}><TickerWidget posts={visiblePosts(ticker.data, Date.now())} /></div>;
   const tile = (path: string, extra = '') => `weather-product group${extra}${morph === path ? ' morph-card' : ''}`;
   const title = (text: string, hint: string) => <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">{text}<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>;
   const image = (preview: ReactNode) => <div className="weather-product-image">{preview}</div>;
@@ -106,7 +120,7 @@ function WeatherOverview() {
     {title('Live-Messwerte', 'Temperatur · Wind · Regen')}
   </Link>;
   return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11 lg:hidden [&_svg]:size-7" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
-    <div className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8 lg:max-w-7xl">
+    <div ref={rootRef} onClickCapture={event => rememberHomeAnchor(describeHomeClick(event.currentTarget, event.target))} className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8 lg:max-w-7xl">
      <div className="lg:grid lg:grid-cols-[minmax(0,1.75fr)_minmax(320px,1fr)] lg:items-stretch lg:gap-6">
       <div className="min-w-0 lg:flex lg:flex-col lg:pb-6">
       <section aria-label="Wetter an deinem Ort" className="pb-6 sm:pb-8 lg:hidden">
@@ -123,8 +137,8 @@ function WeatherOverview() {
         <OverviewHourlyForecast location={location} onOpen={() => openCard('/karten/lokal')} morph={morph === '/karten/lokal'} />
       </section>
 
-      {desktop && <section aria-label="Symbolprognose der Region" className="weather-surface flex-1 rounded-lg border border-border bg-card p-4">
-        <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search /></Suspense>
+      {hydrated && <section aria-label="Symbolprognose der Region" className="weather-surface mb-6 flex-1 rounded-lg border border-border bg-card p-2 sm:p-4 lg:mb-0">
+        <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search={desktop} /></Suspense>
       </section>}
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">
@@ -134,16 +148,16 @@ function WeatherOverview() {
         </Link>
         {radarTile(' flex flex-1 flex-col shadow-xl [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-44 [&_.weather-product-image]:flex-1')}
         <div className="rounded-lg shadow-xl"><WeatherReportView {...report} /></div>
-        {desktop && ticker.data && <div className="weather-surface" style={{ '--accent': 'var(--accent-strong)' } as CSSProperties}><TickerWidget posts={visiblePosts(ticker.data, Date.now())} /></div>}
+        {desktop && tickerWidget}
       </aside>
      </div>
 
       <section aria-label="Wetterprodukte" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:hidden">
         {radarTile()}{windTile}{warnTile}{stationTile}
       </section>
-      <div className="lg:hidden"><WeatherReportView {...report} /></div>
+      <div className="lg:hidden"><WeatherReportView {...report} />{hydrated && !desktop && tickerWidget && <div className="mt-6">{tickerWidget}</div>}</div>
 
-      <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-3 gap-4 [&>a>div:first-child]:aspect-[2.1]!">
+      <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-3 gap-4 [&>a>div:first-child]:aspect-[1.5]!">
         {windTile}{warnTile}
         <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{image(<SatellitePreview />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>
         <Link to="/karten/niederschlag" viewTransition onClick={() => openCard('/karten/niederschlag')} className={tile('/karten/niederschlag')}>{image(desktop && <LivePreview src="/embed/niederschlag?clean=1" title="Niederschlagssummen" />)}{title('Regen & Schnee', 'Summen: gefallen und erwartet')}</Link>

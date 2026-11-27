@@ -1,3 +1,6 @@
+# Home: map, ticker, return position
+- [x] Phone home also shows the normal interactive region map and the ticker; desktop tile images use 1.5 so the warning map is fully visible; closing a tile (X) returns to the place it was opened. Checked at 1557 and 390 px: map and ticker visible, tile returns to the same position, direct open + X lands at top, no overflow; 4 tests pass. Not checked on a physical phone.
+
 # Separate desktop home
 - [x] Desktop (lg+) home: region symbol map left, raised radar + report preview + ticker right, six product tiles below; phone layout unchanged. Checked at 1557/1100/390 px: map and markers render, radar opens and closes home, no overflow; phone loads no map or ticker. Ticker seen only in standby (no post in 24 h).
 
