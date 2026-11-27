@@ -96,7 +96,7 @@ function WeatherOverview() {
   }, []);
   const warningCount = warnings.warnings.length;
   const desktop = useIsDesktop();
-  // Die Karte braucht den Browser, ihr Rahmen und der Ticker stehen schon in der ersten Auslieferung.
+  // Die Karte gibt es nur auf dem Desktop und braucht den Browser; ihr Rahmen und der Ticker stehen schon in der ersten Auslieferung.
   const hydrated = useHydrated();
   const loaded = Route.useLoaderData();
   const ticker = useQuery({ ...tickerQuery(), ...(loaded.ticker ? { initialData: loaded.ticker } : {}) });
@@ -143,8 +143,8 @@ function WeatherOverview() {
         <OverviewHourlyForecast location={location} onOpen={() => openCard('/karten/lokal')} morph={morph === '/karten/lokal'} />
       </section>
 
-      <section aria-label="Symbolprognose der Region" className="weather-surface mb-6 flex-1 rounded-lg border border-border bg-card p-2 shadow-(--tile-dark-shadow) sm:p-4 lg:mb-0">
-        {hydrated ? <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search={desktop} /></Suspense> : <MapSkeleton regionHeight />}
+      <section aria-label="Symbolprognose der Region" className="weather-surface weather-map-frame hidden flex-1 rounded-lg p-4 lg:block">
+        {hydrated && desktop ? <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search /></Suspense> : <MapSkeleton regionHeight />}
       </section>
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">

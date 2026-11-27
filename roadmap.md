@@ -1,3 +1,6 @@
+# Region map desktop only, dark frame
+- [x] Phone home no longer shows the region symbol map (link under «Mehr Wetter» stays); desktop map frame is night blue like the tiles. Checked at 1557 and 390 px: desktop map, search and level bottom edges intact, phone loads no map, no overflow or page errors. Not checked on a physical phone.
+
 # Blue detail pages and ticker tile
 - [x] Opened detail pages use the website blue with night-blue controls and white text instead of a white page; the ticker is a tile among the product tiles (desktop and phone) and opens its own page. Checked at 1557 and 390 px: all eleven detail pages render without page errors, ticker tile opens /ticker and X returns to the same position, right column ends level with the region map, no overflow. Ticker seen only in standby (no post in 24 h); timeline strips under radar/wind/satellite and the local forecast sheet stay light.
 
