@@ -116,6 +116,9 @@
   --wx-fog: #4b5563;
   --overview-warning: oklch(0.95 0.05 95);
   --overview-station: oklch(0.95 0.025 170);
+  --tile-dark: #122d4d;
+  --tile-dark-accent: #a9cdf3;
+  --tile-dark-shadow: 0 1px 2px rgba(0,0,0,0.28), 0 16px 32px -12px rgba(3,14,32,0.7);
 }
 
 @layer base {
@@ -310,8 +313,10 @@ html.embed .embed-fallback {
 /* Blaue Markenfläche der öffentlichen Wetterseiten; helle Flächen darin setzen die Tokens zurück. */
 .weather-blue { --background: var(--brand-blue); --foreground: #ffffff; --muted-foreground: color-mix(in srgb, #ffffff 85%, var(--brand-blue)); --border: color-mix(in srgb, #ffffff 28%, var(--brand-blue)); --accent: #ffffff; --accent-foreground: var(--brand-blue); --ring: #ffffff; --destructive: #ffd9d6; color: var(--foreground); }
 html:has(.weather-blue) { background-color: var(--brand-blue); }
-.weather-surface, .weather-product { --background: var(--zinc-100); --foreground: var(--zinc-900); --muted-foreground: var(--zinc-500); --border: var(--zinc-200); --accent: var(--brand-blue); --accent-foreground: var(--zinc-50); --ring: var(--brand-blue); --destructive: #e62117; color: var(--foreground); }
-.weather-product { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-bottom: 3px solid color-mix(in srgb, var(--accent) 65%, var(--border)); border-radius: 8px; background: var(--card); transition: border-color 160ms ease; }
+.weather-surface { --background: var(--zinc-100); --foreground: var(--zinc-900); --muted-foreground: var(--zinc-500); --border: var(--zinc-200); --accent: var(--brand-blue); --accent-foreground: var(--zinc-50); --ring: var(--brand-blue); --destructive: #e62117; color: var(--foreground); }
+/* Dunkle Kacheln der Startseite: Nachtblau wie der Ticker, weisse Schrift, weicher Schatten. */
+.weather-dark, .weather-product { --background: var(--tile-dark); --card: var(--tile-dark); --card-foreground: #ffffff; --foreground: #ffffff; --muted-foreground: color-mix(in srgb, #ffffff 72%, var(--tile-dark)); --border: color-mix(in srgb, #ffffff 16%, var(--tile-dark)); --accent: var(--tile-dark-accent); --accent-foreground: var(--tile-dark); --ring: #ffffff; --destructive: #ffd9d6; --overview-station: color-mix(in srgb, #ffffff 8%, var(--tile-dark)); color: var(--foreground); box-shadow: var(--tile-dark-shadow); }
+.weather-product { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--card); transition: border-color 160ms ease; }
 .weather-product:hover { border-color: var(--accent); }
 .weather-product-image, .weather-warning-preview, .weather-station-preview { position: relative; aspect-ratio: 1.45; overflow: hidden; }
 .weather-product-image img { width: 100%; height: 100%; object-fit: cover; object-position: center; }

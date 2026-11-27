@@ -102,7 +102,7 @@ function WeatherOverview() {
   const hydrated = useHydrated();
   const loaded = Route.useLoaderData();
   const ticker = useQuery({ ...tickerQuery(), ...(loaded.ticker ? { initialData: loaded.ticker } : {}) });
-  const tickerWidget = ticker.data && <div className="weather-surface" style={{ '--accent': 'var(--accent-strong)' } as CSSProperties}><TickerWidget posts={visiblePosts(ticker.data, Date.now())} /></div>;
+  const tickerWidget = ticker.data && <div className="weather-surface" style={{ '--accent': 'var(--tile-dark)', '--accent-strong': 'color-mix(in srgb, #ffffff 16%, var(--tile-dark))' } as CSSProperties}><TickerWidget posts={visiblePosts(ticker.data, Date.now())} /></div>;
   const tile = (path: string, extra = '') => `weather-product group${extra}${morph === path ? ' morph-card' : ''}`;
   const title = (text: string, hint: string) => <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">{text}<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>;
   const image = (preview: ReactNode) => <div className="weather-product-image">{preview}</div>;
@@ -141,17 +141,13 @@ function WeatherOverview() {
         <OverviewHourlyForecast location={location} onOpen={() => openCard('/karten/lokal')} morph={morph === '/karten/lokal'} />
       </section>
 
-      <section aria-label="Symbolprognose der Region" className="weather-surface mb-6 flex-1 rounded-lg border border-border bg-card p-2 sm:p-4 lg:mb-0">
+      <section aria-label="Symbolprognose der Region" className="weather-surface mb-6 flex-1 rounded-lg border border-border bg-card p-2 shadow-(--tile-dark-shadow) sm:p-4 lg:mb-0">
         {hydrated ? <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search={desktop} /></Suspense> : <MapSkeleton regionHeight />}
       </section>
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">
-        <Link to="/karten/messwerte" viewTransition onClick={() => openCard('/karten/messwerte')} className={tile('/karten/messwerte', ' block shadow-xl [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:h-52')} aria-label="Live-Messwerte öffnen">
-          {image(<StationPreview stations={stations} />)}
-          {title('Live-Werte', 'Aktuelle Temperaturen der Stationen')}
-        </Link>
-        {radarTile(' flex flex-1 flex-col shadow-xl [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-44 [&_.weather-product-image]:flex-1')}
-        <div className="rounded-lg shadow-xl"><WeatherReportView {...report} /></div>
+        {radarTile(' flex flex-1 flex-col [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-44 [&_.weather-product-image]:flex-1')}
+        <WeatherReportView {...report} />
         {(!hydrated || desktop) && tickerWidget}
       </aside>
      </div>
@@ -162,16 +158,16 @@ function WeatherOverview() {
       <div className="lg:hidden"><WeatherReportView {...report} />{(!hydrated || !desktop) && tickerWidget && <div className="mt-6">{tickerWidget}</div>}</div>
 
       <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-3 gap-4 [&>a>div:first-child]:aspect-[1.5]!">
-        {windTile}{warnTile}
+        {stationTile}{windTile}{warnTile}
         <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{image(<SatellitePreview />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>
         <Link to="/karten/niederschlag" viewTransition onClick={() => openCard('/karten/niederschlag')} className={tile('/karten/niederschlag')}>{image(desktop && <LivePreview src="/embed/niederschlag?clean=1" title="Niederschlagssummen" />)}{title('Regen & Schnee', 'Summen: gefallen und erwartet')}</Link>
         <Link to="/vertikalschnitt" viewTransition onClick={() => openCard('/vertikalschnitt')} className={tile('/vertikalschnitt')}>{iconPreview(<Snowflake />)}{title('SnowCast', 'Schneefallgrenze im Schnitt')}</Link>
       </div></section>
       <section className="py-6 lg:hidden"><h2 className="mb-4 text-lg font-semibold">Mehr Wetter</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Button asChild variant="outline" className="weather-surface h-14 justify-between px-3"><Link to="/karten/satellit"><span className="flex items-center gap-2"><Satellite />Satellit</span><ArrowUpRight /></Link></Button>
-        <Button asChild variant="outline" className="weather-surface h-14 justify-between px-3"><Link to="/karten/niederschlag"><span className="flex items-center gap-2"><Droplets />Regen & Schnee</span><ArrowUpRight /></Link></Button>
-        <Button asChild variant="outline" className="weather-surface h-14 justify-between px-3"><Link to="/karten/region"><span className="flex items-center gap-2"><MapPin />Regionsprognose</span><ArrowUpRight /></Link></Button>
-        <Button asChild variant="outline" className="weather-surface h-14 justify-between px-3"><Link to="/vertikalschnitt"><span className="flex items-center gap-2"><Snowflake />SnowCast</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/satellit"><span className="flex items-center gap-2"><Satellite />Satellit</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/niederschlag"><span className="flex items-center gap-2"><Droplets />Regen & Schnee</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/region"><span className="flex items-center gap-2"><MapPin />Regionsprognose</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/vertikalschnitt"><span className="flex items-center gap-2"><Snowflake />SnowCast</span><ArrowUpRight /></Link></Button>
       </div></section>
       <footer className="flex flex-wrap justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground"><span>Oberthurgauer Wetter · Messwerte: WeatherHub, MeteoSchweiz · Karten: swisstopo</span><Link to="/admin/bericht" className="text-accent">Wetterredaktion</Link></footer>
     </div>

@@ -21,7 +21,7 @@ export function OverviewHourlyForecast({ location, onOpen, morph }: {
   if (!location) return null;
   const data = forecast.data;
   const slots = data ? upcomingWeatherSlots(data.hourly.time, data.timezone, now) : [];
-  return <Button asChild variant="ghost" className={`weather-surface mt-4 block h-auto w-full overflow-hidden rounded-md border border-border bg-card p-0 text-left text-foreground hover:bg-card hover:text-foreground${morph ? ' morph-card' : ''}`}>
+  return <Button asChild variant="ghost" className={`weather-dark mt-4 block h-auto w-full overflow-hidden rounded-md border border-border bg-card p-0 text-left text-foreground hover:bg-card hover:text-foreground${morph ? ' morph-card' : ''}`}>
     <Link to="/karten/lokal" search={{ lat: location.lat, lon: location.lon, name: location.name }} viewTransition onClick={onOpen} aria-label={`Ausführliche Lokalprognose für ${location.name} öffnen`}>
       <span className="flex items-center justify-between border-b border-border px-3 py-2 text-sm font-semibold">Nächste Stunden<ArrowUpRight className="size-4 text-accent" /></span>
       {data && slots.length ? <span className="flex touch-pan-x overflow-x-auto overscroll-x-contain">

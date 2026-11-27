@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { reportTime, type WeatherReport } from '@/lib/weather-report';
 
 export function WeatherReportView({ report, unavailable, detail = false }: { report: WeatherReport | null; unavailable: boolean; detail?: boolean }) {
-  return <section aria-label="Wetterbericht" className={detail ? 'py-6' : 'weather-surface rounded-lg border border-border bg-card px-4 py-6 sm:px-6 sm:py-8'}>
+  return <section aria-label="Wetterbericht" className={detail ? 'py-6' : 'weather-dark rounded-lg border border-border bg-card px-4 py-6 sm:px-6 sm:py-8'}>
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
       <div className="min-w-0">
         <p className="text-xs font-semibold text-accent">Aus der Wetterredaktion</p>
