@@ -107,8 +107,8 @@ function WeatherOverview() {
   </Link>;
   return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11 lg:hidden [&_svg]:size-7" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
     <div className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8 lg:max-w-7xl">
-     <div className="lg:grid lg:grid-cols-[minmax(0,1.75fr)_minmax(320px,1fr)] lg:items-start lg:gap-6">
-      <div className="min-w-0">
+     <div className="lg:grid lg:grid-cols-[minmax(0,1.75fr)_minmax(320px,1fr)] lg:items-stretch lg:gap-6">
+      <div className="min-w-0 lg:flex lg:flex-col lg:pb-6">
       <section aria-label="Wetter an deinem Ort" className="pb-6 sm:pb-8 lg:hidden">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="min-w-0">
@@ -123,13 +123,16 @@ function WeatherOverview() {
         <OverviewHourlyForecast location={location} onOpen={() => openCard('/karten/lokal')} morph={morph === '/karten/lokal'} />
       </section>
 
-      {desktop && <section aria-label="Symbolprognose der Region" className="weather-surface mb-6 rounded-lg border border-border bg-card p-4">
-        <h2 className="font-display text-lg font-semibold">Wetter in der Region</h2>
+      {desktop && <section aria-label="Symbolprognose der Region" className="weather-surface flex-1 rounded-lg border border-border bg-card p-4">
         <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search /></Suspense>
       </section>}
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">
-        {radarTile(' shadow-xl [&_.weather-product-image]:aspect-[2.1]!')}
+        <Link to="/karten/messwerte" viewTransition onClick={() => openCard('/karten/messwerte')} className={tile('/karten/messwerte', ' block p-4 shadow-xl')} aria-label="Live-Messwerte öffnen">
+          <h2 className="flex items-center justify-between gap-2 font-semibold"><span className="flex items-center gap-2"><Thermometer className="size-4 text-accent" />Live-Werte</span><ArrowUpRight className="size-4 shrink-0 text-accent" /></h2>
+          <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-2 text-sm tabular-nums">{stations.filter(s => s.current != null).slice(0, 6).map(s => <span key={s.id} className="min-w-0"><span className="block truncate text-xs text-muted-foreground">{s.name}</span><strong className="text-base">{s.current?.toFixed(1)}°</strong></span>)}</div>
+        </Link>
+        {radarTile(' flex flex-1 flex-col shadow-xl [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-44 [&_.weather-product-image]:flex-1 [&_img]:absolute [&_img]:inset-0')}
         <div className="rounded-lg shadow-xl"><WeatherReportView {...report} /></div>
         {desktop && ticker.data && <div className="weather-surface" style={{ '--accent': 'var(--accent-strong)' } as CSSProperties}><TickerWidget posts={visiblePosts(ticker.data, Date.now())} /></div>}
       </aside>
@@ -141,7 +144,7 @@ function WeatherOverview() {
       <div className="lg:hidden"><WeatherReportView {...report} /></div>
 
       <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-3 gap-4 [&>a>div:first-child]:aspect-[2.1]!">
-        {windTile}{warnTile}{stationTile}
+        {windTile}{warnTile}
         <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{iconPreview(<Satellite />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>
         <Link to="/karten/niederschlag" viewTransition onClick={() => openCard('/karten/niederschlag')} className={tile('/karten/niederschlag')}>{iconPreview(<Droplets />)}{title('Regen & Schnee', 'Summen: gefallen und erwartet')}</Link>
         <Link to="/vertikalschnitt" viewTransition onClick={() => openCard('/vertikalschnitt')} className={tile('/vertikalschnitt')}>{iconPreview(<Snowflake />)}{title('SnowCast', 'Schneefallgrenze im Schnitt')}</Link>
