@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ArrowUpRight, Info, Camera, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { productById, productIds, productPreview, productUrl, widgetSplit, type TickerProduct } from "@/lib/ticker";
+import { productById, productIds, productPreview, productUrl, widgetSplit, WIDGET_VISIBLE, type TickerProduct } from "@/lib/ticker";
 import type { TickerPost } from "@/lib/ticker.functions";
 
 const time = (iso: string) =>
@@ -207,6 +207,33 @@ export function TickerWidget({ posts }: { posts: TickerPost[] }) {
         </>
       )}
     </section>
+  );
+}
+
+/** Alle sichtbaren Meldungen untereinander – für die eigene Ticker-Seite. */
+export function TickerList({ posts }: { posts: TickerPost[] }) {
+  if (!posts.length) return <TickerStandby />;
+  return (
+    <section className={shell}>
+      <Header />
+      <ol>{posts.map((p, i) => <Entry key={p.id} post={p} latest={i === 0} last={i === posts.length - 1} />)}</ol>
+    </section>
+  );
+}
+
+/** Kachel-Vorschau: die neuesten Schlagzeilen mit Uhrzeit, ohne Bedienelemente. */
+export function TickerTilePreview({ posts }: { posts: TickerPost[] }) {
+  const shown = posts.slice(0, WIDGET_VISIBLE);
+  if (!shown.length) return <p className="text-sm text-muted-foreground">Aktuell keine neuen Meldungen.</p>;
+  return (
+    <ol className="space-y-2.5">
+      {shown.map((p) => (
+        <li key={p.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 text-sm">
+          <span className="pt-0.5 text-xs font-semibold tabular-nums text-muted-foreground">{time(p.created_at)}</span>
+          <span className="line-clamp-2 break-words font-medium leading-snug">{splitPost(p.body).title}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 

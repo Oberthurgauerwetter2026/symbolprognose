@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useHydrated } from '@tanstack/react-router';
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query';
-import { Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { getMorphCard, setMorphCard } from '@/lib/card-morph';
 import { describeHomeClick, rememberHomeAnchor, restoreHomePosition, takeHomeReturn, type HomeAnchor } from '@/lib/home-return';
@@ -11,11 +11,11 @@ import { WeatherReportView } from '@/components/weather-report-view';
 import { OverviewWeatherSymbol } from '@/components/overview-weather-symbol';
 import { OverviewHourlyForecast } from '@/components/overview-hourly-forecast';
 import { LocationSearch } from '@/components/location-search';
-import { TickerWidget } from '@/components/ticker/ticker-view';
+import { TickerTilePreview } from '@/components/ticker/ticker-view';
 import { LazyRegionMap } from '@/components/maps/lazy-maps';
 import { MapSkeleton } from '@/components/maps/map-skeleton';
 import { useIsDesktop } from '@/hooks/use-desktop';
-import { listTickerPosts } from '@/lib/ticker.functions';
+import { tickerQuery } from '@/lib/ticker-query';
 import { visiblePosts } from '@/lib/ticker';
 import { reverseGeocode } from '@/lib/weather';
 import { weatherReportQuery } from '@/lib/weather-report.functions';
@@ -29,8 +29,6 @@ import { RadarPreview, SatellitePreview, StationPreview, WarningPreview, WindPre
 
 const stationsQuery = () => queryOptions({ queryKey: ['overview-stations'], queryFn: () => getStationExtremes(), staleTime: 60000, refetchInterval: 120000 });
 const warningsQuery = () => queryOptions({ queryKey: ['overview-warnings'], queryFn: () => listWarnings(), staleTime: 30000, refetchInterval: 60000 });
-
-const tickerQuery = () => queryOptions({ queryKey: ['ticker'], queryFn: () => listTickerPosts(), refetchInterval: 60000, staleTime: 30000 });
 
 export const Route = createFileRoute('/')({
   loader: async ({ context }) => {
@@ -102,7 +100,6 @@ function WeatherOverview() {
   const hydrated = useHydrated();
   const loaded = Route.useLoaderData();
   const ticker = useQuery({ ...tickerQuery(), ...(loaded.ticker ? { initialData: loaded.ticker } : {}) });
-  const tickerWidget = ticker.data && <div className="weather-surface" style={{ '--accent': 'var(--tile-dark)', '--accent-strong': 'color-mix(in srgb, #ffffff 16%, var(--tile-dark))' } as CSSProperties}><TickerWidget posts={visiblePosts(ticker.data, Date.now())} /></div>;
   const tile = (path: string, extra = '') => `weather-product group${extra}${morph === path ? ' morph-card' : ''}`;
   const title = (text: string, hint: string) => <div className="p-3 sm:p-4"><h2 className="flex items-center justify-between gap-1 font-semibold">{text}<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-1 text-xs text-muted-foreground">{hint}</p></div>;
   const image = (preview: ReactNode) => <div className="weather-product-image">{preview}</div>;
@@ -122,6 +119,11 @@ function WeatherOverview() {
   const stationTile = <Link to="/karten/messwerte" viewTransition onClick={() => openCard('/karten/messwerte')} className={tile('/karten/messwerte')} aria-label="Live-Messwerte öffnen">
     {image(<StationPreview stations={stations} />)}
     {title('Live-Messwerte', 'Temperatur · Wind · Regen')}
+  </Link>;
+  const tickerPosts = ticker.data ? visiblePosts(ticker.data, Date.now()) : null;
+  const tickerTile = (extra = '') => <Link to="/ticker" viewTransition onClick={() => openCard('/ticker')} className={tile('/ticker', ` ticker-tile flex flex-col${extra}`)} aria-label="Wetter-Ticker öffnen">
+    <div className="flex-1 bg-(--overview-station) p-4">{tickerPosts ? <TickerTilePreview posts={tickerPosts} /> : <p className="text-sm text-muted-foreground">Der Ticker ist momentan nicht erreichbar.</p>}</div>
+    {title('Wetter-Ticker', tickerPosts?.length ? 'Neueste Meldungen' : 'Kurzmeldungen aus der Region')}
   </Link>;
   return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11 lg:hidden [&_svg]:size-7" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
     <div ref={rootRef} onClickCapture={event => rememberHomeAnchor(describeHomeClick(event.currentTarget, event.target))} className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8 lg:max-w-7xl">
@@ -148,20 +150,20 @@ function WeatherOverview() {
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">
         {radarTile(' flex flex-1 flex-col [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-44 [&_.weather-product-image]:flex-1')}
         <WeatherReportView {...report} />
-        {(!hydrated || desktop) && tickerWidget}
       </aside>
      </div>
 
       <section aria-label="Wetterprodukte" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:hidden">
-        {radarTile()}{windTile}{warnTile}{stationTile}
+        {radarTile()}{windTile}{warnTile}{stationTile}{tickerTile(' col-span-2')}
       </section>
-      <div className="lg:hidden"><WeatherReportView {...report} />{(!hydrated || !desktop) && tickerWidget && <div className="mt-6">{tickerWidget}</div>}</div>
+      <div className="lg:hidden"><WeatherReportView {...report} /></div>
 
-      <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-3 gap-4 [&>a>div:first-child]:aspect-[1.5]!">
+      <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-4 gap-4 [&>a:not(.ticker-tile)>div:first-child]:aspect-[1.5]!">
         {stationTile}{windTile}{warnTile}
         <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{image(<SatellitePreview />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>
         <Link to="/karten/niederschlag" viewTransition onClick={() => openCard('/karten/niederschlag')} className={tile('/karten/niederschlag')}>{image(desktop && <LivePreview src="/embed/niederschlag?clean=1" title="Niederschlagssummen" />)}{title('Regen & Schnee', 'Summen: gefallen und erwartet')}</Link>
         <Link to="/vertikalschnitt" viewTransition onClick={() => openCard('/vertikalschnitt')} className={tile('/vertikalschnitt')}>{iconPreview(<Snowflake />)}{title('SnowCast', 'Schneefallgrenze im Schnitt')}</Link>
+        {tickerTile(' col-span-2')}
       </div></section>
       <section className="py-6 lg:hidden"><h2 className="mb-4 text-lg font-semibold">Mehr Wetter</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/satellit"><span className="flex items-center gap-2"><Satellite />Satellit</span><ArrowUpRight /></Link></Button>

@@ -17,7 +17,7 @@ export function DashboardLayout({
 }) {
   // Pfad der eigenen Route, nicht des Navigationsziels: sonst kippt das Layout schon vor dem Seitenwechsel.
   const pathname = useMatch({ strict: false, select: (match) => match.pathname.replace(/(.)\/$/, "$1") });
-  if (pathname === "/" || pathname.startsWith("/karten/") || pathname === "/wetterbericht" || pathname === "/vertikalschnitt") {
+  if (pathname === "/" || pathname.startsWith("/karten/") || pathname === "/wetterbericht" || pathname === "/vertikalschnitt" || pathname === "/ticker") {
     return <PublicWeatherLayout home={pathname === "/"} headerAction={headerAction} {...(title ? { title } : {})}>{children}</PublicWeatherLayout>;
   }
   return (

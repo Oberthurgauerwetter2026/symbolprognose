@@ -94,7 +94,7 @@ export function SimpleProfile({ hour, marks }: { hour: SectionHour; marks: Mark[
     <text x={W - r + 4} y={y(z) + 4} fontSize={11} fontWeight={700} fill={color}>{text}</text>;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-lg bg-background" role="img" aria-label="Vertikalschnitt mit Temperatur, Wind, Nullgradgrenze und Schneefallgrenze" fontFamily="SF Pro Text, -apple-system, system-ui, sans-serif">
+    <svg viewBox={`0 0 ${W} ${H}`} className="weather-light w-full rounded-lg bg-background" role="img" aria-label="Vertikalschnitt mit Temperatur, Wind, Nullgradgrenze und Schneefallgrenze" fontFamily="SF Pro Text, -apple-system, system-ui, sans-serif">
       {cells.map((k, i) => <rect key={i} x={k.x0} y={k.y0} width={k.x1 - k.x0 + 0.5} height={k.y1 - k.y0 + 0.5} fill={k.c} />)}
       {ticks.map((z) => <g key={z}><line x1={l} x2={W - r} y1={y(z)} y2={y(z)} stroke="#0f172a" strokeOpacity={0.08} /><text x={l - 6} y={y(z) + 4} textAnchor="end" fontSize={11} fill="#475569">{fmt(z)} m</text></g>)}
       {isos.map(({ v, segs }) => segs.map((s, j) => <g key={`${v}-${j}`}>

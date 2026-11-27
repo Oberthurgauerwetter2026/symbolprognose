@@ -1,1 +1,1 @@
-- Home tiles, report preview and hourly strip use the dark `.weather-dark`/`.weather-product` token scope in styles.css; `.weather-surface` stays light, because detail pages share it.
+- Home tiles, report preview and hourly strip use the dark `.weather-dark`/`.weather-product` token scope in styles.css; opened detail pages use `.weather-detail` (brand blue, night-blue controls, white text) and reset `.leaflet-container`/`.weather-light` to light tokens, because map overlays and the embed-shared local forecast are built for light surfaces; `.weather-surface` stays light.

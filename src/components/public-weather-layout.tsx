@@ -31,6 +31,6 @@ export function PublicWeatherLayout({ title, home = false, headerAction, childre
         {home && headerAction && <div className="ml-auto shrink-0">{headerAction}</div>}
       </div>
     </header>
-    <main className={`min-w-0 overflow-x-clip bg-background${home ? '' : ' weather-surface morph-card min-h-[calc(100svh-4rem)]'}`}>{children}</main>
+    <main className={`min-w-0 overflow-x-clip bg-background${home ? '' : ' weather-detail morph-card min-h-[calc(100svh-4rem)]'}`}>{children}</main>
   </div>;
 }

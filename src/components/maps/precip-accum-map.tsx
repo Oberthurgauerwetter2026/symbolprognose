@@ -238,13 +238,13 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             {forecast ? <ChartNoAxesCombined className="size-3.5" /> : <History className="size-3.5" />}
             {forecast ? `+${hours} h Modell` : `${hours} h Rückblick`}
           </span>
-          <h2 className="text-base font-semibold tracking-tight text-zinc-900">
+          <h2 className="text-base font-semibold tracking-tight text-card-foreground">
             {forecast ? (mode === "snow" ? "Erwarteter Neuschnee" : "Erwarteter Niederschlag") : mode === "snow" ? "Gefallener Neuschnee" : "Gefallener Niederschlag"}
           </h2>
-          {forecast && endLabel && <span className="text-xs font-medium text-zinc-500">{endLabel}</span>}
+          {forecast && endLabel && <span className="text-xs font-medium text-muted-foreground">{endLabel}</span>}
         </div>
-        <p className="text-xs text-zinc-500 tabular-nums">
-          {accum.hasData ? <>Max <span className="font-semibold text-zinc-800">{accum.maxMm.toFixed(1)} {unit}</span> · {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}</> : "Mengen derzeit nicht verfügbar"}
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {accum.hasData ? <>Max <span className="font-semibold text-card-foreground/90">{accum.maxMm.toFixed(1)} {unit}</span> · {pctWet}% der Fläche ≥ {mode === "snow" ? "0.5 cm" : "1 mm"}</> : "Mengen derzeit nicht verfügbar"}
         </p>
       </div>}
       {!clean && mode === "snow" && (

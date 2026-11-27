@@ -1,3 +1,6 @@
+# Blue detail pages and ticker tile
+- [x] Opened detail pages use the website blue with night-blue controls and white text instead of a white page; the ticker is a tile among the product tiles (desktop and phone) and opens its own page. Checked at 1557 and 390 px: all eleven detail pages render without page errors, ticker tile opens /ticker and X returns to the same position, right column ends level with the region map, no overflow. Ticker seen only in standby (no post in 24 h); timeline strips under radar/wind/satellite and the local forecast sheet stay light.
+
 # Home: map, ticker, return position
 - [x] Phone home also shows the normal interactive region map and the ticker; desktop tile images use 1.5 so the warning map is fully visible; closing a tile (X) returns to the place it was opened. Checked at 1557 and 390 px: map and ticker visible, tile returns to the same position, direct open + X lands at top, no overflow; 4 tests pass. Not checked on a physical phone.
 

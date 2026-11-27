@@ -10,6 +10,7 @@ describe('main weather app opens on home', () => {
   it('returns installed public product views home on reopening', () => {
     expect(shouldResumeOnHome(true, '/karten/lokal')).toBe(true);
     expect(shouldResumeOnHome(true, '/karten/radar')).toBe(true);
+    expect(shouldResumeOnHome(true, '/ticker')).toBe(true);
   });
   it('preserves normal browser navigation, embeds and separate admin/warning apps', () => {
     expect(shouldResumeOnHome(false, '/karten/lokal')).toBe(false);

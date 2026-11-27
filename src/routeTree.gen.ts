@@ -16,6 +16,7 @@ import { Route as AdminWarnungenRouteImport } from './routes/admin-warnungen'
 import { Route as EmbedInfoRouteImport } from './routes/embed-info'
 import { Route as FotoEinsendenRouteImport } from './routes/foto-einsenden'
 import { Route as KarteRouteImport } from './routes/karte'
+import { Route as TickerRouteImport } from './routes/ticker'
 import { Route as VertikalschnittRouteImport } from './routes/vertikalschnitt'
 import { Route as WarnkarteRouteImport } from './routes/warnkarte'
 import { Route as WetterberichtRouteImport } from './routes/wetterbericht'
@@ -95,6 +96,11 @@ const FotoEinsendenRoute = FotoEinsendenRouteImport.update({
 const KarteRoute = KarteRouteImport.update({
   id: '/karte',
   path: '/karte',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TickerRoute = TickerRouteImport.update({
+  id: '/ticker',
+  path: '/ticker',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VertikalschnittRoute = VertikalschnittRouteImport.update({
@@ -341,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/embed-info': typeof EmbedInfoRoute
   '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
+  '/ticker': typeof TickerRoute
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/wetterbericht': typeof WetterberichtRoute
@@ -395,6 +402,7 @@ export interface FileRoutesByTo {
   '/embed-info': typeof EmbedInfoRoute
   '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
+  '/ticker': typeof TickerRoute
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/wetterbericht': typeof WetterberichtRoute
@@ -450,6 +458,7 @@ export interface FileRoutesById {
   '/embed-info': typeof EmbedInfoRoute
   '/foto-einsenden': typeof FotoEinsendenRoute
   '/karte': typeof KarteRoute
+  '/ticker': typeof TickerRoute
   '/vertikalschnitt': typeof VertikalschnittRoute
   '/warnkarte': typeof WarnkarteRoute
   '/wetterbericht': typeof WetterberichtRoute
@@ -506,6 +515,7 @@ export interface FileRouteTypes {
     | '/embed-info'
     | '/foto-einsenden'
     | '/karte'
+    | '/ticker'
     | '/vertikalschnitt'
     | '/warnkarte'
     | '/wetterbericht'
@@ -560,6 +570,7 @@ export interface FileRouteTypes {
     | '/embed-info'
     | '/foto-einsenden'
     | '/karte'
+    | '/ticker'
     | '/vertikalschnitt'
     | '/warnkarte'
     | '/wetterbericht'
@@ -614,6 +625,7 @@ export interface FileRouteTypes {
     | '/embed-info'
     | '/foto-einsenden'
     | '/karte'
+    | '/ticker'
     | '/vertikalschnitt'
     | '/warnkarte'
     | '/wetterbericht'
@@ -669,6 +681,7 @@ export interface RootRouteChildren {
   EmbedInfoRoute: typeof EmbedInfoRoute
   FotoEinsendenRoute: typeof FotoEinsendenRoute
   KarteRoute: typeof KarteRoute
+  TickerRoute: typeof TickerRoute
   VertikalschnittRoute: typeof VertikalschnittRoute
   WarnkarteRoute: typeof WarnkarteRoute
   WetterberichtRoute: typeof WetterberichtRoute
@@ -765,6 +778,13 @@ declare module '@tanstack/react-router' {
       path: '/karte'
       fullPath: '/karte'
       preLoaderRoute: typeof KarteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ticker': {
+      id: '/ticker'
+      path: '/ticker'
+      fullPath: '/ticker'
+      preLoaderRoute: typeof TickerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vertikalschnitt': {
@@ -1093,6 +1113,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmbedInfoRoute: EmbedInfoRoute,
   FotoEinsendenRoute: FotoEinsendenRoute,
   KarteRoute: KarteRoute,
+  TickerRoute: TickerRoute,
   VertikalschnittRoute: VertikalschnittRoute,
   WarnkarteRoute: WarnkarteRoute,
   WetterberichtRoute: WetterberichtRoute,
