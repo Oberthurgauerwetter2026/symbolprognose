@@ -1,4 +1,5 @@
 # Project rules
+- Public home header actions are passed from the route through the layout, so location search keeps its existing state without global events.
 - Home weather symbols reuse the local forecast query and icon set for the current hour in the forecast timezone, not radar/satellite inference; unavailable hours remain unavailable. Location starts with fresh geolocation, never a saved place presented as GPS.
 - Tile arrangement drafts are isolated in a local-only planning screen with independently validated phone/desktop layouts; never apply them to public pages or embeds implicitly, so planning cannot alter the existing website.
 - Public weather pages share a focused header with a direct home link and no sidebar/product tabs; station selections reuse the existing regional station map and query cache to keep navigation lightweight.

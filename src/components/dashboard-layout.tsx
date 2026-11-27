@@ -7,16 +7,18 @@ import { PublicWeatherLayout } from "@/components/public-weather-layout";
 export function DashboardLayout({
   title,
   subtitle,
+  headerAction,
   children,
 }: {
   title?: string;
   subtitle?: string;
+  headerAction?: ReactNode;
   children: ReactNode;
 }) {
   // Pfad der eigenen Route, nicht des Navigationsziels: sonst kippt das Layout schon vor dem Seitenwechsel.
   const pathname = useMatch({ strict: false, select: (match) => match.pathname.replace(/(.)\/$/, "$1") });
   if (pathname === "/" || pathname.startsWith("/karten/") || pathname === "/wetterbericht" || pathname === "/vertikalschnitt") {
-    return <PublicWeatherLayout home={pathname === "/"} {...(title ? { title } : {})}>{children}</PublicWeatherLayout>;
+    return <PublicWeatherLayout home={pathname === "/"} headerAction={headerAction} {...(title ? { title } : {})}>{children}</PublicWeatherLayout>;
   }
   return (
     <SidebarProvider>
