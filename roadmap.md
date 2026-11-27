@@ -1,3 +1,6 @@
+# Separate desktop home
+- [x] Desktop (lg+) home: region symbol map left, raised radar + report preview + ticker right, six product tiles below; phone layout unchanged. Checked at 1557/1100/390 px: map and markers render, radar opens and closes home, no overflow; phone loads no map or ticker. Ticker seen only in standby (no post in 24 h).
+
 # Radar point outlook
 - [x] Add native-pixel dry-area fallback only for absent nowcasts (100 km/h approach plus image age, bounded by image edges). 18 tests pass; real Amriswil shows «Voraussichtlich 30 Min. trocken» at 1557/390 px, no overflow or browser errors, preview build OK; embeds unchanged.
 - [x] Show dry / rain / sleet / snow and approximate arrival minutes below the home symbol using native radar nowcast frames; nine tests pass. Real Amriswil input checked on desktop/phone: current data provide only the measurement, so the UI correctly reports unavailable; no false dry claim, no overflow or browser errors.

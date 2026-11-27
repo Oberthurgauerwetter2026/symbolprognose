@@ -1,11 +1,11 @@
 # Project rules
-- Home outlook samples radar PNGs with tested 30/60-min coverage or rigid-motion fallback with target phase. Only absent nowcasts permit a native-pixel dry-radius fallback (100 km/h plus frame age, bounded by image edges); missing/stale images never imply dryness. New showers remain possible.
+- Home outlook samples radar PNGs with tested 30/60-min coverage or rigid-motion fallback with target phase. Only absent nowcasts permit a native-pixel dry-radius fallback (100 km/h plus frame age, image-bounded); missing/stale images never imply dryness.
 - Home hourly previews share the current symbol's forecast cache and timezone; only future hours within eight hours appear. Main-app launch uses manifest home; standalone resume returns public product views home, leaving embeds/admin and the separate warning app unchanged.
-- Public home header actions are passed from the route through the layout, so location search keeps its existing state without global events.
+- Public home header actions pass from the route through the layout, so location search keeps its state without global events.
 - Home weather symbols reuse the local forecast query and icon set for the current hour in the forecast timezone, not radar/satellite inference; unavailable hours remain unavailable. Location starts with fresh geolocation, never a saved place presented as GPS.
-- Tile arrangement drafts are isolated in a local-only planning screen with independently validated phone/desktop layouts; never apply them to public pages or embeds implicitly, so planning cannot alter the existing website.
+- Tile arrangement drafts are isolated in a local-only planning screen with phone/desktop layouts; never apply them to public pages or embeds implicitly, so planning cannot alter the existing website.
 - Public weather pages share a focused header with a direct home link and no sidebar/product tabs; station selections reuse the existing regional station map and query cache to keep navigation lightweight.
-- The public home uses static product preview assets rather than live map iframes; animations load only on their dedicated pages to avoid mobile memory pressure.
+- The public home uses static product preview assets rather than live map iframes; animations load only on their dedicated pages to avoid mobile memory pressure. Phone/desktop (lg) home layouts are separate; only desktop mounts the region map and ticker, client-side.
 - Weather reports use one current published row, public RLS-scoped reads and existing server-validated admin password writes; local editor drafts contain text only, never credentials.
 - Keep thunder on/off in a separate job_runs row; the shared runner checks it so cron cannot overwrite it.
 - Accumulation maps use explicit per-render phase palettes (no shared mutable palette); recent sums refresh through a deduplicated cache with request-managed background lifetime and a one-hour stale limit, because concurrent embeds must not leak modes or abandon updates.
