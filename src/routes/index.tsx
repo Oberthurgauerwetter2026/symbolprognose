@@ -8,6 +8,7 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { WeatherReportView } from '@/components/weather-report-view';
 import { OverviewWeatherSymbol } from '@/components/overview-weather-symbol';
+import { OverviewHourlyForecast } from '@/components/overview-hourly-forecast';
 import { LocationSearch } from '@/components/location-search';
 import { reverseGeocode } from '@/lib/weather';
 import { weatherReportQuery } from '@/lib/weather-report.functions';
@@ -91,7 +92,7 @@ function WeatherOverview() {
             {locationError && <p role="status" className="mt-2 text-xs text-destructive">{locationError}</p>}
           </div>
         </div>
-        {location && <Button asChild variant="link" className="mt-3 h-auto px-0 text-accent"><Link to="/karten/lokal" search={{ lat: location.lat, lon: location.lon, name: location.name }}>Prognose für {location.name}<ArrowUpRight /></Link></Button>}
+        <OverviewHourlyForecast location={location} onOpen={() => openCard('/karten/lokal')} morph={morph === '/karten/lokal'} />
       </section>
 
       <section aria-label="Wetterprodukte" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

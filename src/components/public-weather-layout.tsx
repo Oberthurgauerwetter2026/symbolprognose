@@ -1,10 +1,25 @@
-import type { ReactNode } from 'react';
-import { Link } from '@tanstack/react-router';
+import { useEffect, type ReactNode } from 'react';
+import { Link, useRouter } from '@tanstack/react-router';
+import { shouldResumeOnHome } from '@/lib/app-home';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logoAsset from '@/assets/wetter-logo-symbol.png.asset.json';
 
 export function PublicWeatherLayout({ title, home = false, headerAction, children }: { title?: string; home?: boolean; headerAction?: ReactNode; children: ReactNode }) {
+  const router = useRouter();
+  useEffect(() => {
+    let hidden = document.visibilityState === 'hidden';
+    const resume = () => {
+      if (document.visibilityState === 'hidden') { hidden = true; return; }
+      const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+      if (hidden && shouldResumeOnHome(standalone, router.state.location.pathname)) {
+        void router.navigate({ to: '/', replace: true });
+      }
+      hidden = false;
+    };
+    document.addEventListener('visibilitychange', resume);
+    return () => document.removeEventListener('visibilitychange', resume);
+  }, [router]);
   return <div className="weather-blue min-h-svh bg-background">
     <header className="morph-header sticky top-0 z-[600] border-b border-border bg-background">
       <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-3 px-4 py-2 sm:px-8">

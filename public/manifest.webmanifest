@@ -2,7 +2,7 @@
   "name": "Oberthurgauer Wetter",
   "short_name": "OT Wetter",
   "description": "Wetterboard Oberthurgau: Warnungen, Regions- und Lokalprognose, Wind, Radar und Satellit.",
-  "start_url": "/karten/warnungen",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f4f4f5",

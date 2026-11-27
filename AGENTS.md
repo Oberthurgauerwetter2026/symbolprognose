@@ -1,4 +1,5 @@
 # Project rules
+- Home hourly previews share the current symbol's forecast cache and timezone; only future hours within eight hours appear. Main-app launch uses manifest home; standalone resume returns public product views home, leaving embeds/admin and the separate warning app unchanged.
 - Public home header actions are passed from the route through the layout, so location search keeps its existing state without global events.
 - Home weather symbols reuse the local forecast query and icon set for the current hour in the forecast timezone, not radar/satellite inference; unavailable hours remain unavailable. Location starts with fresh geolocation, never a saved place presented as GPS.
 - Tile arrangement drafts are isolated in a local-only planning screen with independently validated phone/desktop layouts; never apply them to public pages or embeds implicitly, so planning cannot alter the existing website.

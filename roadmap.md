@@ -1,3 +1,8 @@
+# Local hourly overview and app launch
+- [x] Show upcoming local forecast hours below the temperature and open the same place's full symbol forecast with X home return.
+- [x] Start the main installed weather app on home and return home when reopened; preserve browser deep links, admin and existing embeds. Manifest identity retained for existing installations.
+- [x] Verify real Horn/Amriswil forecasts, place selection and detail/X navigation at desktop/390 px without overflow or page errors; seven tests pass, build OK. Standalone visibility/resume tested through browser simulation, not a physically installed phone app; publication remains separate.
+
 # Tile arrangement planning mask
 - [x] Add a separate visual planning mask at /admin/anordnung with independent phone/desktop layouts, ordering, widths, visibility, local saving and JSON draft exchange; three tests pass, real move/resize/hide/save/reload/export/import and home return verified at 1557/390/320 px without browser errors or overflow. Public home and existing embeds unchanged; drafts are device-local, not published.
 
