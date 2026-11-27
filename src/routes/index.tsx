@@ -1,12 +1,15 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { getMorphCard, setMorphCard } from '@/lib/card-morph';
-import { ArrowUpRight, LocateFixed, MapPin, Thermometer, Wind, Droplets, Play, ShieldCheck, TriangleAlert, Satellite, Snowflake } from 'lucide-react';
+import { ArrowUpRight, LocateFixed, MapPin, Search, Thermometer, Wind, Droplets, Play, ShieldCheck, TriangleAlert, Satellite, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { WeatherReportView } from '@/components/weather-report-view';
+import { OverviewWeatherSymbol } from '@/components/overview-weather-symbol';
+import { LocationSearch } from '@/components/location-search';
+import { reverseGeocode } from '@/lib/weather';
 import { weatherReportQuery } from '@/lib/weather-report.functions';
 import { getStationExtremes } from '@/lib/station-extremes.functions';
 import { nearestLiveStation } from '@/lib/weather-overview';
@@ -42,52 +45,50 @@ function WeatherOverview() {
   const { data: stations } = useSuspenseQuery(stationsQuery());
   const { data: warnings } = useSuspenseQuery(warningsQuery());
   const { data: report } = useSuspenseQuery(weatherReportQuery());
-  const [location, setLocation] = useState({ name: 'Amriswil', lat: 47.5428, lon: 9.2871 });
+  const [location, setLocation] = useState<{ name: string; lat: number; lon: number } | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const locationRequest = useRef(0);
   const [morph, setMorph] = useState<string | null>(() => getMorphCard());
   const openCard = (path: string) => { setMorphCard(path); flushSync(() => setMorph(path)); };
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
-  const nearest = nearestLiveStation(stations, location.lat, location.lon);
+  const nearest = location ? nearestLiveStation(stations, location.lat, location.lon) : null;
   const station = nearest?.station;
   function locate() {
+    const request = ++locationRequest.current;
     setLocationError('');
     if (!navigator.geolocation) { setLocationError('Standort nicht verfügbar. Bitte einen Ort wählen.'); return; }
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(p => {
-      const next = { name: 'Mein Standort', lat: p.coords.latitude, lon: p.coords.longitude };
+    navigator.geolocation.getCurrentPosition(async p => {
+      if (request !== locationRequest.current) return;
+      const next = { name: 'Aktueller Standort', lat: p.coords.latitude, lon: p.coords.longitude };
       setLocation(next); setLocating(false);
-      try { localStorage.setItem('owt-overview-location', JSON.stringify(next)); } catch { /* optional */ }
-    }, () => { setLocating(false); setLocationError('Standort nicht freigegeben. Bitte einen Ort wählen.'); }, { timeout: 10000, maximumAge: 300000 });
+      const name = await reverseGeocode(next.lat, next.lon);
+      if (request === locationRequest.current) setLocation({ ...next, name });
+    }, () => { if (request !== locationRequest.current) return; setLocating(false); setLocationError('Standort nicht freigegeben. Bitte einen Ort suchen.'); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
   }
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has('embed')) { window.location.replace(`/embed/lokal${window.location.search}`); return; }
-    try {
-      const saved = JSON.parse(localStorage.getItem('owt-overview-location') ?? 'null');
-      if (saved && typeof saved.name === 'string' && Number.isFinite(saved.lat) && Number.isFinite(saved.lon)) setLocation(saved);
-    } catch { /* default regional place */ }
-    navigator.permissions?.query({ name: 'geolocation' }).then(p => { if (p.state === 'granted') locate(); }).catch(() => {});
+    locate();
+    return () => { locationRequest.current++; };
   }, []);
   const warningCount = warnings.warnings.length;
   return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region">
     <div className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8">
       <section aria-label="Wetter an deinem Ort" className="pb-6 sm:pb-8">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-          <div className="min-w-0"><h1 className="font-display text-3xl font-semibold text-accent sm:text-4xl">Oberthurgauer Wetter</h1><p className="mt-2 text-sm text-muted-foreground">Wetter für deine Region</p></div>
-          <Thermometer className="mt-2 size-7 shrink-0 text-accent" />
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2"><MapPin className="size-4 shrink-0" /><h1 className="min-w-0 break-words font-display text-2xl font-semibold sm:text-4xl">{location?.name ?? (locating ? 'Standort wird ermittelt …' : 'Ort wählen')}</h1></div>
+            <div className="mt-2 flex gap-2"><Button size="icon" variant="ghost" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button><Button size="icon" variant="ghost" title="Meinen Standort verwenden" aria-label="Meinen Standort verwenden" disabled={locating} onClick={locate}><LocateFixed className={locating ? 'animate-pulse' : ''} /></Button></div>
+          </div>
+          <OverviewWeatherSymbol location={location} />
         </div>
+        {searchOpen && <div className="weather-surface relative z-30 mt-3 rounded-md bg-card p-3"><LocationSearch onSelect={place => { locationRequest.current++; setLocation({ name: place.name, lat: place.latitude, lon: place.longitude }); setLocating(false); setLocationError(''); setSearchOpen(false); }} /><div className="mt-3 flex flex-wrap gap-1">{SPOTS.map(spot => <Button key={spot.id} size="sm" variant="ghost" onClick={() => { locationRequest.current++; setLocation({ name: spot.name, lat: spot.lat, lon: spot.lon }); setLocating(false); setLocationError(''); setSearchOpen(false); }}>{spot.name}</Button>)}</div></div>}
         <div className="mt-5 grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <div className="min-w-0">
-            <div className="flex items-center gap-2"><MapPin className="size-4 shrink-0 text-accent" /><label className="sr-only" htmlFor="overview-place">Ort wählen</label><select id="overview-place" aria-label="Ort wählen" value={location.name} onChange={e => {
-              const spot = SPOTS.find(s => s.name === e.target.value);
-              if (!spot) return;
-              const next = { name: spot.name, lat: spot.lat, lon: spot.lon }; setLocation(next);
-              try { localStorage.setItem('owt-overview-location', JSON.stringify(next)); } catch { /* optional */ }
-            }} className="weather-surface min-w-0 max-w-full rounded-md border border-border bg-card px-2 py-2 text-base font-medium">
-              {!SPOTS.some(s => s.name === location.name) && <option>{location.name}</option>}{SPOTS.map(s => <option key={s.id}>{s.name}</option>)}
-            </select><Button size="icon" variant="outline" className="weather-surface" title="Meinen Standort verwenden" aria-label="Meinen Standort verwenden" disabled={locating} onClick={locate}><LocateFixed className={locating ? 'animate-pulse' : ''} /></Button></div>
             <div className="mt-3 flex items-baseline gap-3"><span className="font-display text-6xl font-semibold tabular-nums">{station?.current != null ? `${station.current.toFixed(1)}°` : '—'}</span><span className="text-sm text-muted-foreground">Aktuelle Temperatur</span></div>
-            <p className="mt-2 text-xs text-muted-foreground">{station ? `Messstation ${station.name} · ${nearest.distance.toFixed(1)} km entfernt` : 'Momentan keine aktuelle Messung verfügbar.'}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{station && nearest ? `Messstation ${station.name} · ${nearest.distance.toFixed(1)} km entfernt` : 'Momentan keine aktuelle Messung verfügbar.'}</p>
             {locationError && <p role="status" className="mt-2 text-xs text-destructive">{locationError}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4 border-t border-border pt-4 sm:border-t-0 sm:pt-0">
@@ -95,7 +96,7 @@ function WeatherOverview() {
             <div><p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Droplets className="size-4" />Regen heute</p><p className="mt-1 text-xl font-semibold tabular-nums">{station?.rain != null ? station.rain.toFixed(1) : '—'} <span className="text-xs font-normal">mm</span></p></div>
           </div>
         </div>
-        <Button asChild variant="link" className="mt-3 h-auto px-0 text-accent"><Link to="/karten/lokal" search={{ lat: location.lat, lon: location.lon, name: location.name }}>Prognose für {location.name}<ArrowUpRight /></Link></Button>
+        {location && <Button asChild variant="link" className="mt-3 h-auto px-0 text-accent"><Link to="/karten/lokal" search={{ lat: location.lat, lon: location.lon, name: location.name }}>Prognose für {location.name}<ArrowUpRight /></Link></Button>}
       </section>
 
       <section aria-label="Wetterprodukte" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

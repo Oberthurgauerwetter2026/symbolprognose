@@ -8,7 +8,7 @@ export function PublicWeatherLayout({ title, home = false, children }: { title?:
   return <div className="weather-blue min-h-svh bg-background">
     <header className="morph-header sticky top-0 z-[600] border-b border-border bg-background">
       <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-3 px-4 py-2 sm:px-8">
-        {home ? <><img src={logoAsset.url} alt="Oberthurgauer Wetter Logo" width={300} height={180} className="h-auto w-24 shrink-0 sm:w-32" /><div className="min-w-0"><p className="font-display text-lg font-semibold">Oberthurgauer Wetter</p><p className="text-xs text-muted-foreground">Wetter für deine Region</p></div></> : <>
+        {home ? <><img src={logoAsset.url} alt="Oberthurgauer Wetter Logo" width={300} height={180} className="h-auto w-32 shrink-0 sm:w-40" /><p className="min-w-0 text-sm text-muted-foreground">Wetter für deine Region</p></> : <>
           <div className="min-w-0 flex-1"><p className="text-[11px] font-medium text-muted-foreground">Oberthurgauer Wetter</p><h1 className="break-words font-display text-base font-semibold leading-tight sm:text-lg">{title}</h1></div>
           <Button asChild variant="ghost" size="icon" className="size-11 shrink-0 rounded-full border border-border text-foreground hover:bg-foreground/15 hover:text-foreground"><Link to="/" viewTransition aria-label="Schliessen und zur Wetterübersicht" title="Schliessen"><X className="size-6" /></Link></Button>
         </>}
