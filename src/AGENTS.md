@@ -1,0 +1,1 @@
+- Home tiles, report preview and hourly strip use the dark `.weather-dark`/`.weather-product` token scope in styles.css; `.weather-surface` stays light, because detail pages share it.
