@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pointOutlook, pointPhase, type PointSample } from './point-nowcast';
+import { pointOutlook, pointPhase, radarDryRadiusKm, regionalDryOutlook, type PointSample } from './point-nowcast';
 const now = Date.parse('2026-11-27T22:05:00Z');
 const minute = 60_000;
 const dry = (): PointSample[] => Array.from({ length: 13 }, (_, i) => ({ t: now + i * 5 * minute, phase: 'dry' }));
@@ -31,5 +31,40 @@ describe('point radar outlook', () => {
   });
   it('uses the same categorical phase codes as radar', () => {
     expect([0, 245, 230, 215, 200].map(pointPhase)).toEqual(['dry', 'rain', 'sleet', 'snow', 'freezing-rain']);
+  });
+});
+
+describe('measured large-area dry fallback', () => {
+  const bbox = { minLat: 46, maxLat: 50, minLon: 6, maxLon: 12 };
+  const location = { lat: 48, lon: 9 };
+  const width = 121;
+  const height = 81;
+  const image = () => new Uint8ClampedArray(width * height * 4);
+  it('offers 60 minutes from a fully covered dry measured image without a motion vector', () => {
+    const radius = radarDryRadiusKm(image(), width, height, bbox, location);
+    expect(regionalDryOutlook(radius, now - 10 * minute, now)).toEqual({ phase: 'dry', minutes: 0, horizon: 60 });
+  });
+  it('offers 30 minutes when 60 minutes cannot be covered', () => {
+    expect(regionalDryOutlook(80, now, now)).toEqual({ phase: 'dry', minutes: 0, horizon: 30 });
+  });
+  it('consumes dry distance for the observation age', () => {
+    expect(regionalDryOutlook(100, now - 10 * minute, now)?.horizon).toBe(30);
+    expect(regionalDryOutlook(60, now - 10 * minute, now)).toBeNull();
+  });
+  it.each([200, 215, 230, 245])('rejects nearby precipitation of any phase (%s)', alpha => {
+    const rgba = image();
+    rgba[(40 * width + 61) * 4 + 3] = alpha;
+    expect(regionalDryOutlook(radarDryRadiusKm(rgba, width, height, bbox, location), now, now)).toBeNull();
+  });
+  it('limits dry coverage at image edges', () => {
+    expect(regionalDryOutlook(radarDryRadiusKm(image(), width, height, bbox, { lat: 46.1, lon: 9 }), now, now)).toBeNull();
+  });
+  it('rejects missing, stale, future and invalid observations', () => {
+    expect(regionalDryOutlook(null, now, now)).toBeNull();
+    expect(regionalDryOutlook(200, now - 21 * minute, now)).toBeNull();
+    expect(regionalDryOutlook(200, now + minute, now)).toBeNull();
+    expect(regionalDryOutlook(NaN, now, now)).toBeNull();
+    expect(radarDryRadiusKm(new Uint8ClampedArray(0), width, height, bbox, location)).toBeNull();
+    expect(radarDryRadiusKm(image(), width, height, bbox, { lat: 51, lon: 9 })).toBeNull();
   });
 });

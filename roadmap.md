@@ -1,6 +1,7 @@
 # Radar point outlook
+- [x] Add native-pixel dry-area fallback only for absent nowcasts (100 km/h approach plus image age, bounded by image edges). 18 tests pass; real Amriswil shows «Voraussichtlich 30 Min. trocken» at 1557/390 px, no overflow or browser errors, preview build OK; embeds unchanged.
 - [x] Show dry / rain / sleet / snow and approximate arrival minutes below the home symbol using native radar nowcast frames; nine tests pass. Real Amriswil input checked on desktop/phone: current data provide only the measurement, so the UI correctly reports unavailable; no false dry claim, no overflow or browser errors.
-- [ ] Verify a live dry/arrival result: awaiting a current complete radar-nowcast generation (or valid motion plus target phase); current live data do not supply it. Rain/sleet/snow arrivals are covered by tests, not verified during a real precipitation event.
+- [ ] Verify live precipitation arrival: waiting for a real precipitation event with complete nowcast data; rain/sleet/snow arrival minutes are tested. Live dry fallback is verified above.
 
 # Compact location and precipitation outlook
 - [x] Group location and temperature with a small gap; show local rain/snow/dry outlook below the current symbol without loading radar frames or changing embeds.

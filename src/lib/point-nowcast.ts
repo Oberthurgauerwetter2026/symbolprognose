@@ -7,6 +7,7 @@ export type PointRadarData = {
   bbox: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   frames: PointRadarFrame[];
   phaseUrl?: string;
+  measurementUrl?: string;
 };
 const MINUTE = 60_000;
 
@@ -43,4 +44,41 @@ export function pointOutlookLabel(outlook: PointOutlook | null): string {
   if (outlook.phase === 'dry') return `Voraussichtlich ${outlook.horizon} Min. trocken`;
   const names = { rain: 'Regen', sleet: 'Schneeregen', snow: 'Schnee', 'freezing-rain': 'Gefrierender Regen' };
   return outlook.minutes === 0 ? `${names[outlook.phase]} aktuell` : `${names[outlook.phase]} in ca. ${outlook.minutes} Min.`;
+}
+
+/** Conservative distance to precipitation OR the image edge; inspect every native pixel. */
+export function radarDryRadiusKm(rgba: Uint8ClampedArray, width: number, height: number, bbox: PointRadarData['bbox'], location: { lat: number; lon: number }): number | null {
+  if (width < 2 || height < 2 || rgba.length !== width * height * 4 ||
+    ![location.lat, location.lon, bbox.minLat, bbox.maxLat, bbox.minLon, bbox.maxLon].every(Number.isFinite) ||
+    bbox.maxLat <= bbox.minLat || bbox.maxLon <= bbox.minLon ||
+    location.lat <= bbox.minLat || location.lat >= bbox.maxLat || location.lon <= bbox.minLon || location.lon >= bbox.maxLon) return null;
+  const latKm = 111.32;
+  const lonKm = latKm * Math.cos(Math.max(Math.abs(bbox.minLat), Math.abs(bbox.maxLat)) * Math.PI / 180);
+  if (lonKm <= 0) return null;
+  let radius = Math.min((location.lat - bbox.minLat) * latKm, (bbox.maxLat - location.lat) * latKm,
+    (location.lon - bbox.minLon) * lonKm, (bbox.maxLon - location.lon) * lonKm);
+  const dx = (bbox.maxLon - bbox.minLon) * lonKm / (width - 1);
+  const dy = (bbox.maxLat - bbox.minLat) * latKm / (height - 1);
+  const pixelMargin = Math.hypot(dx, dy) / 2;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const alpha = rgba[(y * width + x) * 4 + 3];
+      if (alpha === undefined) return null;
+      if (alpha === 0) continue;
+      const east = (bbox.minLon - location.lon) * lonKm + x * dx;
+      const north = (bbox.maxLat - location.lat) * latKm - y * dy;
+      radius = Math.min(radius, Math.max(0, Math.hypot(east, north) - pixelMargin));
+    }
+  }
+  return Math.max(0, radius - pixelMargin);
+}
+
+/** Dry fallback only for absent nowcasts; allow 100 km/h approach, including observation age. */
+export function regionalDryOutlook(radiusKm: number | null, sourceT: number, now: number): PointOutlook | null {
+  if (radiusKm === null || !Number.isFinite(radiusKm) || !Number.isFinite(sourceT) || !Number.isFinite(now) || sourceT > now || now - sourceT > 20 * MINUTE) return null;
+  const ageMinutes = (now - sourceT) / MINUTE;
+  for (const horizon of [60, 30]) {
+    if (radiusKm >= (horizon + ageMinutes) * 100 / 60) return { phase: 'dry', minutes: 0, horizon };
+  }
+  return null;
 }

@@ -1,5 +1,5 @@
 # Project rules
-- Home precipitation outlook samples radar PNGs at the chosen point with tested 30/60-minute coverage; absent advected generations may use the map's rigid-motion fallback with stationary target phase, but missing/stale frames stay unavailable, because hourly models and regional maxima cannot establish point arrival or dryness.
+- Home outlook samples radar PNGs with tested 30/60-min coverage or rigid-motion fallback with target phase. Only absent nowcasts permit a native-pixel dry-radius fallback (100 km/h plus frame age, bounded by image edges); missing/stale images never imply dryness. New showers remain possible.
 - Home hourly previews share the current symbol's forecast cache and timezone; only future hours within eight hours appear. Main-app launch uses manifest home; standalone resume returns public product views home, leaving embeds/admin and the separate warning app unchanged.
 - Public home header actions are passed from the route through the layout, so location search keeps its existing state without global events.
 - Home weather symbols reuse the local forecast query and icon set for the current hour in the forecast timezone, not radar/satellite inference; unavailable hours remain unavailable. Location starts with fresh geolocation, never a saved place presented as GPS.
