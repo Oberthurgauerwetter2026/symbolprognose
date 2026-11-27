@@ -1,3 +1,5 @@
 - Ticker videos reuse the image path columns (detected by extension) and upload via signed URLs, since 50 MB cannot pass server functions.
 - SnowCast fetches Open-Meteo in the browser (ICON-D2 levels split in two requests, ICON-CH1 surface): CH1/CH2 lack pressure levels and worker IPs get throttled; snow-line physics stays pure/tested in snowcast.ts.
 - X on a detail page returns home to the tapped link's viewport position (home-return.ts, anchor-based); resume and direct opens land at the top, because late content shifts pixel offsets.
+- Large R2 forecast JSON fetches (openmeteo-cache.server.ts) share one in-flight download per URL in dev only, because the single dev process ran out of memory parsing them per concurrent request; published requests never share promises across requests.
+- Home ticker posts travel as route loader data into the query's initialData (failure → null), because the query cache is not transferred to the browser and a client-only ticker left the first delivery empty; the region map frame and skeleton always render.

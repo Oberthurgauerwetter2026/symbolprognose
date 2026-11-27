@@ -128,7 +128,23 @@ function r2BaseUrl(): string | null {
   }
 }
 
-async function fetchCacheUrl(url: string): Promise<OpenMeteoCachePayload | null> {
+/**
+ * Im Entwicklungsserver bedient EIN Prozess alle Anfragen: ohne Bündelung lädt
+ * und zerlegt jede gleichzeitige Anfrage die bis zu 28 MB grossen Dateien
+ * selbst, bis der Speicher voll ist. Veröffentlicht bleibt jeder Abruf an
+ * seine eigene Anfrage gebunden (Promises nicht über Anfragen hinweg teilen).
+ */
+const inFlight = new Map<string, Promise<OpenMeteoCachePayload | null>>();
+function fetchCacheUrl(url: string): Promise<OpenMeteoCachePayload | null> {
+  if (!import.meta.env.DEV) return loadCacheUrl(url);
+  const running = inFlight.get(url);
+  if (running) return running;
+  const next = loadCacheUrl(url).finally(() => inFlight.delete(url));
+  inFlight.set(url, next);
+  return next;
+}
+
+async function loadCacheUrl(url: string): Promise<OpenMeteoCachePayload | null> {
   try {
     const res = await fetch(url, {
       cf: { cacheTtl: 30, cacheEverything: true } as unknown as undefined,
