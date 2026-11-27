@@ -21,7 +21,7 @@ export function PublicWeatherLayout({ title, home = false, headerAction, childre
     return () => document.removeEventListener('visibilitychange', resume);
   }, [router]);
   return <div className="weather-blue min-h-svh bg-background">
-    <header className="morph-header sticky top-0 z-[600] border-b border-border bg-background">
+    <header className="morph-header sticky top-0 z-[600] bg-background">
       <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-3 px-4 py-2 sm:px-8">
         {home ? <><img src={logoAsset.url} alt="Oberthurgauer Wetter Logo" width={122} height={105} className="h-auto w-12 shrink-0 sm:w-16" /><div className="min-w-0"><p className="break-words font-display text-base font-semibold leading-tight sm:text-xl">Oberthurgauer Wetter</p><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Wetter für deine Region</p></div></> : <>
           <div className="min-w-0 flex-1"><p className="text-[11px] font-medium text-muted-foreground">Oberthurgauer Wetter</p><h1 className="break-words font-display text-base font-semibold leading-tight sm:text-lg">{title}</h1></div>
