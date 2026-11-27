@@ -74,7 +74,7 @@ function WeatherOverview() {
     return () => { locationRequest.current++; };
   }, []);
   const warningCount = warnings.warnings.length;
-  return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
+  return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11 [&_svg]:size-7" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
     <div className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8">
       <section aria-label="Wetter an deinem Ort" className="pb-6 sm:pb-8">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
