@@ -41,7 +41,7 @@ export function pointOutlook(samples: PointSample[], sourceT: number, now: numbe
 
 export function pointOutlookLabel(outlook: PointOutlook | null): string {
   if (!outlook) return 'Radar-Ausblick nicht verfügbar';
-  if (outlook.phase === 'dry') return `Voraussichtlich ${outlook.horizon} Min. trocken`;
+  if (outlook.phase === 'dry') return `Voraussichtlich trocken in den nächsten ${outlook.horizon} Min.`;
   const names = { rain: 'Regen', sleet: 'Schneeregen', snow: 'Schnee', 'freezing-rain': 'Gefrierender Regen' };
   return outlook.minutes === 0 ? `${names[outlook.phase]} aktuell` : `${names[outlook.phase]} in ca. ${outlook.minutes} Min.`;
 }
