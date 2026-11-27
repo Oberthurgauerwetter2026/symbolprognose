@@ -36,6 +36,7 @@ import { advancePlayback, playbackSample, buildTimelineSteps, nextModelHour, typ
 import { CityMarkers } from "./city-markers";
 import { sampleRadarBand } from "./forecast-edge-sampling";
 import { attenuateRadarBand } from "@/lib/radar-nowcast";
+import { SCALE, DISPLAY_SCALE, SNOW_SCALE, SLEET_SCALE, FZRA_SCALE, phaseFromAlpha } from "@/lib/radar-palette";
 
 
 
@@ -54,31 +55,11 @@ const FILMSTRIP_FORECAST_COLOR = BRAND;
 // (gleiche Schwellen + RGBA), damit Messung-PNG und Forecast-Canvas
 // identisch aussehen. Alpha hier 0..1; die finale Deckkraft setzt die
 // einheitliche ImageOverlay-/Canvas-`opacity` im Frontend.
-const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1,   rgb: [120, 180, 235], a: 245 / 255 },
-  { mmh: 0.3,   rgb: [ 95, 155, 220], a: 255 / 255 },
-  { mmh: 0.8,   rgb: [ 40,  90, 195], a: 255 / 255 },
-  { mmh: 2,     rgb: [ 55, 170,  75], a: 255 / 255 },
-  { mmh: 5,     rgb: [245, 220,  55], a: 255 / 255 },
-  { mmh: 15,    rgb: [240, 140,  35], a: 255 / 255 },
-  { mmh: 40,    rgb: [220,  40,  40], a: 255 / 255 },
-  { mmh: 80,    rgb: [170,  40, 180], a: 255 / 255 },
-];
 
 // Weichere Anzeige-Palette (gleiche Schwellen/Alpha wie SCALE, aber weniger
 // gesättigt — Stilvorlage: pastellige Schneefarben wie in der MCH-App).
 // SCALE bleibt die Decode-Referenz zu den PNG-Farben; nur die Darstellung
 // wird über DISPLAY_SCALE gefärbt.
-const DISPLAY_SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1,   rgb: [134, 188, 236], a: 245 / 255 },
-  { mmh: 0.3,   rgb: [109, 162, 222], a: 255 / 255 },
-  { mmh: 0.8,   rgb: [ 66, 111, 200], a: 255 / 255 },
-  { mmh: 2,     rgb: [ 80, 178,  96], a: 255 / 255 },
-  { mmh: 5,     rgb: [243, 215,  81], a: 255 / 255 },
-  { mmh: 15,    rgb: [239, 152,  61], a: 255 / 255 },
-  { mmh: 40,    rgb: [222,  72,  66], a: 255 / 255 },
-  { mmh: 80,    rgb: [177,  72, 187], a: 255 / 255 },
-];
 
 function colorFor(mmh: number): [number, number, number, number] {
   // Quantisierte harte Bänder — gibt scharfe Iso-Konturen wie auf MCH-CombiPrecip.
@@ -102,16 +83,8 @@ function colorFor(mmh: number): [number, number, number, number] {
 
 // Schnee-Farbskala (mm/h Wasser-Äquivalent) — stark entsättigt, damit
 // Schnee nicht mit dem Violett bei Starkregen (≥80 mm/h) verwechselt wird.
-const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
-  { mmh: 0.1, rgb: [210, 194, 232], label: "leicht" },
-  { mmh: 2, rgb: [164, 134, 214], label: "stark" },
-];
 
 // Schneeregen (Mischphase, 30–70 % Schneeanteil): Graublau, nach Intensität.
-const SLEET_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
-  { mmh: 0.1, rgb: [176, 192, 212], label: "leicht" },
-  { mmh: 2, rgb: [112, 134, 166], label: "stark" },
-];
 function sleetRgbFor(mmh: number): [number, number, number] {
   return mmh >= SLEET_SCALE[1].mmh ? SLEET_SCALE[1].rgb : SLEET_SCALE[0].rgb;
 }
@@ -121,10 +94,6 @@ function sleetColorFor(mmh: number): [number, number, number, number] {
 
 // Gefrierender Regen (Glatteis): kräftiges Rosa-Rot mit weissen Tropfen,
 // damit die Gefahr sofort auffällt.
-const FZRA_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
-  { mmh: 0.1, rgb: [244, 114, 182], label: "leicht" },
-  { mmh: 2, rgb: [219, 39, 119], label: "stark" },
-];
 function fzraRgbFor(mmh: number): [number, number, number] {
   return mmh >= FZRA_SCALE[1].mmh ? FZRA_SCALE[1].rgb : FZRA_SCALE[0].rgb;
 }
@@ -179,12 +148,6 @@ function isSleetMarkPixel(x: number, y: number, cell = 18): boolean {
 // 245/255 = Regen, 230 = Schneeregen, 215 = Schnee.
 // Nur exakte Codes (±3) zählen — 235/245/255 sind Regenstufen (sonst
 // würde die schwächste Prognose-Stufe als Schneeregen-Saum erscheinen).
-function phaseFromAlpha(a: number): number {
-  if (Math.abs(a - 200) <= 3) return 3;
-  if (Math.abs(a - 230) <= 3) return 1;
-  if (Math.abs(a - 215) <= 3) return 2;
-  return 0;
-}
 
 function snowColorFor(mmh: number): [number, number, number, number] {
   if (mmh < SNOW_SCALE[0].mmh) return [0, 0, 0, 0];

@@ -120,7 +120,27 @@ export const getWindFrames = createServerFn({ method: "GET" }).handler(async () 
     "Cache-Control",
     "public, max-age=300, s-maxage=600, stale-while-revalidate=1800",
   );
+  return buildWindPayload();
+});
 
+/** Nur die aktuelle Stunde, gerundet – für das Standbild der Startseiten-Kachel. */
+export const getWindNow = createServerFn({ method: "GET" }).handler(async () => {
+  setResponseHeader("Cache-Control", "public, max-age=300, s-maxage=600, stale-while-revalidate=1800");
+  const payload = await buildWindPayload();
+  const now = Date.now();
+  const frame = payload.frames.filter((f) => Date.parse(f.t) <= now).at(-1) ?? payload.frames[0];
+  if (!frame) return null;
+  return {
+    t: frame.t,
+    gridLat: payload.gridLat,
+    gridLon: payload.gridLon,
+    gust: frame.gust.map(Math.round),
+    speed: frame.speed.map(Math.round),
+    dir: frame.dir.map(Math.round),
+  };
+});
+
+async function buildWindPayload(): Promise<WindPayload> {
   const cache = await getOpenMeteoCache();
   const ch1 = (cache?.phase1 ?? cache?.phaseB) as LocResponseArray | undefined;
   const ch2 = cache?.phase2 as LocResponseArray | undefined;
@@ -178,6 +198,6 @@ export const getWindFrames = createServerFn({ method: "GET" }).handler(async () 
   };
   if (warnings.length) payload.warning = warnings.join(" · ");
   return payload;
-});
+}
 
 type LocResponseArray = unknown[];

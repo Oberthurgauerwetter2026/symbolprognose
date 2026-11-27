@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * Echtzeit-Vorschau einer Kachel: zeigt die Originalkarte (reine Kartenansicht `clean=1`)
- * ohne Bedienung. Die Karte wird nur geladen, solange die Kachel im oder nahe am
- * Bildausschnitt ist, damit auf dem Handy nie alle Karten gleichzeitig Speicher belegen.
+ * Echtzeit-Vorschau als eingebettete Originalkarte (reine Kartenansicht `clean=1`) ohne
+ * Bedienung. Nur noch für Kacheln ohne leichtes Standbild (siehe tile-previews.tsx) und
+ * nur auf dem Desktop; sie lädt erst nahe am Bildausschnitt und bleibt danach stehen.
  */
 const MIN_MAP_WIDTH = 380;
 /** Die Quellenzeile der Einbettung liegt ausserhalb der Kachel; sie steht auf der Detailseite. */
@@ -19,9 +19,8 @@ export function LivePreview({ src, title }: { src: string; title: string }) {
     const el = ref.current;
     if (!el) return;
     const observer = new IntersectionObserver(entries => {
-      const visible = entries.some(entry => entry.isIntersecting);
-      setNear(visible);
-      if (!visible) setLoaded(false);
+      // Einmal geladen bleibt die Karte stehen – kein Verschwinden beim Scrollen.
+      if (entries.some(entry => entry.isIntersecting)) { setNear(true); observer.disconnect(); }
     }, { rootMargin: '300px 0px' });
     observer.observe(el);
     const resize = new ResizeObserver(() => setZoom(Math.min(1, el.clientWidth / MIN_MAP_WIDTH) || 1));
