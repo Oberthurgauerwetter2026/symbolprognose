@@ -3,7 +3,7 @@ import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { getMorphCard, setMorphCard } from '@/lib/card-morph';
-import { ArrowUpRight, LocateFixed, MapPin, Search, Thermometer, Wind, Droplets, Play, ShieldCheck, TriangleAlert, Satellite, Snowflake } from 'lucide-react';
+import { ArrowUpRight, MapPin, Search, Thermometer, Wind, Droplets, Play, ShieldCheck, TriangleAlert, Satellite, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { WeatherReportView } from '@/components/weather-report-view';
@@ -80,7 +80,7 @@ function WeatherOverview() {
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2"><MapPin className="size-4 shrink-0" /><h1 className="min-w-0 break-words font-display text-2xl font-semibold sm:text-4xl">{location?.name ?? (locating ? 'Standort wird ermittelt …' : 'Ort wählen')}</h1></div>
-            <div className="mt-2 flex gap-2"><Button size="icon" variant="ghost" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button><Button size="icon" variant="ghost" title="Meinen Standort verwenden" aria-label="Meinen Standort verwenden" disabled={locating} onClick={locate}><LocateFixed className={locating ? 'animate-pulse' : ''} /></Button></div>
+            <div className="mt-2 flex gap-2"><Button size="icon" variant="ghost" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button></div>
           </div>
           <OverviewWeatherSymbol location={location} />
         </div>
