@@ -29,9 +29,9 @@ export const Route = createFileRoute('/')({
     ]);
   },
   head: () => ({ meta: [
-    { title: 'Oberthurgauer Wetter · Dein Wetter am Bodensee' },
+    { title: 'Oberthurgauer Wetter · Wetter für deine Region' },
     { name: 'description', content: 'Aktuelle Temperaturen in deiner Nähe, Radar, Wind, Warnungen und der aktuelle Wetterbericht für den Oberthurgau.' },
-    { property: 'og:title', content: 'Oberthurgauer Wetter · Dein Wetter am Bodensee' },
+    { property: 'og:title', content: 'Oberthurgauer Wetter · Wetter für deine Region' },
     { property: 'og:description', content: 'Lokale Messwerte, Wetterwarnungen, Animationen und Wetterbericht auf einen Blick.' },
     { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' },
   ], links: [APP_MANIFEST_LINK] }),
@@ -69,11 +69,11 @@ function WeatherOverview() {
     navigator.permissions?.query({ name: 'geolocation' }).then(p => { if (p.state === 'granted') locate(); }).catch(() => {});
   }, []);
   const warningCount = warnings.warnings.length;
-  return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Oberthurgau · Bodensee · Alpstein">
+  return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region">
     <div className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8">
       <section aria-label="Wetter an deinem Ort" className="pb-6 sm:pb-8">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-          <div className="min-w-0"><p className="text-xs font-semibold text-accent">Wetter für die Region</p><h1 className="mt-1 font-display text-3xl font-semibold text-accent sm:text-4xl">Oberthurgau</h1><p className="mt-1 text-sm text-muted-foreground">Bodensee und Alpstein</p></div>
+          <div className="min-w-0"><h1 className="font-display text-3xl font-semibold text-accent sm:text-4xl">Oberthurgauer Wetter</h1><p className="mt-2 text-sm text-muted-foreground">Wetter für deine Region</p></div>
           <Thermometer className="mt-2 size-7 shrink-0 text-accent" />
         </div>
         <div className="mt-5 grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
