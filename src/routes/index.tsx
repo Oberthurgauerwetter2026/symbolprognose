@@ -86,7 +86,7 @@ function WeatherOverview() {
         {searchOpen && <div className="weather-surface relative z-30 mt-3 rounded-md bg-card p-3"><LocationSearch onSelect={place => { locationRequest.current++; setLocation({ name: place.name, lat: place.latitude, lon: place.longitude }); setLocating(false); setLocationError(''); setSearchOpen(false); }} /><div className="mt-3 flex flex-wrap gap-1">{SPOTS.map(spot => <Button key={spot.id} size="sm" variant="ghost" onClick={() => { locationRequest.current++; setLocation({ name: spot.name, lat: spot.lat, lon: spot.lon }); setLocating(false); setLocationError(''); setSearchOpen(false); }}>{spot.name}</Button>)}</div></div>}
         <div className="mt-5 grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <div className="min-w-0">
-            <div className="mt-3 flex items-baseline gap-3"><span className="font-display text-6xl font-semibold tabular-nums">{station?.current != null ? `${station.current.toFixed(1)}°` : '—'}</span><span className="text-sm text-muted-foreground">Aktuelle Temperatur</span></div>
+            <div className="mt-3 flex items-baseline gap-3"><span className="font-display text-6xl font-semibold tabular-nums">{station?.current != null ? `${station.current.toFixed(1)}°` : '—'}</span></div>
             <p className="mt-2 text-xs text-muted-foreground">{station && nearest ? `Messstation ${station.name} · ${nearest.distance.toFixed(1)} km entfernt` : 'Momentan keine aktuelle Messung verfügbar.'}</p>
             {locationError && <p role="status" className="mt-2 text-xs text-destructive">{locationError}</p>}
           </div>
