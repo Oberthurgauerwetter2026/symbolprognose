@@ -2,6 +2,7 @@ import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "@/components/maps/foreign-relief-layers";
 import { DockZoomControl } from "@/components/maps/map-dock";
+import { FilmstripTimeline } from "@/components/maps/filmstrip-timeline";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -670,7 +671,10 @@ function RegionMapInner({
   fill = false,
   onSelectSpot,
   search = false,
+  filmstrip = false,
 }: {
+  /** Zeitwahl als schmaler Filmstreifen wie beim Radar (App-Seiten); Embeds behalten den bisherigen Regler. */
+  filmstrip?: boolean;
   bare?: boolean;
   fill?: boolean;
   /** Ortssuche (Ort oder PLZ) als Band oben in der Karte; öffnet die Lokalprognose. */
@@ -686,6 +690,12 @@ function RegionMapInner({
   // baseHour = absolute Stunde "jetzt" (gerundet auf 3-h-Slot), gemessen ab heute 00:00.
   const [baseHour, setBaseHour] = useState(() => currentBaseHour());
   const [stepOffset, setStepOffset] = useState(0);
+  // Vor jedem frühen return, damit die Hook-Reihenfolge stabil bleibt.
+  const stripFrames = useMemo(() => {
+    const start = new Date();
+    start.setHours(baseHour, 0, 0, 0);
+    return Array.from({ length: MAX_STEPS + 1 }, (_, i) => ({ ms: start.getTime() + i * 3600_000 }));
+  }, [baseHour]);
   const [viewMode, setViewMode] = useState<"hourly" | "daily">("daily");
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const [zoom, setZoom] = useState(11);
@@ -1077,7 +1087,36 @@ function RegionMapInner({
             }}
           />
 
-          {/* Schlankes weisses Zeitstrahl-Panel (Radar-Stil) */}
+          {filmstrip ? (
+            <div
+              className="flex items-end gap-2 rounded-xl border border-neutral-200 bg-white px-2 pb-2 pt-1 shadow-md"
+              onPointerDownCapture={() => { if (viewMode === "daily") setViewMode("hourly"); }}
+            >
+              <button
+                type="button"
+                onClick={() => { setViewMode("hourly"); setStepOffset(0); }}
+                className="h-[42px] shrink-0 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50"
+              >
+                Jetzt
+              </button>
+              <div className={cn("min-w-0 flex-1", viewMode === "daily" && "[&_[role=slider]]:opacity-50")}>
+                <FilmstripTimeline
+                  frames={stripFrames}
+                  idx={stepOffset}
+                  isMobile={compactMarkers}
+                  color={BRAND}
+                  bandMode="forecast-only"
+                  ariaLabel="Prognosezeit"
+                  compressAfterMs={stripFrames[0]?.ms ?? 0}
+                  compressedPxPerHour={compactMarkers ? 40 : 52}
+                  formatBubble={(d) => viewMode === "daily"
+                    ? "Tagesübersicht"
+                    : `${["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][d.getDay()]}, ${String(d.getHours()).padStart(2, "0")}:00`}
+                  onChange={(i: number) => { setViewMode("hourly"); setStepOffset(i); }}
+                />
+              </div>
+            </div>
+          ) : (
           <div className="rounded-xl border border-neutral-200 bg-white p-2 shadow-md sm:p-3">
             <div
               className={cn(
@@ -1189,6 +1228,7 @@ function RegionMapInner({
 
 
           </div>
+          )}
         </>
       )}
       <SourceFooter data="MeteoSchweiz, DWD, Open-Meteo" map updated={dataUpdatedAt > 0 ? new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", hour: "2-digit", minute: "2-digit" }).format(new Date(dataUpdatedAt)) : undefined} />

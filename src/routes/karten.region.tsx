@@ -43,7 +43,7 @@ function KartenRegionPage() {
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="region" />
         <Suspense fallback={<MapSkeleton regionHeight />}>
-          <LazyRegionMap />
+          <LazyRegionMap filmstrip />
         </Suspense>
       </div>
     </DashboardLayout>

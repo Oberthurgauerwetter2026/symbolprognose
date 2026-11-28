@@ -144,7 +144,7 @@ function WeatherOverview() {
       </section>
 
       <section aria-label="Symbolprognose der Region" className="weather-surface weather-map-open hidden flex-1 lg:block">
-        {hydrated && desktop ? <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search /></Suspense> : <MapSkeleton regionHeight />}
+        {hydrated && desktop ? <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search filmstrip /></Suspense> : <MapSkeleton regionHeight />}
       </section>
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">
