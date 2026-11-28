@@ -1,6 +1,7 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
+import { RadarPageGradient } from "./radar-page-gradient";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
@@ -2259,6 +2260,7 @@ function RadarMapInner({
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <InvalidateOnResize />
+          <RadarPageGradient />
           
           <ForeignReliefLayers />
           <TileLayer
