@@ -466,3 +466,16 @@ html.desktop-home-return::view-transition-new(*) { animation-duration: 180ms; }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* Ortssuche in der Regionskarte der Startseite: halbtransparentes Nachtblau, damit Karte und Relief durchscheinen. */
+.map-search-glass {
+  background: color-mix(in srgb, var(--tile-dark) 52%, transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 22%, transparent);
+  backdrop-filter: blur(10px) saturate(1.15);
+  box-shadow: 0 6px 18px -10px rgba(3, 14, 32, 0.55);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.map-search-glass:focus-within {
+  background: color-mix(in srgb, var(--tile-dark) 78%, transparent);
+  border-color: color-mix(in srgb, #ffffff 45%, transparent);
+}

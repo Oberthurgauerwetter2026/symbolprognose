@@ -961,8 +961,8 @@ function RegionMapInner({
         ref={mapFrameRef}
       >
         {search && (
-          <div className="absolute left-3 top-3 z-[900] w-[min(22rem,calc(100%-5rem))] rounded-lg shadow-md">
-            <LocationSearch placeholder="Ort oder PLZ suchen" />
+          <div className="absolute left-3 top-3 z-[900] w-[min(22rem,calc(100%-5rem))] rounded-lg">
+            <LocationSearch variant="glass" placeholder="Ort oder PLZ suchen" />
           </div>
         )}
         <MapContainer

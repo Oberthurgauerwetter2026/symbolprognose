@@ -56,8 +56,8 @@ export function LocationSearch({
   placeholder = "Ort, PLZ suchen",
   className,
 }: {
-  /** overlay = schwebendes Band über der Karte, inline = Formularfeld im Header. */
-  variant?: "overlay" | "inline";
+  /** overlay = schwebendes Band über der Karte, inline = Formularfeld im Header, glass = halbtransparentes Feld in der Karte. */
+  variant?: "overlay" | "inline" | "glass";
   /** Embed-Modus: Navigation öffnet einen neuen Tab (nur ohne onSelect). */
   bare?: boolean;
   /** Wenn gesetzt, wird der Ort direkt übernommen statt navigiert. */
@@ -166,6 +166,7 @@ export function LocationSearch({
 
   const showList = open && list.length > 0;
   const overlay = variant === "overlay";
+  const glass = variant === "glass";
 
   return (
     <div
@@ -184,7 +185,9 @@ export function LocationSearch({
           "relative rounded-lg",
           overlay
             ? "bg-primary/15 px-3 py-2 shadow-sm backdrop-blur-md"
-            : "border border-zinc-200 bg-zinc-50 px-3 focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/30",
+            : glass
+              ? "map-search-glass px-3"
+              : "border border-zinc-200 bg-zinc-50 px-3 focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/30",
         )}
       >
         <div className="flex items-center gap-2">
@@ -198,7 +201,7 @@ export function LocationSearch({
             strokeLinecap="round"
             className={cn(
               "shrink-0",
-              overlay ? "text-primary-foreground/90" : "text-zinc-500",
+              overlay ? "text-primary-foreground/90" : glass ? "text-white/85" : "text-zinc-500",
             )}
             aria-hidden="true"
           >
@@ -223,7 +226,9 @@ export function LocationSearch({
               "w-full min-w-0 border-0 bg-transparent text-sm font-medium focus:outline-none",
               overlay
                 ? "h-8 text-primary-foreground placeholder:text-primary-foreground/70"
-                : "h-10 text-zinc-900 placeholder:text-zinc-500",
+                : glass
+                  ? "h-9 text-white placeholder:text-white/75"
+                  : "h-10 text-zinc-900 placeholder:text-zinc-500",
             )}
           />
         </div>

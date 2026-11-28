@@ -18,7 +18,7 @@ export const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] 
 ];
 
 export const DISPLAY_SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1,   rgb: [64, 200, 210], a: 245 / 255 },
+  { mmh: 0.1,   rgb: [112, 196, 204], a: 245 / 255 },
   { mmh: 0.3,   rgb: [109, 162, 222], a: 255 / 255 },
   { mmh: 0.8,   rgb: [ 66, 111, 200], a: 255 / 255 },
   { mmh: 2,     rgb: [ 80, 178,  96], a: 255 / 255 },
