@@ -221,20 +221,54 @@ export function TickerList({ posts }: { posts: TickerPost[] }) {
   );
 }
 
-/** Gemeinsame Kachel-/Redaktionsvorschau: drei Schlagzeilen mit Uhrzeit und Bild, ohne Bedienelemente. */
+function LiveBadge({ live }: { live: boolean }) {
+  return live ? (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ticker-foreground/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ticker-foreground">
+      <span className="relative flex h-1.5 w-1.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ticker-live opacity-70 motion-reduce:animate-none" /><span className="relative h-1.5 w-1.5 rounded-full bg-ticker-live" /></span>
+      Live
+    </span>
+  ) : (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-ticker-foreground/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ticker-foreground/70">
+      <span className="h-1.5 w-1.5 rounded-full bg-ticker-foreground/50" />
+      Standby
+    </span>
+  );
+}
+
+/**
+ * Gemeinsame Kachel-/Redaktionsvorschau: Live-Zeichen, Einsende-Link und drei Schlagzeilen
+ * an der gepunkteten Zeitachse; die neueste Meldung ist hervorgehoben. Der Einsende-Link liegt
+ * mit z-10 über einer allfälligen Kachel-Verlinkung (die Kachel selbst darf kein <a> um ihn sein).
+ */
 export function TickerTilePreview({ posts }: { posts: TickerPost[] }) {
   const shown = posts.slice(0, WIDGET_VISIBLE);
-  if (!shown.length) return <p className="text-sm text-ticker-foreground/70">Aktuell keine neuen Meldungen.</p>;
   return (
-    <ol className="space-y-2.5">
-      {shown.map((p) => (
-        <li key={p.id} className="flex items-start gap-3 text-sm text-ticker-foreground">
-          <span className="shrink-0 pt-0.5 text-xs font-semibold tabular-nums text-ticker-foreground/70">{time(p.created_at)}</span>
-          <span className="min-w-0 flex-1 line-clamp-2 break-words font-medium leading-snug">{splitPost(p.body).title}</span>
-          <Thumb post={p} />
-        </li>
-      ))}
-    </ol>
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <a href="/foto-einsenden" target="_blank" rel="noopener" className="relative z-10 -mx-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full px-1 py-0.5 text-xs font-medium text-ticker-foreground/75 underline-offset-2 transition-colors hover:text-ticker-foreground hover:underline">
+          <Camera className="h-3.5 w-3.5" /> Foto / Video einsenden
+        </a>
+        <LiveBadge live={shown.length > 0} />
+      </div>
+      {!shown.length ? <p className="text-sm text-ticker-foreground/70">Aktuell keine neuen Meldungen.</p> : (
+        <ol>
+          {shown.map((p, i) => {
+            const latest = i === 0, last = i === shown.length - 1;
+            return (
+              <li key={p.id} className={`relative flex items-start gap-3 pl-6 text-ticker-foreground ${last ? "" : "pb-3"}`}>
+                {!last && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-ticker-foreground/20" />}
+                <span className={`absolute left-0 top-[5px] h-[11px] w-[11px] rounded-full ${latest ? "bg-ticker-foreground ring-4 ring-ticker-foreground/25" : "bg-ticker-foreground/40"}`} />
+                <span className="min-w-0 flex-1">
+                  <span className={`block text-xs font-semibold tabular-nums ${latest ? "text-ticker-foreground" : "text-ticker-foreground/60"}`}>{time(p.created_at)}</span>
+                  <span className={`mt-0.5 line-clamp-2 break-words leading-snug ${latest ? "text-[15px] font-bold" : "text-sm font-medium text-ticker-foreground/85"}`}>{splitPost(p.body).title}</span>
+                </span>
+                <Thumb post={p} />
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </div>
   );
 }
 

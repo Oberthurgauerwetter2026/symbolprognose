@@ -136,10 +136,12 @@ function WeatherOverview() {
   </Link>;
   const satTile = <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{image(<SatellitePreview />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>;
   const tickerPosts = ticker.data ? visiblePosts(ticker.data, Date.now()) : null;
-  const tickerTile = (extra = '') => <Link to="/ticker" viewTransition onClick={() => openCard('/ticker')} className={tile('/ticker', ` ticker-tile flex flex-col${extra}`)} aria-label="Wetter-Ticker öffnen">
+  // Kachel als Fläche mit darübergelegtem Link: so bleibt «Foto / Video einsenden» ein eigener Link ohne verschachteltes <a>.
+  const tickerTile = (extra = '') => <div className={tile('/ticker', ` ticker-tile relative flex flex-col${extra}`)}>
+    <Link to="/ticker" viewTransition onClick={() => openCard('/ticker')} className="absolute inset-0 z-[1]" aria-label="Wetter-Ticker öffnen" />
     <div className="flex-1 bg-(--overview-station) p-4">{tickerPosts ? <TickerTilePreview posts={tickerPosts} /> : <p className="text-sm text-muted-foreground">Der Ticker ist momentan nicht erreichbar.</p>}</div>
     {title('Wetter-Ticker', tickerPosts?.length ? 'Neueste Meldungen' : 'Kurzmeldungen aus der Region')}
-  </Link>;
+  </div>;
   return <DashboardLayout title="Oberthurgauer Wetter" subtitle="Wetter für deine Region" headerAction={<Button size="icon" variant="ghost" className="size-11 lg:hidden [&_svg]:size-7" title="Weiteren Ort suchen" aria-label="Weiteren Ort suchen" aria-expanded={searchOpen} onClick={() => setSearchOpen(open => !open)}><Search /></Button>}>
     <div ref={rootRef} onClickCapture={event => rememberHomeAnchor(describeHomeClick(event.currentTarget, event.target))} className="mx-auto max-w-6xl px-4 pb-8 pt-5 sm:px-8 sm:pt-8 lg:max-w-7xl">
      <div className="lg:grid lg:grid-cols-[minmax(0,1.75fr)_minmax(320px,1fr)] lg:items-stretch lg:gap-6">
