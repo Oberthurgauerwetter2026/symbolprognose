@@ -932,7 +932,8 @@ function RegionMapInner({
   return (
     <div className={cn("@container", fill ? "flex h-full w-full flex-col" : "space-y-4")}>
       {/* Fester Slot: verhindert Layout-Sprung beim Ein-/Ausblenden des Banners */}
-      <div className="h-7 shrink-0 sm:h-8" aria-hidden={warnBanner ? undefined : true}>
+      {/* Startseite (search): ohne Warnung kein leerer Streifen über der randlosen Karte. */}
+      <div className={cn("h-7 shrink-0 sm:h-8", search && !warnBanner && "hidden")} aria-hidden={warnBanner ? undefined : true}>
         {warnBanner}
       </div>
       {/* Karte */}

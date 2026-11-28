@@ -143,7 +143,7 @@ function WeatherOverview() {
         <OverviewHourlyForecast location={location} onOpen={() => openCard('/karten/lokal')} morph={morph === '/karten/lokal'} />
       </section>
 
-      <section aria-label="Symbolprognose der Region" className="weather-surface weather-map-frame hidden flex-1 rounded-lg p-4 lg:block">
+      <section aria-label="Symbolprognose der Region" className="weather-surface weather-map-open hidden flex-1 lg:block">
         {hydrated && desktop ? <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search /></Suspense> : <MapSkeleton regionHeight />}
       </section>
       </div>
