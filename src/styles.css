@@ -328,6 +328,10 @@ html:has(.weather-blue) { background-color: var(--brand-blue); }
 /* Regionskarte der Startseite: randlos direkt auf dem Blau, nur die Karte selbst trägt Rundung und Schatten. */
 .weather-map-open [data-source-footer] { color: color-mix(in srgb, #ffffff 80%, var(--brand-blue)); }
 .weather-map-open .leaflet-container { border-radius: inherit; }
+/* Ecken wie die Kacheln (8px) statt Pillenform: Karte, Tageswahl und Zeitstreifen. */
+.weather-map-open > div > * { border-radius: 8px; }
+.weather-map-open > div > :not(.shadow-lg) .rounded-full { border-radius: 6px; }
+.weather-map-open > div > :not(.shadow-lg) > .rounded-full { border-radius: 8px; }
 .weather-map-open > div > .shadow-lg { box-shadow: var(--tile-dark-shadow); }
 .weather-product-image, .weather-warning-preview, .weather-station-preview { position: relative; aspect-ratio: 1.45; overflow: hidden; }
 .weather-product-image img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
