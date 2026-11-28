@@ -1,6 +1,7 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
+import { RadarPageGradient } from "./radar-page-gradient";
 import { DockZoomControl } from "./map-dock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FeatureCollection } from "geojson";
@@ -287,6 +288,7 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             style={{ height: "100%", width: "100%", background: "#ebefeb" }}
             className="mch-precip-sums"
           >
+            <RadarPageGradient />
             <ForeignReliefLayers />
             {clean && <RegionalPreviewFraming />}
             <TileLayer
@@ -298,12 +300,12 @@ function PrecipAccumMapInner({ values, gridLat, gridLon, mode, hours, sourceLabe
             />
             <GeoJSON
               data={OUTSIDE_CH_MASK}
-              style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
+              style={() => ({ className: "map-outside-ch", stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
               interactive={false}
             />
             <GeoJSON
               data={OUTSIDE_MASK}
-              style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
+              style={() => ({ className: "map-outside-region", stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
               interactive={false}
             />
             <GeoJSON

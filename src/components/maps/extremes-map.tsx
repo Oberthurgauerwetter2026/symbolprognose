@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import type { ExtremeStat, StationExtreme } from "@/lib/station-extremes";
 import { formatStationValue } from "@/lib/station-extremes";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
+import { RadarPageGradient } from "./radar-page-gradient";
 import { CityMarkers } from "./city-markers";
 import { LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, OUTSIDE_CH_MASK, REGION_OUTLINE } from "./radar-base-geo";
 import { rainSumColor, stationColor as color, stationTextColor as contrast } from "@/lib/station-colors";
@@ -36,8 +37,8 @@ function Fit({ generousPadding }: { generousPadding: boolean }) {
 /** Umriss, Aussenmasken und See wie die Live-Karte im Weather Hub und die Radarkarte. */
 function RegionLayers() {
   return <>
-    <GeoJSON data={OUTSIDE_CH_MASK} style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })} interactive={false} />
-    <GeoJSON data={OUTSIDE_MASK} style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })} interactive={false} />
+    <GeoJSON data={OUTSIDE_CH_MASK} style={() => ({ className: "map-outside-ch", stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })} interactive={false} />
+    <GeoJSON data={OUTSIDE_MASK} style={() => ({ className: "map-outside-region", stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })} interactive={false} />
     <GeoJSON data={SWITZERLAND} style={() => ({ color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })} interactive={false} />
     <GeoJSON data={THURGAU} style={() => ({ color: "#1f4d80", weight: 1, opacity: 0.45, fill: false })} interactive={false} />
     <GeoJSON data={LAKE} style={() => ({ color: "#5ba8c8", weight: 1.2, fillColor: "#d7e9ee", fillOpacity: 1 })} interactive={false} />
@@ -108,6 +109,7 @@ export function ExtremesMap({ stations, stat, generousPadding = false, regionSty
       className="h-full w-full" style={{ background: regionStyle ? "#ebefeb" : "#eef2f5" }}>
       <Fit generousPadding={generousPadding} />
       {regionStyle && <CloseOnMapClick onClose={() => setHover(null)} />}
+      {regionStyle && <RadarPageGradient />}
       {regionStyle && <ForeignReliefLayers />}
       <TileLayer url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png" maxZoom={18} opacity={regionStyle ? 0.9 : 1} />
       {regionStyle ? <><RegionLayers /><CityMarkers /></> : <GeoJSON data={lake as unknown as FeatureCollection} interactive={false} style={{ color: "#7fb3d9", weight: 1, fillColor: "#a9cfe9", fillOpacity: 0.9 }} />}

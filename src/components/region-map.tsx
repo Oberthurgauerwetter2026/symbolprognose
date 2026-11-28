@@ -1,6 +1,7 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "@/components/maps/foreign-relief-layers";
+import { RadarPageGradient } from "@/components/maps/radar-page-gradient";
 import { DockZoomControl } from "@/components/maps/map-dock";
 import { FilmstripTimeline } from "@/components/maps/filmstrip-timeline";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -978,6 +979,7 @@ function RegionMapInner({
           style={{ height: "100%", width: "100%", background: "#ebefeb" }}
         >
           <BoundsFitter bounds={regionBounds} />
+          <RadarPageGradient />
           <ForeignReliefLayers />
           {/* Swisstopo Relief-Basiskarte (nur Reliefschattierung, keine Labels/Strassen) */}
           <TileLayer
@@ -990,6 +992,7 @@ function RegionMapInner({
           <GeoJSON
             data={OUTSIDE_CH_MASK}
             style={() => ({
+              className: "map-outside-ch",
               stroke: false,
               fillColor: "#3a4148",
               fillOpacity: 0.3,
@@ -1011,6 +1014,7 @@ function RegionMapInner({
           <GeoJSON
             data={OUTSIDE_MASK}
             style={() => ({
+              className: "map-outside-region",
               stroke: false,
               fillColor: "#5a6670",
               fillOpacity: 0.18,

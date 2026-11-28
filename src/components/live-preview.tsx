@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
  * Echtzeit-Vorschau als eingebettete Originalkarte (reine Kartenansicht `clean=1`) ohne
  * Bedienung. Nur noch für Kacheln ohne leichtes Standbild (siehe tile-previews.tsx) und
  * nur auf dem Desktop; sie lädt erst nahe am Bildausschnitt und bleibt danach stehen.
+ * Die Einbettung bekommt hier die App-Tönung (.app-map-tint); WordPress lädt sie ohne.
  */
 const MIN_MAP_WIDTH = 380;
 /** Die Quellenzeile der Einbettung liegt ausserhalb der Kachel; sie steht auf der Detailseite. */
@@ -28,7 +29,7 @@ export function LivePreview({ src, title }: { src: string; title: string }) {
     return () => { observer.disconnect(); resize.disconnect(); };
   }, []);
   return <div ref={ref} className="absolute inset-0 overflow-hidden bg-muted" data-live-preview>
-    {near && <iframe src={src} title={title} tabIndex={-1} aria-hidden="true" onLoad={() => setLoaded(true)}
+    {near && <iframe src={src} title={title} tabIndex={-1} aria-hidden="true" onLoad={event => { try { event.currentTarget.contentDocument?.documentElement.classList.add('app-map-tint'); } catch { /* fremde Herkunft */ } setLoaded(true); }}
       style={{ width: `${100 / zoom}%`, height: `calc(${100 / zoom}% + ${CREDIT_CROP}px)`, transform: `scale(${zoom})` }}
       className={`pointer-events-none block max-w-none origin-top-left border-0 transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`} />}
   </div>;

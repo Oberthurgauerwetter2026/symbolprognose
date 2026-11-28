@@ -1,6 +1,8 @@
 import { useEffect, useId } from "react";
 import { useMap } from "react-leaflet";
 
+const TINTED = ".radar-outside-ch, .radar-ch-outline, .map-outside-region";
+
 /** Align the SVG tint to the page, not the geographic polygon or map viewport. */
 export function RadarPageGradient() {
   const map = useMap();
@@ -8,14 +10,14 @@ export function RadarPageGradient() {
 
   useEffect(() => {
     const container = map.getContainer();
-    const main = container.closest<HTMLElement>(".weather-main.weather-detail");
+    const main = container.closest<HTMLElement>(".weather-main");
     if (!main) return;
     const ns = "http://www.w3.org/2000/svg";
     let frame = 0;
     const gradients = new Map<SVGSVGElement, SVGLinearGradientElement>();
     const update = () => {
       const bounds = main.getBoundingClientRect();
-      for (const path of container.querySelectorAll<SVGPathElement>(".radar-outside-ch, .radar-ch-outline")) {
+      for (const path of container.querySelectorAll<SVGPathElement>(TINTED)) {
         const svg = path.ownerSVGElement;
         const matrix = svg?.getScreenCTM();
         if (!svg || !matrix) continue;
@@ -64,7 +66,7 @@ export function RadarPageGradient() {
       mutations.disconnect();
       map.off("move zoomend resize", schedule);
       window.removeEventListener("scroll", schedule);
-      for (const path of container.querySelectorAll<SVGPathElement>(".radar-outside-ch, .radar-ch-outline")) {
+      for (const path of container.querySelectorAll<SVGPathElement>(TINTED)) {
         path.style.removeProperty("--radar-page-gradient");
       }
       for (const gradient of gradients.values()) gradient.parentElement?.remove();

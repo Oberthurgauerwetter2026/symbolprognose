@@ -333,6 +333,12 @@ html:has(.weather-page)::view-transition { background-color: var(--brand-blue); 
 /* App-only tint follows the main's gradient while preserving foreign terrain. */
 .weather-detail .radar-outside-ch { fill: var(--radar-page-gradient, var(--brand-blue)); fill-opacity: 0.65; }
 .weather-detail .radar-ch-outline { stroke: var(--radar-page-gradient, var(--brand-blue)); stroke-opacity: 1; }
+/* Same tint outside the Oberthurgau on the regional maps (light hairline stroke closes the slivers between commune polygons); .app-map-tint opts the tile stills in (flat, no page to follow). */
+.weather-main .map-outside-region, .app-map-tint .map-outside-region { fill: var(--radar-page-gradient, var(--map-tint-flat)); fill-opacity: 0.65; stroke: #eef1ee; stroke-width: 2px; stroke-opacity: 1; }
+.weather-main .map-outside-ch, .app-map-tint .map-outside-ch { fill-opacity: 0; }
+.app-map-tint { --map-tint-flat: color-mix(in srgb, var(--brand-blue) 50%, var(--brand-blue-deep)); }
+.app-map-tint .radar-outside-ch { fill: var(--map-tint-flat); fill-opacity: 0.65; }
+.app-map-tint .radar-ch-outline { stroke: var(--map-tint-flat); stroke-opacity: 1; }
 .radar-page-gradient-top { stop-color: var(--brand-blue-deep); }
 .radar-page-gradient-bottom { stop-color: var(--brand-blue); }
 /* App-only local forecast: remap the shared widget's legacy neutral palette,

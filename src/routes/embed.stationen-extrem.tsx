@@ -20,7 +20,8 @@ const q = () => queryOptions({
 
 export const Route = createFileRoute("/embed/stationen-extrem")({
   ssr: false,
-  validateSearch: (s: Record<string, unknown>) => ({ stat: parseStat(s.stat) }),
+  // region=1: Kartenbild der App (nur für die Kachel-Standbilder); bestehende Einbettungen ohne den Parameter bleiben unverändert.
+  validateSearch: (s: Record<string, unknown>) => ({ stat: parseStat(s.stat), ...(s.region === 1 || s.region === "1" || s.region === true ? { region: true } : {}) }),
   component: Page,
   head: () => ({
     meta: [
@@ -36,14 +37,14 @@ export const Route = createFileRoute("/embed/stationen-extrem")({
 });
 
 function Page() {
-  const { stat } = Route.useSearch();
+  const { stat, region } = Route.useSearch();
   const { data = [] } = useQuery(q());
   const ranked = rankExtremes(data, stat);
   return (
     <div className="flex h-[100svh] w-full flex-col overflow-hidden bg-muted">
       <div className="relative min-h-0 flex-1">
         <Suspense fallback={<div className="h-full w-full animate-pulse bg-muted" />}>
-          <ExtremesMap stations={ranked} stat={stat} />
+          <ExtremesMap stations={ranked} stat={stat} regionStyle={region === true} />
         </Suspense>
         <div className="pointer-events-none absolute left-2 top-2 z-[500] rounded-full bg-card/90 px-3 py-1 text-xs font-semibold text-foreground shadow backdrop-blur">
           {STATION_STAT_LABELS[stat]}

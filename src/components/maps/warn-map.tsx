@@ -1,6 +1,7 @@
 import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
+import { RadarPageGradient } from "./radar-page-gradient";
 import { DockZoomControl } from "./map-dock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, GeoJSON, TileLayer, Marker, useMap } from "react-leaflet";
@@ -547,6 +548,7 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             style={{ height: "100%", width: "100%", background: "#ebefeb" }}
           >
             <FitRegion />
+            <RadarPageGradient />
             <ForeignReliefLayers />
             <TileLayer
               url="https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.leichte-basiskarte_reliefschattierung/default/current/3857/{z}/{x}/{y}.png"
@@ -556,12 +558,12 @@ function WarnMapInner({ bare = false, snapshot = false, className }: WarnMapProp
             />
             <GeoJSON
               data={OUTSIDE_CH_MASK}
-              style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
+              style={() => ({ className: "map-outside-ch", stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
               interactive={false}
             />
             <GeoJSON
               data={OUTSIDE_MASK}
-              style={() => ({ stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
+              style={() => ({ className: "map-outside-region", stroke: false, fillColor: "#5a6670", fillOpacity: 0.18 })}
               interactive={false}
             />
             <GeoJSON

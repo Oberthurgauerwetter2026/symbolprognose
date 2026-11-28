@@ -21,7 +21,7 @@ VIEWS = {
     "radar": ("/embed/radar?clean=1", 440, 304 + 44, True, True),
     "wind": ("/embed/wind?clean=1", 440, 304 + 44, True, True),
     "warn": ("/embed/warnungen?clean=1", 440, 304 + 44, True, True),
-    "stations": ("/embed/stationen-extrem?stat=current&clean=1", 760, 330 + 44, True, False),
+    "stations": ("/embed/stationen-extrem?stat=current&clean=1&region=1", 760, 330 + 44, True, False),
     "satellite": ("/embed/satellit-loop?clean=1", 440, 304 + 44, False, True),
 }
 HIDE_ALWAYS = ".leaflet-control-container{display:none!important}"
@@ -76,6 +76,8 @@ async def main():
             await expect(page.locator(".leaflet-tile-pane img.leaflet-tile:not(.leaflet-tile-loaded)")).to_have_count(0, timeout=30000)
             if top:
                 await expect(page.locator(".leaflet-marker-pane > *").first).to_be_attached(timeout=30000)
+            # App-Tönung ausserhalb der Region (Radar: ausserhalb der Schweiz) wie auf den Detailseiten.
+            await page.evaluate("document.documentElement.classList.add('app-map-tint')")
             m = await page.evaluate(MEASURE)
             ref = next((t, tile_box(t["src"])) for t in m["tiles"] if tile_box(t["src"]))
             t, (bx0, by0, bx1, by1) = ref
