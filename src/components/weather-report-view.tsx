@@ -15,13 +15,14 @@ function Author({ size }: { size: number }) {
 export function WeatherReportTile({ report, unavailable, morph = false, onOpen }: { report: WeatherReport | null; unavailable: boolean; morph?: boolean; onOpen?: () => void }) {
   return <Link to="/wetterbericht" viewTransition {...(onOpen ? { onClick: onOpen } : {})} aria-label="Wetterbericht öffnen"
     className={`weather-dark group block rounded-lg border border-border bg-card px-4 py-5 text-card-foreground shadow-lg transition-colors hover:border-accent sm:px-6 sm:py-6${morph ? ' morph-card' : ''}`}>
+    <h2 className="flex items-center justify-between gap-1 font-semibold">Wetterbericht<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2>
     {report ? <>
-      <h2 className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 font-display text-xl font-semibold leading-snug sm:text-2xl"><span className="min-w-0 break-words">{report.title}</span><ArrowUpRight className="mt-1 size-4 shrink-0 text-accent" /></h2>
+      <p className="mt-2 break-words font-display text-xl font-semibold leading-snug sm:text-2xl">{report.title}</p>
       <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <Author size={40} />
         <p className="text-right text-xs text-muted-foreground">Aktualisiert<br />{reportTime(report.published_at)}</p>
       </div>
-    </> : <><h2 className="flex items-center justify-between gap-2 font-display text-xl font-semibold">Wetterbericht<ArrowUpRight className="size-4 shrink-0 text-accent" /></h2><p className="mt-2 text-sm text-muted-foreground">{unavailable ? 'Der Wetterbericht ist momentan nicht erreichbar.' : 'Ein neuer Wetterbericht folgt.'}</p></>}
+    </> : <p className="mt-2 text-sm text-muted-foreground">{unavailable ? 'Der Wetterbericht ist momentan nicht erreichbar.' : 'Ein neuer Wetterbericht folgt.'}</p>}
   </Link>;
 }
 

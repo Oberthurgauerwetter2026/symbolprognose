@@ -117,7 +117,7 @@
 - [ ] News as separate posts: not built yet; needs the user's decision on where news appears publicly.
 
 ## Structured weather report
-- [x] Home tile: title, author photo and name, whole tile opens the report (no "Aus der Wetterredaktion" line, no symbol, no summary)
+- [x] Home tile: title, author photo and name, whole tile opens the report (heading "Wetterbericht" like the other tiles; no "Aus der Wetterredaktion" line, no symbol, no summary)
 - [x] Report page: header, Allgemeine Lage with pressure map, forecast, outlook days, trend
 - [x] Editor with weekday choice or free text
 - [ ] Pressure map appears once the GitHub workflow has published it to R2 (first run after the code reaches GitHub)
