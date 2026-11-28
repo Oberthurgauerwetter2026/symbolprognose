@@ -18,7 +18,7 @@ export const Route = createFileRoute('/wetterbericht')({
 function ReportPage() {
   const { data } = useSuspenseQuery(weatherReportQuery());
   return <DashboardLayout title="Wetterbericht" subtitle="Oberthurgauer Wetter">
-    <article className="mx-auto max-w-3xl px-5 py-2 sm:px-8 sm:py-4">
+    <article className="weather-dark mx-auto max-w-3xl rounded-lg border border-border bg-card px-5 py-2 text-card-foreground shadow-lg sm:px-8 sm:py-4">
       <WeatherReportArticle {...data} />
       <p className="border-t border-border pt-4 text-xs text-muted-foreground">Redaktion: Oberthurgauer Wetter</p>
     </article>
