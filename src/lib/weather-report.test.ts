@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextWeekday, reportDays, reportSchema } from './weather-report';
+import { nextWeekday, reportDays, reportDraftSaveSchema, reportSchema } from './weather-report';
 import { nearestLiveStation } from './weather-overview';
 
 describe('editorial weather report', () => {
@@ -18,6 +18,12 @@ describe('editorial weather report', () => {
   it('rejects an outlook day without weekday or text', () => {
     expect(reportSchema.safeParse({ ...input, days: [{ label: '', text: 'Nebel.' }] }).success).toBe(false);
     expect(reportSchema.safeParse({ ...input, days: [{ label: 'Montag', text: '' }] }).success).toBe(false);
+  });
+  it('saves an unfinished draft that could not be published yet, but no overlong one', () => {
+    const draft = { ...input, title: '', forecast: '', days: [{ label: 'Montag', text: '' }] };
+    expect(reportSchema.safeParse(draft).success).toBe(false);
+    expect(reportDraftSaveSchema.parse(draft)).toEqual(draft);
+    expect(reportDraftSaveSchema.safeParse({ ...draft, title: 'x'.repeat(161) }).success).toBe(false);
   });
   it('drops incomplete stored days instead of failing the whole report', () => {
     expect(reportDays([{ label: 'Montag', text: 'Regen.' }, { label: 'Dienstag' }, null])).toEqual([{ label: 'Montag', text: 'Regen.' }]);

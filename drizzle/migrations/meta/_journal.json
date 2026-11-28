@@ -50,6 +50,13 @@
       "when": 1795862911827,
       "tag": "0006_weather_report_sections",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795864109205,
+      "tag": "0007_weather_report_drafts",
+      "breakpoints": true
     }
   ]
 }

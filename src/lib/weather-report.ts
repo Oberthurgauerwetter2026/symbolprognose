@@ -21,11 +21,12 @@ export type ReportInput = z.infer<typeof reportSchema>;
 export type ReportDay = ReportInput['days'][number];
 export type WeatherReport = ReportInput & { published_at: string };
 
-/** Angefangene Texte dürfen unvollständig sein; geprüft wird erst beim Veröffentlichen. */
-export const reportDraftSchema = z.object({
-  title: z.string(), situation: z.string(), forecast_title: z.string(), forecast: z.string(),
-  outlook_title: z.string(), days: z.array(z.object({ label: z.string(), text: z.string() })), trend: z.string(),
-}).partial();
+/** Entwürfe dürfen unvollständig sein, aber nie länger als der Bericht; geprüft wird erst beim Veröffentlichen. */
+export const reportDraftSaveSchema = z.object({
+  title: z.string().max(160), situation: z.string().max(6000), forecast_title: z.string().max(120), forecast: z.string().max(8000),
+  outlook_title: z.string().max(120), days: z.array(z.object({ label: z.string().max(60), text: z.string().max(4000) })).max(10), trend: z.string().max(4000),
+});
+export const reportDraftSchema = reportDraftSaveSchema.partial();
 
 /** Gespeicherte Tage stammen aus einem JSON-Feld: nur vollständige Einträge übernehmen. */
 export function reportDays(value: unknown): ReportDay[] {

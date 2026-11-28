@@ -271,6 +271,24 @@ export type Database = {
         }
         Relationships: []
       }
+      weather_report_drafts: {
+        Row: {
+          content: Json
+          id: string
+          saved_at: string
+        }
+        Insert: {
+          content?: Json
+          id?: string
+          saved_at?: string
+        }
+        Update: {
+          content?: Json
+          id?: string
+          saved_at?: string
+        }
+        Relationships: []
+      }
       weather_reports: {
         Row: {
           body: string
