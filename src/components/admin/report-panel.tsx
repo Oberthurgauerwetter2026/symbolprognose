@@ -11,8 +11,8 @@ import { discardWeatherReportDraft, getWeatherReport, getWeatherReportDraft, pub
 import { WEEKDAYS, copyFirstDayToForecast, copyFollowingDayText, nextWeekday, reportDraftSchema, reportSchema, reportTime, type ReportDay, type ReportInput } from '@/lib/weather-report';
 
 const EMPTY: ReportInput = { title: '', situation: '', forecast_title: '', forecast: '', outlook_title: '', days: [], trend: '' };
-const label = 'mb-2 block text-sm font-semibold';
-const hint = 'mt-1 text-xs text-muted-foreground';
+const label = 'mb-2 block text-base font-semibold';
+const hint = 'mt-1 text-sm text-muted-foreground';
 export default function ReportPanel({ password }: { password: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -97,23 +97,23 @@ export default function ReportPanel({ password }: { password: string }) {
 
   return <div className="mx-auto max-w-3xl px-4 pb-28 pt-5 sm:px-8">
     <nav className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-xl font-semibold">Wetterbericht</h2>
+      <h2 className="text-2xl font-semibold">Wetterbericht</h2>
       <Button variant="outline" onClick={() => setPreview(v => !v)}>{preview ? <Pencil /> : <Eye />}{preview ? 'Bearbeiten' : 'Vorschau'}</Button>
     </nav>
-    <div className="mb-5 space-y-1 text-xs text-muted-foreground">
+    <div className="mb-5 space-y-1 text-sm text-muted-foreground">
       {publishedAt && <p>Zuletzt veröffentlicht: {reportTime(publishedAt)}</p>}
       {draftAt && <p className="flex flex-wrap items-center gap-x-3 gap-y-1"><span className="font-semibold text-foreground">Entwurf gespeichert: {reportTime(draftAt)} – noch nicht veröffentlicht</span><button type="button" disabled={busy} onClick={dropDraft} className="underline underline-offset-2">Entwurf verwerfen</button></p>}
     </div>
     {preview ? <WeatherReportArticle report={{ ...form, published_at: publishedAt || new Date().toISOString() }} unavailable={false} /> : <form id="report-form" onSubmit={submit} className="space-y-8">
-      <div><label htmlFor="report-title" className={label}>Titel</label><Input id="report-title" value={form.title} maxLength={160} required onChange={e => update({ title: e.target.value })} className="h-12 text-base" /><p className={hint}>Erscheint gross auf der Startseite, mit deinem Foto und Namen.</p></div>
+      <div><label htmlFor="report-title" className={label}>Titel</label><Input id="report-title" value={form.title} maxLength={160} required onChange={e => update({ title: e.target.value })} className="h-12 text-lg md:text-lg" /><p className={hint}>Erscheint gross auf der Startseite, mit deinem Foto und Namen.</p></div>
 
-      <div><label htmlFor="report-situation" className={label}>Allgemeine Lage</label><Textarea id="report-situation" rows={5} value={form.situation} maxLength={6000} onChange={e => update({ situation: e.target.value })} className="text-base leading-6" /><p className={hint}>Die Druckkarte von Europa erscheint automatisch unter diesem Text.</p></div>
+      <div><label htmlFor="report-situation" className={label}>Allgemeine Lage</label><Textarea id="report-situation" rows={5} value={form.situation} maxLength={6000} onChange={e => update({ situation: e.target.value })} className="text-lg leading-7 md:text-lg" /><p className={hint}>Die Druckkarte von Europa erscheint automatisch unter diesem Text.</p></div>
 
-      <fieldset className="space-y-3"><legend className="text-base font-semibold">Prognose</legend>
-        <div><label htmlFor="report-forecast-title" className={label}>Überschrift</label><Input id="report-forecast-title" value={form.forecast_title} maxLength={120} placeholder="Prognose bis Samstagabend" onChange={e => update({ forecast_title: e.target.value })} className="h-11 text-base" /></div>
+      <fieldset className="space-y-3"><legend className="text-lg font-semibold">Prognose</legend>
+        <div><label htmlFor="report-forecast-title" className={label}>Überschrift</label><Input id="report-forecast-title" value={form.forecast_title} maxLength={120} placeholder="Prognose bis Samstagabend" onChange={e => update({ forecast_title: e.target.value })} className="h-12 text-lg md:text-lg" /></div>
         <div>
           <label htmlFor="report-forecast" className={label}>Text</label>
-          <Textarea id="report-forecast" rows={7} value={form.forecast} required maxLength={8000} onChange={e => update({ forecast: e.target.value })} className="text-base leading-6" />
+          <Textarea id="report-forecast" rows={7} value={form.forecast} required maxLength={8000} onChange={e => update({ forecast: e.target.value })} className="text-lg leading-7 md:text-lg" />
           <Button
             type="button"
             variant="ghost"
@@ -128,16 +128,16 @@ export default function ReportPanel({ password }: { password: string }) {
         </div>
       </fieldset>
 
-      <fieldset className="space-y-3"><legend className="text-base font-semibold">Aussichten</legend>
-        <div><label htmlFor="report-outlook-title" className={label}>Überschrift</label><Input id="report-outlook-title" value={form.outlook_title} maxLength={120} placeholder="Aussichten bis Mittwoch" onChange={e => update({ outlook_title: e.target.value })} className="h-11 text-base" /></div>
+      <fieldset className="space-y-3"><legend className="text-lg font-semibold">Aussichten</legend>
+        <div><label htmlFor="report-outlook-title" className={label}>Überschrift</label><Input id="report-outlook-title" value={form.outlook_title} maxLength={120} placeholder="Aussichten bis Mittwoch" onChange={e => update({ outlook_title: e.target.value })} className="h-12 text-lg md:text-lg" /></div>
         <datalist id="report-weekdays">{WEEKDAYS.map(day => <option key={day} value={day} />)}</datalist>
         {form.days.map((day, i) => <div key={i} className="rounded-lg border border-border p-3">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-            <div><label htmlFor={`report-day-${i}`} className={label}>Tag {i + 1}</label><Input id={`report-day-${i}`} list="report-weekdays" value={day.label} maxLength={60} placeholder="Wochentag wählen oder selber schreiben" onChange={e => updateDay(i, { label: e.target.value })} className="h-11 text-base" /></div>
+            <div><label htmlFor={`report-day-${i}`} className={label}>Tag {i + 1}</label><Input id={`report-day-${i}`} list="report-weekdays" value={day.label} maxLength={60} placeholder="Wochentag wählen oder selber schreiben" onChange={e => updateDay(i, { label: e.target.value })} className="h-12 text-lg md:text-lg" /></div>
             <Button type="button" variant="outline" size="icon" className="size-11" aria-label={`Tag ${i + 1} entfernen`} title="Tag entfernen" onClick={() => update({ days: form.days.filter((_, j) => j !== i) })}><Trash2 /></Button>
           </div>
           <label htmlFor={`report-day-text-${i}`} className="sr-only">Text für Tag {i + 1}</label>
-          <Textarea id={`report-day-text-${i}`} rows={5} value={day.text} maxLength={4000} placeholder="Wetter, Tiefst- und Höchstwerte, Wind" onChange={e => updateDay(i, { text: e.target.value })} className="mt-2 text-base leading-6" />
+          <Textarea id={`report-day-text-${i}`} rows={5} value={day.text} maxLength={4000} placeholder="Wetter, Tiefst- und Höchstwerte, Wind" onChange={e => updateDay(i, { text: e.target.value })} className="mt-2 text-lg leading-7 md:text-lg" />
           <Button
             type="button"
             variant="ghost"
@@ -152,7 +152,7 @@ export default function ReportPanel({ password }: { password: string }) {
         {form.days.length < 10 && <Button type="button" variant="outline" onClick={() => update({ days: [...form.days, { label: nextWeekday(form.days, new Date()), text: '' }] })}><Plus />Tag hinzufügen</Button>}
       </fieldset>
 
-      <div><label htmlFor="report-trend" className={label}>Trend für die Folgetage</label><Textarea id="report-trend" rows={3} value={form.trend} maxLength={4000} onChange={e => update({ trend: e.target.value })} className="text-base leading-6" /></div>
+      <div><label htmlFor="report-trend" className={label}>Trend für die Folgetage</label><Textarea id="report-trend" rows={3} value={form.trend} maxLength={4000} onChange={e => update({ trend: e.target.value })} className="text-lg leading-7 md:text-lg" /></div>
     </form>}
     {error && <p role="alert" className="mt-5 text-sm text-destructive">{error}</p>}
     {success && <div role="status" className="mt-5 flex items-start gap-2 text-sm text-accent"><Check className="size-5 shrink-0" /><div>{success}{success.startsWith('Veröffentlicht') && <Button asChild variant="link" className="mt-2 block px-0"><Link to="/wetterbericht">Wetterbericht ansehen</Link></Button>}</div></div>}
