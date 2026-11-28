@@ -19,20 +19,33 @@ export interface HomeAnchor {
 let anchor: HomeAnchor | null = null;
 let closing = false;
 let returnTransition: Promise<void> | null = null;
+let returnReveal: Promise<void> | null = null;
+
+/** Längste Wartezeit, bis die Regionskarte nach dem Schliessen aufgebaut wird. */
+export const HOME_REVEAL_LIMIT_MS = 250;
 
 /** Desktop-Rückweg: keine grosse Kartenaufnahme in eine Miniatur skalieren. */
 export function startDesktopHomeReturn(update: () => Promise<void>): void {
   markHomeReturn();
-  if (typeof document.startViewTransition !== 'function') { void update(); return; }
+  if (typeof document.startViewTransition !== 'function') { returnTransition = null; returnReveal = null; void update(); return; }
   document.documentElement.classList.add('desktop-home-return');
   const transition = document.startViewTransition(update);
-  returnTransition = transition.finished.catch(() => undefined).finally(() => {
+  const settled = transition.finished.catch(() => undefined);
+  returnTransition = settled.finally(() => {
     document.documentElement.classList.remove('desktop-home-return');
     returnTransition = null;
   });
+  // Die Karte wartet nur, bis die Übersicht aufgenommen ist (ready), nicht bis zum Ende des
+  // Überblendens – und nie länger als die Obergrenze, falls der Browser das Signal verschluckt.
+  const captured = Promise.resolve(transition.ready).catch(() => undefined);
+  const limit = new Promise<void>(resolve => { setTimeout(resolve, HOME_REVEAL_LIMIT_MS); });
+  const reveal: Promise<void> = Promise.race([captured, settled, limit]).then(() => { if (returnReveal === reveal) returnReveal = null; });
+  returnReveal = reveal;
 }
 
 export const getHomeReturnTransition = (): Promise<void> | null => returnTransition;
+/** Offen, solange die Regionskarte nach dem Schliessen noch nicht aufgebaut werden soll. */
+export const getHomeReturnReveal = (): Promise<void> | null => returnReveal;
 
 export function rememberHomeAnchor(next: HomeAnchor): void { anchor = next; closing = false; }
 export const hasHomeAnchor = (): boolean => anchor !== null;

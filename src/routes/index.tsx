@@ -1,9 +1,9 @@
 import { createFileRoute, Link, useHydrated } from '@tanstack/react-router';
-import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { getMorphCard, setMorphCard } from '@/lib/card-morph';
-import { describeHomeClick, getHomeReturnTransition, rememberHomeAnchor, restoreHomePosition, takeHomeReturn, type HomeAnchor } from '@/lib/home-return';
+import { describeHomeClick, getHomeReturnReveal, rememberHomeAnchor, restoreHomePosition, takeHomeReturn, type HomeAnchor } from '@/lib/home-return';
 import { ArrowUpRight, MapPin, Search, Droplets, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
@@ -12,9 +12,10 @@ import { OverviewWeatherSymbol } from '@/components/overview-weather-symbol';
 import { OverviewHourlyForecast } from '@/components/overview-hourly-forecast';
 import { LocationSearch } from '@/components/location-search';
 import { TickerTilePreview } from '@/components/ticker/ticker-view';
-import { LazyRegionMap } from '@/components/maps/lazy-maps';
+import { LazyRegionMap, preloadRegionMap } from '@/components/maps/lazy-maps';
 import { MapSkeleton } from '@/components/maps/map-skeleton';
 import { useIsDesktop } from '@/hooks/use-desktop';
+import { regionForecastQuery } from '@/lib/map-queries';
 import { tickerQuery } from '@/lib/ticker-query';
 import { visiblePosts } from '@/lib/ticker';
 import { reverseGeocode } from '@/lib/weather';
@@ -30,8 +31,15 @@ import { RadarPreview, SatellitePreview, StationPreview, WarningPreview, WindPre
 const stationsQuery = () => queryOptions({ queryKey: ['overview-stations'], queryFn: () => getStationExtremes(), staleTime: 60000, refetchInterval: 120000 });
 const warningsQuery = () => queryOptions({ queryKey: ['overview-warnings'], queryFn: () => listWarnings(), staleTime: 30000, refetchInterval: 60000 });
 
+const DESKTOP_QUERY = '(min-width: 1024px)';
+
 export const Route = createFileRoute('/')({
   loader: async ({ context }) => {
+    // Regionskarte gibt es nur auf dem Desktop: Code und Daten dort schon beim Seitenwechsel anstossen, ohne darauf zu warten.
+    if (typeof window !== 'undefined' && window.matchMedia(DESKTOP_QUERY).matches) {
+      preloadRegionMap();
+      void context.queryClient.prefetchQuery(regionForecastQuery());
+    }
     const [ticker] = await Promise.all([
       // Ticker reist als Loader-Daten mit, damit er schon in der ersten Auslieferung steht; ein Ausfall blockiert die Startseite nicht.
       context.queryClient.fetchQuery(tickerQuery()).catch(() => null),
@@ -87,11 +95,11 @@ function WeatherOverview() {
   // Nach dem Schliessen einer Kachel wieder an die Stelle, an der sie geöffnet wurde.
   const rootRef = useRef<HTMLDivElement>(null);
   const pendingReturn = useRef<HomeAnchor | null>(null);
-  const [returnReady, setReturnReady] = useState(() => getHomeReturnTransition() === null);
+  const [returnReady, setReturnReady] = useState(() => getHomeReturnReveal() === null);
   useEffect(() => {
     let cancelled = false;
-    const transition = getHomeReturnTransition();
-    if (transition) void transition.then(() => { if (!cancelled) setReturnReady(true); });
+    const reveal = getHomeReturnReveal();
+    if (reveal) void reveal.then(() => { if (!cancelled) setReturnReady(true); });
     else setReturnReady(true);
     return () => { cancelled = true; };
   }, []);
@@ -106,6 +114,13 @@ function WeatherOverview() {
   const desktop = useIsDesktop();
   // Die Karte gibt es nur auf dem Desktop und braucht den Browser; ihr Rahmen und der Ticker stehen schon in der ersten Auslieferung.
   const hydrated = useHydrated();
+  const queryClient = useQueryClient();
+  // Erste Auslieferung kommt vom Server: Kartencode und Regionsdaten gleich nach dem Start anstossen, nicht erst mit der Karte.
+  useEffect(() => {
+    if (!desktop) return;
+    preloadRegionMap();
+    void queryClient.prefetchQuery(regionForecastQuery());
+  }, [desktop, queryClient]);
   const loaded = Route.useLoaderData();
   const ticker = useQuery({ ...tickerQuery(), ...(loaded.ticker ? { initialData: loaded.ticker } : {}) });
   const tile = (path: string, extra = '') => `weather-product group${extra}${morph === path ? ' morph-card' : ''}`;
