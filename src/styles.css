@@ -341,6 +341,57 @@ html:has(.weather-page)::view-transition { background-color: var(--brand-blue); 
 .weather-map-open > div > :not(.shadow-lg) .rounded-full { border-radius: 6px; }
 .weather-map-open > div > :not(.shadow-lg) > .rounded-full { border-radius: 8px; }
 .weather-map-open > div > .shadow-lg { box-shadow: var(--tile-dark-shadow); }
+/* Public-only controls: the shared WordPress components keep their light palette.
+   :has also reaches settings popovers portalled outside the page wrapper. */
+html:has(.weather-page) :is([data-weather-controls], [data-weather-day-tabs], [data-weather-filmstrip]) {
+  --weather-control-bg: var(--tile-dark);
+  --weather-control-text: var(--ticker-foreground);
+  --weather-control-muted: color-mix(in srgb, var(--ticker-foreground) 76%, var(--tile-dark));
+  --weather-control-border: color-mix(in srgb, var(--ticker-foreground) 18%, var(--tile-dark));
+  --weather-control-hover: color-mix(in srgb, var(--ticker-foreground) 12%, var(--tile-dark));
+  --card: var(--weather-control-bg);
+  --foreground: var(--weather-control-text);
+  --muted-foreground: var(--weather-control-muted);
+  --border: var(--weather-control-border);
+  color: var(--weather-control-text);
+}
+html:has(.weather-page) [data-weather-controls] {
+  background: var(--weather-control-bg);
+  border-color: var(--weather-control-border);
+}
+html:has(.weather-page) [data-weather-day-tabs] > div:first-child {
+  background: var(--weather-control-bg);
+  border: 1px solid var(--weather-control-border);
+}
+html:has(.weather-page) [data-weather-day-tabs] button { color: var(--weather-control-text); }
+html:has(.weather-page) [data-weather-day-tabs] .text-muted-foreground { color: var(--weather-control-muted); }
+html:has(.weather-page) [data-weather-controls] button:not([role="switch"]) {
+  background: var(--weather-control-bg) !important;
+  border-color: var(--weather-control-border) !important;
+  color: var(--weather-control-text);
+}
+html:has(.weather-page) [data-weather-controls] button:not([role="switch"]):hover:not(:disabled) { background: var(--weather-control-hover) !important; }
+html:has(.weather-page) [data-weather-controls] button[style] {
+  background: var(--brand-blue) !important;
+  border-color: var(--tile-dark-accent) !important;
+}
+html:has(.weather-page) [data-weather-controls] [class*="text-neutral-"]:not(button) { color: var(--weather-control-muted); }
+html:has(.weather-page) [data-weather-controls] [class*="bg-white"] { background-color: var(--weather-control-bg); border-color: var(--weather-control-border); }
+html:has(.weather-page) [data-weather-filmstrip] [role="slider"] {
+  background: var(--weather-control-bg);
+  border-color: var(--weather-control-border);
+  --tw-ring-color: var(--tile-dark-accent);
+}
+html:has(.weather-page) [data-weather-filmstrip] [role="slider"]:active { background: var(--weather-control-hover); }
+html:has(.weather-page) [data-weather-filmstrip] [class*="text-neutral-"] { color: var(--weather-control-muted); }
+html:has(.weather-page) [data-weather-filmstrip] [class*="bg-neutral-900"],
+html:has(.weather-page) [data-weather-filmstrip] [class*="bg-neutral-950"] { background-color: var(--weather-control-text); }
+html:has(.weather-page) [data-weather-filmstrip] > div:first-child span:first-child {
+  background: var(--weather-control-bg) !important;
+  color: var(--weather-control-text);
+  box-shadow: inset 0 0 0 1px var(--weather-control-border);
+}
+html:has(.weather-page) [data-weather-filmstrip] > div:first-child span:last-child { border-top-color: var(--weather-control-bg) !important; }
 .weather-product-image, .weather-warning-preview, .weather-station-preview { position: relative; aspect-ratio: 1.45; overflow: hidden; }
 .weather-product-image img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .weather-play { position: absolute; inset: 0; display: grid; place-items: center; color: var(--accent-foreground); }

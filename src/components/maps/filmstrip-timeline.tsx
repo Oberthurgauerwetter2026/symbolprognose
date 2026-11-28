@@ -348,7 +348,7 @@ export function FilmstripTimeline({
 
 
   return (
-    <div className="select-none">
+    <div data-weather-filmstrip className="select-none">
       {/* Bubble über fixer Mittellinie */}
       <div className="relative h-9">
         <div className="pointer-events-none absolute bottom-0 left-1/2 flex -translate-x-1/2 flex-col items-center">

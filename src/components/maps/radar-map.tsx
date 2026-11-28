@@ -2494,6 +2494,7 @@ function RadarMapInner({
         )}
       >
         <div
+          data-weather-controls
           className={cn(
             "rounded-xl border border-neutral-200 p-2 text-neutral-900 sm:p-2.5",
             bare
@@ -2626,6 +2627,7 @@ function RadarMapInner({
                       </button>
                     </PopoverTrigger>
                     <PopoverContent
+                      data-weather-controls
                       side="top"
                       align="end"
                       sideOffset={8}

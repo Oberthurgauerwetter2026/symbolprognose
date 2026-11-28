@@ -595,7 +595,7 @@ function DayTabs({
   }, [activeIndex, days.length]);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-full">
+    <div data-weather-day-tabs className="relative w-full overflow-hidden rounded-full">
       <div
         ref={containerRef}
         className="no-scrollbar relative flex w-full gap-1 overflow-x-auto rounded-full bg-muted p-1"
@@ -1089,6 +1089,7 @@ function RegionMapInner({
 
           {filmstrip ? (
             <div
+              data-weather-controls
               className="flex items-end gap-2 rounded-xl border border-neutral-200 bg-white px-2 pb-2 pt-1 shadow-md"
               onPointerDownCapture={() => { if (viewMode === "daily") setViewMode("hourly"); }}
             >
