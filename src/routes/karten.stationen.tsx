@@ -9,6 +9,7 @@ import { getStationExtremes } from '@/lib/station-extremes.functions';
 import { zurichDay } from '@/lib/station-extremes';
 import { SERIES_METRICS, SERIES_RANGES, SUM_PERIODS, type SeriesMetric, type SeriesRange, type SumPeriod } from '@/lib/station-series';
 import { APP_MANIFEST_LINK } from '@/lib/pwa-links';
+import { initialSumMetric } from '@/lib/station-view';
 
 const stationsQuery = () => queryOptions({ queryKey: ['overview-stations'], queryFn: () => getStationExtremes(), staleTime: 60_000, refetchInterval: 120_000 });
 
@@ -55,7 +56,7 @@ function StationDataPage() {
   const tab = search.tab ?? 'grafiken';
   const fallback = stations.find(s => s.name === 'Amriswil') ?? stations[0];
   const charts: ChartState = { stationId: stations.some(s => s.id === search.st) ? search.st ?? '' : fallback?.id ?? '', metric: search.m ?? 'temperature', range: search.r ?? 'day', anchor: search.a ?? today, from: search.f ?? today, to: search.t ?? today };
-  const sums: SumState = { metric: search.sm ?? 'rain', period: search.sp ?? 'today', anchor: search.sa ?? today, from: search.sf ?? today, to: search.su ?? today, tempStat: search.ss ?? 'avg', view: search.sv ?? 'map' };
+  const sums: SumState = { metric: initialSumMetric(search.sm), period: search.sp ?? 'today', anchor: search.sa ?? today, from: search.sf ?? today, to: search.su ?? today, tempStat: search.ss ?? 'avg', view: search.sv ?? 'map' };
   return <DashboardLayout title="Messwerte">
     <div className="mx-auto max-w-6xl px-3 py-4 sm:px-8 sm:py-6">
       <Tabs value={tab} onValueChange={value => set({ tab: value === 'summen' ? 'summen' : 'grafiken' })}>

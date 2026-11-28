@@ -22,7 +22,7 @@ const METRICS: { id: SeriesMetric; label: string; icon: LucideIcon }[] = [
 const RANGES: { id: SeriesRange; label: string }[] = [{ id: 'day', label: 'Tag' }, { id: 'month', label: 'Monat' }, { id: 'year', label: 'Jahr' }, { id: 'custom', label: 'Frei' }];
 // Kurvenfarben für den nachtblauen Grund; Bedeutung wie in den Stationsgrafiken des Weather Hub.
 const C = { temp: '#ff7d73', frost: '#6fb8ff', tmin: '#8ecbff', tmax: '#ffc4be', dew: '#7cc4ff', hum: '#6fdc9c', pres: '#ffffff', wind: '#6fc7ee', gust: '#ffa45c', rainBar: '#7db3e8', rainSum: '#ffffff' };
-const FILLS = ['temp', 'dew', 'pres', 'wind'] as const;
+const FILLS = ['temp', 'dew', 'hum', 'pres', 'wind', 'gust'] as const;
 const GRID = 'rgba(255,255,255,0.14)', TICK = { fill: 'rgba(255,255,255,0.82)', fontSize: 11 };
 const NAMES: Record<string, string> = { temp: 'Temperatur', tmin: 'Minimum', tmax: 'Maximum', dew: 'Taupunkt', hum: 'Feuchte', pres: 'Luftdruck', wind: 'Mittelwind', gust: 'Böe', rain: 'Niederschlag', sum: 'Summe' };
 const UNITS: Record<string, string> = { temp: '°C', tmin: '°C', tmax: '°C', dew: '°C', hum: '%', pres: 'hPa', wind: 'km/h', gust: 'km/h', rain: 'mm', sum: 'mm' };
@@ -73,7 +73,7 @@ function Chart({ points, win, metric, buckets }: { points: SeriesPoint[]; win: S
   // Bei Frost füllt die Fläche zwischen Kurve und Nullgradlinie: darüber rötlich, darunter bläulich.
   const frost = metric === 'temperature' ? frostOffset(points.map(p => p.temp)) : null;
   // Farbfläche unter der Hauptkurve, wie in den Stationsgrafiken des Weather Hub.
-  const area = (key: (typeof FILLS)[number]) => <Area key={key} yAxisId="main" dataKey={key} stroke={C[key]} strokeWidth={2} fill={`url(#${key}-fill)`} baseValue={key === 'temp' && frost !== null ? 0 : 'dataMin'} dot={false} connectNulls={false} isAnimationActive={false} />;
+  const area = (key: (typeof FILLS)[number], axis = 'main', width = 2) => <Area key={key} yAxisId={axis} dataKey={key} stroke={C[key]} strokeWidth={width} fill={`url(#${key}-fill)`} baseValue={key === 'hum' || key === 'wind' || key === 'gust' || (key === 'temp' && frost !== null) ? 0 : 'dataMin'} dot={false} connectNulls={false} isAnimationActive={false} />;
   return <ResponsiveContainer width="100%" height="100%">
     <ComposedChart data={points} margin={metric === 'dew' ? { ...margin, right: 0 } : margin}>
       <defs>{FILLS.map(key => <linearGradient key={key} id={`${key}-fill`} x1="0" y1="0" x2="0" y2="1">
@@ -93,9 +93,9 @@ function Chart({ points, win, metric, buckets }: { points: SeriesPoint[]; win: S
       {(metric === 'temperature' || metric === 'dew') && <ReferenceLine yAxisId="main" y={0} stroke="rgba(255,255,255,0.6)" strokeDasharray="5 4" ifOverflow="hidden" />}
       {metric === 'temperature' && area('temp')}
       {metric === 'temperature' && !raw && [line('tmin', 1), line('tmax', 1)]}
-      {metric === 'dew' && [area('dew'), line('hum', 1.5, 'hum')]}
+      {metric === 'dew' && [area('hum', 'hum', 1.5), area('dew')]}
       {metric === 'pressure' && area('pres')}
-      {metric === 'wind' && [area('wind'), line('gust', 1.5)]}
+      {metric === 'wind' && [area('gust', 'main', 1.5), area('wind')]}
     </ComposedChart>
   </ResponsiveContainer>;
 }

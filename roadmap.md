@@ -1,3 +1,6 @@
+# Station sums and chart fills
+- [x] Default sums to temperature; add humidity and gust areas while retaining their separate scales. Real Amriswil data and sums-tab temperature start verified at 1557 px without browser errors; existing explicit metric selections preserved.
+
 # Compact horizontal local forecast
 - [x] App local forecast: compact horizontal day strip, night-blue surfaces and smaller hourly details. Real Amriswil forecast and tomorrow selection verified at 393/1557 px without overflow or browser errors; WordPress embeds have no app wrapper. Physical phone not tested.
 
