@@ -112,7 +112,7 @@ export function StationCharts({ stations, state, today, onChange }: { stations: 
     <div className="rounded-md bg-card p-3 shadow-md">
       <Select value={stationId} onValueChange={id => onChange({ stationId: id })}>
         <SelectTrigger aria-label="Station" className="h-11 w-full gap-2 text-base font-semibold sm:w-80 [&>span]:flex-1 [&>span]:text-left"><MapPin className="size-4 shrink-0 text-accent" /><SelectValue placeholder="Station wählen" /></SelectTrigger>
-        <SelectContent>{stations.map(s => <SelectItem key={s.id} value={s.id}>{s.name} <span className="ml-1 text-xs font-normal text-muted-foreground">{s.source === 'meteoswiss' ? 'MCH' : 'OWT'}</span></SelectItem>)}</SelectContent>
+        <SelectContent className="weather-menu border-border">{stations.map(s => <SelectItem key={s.id} value={s.id} className="focus:bg-secondary focus:text-secondary-foreground">{s.name} <span className="ml-1 text-xs font-normal text-muted-foreground">{s.source === 'meteoswiss' ? 'MCH' : 'OWT'}</span></SelectItem>)}</SelectContent>
       </Select>
       <div role="group" aria-label="Messgrösse" className="mt-3 flex gap-1 overflow-x-auto">
         {METRICS.map(m => <Choice key={m.id} active={m.id === metric} label={m.label} onClick={() => onChange({ metric: m.id })}><m.icon className="size-4" /><span className={m.id === metric ? '' : 'hidden md:inline'}>{m.label}</span></Choice>)}
