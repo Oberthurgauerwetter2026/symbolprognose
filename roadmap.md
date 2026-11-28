@@ -1,3 +1,6 @@
+# Scrolling and desktop close
+- [x] Allow vertical phone scrolling over the hourly preview; desktop X uses a 180 ms root fade and defers region-map initialization/resize tracking until it finishes. Six tests pass; real forecast at 390 px supports vertical (180 px) and horizontal (252 px) touch gestures and opens/closes the same place. At 1557 px X returns to the exact tile position, no map mounts during the fade, no page errors; preview build OK. Not checked on a physical phone.
+
 # Region map desktop only, dark frame
 - [x] Phone home no longer shows the region symbol map (link under «Mehr Wetter» stays); desktop map frame is night blue like the tiles. Checked at 1557 and 390 px: desktop map, search and level bottom edges intact, phone loads no map, no overflow or page errors. Not checked on a physical phone.
 

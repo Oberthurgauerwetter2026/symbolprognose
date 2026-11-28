@@ -3,7 +3,7 @@ import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { getMorphCard, setMorphCard } from '@/lib/card-morph';
-import { describeHomeClick, rememberHomeAnchor, restoreHomePosition, takeHomeReturn, type HomeAnchor } from '@/lib/home-return';
+import { describeHomeClick, getHomeReturnTransition, rememberHomeAnchor, restoreHomePosition, takeHomeReturn, type HomeAnchor } from '@/lib/home-return';
 import { ArrowUpRight, MapPin, Search, Droplets, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
@@ -87,6 +87,14 @@ function WeatherOverview() {
   // Nach dem Schliessen einer Kachel wieder an die Stelle, an der sie geöffnet wurde.
   const rootRef = useRef<HTMLDivElement>(null);
   const pendingReturn = useRef<HomeAnchor | null>(null);
+  const [returnReady, setReturnReady] = useState(() => getHomeReturnTransition() === null);
+  useEffect(() => {
+    let cancelled = false;
+    const transition = getHomeReturnTransition();
+    if (transition) void transition.then(() => { if (!cancelled) setReturnReady(true); });
+    else setReturnReady(true);
+    return () => { cancelled = true; };
+  }, []);
   useLayoutEffect(() => {
     const target = takeHomeReturn() ?? pendingReturn.current;
     const root = rootRef.current;
@@ -145,7 +153,7 @@ function WeatherOverview() {
       </section>
 
       <section aria-label="Symbolprognose der Region" className="weather-surface weather-map-open hidden flex-1 lg:block">
-        {hydrated && desktop ? <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search filmstrip /></Suspense> : <MapSkeleton regionHeight />}
+        {hydrated && desktop && returnReady ? <Suspense fallback={<MapSkeleton regionHeight />}><LazyRegionMap search filmstrip /></Suspense> : <MapSkeleton regionHeight />}
       </section>
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">

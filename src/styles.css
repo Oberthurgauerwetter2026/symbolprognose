@@ -354,6 +354,11 @@ html:has(.weather-blue) { background-color: var(--brand-blue); }
 ::view-transition-old(product-card) { width: 100%; height: auto; animation-duration: 200ms; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 260ms; }
 ::view-transition-group(weather-header) { z-index: 2; animation-duration: 260ms; }
+/* Desktop-X: nur kurz überblenden; Regionskarte wird erst danach aufgebaut. */
+html.desktop-home-return .morph-card { view-transition-name: none; }
+html.desktop-home-return::view-transition-group(*),
+html.desktop-home-return::view-transition-old(*),
+html.desktop-home-return::view-transition-new(*) { animation-duration: 180ms; }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

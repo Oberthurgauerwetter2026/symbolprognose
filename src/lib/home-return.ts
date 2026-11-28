@@ -18,6 +18,21 @@ export interface HomeAnchor {
 
 let anchor: HomeAnchor | null = null;
 let closing = false;
+let returnTransition: Promise<void> | null = null;
+
+/** Desktop-Rückweg: keine grosse Kartenaufnahme in eine Miniatur skalieren. */
+export function startDesktopHomeReturn(update: () => Promise<void>): void {
+  markHomeReturn();
+  if (typeof document.startViewTransition !== 'function') { void update(); return; }
+  document.documentElement.classList.add('desktop-home-return');
+  const transition = document.startViewTransition(update);
+  returnTransition = transition.finished.catch(() => undefined).finally(() => {
+    document.documentElement.classList.remove('desktop-home-return');
+    returnTransition = null;
+  });
+}
+
+export const getHomeReturnTransition = (): Promise<void> | null => returnTransition;
 
 export function rememberHomeAnchor(next: HomeAnchor): void { anchor = next; closing = false; }
 export const hasHomeAnchor = (): boolean => anchor !== null;
@@ -58,7 +73,9 @@ export function restoreHomePosition(root: HTMLElement, target: HomeAnchor, done:
   };
   const events = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
   const observer = new ResizeObserver(apply);
+  let released = false;
   const release = () => {
+    released = true;
     observer.disconnect();
     window.clearTimeout(timer);
     for (const name of events) window.removeEventListener(name, finish);
@@ -67,6 +84,9 @@ export function restoreHomePosition(root: HTMLElement, target: HomeAnchor, done:
   const timer = window.setTimeout(finish, 3000);
   for (const name of events) window.addEventListener(name, finish, { passive: true });
   apply();
-  observer.observe(root);
+  // Zielposition vor der Aufnahme setzen; spätere Layoutkorrekturen erst danach.
+  const observe = () => { if (!released) { apply(); observer.observe(root); } };
+  if (returnTransition) void returnTransition.then(observe);
+  else observer.observe(root);
   return release;
 }

@@ -1,9 +1,41 @@
-import { describe, expect, it } from 'vitest';
-import { hasHomeAnchor, markHomeReturn, rememberHomeAnchor, takeHomeReturn, type HomeAnchor } from './home-return';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getHomeReturnTransition, hasHomeAnchor, markHomeReturn, rememberHomeAnchor, startDesktopHomeReturn, takeHomeReturn, type HomeAnchor } from './home-return';
 
 const tile: HomeAnchor = { path: '/karten/warnungen', index: 0, top: 412, scrollY: 980 };
 
 describe('Rückkehr an die Stelle der geöffneten Kachel', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('hält den Desktop-Kartenaufbau bis zum Ende des Rückübergangs zurück', async () => {
+    let finish = () => {};
+    const finished = new Promise<void>(resolve => { finish = resolve; });
+    const add = vi.fn();
+    const remove = vi.fn();
+    const update = vi.fn(async () => {});
+    vi.stubGlobal('document', { documentElement: { classList: { add, remove } }, startViewTransition: (callback: () => Promise<void>) => { void callback(); return { finished }; } });
+    rememberHomeAnchor(tile);
+    startDesktopHomeReturn(update);
+    expect(update).toHaveBeenCalledOnce();
+    expect(takeHomeReturn()).toEqual(tile);
+    expect(getHomeReturnTransition()).not.toBeNull();
+    expect(remove).not.toHaveBeenCalled();
+    const pending = getHomeReturnTransition();
+    finish();
+    await pending;
+    expect(getHomeReturnTransition()).toBeNull();
+    expect(add).toHaveBeenCalledWith('desktop-home-return');
+    expect(remove).toHaveBeenCalledWith('desktop-home-return');
+  });
+
+  it('kehrt auch ohne View-Transition-Unterstützung an dieselbe Kachel zurück', () => {
+    vi.stubGlobal('document', {});
+    const update = vi.fn(async () => {});
+    rememberHomeAnchor(tile);
+    startDesktopHomeReturn(update);
+    expect(update).toHaveBeenCalledOnce();
+    expect(getHomeReturnTransition()).toBeNull();
+    expect(takeHomeReturn()).toEqual(tile);
+  });
   it('kehrt nach dem Schliessen an die Stelle zurück, an der die Kachel geöffnet wurde', () => {
     rememberHomeAnchor(tile);
     markHomeReturn();

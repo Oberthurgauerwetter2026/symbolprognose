@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
 import { shouldResumeOnHome } from '@/lib/app-home';
-import { hasHomeAnchor, markHomeReturn } from '@/lib/home-return';
+import { hasHomeAnchor, markHomeReturn, startDesktopHomeReturn } from '@/lib/home-return';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import logoAsset from '@/assets/wetter-logo-symbol.png.asset.json';
@@ -26,7 +26,14 @@ export function PublicWeatherLayout({ title, home = false, headerAction, childre
       <div className={`mx-auto flex min-h-16 max-w-6xl items-center gap-3 px-4 py-2 sm:px-8${home ? ' lg:max-w-7xl' : ''}`}>
         {home ? <><img src={logoAsset.url} alt="Oberthurgauer Wetter Logo" width={122} height={105} className="h-auto w-12 shrink-0 sm:w-16" /><div className="min-w-0"><p className="break-words font-display text-base font-semibold leading-tight sm:text-xl">Oberthurgauer Wetter</p><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Wetter für deine Region</p></div></> : <>
           <div className="min-w-0 flex-1"><p className="text-[11px] font-medium text-muted-foreground">Oberthurgauer Wetter</p><h1 className="break-words font-display text-base font-semibold leading-tight sm:text-lg">{title}</h1></div>
-          <Button asChild variant="ghost" size="icon" className="size-11 shrink-0 rounded-full border border-border text-foreground hover:bg-foreground/15 hover:text-foreground"><Link to="/" viewTransition resetScroll={!hasHomeAnchor()} onClick={markHomeReturn} aria-label="Schliessen und zur Wetterübersicht" title="Schliessen"><X className="size-6" /></Link></Button>
+          <Button asChild variant="ghost" size="icon" className="size-11 shrink-0 rounded-full border border-border text-foreground hover:bg-foreground/15 hover:text-foreground"><Link to="/" viewTransition resetScroll={!hasHomeAnchor()} onClick={event => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            if (window.matchMedia('(min-width: 1024px)').matches) {
+              event.preventDefault();
+              const resetScroll = !hasHomeAnchor();
+              startDesktopHomeReturn(() => router.navigate({ to: '/', viewTransition: false, resetScroll }));
+            } else markHomeReturn();
+          }} aria-label="Schliessen und zur Wetterübersicht" title="Schliessen"><X className="size-6" /></Link></Button>
         </>}
         {home && headerAction && <div className="ml-auto shrink-0">{headerAction}</div>}
       </div>
