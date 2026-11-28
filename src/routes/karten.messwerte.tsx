@@ -19,7 +19,7 @@ export const Route = createFileRoute('/karten/messwerte')({
   loader: ({ context }) => { void context.queryClient.prefetchQuery(readingsQuery()); },
   head: () => ({ meta: [
     { title: 'Live-Messwerte: Temperatur, Wind und Regen · Oberthurgauer Wetter' },
-    { name: 'description', content: 'Aktuelle Temperaturen, stärkste Tagesböen und Tagesniederschlag der regionalen Wetterstationen im Oberthurgau.' },
+    { name: 'description', content: 'Aktuelle Temperaturen, Wind mit Richtung und Böenspitzen sowie aktueller Niederschlag und Tagessummen der Wetterstationen im Oberthurgau.' },
     { property: 'og:title', content: 'Live-Messwerte · Oberthurgauer Wetter' },
     { property: 'og:description', content: 'Temperatur, Wind und Niederschlag der regionalen Wetterstationen auf einer Karte.' },
     { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' },
@@ -32,7 +32,14 @@ function StationReadingsPage() {
   const stations = data ?? [];
   const [metric, setMetric] = useState('temperature');
   const [temperatureStat, setTemperatureStat] = useState<ExtremeStat>('current');
-  const stat = metric === 'wind' ? 'gust' : metric === 'rain' ? 'rain' : temperatureStat;
+  const [windStat, setWindStat] = useState<ExtremeStat>('wind');
+  const [rainStat, setRainStat] = useState<ExtremeStat>('rainRate');
+  const stat = metric === 'wind' ? windStat : metric === 'rain' ? rainStat : temperatureStat;
+  const choice = metric === 'wind'
+    ? { label: 'Windanzeige', value: windStat, set: setWindStat, options: [{ stat: 'wind', label: 'Aktuell' }, { stat: 'gust', label: 'Böenspitzen' }] as const }
+    : metric === 'rain'
+      ? { label: 'Niederschlagszeitraum', value: rainStat, set: setRainStat, options: [{ stat: 'rainRate', label: 'Aktuell' }, { stat: 'rain', label: 'Tagessumme' }] as const }
+      : { label: 'Temperaturzeitraum', value: temperatureStat, set: setTemperatureStat, options: [{ stat: 'current', label: 'Jetzt' }, { stat: 'min', label: 'Minimum' }, { stat: 'max', label: 'Maximum' }] as const };
   const ranked = rankExtremes(stations, stat);
   return <DashboardLayout title="Live-Messwerte">
     <section aria-label="Messwertekarte" className="mx-auto max-w-6xl px-3 py-4 sm:px-8 sm:py-6">
@@ -45,15 +52,15 @@ function StationReadingsPage() {
       </Tabs>
       <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 py-3">
         <h2 className="text-sm font-semibold">{STATION_STAT_LABELS[stat]}</h2>
-        {metric === 'temperature' && <div role="group" aria-label="Temperaturzeitraum" className="flex gap-1">
-          {([{ stat: 'current', label: 'Jetzt' }, { stat: 'min', label: 'Minimum' }, { stat: 'max', label: 'Maximum' }] as const).map(option => <Button key={option.stat} size="sm" variant="ghost" aria-pressed={temperatureStat === option.stat} onClick={() => setTemperatureStat(option.stat)} className={temperatureStat === option.stat ? 'bg-accent/10 text-accent' : 'text-muted-foreground'}>{option.label}</Button>)}
-        </div>}
+        <div role="group" aria-label={choice.label} className="flex gap-1">
+          {choice.options.map(option => <Button key={option.stat} size="sm" variant="ghost" aria-pressed={choice.value === option.stat} onClick={() => choice.set(option.stat)} className={choice.value === option.stat ? 'bg-accent/10 text-accent' : 'text-muted-foreground'}>{option.label}</Button>)}
+        </div>
       </div>
       <div className="relative h-[min(65svh,640px)] min-h-80 overflow-hidden rounded-md border border-border bg-muted">
-        <Suspense fallback={<div role="status" className="grid h-full place-items-center text-sm text-muted-foreground">Karte wird geladen …</div>}><ExtremesMap stations={ranked} stat={stat} generousPadding /></Suspense>
+        <Suspense fallback={<div role="status" className="grid h-full place-items-center text-sm text-muted-foreground">Karte wird geladen …</div>}><ExtremesMap stations={ranked} stat={stat} generousPadding regionStyle /></Suspense>
         {!ranked.length && <p role="status" className="absolute inset-x-3 top-3 z-[500] rounded-md bg-card/95 p-3 text-center text-sm">{isPending ? 'Messwerte werden geladen …' : 'Momentan keine Messwerte verfügbar.'}</p>}
       </div>
-      <SourceFooter data="eigene Stationen, MeteoSchweiz" className="mt-2">{' · Karte: © '}<a href="https://www.swisstopo.admin.ch/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">swisstopo</a></SourceFooter>
+      <SourceFooter data="eigene Stationen, MeteoSchweiz" map className="mt-2" />
     </section>
   </DashboardLayout>;
 }

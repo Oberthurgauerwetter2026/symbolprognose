@@ -37,3 +37,4 @@
 - Model snow projects each hour's snow line onto the DEM per hour, then sums (no window-mean line).
 - Sum-map model series come prefetched from R2 (ingest_model_series.py); live Open-Meteo only if missing/stale (worker IPs get throttled).
 - Overview tiles open via the View Transitions API (Link `viewTransition`, one shared `product-card` name on the tapped tile and the detail `<main>`); layouts derive their variant from their own route match, never from `location`, because the target location is set before the old page is captured and would duplicate the transition name.
+- The live readings page (/karten/messwerte) passes `regionStyle` to ExtremesMap for the Weather Hub look (outline, masks, place labels, wind arrows); the stationen-extrem embed omits it and keeps its old picture, because existing WordPress iframes must not change.

@@ -71,6 +71,19 @@ describe("Neue Stationskarten", () => {
   it("externe WordPress-Livekarte bleibt unverändert", () => {
     assert.equal(productById("hub-karte")?.embed, "https://live-wetterkarte.lovable.app/embed/map");
   });
+  it("aktueller Wind: Böe in km/h mit Richtung, sonst Mittelwind; Regenrate in mm/h", () => {
+    const live = { station_id: id, measured_at: "2026-11-14T22:40:00Z", temperature: 2, wind_speed: 2, wind_gust: 5, wind_dir: 82, rain_rate: 1.2 };
+    const row = stationReadings(EXTREME_REFERENCE_STATIONS, daily, [live], now)[0];
+    assert.equal(row.wind, 18);
+    assert.equal(row.windDir, 82);
+    assert.equal(row.rainRate, 1.2);
+    assert.equal(formatStationValue(18, "wind"), "18 km/h");
+    assert.equal(formatStationValue(1.2, "rainRate"), "1.2 mm/h");
+    assert.equal(stationReadings(EXTREME_REFERENCE_STATIONS, daily, [{ ...live, wind_gust: null }], now)[0].wind, 7.2);
+    const old = stationReadings(EXTREME_REFERENCE_STATIONS, daily, [{ ...live, measured_at: "2026-11-14T22:00:00Z" }], now)[0];
+    assert.equal(old.wind, null);
+    assert.equal(old.rainRate, null);
+  });
   it("Messungen älter als 30 Minuten und fehlende Tageswerte bleiben leer", () => {
     const rows = stationReadings(EXTREME_REFERENCE_STATIONS, [], [{ station_id: id, measured_at: "2026-11-14T22:15:00Z", temperature: 8 }], now);
     assert.equal(rows[0].current, null);

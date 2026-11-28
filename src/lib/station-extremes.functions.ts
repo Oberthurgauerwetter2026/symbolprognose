@@ -27,7 +27,7 @@ export const getStationExtremes = createServerFn({ method: "GET" }).handler(asyn
     // Höchstens sechs gleichzeitige Verbindungen; pro Station exakt die jüngste Messung.
     for (let i = 0; i < stations.length; i += 6) {
       const chunk = await Promise.all(stations.slice(i, i + 6).map((station) =>
-        read<StationLiveReading>(`readings?select=station_id,measured_at,temperature&station_id=eq.${station.id}&order=measured_at.desc&limit=1`)));
+        read<StationLiveReading>(`readings?select=station_id,measured_at,temperature,wind_speed,wind_gust,wind_dir,rain_rate&station_id=eq.${station.id}&order=measured_at.desc&limit=1`)));
       live.push(...chunk.flat());
     }
     return stationReadings(stations, rows, live, now);

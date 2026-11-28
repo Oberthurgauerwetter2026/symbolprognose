@@ -1,17 +1,20 @@
 /** Tages-Extremwerte der regionalen Stationen (rein, getestet). */
-export type ExtremeStat = "min" | "max" | "current" | "gust" | "rain";
-export interface StationExtreme { id: string; name: string; lat: number; lon: number; min: number | null; max: number | null; current?: number | null; gust?: number | null; rain?: number | null }
+export type ExtremeStat = "min" | "max" | "current" | "gust" | "rain" | "wind" | "rainRate";
+export interface StationExtreme { id: string; name: string; lat: number; lon: number; min: number | null; max: number | null; current?: number | null; gust?: number | null; rain?: number | null;
+  /** Aktueller Wind in km/h (Böe, sonst Mittelwind), Herkunftsrichtung in Grad, Regenrate in mm/h. */
+  wind?: number | null; windDir?: number | null; rainRate?: number | null }
 
 type ExtremeStation = Pick<StationExtreme, "id" | "name" | "lat" | "lon">;
 export interface ExtremeDailyReading { station_id: string; temp_min: number | null; temp_max: number | null; wind_max_gust?: number | null; rain_sum?: number | null }
-export interface StationLiveReading { station_id: string; measured_at: string; temperature: number | null }
+export interface StationLiveReading { station_id: string; measured_at: string; temperature: number | null; wind_speed?: number | null; wind_gust?: number | null; wind_dir?: number | null; rain_rate?: number | null }
 
 export const STATION_STAT_LABELS: Record<ExtremeStat, string> = {
   min: "Tiefsttemperatur heute", max: "Höchsttemperatur heute", current: "Aktuelle Temperaturen",
   gust: "Stärkste Windböen heute", rain: "Gesamtniederschlag heute",
+  wind: "Wind aktuell", rainRate: "Niederschlag aktuell",
 };
 export function formatStationValue(value: number, stat: ExtremeStat): string {
-  return stat === "gust" ? `${Math.round(value)} km/h` : stat === "rain" ? `${value.toFixed(1)} mm` : `${value.toFixed(1)}°`;
+  return stat === "gust" || stat === "wind" ? `${Math.round(value)} km/h` : stat === "rainRate" ? `${value.toFixed(1)} mm/h` : stat === "rain" ? `${value.toFixed(1)} mm` : `${value.toFixed(1)}°`;
 }
 
 /** Dieselben Kennungen und Koordinaten wie im Weather Hub; nur für die Ticker-Extremwertkarten. */
@@ -42,7 +45,13 @@ export function stationReadings(stations: ExtremeStation[], daily: ExtremeDailyR
     const row = byId.get(station.id), measurement = latest.get(station.id);
     const age = measurement ? now - Date.parse(measurement.measured_at) : Infinity;
     const gust = valid(row?.wind_max_gust), rain = valid(row?.rain_sum);
-    return { ...station, current: age >= 0 && age <= 30 * 60_000 ? valid(measurement?.temperature) : null,
+    const fresh = age >= 0 && age <= 30 * 60_000;
+    // Wie die Live-Karte im Weather Hub: aktuelle Böe, sonst Mittelwind (Quelle m/s).
+    const wind = fresh ? valid(measurement?.wind_gust) ?? valid(measurement?.wind_speed) : null;
+    const rate = fresh ? valid(measurement?.rain_rate) : null;
+    return { ...station, current: fresh ? valid(measurement?.temperature) : null,
+      wind: wind !== null && wind >= 0 ? wind * 3.6 : null, windDir: fresh ? valid(measurement?.wind_dir) : null,
+      rainRate: rate !== null && rate >= 0 ? rate : null,
       gust: gust !== null && gust >= 0 ? gust * 3.6 : null, rain: rain !== null && rain >= 0 ? rain : null };
   });
 }
