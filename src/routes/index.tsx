@@ -194,7 +194,7 @@ function WeatherOverview() {
         <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/region"><span className="flex items-center gap-2"><MapPin />Regionsprognose</span><ArrowUpRight /></Link></Button>
         <Button asChild variant="outline" className="weather-dark col-span-2 h-14 justify-between px-3 sm:col-span-1"><Link to="/vertikalschnitt"><span className="flex items-center gap-2"><Snowflake />SnowCast</span><ArrowUpRight /></Link></Button>
       </div></section>
-      <footer className="flex flex-wrap justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground"><span>Oberthurgauer Wetter · Messwerte: WeatherHub, MeteoSchweiz · Karten: swisstopo</span></footer>
+      <footer className="flex flex-wrap justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground"><span>Oberthurgauer Wetter · Messwerte: eigene Stationen, MeteoSchweiz · Karten: swisstopo</span></footer>
     </div>
   </DashboardLayout>;
 }
