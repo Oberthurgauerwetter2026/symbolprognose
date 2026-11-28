@@ -5,7 +5,7 @@ import lake from "@/data/lake.json";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { ExtremeStat, StationExtreme } from "@/lib/station-extremes";
-import { compass, formatStationValue } from "@/lib/station-extremes";
+import { formatStationValue } from "@/lib/station-extremes";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { CityMarkers } from "./city-markers";
 import { LAKE, SWITZERLAND, THURGAU, OUTSIDE_MASK, OUTSIDE_CH_MASK, REGION_OUTLINE } from "./radar-base-geo";
@@ -62,32 +62,17 @@ function icon(v: number, name: string, stat: ExtremeStat) {
 }
 
 type Hover = { id: string; x: number; y: number; w: number };
-const CARD_W = 184, CARD_H = 172;
+const CARD_W = 168, CARD_H = 46;
 
-/** Infofenster wie in der Live-Karte: alle Werte der Station samt Quelle. Liegt über der Karte, damit es nie abgeschnitten wird. */
+/** Infofenster der Station: nur Ort und Quelle, die Messwerte stehen in den Reitern. Liegt über der Karte, damit es nie abgeschnitten wird. */
 function StationCard({ station, at }: { station: StationExtreme; at: Hover }) {
   const left = Math.max(6, Math.min(at.w - CARD_W - 6, at.x - CARD_W / 2));
   const above = at.y - 24 - CARD_H >= 4;
-  const num = (v: number | null | undefined, text: (v: number) => string) => typeof v === "number" && Number.isFinite(v) ? text(v) : "—";
-  const minutes = station.measuredAt ? Math.max(0, Math.round((Date.now() - Date.parse(station.measuredAt)) / 60_000)) : null;
-  const rows: [string, string][] = [
-    ["Temperatur", num(station.current, (v) => `${v.toFixed(1)} °C`)],
-    ["Regen (aktuell)", num(station.rainRate, (v) => `${v.toFixed(1)} mm/h`)],
-    ["Regen (heute)", num(station.rain, (v) => `${v.toFixed(1)} mm`)],
-    ["Wind (aktuell)", num(station.wind, (v) => `${Math.round(v)} km/h${typeof station.windDir === "number" ? ` (${compass(station.windDir)})` : ""}`)],
-    ["Böenspitze (heute)", num(station.gust, (v) => `${Math.round(v)} km/h`)],
-  ];
   return (
-    <div role="status" data-station-card className="pointer-events-none absolute z-[700] overflow-hidden rounded-md bg-white text-[11px] leading-tight text-neutral-900 shadow-lg ring-1 ring-black/10"
+    <div role="status" data-station-card className="pointer-events-none absolute z-[700] overflow-hidden rounded-md bg-white leading-tight text-neutral-900 shadow-lg ring-1 ring-black/10"
       style={{ left, top: above ? at.y - 24 - CARD_H : at.y + 24, width: CARD_W }}>
-      <div className="m-1 rounded-sm px-1.5 py-1 text-white" style={{ backgroundColor: "#2561a1" }}>
-        <div className="text-xs font-semibold">{station.name}</div>
-        <div className="text-[9px] opacity-90">{minutes === null ? "keine aktuelle Messung" : minutes < 1 ? "gerade eben" : `vor ${minutes} min`}</div>
-      </div>
-      <dl className="px-1.5">
-        {rows.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-2 border-b border-neutral-200 py-1 last:border-b-0"><dt className="text-[10px] text-neutral-500">{label}</dt><dd className="font-semibold tabular-nums">{value}</dd></div>)}
-      </dl>
-      <div className="border-t border-neutral-200 bg-neutral-50 px-1.5 py-1 text-[9px] text-neutral-500">Quelle: {station.source === "meteoswiss" ? "MeteoSchweiz" : "Oberthurgauer Wetter"}</div>
+      <div className="truncate px-2 pt-1.5 text-xs font-semibold">{station.name}</div>
+      <div className="truncate px-2 pb-1.5 pt-0.5 text-[10px] text-neutral-500">Quelle: {station.source === "meteoswiss" ? "MeteoSchweiz" : "Oberthurgauer Wetter"}</div>
     </div>
   );
 }
