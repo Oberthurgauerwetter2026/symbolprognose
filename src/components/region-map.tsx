@@ -950,7 +950,7 @@ function RegionMapInner({
 
       <div
         className={cn(
-          "relative overflow-hidden shadow-lg",
+          "relative isolate overflow-hidden shadow-lg", // isolate: Suchfeld und Kartenebenen bleiben unter der fixierten Kopfzeile
           fill
             ? "h-full w-full min-h-0 flex-1"
             : bare
