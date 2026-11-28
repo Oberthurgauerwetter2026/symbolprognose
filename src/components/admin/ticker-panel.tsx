@@ -8,7 +8,7 @@ import { creditLine } from "@/lib/photo-submit";
 import { shrinkImage } from "@/lib/image-shrink";
 import { createTickerPost, deleteTickerPost, updateTickerPost } from "@/lib/ticker.functions";
 import { MAX_BODY, TICKER_PRODUCTS, productById, productGroups, productUrl, visiblePosts } from "@/lib/ticker";
-import { ProductPreview, TickerWidget } from "@/components/ticker/ticker-view";
+import { ProductPreview, TickerTilePreview } from "@/components/ticker/ticker-view";
 import { tickerQuery } from "@/routes/embed.ticker";
 import { PhotoPushOptIn } from "@/components/ticker/photo-push-opt-in";
 import { Button } from "@/components/ui/button";
@@ -136,7 +136,10 @@ export function TickerPanel({ password }: { password: string }) {
 
       <div className="space-y-2">
         <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Vorschau {live.length ? "" : "(Standby)"}</div>
-        <TickerWidget posts={live} />
+        <section aria-label="Ticker-Vorschau" className="overflow-hidden rounded-lg bg-ticker text-ticker-foreground shadow-ticker">
+          <div className="p-4"><TickerTilePreview posts={live} /></div>
+          <div className="border-t border-ticker-foreground/20 px-4 py-3 font-semibold">Wetter-Ticker</div>
+        </section>
       </div>
       <ul className="divide-y divide-border rounded-2xl border border-border bg-card">
         {data.map((x) => (

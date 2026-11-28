@@ -221,16 +221,17 @@ export function TickerList({ posts }: { posts: TickerPost[] }) {
   );
 }
 
-/** Kachel-Vorschau: die neuesten Schlagzeilen mit Uhrzeit, ohne Bedienelemente. */
+/** Gemeinsame Kachel-/Redaktionsvorschau: drei Schlagzeilen mit Uhrzeit und Bild, ohne Bedienelemente. */
 export function TickerTilePreview({ posts }: { posts: TickerPost[] }) {
   const shown = posts.slice(0, WIDGET_VISIBLE);
-  if (!shown.length) return <p className="text-sm text-muted-foreground">Aktuell keine neuen Meldungen.</p>;
+  if (!shown.length) return <p className="text-sm text-ticker-foreground/70">Aktuell keine neuen Meldungen.</p>;
   return (
     <ol className="space-y-2.5">
       {shown.map((p) => (
-        <li key={p.id} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 text-sm">
-          <span className="pt-0.5 text-xs font-semibold tabular-nums text-muted-foreground">{time(p.created_at)}</span>
-          <span className="line-clamp-2 break-words font-medium leading-snug">{splitPost(p.body).title}</span>
+        <li key={p.id} className="flex items-start gap-3 text-sm text-ticker-foreground">
+          <span className="shrink-0 pt-0.5 text-xs font-semibold tabular-nums text-ticker-foreground/70">{time(p.created_at)}</span>
+          <span className="min-w-0 flex-1 line-clamp-2 break-words font-medium leading-snug">{splitPost(p.body).title}</span>
+          <Thumb post={p} />
         </li>
       ))}
     </ol>
