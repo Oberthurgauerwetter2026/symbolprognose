@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, rainBuckets, resolveWindow, seriesPoint, seriesStats, shiftAnchor, sumRange, summarise, timeTicks, zurichMidnight } from "./station-series";
+import { addDays, frostOffset, rainBuckets, resolveWindow, seriesPoint, seriesStats, shiftAnchor, sumRange, summarise, timeTicks, zurichMidnight } from "./station-series";
 
 const A = { id: "a", name: "Amriswil", lat: 47.55, lon: 9.32, source: "own" as const };
 describe("Stationsverläufe", () => {
@@ -77,5 +77,18 @@ describe("Periodensummen", () => {
   it("Station ohne Werte bleibt ohne Werte, nie null Millimeter", () => {
     const [s] = summarise([A], []);
     assert.deepEqual([s?.rain, s?.tempAvg, s?.gust], [null, null, null]);
+  });
+});
+
+describe("frostOffset", () => {
+  it("legt die Farbgrenze auf die Nullgradlinie", () => {
+    assert.equal(frostOffset([4, 1, -4]), 0.5);
+  });
+  it("färbt alles bläulich, wenn es durchgehend friert", () => {
+    assert.equal(frostOffset([-1, null, -3]), 0);
+  });
+  it("bleibt ohne Frostfläche, solange es nicht friert", () => {
+    assert.equal(frostOffset([3, 0, 8]), null);
+    assert.equal(frostOffset([null, undefined]), null);
   });
 });

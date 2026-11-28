@@ -174,3 +174,15 @@ export function summarise(stations: SumStationDef[], rows: DailySumRow[], overri
     return { ...station, days: days.size, rain: rain === null ? null : Math.round(rain * 10) / 10, tempAvg: count ? total / count : null, tempMin, tempMax, gust };
   });
 }
+
+/**
+ * Lage der Nullgradlinie in der Temperaturfläche, die bei Frost zwischen Kurve und 0 °C liegt
+ * (0 = höchster Wert, 1 = tiefster Wert): darunter wird die Fläche bläulich. null ohne Frost.
+ */
+export function frostOffset(temps: (number | null | undefined)[]): number | null {
+  const values = temps.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  if (!values.length) return null;
+  const top = Math.max(...values), low = Math.min(...values);
+  if (low >= 0) return null;
+  return top <= 0 ? 0 : top / (top - low);
+}

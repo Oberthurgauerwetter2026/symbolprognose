@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SourceFooter } from '@/components/source-footer';
 import { seriesQuery } from '@/lib/station-series-query';
 import { compass } from '@/lib/station-extremes';
-import { FIRST_YEAR, rainBuckets, seriesStats, shiftAnchor, spanDays, timeTicks, type SeriesMetric, type SeriesPoint, type SeriesRange, type SeriesWindow } from '@/lib/station-series';
+import { FIRST_YEAR, frostOffset, rainBuckets, seriesStats, shiftAnchor, spanDays, timeTicks, type SeriesMetric, type SeriesPoint, type SeriesRange, type SeriesWindow } from '@/lib/station-series';
 import { anchorLabel, Choice, DateRange, Stepper } from './controls';
 
 export interface ChartStation { id: string; name: string; source?: 'own' | 'meteoswiss' | undefined }
@@ -21,7 +21,7 @@ const METRICS: { id: SeriesMetric; label: string; icon: LucideIcon }[] = [
 ];
 const RANGES: { id: SeriesRange; label: string }[] = [{ id: 'day', label: 'Tag' }, { id: 'month', label: 'Monat' }, { id: 'year', label: 'Jahr' }, { id: 'custom', label: 'Frei' }];
 // Kurvenfarben für den nachtblauen Grund; Bedeutung wie in den Stationsgrafiken des Weather Hub.
-const C = { temp: '#ff7d73', tmin: '#8ecbff', tmax: '#ffc4be', dew: '#7cc4ff', hum: '#6fdc9c', pres: '#ffffff', wind: '#6fc7ee', gust: '#ffa45c', rainBar: '#7db3e8', rainSum: '#ffffff' };
+const C = { temp: '#ff7d73', frost: '#6fb8ff', tmin: '#8ecbff', tmax: '#ffc4be', dew: '#7cc4ff', hum: '#6fdc9c', pres: '#ffffff', wind: '#6fc7ee', gust: '#ffa45c', rainBar: '#7db3e8', rainSum: '#ffffff' };
 const FILLS = ['temp', 'dew', 'pres', 'wind'] as const;
 const GRID = 'rgba(255,255,255,0.14)', TICK = { fill: 'rgba(255,255,255,0.82)', fontSize: 11 };
 const NAMES: Record<string, string> = { temp: 'Temperatur', tmin: 'Minimum', tmax: 'Maximum', dew: 'Taupunkt', hum: 'Feuchte', pres: 'Luftdruck', wind: 'Mittelwind', gust: 'Böe', rain: 'Niederschlag', sum: 'Summe' };
@@ -70,11 +70,20 @@ function Chart({ points, win, metric, buckets }: { points: SeriesPoint[]; win: S
     </ComposedChart>
   </ResponsiveContainer>;
   const line = (key: keyof typeof C, width = 2, axis = 'main') => <Line key={key} yAxisId={axis} dataKey={key} stroke={C[key]} strokeWidth={width} dot={false} connectNulls={false} isAnimationActive={false} />;
+  // Bei Frost füllt die Fläche zwischen Kurve und Nullgradlinie: darüber rötlich, darunter bläulich.
+  const frost = metric === 'temperature' ? frostOffset(points.map(p => p.temp)) : null;
   // Farbfläche unter der Hauptkurve, wie in den Stationsgrafiken des Weather Hub.
-  const area = (key: (typeof FILLS)[number]) => <Area key={key} yAxisId="main" dataKey={key} stroke={C[key]} strokeWidth={2} fill={`url(#${key}-fill)`} baseValue="dataMin" dot={false} connectNulls={false} isAnimationActive={false} />;
+  const area = (key: (typeof FILLS)[number]) => <Area key={key} yAxisId="main" dataKey={key} stroke={C[key]} strokeWidth={2} fill={`url(#${key}-fill)`} baseValue={key === 'temp' && frost !== null ? 0 : 'dataMin'} dot={false} connectNulls={false} isAnimationActive={false} />;
   return <ResponsiveContainer width="100%" height="100%">
     <ComposedChart data={points} margin={metric === 'dew' ? { ...margin, right: 0 } : margin}>
-      <defs>{FILLS.map(key => <linearGradient key={key} id={`${key}-fill`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C[key]} stopOpacity={0.32} /><stop offset="100%" stopColor={C[key]} stopOpacity={0.02} /></linearGradient>)}</defs>
+      <defs>{FILLS.map(key => <linearGradient key={key} id={`${key}-fill`} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={C[key]} stopOpacity={0.32} />
+        {key === 'temp' && frost !== null ? <>
+          <stop offset={frost} stopColor={C.temp} stopOpacity={0.04} />
+          <stop offset={frost} stopColor={C.frost} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={C.frost} stopOpacity={0.55} />
+        </> : <stop offset="100%" stopColor={C[key]} stopOpacity={0.02} />}
+      </linearGradient>)}</defs>
       <CartesianGrid stroke={GRID} />
       <XAxis dataKey="t" type="number" scale="time" domain={[win.from, win.to]} ticks={timeTicks(win)} tickFormatter={tick} tick={TICK} stroke={GRID} tickLine={false} minTickGap={12} />
       <YAxis yAxisId="main" tick={TICK} stroke={GRID} tickLine={false} width={52} allowDecimals={false}
