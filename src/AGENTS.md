@@ -1,1 +1,2 @@
 - Home tiles, report preview and hourly strip use the dark `.weather-dark`/`.weather-product` token scope in styles.css; opened detail pages use `.weather-detail` (brand blue, night-blue controls, white text) and reset `.leaflet-container`/`.weather-light` to light tokens, because map overlays and the embed-shared local forecast are built for light surfaces; `.weather-surface` stays light.
+- Region map time choice in app pages uses the shared radar FilmstripTimeline via the `filmstrip` prop; embeds keep the old slider, because existing WordPress iframes must not change.
