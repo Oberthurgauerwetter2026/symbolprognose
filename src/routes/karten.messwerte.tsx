@@ -7,7 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { SourceFooter } from '@/components/source-footer';
 import { getStationExtremes } from '@/lib/station-extremes.functions';
-import { rankExtremes, STATION_STAT_LABELS, type ExtremeStat } from '@/lib/station-extremes';
+import { formatMeasuredTime, latestMeasuredAt, rankExtremes, STATION_STAT_LABELS, type ExtremeStat } from '@/lib/station-extremes';
 import { APP_MANIFEST_LINK } from '@/lib/pwa-links';
 
 const ExtremesMap = lazy(() => import('@/components/maps/extremes-map').then(m => ({ default: m.ExtremesMap })));
@@ -41,6 +41,7 @@ function StationReadingsPage() {
       ? { label: 'Niederschlagszeitraum', value: rainStat, set: setRainStat, options: [{ stat: 'rainRate', label: 'Aktuell' }, { stat: 'rain', label: 'Tagessumme' }] as const }
       : { label: 'Temperaturzeitraum', value: temperatureStat, set: setTemperatureStat, options: [{ stat: 'current', label: 'Jetzt' }, { stat: 'min', label: 'Minimum' }, { stat: 'max', label: 'Maximum' }] as const };
   const ranked = rankExtremes(stations, stat);
+  const measuredAt = latestMeasuredAt(stations);
   return <DashboardLayout title="Live-Messwerte">
     <section aria-label="Messwertekarte" className="mx-auto max-w-6xl px-3 py-4 sm:px-8 sm:py-6">
       <Tabs value={metric} onValueChange={setMetric}>
@@ -51,7 +52,12 @@ function StationReadingsPage() {
         </TabsList>
       </Tabs>
       <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 py-3">
-        <h2 className="text-sm font-semibold">{STATION_STAT_LABELS[stat]}</h2>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">{STATION_STAT_LABELS[stat]}</h2>
+          {measuredAt && <p data-testid="measured-time" className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span aria-hidden className="size-2 shrink-0 rounded-full bg-emerald-400" />Online · Messung {formatMeasuredTime(measuredAt)} Uhr
+          </p>}
+        </div>
         <div role="group" aria-label={choice.label} className="flex gap-1">
           {choice.options.map(option => <Button key={option.stat} size="sm" variant="ghost" aria-pressed={choice.value === option.stat} onClick={() => choice.set(option.stat)} className={choice.value === option.stat ? 'bg-accent/10 text-accent' : 'text-muted-foreground'}>{option.label}</Button>)}
         </div>

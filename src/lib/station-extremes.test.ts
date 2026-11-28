@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EXTREME_REFERENCE_STATIONS, parseStat, rankExtremes, stationExtremes, stationReadings, formatStationValue, zurichDay, compass } from "./station-extremes";
+import { EXTREME_REFERENCE_STATIONS, parseStat, rankExtremes, stationExtremes, stationReadings, formatStationValue, zurichDay, compass, latestMeasuredAt, formatMeasuredTime } from "./station-extremes";
 import { productById } from "./ticker";
 
 const rows = [
@@ -97,5 +97,11 @@ describe("Neue Stationskarten", () => {
   });
   it("der Tag wechselt um Mitternacht Zürich, nicht UTC", () => {
     assert.equal(zurichDay(Date.parse("2026-11-14T23:01:00Z")), "2026-11-15");
+  });
+  it("die Stand-Angabe nimmt die jüngste Messzeit, ohne Messung keine", () => {
+    const base = { id: "a", name: "A", lat: 0, lon: 0, min: null, max: null };
+    assert.equal(latestMeasuredAt([{ ...base, measuredAt: "2026-11-14T22:30:00Z" }, { ...base, measuredAt: "2026-11-14T22:40:00Z" }, { ...base, measuredAt: null }]), "2026-11-14T22:40:00Z");
+    assert.equal(latestMeasuredAt([base, { ...base, measuredAt: null }]), null);
+    assert.equal(formatMeasuredTime("2026-11-14T22:40:00Z"), "23:40");
   });
 });

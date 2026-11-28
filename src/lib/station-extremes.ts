@@ -74,4 +74,16 @@ export function rankExtremes(rows: StationExtreme[], stat: ExtremeStat): Station
     .sort((a, b) => (stat === "min" ? (a[stat] ?? 0) - (b[stat] ?? 0) : (b[stat] ?? 0) - (a[stat] ?? 0)));
 }
 
+/** Jüngste Messzeit aller Stationen für die Stand-Angabe; ohne frische Messung null. */
+export function latestMeasuredAt(rows: StationExtreme[]): string | null {
+  let best: string | null = null;
+  for (const row of rows) {
+    const at = row.measuredAt;
+    if (at && Number.isFinite(Date.parse(at)) && (!best || Date.parse(at) > Date.parse(best))) best = at;
+  }
+  return best;
+}
+export const formatMeasuredTime = (iso: string) =>
+  new Intl.DateTimeFormat("de-CH", { timeZone: "Europe/Zurich", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+
 export const parseStat = (v: unknown): ExtremeStat => (v === "max" || v === "current" || v === "gust" || v === "rain" ? v : "min");
