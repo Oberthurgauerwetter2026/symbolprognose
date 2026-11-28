@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Code2, Settings, BellRing, Snowflake, Newspaper } from "lucide-react";
+import { LayoutDashboard, Code2, Snowflake, Newspaper } from "lucide-react";
 
 import {
   Sidebar,
@@ -92,11 +92,6 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive('/admin/bericht')} tooltip="Wetterbericht verfassen">
-                  <Link to="/admin/bericht"><Newspaper /><span>Wetterbericht verfassen</span></Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/vertikalschnitt")} tooltip="SnowCast Vertikalschnitt">
                   <Link to="/vertikalschnitt" className="flex items-center gap-2">
                     <Snowflake className="h-4 w-4" />
@@ -109,22 +104,6 @@ export function AppSidebar() {
                   <Link to="/embed-info" className="flex items-center gap-2">
                     <Code2 className="h-4 w-4" />
                     <span>Embed-Snippets</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/admin")} tooltip="Admin">
-                  <Link to="/admin" className="flex items-center gap-2">
-                    <Settings className="h-4 w-4" />
-                    <span>Admin</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/admin-warnungen")} tooltip="Warnungen verwalten">
-                  <Link to="/admin-warnungen" className="flex items-center gap-2">
-                    <BellRing className="h-4 w-4" />
-                    <span>Warnungen verwalten</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
