@@ -74,7 +74,7 @@ export function WeatherReportArticle({ report, unavailable }: { report: WeatherR
     {report.days.length > 0 && <section aria-labelledby="report-outlook" className="border-t border-border py-6">
       <h3 id="report-outlook" className={heading}>{report.outlook_title || 'Aussichten'}</h3>
       <div className="mt-4 space-y-6">{report.days.map((day, i) => <div key={i}>
-        <h4 className="text-base font-semibold">{day.label}</h4>
+        <h4 className="text-base font-extrabold">{day.label}</h4>
         <div className="mt-2"><Prose text={day.text} /></div>
       </div>)}</div>
     </section>}
