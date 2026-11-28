@@ -5,7 +5,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { publicSupabase } from "@/lib/public-supabase";
 import { listWarnings, type WarningDTO } from "@/lib/warnings.functions";
 
 /**
@@ -24,6 +24,7 @@ export function useWarningsRealtime(): void {
       }, 300);
     };
 
+    const supabase = publicSupabase();
     const channel = supabase
       .channel(`warnings-live-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "warnings" }, bump)
