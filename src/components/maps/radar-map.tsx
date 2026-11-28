@@ -2269,8 +2269,7 @@ function RadarMapInner({
           />
           <GeoJSON
             data={OUTSIDE_CH_MASK}
-            className="radar-outside-ch"
-            style={() => ({ stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
+            style={() => ({ className: "radar-outside-ch", stroke: false, fillColor: "#3a4148", fillOpacity: 0.3 })}
             interactive={false}
           />
           <GeoJSON
@@ -2280,8 +2279,7 @@ function RadarMapInner({
           />
           <GeoJSON
             data={SWITZERLAND}
-            className="radar-ch-outline"
-            style={() => ({ color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })}
+            style={() => ({ className: "radar-ch-outline", color: "#ffffff", weight: 1.2, opacity: 0.95, fill: false })}
             interactive={false}
           />
           <GeoJSON
