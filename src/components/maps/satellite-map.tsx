@@ -807,6 +807,7 @@ function SatelliteMapInner({
   return (
     <div
       ref={wrapperRef}
+      data-satellite-frame
       className={cn(
         "relative overflow-hidden rounded-lg border bg-card shadow-sm",
         bare && "h-full rounded-none border-0 shadow-none",
