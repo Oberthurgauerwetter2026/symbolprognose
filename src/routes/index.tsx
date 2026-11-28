@@ -4,7 +4,7 @@ import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode 
 import { flushSync } from 'react-dom';
 import { getMorphCard, setMorphCard } from '@/lib/card-morph';
 import { describeHomeClick, rememberHomeAnchor, restoreHomePosition, takeHomeReturn, type HomeAnchor } from '@/lib/home-return';
-import { ArrowUpRight, MapPin, Search, Droplets, Satellite, Snowflake } from 'lucide-react';
+import { ArrowUpRight, MapPin, Search, Droplets, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { WeatherReportView } from '@/components/weather-report-view';
@@ -120,6 +120,7 @@ function WeatherOverview() {
     {image(<StationPreview stations={stations} />)}
     {title('Live-Messwerte', 'Temperatur · Wind · Regen')}
   </Link>;
+  const satTile = <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{image(<SatellitePreview />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>;
   const tickerPosts = ticker.data ? visiblePosts(ticker.data, Date.now()) : null;
   const tickerTile = (extra = '') => <Link to="/ticker" viewTransition onClick={() => openCard('/ticker')} className={tile('/ticker', ` ticker-tile flex flex-col${extra}`)} aria-label="Wetter-Ticker öffnen">
     <div className="flex-1 bg-(--overview-station) p-4">{tickerPosts ? <TickerTilePreview posts={tickerPosts} /> : <p className="text-sm text-muted-foreground">Der Ticker ist momentan nicht erreichbar.</p>}</div>
@@ -154,22 +155,21 @@ function WeatherOverview() {
      </div>
 
       <section aria-label="Wetterprodukte" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:hidden">
-        {radarTile()}{windTile}{warnTile}{stationTile}{tickerTile(' col-span-2')}
+        {radarTile(' col-span-2')}{windTile}{warnTile}{stationTile}{satTile}{tickerTile(' col-span-2')}
       </section>
       <div className="lg:hidden"><WeatherReportView {...report} /></div>
 
       <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-4 gap-4 [&>a:not(.ticker-tile)>div:first-child]:aspect-[1.5]!">
         {stationTile}{windTile}{warnTile}
-        <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{image(<SatellitePreview />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>
+        {satTile}
         <Link to="/karten/niederschlag" viewTransition onClick={() => openCard('/karten/niederschlag')} className={tile('/karten/niederschlag')}>{image(desktop && <LivePreview src="/embed/niederschlag?clean=1" title="Niederschlagssummen" />)}{title('Regen & Schnee', 'Summen: gefallen und erwartet')}</Link>
         <Link to="/vertikalschnitt" viewTransition onClick={() => openCard('/vertikalschnitt')} className={tile('/vertikalschnitt')}>{iconPreview(<Snowflake />)}{title('SnowCast', 'Schneefallgrenze im Schnitt')}</Link>
         {tickerTile(' col-span-2')}
       </div></section>
-      <section className="py-6 lg:hidden"><h2 className="mb-4 text-lg font-semibold">Mehr Wetter</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/satellit"><span className="flex items-center gap-2"><Satellite />Satellit</span><ArrowUpRight /></Link></Button>
+      <section className="py-6 lg:hidden"><h2 className="mb-4 text-lg font-semibold">Mehr Wetter</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/niederschlag"><span className="flex items-center gap-2"><Droplets />Regen & Schnee</span><ArrowUpRight /></Link></Button>
         <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/region"><span className="flex items-center gap-2"><MapPin />Regionsprognose</span><ArrowUpRight /></Link></Button>
-        <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/vertikalschnitt"><span className="flex items-center gap-2"><Snowflake />SnowCast</span><ArrowUpRight /></Link></Button>
+        <Button asChild variant="outline" className="weather-dark col-span-2 h-14 justify-between px-3 sm:col-span-1"><Link to="/vertikalschnitt"><span className="flex items-center gap-2"><Snowflake />SnowCast</span><ArrowUpRight /></Link></Button>
       </div></section>
       <footer className="flex flex-wrap justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground"><span>Oberthurgauer Wetter · Messwerte: WeatherHub, MeteoSchweiz · Karten: swisstopo</span><Link to="/admin/bericht" className="text-accent">Wetterredaktion</Link></footer>
     </div>
