@@ -21,6 +21,13 @@ export type ReportInput = z.infer<typeof reportSchema>;
 export type ReportDay = ReportInput['days'][number];
 export type WeatherReport = ReportInput & { published_at: string };
 
+/** Übernimmt nur den Text des Folgetags; Wochentag und übrige Tage bleiben unverändert. */
+export function copyFollowingDayText(days: readonly ReportDay[], index: number): ReportDay[] {
+  const following = days[index + 1];
+  if (!following || !days[index]) return [...days];
+  return days.map((day, i) => i === index ? { ...day, text: following.text } : day);
+}
+
 /** Entwürfe dürfen unvollständig sein, aber nie länger als der Bericht; geprüft wird erst beim Veröffentlichen. */
 export const reportDraftSaveSchema = z.object({
   title: z.string().max(160), situation: z.string().max(6000), forecast_title: z.string().max(120), forecast: z.string().max(8000),

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextWeekday, reportDays, reportDraftSaveSchema, reportSchema } from './weather-report';
+import { copyFollowingDayText, nextWeekday, reportDays, reportDraftSaveSchema, reportSchema } from './weather-report';
 import { nearestLiveStation } from './weather-overview';
 
 describe('editorial weather report', () => {
@@ -33,6 +33,12 @@ describe('editorial weather report', () => {
     expect(nextWeekday([{ label: 'Sonntag' }], new Date('2026-11-28T10:00:00Z'))).toBe('Montag');
     expect(nextWeekday([], new Date('2026-11-28T10:00:00Z'))).toBe('Sonntag');
     expect(nextWeekday([{ label: 'Wochenende' }], new Date('2026-11-28T10:00:00Z'))).toBe('');
+  });
+  it('copies only the following day text and leaves the last day unchanged', () => {
+    const days = [{ label: 'Montag', text: 'Alt.' }, { label: 'Dienstag', text: 'Neu.' }];
+    expect(copyFollowingDayText(days, 0)).toEqual([{ label: 'Montag', text: 'Neu.' }, days[1]]);
+    expect(copyFollowingDayText(days, 1)).toEqual(days);
+    expect(days[0]?.text).toBe('Alt.');
   });
 });
 describe('current temperature near the visitor', () => {

@@ -2,13 +2,13 @@ import { Link } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Send, Check, Eye, Pencil, Plus, Save, Trash2 } from 'lucide-react';
+import { Send, Check, Copy, Eye, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { WeatherReportArticle } from '@/components/weather-report-view';
 import { discardWeatherReportDraft, getWeatherReport, getWeatherReportDraft, publishWeatherReport, saveWeatherReportDraft } from '@/lib/weather-report.functions';
-import { WEEKDAYS, nextWeekday, reportDraftSchema, reportSchema, reportTime, type ReportDay, type ReportInput } from '@/lib/weather-report';
+import { WEEKDAYS, copyFollowingDayText, nextWeekday, reportDraftSchema, reportSchema, reportTime, type ReportDay, type ReportInput } from '@/lib/weather-report';
 
 const EMPTY: ReportInput = { title: '', situation: '', forecast_title: '', forecast: '', outlook_title: '', days: [], trend: '' };
 const label = 'mb-2 block text-sm font-semibold';
@@ -124,6 +124,16 @@ export default function ReportPanel({ password }: { password: string }) {
           </div>
           <label htmlFor={`report-day-text-${i}`} className="sr-only">Text für Tag {i + 1}</label>
           <Textarea id={`report-day-text-${i}`} rows={5} value={day.text} maxLength={4000} placeholder="Wetter, Tiefst- und Höchstwerte, Wind" onChange={e => updateDay(i, { text: e.target.value })} className="mt-2 text-base leading-6" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-2 w-full"
+            disabled={!form.days[i + 1]}
+            aria-label={`Tag ${i + 1}: Folgetag übernehmen`}
+            title={form.days[i + 1] ? 'Text des Folgetags übernehmen; der Wochentag bleibt erhalten.' : 'Beim letzten Tag gibt es keinen Folgetag.'}
+            onClick={() => update({ days: copyFollowingDayText(form.days, i) })}
+          ><Copy />Folgetag übernehmen</Button>
         </div>)}
         {form.days.length < 10 && <Button type="button" variant="outline" onClick={() => update({ days: [...form.days, { label: nextWeekday(form.days, new Date()), text: '' }] })}><Plus />Tag hinzufügen</Button>}
       </fieldset>
