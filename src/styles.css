@@ -318,7 +318,7 @@ html:has(.weather-blue) { background-color: var(--brand-blue); }
 html:has(.weather-page) body { background-color: var(--brand-blue); }
 html:has(.weather-page)::view-transition { background-color: var(--brand-blue); }
 .weather-main { background: var(--brand-blue); background: linear-gradient(0deg, var(--brand-blue) 0%, var(--brand-blue-deep) 100%); }
-.weather-header { background-color: var(--brand-blue-deep); }
+.weather-header { background-color: var(--brand-blue); }
 .weather-surface { --background: var(--zinc-100); --foreground: var(--zinc-900); --muted-foreground: var(--zinc-500); --border: var(--zinc-200); --accent: var(--brand-blue); --accent-foreground: var(--zinc-50); --ring: var(--brand-blue); --destructive: #e62117; color: var(--foreground); }
 /* Geöffnete Detailseiten: Website-Blau als Grund, Bedienflächen nachtblau mit weisser Schrift. */
 .weather-detail { --background: var(--brand-blue); --foreground: #ffffff; --card: var(--tile-dark); --card-foreground: #ffffff; --popover: var(--tile-dark); --popover-foreground: #ffffff; --primary: #ffffff; --primary-foreground: var(--tile-dark); --secondary: color-mix(in srgb, #ffffff 14%, var(--tile-dark)); --secondary-foreground: #ffffff; --muted: color-mix(in srgb, #ffffff 10%, var(--tile-dark)); --muted-foreground: color-mix(in srgb, #ffffff 82%, var(--brand-blue)); --border: color-mix(in srgb, #ffffff 24%, var(--brand-blue)); --input: color-mix(in srgb, #ffffff 30%, var(--brand-blue)); --accent: var(--tile-dark-accent); --accent-foreground: var(--tile-dark); --accent-soft: color-mix(in srgb, #ffffff 12%, var(--tile-dark)); --ring: #ffffff; --destructive: #ffd9d6; color: var(--foreground); }
