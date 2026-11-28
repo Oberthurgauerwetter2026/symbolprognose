@@ -1,5 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { PullToRefresh } from '@/components/pull-to-refresh';
 import { shouldResumeOnHome } from '@/lib/app-home';
 import { hasHomeAnchor, markHomeReturn, startDesktopHomeReturn } from '@/lib/home-return';
 import { X } from 'lucide-react';
@@ -8,6 +10,7 @@ import logoAsset from '@/assets/wetter-logo-symbol.png.asset.json';
 
 export function PublicWeatherLayout({ title, home = false, headerAction, children }: { title?: string; home?: boolean; headerAction?: ReactNode; children: ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   useEffect(() => {
     let hidden = document.visibilityState === 'hidden';
     const resume = () => {
@@ -21,7 +24,8 @@ export function PublicWeatherLayout({ title, home = false, headerAction, childre
     document.addEventListener('visibilitychange', resume);
     return () => document.removeEventListener('visibilitychange', resume);
   }, [router]);
-  return <div className="weather-blue min-h-svh bg-background">
+  return <div className="weather-blue weather-page min-h-svh bg-background">
+    {home && <PullToRefresh onRefresh={() => Promise.all([router.invalidate(), queryClient.invalidateQueries()])} />}
     <header className="morph-header sticky top-0 z-[600] bg-background">
       <div className={`mx-auto flex min-h-16 max-w-6xl items-center gap-3 px-4 py-2 sm:px-8${home ? ' lg:max-w-7xl' : ''}`}>
         {home ? <><img src={logoAsset.url} alt="Oberthurgauer Wetter Logo" width={122} height={105} className="h-auto w-12 shrink-0 sm:w-16" /><div className="min-w-0"><p className="break-words font-display text-base font-semibold leading-tight sm:text-xl">Oberthurgauer Wetter</p><p className="mt-1 text-xs text-muted-foreground sm:text-sm">Wetter für deine Region</p></div></> : <>

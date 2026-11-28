@@ -142,7 +142,7 @@ function WeatherOverview() {
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2"><MapPin className="size-4 shrink-0" /><h1 className="min-w-0 break-words font-display text-2xl font-semibold sm:text-4xl">{location?.name ?? (locating ? 'Standort wird ermittelt …' : 'Ort wählen')}</h1></div>
-            <div className="mt-1 flex items-baseline"><span className="font-display text-4xl font-semibold tabular-nums">{station?.current != null ? `${station.current.toFixed(1)}°` : '—'}</span></div>
+            <div className="mt-1 flex items-baseline"><span className="font-display text-4xl font-semibold tabular-nums">{station?.current != null ? `${station.current.toFixed(1)}°` : '—'}</span>{station?.rain != null && <span className="ml-3 flex items-center gap-1 text-sm font-medium tabular-nums" title="Niederschlag heute"><Droplets className="size-4 shrink-0" aria-hidden />{station.rain.toFixed(1)} mm heute</span>}</div>
             <p className="mt-2 text-xs text-muted-foreground">{station && nearest ? `Messstation ${station.name} · ${nearest.distance.toFixed(1)} km entfernt` : 'Momentan keine aktuelle Messung verfügbar.'}</p>
             {locationError && <p role="status" className="mt-2 text-xs text-destructive">{locationError}</p>}
           </div>
