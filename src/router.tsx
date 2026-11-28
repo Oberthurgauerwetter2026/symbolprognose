@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, dehydrate, hydrate, type DehydratedState } from "@tanstack/react-query";
 import { createRouter, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { setupQueryPersistence } from "./lib/query-persist";
@@ -63,6 +63,20 @@ export const getRouter = () => {
     defaultPreloadStaleTime: 0,
 
     defaultErrorComponent: DefaultErrorComponent,
+
+    // Serverseitig geladene Abfragen reisen mit der Seite in den Browser. Ohne das muss der
+    // Browser beim Start alle Daten neu holen und die Seite bleibt bis dahin unbedienbar
+    // (hängt eine Anfrage, öffnen sich weder Kacheln noch Regionskarte).
+    dehydrate: () => ({
+      // Abfragedaten sind schon Rückgaben serialisierbarer Serverfunktionen; der Router-Typ kann das nicht prüfen.
+      queryClientState: dehydrate(queryClient, {
+        shouldDehydrateQuery: (query) => query.state.status === "success",
+      }) as unknown as Record<string, string>,
+    }),
+    hydrate: (dehydrated: { queryClientState?: Record<string, string> } | undefined) => {
+      const state = dehydrated?.queryClientState as unknown as DehydratedState | undefined;
+      if (state) hydrate(queryClient, state);
+    },
   });
 
   return router;
