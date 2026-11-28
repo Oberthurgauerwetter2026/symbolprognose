@@ -1,3 +1,6 @@
+# Compact horizontal local forecast
+- [x] App local forecast: compact horizontal day strip, night-blue surfaces and smaller hourly details. Real Amriswil forecast and tomorrow selection verified at 393/1557 px without overflow or browser errors; WordPress embeds have no app wrapper. Physical phone not tested.
+
 # Night-blue timeline controls
 - [x] Public filmstrips, day tabs, playback controls and settings match the night-blue tiles. Desktop (1557 px) and phone (390 px) checked with real map data: day switching, keyboard time navigation and settings work; no overflow or browser errors. Region/radar WordPress embeds retain their light styling. 16 radar and 8 home-return tests pass; preview build OK. Not published.
 

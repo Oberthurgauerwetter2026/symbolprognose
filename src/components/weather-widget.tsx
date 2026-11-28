@@ -126,6 +126,7 @@ function WeatherWidgetInner({
   requireExplicitLocation = false,
   compactAutoLocation = false,
   transparent = false,
+  appView = false,
 }: {
   initialDayIdx?: number;
   initialLocation?: { name: string; latitude: number; longitude: number };
@@ -143,6 +144,8 @@ function WeatherWidgetInner({
   compactAutoLocation?: boolean;
   /** Entfernt nur im eigenständigen iframe den Seitenhintergrund. */
   transparent?: boolean;
+  /** Compact dark presentation only for the app; existing embeds keep their layout. */
+  appView?: boolean;
 } = {}) {
   const [location, setLocation] = useState<StoredLocation | null>(() => {
     if (lockedLocation) return lockedLocation;
@@ -388,15 +391,15 @@ function WeatherWidgetInner({
   return (
     <div
       ref={rootRef}
-      className={`@container ${transparent ? "bg-transparent" : "bg-zinc-100"} text-zinc-900 antialiased font-medium ${
-        compact
+      className={`@container ${transparent || appView ? "bg-transparent" : "bg-zinc-100"} text-zinc-900 antialiased font-medium ${
+        appView ? "py-0 px-0" : compact
           ? "py-2 px-2"
           : requireExplicitLocation && !location
             ? "px-3 py-2 @[640px]:px-5 @[640px]:py-3"
             : "py-4 px-3 @[640px]:py-6 @[640px]:px-5 @[900px]:py-10 @[900px]:px-6"
       }`}
     >
-      <div className={`max-w-5xl mx-auto ${compact ? "space-y-3" : "space-y-5"}`}>
+      <div className={`max-w-5xl mx-auto ${compact || appView ? "space-y-3" : "space-y-5"}`}>
 
         <Header
           locationName={location?.name ?? null}
@@ -467,6 +470,7 @@ function WeatherWidgetInner({
         {forecast.data && (
           <>
             <DayStrip
+              appView={appView}
               forecast={forecast.data}
               days={days}
               selectedIdx={selectedDayIdx}
@@ -808,12 +812,14 @@ function DayStrip({
   selectedIdx,
   onSelect,
   extended,
+  appView = false,
 }: {
   forecast: import("@/lib/weather").ForecastResponse;
   days: { iso: string; date: Date; idx: number }[];
   selectedIdx: number;
   onSelect: (i: number) => void;
   extended: boolean;
+  appView?: boolean;
 }) {
   const d = forecast.daily;
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -839,13 +845,38 @@ function DayStrip({
       <div className="relative overflow-hidden rounded-md">
         <div
           ref={scrollerRef}
-          className="flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto touch-pan-x overscroll-x-contain snap-x snap-mandatory no-scrollbar"
+          role={appView ? "group" : undefined}
+          aria-label={appView ? "Prognosetag" : undefined}
+          className={appView ? "flex gap-1.5 overflow-x-auto overscroll-x-contain snap-x snap-mandatory no-scrollbar pb-1" : "flex gap-px bg-zinc-200 border border-zinc-200 rounded-md overflow-x-auto touch-pan-x overscroll-x-contain snap-x snap-mandatory no-scrollbar"}
         >
           {days.map((day, i) => {
           const selected = i === selectedIdx;
           const di = day.idx;
           const prob = d.precipitation_probability_max?.[di] ?? 0;
           const probLabel = prob === 0 ? "0 %" : prob < 5 ? "<5 %" : `${prob} %`;
+          if (appView) return (
+            <Button
+              key={day.iso}
+              type="button"
+              variant="ghost"
+              ref={(el) => {
+                if (el) tileRefs.current.set(i, el);
+                else tileRefs.current.delete(i);
+              }}
+              aria-pressed={selected}
+              aria-label={i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date)}
+              onClick={() => onSelect(i)}
+              className={`h-auto min-h-40 w-24 shrink-0 snap-start flex-col gap-1 rounded-md border px-2 py-2.5 text-foreground hover:bg-secondary hover:text-foreground [&_svg]:size-auto ${selected ? "border-accent bg-secondary" : "border-border bg-card"}`}
+            >
+              <span className="text-sm font-bold">{i === 0 ? "Heute" : i === 1 ? "Morgen" : weekdayLong(day.date).slice(0, 2)}</span>
+              <span className="text-[11px] font-normal text-muted-foreground">{formatDateShort(day.date)}</span>
+              <span className="flex h-10 items-center justify-center" title={weatherLabel(d.weathercode[di])}>
+                <WeatherIcon code={d.weathercode[di]} size={36} scope="daily" precip={d.precipitation_sum[di]} precipProb={d.precipitation_probability_max?.[di]} precipHours={d.precipitation_hours?.[di]} thunderHours={d.thunderstorm_hours?.[di]} isSnow={(d.snowfall_sum?.[di] ?? 0) > 0.1} temp={d.temperature_2m_max?.[di]} sunshineRatio={(d.sunshine_duration?.[di] ?? 0) / (15 * 3600)} cloudLow={d.cloud_cover_low_mean?.[di]} cloudMid={d.cloud_cover_mid_mean?.[di]} cloudHigh={d.cloud_cover_high_mean?.[di]} />
+              </span>
+              <span className="flex gap-1.5 text-sm tabular-nums"><span className="font-normal text-muted-foreground">{Number.isFinite(d.temperature_2m_min[di]) ? `${Math.round(d.temperature_2m_min[di])}°` : "–"}</span><span className="font-bold">{Number.isFinite(d.temperature_2m_max[di]) ? `${Math.round(d.temperature_2m_max[di])}°` : "–"}</span></span>
+              <span className="text-[11px] font-normal tabular-nums text-muted-foreground">{Number.isFinite(d.precipitation_sum[di]) ? `${d.precipitation_sum[di].toFixed(1)} mm` : "– mm"} · {probLabel}</span>
+            </Button>
+          );
           return (
             <button
               key={day.iso}
@@ -1019,7 +1050,7 @@ function DaySummaryBar({
   const riseStr = formatTimeHHMM(d.sunrise?.[i] ?? "") || "–";
   const setStr = formatTimeHHMM(d.sunset?.[i] ?? "") || "–";
   return (
-    <div className="rounded-md border border-accent/20 bg-[color-mix(in_oklab,var(--accent)_18%,white)] px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
+    <div data-local-summary className="rounded-md border border-accent/20 bg-[color-mix(in_oklab,var(--accent)_18%,white)] px-4 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm">
       <span className="font-bold text-zinc-900 font-[family-name:var(--font-display)]">
         {weekdayLong(date)} <span className="text-zinc-700 font-semibold">{formatDateShort(date)}</span>
       </span>
@@ -1206,7 +1237,7 @@ function DetailPanel({
       : "w-[108px] @[640px]:w-[124px]";
 
   return (
-    <section className="bg-[var(--accent-soft)] rounded-md border border-accent/20 overflow-hidden">
+    <section data-local-hours className="bg-[var(--accent-soft)] rounded-md border border-accent/20 overflow-hidden">
       <div className="px-4 py-3 bg-[color-mix(in_oklab,var(--accent)_18%,white)] border-b border-accent/20 flex items-center justify-between gap-3 flex-wrap">
         <span className="text-base font-bold text-zinc-900 font-[family-name:var(--font-display)]">
           {selectedDayIdx === 0
@@ -1326,6 +1357,7 @@ function DetailPanel({
                 return (
                   <div
                     key={iso}
+                    data-local-hour
                     ref={(el) => {
                       if (el) slotRefs.current.set(iso, el);
                       else slotRefs.current.delete(iso);

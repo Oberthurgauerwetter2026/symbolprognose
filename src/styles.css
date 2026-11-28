@@ -326,6 +326,36 @@ html:has(.weather-page)::view-transition { background-color: var(--brand-blue); 
 .weather-detail .leaflet-container, .weather-detail .weather-light { --background: var(--zinc-100); --foreground: var(--zinc-900); --card: var(--zinc-50); --card-foreground: var(--zinc-900); --popover: var(--zinc-50); --popover-foreground: var(--zinc-900); --primary: var(--zinc-900); --primary-foreground: var(--zinc-50); --secondary: var(--zinc-200); --secondary-foreground: var(--zinc-900); --muted: var(--zinc-200); --muted-foreground: var(--zinc-500); --border: var(--zinc-200); --input: var(--zinc-200); --accent: var(--brand-blue); --accent-foreground: var(--zinc-50); --accent-soft: #e8f0f9; --ring: var(--brand-blue); --destructive: #e62117; color: var(--foreground); }
 .weather-detail [data-satellite-frame] { background: transparent; border-color: transparent; box-shadow: none; }
 .weather-detail [data-satellite-frame] > [data-source-footer] { padding-left: 0; padding-right: 0; }
+/* App-only local forecast: remap the shared widget's legacy neutral palette,
+   never the WordPress embed palette or weather-symbol colours. */
+.local-forecast {
+  --zinc-50: var(--card);
+  --zinc-100: var(--card);
+  --zinc-200: var(--border);
+  --zinc-300: var(--border);
+  --zinc-400: var(--muted-foreground);
+  --zinc-500: var(--muted-foreground);
+  --zinc-600: var(--muted-foreground);
+  --zinc-700: var(--muted-foreground);
+  --zinc-800: var(--foreground);
+  --zinc-900: var(--foreground);
+}
+.local-forecast [class*="bg-white"],
+.local-forecast [class*="bg-[color-mix("] { background-color: var(--card); }
+.local-forecast [class*="text-amber-700"] { color: var(--wx-sun-core); }
+.local-forecast [class*="touch-pan-x"] { touch-action: auto; overscroll-behavior-y: auto; }
+.local-forecast > div > div > header { gap: 12px; padding-bottom: 12px; }
+.local-forecast header [class*="rounded-full"]:not(button) { background: transparent; color: var(--foreground); padding-left: 0; box-shadow: none; font-size: 20px; }
+.local-forecast [data-local-summary] { background: var(--card); border-color: var(--border); padding: 10px 12px; gap: 8px 16px; font-size: 12px; }
+.local-forecast [data-local-hours] { background: var(--card); border-color: var(--border); }
+.local-forecast [data-local-hours] > div:first-child { padding: 8px 12px; }
+.local-forecast [data-local-hour] { padding: 8px 6px; }
+.local-forecast [data-local-hour] > * + * { margin-top: 6px; }
+.local-forecast [data-local-hour] > div:nth-of-type(2) { height: 44px; }
+.local-forecast [data-local-hour] > div:nth-of-type(2) svg { width: 36px; height: 36px; }
+.local-forecast [data-local-hour] > div:nth-of-type(3) { font-size: 16px; }
+.local-forecast [data-local-hours] > div:last-child { font-weight: 500; padding: 8px 12px; }
+.local-forecast [data-source-footer] { background: transparent; }
 /* Ticker in Nachtblau statt Akzentblau, damit er sich vom blauen Seitengrund abhebt. */
 .ticker-night { --accent: var(--tile-dark); --accent-strong: color-mix(in srgb, #ffffff 16%, var(--tile-dark)); }
 /* Dunkle Kacheln der Startseite: Nachtblau wie der Ticker, weisse Schrift, weicher Schatten. */
