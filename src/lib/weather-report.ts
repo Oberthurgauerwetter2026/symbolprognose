@@ -28,6 +28,11 @@ export function copyFollowingDayText(days: readonly ReportDay[], index: number):
   return days.map((day, i) => i === index ? { ...day, text: following.text } : day);
 }
 
+/** Übernimmt den ersten Aussichtstag in die heutige Prognose; ohne Aussichtstag bleibt der Text erhalten. */
+export function copyFirstDayToForecast(days: readonly ReportDay[], forecast: string): string {
+  return days[0]?.text ?? forecast;
+}
+
 /** Entwürfe dürfen unvollständig sein, aber nie länger als der Bericht; geprüft wird erst beim Veröffentlichen. */
 export const reportDraftSaveSchema = z.object({
   title: z.string().max(160), situation: z.string().max(6000), forecast_title: z.string().max(120), forecast: z.string().max(8000),

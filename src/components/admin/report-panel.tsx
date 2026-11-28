@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { WeatherReportArticle } from '@/components/weather-report-view';
 import { discardWeatherReportDraft, getWeatherReport, getWeatherReportDraft, publishWeatherReport, saveWeatherReportDraft } from '@/lib/weather-report.functions';
-import { WEEKDAYS, copyFollowingDayText, nextWeekday, reportDraftSchema, reportSchema, reportTime, type ReportDay, type ReportInput } from '@/lib/weather-report';
+import { WEEKDAYS, copyFirstDayToForecast, copyFollowingDayText, nextWeekday, reportDraftSchema, reportSchema, reportTime, type ReportDay, type ReportInput } from '@/lib/weather-report';
 
 const EMPTY: ReportInput = { title: '', situation: '', forecast_title: '', forecast: '', outlook_title: '', days: [], trend: '' };
 const label = 'mb-2 block text-sm font-semibold';
@@ -111,7 +111,21 @@ export default function ReportPanel({ password }: { password: string }) {
 
       <fieldset className="space-y-3"><legend className="text-base font-semibold">Prognose</legend>
         <div><label htmlFor="report-forecast-title" className={label}>Überschrift</label><Input id="report-forecast-title" value={form.forecast_title} maxLength={120} placeholder="Prognose bis Samstagabend" onChange={e => update({ forecast_title: e.target.value })} className="h-11 text-base" /></div>
-        <div><label htmlFor="report-forecast" className={label}>Text</label><Textarea id="report-forecast" rows={7} value={form.forecast} required maxLength={8000} onChange={e => update({ forecast: e.target.value })} className="text-base leading-6" /><p className={hint}>Leerzeile = neuer Absatz. **Samstag** erscheint fett.</p></div>
+        <div>
+          <label htmlFor="report-forecast" className={label}>Text</label>
+          <Textarea id="report-forecast" rows={7} value={form.forecast} required maxLength={8000} onChange={e => update({ forecast: e.target.value })} className="text-base leading-6" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="mt-2 w-full"
+            disabled={!form.days[0]}
+            aria-label="Heute: Folgetag übernehmen"
+            title={form.days[0] ? 'Text des ersten Aussichtstags als heutige Prognose übernehmen.' : 'Zuerst einen Aussichtstag hinzufügen.'}
+            onClick={() => update({ forecast: copyFirstDayToForecast(form.days, form.forecast) })}
+          ><Copy />Folgetag übernehmen</Button>
+          <p className={hint}>Leerzeile = neuer Absatz. **Samstag** erscheint fett.</p>
+        </div>
       </fieldset>
 
       <fieldset className="space-y-3"><legend className="text-base font-semibold">Aussichten</legend>

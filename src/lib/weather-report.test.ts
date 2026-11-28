@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { copyFollowingDayText, nextWeekday, reportDays, reportDraftSaveSchema, reportSchema } from './weather-report';
+import { copyFirstDayToForecast, copyFollowingDayText, nextWeekday, reportDays, reportDraftSaveSchema, reportSchema } from './weather-report';
 import { nearestLiveStation } from './weather-overview';
 
 describe('editorial weather report', () => {
@@ -39,6 +39,12 @@ describe('editorial weather report', () => {
     expect(copyFollowingDayText(days, 0)).toEqual([{ label: 'Montag', text: 'Neu.' }, days[1]]);
     expect(copyFollowingDayText(days, 1)).toEqual(days);
     expect(days[0]?.text).toBe('Alt.');
+  });
+  it('copies the first outlook day into today and keeps today without an outlook day', () => {
+    const days = [{ label: 'Sonntag', text: 'Morgen sonnig.' }, { label: 'Montag', text: 'Danach Regen.' }];
+    expect(copyFirstDayToForecast(days, 'Heute neblig.')).toBe('Morgen sonnig.');
+    expect(copyFirstDayToForecast([], 'Heute neblig.')).toBe('Heute neblig.');
+    expect(days[0]?.text).toBe('Morgen sonnig.');
   });
 });
 describe('current temperature near the visitor', () => {
