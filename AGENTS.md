@@ -6,7 +6,7 @@
 - Tile arrangement drafts are isolated in a local-only planning screen with phone/desktop layouts; never apply them to public pages or embeds implicitly, so planning cannot alter the existing website.
 - Public weather pages share a focused header with a direct home link and no sidebar/product tabs; station selections reuse the existing regional station map and query cache to keep navigation lightweight.
 - Home tile previews are light stills (tile-previews.tsx; bases: scripts/build_tile_previews.py) in the maps' palettes, no iframe/map per tile: embeds stutter on phones. Phone/desktop (lg) home layouts are separate; region map desktop-only (user choice); ticker tile on both.
-- Weather reports use one current published row, public RLS-scoped reads and existing server-validated admin password writes; local editor drafts contain text only, never credentials.
+- Weather reports: one published row (public RLS read, admin-password writes); drafts in a separate service-role-only row, never on the public row (row-level policy would expose them); local drafts are text only.
 - Keep thunder on/off in a separate job_runs row; the shared runner checks it so cron cannot overwrite it.
 - Accumulation maps use explicit per-render phase palettes (no shared mutable palette); recent sums refresh through a deduplicated cache with request-managed background lifetime and a one-hour stale limit, because concurrent embeds must not leak modes or abandon updates.
 - MeteoSwiss local-forecast ingestion selects the greatest timestamped STAC asset key with a usable href per parameter, because a daily item contains multiple hourly runs and dictionary order must never pin forecasts to midnight.
@@ -37,4 +37,3 @@
 - Model snow projects each hour's snow line onto the DEM per hour, then sums (no window-mean line).
 - Sum-map model series come prefetched from R2 (ingest_model_series.py); live Open-Meteo only if missing/stale (worker IPs get throttled).
 - Overview tiles open via the View Transitions API (Link `viewTransition`, one shared `product-card` name on the tapped tile and the detail `<main>`); layouts derive their variant from their own route match, never from `location`, because the target location is set before the old page is captured and would duplicate the transition name.
-- Weather-report drafts live in their own service-role-only table (one row), never as columns on the public report row, because the public read policy is row-level and would expose unpublished text; publishing deletes the draft, and device-local text overrides it only when newer.
