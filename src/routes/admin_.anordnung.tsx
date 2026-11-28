@@ -98,7 +98,7 @@ function Arrangement() {
 
   return <main className="min-h-svh bg-background text-foreground">
     <header className="border-b border-border bg-card px-4 py-4 sm:px-8">
-      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold text-accent">Oberthurgauer Wetter · Gestaltung</p><h1 className="mt-1 text-2xl font-semibold">Kacheln anordnen</h1></div><div className="flex items-center gap-2"><Button onClick={save} className="bg-accent text-accent-foreground"><Save />Entwurf speichern</Button><Button asChild variant="ghost" size="icon" title="Schliessen" aria-label="Schliessen"><Link to="/"><X /></Link></Button></div></div>
+      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold text-accent">Oberthurgauer Wetter · Gestaltung</p><h1 className="mt-1 text-2xl font-semibold">Kacheln anordnen</h1></div><div className="flex items-center gap-2"><Button onClick={save} className="bg-accent text-accent-foreground"><Save />Entwurf speichern</Button><Button asChild variant="ghost" size="icon" title="Zurück zur Redaktion" aria-label="Zurück zur Redaktion"><Link to="/admin" search={{ tab: "werkzeuge" }}><X /></Link></Button></div></div>
     </header>
     <div className="mx-auto max-w-[1500px] px-4 py-5 sm:px-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted-foreground">Privater Gestaltungsentwurf · Startseite und bisherige Iframes bleiben unverändert.</p><span className="text-xs font-medium text-accent">{dirty ? 'Ungespeicherte Änderungen' : 'Entwurf'}</span></div>
