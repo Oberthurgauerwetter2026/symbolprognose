@@ -32,6 +32,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-stat-minimum: var(--stat-minimum);
+  --color-stat-maximum: var(--stat-maximum);
   --color-ticker: var(--accent);
   --color-ticker-foreground: var(--ticker-foreground);
   --color-ticker-strong: var(--accent-strong);
@@ -118,6 +120,8 @@
   --overview-warning: oklch(0.95 0.05 95);
   --overview-station: oklch(0.95 0.025 170);
   --tile-dark: #122d4d;
+  --stat-minimum: #8ecbff;
+  --stat-maximum: #ff7d73;
   --tile-dark-accent: #a9cdf3;
   --tile-dark-shadow: 0 1px 2px rgba(0,0,0,0.28), 0 16px 32px -12px rgba(3,14,32,0.7);
 }

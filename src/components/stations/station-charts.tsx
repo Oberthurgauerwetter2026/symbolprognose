@@ -33,16 +33,18 @@ const HOUR = zurich({ hour: '2-digit' }), DAY = zurich({ day: 'numeric', month: 
 const MOMENT = zurich({ weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }), FULL_DAY = zurich({ weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' }), CLOCK = zurich({ hour: '2-digit', minute: '2-digit' });
 const fixed = (v: number | null, digits: number, unit: string) => v === null ? '–' : `${v.toFixed(digits)} ${unit}`;
 
-function statCells(points: SeriesPoint[], metric: SeriesMetric, now: number, buckets: { label: string; rain: number | null }[]) {
+interface StatCell { label: string; value: string; tone?: 'minimum' | 'maximum' }
+
+function statCells(points: SeriesPoint[], metric: SeriesMetric, now: number, buckets: { label: string; rain: number | null }[]): StatCell[] {
   const s = seriesStats(points, metric);
   const live = s.last !== null && s.lastAt !== null && now - s.lastAt <= 30 * 60_000 && now >= s.lastAt;
   const current = (digits: number, unit: string) => live && s.lastAt !== null ? [{ label: `Aktuell · ${CLOCK.format(s.lastAt)} Uhr`, value: fixed(s.last, digits, unit) }] : [];
-  if (metric === 'temperature') return [...current(1, '°C'), { label: 'Mittel', value: fixed(s.avg, 1, '°C') }, { label: 'Minimum', value: fixed(s.min, 1, '°C') }, { label: 'Maximum', value: fixed(s.max, 1, '°C') }];
-  if (metric === 'dew') { const h = seriesStats(points, 'hum'); return [...current(1, '°C'), { label: 'Taupunkt Mittel', value: fixed(s.avg, 1, '°C') }, { label: 'Feuchte Mittel', value: fixed(h.avg, 0, '%') }, { label: 'Feuchte Minimum', value: fixed(h.min, 0, '%') }]; }
-  if (metric === 'pressure') return [...current(1, 'hPa'), { label: 'Mittel', value: fixed(s.avg, 1, 'hPa') }, { label: 'Minimum', value: fixed(s.min, 1, 'hPa') }, { label: 'Maximum', value: fixed(s.max, 1, 'hPa') }];
-  if (metric === 'wind') return [...current(0, 'km/h'), { label: 'Mittelwind', value: fixed(s.avg, 0, 'km/h') }, { label: 'Stärkste Böe', value: fixed(s.max, 0, 'km/h') }];
+  if (metric === 'temperature') return [...current(1, '°C'), { label: 'Mittel', value: fixed(s.avg, 1, '°C') }, { label: 'Minimum', value: fixed(s.min, 1, '°C'), tone: 'minimum' }, { label: 'Maximum', value: fixed(s.max, 1, '°C'), tone: 'maximum' }];
+  if (metric === 'dew') { const h = seriesStats(points, 'hum'); return [...current(1, '°C'), { label: 'Taupunkt Mittel', value: fixed(s.avg, 1, '°C') }, { label: 'Feuchte Mittel', value: fixed(h.avg, 0, '%') }, { label: 'Feuchte Minimum', value: fixed(h.min, 0, '%'), tone: 'minimum' }]; }
+  if (metric === 'pressure') return [...current(1, 'hPa'), { label: 'Mittel', value: fixed(s.avg, 1, 'hPa') }, { label: 'Minimum', value: fixed(s.min, 1, 'hPa'), tone: 'minimum' }, { label: 'Maximum', value: fixed(s.max, 1, 'hPa'), tone: 'maximum' }];
+  if (metric === 'wind') return [...current(0, 'km/h'), { label: 'Mittelwind', value: fixed(s.avg, 0, 'km/h') }, { label: 'Stärkste Böe', value: fixed(s.max, 0, 'km/h'), tone: 'maximum' }];
   const top = buckets.reduce<{ label: string; rain: number } | null>((best, b) => b.rain !== null && b.rain > 0 && (!best || b.rain > best.rain) ? { label: b.label, rain: b.rain } : best, null);
-  return [{ label: 'Summe', value: fixed(s.sum, 1, 'mm') }, { label: top ? `Höchster Wert · ${top.label}` : 'Höchster Wert', value: top ? fixed(top.rain, 1, 'mm') : s.sum === null ? '–' : '0.0 mm' }];
+  return [{ label: 'Summe', value: fixed(s.sum, 1, 'mm') }, { label: top ? `Höchster Wert · ${top.label}` : 'Höchster Wert', value: top ? fixed(top.rain, 1, 'mm') : s.sum === null ? '–' : '0.0 mm', tone: 'maximum' }];
 }
 
 function Chart({ points, win, metric, buckets }: { points: SeriesPoint[]; win: SeriesWindow; metric: SeriesMetric; buckets: ReturnType<typeof rainBuckets> }) {
@@ -137,7 +139,7 @@ export function StationCharts({ stations, state, today, onChange }: { stations: 
     <div className="mt-3 rounded-md bg-card p-3 shadow-md sm:p-4">
       <h2 className="flex items-center gap-2 text-sm font-semibold"><active.icon className="size-4 text-accent" />{active.label}</h2>
       <dl data-testid="series-stats" className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 sm:flex sm:flex-wrap sm:gap-x-8">
-        {statCells(points, metric, Date.now(), buckets).map(cell => <div key={cell.label} className="min-w-0"><dt className="truncate text-xs text-muted-foreground">{cell.label}</dt><dd className="font-display text-xl font-semibold tabular-nums">{cell.value}</dd></div>)}
+        {statCells(points, metric, Date.now(), buckets).map(cell => <div key={cell.label} className="min-w-0"><dt className="truncate text-xs text-muted-foreground">{cell.label}</dt><dd className={`font-display text-xl font-semibold tabular-nums ${cell.value === '–' ? 'text-foreground' : cell.tone === 'minimum' ? 'text-stat-minimum' : cell.tone === 'maximum' ? 'text-stat-maximum' : 'text-foreground'}`}>{cell.value}</dd></div>)}
       </dl>
       <div className="relative mt-3 h-[min(52svh,420px)] min-h-64" data-testid="series-chart">
         {win && <Chart key={metric} points={points} win={win} metric={metric} buckets={buckets} />}
