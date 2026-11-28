@@ -18,7 +18,7 @@ export const SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] 
 ];
 
 export const DISPLAY_SCALE: { mmh: number; rgb: [number, number, number]; a: number }[] = [
-  { mmh: 0.1,   rgb: [134, 188, 236], a: 245 / 255 },
+  { mmh: 0.1,   rgb: [64, 200, 210], a: 245 / 255 },
   { mmh: 0.3,   rgb: [109, 162, 222], a: 255 / 255 },
   { mmh: 0.8,   rgb: [ 66, 111, 200], a: 255 / 255 },
   { mmh: 2,     rgb: [ 80, 178,  96], a: 255 / 255 },
@@ -27,6 +27,12 @@ export const DISPLAY_SCALE: { mmh: number; rgb: [number, number, number]; a: num
   { mmh: 40,    rgb: [222,  72,  66], a: 255 / 255 },
   { mmh: 80,    rgb: [177,  72, 187], a: 255 / 255 },
 ];
+
+/** Existing WordPress embeds retain their original display colors. */
+export const EMBED_DISPLAY_SCALE = DISPLAY_SCALE.map(step => ({
+  ...step,
+  rgb: step.mmh === 0.1 ? [134, 188, 236] as [number, number, number] : step.rgb,
+}));
 
 export const SNOW_SCALE: { mmh: number; rgb: [number, number, number]; label: string }[] = [
   { mmh: 0.1, rgb: [210, 194, 232], label: "leicht" },

@@ -36,7 +36,7 @@ function KartenRadarPage() {
       <div className="mx-auto w-full max-w-6xl px-4 py-6">
         <MapTabs active="radar" />
         <Suspense fallback={<MapSkeleton />}>
-          <LazyRadarMap />
+          <LazyRadarMap appPalette />
         </Suspense>
       </div>
     </DashboardLayout>

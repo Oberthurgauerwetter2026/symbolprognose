@@ -2,7 +2,7 @@ import { withErrorBoundary } from "@/components/app-error-boundary";
 import { SourceFooter } from "@/components/source-footer";
 import { ForeignReliefLayers } from "./foreign-relief-layers";
 import { RadarPageGradient } from "./radar-page-gradient";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 
@@ -37,7 +37,9 @@ import { advancePlayback, playbackSample, buildTimelineSteps, nextModelHour, typ
 import { CityMarkers } from "./city-markers";
 import { sampleRadarBand } from "./forecast-edge-sampling";
 import { attenuateRadarBand } from "@/lib/radar-nowcast";
-import { SCALE, DISPLAY_SCALE, SNOW_SCALE, SLEET_SCALE, FZRA_SCALE, phaseFromAlpha } from "@/lib/radar-palette";
+import { SCALE, DISPLAY_SCALE, EMBED_DISPLAY_SCALE, SNOW_SCALE, SLEET_SCALE, FZRA_SCALE, phaseFromAlpha } from "@/lib/radar-palette";
+
+const RadarPaletteContext = createContext(EMBED_DISPLAY_SCALE);
 
 
 
@@ -62,13 +64,13 @@ const FILMSTRIP_FORECAST_COLOR = BRAND;
 // SCALE bleibt die Decode-Referenz zu den PNG-Farben; nur die Darstellung
 // wird über DISPLAY_SCALE gefärbt.
 
-function colorFor(mmh: number): [number, number, number, number] {
+function colorFor(mmh: number, displayScale: typeof DISPLAY_SCALE): [number, number, number, number] {
   // Quantisierte harte Bänder — gibt scharfe Iso-Konturen wie auf MCH-CombiPrecip.
-  if (mmh < DISPLAY_SCALE[0].mmh) return [0, 0, 0, 0];
-  let band = DISPLAY_SCALE[0];
-  for (let i = DISPLAY_SCALE.length - 1; i >= 0; i--) {
-    if (mmh >= DISPLAY_SCALE[i].mmh) {
-      band = DISPLAY_SCALE[i];
+  if (mmh < displayScale[0].mmh) return [0, 0, 0, 0];
+  let band = displayScale[0];
+  for (let i = displayScale.length - 1; i >= 0; i--) {
+    if (mmh >= displayScale[i].mmh) {
+      band = displayScale[i];
       break;
     }
   }
@@ -383,6 +385,7 @@ function PrecipOverlay({
   opacity?: number;
   prewarmFrames?: RadarFrame[];
 }) {
+  const displayScale = useContext(RadarPaletteContext);
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
@@ -647,7 +650,7 @@ function PrecipOverlay({
             ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
             : snowFrac > 0.3
               ? isSleetMarkPixel(lx, ly) ? [...DROP_RGB, 0.95] : sleetColorFor(v)
-              : colorFor(v);
+              : colorFor(v, displayScale);
           if (a === 0) continue;
           const alpha = Math.round(a * 255);
           if (alpha === 0) continue;
@@ -759,7 +762,7 @@ function PrecipOverlay({
           ? isFlakePixel(lx, ly) ? [...FLAKE_RGB, 0.95] : snowColorFor(v)
           : snowFrac > 0.3
             ? isSleetMarkPixel(lx, ly) ? [...DROP_RGB, 0.95] : sleetColorFor(v)
-            : colorFor(v);
+            : colorFor(v, displayScale);
         if (a === 0) continue;
         const alpha = Math.round(a * 255);
         if (alpha === 0) continue;
@@ -907,6 +910,7 @@ function MeasurementCanvasOverlay({
   opacity: number;
   prefetchUrls?: string[];
 }) {
+  const displayScale = useContext(RadarPaletteContext);
   const map = useMap();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerRef = useRef<L.Layer | null>(null);
@@ -1392,8 +1396,8 @@ function MeasurementCanvasOverlay({
           // Pixel der Nachbarfarbe innerhalb einer Fläche.
           v = attenuateRadarBand(v, intensityFactor, intensityThresholds);
           if (v < 0.5) continue;
-          const bandIdx = Math.min(DISPLAY_SCALE.length, Math.max(1, Math.round(v))) - 1;
-          const s = DISPLAY_SCALE[bandIdx];
+          const bandIdx = Math.min(displayScale.length, Math.max(1, Math.round(v))) - 1;
+          const s = displayScale[bandIdx];
           // Phase vom dominanten Feld, bilinear geglättet — keine Mischfarben.
           const pf = phaseField ?? (wA >= wB ? fieldA : fieldB);
           const pb = phaseField && phaseBounds ? phaseBounds : bounds;
@@ -1830,11 +1834,6 @@ function fmtBubble(d: Date, measured: boolean): string {
 
 // Schlanker Legenden-Streifen: durchgehender Intensitäts-Farbbalken (mm/h)
 // plus kleine Phasen-Chips — Apple-Weather-Stil statt grosser Legendenkachel.
-const RAIN_GRADIENT_STOPS = DISPLAY_SCALE.map((s, i) => {
-  const a = (i * 100) / DISPLAY_SCALE.length;
-  const b = ((i + 1) * 100) / DISPLAY_SCALE.length;
-  return `rgb(${s.rgb.join(",")}) ${a.toFixed(2)}% ${b.toFixed(2)}%`;
-});
 const LEGEND_TICKS: { label: string; pct: number; align: "l" | "m" | "r" }[] = [
   { label: "0,1", pct: 0, align: "l" },
   { label: "2", pct: 37.5, align: "m" },
@@ -1878,6 +1877,12 @@ function TwoStepBar({ light, strong }: { light: [number, number, number]; strong
 }
 
 function RadarLegendStrip({ bare }: { bare?: boolean }) {
+  const displayScale = useContext(RadarPaletteContext);
+  const rainGradientStops = displayScale.map((s, i) => {
+    const a = (i * 100) / displayScale.length;
+    const b = ((i + 1) * 100) / displayScale.length;
+    return `rgb(${s.rgb.join(",")}) ${a.toFixed(2)}% ${b.toFixed(2)}%`;
+  });
   const short: Record<string, string> = { "Gefrierender Regen": "Glatteis" };
   return (
     <div
@@ -1890,7 +1895,7 @@ function RadarLegendStrip({ bare }: { bare?: boolean }) {
         <LegendColumn label="Regen · mm/h" className="flex-[1.7] sm:flex-[2.2]">
           <div
             className="h-[6px] rounded-[2px] ring-1 ring-inset ring-black/5"
-            style={{ backgroundImage: `linear-gradient(to right, ${RAIN_GRADIENT_STOPS.join(", ")})` }}
+            style={{ backgroundImage: `linear-gradient(to right, ${rainGradientStops.join(", ")})` }}
           />
           <div className="relative h-[8px]">
             {LEGEND_TICKS.map((tk) => (
@@ -2724,5 +2729,13 @@ function RadarMapInner({
 
 
 /** Öffentliche Variante mit Fehler-Auffangbereich (keine weisse Seite). */
-export const RadarMap = withErrorBoundary(RadarMapInner, "Das Niederschlagsradar", 520);
+function RadarMapWithPalette({ appPalette = false, ...props }: ComponentProps<typeof RadarMapInner> & { appPalette?: boolean }) {
+  return (
+    <RadarPaletteContext.Provider value={appPalette ? DISPLAY_SCALE : EMBED_DISPLAY_SCALE}>
+      <RadarMapInner {...props} />
+    </RadarPaletteContext.Provider>
+  );
+}
+
+export const RadarMap = withErrorBoundary(RadarMapWithPalette, "Das Niederschlagsradar", 520);
 
