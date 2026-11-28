@@ -7,8 +7,16 @@ const GUST_STOPS: [number, string][] = [[0,"#44c47e"],[20,"#80ce62"],[40,"#f0dc3
 // Beaufort-Skala (km/h) der Live-Karte im Weather Hub, für den aktuellen Wind.
 const WIND_STOPS: [number, string][] = [[0,"#eef2f8"],[1,"#b8cee8"],[6,"#2f9dd0"],[12,"#3fbec2"],[20,"#44c47e"],[29,"#bcd84a"],[39,"#f0dc3a"],[50,"#ed9a28"],[62,"#ea7826"],[75,"#d83a33"],[89,"#a52020"],[103,"#7e1c1c"],[118,"#4a1010"],[140,"#2d0a0a"]];
 const RAIN_STOPS: [number, string][] = [[0,"#e2e8f0"],[1,"#a9cfe9"],[5,"#3690d0"],[15,"#4169c9"],[30,"#33489c"],[60,"#71369b"],[100,"#b82c2a"]];
+// Regensummen: je mehr, desto wärmer (Blau, Grün, Gelb, Orange, Rot, Violett); Werte in mm eines Tages.
+const RAIN_SUM_STOPS: [number, string][] = [[0,"#e2e8f0"],[1,"#a9cfe9"],[5,"#3690d0"],[10,"#3fbec2"],[20,"#44c47e"],[30,"#bcd84a"],[40,"#f0dc3a"],[60,"#ed9a28"],[80,"#d83a33"],[100,"#8e2020"],[150,"#71369b"]];
+/** Teiler, der Summen über mehrere Tage auf die Tagesskala bringt: ein Monat ÷4, ein Jahr ÷15. */
+export const rainSumScale = (days: number) => days <= 1 ? 1 : days <= 31 ? 1 + (days - 1) / 10 : 4 + (days - 31) / 30;
+export const rainSumColor = (mm: number, scale = 1) => ramp(mm / scale, RAIN_SUM_STOPS);
 export function stationColor(v: number, stat: ExtremeStat): string {
   const stops = stat === "gust" ? GUST_STOPS : stat === "wind" ? WIND_STOPS : stat === "rain" || stat === "rainRate" ? RAIN_STOPS : STOPS;
+  return ramp(v, stops);
+}
+function ramp(v: number, stops: [number, string][]): string {
   if (v <= stops[0][0]) return stops[0][1];
   for (let i = 0; i < stops.length - 1; i++) {
     const [av, ac] = stops[i], [bv, bc] = stops[i + 1];

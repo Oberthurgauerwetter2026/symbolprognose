@@ -22,6 +22,7 @@ const METRICS: { id: SeriesMetric; label: string; icon: LucideIcon }[] = [
 const RANGES: { id: SeriesRange; label: string }[] = [{ id: 'day', label: 'Tag' }, { id: 'month', label: 'Monat' }, { id: 'year', label: 'Jahr' }, { id: 'custom', label: 'Frei' }];
 // Kurvenfarben für den nachtblauen Grund; Bedeutung wie in den Stationsgrafiken des Weather Hub.
 const C = { temp: '#ff7d73', tmin: '#8ecbff', tmax: '#ffc4be', dew: '#7cc4ff', hum: '#6fdc9c', pres: '#ffffff', wind: '#6fc7ee', gust: '#ffa45c', rainBar: '#7db3e8', rainSum: '#ffffff' };
+const FILLS = ['temp', 'dew', 'pres', 'wind'] as const;
 const GRID = 'rgba(255,255,255,0.14)', TICK = { fill: 'rgba(255,255,255,0.82)', fontSize: 11 };
 const NAMES: Record<string, string> = { temp: 'Temperatur', tmin: 'Minimum', tmax: 'Maximum', dew: 'Taupunkt', hum: 'Feuchte', pres: 'Luftdruck', wind: 'Mittelwind', gust: 'Böe', rain: 'Niederschlag', sum: 'Summe' };
 const UNITS: Record<string, string> = { temp: '°C', tmin: '°C', tmax: '°C', dew: '°C', hum: '%', pres: 'hPa', wind: 'km/h', gust: 'km/h', rain: 'mm', sum: 'mm' };
@@ -55,34 +56,37 @@ function Chart({ points, win, metric, buckets }: { points: SeriesPoint[]; win: S
     return [`${n.toFixed(unit === 'km/h' || unit === '%' ? 0 : 1)} ${unit}${dir}`, NAMES[key] ?? key];
   };
   const margin = { top: 8, right: 6, left: -14, bottom: 0 };
+  // «auto» liefert runde Achsenwerte; ohne Regen bräuchte die Achse sonst eine Spanne von null.
+  const wet = buckets.some(b => (b.rain ?? 0) > 0), windy = points.some(p => (p.gust ?? p.wind ?? 0) > 0);
   if (metric === 'rain') return <ResponsiveContainer width="100%" height="100%">
-    <ComposedChart data={buckets} margin={{ ...margin, right: -14 }}>
+    <ComposedChart data={buckets} margin={{ top: 8, right: -6, left: 0, bottom: 0 }}>
       <CartesianGrid stroke={GRID} vertical={false} />
       <XAxis dataKey="label" tick={TICK} stroke={GRID} tickLine={false} minTickGap={14} interval="preserveStartEnd" />
-      <YAxis yAxisId="bar" tick={TICK} stroke={GRID} tickLine={false} width={48} domain={[0, (max: number) => Math.max(1, Math.ceil(max))]} unit=" mm" />
-      <YAxis yAxisId="sum" orientation="right" tick={TICK} stroke={GRID} tickLine={false} width={48} domain={[0, (max: number) => Math.max(1, Math.ceil(max))]} />
+      <YAxis yAxisId="bar" tick={TICK} stroke={GRID} tickLine={false} width={64} domain={wet ? [0, 'auto'] : [0, 1]} unit=" mm" />
+      <YAxis yAxisId="sum" orientation="right" tick={TICK} stroke={GRID} tickLine={false} width={48} domain={wet ? [0, 'auto'] : [0, 1]} />
       <Tooltip {...TIP} cursor={{ fill: 'rgba(255,255,255,0.08)' }} formatter={value} />
       <Bar yAxisId="bar" dataKey="rain" fill={C.rainBar} radius={[2, 2, 0, 0]} isAnimationActive={false} />
       <Line yAxisId="sum" dataKey="sum" stroke={C.rainSum} strokeWidth={2} dot={false} isAnimationActive={false} />
     </ComposedChart>
   </ResponsiveContainer>;
   const line = (key: keyof typeof C, width = 2, axis = 'main') => <Line key={key} yAxisId={axis} dataKey={key} stroke={C[key]} strokeWidth={width} dot={false} connectNulls={false} isAnimationActive={false} />;
-  const pad = (by: number) => [(min: number) => Math.floor(min - by), (max: number) => Math.ceil(max + by)] as [(v: number) => number, (v: number) => number];
+  // Farbfläche unter der Hauptkurve, wie in den Stationsgrafiken des Weather Hub.
+  const area = (key: (typeof FILLS)[number]) => <Area key={key} yAxisId="main" dataKey={key} stroke={C[key]} strokeWidth={2} fill={`url(#${key}-fill)`} baseValue="dataMin" dot={false} connectNulls={false} isAnimationActive={false} />;
   return <ResponsiveContainer width="100%" height="100%">
-    <ComposedChart data={points} margin={metric === 'dew' ? { ...margin, right: -14 } : margin}>
-      <defs><linearGradient id="temp-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.temp} stopOpacity={0.32} /><stop offset="100%" stopColor={C.temp} stopOpacity={0.02} /></linearGradient></defs>
+    <ComposedChart data={points} margin={metric === 'dew' ? { ...margin, right: 0 } : margin}>
+      <defs>{FILLS.map(key => <linearGradient key={key} id={`${key}-fill`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C[key]} stopOpacity={0.32} /><stop offset="100%" stopColor={C[key]} stopOpacity={0.02} /></linearGradient>)}</defs>
       <CartesianGrid stroke={GRID} />
       <XAxis dataKey="t" type="number" scale="time" domain={[win.from, win.to]} ticks={timeTicks(win)} tickFormatter={tick} tick={TICK} stroke={GRID} tickLine={false} minTickGap={12} />
       <YAxis yAxisId="main" tick={TICK} stroke={GRID} tickLine={false} width={52} allowDecimals={false}
-        domain={metric === 'wind' ? [0, (max: number) => Math.max(10, Math.ceil(max / 10) * 10)] : pad(metric === 'pressure' ? 2 : 1)} unit={metric === 'pressure' ? '' : metric === 'wind' ? '' : '°'} />
+        domain={metric === 'wind' ? (windy ? [0, 'auto'] : [0, 10]) : ['auto', 'auto']} unit={metric === 'pressure' ? '' : metric === 'wind' ? '' : '°'} />
       {metric === 'dew' && <YAxis yAxisId="hum" orientation="right" tick={TICK} stroke={GRID} tickLine={false} width={48} domain={[0, 100]} unit="%" />}
       <Tooltip {...TIP} labelFormatter={(t) => label(Number(t))} formatter={value} />
       {(metric === 'temperature' || metric === 'dew') && <ReferenceLine yAxisId="main" y={0} stroke="rgba(255,255,255,0.6)" strokeDasharray="5 4" ifOverflow="hidden" />}
-      {metric === 'temperature' && <Area yAxisId="main" dataKey="temp" stroke={C.temp} strokeWidth={2} fill="url(#temp-fill)" dot={false} connectNulls={false} isAnimationActive={false} />}
+      {metric === 'temperature' && area('temp')}
       {metric === 'temperature' && !raw && [line('tmin', 1), line('tmax', 1)]}
-      {metric === 'dew' && [line('dew'), line('hum', 1.5, 'hum')]}
-      {metric === 'pressure' && line('pres')}
-      {metric === 'wind' && [line('gust', 1.5), line('wind')]}
+      {metric === 'dew' && [area('dew'), line('hum', 1.5, 'hum')]}
+      {metric === 'pressure' && area('pres')}
+      {metric === 'wind' && [area('wind'), line('gust', 1.5)]}
     </ComposedChart>
   </ResponsiveContainer>;
 }
@@ -124,7 +128,7 @@ export function StationCharts({ stations, state, today, onChange }: { stations: 
     <div className="mt-3 rounded-md bg-card p-3 shadow-md sm:p-4">
       <h2 className="flex items-center gap-2 text-sm font-semibold"><active.icon className="size-4 text-accent" />{active.label}</h2>
       <dl data-testid="series-stats" className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 sm:flex sm:flex-wrap sm:gap-x-8">
-        {statCells(points, metric, Date.now(), buckets).map(cell => <div key={cell.label} className="min-w-0"><dt className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">{cell.label}</dt><dd className="font-display text-xl font-semibold tabular-nums">{cell.value}</dd></div>)}
+        {statCells(points, metric, Date.now(), buckets).map(cell => <div key={cell.label} className="min-w-0"><dt className="truncate text-xs text-muted-foreground">{cell.label}</dt><dd className="font-display text-xl font-semibold tabular-nums">{cell.value}</dd></div>)}
       </dl>
       <div className="relative mt-3 h-[min(52svh,420px)] min-h-64" data-testid="series-chart">
         {win && <Chart key={metric} points={points} win={win} metric={metric} buckets={buckets} />}

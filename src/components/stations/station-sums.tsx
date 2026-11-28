@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 import { CloudRain, Map as MapIcon, Table2, Thermometer, Wind, type LucideIcon } from 'lucide-react';
 import { SourceFooter } from '@/components/source-footer';
 import { sumsQuery } from '@/lib/station-series-query';
+import { rainSumScale } from '@/lib/station-colors';
 import { formatStationValue, type ExtremeStat, type StationExtreme } from '@/lib/station-extremes';
 import { FIRST_YEAR, shiftAnchor, spanDays, sumRange, type SumPeriod } from '@/lib/station-series';
 import { anchorLabel, Choice, DateRange, Stepper } from './controls';
@@ -58,7 +59,7 @@ export function StationSums({ live, state, today, onChange }: { live: StationExt
     <h2 className="px-1 py-3 text-sm font-semibold" data-testid="sums-heading">{what}{when ? <span className="font-normal text-muted-foreground"> · {when}</span> : null}</h2>
     {view === 'map' ? <div className="relative h-[min(65svh,640px)] min-h-80 overflow-hidden rounded-md border border-border bg-muted shadow-md">
       <Suspense fallback={<div role="status" className="grid h-full place-items-center text-sm text-muted-foreground">Karte wird geladen …</div>}>
-        <ExtremesMap stations={shown} stat={stat} generousPadding regionStyle rainColorScale={Math.max(1, spanDays(range.from, range.to) / 4)} />
+        <ExtremesMap stations={shown} stat={stat} generousPadding regionStyle rainColorScale={rainSumScale(spanDays(range.from, range.to))} />
       </Suspense>
       {note && <p role="status" className="absolute inset-x-3 top-3 z-[500] rounded-md bg-card/95 p-3 text-center text-sm">{note}</p>}
     </div> : <div className="overflow-x-auto rounded-md bg-card shadow-md">
