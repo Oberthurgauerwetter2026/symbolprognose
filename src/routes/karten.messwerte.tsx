@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
 import { Thermometer, Wind, Droplets } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
@@ -15,7 +15,8 @@ const readingsQuery = () => queryOptions({ queryKey: ['overview-stations'], quer
 
 export const Route = createFileRoute('/karten/messwerte')({
   ssr: false,
-  loader: ({ context }) => context.queryClient.ensureQueryData(readingsQuery()),
+  // Nicht warten: Kopfzeile und Bedienung stehen sofort, die Messwerte füllen die Karte nach.
+  loader: ({ context }) => { void context.queryClient.prefetchQuery(readingsQuery()); },
   head: () => ({ meta: [
     { title: 'Live-Messwerte: Temperatur, Wind und Regen · Oberthurgauer Wetter' },
     { name: 'description', content: 'Aktuelle Temperaturen, stärkste Tagesböen und Tagesniederschlag der regionalen Wetterstationen im Oberthurgau.' },
@@ -27,7 +28,8 @@ export const Route = createFileRoute('/karten/messwerte')({
 });
 
 function StationReadingsPage() {
-  const { data: stations } = useSuspenseQuery(readingsQuery());
+  const { data, isPending } = useQuery(readingsQuery());
+  const stations = data ?? [];
   const [metric, setMetric] = useState('temperature');
   const [temperatureStat, setTemperatureStat] = useState<ExtremeStat>('current');
   const stat = metric === 'wind' ? 'gust' : metric === 'rain' ? 'rain' : temperatureStat;
@@ -49,7 +51,7 @@ function StationReadingsPage() {
       </div>
       <div className="relative h-[min(65svh,640px)] min-h-80 overflow-hidden rounded-md border border-border bg-muted">
         <Suspense fallback={<div role="status" className="grid h-full place-items-center text-sm text-muted-foreground">Karte wird geladen …</div>}><ExtremesMap stations={ranked} stat={stat} generousPadding /></Suspense>
-        {!ranked.length && <p role="status" className="absolute inset-x-3 top-3 z-[500] rounded-md bg-card/95 p-3 text-center text-sm">Momentan keine Messwerte verfügbar.</p>}
+        {!ranked.length && <p role="status" className="absolute inset-x-3 top-3 z-[500] rounded-md bg-card/95 p-3 text-center text-sm">{isPending ? 'Messwerte werden geladen …' : 'Momentan keine Messwerte verfügbar.'}</p>}
       </div>
       <SourceFooter data="eigene Stationen, MeteoSchweiz" className="mt-2">{' · Karte: © '}<a href="https://www.swisstopo.admin.ch/" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">swisstopo</a></SourceFooter>
     </section>

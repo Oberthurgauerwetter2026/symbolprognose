@@ -1,5 +1,6 @@
 # Desktop preview unclickable
 - [x] Server-loaded data now travels with the page, so the home page becomes clickable without waiting for any request. Checked in WebKit and Chromium at 1557 px with all server requests deliberately hanging: page interactive, region map visible, Windanimation tile opens. User's own Safari preview not re-checked.
+- [x] Same rule checked on every page that waits for data: report page and ticker embed hydrate with hanging requests; the live readings page now shows its controls and «Messwerte werden geladen …» instead of a blank page; all other map pages already prefetch without waiting.
 
 # Reliable desktop region map
 - [x] Remove home map hydration/return gates; desktop media snapshot is immediate on route return. Real map and five forecast markers verified at 1557 px and in a 1200 px iframe; X returns to the exact tile position (0 px delta); 390 px phone mounts no map and has no overflow. Eight return tests pass; preview build OK. Physical Safari and the authenticated Lovable preview shell were not tested.
