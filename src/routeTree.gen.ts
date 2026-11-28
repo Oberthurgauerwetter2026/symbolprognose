@@ -47,6 +47,7 @@ import { Route as KartenNiederschlagRouteImport } from './routes/karten.niedersc
 import { Route as KartenRadarRouteImport } from './routes/karten.radar'
 import { Route as KartenRegionRouteImport } from './routes/karten.region'
 import { Route as KartenSatellitRouteImport } from './routes/karten.satellit'
+import { Route as KartenStationenRouteImport } from './routes/karten.stationen'
 import { Route as KartenWarnungenRouteImport } from './routes/karten.warnungen'
 import { Route as KartenWindRouteImport } from './routes/karten.wind'
 import { Route as ApiPublicAdminManifestRouteImport } from './routes/api/public/admin-manifest'
@@ -255,6 +256,11 @@ const KartenSatellitRoute = KartenSatellitRouteImport.update({
   path: '/karten/satellit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const KartenStationenRoute = KartenStationenRouteImport.update({
+  id: '/karten/stationen',
+  path: '/karten/stationen',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KartenWarnungenRoute = KartenWarnungenRouteImport.update({
   id: '/karten/warnungen',
   path: '/karten/warnungen',
@@ -391,6 +397,7 @@ export interface FileRoutesByFullPath {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/stationen': typeof KartenStationenRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/admin-manifest': typeof ApiPublicAdminManifestRoute
@@ -448,6 +455,7 @@ export interface FileRoutesByTo {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/stationen': typeof KartenStationenRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/admin-manifest': typeof ApiPublicAdminManifestRoute
@@ -506,6 +514,7 @@ export interface FileRoutesById {
   '/karten/radar': typeof KartenRadarRoute
   '/karten/region': typeof KartenRegionRoute
   '/karten/satellit': typeof KartenSatellitRoute
+  '/karten/stationen': typeof KartenStationenRoute
   '/karten/warnungen': typeof KartenWarnungenRoute
   '/karten/wind': typeof KartenWindRoute
   '/api/public/admin-manifest': typeof ApiPublicAdminManifestRoute
@@ -565,6 +574,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/stationen'
     | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/admin-manifest'
@@ -622,6 +632,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/stationen'
     | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/admin-manifest'
@@ -679,6 +690,7 @@ export interface FileRouteTypes {
     | '/karten/radar'
     | '/karten/region'
     | '/karten/satellit'
+    | '/karten/stationen'
     | '/karten/warnungen'
     | '/karten/wind'
     | '/api/public/admin-manifest'
@@ -737,6 +749,7 @@ export interface RootRouteChildren {
   KartenRadarRoute: typeof KartenRadarRoute
   KartenRegionRoute: typeof KartenRegionRoute
   KartenSatellitRoute: typeof KartenSatellitRoute
+  KartenStationenRoute: typeof KartenStationenRoute
   KartenWarnungenRoute: typeof KartenWarnungenRoute
   KartenWindRoute: typeof KartenWindRoute
   ApiPublicAdminManifestRoute: typeof ApiPublicAdminManifestRoute
@@ -1024,6 +1037,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KartenSatellitRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/karten/stationen': {
+      id: '/karten/stationen'
+      path: '/karten/stationen'
+      fullPath: '/karten/stationen'
+      preLoaderRoute: typeof KartenStationenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/karten/warnungen': {
       id: '/karten/warnungen'
       path: '/karten/warnungen'
@@ -1185,6 +1205,7 @@ const rootRouteChildren: RootRouteChildren = {
   KartenRadarRoute: KartenRadarRoute,
   KartenRegionRoute: KartenRegionRoute,
   KartenSatellitRoute: KartenSatellitRoute,
+  KartenStationenRoute: KartenStationenRoute,
   KartenWarnungenRoute: KartenWarnungenRoute,
   KartenWindRoute: KartenWindRoute,
   ApiPublicAdminManifestRoute: ApiPublicAdminManifestRoute,

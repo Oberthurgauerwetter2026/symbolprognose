@@ -7,9 +7,9 @@ import { PAST_WINDOWS } from "./precip-past";
 import { applyDailyOverrides, zurichDay, type DailyOverride } from "./rain-overrides";
 import { stationWindowSum, type Sample, type StationDef } from "./station-sums";
 
-const HUB_URL = "https://eqnhgnirvpblmmvtdzvo.supabase.co";
+export const HUB_URL = "https://eqnhgnirvpblmmvtdzvo.supabase.co";
 // Öffentlicher (publishable) Schlüssel des Weather Hub – nur Lesezugriff auf freigegebene Messwerte.
-const HUB_KEY =
+export const HUB_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxbmhnbmlydnBibG1tdnRkenZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMjQwMjAsImV4cCI6MjA5NDYwMDAyMH0.w-MBYTiHoOiE-DX3Hyf-1dsAC2DxGZzJ0YoQUlkwpZU";
 
 /** Koordinaten aus dem Weather-Hub-Admin; MeteoSchweiz-Stationen dort sind bewusst ausgelassen. */

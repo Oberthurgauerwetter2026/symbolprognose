@@ -46,8 +46,8 @@ function RegionLayers() {
 }
 
 /** Pille ohne Namenszeile; beim aktuellen Wind mit Pfeil in Wehrichtung (Herkunft + 180°). */
-function regionIcon(v: number, stat: ExtremeStat, dir: number | null) {
-  const bg = color(v, stat), fg = contrast(bg), h = 36, w = stat === "wind" ? 88 : stat === "rainRate" ? 82 : stat === "gust" || stat === "rain" ? 74 : 58;
+function regionIcon(v: number, stat: ExtremeStat, dir: number | null, rainScale: number) {
+  const bg = color(stat === "rain" ? v / rainScale : v, stat), fg = contrast(bg), h = 36, w = stat === "wind" ? 88 : stat === "rainRate" ? 82 : stat === "gust" || stat === "rain" ? 74 : 58;
   const arrow = stat === "wind" && dir !== null
     ? `<svg width="13" height="13" viewBox="0 0 24 24" style="transform:rotate(${dir + 180}deg);margin-right:4px;flex-shrink:0;" aria-hidden="true"><path d="M12 2 L17 12 L13 12 L13 22 L11 22 L11 12 L7 12 Z" fill="${fg}"/></svg>` : "";
   const html = `<div style="background:${bg};color:${fg};box-shadow:0 2px 6px rgba(0,0,0,0.22);border:2px solid white;border-radius:9999px;box-sizing:border-box;width:${w}px;height:${h}px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:system-ui,sans-serif;padding:0 4px;white-space:nowrap;">${arrow}${formatStationValue(v, stat)}</div>`;
@@ -85,12 +85,13 @@ function CloseOnMapClick({ onClose }: { onClose: () => void }) {
 }
 
 /** regionStyle: Kartenbild der Live-Karte (Umriss, Masken, Ortsnamen); ohne die Option bleibt die Einbettung unverändert. */
-export function ExtremesMap({ stations, stat, generousPadding = false, regionStyle = false }: { stations: StationExtreme[]; stat: ExtremeStat; generousPadding?: boolean; regionStyle?: boolean }) {
+/** rainColorScale: Teiler für die Regenfarbe bei Summen über mehrere Tage, damit Monats- und Jahressummen nicht alle im obersten Farbton landen. */
+export function ExtremesMap({ stations, stat, generousPadding = false, regionStyle = false, rainColorScale = 1 }: { stations: StationExtreme[]; stat: ExtremeStat; generousPadding?: boolean; regionStyle?: boolean; rainColorScale?: number }) {
   // Symbole nur bei neuen Werten neu bauen: ein neues Element unter dem Mauszeiger würde das Wegfahren verschlucken.
   const icons = useMemo(() => new Map(stations.map((s) => {
     const value = s[stat];
-    return [s.id, typeof value === "number" && Number.isFinite(value) ? (regionStyle ? regionIcon(value, stat, s.windDir ?? null) : icon(value, s.name, stat)) : null] as const;
-  })), [stations, stat, regionStyle]);
+    return [s.id, typeof value === "number" && Number.isFinite(value) ? (regionStyle ? regionIcon(value, stat, s.windDir ?? null, rainColorScale) : icon(value, s.name, stat)) : null] as const;
+  })), [stations, stat, regionStyle, rainColorScale]);
   const [hover, setHover] = useState<Hover | null>(null);
   const hovered = hover ? stations.find((s) => s.id === hover.id) : undefined;
   const show = (s: StationExtreme, marker: L.Marker) => {

@@ -26,6 +26,7 @@ import { listWarnings } from '@/lib/warnings.functions';
 import { SPOTS } from '@/data/spots';
 import { APP_MANIFEST_LINK } from '@/lib/pwa-links';
 import { LivePreview } from '@/components/live-preview';
+import { SeriesPreview } from '@/components/stations/series-preview';
 import { RadarPreview, SatellitePreview, StationPreview, WarningPreview, WindPreview } from '@/components/tile-previews';
 
 const stationsQuery = () => queryOptions({ queryKey: ['overview-stations'], queryFn: () => getStationExtremes(), staleTime: 60000, refetchInterval: 120000 });
@@ -134,6 +135,11 @@ function WeatherOverview() {
     {image(<StationPreview stations={stations} />)}
     {title('Live-Messwerte', 'Temperatur · Wind · Regen')}
   </Link>;
+  // Breite Kachel: die Kurve füllt die Zeilenhöhe, statt ein festes Seitenverhältnis zu erzwingen.
+  const seriesTile = (extra = '') => <Link to="/karten/stationen" viewTransition onClick={() => openCard('/karten/stationen')} className={tile('/karten/stationen', ` wide-tile flex flex-col [&_.weather-product-image]:flex-1${extra}`)} aria-label="Messwerte öffnen: Grafiken und Summen">
+    {image(<SeriesPreview stations={stations} />)}
+    {title('Messwerte', 'Grafiken & Summen der Stationen')}
+  </Link>;
   const satTile = <Link to="/karten/satellit" viewTransition onClick={() => openCard('/karten/satellit')} className={tile('/karten/satellit')}>{image(<SatellitePreview />)}{title('Satellit', 'Wolken über der Schweiz')}</Link>;
   const tickerPosts = ticker.data ? visiblePosts(ticker.data, Date.now()) : null;
   // Kachel als Fläche mit darübergelegtem Link: so bleibt «Foto / Video einsenden» ein eigener Link ohne verschachteltes <a>.
@@ -171,16 +177,17 @@ function WeatherOverview() {
      </div>
 
       <section aria-label="Wetterprodukte" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:hidden">
-        {radarTile(' col-span-2')}{windTile}{warnTile}{stationTile}{satTile}{tickerTile(' col-span-2')}
+        {radarTile(' col-span-2')}{windTile}{warnTile}{stationTile}{satTile}{seriesTile(' col-span-2 [&_.weather-product-image]:aspect-[2.6]!')}{tickerTile(' col-span-2')}
       </section>
       <div className="lg:hidden"><WeatherReportTile {...report} morph={morph === '/wetterbericht'} onOpen={() => openCard('/wetterbericht')} /></div>
 
-      <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-4 gap-4 [&>a:not(.ticker-tile)>div:first-child]:aspect-[1.5]!">
+      <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-4 gap-4 [&>a:not(.wide-tile)>div:first-child]:aspect-[1.5]!">
         {stationTile}{windTile}{warnTile}
         {satTile}
         <Link to="/karten/niederschlag" viewTransition onClick={() => openCard('/karten/niederschlag')} className={tile('/karten/niederschlag')}>{image(desktop && <LivePreview src="/embed/niederschlag?clean=1" title="Niederschlagssummen" />)}{title('Regen & Schnee', 'Summen: gefallen und erwartet')}</Link>
         <Link to="/vertikalschnitt" viewTransition onClick={() => openCard('/vertikalschnitt')} className={tile('/vertikalschnitt')}>{iconPreview(<Snowflake />)}{title('SnowCast', 'Schneefallgrenze im Schnitt')}</Link>
-        {tickerTile(' col-span-2')}
+        {seriesTile(' col-span-2 [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-32')}
+        {tickerTile(' col-span-4')}
       </div></section>
       <section className="py-6 lg:hidden"><h2 className="mb-4 text-lg font-semibold">Mehr Wetter</h2><div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Button asChild variant="outline" className="weather-dark h-14 justify-between px-3"><Link to="/karten/niederschlag"><span className="flex items-center gap-2"><Droplets />Regen & Schnee</span><ArrowUpRight /></Link></Button>
