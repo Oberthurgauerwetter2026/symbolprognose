@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
-/** Wahr erst nach dem Laden im Browser und nur ab Desktop-Breite (Tailwind `lg`). */
+const desktopQuery = '(min-width: 1024px)';
+const getSnapshot = () => window.matchMedia(desktopQuery).matches;
+const getServerSnapshot = () => false;
+function subscribe(onChange: () => void) {
+  const query = window.matchMedia(desktopQuery);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+/** SSR-sicher, ab Tailwind `lg`; bei Rückkehr sofort aktuell, ohne einen verzögerten State-Effekt. */
 export function useIsDesktop() {
-  const [desktop, setDesktop] = useState(false);
-  useEffect(() => {
-    const query = window.matchMedia('(min-width: 1024px)');
-    const update = () => setDesktop(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-  return desktop;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

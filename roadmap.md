@@ -1,3 +1,6 @@
+# Reliable desktop region map
+- [x] Remove home map hydration/return gates; desktop media snapshot is immediate on route return. Real map and five forecast markers verified at 1557 px and in a 1200 px iframe; X returns to the exact tile position (0 px delta); 390 px phone mounts no map and has no overflow. Eight return tests pass; preview build OK. Physical Safari and the authenticated Lovable preview shell were not tested.
+
 # Scrolling and desktop close
 - [x] Allow vertical phone scrolling over the hourly preview; desktop X uses a 180 ms root fade and defers region-map initialization/resize tracking until it finishes. Six tests pass; real forecast at 390 px supports vertical (180 px) and horizontal (252 px) touch gestures and opens/closes the same place. At 1557 px X returns to the exact tile position, no map mounts during the fade, no page errors; preview build OK. Not checked on a physical phone.
 
