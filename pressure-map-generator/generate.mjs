@@ -1,0 +1,736 @@
+// Europe surface-pressure map for the weather report ("Allgemeine Lage").
+// Runs on a GitHub Actions runner (own IP, no shared worker egress towards
+// Open-Meteo), renders one SVG and writes it to OUT_FILE; the workflow then
+// publishes that file to R2 as maps/europe-pressure-latest.svg.
+//
+// Optional env: OUT_FILE, LOVABLE_API_KEY (names of highs/lows; without it
+// the map is rendered without names).
+
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { contours as d3contours } from "d3-contour";
+import { attachFuBerlinNames } from "./fu-berlin-names.mjs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = resolve(__dirname, "data");
+const europeCountries = JSON.parse(readFileSync(resolve(DATA_DIR, "europe-countries.json"), "utf8"));
+const europeOcean = JSON.parse(readFileSync(resolve(DATA_DIR, "europe-ocean.json"), "utf8"));
+const europeLakes = JSON.parse(readFileSync(resolve(DATA_DIR, "europe-lakes.json"), "utf8"));
+const europeCoastlines = JSON.parse(readFileSync(resolve(DATA_DIR, "europe-coastlines.json"), "utf8"));
+const europeCountryBorders = JSON.parse(readFileSync(resolve(DATA_DIR, "europe-country-borders.json"), "utf8"));
+
+// ── Map extent ─────────────────────────────────────────────────────────────
+const W = -25, E = 45, S = 30, N = 70;
+const STEP = 1.25; // echtes Abrufgitter (1.25°) – Glättung kommt aus echten Daten, nicht aus Interpolation
+const COLS = Math.round((E - W) / STEP) + 1;
+const ROWS = Math.round((N - S) / STEP) + 1;
+
+const IMG_W = 1200;
+const IMG_H = 840;
+const PAD = { top: 64, right: 20, bottom: 100, left: 20 };
+const PLOT_W = IMG_W - PAD.left - PAD.right;
+const PLOT_H = IMG_H - PAD.top - PAD.bottom;
+
+function project(lon, lat) {
+  const x = PAD.left + ((lon - W) / (E - W)) * PLOT_W;
+  const y = PAD.top + ((N - lat) / (N - S)) * PLOT_H;
+  return [x, y];
+}
+function gridToPixel(gx, gy, step = STEP) {
+  return project(W + gx * step, N - gy * step);
+}
+
+// ── Open-Meteo fetch ───────────────────────────────────────────────────────
+async function fetchGrids(targetUtcIso, model = "icon_seamless") {
+  const lats = [], lons = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      lats.push(N - r * STEP);
+      lons.push(W + c * STEP);
+    }
+  }
+  const BATCH = 200;
+  const THROTTLE_MS = 700;
+  const pressure = new Array(lats.length).fill(NaN);
+  const t850 = new Array(lats.length).fill(NaN);
+  const precip = new Array(lats.length).fill(NaN);
+
+  for (let i = 0; i < lats.length; i += BATCH) {
+    if (i > 0) await new Promise((r) => setTimeout(r, THROTTLE_MS));
+    const la = lats.slice(i, i + BATCH).join(",");
+    const lo = lons.slice(i, i + BATCH).join(",");
+    const url = new URL("https://api.open-meteo.com/v1/forecast");
+    url.searchParams.set("latitude", la);
+    url.searchParams.set("longitude", lo);
+    url.searchParams.set("hourly", "pressure_msl,temperature_850hPa,precipitation");
+    url.searchParams.set("models", model);
+    url.searchParams.set("forecast_days", "2");
+    url.searchParams.set("timezone", "UTC");
+
+    let json = null;
+    for (let attempt = 0; attempt < 4 && !json; attempt++) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          if (res.status === 429) {
+            const waitMs = 65_000;
+            console.warn(`[OM] batch ${i} 429 (attempt ${attempt + 1}) — wait ${waitMs}ms`);
+            await new Promise((r) => setTimeout(r, waitMs));
+            continue;
+          }
+          if (res.status >= 500 && attempt < 3) {
+            await new Promise((r) => setTimeout(r, 500 * Math.pow(3, attempt)));
+            continue;
+          }
+          console.warn(`[OM] batch ${i} failed: ${res.status} ${body.slice(0, 200)}`);
+          break;
+        }
+        json = await res.json();
+      } catch (err) {
+        console.warn(`[OM] batch ${i} attempt ${attempt + 1} threw:`, err);
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 500 * Math.pow(3, attempt)));
+      }
+    }
+    if (!json) continue;
+    const list = Array.isArray(json) ? json : [json];
+    for (let k = 0; k < list.length; k++) {
+      const loc = list[k];
+      const times = loc?.hourly?.time ?? [];
+      const pArr = loc?.hourly?.pressure_msl ?? [];
+      const tArr = loc?.hourly?.temperature_850hPa ?? [];
+      const rArr = loc?.hourly?.precipitation ?? [];
+      const idx = times.indexOf(targetUtcIso);
+      if (idx >= 0) {
+        if (Number.isFinite(pArr[idx])) pressure[i + k] = pArr[idx];
+        if (Number.isFinite(tArr[idx])) t850[i + k] = tArr[idx];
+        let sum = 0, count = 0;
+        for (let off = -2; off <= 3; off++) {
+          const j = idx + off;
+          if (j >= 0 && j < rArr.length && Number.isFinite(rArr[j])) { sum += rArr[j]; count++; }
+        }
+        if (count > 0) precip[i + k] = sum;
+      }
+    }
+  }
+  return {
+    pressure: { values: pressure, cols: COLS, rows: ROWS },
+    t850: { values: t850, cols: COLS, rows: ROWS },
+    precip: { values: precip, cols: COLS, rows: ROWS },
+  };
+}
+
+// ── Grid helpers ───────────────────────────────────────────────────────────
+function smooth(g) {
+  const out = new Array(g.values.length).fill(0);
+  for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
+    let s = 0, n = 0;
+    for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+      const rr = r + dr, cc = c + dc;
+      if (rr < 0 || rr >= g.rows || cc < 0 || cc >= g.cols) continue;
+      const v = g.values[rr * g.cols + cc];
+      if (Number.isFinite(v)) { s += v; n++; }
+    }
+    out[r * g.cols + c] = n ? s / n : NaN;
+  }
+  return { values: out, cols: g.cols, rows: g.rows };
+}
+function fillAndSmooth(g, fallback, smoothPasses = 3) {
+  let cur = g;
+  for (let pass = 0; pass < 8; pass++) {
+    let filled = 0;
+    const next = cur.values.slice();
+    for (let r = 0; r < cur.rows; r++) for (let c = 0; c < cur.cols; c++) {
+      const i = r * cur.cols + c;
+      if (Number.isFinite(cur.values[i])) continue;
+      let s = 0, n = 0;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        const rr = r + dr, cc = c + dc;
+        if (rr < 0 || rr >= cur.rows || cc < 0 || cc >= cur.cols) continue;
+        const v = cur.values[rr * cur.cols + cc];
+        if (Number.isFinite(v)) { s += v; n++; }
+      }
+      if (n > 0) { next[i] = s / n; filled++; }
+    }
+    cur = { values: next, cols: cur.cols, rows: cur.rows };
+    if (filled === 0) break;
+  }
+  cur = { ...cur, values: cur.values.map((v) => Number.isFinite(v) ? v : fallback) };
+  for (let i = 0; i < smoothPasses; i++) cur = smooth(cur);
+  return cur;
+}
+// Bikubisches (Catmull-Rom) Upsampling: löst die Kästchenstruktur des groben
+// 2°-Gitters auf, damit d3-contour organische Formen statt Treppenkanten liefert.
+function cubic(p0, p1, p2, p3, t) {
+  const a = -0.5 * p0 + 1.5 * p1 - 1.5 * p2 + 0.5 * p3;
+  const b = p0 - 2.5 * p1 + 2 * p2 - 0.5 * p3;
+  const c = -0.5 * p0 + 0.5 * p2;
+  return ((a * t + b) * t + c) * t + p1;
+}
+function resample(g, factor) {
+  if (factor <= 1) return { ...g, step: g.step ?? STEP };
+  const srcStep = g.step ?? STEP;
+  const cols = (g.cols - 1) * factor + 1;
+  const rows = (g.rows - 1) * factor + 1;
+  const at = (r, c) => {
+    const rr = Math.max(0, Math.min(g.rows - 1, r));
+    const cc = Math.max(0, Math.min(g.cols - 1, c));
+    const v = g.values[rr * g.cols + cc];
+    return Number.isFinite(v) ? v : 0;
+  };
+  const out = new Array(cols * rows);
+  for (let r = 0; r < rows; r++) {
+    const sy = r / factor, r1 = Math.floor(sy), ty = sy - r1;
+    for (let c = 0; c < cols; c++) {
+      const sx = c / factor, c1 = Math.floor(sx), tx = sx - c1;
+      const col = [];
+      for (let k = -1; k <= 2; k++) {
+        col.push(cubic(at(r1 + k, c1 - 1), at(r1 + k, c1), at(r1 + k, c1 + 1), at(r1 + k, c1 + 2), tx));
+      }
+      out[r * cols + c] = cubic(col[0], col[1], col[2], col[3], ty);
+    }
+  }
+  return { values: out, cols, rows, step: srcStep / factor };
+}
+function ringArea(pts) {
+  let a = 0;
+  for (let i = 0, n = pts.length; i < n; i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % n];
+    a += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(a) / 2;
+}
+function findExtrema(g) {
+  // Erkennung auf einer leicht geglätteten Kopie (nur zur Ortsbestimmung),
+  // ausgegeben wird der unveränderte Originalwert an dieser Gitterzelle.
+  const det = smooth(g);
+  const R = Math.max(1, Math.round(4 / STEP)); // ~4° Suchradius
+  const PROMINENCE = 1.0; // hPa Mindestabhebung gegenüber dem Rand des Suchfensters
+  const all = [];
+  for (let r = R; r < g.rows - R; r++) for (let c = R; c < g.cols - R; c++) {
+    const v = det.values[r * g.cols + c];
+    if (!Number.isFinite(v)) continue;
+    let isMax = true, isMin = true, ringMin = Infinity, ringMax = -Infinity;
+    for (let dr = -R; dr <= R; dr++) for (let dc = -R; dc <= R; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nv = det.values[(r + dr) * g.cols + (c + dc)];
+      if (!Number.isFinite(nv)) continue;
+      if (nv >= v) isMax = false;
+      if (nv <= v) isMin = false;
+      if (nv < ringMin) ringMin = nv;
+      if (nv > ringMax) ringMax = nv;
+    }
+    const raw = g.values[r * g.cols + c];
+    if (!Number.isFinite(raw)) continue;
+    // Nur markante Zentren: flache Druckplateaus erzeugen keine H/T-Symbole.
+    if (isMax && v - ringMin < PROMINENCE) continue;
+    if (isMin && ringMax - v < PROMINENCE) continue;
+    if (isMax || isMin) {
+      all.push({ type: isMax ? "H" : "T", lon: W + c * STEP, lat: N - r * STEP, value: raw, gx: c, gy: r });
+    }
+  }
+  const kept = [];
+  for (const e of all.sort((a, b) => (a.type === "H" ? -a.value : a.value) - (b.type === "H" ? -b.value : b.value))) {
+    // Mindestabstand ~15° unabhängig von der Gitterauflösung
+    if (kept.some((k) => Math.hypot((k.gx - e.gx) * STEP, (k.gy - e.gy) * STEP) < 15)) continue;
+    kept.push(e);
+  }
+  return kept.map(({ type, lon, lat, value }) => ({ type, lon, lat, value }));
+}
+
+// ── SVG rendering ──────────────────────────────────────────────────────────
+function escapeXml(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function geojsonToPath(geo) {
+  const parts = [];
+  const drawRing = (ring, closed = true) => {
+    if (!ring.length) return;
+    let d = "";
+    for (let i = 0; i < ring.length; i++) {
+      const [lon, lat] = ring[i];
+      const [x, y] = project(lon, lat);
+      d += (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1);
+    }
+    if (closed) d += "Z";
+    parts.push(d);
+  };
+  for (const f of geo.features) {
+    const geom = f.geometry;
+    if (!geom) continue;
+    if (geom.type === "LineString") { drawRing(geom.coordinates, false); continue; }
+    if (geom.type === "MultiLineString") {
+      for (const line of geom.coordinates) drawRing(line, false);
+      continue;
+    }
+    if (geom.type === "Polygon") for (const ring of geom.coordinates) drawRing(ring);
+    else if (geom.type === "MultiPolygon") for (const poly of geom.coordinates) for (const ring of poly) drawRing(ring);
+  }
+  return parts.join(" ");
+}
+function chaikin(pts, iterations = 2, closed = true) {
+  let cur = pts;
+  for (let it = 0; it < iterations; it++) {
+    const out = [];
+    const n = cur.length;
+    const last = closed ? n : n - 1;
+    for (let i = 0; i < last; i++) {
+      const a = cur[i];
+      const b = cur[closed ? (i + 1) % n : i + 1];
+      out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+      out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+    }
+    if (!closed) { out.unshift(cur[0]); out.push(cur[n - 1]); }
+    cur = out;
+  }
+  return cur;
+}
+// Punktausdünnung: das feine Gitter liefert sehr viele, dicht liegende Stützpunkte.
+// Ohne Ausdünnung wird das SVG unnötig gross – die Form bleibt identisch.
+function decimate(pts, tol, closed) {
+  if (pts.length < 8) return pts;
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i], q = out[out.length - 1];
+    if (Math.hypot(p[0] - q[0], p[1] - q[1]) >= tol) out.push(p);
+  }
+  if (!closed && out[out.length - 1] !== pts[pts.length - 1]) out.push(pts[pts.length - 1]);
+  return out.length >= 4 ? out : pts;
+}
+function contourToPath(coords, doSmooth = true, opts = {}) {
+  const { step = STEP, iterations = 2, minArea = 0, tol = 7, curve = true } = opts;
+  let d = "";
+  for (const poly of coords) for (const ring of poly) {
+    let pts = ring.map(([gx, gy]) => gridToPixel(gx, gy, step));
+    if (pts.length < 2) continue;
+    if (minArea > 0 && ringArea(pts) < minArea) continue;
+    if (!doSmooth || pts.length < 4) {
+      for (let i = 0; i < pts.length; i++) d += (i === 0 ? "M" : "L") + pts[i][0].toFixed(1) + "," + pts[i][1].toFixed(1);
+      continue;
+    }
+    const closed = pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1];
+    let ringPts = closed ? pts.slice(0, -1) : pts;
+    ringPts = decimate(ringPts, tol, closed);
+    const smoothed = chaikin(ringPts, iterations, closed);
+    pts = closed ? [...smoothed, smoothed[0]] : smoothed;
+    if (!curve) {
+      // Flächen: Chaikin liefert bereits weiche Ränder – Polylinie spart Dateigrösse.
+      for (let i = 0; i < pts.length; i++) d += (i === 0 ? "M" : "L") + pts[i][0].toFixed(1) + "," + pts[i][1].toFixed(1);
+      if (closed) d += "Z";
+      continue;
+    }
+    const n = closed ? pts.length - 1 : pts.length;
+    const get = (i) => closed ? pts[((i % n) + n) % n] : pts[Math.max(0, Math.min(pts.length - 1, i))];
+    d += "M" + pts[0][0].toFixed(1) + "," + pts[0][1].toFixed(1);
+    const limit = closed ? n : pts.length - 1;
+    for (let i = 0; i < limit; i++) {
+      const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+      const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+      const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += "C" + c1x.toFixed(1) + "," + c1y.toFixed(1) + " " + c2x.toFixed(1) + "," + c2y.toFixed(1) + " " + p2[0].toFixed(1) + "," + p2[1].toFixed(1);
+    }
+    if (closed) d += "Z";
+  }
+  return d;
+}
+function interpColor(v, stops) {
+  if (v <= stops[0][0]) return `rgb(${stops[0][1].join(",")})`;
+  if (v >= stops[stops.length - 1][0]) return `rgb(${stops[stops.length - 1][1].join(",")})`;
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [a, ca] = stops[i], [b, cb] = stops[i + 1];
+    if (v >= a && v <= b) {
+      const t = (v - a) / (b - a);
+      return `rgb(${Math.round(ca[0] + (cb[0] - ca[0]) * t)},${Math.round(ca[1] + (cb[1] - ca[1]) * t)},${Math.round(ca[2] + (cb[2] - ca[2]) * t)})`;
+    }
+  }
+  return "#fff";
+}
+const T850_STOPS = [
+  [-30, [49, 54, 149]], [-20, [69, 117, 180]], [-10, [116, 173, 209]],
+  [-5, [171, 217, 233]], [0, [255, 255, 255]], [5, [254, 224, 144]],
+  [10, [253, 174, 97]], [15, [244, 109, 67]], [20, [215, 48, 39]], [25, [165, 0, 38]],
+];
+const t850Color = (v) => interpColor(v, T850_STOPS);
+function precipStyle(mm) {
+  if (!Number.isFinite(mm) || mm < 0.5) return null;
+  if (mm < 1) return { fill: "#a7f3a0", opacity: 0.5 };
+  if (mm < 2) return { fill: "#4ade80", opacity: 0.6 };
+  if (mm < 5) return { fill: "#facc15", opacity: 0.7 };
+  if (mm < 10) return { fill: "#fb923c", opacity: 0.78 };
+  if (mm < 20) return { fill: "#ef4444", opacity: 0.82 };
+  return { fill: "#a21caf", opacity: 0.88 };
+}
+
+// ── Typografie ─────────────────────────────────────────────────────────────
+const FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif";
+const INK = "#ffffff";
+const INK_SOFT = "#bcd7ec";
+const INK_MUTED = "#8fb4d2";
+const FRAME = "#7fb0d6";
+// Farbwelt nach Vorbild klassischer Bodendruckkarten (MeteoSchweiz/DWD):
+// tiefblaues Meer, helles Land, weisse Isobaren.
+const SEA = "#12507f";
+const SEA_DEEP = "#0f4570";
+const LAND = "#b9d3a0";
+const LAND_LINE = "#3f7fb5";
+const ISOBAR = "#ffffff";
+const LABEL_INK = "#12507f";
+
+function text(x, y, content, opts = {}) {
+  const {
+    size = 11, weight = "400", fill = INK, anchor = "start",
+    italic = false, halo = 0, haloColor = "#0f4570", letter = 0, baseline = null, family = FONT,
+  } = opts;
+  const attrs = [
+    `x="${Number(x).toFixed(1)}"`,
+    `y="${Number(y).toFixed(1)}"`,
+    `font-family="${family.replace(/'/g, "&apos;")}"`,
+    `font-size="${size}"`,
+    `font-weight="${weight}"`,
+    `fill="${fill}"`,
+    `text-anchor="${anchor}"`,
+  ];
+  if (italic) attrs.push(`font-style="italic"`);
+  if (letter) attrs.push(`letter-spacing="${letter}"`);
+  if (baseline) attrs.push(`dominant-baseline="${baseline}"`);
+  if (halo) attrs.push(`stroke="${haloColor}" stroke-width="${halo}" stroke-opacity="0.85" paint-order="stroke fill"`);
+  return `<text ${attrs.join(" ")}>${escapeXml(String(content))}</text>`;
+}
+
+// Isobaren-Wert in einer hellen Box direkt auf der Linie (Referenzstil).
+function boxedLabel(x, y, content, opts = {}) {
+  const { size = 12, weight = "600", fill = LABEL_INK, bg = "#ffffff", bgOpacity = 0.92 } = opts;
+  const str = String(content);
+  const w = str.length * size * 0.62 + size * 0.7;
+  const h = size * 1.5;
+  return `<g><rect x="${(x - w / 2).toFixed(1)}" y="${(y - h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="${bg}" fill-opacity="${bgOpacity}" />` +
+    text(x, y, str, { size, weight, fill, anchor: "middle", baseline: "central" }) + `</g>`;
+}
+
+const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const SEA_LABELS = [
+  ["NORDATLANTIK", -17, 47, 13, 0], ["EUROPÄISCHES NORDMEER", 2, 67.5, 11, 0], ["BARENTSSEE", 38, 69.3, 10, 0],
+  ["NORDSEE", 3.2, 56.3, 10, 0], ["OSTSEE", 19.3, 57.6, 9.5, -35], ["GOLF VON BISKAYA", -5.8, 45.3, 8.5, 0],
+  ["MITTELMEER", 17.5, 34.6, 12, 0], ["SCHWARZES MEER", 34, 43.2, 9.5, 0],
+];
+const CITIES = [
+  ["London", -0.13, 51.5], ["Paris", 2.35, 48.86], ["Madrid", -3.7, 40.42], ["Rom", 12.5, 41.9],
+  ["Berlin", 13.4, 52.52], ["Zürich", 8.54, 47.37], ["Wien", 16.37, 48.21], ["Warschau", 21.01, 52.23],
+  ["Stockholm", 18.07, 59.33], ["Oslo", 10.75, 59.91], ["Kiew", 30.52, 50.45], ["Istanbul", 28.98, 41.01],
+  ["Reykjavík", -21.9, 64.15], ["Lissabon", -9.14, 38.72], ["Moskau", 37.62, 55.75], ["Athen", 23.73, 37.98],
+];
+function geoOverlaySvg() {
+  const F = `-apple-system, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif`;
+  const seas = SEA_LABELS.map(([n, lon, lat, size, rot]) => {
+    const [x, y] = project(lon, lat);
+    const spaced = String(n).split("").join("\u2009");
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" transform="rotate(${rot} ${x.toFixed(1)} ${y.toFixed(1)})" text-anchor="middle" font-family="${F}" font-size="${size}" font-style="italic" font-weight="500" letter-spacing="1.5" fill="#cfe6f7" fill-opacity="0.72" paint-order="stroke" stroke="#0b3a5e" stroke-opacity="0.5" stroke-width="2">${n}</text>`;
+  });
+  const cities = CITIES.map(([n, lon, lat]) => {
+    const [x, y] = project(lon, lat);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#1f2937" stroke="#ffffff" stroke-width="1.2"/><text x="${(x + 6).toFixed(1)}" y="${(y - 5).toFixed(1)}" font-family="${F}" font-size="11" font-weight="600" fill="#1f2937" paint-order="stroke" stroke="#ffffff" stroke-opacity="0.95" stroke-width="3" stroke-linejoin="round">${n}</text>`;
+  });
+  return { seas: seas.join("\n    "), cities: cities.join("\n    ") };
+}
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+function buildSvg(grids, targetUtcIso, extremaOverride) {
+  const { pressure: coarseGrid, t850: coarseT850, precip: coarsePrecip } = grids;
+
+  // Datentreue: Druck und Temperatur werden NICHT geglättet. Das Resampling
+  // (Catmull-Rom) läuft exakt durch die Originalstützwerte und dient nur dazu,
+  // dass Konturen nicht der Gitterkante folgen.
+  const UPSCALE = 2;
+  const grid = resample(coarseGrid, UPSCALE);
+  const t850 = resample(coarseT850, UPSCALE);
+  // Niederschlag: eine sehr leichte Glättung gegen Einzelzellen-Nadeln.
+  let precip = resample(smooth(coarsePrecip), UPSCALE);
+  precip = { ...precip, values: precip.values.map((v) => (v > 0 ? v : 0)) };
+  const fineStep = grid.step ?? STEP;
+
+  const t850Thresholds = [];
+  for (let t = -32; t <= 28; t += 2.5) t850Thresholds.push(t);
+  const t850Polys = d3contours().size([t850.cols, t850.rows]).thresholds(t850Thresholds)(t850.values);
+
+  const precipThresholds = [0.5, 1, 2, 5, 10, 20];
+  const precipPolys = d3contours().size([precip.cols, precip.rows]).thresholds(precipThresholds)(precip.values);
+
+  const lineThresholds = [];
+  for (let p = 960; p <= 1050; p += 5) lineThresholds.push(p);
+  const linePolys = d3contours().size([grid.cols, grid.rows]).thresholds(lineThresholds)(grid.values);
+
+  const date = new Date(targetUtcIso);
+  const title = "Bodendruckkarte Europa";
+  const validText = `Gültig ${WEEKDAYS[date.getUTCDay()]} ${pad2(date.getUTCDate())}.${pad2(date.getUTCMonth() + 1)}.${date.getUTCFullYear()} · ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())} UTC`;
+  const subtitle = "Bodendruck auf Meeresniveau (hPa) · Niederschlag 6 h";
+  const modelText = "Modell DWD ICON-EU · Isobaren je 5 hPa";
+
+  const oceanPath = geojsonToPath(europeOcean);
+  const landPath = geojsonToPath(europeCountries);
+  const lakesPath = geojsonToPath(europeLakes);
+  const coastlinePath = geojsonToPath(europeCoastlines);
+  const borderPath = geojsonToPath(europeCountryBorders);
+
+  const [fx1, fy1] = [PAD.left, PAD.top];
+  const fx2 = PAD.left + PLOT_W, fy2 = PAD.top + PLOT_H;
+
+  // Gradnetz + Randbeschriftung
+  const gridLines = [], gridLabels = [];
+  for (let lon = -20; lon <= 40; lon += 10) {
+    const [x1, y1] = project(lon, S), [x2, y2] = project(lon, N);
+    gridLines.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#ffffff" stroke-opacity="0.28" stroke-width="0.6" stroke-dasharray="3 4" />`);
+    const lbl = lon === 0 ? "0°" : `${Math.abs(lon)}°${lon < 0 ? "W" : "E"}`;
+    gridLabels.push(text(x1, fy2 - 10, lbl, { size: 8.5, weight: "600", fill: "#ffffff", anchor: "middle", halo: 2.4 }));
+  }
+  for (let lat = 35; lat <= 65; lat += 5) {
+    const [x1, y1] = project(W, lat), [x2, y2] = project(E, lat);
+    gridLines.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#ffffff" stroke-opacity="0.28" stroke-width="0.6" stroke-dasharray="3 4" />`);
+    gridLabels.push(text(fx1 + 6, y1 - 3, `${lat}°N`, { size: 8.5, weight: "600", fill: "#ffffff", halo: 2.4 }));
+  }
+
+  const t850Svg = [];
+  for (const poly of t850Polys) {
+    const d = contourToPath(poly.coordinates, true, { step: fineStep, iterations: 2, minArea: 25, tol: 4, curve: false });
+    if (!d) continue;
+    t850Svg.push(`<path d="${d}" fill="${t850Color(poly.value)}" fill-rule="evenodd" stroke="none" />`);
+  }
+  const precipSvg = [];
+  for (const poly of precipPolys) {
+    const style = precipStyle(poly.value);
+    if (!style) continue;
+    const d = contourToPath(poly.coordinates, true, { step: fineStep, iterations: 2, minArea: 40, tol: 4, curve: false });
+    if (!d) continue;
+    precipSvg.push(`<path d="${d}" fill="${style.fill}" fill-opacity="${style.opacity}" fill-rule="evenodd" stroke="none" />`);
+  }
+
+  // Isobaren + entzerrte Beschriftung
+  const contourSvg = [], labelSvg = [];
+  const placedLabels = [];
+  const MIN_LABEL_DIST = 70;
+  const LABEL_MARGIN = 26;
+  for (const poly of linePolys) {
+    const value = poly.value;
+    const isBold = value % 20 === 0;
+    const d = contourToPath(poly.coordinates, true, { step: fineStep, iterations: 2, minArea: 30, tol: 4 });
+    if (!d) continue;
+    contourSvg.push(`<path d="${d}" fill="none" stroke="${ISOBAR}" stroke-opacity="${isBold ? 1 : 0.9}" stroke-width="${isBold ? 2 : 1.3}" stroke-linejoin="round" stroke-linecap="round" />`);
+
+    let bestRing = null, bestLen = 0;
+    for (const p of poly.coordinates) for (const r of p) if (r.length > bestLen) { bestLen = r.length; bestRing = r; }
+    if (!bestRing || bestRing.length <= 10) continue;
+    // Mehrere Kandidatenpositionen entlang des Rings testen.
+    const candidates = [0.5, 0.25, 0.75, 0.1, 0.9];
+    for (const frac of candidates) {
+      const pt = bestRing[Math.floor(bestRing.length * frac) % bestRing.length];
+      const [lx, ly] = gridToPixel(pt[0], pt[1], fineStep);
+      if (lx < fx1 + LABEL_MARGIN || lx > fx2 - LABEL_MARGIN) continue;
+      if (ly < fy1 + LABEL_MARGIN || ly > fy2 - LABEL_MARGIN) continue;
+      if (placedLabels.some((p) => Math.hypot(p[0] - lx, p[1] - ly) < MIN_LABEL_DIST)) continue;
+      placedLabels.push([lx, ly]);
+      labelSvg.push(boxedLabel(lx, ly, Math.round(value), { size: 12, weight: isBold ? "700" : "600" }));
+      break;
+    }
+  }
+
+  // Druckzentren — Namen bleiben erhalten (FU Berlin, Aktion Wetterpate)
+  const extrema = extremaOverride ?? findExtrema(grid);
+  const extremaSvg = [];
+  const placedCenters = [];
+  for (const e of extrema) {
+    const [x, y] = project(e.lon, e.lat);
+    const isH = e.type === "H";
+    const color = "#ffffff";
+    const valueColor = isH ? "#ffe3d2" : "#d9ecff";
+    // Kollisionsvermeidung: bei Überlappung Beschriftung vertikal versetzen.
+    let shift = 0;
+    while (placedCenters.some((p) => Math.hypot(p[0] - x, p[1] - (y + shift)) < 52) && Math.abs(shift) < 60) {
+      shift = shift <= 0 ? -shift + 26 : -shift;
+    }
+    placedCenters.push([x, y + shift]);
+    const nameSvg = e.name
+      ? text(x, y - 34 + shift, e.name, { size: 14, weight: "700", italic: true, fill: color, anchor: "middle", halo: 3.2 })
+      : "";
+    extremaSvg.push(
+      `<g>${nameSvg}` +
+      text(x, y + shift, e.type, {
+        size: 52, weight: "800", fill: color, anchor: "middle", halo: 3.5, baseline: "central",
+      }) +
+      text(x, y + 38 + shift, `${Math.round(e.value)} hPa`, {
+        size: 12.5, weight: "700", fill: valueColor, anchor: "middle", halo: 3,
+      }) +
+      `</g>`,
+    );
+  }
+
+  // ── Legenden-Leiste ──────────────────────────────────────────────────────
+  const barY = fy2 + 14, barH = IMG_H - (fy2 + 14) - 26;
+  const lgY = barY + 26, lgH = 9;
+  const t850LgX = PAD.left + 14, t850LgW = 300;
+  const isoLegend = [
+    `<line x1="${t850LgX}" y1="${(lgY + 3).toFixed(1)}" x2="${t850LgX + 46}" y2="${(lgY + 3).toFixed(1)}" stroke="${ISOBAR}" stroke-width="1.3" stroke-opacity="0.9" />`,
+    text(t850LgX + 54, lgY + 6.5, "Isobare je 5 hPa", { size: 9.5, fill: INK_SOFT }),
+    `<line x1="${t850LgX}" y1="${(lgY + 18).toFixed(1)}" x2="${t850LgX + 46}" y2="${(lgY + 18).toFixed(1)}" stroke="${ISOBAR}" stroke-width="2" />`,
+    text(t850LgX + 54, lgY + 21.5, "Hauptisobare je 20 hPa", { size: 9.5, fill: INK_SOFT }),
+  ].join("");
+
+  const pLgX = IMG_W - PAD.right - 14 - 270, pLgW = 270;
+  const pSwatches = [{ v: 0.5, label: "0.5" }, { v: 1, label: "1" }, { v: 2, label: "2" }, { v: 5, label: "5" }, { v: 10, label: "10" }, { v: 20, label: "20+" }];
+  const pStep = pLgW / pSwatches.length;
+  const pItems = [], pLabels = [];
+  for (let i = 0; i < pSwatches.length; i++) {
+    const s = precipStyle(pSwatches[i].v + 0.01);
+    const x = pLgX + i * pStep;
+    pItems.push(`<rect x="${x.toFixed(1)}" y="${lgY}" width="${(pStep - 1.5).toFixed(1)}" height="${lgH}" fill="${s.fill}" fill-opacity="${s.opacity}" />`);
+    pLabels.push(text(x + pStep / 2, lgY + lgH + 11, pSwatches[i].label, { size: 9, fill: INK_SOFT, anchor: "middle" }));
+  }
+
+  const midX = (t850LgX + t850LgW + pLgX) / 2;
+  const generated = new Date();
+  const generatedText = `Erstellt ${pad2(generated.getUTCDate())}.${pad2(generated.getUTCMonth() + 1)}.${generated.getUTCFullYear()} ${pad2(generated.getUTCHours())}:${pad2(generated.getUTCMinutes())} UTC`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${IMG_W} ${IMG_H}" width="${IMG_W}" height="${IMG_H}">
+  <defs>
+    <clipPath id="plot"><rect x="${fx1}" y="${fy1}" width="${PLOT_W}" height="${PLOT_H}" /></clipPath>
+    <filter id="soften" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.2" /></filter>
+  </defs>
+  <rect width="${IMG_W}" height="${IMG_H}" fill="${SEA_DEEP}" />
+
+  <!-- Kopf -->
+  ${text(PAD.left, 30, title, { size: 23, weight: "700", fill: INK, letter: 0.2 })}
+  ${text(PAD.left, 48, subtitle, { size: 11.5, fill: INK_SOFT })}
+  ${text(IMG_W - PAD.right, 30, validText, { size: 13, weight: "600", fill: INK, anchor: "end" })}
+  ${text(IMG_W - PAD.right, 48, modelText, { size: 11.5, fill: INK_SOFT, anchor: "end" })}
+  <line x1="${PAD.left}" y1="${fy1 - 6}" x2="${IMG_W - PAD.right}" y2="${fy1 - 6}" stroke="${FRAME}" stroke-opacity="0.45" stroke-width="1" />
+
+  <!-- Karte -->
+  <g clip-path="url(#plot)">
+    <rect x="${fx1}" y="${fy1}" width="${PLOT_W}" height="${PLOT_H}" fill="${SEA}" />
+    <path d="${oceanPath}" fill="${SEA}" stroke="none" />
+    <path d="${landPath}" fill="${LAND}" stroke="none" />
+    <g opacity="0.42" filter="url(#soften)">${precipSvg.join("\n      ")}</g>
+    <path d="${lakesPath}" fill="${SEA}" stroke="${LAND_LINE}" stroke-width="0.35" />
+    <path d="${borderPath}" fill="none" stroke="#2e4f38" stroke-opacity="0.65" stroke-width="0.5" stroke-dasharray="2.5 2" stroke-linejoin="round" />
+    <path d="${coastlinePath}" fill="none" stroke="#0b3a5e" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round" />
+    ${geoOverlaySvg().seas}
+    ${gridLines.join("\n    ")}
+    ${contourSvg.join("\n    ")}
+    ${geoOverlaySvg().cities}
+    ${labelSvg.join("\n    ")}
+    ${extremaSvg.join("\n    ")}
+    ${gridLabels.join("\n    ")}
+  </g>
+  <rect x="${fx1}" y="${fy1}" width="${PLOT_W}" height="${PLOT_H}" fill="none" stroke="${FRAME}" stroke-opacity="0.5" stroke-width="1.2" />
+
+  <!-- Legende -->
+  <rect x="${PAD.left}" y="${barY}" width="${IMG_W - PAD.left - PAD.right}" height="${barH}" fill="#0c3b62" stroke="${FRAME}" stroke-opacity="0.3" />
+  ${text(t850LgX, lgY - 6, "Bodendruck", { size: 10, weight: "600", fill: INK })}
+  ${isoLegend}
+  ${text(midX, lgY - 6, "Druckzentren", { size: 10, weight: "600", fill: INK, anchor: "middle" })}
+  ${text(midX, lgY + 10, "H = Hoch · T = Tief", { size: 9.5, fill: INK_SOFT, anchor: "middle" })}
+  ${text(midX, lgY + 23, "Namen: Aktion Wetterpate, FU Berlin", { size: 9, fill: INK_MUTED, anchor: "middle" })}
+  ${text(pLgX, lgY - 6, "Niederschlag 6 h (mm)", { size: 10, weight: "600", fill: INK })}
+  ${pItems.join("\n  ")}
+  ${pLabels.join("\n  ")}
+
+  <!-- Fuss -->
+  ${text(PAD.left, IMG_H - 10, "Quelle: DWD ICON-EU via Open-Meteo · Namen: Aktion Wetterpate, FU Berlin · oberthurgauerwetter.ch", { size: 9.5, fill: INK_MUTED })}
+  ${text(IMG_W - PAD.right, IMG_H - 10, generatedText, { size: 9.5, fill: INK_MUTED, anchor: "end" })}
+</svg>`;
+}
+
+// ── Target picker + main ───────────────────────────────────────────────────
+function pickTargetTime(now = new Date()) {
+  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 12, 0, 0));
+  return tomorrow.toISOString().slice(0, 16);
+}
+function shiftHour(iso, deltaH) {
+  const d = new Date(`${iso}:00Z`);
+  d.setUTCHours(d.getUTCHours() + deltaH);
+  return d.toISOString().slice(0, 16);
+}
+
+// Exit codes:
+//   2 = no usable weather data
+//   3 = writing the file failed
+//   4 = SVG build failed
+//  99 = unexpected/unknown error
+class PhaseError extends Error {
+  constructor(phase, code, cause) {
+    super(`[${phase}] ${cause?.message ?? cause}`);
+    this.phase = phase;
+    this.code = code;
+    this.cause = cause;
+  }
+}
+
+async function main() {
+  const outFile = resolve(process.env.OUT_FILE ?? resolve(__dirname, "out/europe-pressure-latest.svg"));
+  const targetUtc = pickTargetTime();
+
+  console.log("[gen] phase=fetch");
+  const attempts = [
+    { model: "icon_seamless", target: targetUtc, label: "icon_seamless" },
+    { model: "ecmwf_ifs025", target: targetUtc, label: "ecmwf_ifs025" },
+    { model: "gfs_global", target: targetUtc, label: "gfs_global" },
+    { model: "icon_seamless", target: shiftHour(targetUtc, -6), label: "icon_seamless@-6h" },
+    { model: "icon_seamless", target: shiftHour(targetUtc, +6), label: "icon_seamless@+6h" },
+  ];
+
+  let raw = null, usedLabel = "", usedTarget = targetUtc, lastValid = 0, lastLabel = "";
+  for (const a of attempts) {
+    try {
+      const candidate = await fetchGrids(a.target, a.model);
+      const valid = candidate.pressure.values.filter((v) => Number.isFinite(v)).length;
+      console.log(`[gen] ${a.label} target=${a.target}: ${valid}/${candidate.pressure.values.length} valid`);
+      lastValid = valid;
+      lastLabel = a.label;
+      if (valid >= 100) { raw = candidate; usedLabel = a.label; usedTarget = a.target; break; }
+    } catch (e) {
+      console.warn(`[gen] attempt ${a.label} threw:`, e?.stack ?? e);
+    }
+  }
+  if (!raw) {
+    throw new PhaseError("fetch", 2, new Error(
+      `Zu wenige gültige Druckwerte (last=${lastValid}/${COLS * ROWS}, lastModel=${lastLabel}, target=${targetUtc})`
+    ));
+  }
+
+  console.log("[gen] phase=svg-build");
+  let svg, bytes;
+  try {
+    const grids = {
+      pressure: fillAndSmooth(raw.pressure, 1013, 3),
+      t850: fillAndSmooth(raw.t850, 0, 2),
+      precip: fillAndSmooth(raw.precip, 0, 2),
+    };
+    const baseExtrema = findExtrema(grids.pressure);
+    const namedExtrema = await attachFuBerlinNames(baseExtrema);
+    svg = buildSvg(grids, usedTarget, namedExtrema);
+    bytes = new TextEncoder().encode(svg);
+  } catch (e) {
+    throw new PhaseError("svg-build", 4, e);
+  }
+
+  console.log(`[gen] phase=write (${bytes.length} bytes)`);
+  try {
+    mkdirSync(dirname(outFile), { recursive: true });
+    writeFileSync(outFile, bytes);
+  } catch (e) {
+    throw new PhaseError("write", 3, e);
+  }
+
+  console.log(`[gen] done: ${usedLabel}, target ${usedTarget}, ${bytes.length} bytes`);
+}
+
+main().catch((e) => {
+  if (e instanceof PhaseError) {
+    console.error(`[gen] FAILED in phase=${e.phase} code=${e.code}: ${e.message}`);
+    if (e.cause?.stack) console.error(e.cause.stack);
+    process.exit(e.code);
+  }
+  console.error("[gen] FAILED with unexpected error:", e?.stack ?? e);
+  process.exit(99);
+});

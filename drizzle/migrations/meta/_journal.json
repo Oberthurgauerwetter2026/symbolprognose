@@ -43,6 +43,13 @@
       "when": 1795725976808,
       "tag": "0005_editorial_weather_report",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795862911827,
+      "tag": "0006_weather_report_sections",
+      "breakpoints": true
     }
   ]
 }

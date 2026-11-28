@@ -1,7 +1,9 @@
 import { createServerFn } from '@tanstack/react-start';
 import { createClient } from '@supabase/supabase-js';
 import { queryOptions } from '@tanstack/react-query';
-import { reportSchema, type ReportInput, type WeatherReport } from './weather-report';
+import { reportDays, reportSchema, type ReportInput, type WeatherReport } from './weather-report';
+
+const COLUMNS = 'title,situation,forecast_title,forecast,outlook_title,days,trend,published_at';
 
 export const getWeatherReport = createServerFn({ method: 'GET' }).handler(async (): Promise<{ report: WeatherReport | null; unavailable: boolean }> => {
   try {
@@ -17,9 +19,9 @@ export const getWeatherReport = createServerFn({ method: 'GET' }).handler(async 
         return fetch(input, { ...init, headers, signal: AbortSignal.timeout(8000) });
       } },
     });
-    const { data, error } = await sb.from('weather_reports').select('title,symbol,summary,body,published_at').eq('id', 'current').maybeSingle();
+    const { data, error } = await sb.from('weather_reports').select(COLUMNS).eq('id', 'current').maybeSingle();
     if (error) throw error;
-    return { report: data as WeatherReport | null, unavailable: false };
+    return { report: data ? { ...data, days: reportDays(data.days) } : null, unavailable: false };
   } catch { return { report: null, unavailable: true }; }
 });
 
@@ -32,9 +34,9 @@ export const publishWeatherReport = createServerFn({ method: 'POST' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const { data: saved, error } = await supabaseAdmin.from('weather_reports')
       .upsert({ id: 'current', ...report, published_at: new Date().toISOString() })
-      .select('title,symbol,summary,body,published_at').single();
+      .select(COLUMNS).single();
     if (error) throw new Error('Der Wetterbericht konnte nicht gespeichert werden. Bitte erneut versuchen.');
-    return saved as WeatherReport;
+    return { ...saved, days: reportDays(saved.days) } satisfies WeatherReport;
   });
 
 export const weatherReportQuery = () => queryOptions({

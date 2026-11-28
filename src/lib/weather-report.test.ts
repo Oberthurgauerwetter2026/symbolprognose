@@ -1,13 +1,32 @@
 import { describe, it, expect } from 'vitest';
-import { reportSchema } from './weather-report';
+import { nextWeekday, reportDays, reportSchema } from './weather-report';
 import { nearestLiveStation } from './weather-overview';
 
 describe('editorial weather report', () => {
-  it('requires all four editorial fields and preserves their content', () => {
-    const input = { title: 'Wetter am Bodensee', symbol: 15, summary: 'Schnee am Abend.', body: 'Am Abend sinkt die Schneefallgrenze.' };
+  const input = {
+    title: 'Zäher Hochnebel am See', situation: 'Ein Hoch bestimmt das Wetter.', forecast_title: 'Prognose bis Samstagabend',
+    forecast: 'Hochnebel mit sonnigen Phasen.', outlook_title: 'Aussichten bis Mittwoch',
+    days: [{ label: 'Sonntag', text: 'Tiefer Hochnebel.' }], trend: 'Hochdruckeinfluss.',
+  };
+  it('keeps the sections of a complete report', () => {
     expect(reportSchema.parse(input)).toEqual(input);
-    for (const key of ['title', 'summary', 'body']) expect(reportSchema.safeParse({ ...input, [key]: '' }).success).toBe(false);
-    expect(reportSchema.safeParse({ ...input, symbol: -1 }).success).toBe(false);
+  });
+  it('requires a title and a forecast, the other sections may stay empty', () => {
+    for (const key of ['title', 'forecast']) expect(reportSchema.safeParse({ ...input, [key]: ' ' }).success).toBe(false);
+    expect(reportSchema.safeParse({ ...input, situation: '', forecast_title: '', outlook_title: '', days: [], trend: '' }).success).toBe(true);
+  });
+  it('rejects an outlook day without weekday or text', () => {
+    expect(reportSchema.safeParse({ ...input, days: [{ label: '', text: 'Nebel.' }] }).success).toBe(false);
+    expect(reportSchema.safeParse({ ...input, days: [{ label: 'Montag', text: '' }] }).success).toBe(false);
+  });
+  it('drops incomplete stored days instead of failing the whole report', () => {
+    expect(reportDays([{ label: 'Montag', text: 'Regen.' }, { label: 'Dienstag' }, null])).toEqual([{ label: 'Montag', text: 'Regen.' }]);
+    expect(reportDays(null)).toEqual([]);
+  });
+  it('suggests the weekday after the last outlook day, or tomorrow for the first one', () => {
+    expect(nextWeekday([{ label: 'Sonntag' }], new Date('2026-11-28T10:00:00Z'))).toBe('Montag');
+    expect(nextWeekday([], new Date('2026-11-28T10:00:00Z'))).toBe('Sonntag');
+    expect(nextWeekday([{ label: 'Wochenende' }], new Date('2026-11-28T10:00:00Z'))).toBe('');
   });
 });
 describe('current temperature near the visitor', () => {

@@ -1,0 +1,16 @@
+{
+  "name": "pressure-map-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Europe surface pressure map for the weather report. Runs in GitHub Actions and is published to R2.",
+  "scripts": {
+    "generate": "node generate.mjs"
+  },
+  "dependencies": {
+    "d3-contour": "^4.0.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

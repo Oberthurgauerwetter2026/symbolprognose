@@ -274,27 +274,45 @@ export type Database = {
       weather_reports: {
         Row: {
           body: string
+          days: Json
+          forecast: string
+          forecast_title: string
           id: string
+          outlook_title: string
           published_at: string
+          situation: string
           summary: string
           symbol: number
           title: string
+          trend: string
         }
         Insert: {
           body?: string
+          days?: Json
+          forecast?: string
+          forecast_title?: string
           id?: string
+          outlook_title?: string
           published_at?: string
+          situation?: string
           summary?: string
           symbol?: number
           title?: string
+          trend?: string
         }
         Update: {
           body?: string
+          days?: Json
+          forecast?: string
+          forecast_title?: string
           id?: string
+          outlook_title?: string
           published_at?: string
+          situation?: string
           summary?: string
           symbol?: number
           title?: string
+          trend?: string
         }
         Relationships: []
       }

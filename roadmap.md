@@ -115,3 +115,9 @@
 # Unified editorial tool
 - [x] One hub at /admin with a single login and tabs for ticker, weather report, warnings and tools; old admin addresses open the same hub on their tab. Browser-checked on desktop and phone: login, all four tabs, draft kept across tabs, old addresses without a new login, no errors or overflow.
 - [ ] News as separate posts: not built yet; needs the user's decision on where news appears publicly.
+
+## Structured weather report
+- [x] Home tile: title, author photo and name, whole tile opens the report (no "Aus der Wetterredaktion" line, no symbol, no summary)
+- [x] Report page: header, Allgemeine Lage with pressure map, forecast, outlook days, trend
+- [x] Editor with weekday choice or free text
+- [ ] Pressure map appears once the GitHub workflow has published it to R2 (first run after the code reaches GitHub)

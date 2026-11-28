@@ -56,6 +56,7 @@ import { Route as ApiPublicAromeIngestTriggerRouteImport } from './routes/api/pu
 import { Route as ApiPublicDebugR2CacheRouteImport } from './routes/api/public/debug/r2-cache'
 import { Route as ApiPublicEmbedRegionLokalStaticRouteImport } from './routes/api/public/embed/region-lokal-static'
 import { Route as ApiPublicLightningIngestTriggerRouteImport } from './routes/api/public/lightning/ingest-trigger'
+import { Route as ApiPublicMapsEuropePressureDotsvgRouteImport } from './routes/api/public/maps/europe-pressure[.]svg'
 import { Route as ApiPublicMchIngestTriggerRouteImport } from './routes/api/public/mch/ingest-trigger'
 import { Route as ApiPublicOpenmeteoIngestTriggerRouteImport } from './routes/api/public/openmeteo/ingest-trigger'
 import { Route as ApiPublicRadarIngestTriggerRouteImport } from './routes/api/public/radar/ingest-trigger'
@@ -304,6 +305,12 @@ const ApiPublicLightningIngestTriggerRoute =
     path: '/api/public/lightning/ingest-trigger',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicMapsEuropePressureDotsvgRoute =
+  ApiPublicMapsEuropePressureDotsvgRouteImport.update({
+    id: '/api/public/maps/europe-pressure.svg',
+    path: '/api/public/maps/europe-pressure.svg',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicMchIngestTriggerRoute =
   ApiPublicMchIngestTriggerRouteImport.update({
     id: '/api/public/mch/ingest-trigger',
@@ -393,6 +400,7 @@ export interface FileRoutesByFullPath {
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
   '/api/public/lightning/ingest-trigger': typeof ApiPublicLightningIngestTriggerRoute
+  '/api/public/maps/europe-pressure.svg': typeof ApiPublicMapsEuropePressureDotsvgRoute
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
@@ -449,6 +457,7 @@ export interface FileRoutesByTo {
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
   '/api/public/lightning/ingest-trigger': typeof ApiPublicLightningIngestTriggerRoute
+  '/api/public/maps/europe-pressure.svg': typeof ApiPublicMapsEuropePressureDotsvgRoute
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
@@ -506,6 +515,7 @@ export interface FileRoutesById {
   '/api/public/debug/r2-cache': typeof ApiPublicDebugR2CacheRoute
   '/api/public/embed/region-lokal-static': typeof ApiPublicEmbedRegionLokalStaticRoute
   '/api/public/lightning/ingest-trigger': typeof ApiPublicLightningIngestTriggerRoute
+  '/api/public/maps/europe-pressure.svg': typeof ApiPublicMapsEuropePressureDotsvgRoute
   '/api/public/mch/ingest-trigger': typeof ApiPublicMchIngestTriggerRoute
   '/api/public/openmeteo/ingest-trigger': typeof ApiPublicOpenmeteoIngestTriggerRoute
   '/api/public/radar/ingest-trigger': typeof ApiPublicRadarIngestTriggerRoute
@@ -564,6 +574,7 @@ export interface FileRouteTypes {
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
     | '/api/public/lightning/ingest-trigger'
+    | '/api/public/maps/europe-pressure.svg'
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
@@ -620,6 +631,7 @@ export interface FileRouteTypes {
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
     | '/api/public/lightning/ingest-trigger'
+    | '/api/public/maps/europe-pressure.svg'
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
@@ -676,6 +688,7 @@ export interface FileRouteTypes {
     | '/api/public/debug/r2-cache'
     | '/api/public/embed/region-lokal-static'
     | '/api/public/lightning/ingest-trigger'
+    | '/api/public/maps/europe-pressure.svg'
     | '/api/public/mch/ingest-trigger'
     | '/api/public/openmeteo/ingest-trigger'
     | '/api/public/radar/ingest-trigger'
@@ -733,6 +746,7 @@ export interface RootRouteChildren {
   ApiPublicDebugR2CacheRoute: typeof ApiPublicDebugR2CacheRoute
   ApiPublicEmbedRegionLokalStaticRoute: typeof ApiPublicEmbedRegionLokalStaticRoute
   ApiPublicLightningIngestTriggerRoute: typeof ApiPublicLightningIngestTriggerRoute
+  ApiPublicMapsEuropePressureDotsvgRoute: typeof ApiPublicMapsEuropePressureDotsvgRoute
   ApiPublicMchIngestTriggerRoute: typeof ApiPublicMchIngestTriggerRoute
   ApiPublicOpenmeteoIngestTriggerRoute: typeof ApiPublicOpenmeteoIngestTriggerRoute
   ApiPublicRadarIngestTriggerRoute: typeof ApiPublicRadarIngestTriggerRoute
@@ -1073,6 +1087,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicLightningIngestTriggerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/maps/europe-pressure.svg': {
+      id: '/api/public/maps/europe-pressure.svg'
+      path: '/api/public/maps/europe-pressure.svg'
+      fullPath: '/api/public/maps/europe-pressure.svg'
+      preLoaderRoute: typeof ApiPublicMapsEuropePressureDotsvgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/mch/ingest-trigger': {
       id: '/api/public/mch/ingest-trigger'
       path: '/api/public/mch/ingest-trigger'
@@ -1173,6 +1194,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicDebugR2CacheRoute: ApiPublicDebugR2CacheRoute,
   ApiPublicEmbedRegionLokalStaticRoute: ApiPublicEmbedRegionLokalStaticRoute,
   ApiPublicLightningIngestTriggerRoute: ApiPublicLightningIngestTriggerRoute,
+  ApiPublicMapsEuropePressureDotsvgRoute:
+    ApiPublicMapsEuropePressureDotsvgRoute,
   ApiPublicMchIngestTriggerRoute: ApiPublicMchIngestTriggerRoute,
   ApiPublicOpenmeteoIngestTriggerRoute: ApiPublicOpenmeteoIngestTriggerRoute,
   ApiPublicRadarIngestTriggerRoute: ApiPublicRadarIngestTriggerRoute,

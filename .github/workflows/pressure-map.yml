@@ -1,0 +1,76 @@
+name: Pressure map (weather report)
+
+on:
+  schedule:
+    # Map for the following day from the 12Z model run (available ~16 UTC),
+    # with later slots and a morning run as safety net.
+    - cron: "15 16 * * *"
+    - cron: "15 19 * * *"
+    - cron: "15 5 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "pressure-map-generator/**"
+      - ".github/workflows/pressure-map.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: pressure-map
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          cd pressure-map-generator && npm ci --no-audit --no-fund
+          python -m pip install boto3
+
+      - name: Render map
+        working-directory: pressure-map-generator
+        env:
+          OUT_FILE: out/europe-pressure-latest.svg
+          LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
+        run: node generate.mjs
+
+      - name: Publish to R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          python - <<'PY'
+          import os, boto3
+          s3 = boto3.client(
+              "s3",
+              endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+              region_name="auto",
+          )
+          with open("pressure-map-generator/out/europe-pressure-latest.svg", "rb") as f:
+              body = f.read()
+          if len(body) < 20000 or b"</svg>" not in body[-200:]:
+              raise SystemExit("rendered map looks incomplete; keeping the published one")
+          s3.put_object(
+              Bucket=os.environ["R2_BUCKET"],
+              Key="maps/europe-pressure-latest.svg",
+              Body=body,
+              ContentType="image/svg+xml",
+              CacheControl="public, max-age=900",
+          )
+          print(f"published maps/europe-pressure-latest.svg ({len(body)} bytes)")
+          PY

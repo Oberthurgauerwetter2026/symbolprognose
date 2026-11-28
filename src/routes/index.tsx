@@ -7,7 +7,7 @@ import { describeHomeClick, rememberHomeAnchor, restoreHomePosition, takeHomeRet
 import { ArrowUpRight, MapPin, Search, Droplets, Snowflake } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
-import { WeatherReportView } from '@/components/weather-report-view';
+import { WeatherReportTile } from '@/components/weather-report-view';
 import { OverviewWeatherSymbol } from '@/components/overview-weather-symbol';
 import { OverviewHourlyForecast } from '@/components/overview-hourly-forecast';
 import { LocationSearch } from '@/components/location-search';
@@ -164,14 +164,14 @@ function WeatherOverview() {
       </div>
       <aside aria-label="Aktuell" className="hidden min-w-0 flex-col gap-4 pb-6 lg:flex">
         {radarTile(' flex flex-1 flex-col [&_.weather-product-image]:aspect-auto! [&_.weather-product-image]:min-h-44 [&_.weather-product-image]:flex-1')}
-        <WeatherReportView {...report} />
+        <WeatherReportTile {...report} morph={morph === '/wetterbericht'} onOpen={() => openCard('/wetterbericht')} />
       </aside>
      </div>
 
       <section aria-label="Wetterprodukte" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:hidden">
         {radarTile(' col-span-2')}{windTile}{warnTile}{stationTile}{satTile}{tickerTile(' col-span-2')}
       </section>
-      <div className="lg:hidden"><WeatherReportView {...report} /></div>
+      <div className="lg:hidden"><WeatherReportTile {...report} morph={morph === '/wetterbericht'} onOpen={() => openCard('/wetterbericht')} /></div>
 
       <section aria-label="Weitere Wetterprodukte" className="hidden pb-6 lg:block"><h2 className="mb-4 text-lg font-semibold">Weitere Wetterprodukte</h2><div className="grid grid-cols-4 gap-4 [&>a:not(.ticker-tile)>div:first-child]:aspect-[1.5]!">
         {stationTile}{windTile}{warnTile}
