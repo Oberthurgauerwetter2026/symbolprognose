@@ -2,7 +2,9 @@
 export type ExtremeStat = "min" | "max" | "current" | "gust" | "rain" | "wind" | "rainRate";
 export interface StationExtreme { id: string; name: string; lat: number; lon: number; min: number | null; max: number | null; current?: number | null; gust?: number | null; rain?: number | null;
   /** Aktueller Wind in km/h (Böe, sonst Mittelwind), Herkunftsrichtung in Grad, Regenrate in mm/h. */
-  wind?: number | null; windDir?: number | null; rainRate?: number | null }
+  wind?: number | null; windDir?: number | null; rainRate?: number | null;
+  /** Zeitpunkt der jüngsten gültigen Messung und Betreiber, für das Infofenster der Karte. */
+  measuredAt?: string | null; source?: "own" | "meteoswiss" }
 
 type ExtremeStation = Pick<StationExtreme, "id" | "name" | "lat" | "lon">;
 export interface ExtremeDailyReading { station_id: string; temp_min: number | null; temp_max: number | null; wind_max_gust?: number | null; rain_sum?: number | null }
@@ -49,12 +51,18 @@ export function stationReadings(stations: ExtremeStation[], daily: ExtremeDailyR
     // Wie die Live-Karte im Weather Hub: aktuelle Böe, sonst Mittelwind (Quelle m/s).
     const wind = fresh ? valid(measurement?.wind_gust) ?? valid(measurement?.wind_speed) : null;
     const rate = fresh ? valid(measurement?.rain_rate) : null;
-    return { ...station, current: fresh ? valid(measurement?.temperature) : null,
+    return { ...station, measuredAt: fresh ? measurement?.measured_at ?? null : null,
+      source: EXTREME_REFERENCE_STATIONS.some((ref) => ref.id === station.id) ? "meteoswiss" as const : "own" as const,
+      current: fresh ? valid(measurement?.temperature) : null,
       wind: wind !== null && wind >= 0 ? wind * 3.6 : null, windDir: fresh ? valid(measurement?.wind_dir) : null,
       rainRate: rate !== null && rate >= 0 ? rate : null,
       gust: gust !== null && gust >= 0 ? gust * 3.6 : null, rain: rain !== null && rain >= 0 ? rain : null };
   });
 }
+
+const COMPASS = ["N", "NNO", "NO", "ONO", "O", "OSO", "SO", "SSO", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+/** Himmelsrichtung, aus der der Wind kommt. */
+export const compass = (deg: number) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16] ?? "N";
 
 export const zurichDay = (ms: number) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit" }).format(ms);

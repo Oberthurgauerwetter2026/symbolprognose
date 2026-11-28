@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EXTREME_REFERENCE_STATIONS, parseStat, rankExtremes, stationExtremes, stationReadings, formatStationValue, zurichDay } from "./station-extremes";
+import { EXTREME_REFERENCE_STATIONS, parseStat, rankExtremes, stationExtremes, stationReadings, formatStationValue, zurichDay, compass } from "./station-extremes";
 import { productById } from "./ticker";
 
 const rows = [
@@ -77,6 +77,11 @@ describe("Neue Stationskarten", () => {
     assert.equal(row.wind, 18);
     assert.equal(row.windDir, 82);
     assert.equal(row.rainRate, 1.2);
+    assert.equal(row.source, "meteoswiss");
+    assert.equal(row.measuredAt, "2026-11-14T22:40:00Z");
+    assert.equal(stationReadings([{ id: "x", name: "Amriswil", lat: 47.5, lon: 9.3 }], [], [], now)[0].source, "own");
+    assert.equal(compass(82), "O");
+    assert.equal(compass(350), "N");
     assert.equal(formatStationValue(18, "wind"), "18 km/h");
     assert.equal(formatStationValue(1.2, "rainRate"), "1.2 mm/h");
     assert.equal(stationReadings(EXTREME_REFERENCE_STATIONS, daily, [{ ...live, wind_gust: null }], now)[0].wind, 7.2);
