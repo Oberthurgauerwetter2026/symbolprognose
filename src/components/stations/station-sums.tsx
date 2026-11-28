@@ -53,7 +53,12 @@ export function StationSums({ live, state, today, onChange }: { live: StationExt
         {step && <Stepper label={anchorLabel(step, anchor)} canPrev={anchor.slice(0, cut) > first.slice(0, cut)} canNext={anchor.slice(0, cut) < today.slice(0, cut)}
           onPrev={() => onChange({ anchor: shiftAnchor(step, anchor, -1, today) })} onNext={() => onChange({ anchor: shiftAnchor(step, anchor, 1, today) })} />}
         {period === 'custom' && <DateRange from={from} to={to} max={today} onChange={(f, t) => onChange({ from: f, to: t })} />}
-        {metric === 'temperature' && !now && view === 'map' && <div role="group" aria-label="Temperaturwert" className="flex gap-1">{TEMP_STATS.map(t => <Choice key={t.id} active={t.id === tempStat} onClick={() => onChange({ tempStat: t.id })}>{t.label}</Choice>)}</div>}
+        {metric === 'temperature' && !now && view === 'map' && <div className="flex shrink-0 items-center gap-2 sm:border-l sm:border-border sm:pl-3">
+          <span className="text-xs font-medium text-muted-foreground">Wert:</span>
+          <div role="group" aria-label="Temperaturwert" className="flex gap-0.5 rounded-md border border-border bg-accent/5 p-0.5">
+            {TEMP_STATS.map(t => <Choice key={t.id} active={t.id === tempStat} onClick={() => onChange({ tempStat: t.id })}>{t.label}</Choice>)}
+          </div>
+        </div>}
       </div>
     </div>
     <h2 className="px-1 py-3 text-sm font-semibold" data-testid="sums-heading">{what}{when ? <span className="font-normal text-muted-foreground"> · {when}</span> : null}</h2>
